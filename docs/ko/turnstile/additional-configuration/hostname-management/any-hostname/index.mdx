@@ -1,0 +1,80 @@
+---
+title: 호스트 이름 (Enterprise only)
+pcx_content_type: reference
+sidebar:
+  order: 4
+  label: 모든 호스트 이름
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/turnstile/additional-configuration/hostname-management/any-hostname/
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/additional-configuration/hostname-management/any-hostname/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+모든 호스트 이름 기능은 위젯 생성 중에 hostnames를 지정하는 요구 사항을 제거하고, 위젯을 모든 도메인에서 기능 할 수 있습니다.
+
+기본적으로 hostname validation은 위젯의 무단 사용을 방지하는 보안 기능입니다. 어떤 호스트 이름 제목은이 제한을 제거, 위젯 생성 중에 호스트 이름 필드를 선택.
+
+사용할 때, 위젯은 필수 호스트 이름 사양없이 만들 수 있으며 사전 구성없이 모든 도메인에 사용됩니다. hostname validation 보호는 또한 제거됩니다.
+
+## - 연혁
+
+모든 Hostname을 사용할 때 보안 위험을 줄이기 위해, 위젯 사용을 모니터링[사이트맵 회사 소개](/turnstile/turnstile-analytics/)예기치 않은 패턴을 식별하고 애플리케이션 코드를 검사하는 호스트 이름과 서버 측 유효성을 구현하고 사용`action`·`cData`위젯 사용 소스를 추적하고 위젯이 배포되는 곳을 확인합니다.
+
+모든 Hostname 기능을 사용할 때 보안 컨트롤을 유지하기 위해 서버 측 코드에서 추가 유효성을 구현하는 데 필수적입니다. 항상 유효한`hostname`Siteverify 응답의 필드.
+
+```js title="Example response"
+async function validateTurnstileWithHostname(token, expectedHostnames = []) {
+  const response = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      secret: process.env.TURNSTILE_SECRET,
+      response: token
+    })
+  });
+
+  const result = await response.json();
+
+  if (!result.success) {
+    return { valid: false, error: 'Token validation failed' };
+  }
+
+  //Hostname을 사용할 때 추가 호스트 이름 검증
+  if (expectedHostnames.length > 0 && !expectedHostnames.includes(result.hostname)) {
+    return { 
+      valid: false, 
+      error: 'Hostname not in allowed list',
+      hostname: result.hostname 
+    };
+  }
+
+  return { valid: true, data: result };
+}
+```
+
+예상치 못한 사용 패턴에 대한 Turnstile Analytics를 정기적으로 검토하고 Siteverify 응답의 호스트 이름 필드를 모니터링해야합니다. 예기치 않은 도메인에서 위젯 사용에 대한 경고를 설정할 수 있습니다.
+
+제품 정보`action`·`cData`위젯 사용 소스를 추적하는 매개 변수.
+
+```html
+<!--Widget 정보 추적-->
+<div class="cf-turnstile" 
+     data-sitekey="your-site-key"
+     data-action="customer-portal"
+     data-cdata="tenant-123"></div>
+```
+
+***
+
+## 사용 사례
+
+어떤 호스트 이름 기능은 고객에게 특히 귀중합니다.
+
+- 다양한 도메인 포트폴리오를 통해 개인적으로 관리할 수 있습니다.
+- 동적 하위 도메인 생성 및 자주 subdomains 또는 고객 별 도메인을 만듭니다.
+- 다양한 고객 도메인을 제공하는 SaaS 플랫폼과 같은 멀티텐넌트 애플리케이션.
+- 다양한 시효 및 개발 영역에서 테스트하는 개발 환경.

@@ -1,0 +1,87 @@
+---
+pcx_content_type: concept
+source: https://support.cloudflare.com/hc/en-us/articles/4406889048077-FAQs-for-Cryptographic-Attestation-of-Personhood
+title: 암호학적 인격 증명
+
+---
+
+Cloudflare는 CAPTCHA 인증의 [대안](https://blog.cloudflare.com/introducing-cryptographic-attestation-of-personhood/)으로 Cryptographic Attestation of Personhood(CAP)를 개발했습니다.
+
+CAP를 사용하면 CAPTCHA 퍼즐을 푸는 대신 하드웨어 키를 터치해 자신이 정당한 웹사이트 방문자임을 증명할 수 있습니다.
+
+이 문서에서는 사용성과 개인정보 보호 문제에 대한 일반적인 질문에 답변합니다.
+
+[데모 사이트](https://cloudflarechallenge.com/)에서 CAP를 직접 시험해 볼 수도 있습니다.
+
+## 개인정보 보호 관련 질문
+
+대부분의 개인정보 보호 우려에 대한 답변은 다음 표에 요약되어 있습니다.
+
+| 속성                                                 | Cloudflare가 할 수 있는 일                          | Cloudflare가 실제로 하는 일 |
+| ---------------------------------------------------- | --------------------------------------------------- | --------------------------- |
+| 생체 정보 수집(지문 또는 얼굴 사진)                 | 아니요                                              | 해당 없음                   |
+| 하드웨어 인증기 정보 수집                            | 예, 배치 내 키 수 수집으로 제한됨                  | 예, 가능한 경우             |
+
+아니요. Cloudflare는 생체 정보를 수집할 수 없습니다. CAP 프로세스는 [기본적으로 생체 정보 수집을 방지하는](https://www.w3.org/TR/webauthn-2/#sctn-biometric-privacy) WebAuthn API를 사용합니다. 기기에서 지문 센서와 같은 방식으로 생체 인증을 요청하더라도, 모든 과정은 로컬에서 이루어집니다.
+
+따라서 Cloudflare는 사용자의 생체 데이터를 절대 볼 수 없으며, 해당 데이터는 기기에 남아 있습니다. 기기가 일치 여부를 확인하면 기본적인 attestation 메시지만 전송합니다. 즉, 기기는 "신뢰할 수 있는 이 장치에서 누군가가 올바르게 지문을 입력했다"는 사실만 증명하는 메시지를 보내며, 지문 자체는 절대 전송하지 않습니다.
+
+예. Cloudflare는 키에 대한 제한된 양의 데이터를 수집합니다. 검증 목적으로 키 제조사와 배치 식별자(배치당 [최소 100,000개](https://fidoalliance.org/specs/fido-uaf-v1.1-ps-20170202/fido-uaf-protocol-v1.1-ps-20170202.html#full-basic-attestation) 키)를 저장합니다. Cloudflare 관점에서 사용자의 키는 같은 배치의 다른 모든 키와 구분되지 않습니다.
+
+일부 자체 서명 키와 특정 제조사의 키는 [이 요구 사항을 충족하지 않는 것으로 확인](https://www.chromium.org/security-keys)되었으며, 온라인 개인정보 위험을 최소화하려는 경우 이러한 키는 피해야 합니다.
+
+***
+
+Cryptographic Attestation of Personhood를 설정한 방식에 대한 자세한 내용은 [소개 블로그 게시물](https://blog.cloudflare.com/introducing-cryptographic-attestation-of-personhood/)을 참조하십시오.
+
+***
+
+## 어떤 장치가 허용되고 허용되지 않나요?
+
+### 허용되는 장치
+
+CAP는 다양한 하드웨어 인증기를 지원합니다.
+
+* **로밍(크로스 플랫폼) 인증기**:
+  * *지원됨*: 보안상의 이유로 폐기되지 않은 한, [FIDO Metadata Service 3.0](https://fidoalliance.org/metadata/)에 있는 모든 보안 키
+  * *예시*: YubiKeys, HyperFIDO 키, Thetis FIDO U2F 키
+* **플랫폼 인증기**:
+  * *예시*: iOS 모바일 기기 및 macOS 노트북의 Apple Touch ID 및 Face ID, 지문 인식기를 갖춘 Android 모바일 기기, Windows Hello
+
+### 알려진 제한 사항
+
+대부분의 웹 브라우저와 WebAuthn 지원 인증기 조합은 작동하지만, WebAuthn attestation과 관련된 일부 알려진 호환성 문제가 있어 CAP가 제대로 동작하지 않을 수 있습니다.
+
+* **기본 CAP**:
+  * *macOS 데스크톱*: TouchID를 사용하려면 브라우저가 Safari여야 합니다.
+  * *Android*: 브라우저가 Chrome이어야 합니다.
+* **영지식 증명이 포함된 CAP**:
+  * *Apple 플랫폼 인증기*(예: Touch ID/Face ID가 있는 iPhone)는 [영지식 증명 시스템](https://blog.cloudflare.com/introducing-zero-knowledge-proofs-for-private-web-attestation-with-cross-multi-vendor-hardware/)과 호환되지 않습니다. 이 경우 추가 조치 없이 즉시 기본 CAP 경로로 리디렉션됩니다. Apple은 추적을 차단하면서 인증기의 유효성을 보여주는 개인정보 보호 중심의 [Apple Anonymous Attestation](https://www.w3.org/TR/webauthn/#sctn-apple-anonymous-attestation)을 사용하므로, 이 방식 역시 높은 수준의 개인정보 보호를 유지합니다.
+
+생태계가 발전하고 Cloudflare가 다양한 조합을 계속 테스트함에 따라 이 목록은 지속적으로 업데이트됩니다.
+
+## 해커가 Cryptographic Attestation of Personhood를 우회할 수 있나요?
+
+CAP는 봇을 식별하고 차단하기 위한 여러 기술 중 하나입니다. 지금까지 Cloudflare는 CAP 보안 시스템을 시험하려는 몇 가지 시도를 확인했으며, 예를 들어 [신중하게 실행되고 잘 문서화된 테스트](https://betterappsec.com/building-a-webauthn-click-farm-are-captchas-obsolete-bfab07bb798c)가 있습니다. 해당 테스트를 다룬 블로그 게시물에서도 이 방법이 Cloudflare 위협 모델을 깨지 못한다고 명시하고 있습니다.
+
+이는 CAP가 깨졌다는 뜻이 아니라, 기존 CAPTCHA 모델에 비해 공격 비용을 높인다는 점을 보여줍니다.
+
+## 키를 잃어버리면 어떻게 되나요?
+
+Yubikey와 같은 필요한 하드웨어가 없다면, 일반 CAPTCHA 문제(예: 사진 선택)를 계속 해결할 수 있습니다.
+
+## 일반적인 오류 코드는 무엇이며, 각각 무슨 의미인가요?
+
+* **Unsupported\_att\_fmt**:
+  * *원인*: 인증기가 지원되지 않는 attestation 형식(브라우저와 키의 조합)을 사용하고 있습니다. *Firefox*에서 "키 익명화" 옵션을 선택한 경우에도 발생합니다.
+  * *해결 방법*: 이 오류가 [영지식 버전의 CAP](https://blog.cloudflare.com/introducing-zero-knowledge-proofs-for-private-web-attestation-with-cross-multi-vendor-hardware/) 중 발생하면 자동으로 기본 CAP 흐름으로 리디렉션됩니다. 기본 CAP도 실패하면 지원되는 다른 하드웨어 장치와 브라우저 조합을 시도하거나 CAPTCHA를 선택하십시오.
+* **Unsupported\_issuer**:
+  * *원인*: 현재 키가 지원되지 않습니다.
+  * *해결 방법*: [지원되는 키](#허용되는-장치)를 사용하십시오.
+
+## 관련 리소스
+
+* [https://cloudflarechallenge.com](https://cloudflarechallenge.com/) (데모 사이트)
+* [Introducing Cryptographic Attestation of Personhood](https://blog.cloudflare.com/introducing-cryptographic-attestation-of-personhood/) (블로그)
+* [Expanding Crypotgraphic Attestation of Personhood](https://blog.cloudflare.com/cap-expands-support/) (블로그)
+* [Introducing Zero-Knowledge Proofs](https://blog.cloudflare.com/introducing-zero-knowledge-proofs-for-private-web-attestation-with-cross-multi-vendor-hardware/) (블로그)

@@ -1,0 +1,115 @@
+---
+title: API를 통해 Snippets 구성
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API를 통해 구성
+head:
+  - tag: title
+    content: API를 통해 Snippets 구성
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/create-api/'
+translation_source_md: 'https://developers.cloudflare.com/rules/snippets/create-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+Snippets를 만들 수 있습니다.[모델 번호: Cloudflare](/fundamentals/api/).
+
+## 자주 묻는 질문
+
+더 보기[API 토큰](/fundamentals/api/get-started/create-token/)Snippets를 관리하기 위해 API 요청에서 사용하는 것은 적어도 다음과 같은 권한이 있어야합니다.
+
+- *지역 명소* > *뚱 베어* > *제품정보*
+
+:::참조
+이 권한을 가진 토큰은 이 페이지에서 설명된 Snippets 엔드포인트에만 유효합니다. 상호 작용할 수 없습니다.`http_request_snippets`단계 via[규칙 세트 API](/ruleset-engine/rulesets-api/).
+:::
+
+## 이름 \*
+
+완전한 엔드포인트를 얻기 위해, 아래에 나열된 Snippets 엔드포인트를 Cloudflare API 기본 URL에 추가하십시오:
+
+```txt
+https://api.cloudflare.com/client/v4
+```
+
+더 보기`{zone_id}`인수는[지역 ID](/fundamentals/account/find-account-and-zone-ids/)(진수 문자열). QXQX0002XQQ 대시보드에서 이 값을 찾을 수 있습니다.
+
+다음 테이블은 사용할 수있는 작업을 요약합니다.
+
+| - 연혁                        | Verb + 엔드포인트                                           |
+| --------------------------- | ------------------------------------------------------ |
+| 모든 코드 snippets 목록           | `GET /zones/{zone_id}/snippets`                        |
+| 생성/업데이트 코드 snippet          | `PUT /zones/{zone_id}/snippets/{snippet_name}`         |
+| 코드 snippet 세부 사항 보기         | `GET /zones/{zone_id}/snippets/{snippet_name}`         |
+| 코드 snippet 콘텐츠              | `GET /zones/{zone_id}/snippets/{snippet_name}/content` |
+| 코드 스니펫 삭제                   | `DELETE /zones/{zone_id}/snippets/{snippet_name}`      |
+| snippet 규칙                  | `GET /zones/{zone_id}/snippets/snippet_rules`          |
+| Create/update/delete 스니펫 규칙 | `PUT /zones/{zone_id}/snippets/snippet_rules`          |
+| 모든 스니펫 규칙 삭제                | `DELETE /zones/{zone_id}/snippets/snippet_rules`       |
+
+## API 호출
+
+### 생성/업데이트 코드 snippet
+
+Snippet을 만들거나 업데이트하려면 다음을 사용하십시오.`PUT`이름 \* 스니펫은`$SNIPPET_NAME`그리고 몸은 JavaScript 부호를 포함합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/snippets/{snippet_name}"
+  method="PUT"
+  form={{
+  	files: "@example.js",
+  	metadata: '{"main_module": "example.js"}',
+  }}
+/>
+
+스니펫의 이름은 문자만 포함할 수 있습니다.`a-z`, `0-9`·`_`(underscore). 이름은 영역의 상황에 독특해야합니다. 스니펫을 만드는 후 스니펫 이름을 변경할 수 없습니다.
+
+필요한 신체 매개 변수는:
+
+- `files`: JavaScriptXQ 코드를 가진 파일.
+- `metadata`: 객체 포함`main_module`업로드 파일의 파일 이름을 일치해야합니다.
+
+이 예제를 만들기 위해 JavaScript 코드를 이름으로 저장하십시오.`example.js`, 다음 실행`curl`명령과`PUT`폴더에서 요청`example.js`위치.
+
+```json title="Example response"
+{
+	"errors": [],
+	"messages": [],
+	"success": true,
+	"result": {
+		"created_on": "2023-07-24-00:00:00",
+		"modified_on": "2023-07-24-00:00:00",
+		"snippet_name": "snippet_name_01"
+	}
+}
+```
+
+새로운 스니펫을 배포하려면[snippet 규칙 만들기](#createupdatedelete-snippet-rules). 스니펫 규칙의 표현은 스니펫 코드가 실행될 때 정의됩니다.
+
+### Create/update/delete 스니펫 규칙
+
+:::카트로션
+이 엔드포인트를 사용하여 새로운 규칙을 만들고 기존 규칙을 유지하면 요청 신체의 모든 규칙을 포함해야합니다. 기존 규칙을 삭제하면 해당 규칙을 삭제합니다.
+주요 특징
+
+코드 스니펫을 만들면 규칙에 연결할 수 있습니다. 다음을 통해 수행됩니다.`PUT`요청하기`snippet_rules`끝점.
+
+<APIRequest
+  path="/zones/{zone_id}/snippets/snippet_rules"
+  method="PUT"
+  json={{
+  	rules: [
+  		{
+  			description: "Trigger snippet on specific cookie",
+  			enabled: true,
+  			expression: 'http.cookie eq "a=b"',
+  			snippet_name: "snippet_name_01",
+  		},
+  	],
+  }}
+/>

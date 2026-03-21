@@ -1,0 +1,208 @@
+---
+title: 위탁된 URL
+pcx_content_type: concept
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/api/s3/presigned-urls/'
+translation_source_md: 'https://developers.cloudflare.com/r2/api/s3/presigned-urls/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {Tabs, TabItem, LinkCard } from "~/components";
+
+지정된 URL은[S3 개념](https://docs.aws.amazon.com/AmazonS3/latest/userguide/using-presigned-url.html)API 자격 증명을 만료하지 않고 개체에 임시 액세스를 부여합니다. 지정된 URL에는 URL 자체의 서명 매개 변수가 포함되어 있으며 URL을 사용하여 특정 작업을 수행 할 수 있습니다.`GetObject`또는`PutObject`) URL이 만료될 때까지 특정 객체에.
+
+사용자는 R2에 파일을 직접 업로드하거나 시간 제한 다운로드 링크를 제공 할 수 있도록 특정 개체에 임시 액세스를 부여하는 데 이상적입니다.
+
+지정된 URL을 생성하려면, 지정합니다:
+
+1. **자원 식별자**: 계정 ID, 버킷 이름 및 객체 경로
+2. **- 연혁**: S3 API 작업 허용 (GET, PUT, HEAD, 또는 DELETE)
+3. **뚱 베어**: 1초에서 7일(604,800초)
+
+서명된 URL은 R2XQ와 통신 없이 클라이언트 측 생성됩니다, 당신의 R2 API 자격 증명과 AWS 서명 버전 4 서명 알고리즘의 구현.
+
+## 할당된 URL 생성
+
+### 자주 묻는 질문
+
+- [계정 ID](/fundamentals/account/find-account-and-zone-ids/)(S3 엔드포인트 URL 구성)
+- [R2 API 토큰](/r2/api/tokens/)(액세스 키 ID 및 비밀 액세스 키)
+- AWS SDK 또는 호환 S3 클라이언트 라이브러리
+
+### SDK 예제
+
+<Tabs>
+  <TabItem label="JavaScript">
+    ```ts
+    import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+    import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+    const S3 = new S3Client({
+    	region: "auto", //SDK에 의해 필요하지만 R2XQ에 의해 사용되지 않음
+    	//Cloudflare 계정 ID 제공
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+    	credentials: {
+    		accessKeyId: '<ACCESS_KEY_ID>',
+    		secretAccessKey: '<SECRET_ACCESS_KEY>',
+    	},
+    });
+
+    //읽기에 대한 사전 서명 된 URL 생성 (GET)
+    const getUrl = await getSignedUrl(
+    	S3,
+    	new GetObjectCommand({ Bucket: "my-bucket", Key: "image.png" }),
+    	{ expiresIn: 3600 }, //1 시간 동안 유효
+    );
+    //모델 번호: https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/image.png?X-Amz-Algorithm=...
+
+    //작성을위한 사전 서명 된 URL 생성 (PUT)
+    //ContentType을 지정하여 특정 파일 유형에 업로드
+    const putUrl = await getSignedUrl(
+    	S3,
+    	new PutObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "image.png",
+    		ContentType: "image/png",
+    	}),
+    	{ expiresIn: 3600 },
+    );
+    ```
+  </TabItem>
+
+  <TabItem label="Python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+        service_name="s3",
+        #Cloudflare 계정 ID 제공
+        endpoint_url='https://<ACCOUNT_ID>.r2.cloudflarestorage.com',
+        #API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+        aws_access_key_id='<ACCESS_KEY_ID>',
+        aws_secret_access_key='<SECRET_ACCESS_KEY>',
+        region_name="auto", #SDK에 의해 필요하지만 R2
+    )
+
+    #읽기에 대한 사전 서명 된 URL 생성 (GET)
+    get_url = s3.generate_presigned_url(
+    	'get_object',
+    	Params={'Bucket': 'my-bucket', 'Key': 'image.png'},
+    	ExpiresIn=3600  #1 시간 동안 유효
+    )
+    #모델 번호: https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/image.png?X-Amz-Algorithm=...
+
+    #작성을위한 사전 서명 된 URL 생성 (PUT)
+    #ContentType을 지정하여 특정 파일 유형에 업로드
+    put_url = s3.generate_presigned_url(
+    	'put_object',
+    	Params={
+    		'Bucket': 'my-bucket',
+    		'Key': 'image.png',
+    		'ContentType': 'image/png'
+    	},
+    	ExpiresIn=3600
+    )
+    ```
+  </TabItem>
+
+  <TabItem label="제품정보">
+    ```sh
+    #읽기에 대한 사전 서명 된 URL 생성 (GET)
+    #AWS CLI presign 명령 기본값은 작업을 수행
+    aws s3 presign --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com \
+      s3://my-bucket/image.png \
+      --expires-in 3600
+
+    #산출:
+    #모델 번호: https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/image.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=...
+
+    #참고: AWS CLI presign 명령은 오직 GET 작업을 지원합니다.
+    #PUT 작업의 경우, 위의 SDK 예제 중 하나를 사용합니다.
+    ```
+  </TabItem>
+</Tabs>
+
+완전한 예와 추가 작업을 위해서는 SDK-specific 문서를 참조하세요:
+
+- [JavaScript를 위한 AWS SDK](/r2/examples/aws/aws-sdk-js-v3/#generate-presigned-urls)
+- [Python (Boto3)를 위한 AWS SDK](/r2/examples/aws/boto3/#generate-presigned-urls)
+- [AWS 클립](/r2/examples/aws/aws-cli/#generate-presigned-urls)
+- [AWS SDK](/r2/examples/aws/aws-sdk-go/#generate-presigned-urls)
+- [PHP 용 AWS SDK](/r2/examples/aws/aws-sdk-php/#generate-presigned-urls)
+
+### 좋은 관행
+
+사전 서명 된 URL을 생성 할 때, 당신은 학대를 제한 할 수 있습니다 :
+
+- **콘텐츠 유형 제한**: 지정`Content-Type`SDK의 매개 변수에. 서명은이 헤더를 포함하므로 업로드는 실패합니다.`403/SignatureDoesNotMatch`클라이언트가 다른 것을 보낼 경우 오류`Content-Type`업로드 요청.
+- **CORS 구성**: 사전 서명된 URL이 브라우저에서 사용할 경우, 설정[CORS 규칙](/r2/buckets/cors/#use-cors-with-a-presigned-url)당신의 물통에 어떤 근원든지 요구에 만들 수 있는 통제.
+
+## 할당된 URL 사용
+
+생성되면 HTTP 엔드포인트와 같은 사전 서명된 URL을 사용합니다. 서명은 URL에 내장되어 있으므로 추가 인증 헤더가 필요하지 않습니다.
+
+```sh
+#Get presigned URL을 사용하여 다운로드
+curl "https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/image.png?X-Amz-Algorithm=..."
+
+#PUT presigned URL을 사용하여 업로드
+curl -X PUT "https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/image.png?X-Amz-Algorithm=..." \
+  --data-binary @image.png
+```
+
+웹 브라우저, 모바일 앱 또는 HTTP 클라이언트에서 사전 서명된 URL도 사용할 수 있습니다. 동일한 할당 된 URL은 만료 될 때까지 여러 번 재사용 할 수 있습니다.
+
+## URL 예시
+
+다음은 R2 API 자격 증명 및 AWS 서명 버전 4 서명 프로세스를 따르는 사전 서명 된 URL의 예입니다.
+
+```
+https://my-bucket.123456789abcdef0123456789abcdef.r2.cloudflarestorage.com/photos/cat.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=CFEXAMPLEKEY12345%2F20251201%2Fauto%2Fs3%2Faws4_request&X-Amz-Date=20251201T180512Z&X-Amz-Expires=3600&X-Amz-Signature=8c3ac40fa6c83d64b4516e0c9e5fa94c998bb79131be9ddadf90cefc5ec31033&X-Amz-SignedHeaders=host&x-amz-checksum-mode=ENABLED&x-id=GetObject
+```
+
+이 예에서, 이 선행 된 URL은 수행`GetObject`객체에`photos/cat.png`물통 안에`my-bucket`계정에서 ID`123456789abcdef0123456789abcdef`. 이 할당된 URL을 구성하는 중요한 서명 매개변수는:
+
+- `X-Amz-Algorithm`: URL을 서명하는 데 사용되는 알고리즘을 식별합니다.
+- `X-Amz-Credential`: 서명을 계산하기 위해 사용되는 자격 증명에 대한 정보를 포함합니다.
+- `X-Amz-Date`: 서명이 생성되면 날짜와 시간 (ISO 8601 형식).
+- `X-Amz-Expires`: 사전 서명 된 URL이 유효하다는 초의 지속 시간은 시작`X-Amz-Date`.
+- `X-Amz-Signature`: URL이 비밀 키를 사용하여 서명되었습니다.
+- `X-Amz-SignedHeaders`: 서명 계산에 포함 된 HTTP 헤더를 나열합니다.
+
+:::참조
+서명 매개 변수 (e.g.`X-Amz-Algorithm`, `X-Amz-Credential`, `X-Amz-Date`, `X-Amz-Expires`, `X-Amz-Signature`)와 탬퍼 할 수 없습니다. 자원, 운영, 또는 만료를 수정하는 것은 결과적으로`403/SignatureDoesNotMatch`오류.
+주요 특징
+
+## 지원된 가동
+
+R2는 다음 HTTP 방법의 사전 서명된 URL을 지원합니다:
+
+- `GET`: 버킷에서 객체를 태워
+- `HEAD`: 버킷에서 객체의 메타 데이터를 Fetch
+- `PUT`: 버킷에 객체를 업로드
+- `DELETE`: 버킷에서 객체 삭제
+
+`POST`(Multipart form uploads via HTML form)는 현재 지원되지 않습니다.
+
+## 보안 고려사항
+
+Bearer 토큰으로 사전 서명된 URL을 취급합니다. URL을 가진 사람은 만료될 때까지 지정된 가동을 실행할 수 있습니다. 사전 서명된 URL은 의도한 수신자만 공유하고 민감한 작업에 대한 짧은 만료 시간을 고려합니다.
+
+## 주문 영역
+
+할당된 URL은 S3 API 도메인과 함께 작동 (`<ACCOUNT_ID>.r2.cloudflarestorage.com`) 및 사용자 정의 도메인과 함께 사용할 수 없습니다.
+
+R2 버킷과 인증이 필요한 경우 사용자 정의 도메인 (공동 버킷)을 통해 액세스[WAF HMAC 검증 기능](/ruleset-engine/rules-language/functions/#hmac-validation)(Pro plan 이상 필요).
+
+## 관련 자료
+
+<LinkCard title="R2 API 토큰" href="/r2/api/tokens/" description="사전 서명된 URL을 생성하는 자격 증명을 만듭니다." />
+
+<LinkCard title="공공 버킷" href="/r2/buckets/public-buckets/" description="인증없이 공공 읽는 접근에 대한 대안 접근." />
+
+<LinkCard title="R2는 WorkersXQ에서 묶습니다" href="/r2/api/workers/workers-api-usage/" description="서버 측에 대한 대안 R2 내장 인증과 액세스." />
+
+<LinkCard title="Storing user 생성된 내용" href="/reference-architecture/diagrams/storage/storing-user-generated-content/" description="R2로 사용자 업로드를 처리하기위한 아키텍처 가이드." />

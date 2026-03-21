@@ -1,0 +1,179 @@
+---
+pcx_content_type: example
+title: 건조 ORM
+sidebar:
+  order: 3
+meta:
+  title: MySQL을 위한 Hyperdrive를 가진 Drizzle ORM 사용하기
+reviewed: 2025-05-12T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/mysql-drivers-and-libraries/drizzle-orm/
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/mysql-drivers-and-libraries/drizzle-orm/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Steps } from "~/components";
+
+[건조 ORM](https://orm.drizzle.team/)유형 안전에 초점과 경량 TypeScript ORM입니다. 이 예제는 Cloudflare HyperdriveXQ를 HyperdriveXQ를 통해 MySQL을 사용하는 방법을 설명합니다.
+
+## 자주 묻는 질문
+
+- Cloudflare 계정 Workers 액세스
+- MySQL 데이터베이스
+- ·[MySQL 데이터베이스에 Hyperdrive 구성](/hyperdrive/get-started/#3-connect-hyperdrive-to-a-database)
+
+## 1. Drizzle 설치
+
+Drizzle ORM과 같은 의존성을 설치하십시오.[사이트맵](https://github.com/sidorares/node-mysql2)운전사:
+
+```sh
+#mysql2 v3.13.0 이상 필요
+npm i drizzle-orm mysql2 dotenv
+npm i -D drizzle-kit tsx @types/node
+```
+
+필요한 Node.js 호환성 플래그 및 Hyperdrive 바인딩을 추가하십시오`wrangler.jsonc`파일 :
+
+<Render file="hyperdrive-node-compatibility-requirement" product="hyperdrive" />
+
+## 2. Drizzle 구성
+
+### 2.1. 스키마 정의
+
+Drizzle ORM과 함께, 우리는 TypeScript의 스키마를 정의합니다.
+
+<Steps>
+  1. 폴더 만들기`/db/`내 계정`/src/`.
+  2. 이름 \*`schema.ts`파일.
+  3. 내 계정`schema.ts`, 정의`users`아래와 같이 표.
+
+     ```ts title="src/db/schema.ts"
+     //프로젝트
+     import { mysqlTable, int, varchar, timestamp } from "drizzle-orm/mysql-core";
+
+     export const users = mysqlTable("users", {
+     	id: int("id").primaryKey().autoincrement(),
+     	name: varchar("name", { length: 255 }).notNull(),
+     	email: varchar("email", { length: 255 }).notNull().unique(),
+     	createdAt: timestamp("created_at").defaultNow(),
+     });
+     ```
+</Steps>
+
+### 2.2. Hyperdrive
+
+당신의 HyperdriveXQ 구성의 자격 증명을 사용하여 데이터베이스를 사용할 때 Drizzle ORM.
+
+감사합니다.`index.ts`아래에 표시된 것과 같이 파일.
+
+```ts title="src/index.ts"
+//프로젝트
+
+import { drizzle } from "drizzle-orm/mysql2";
+import { createConnection } from "mysql2/promise";
+import { users } from "./db/schema";
+
+export interface Env {
+	HYPERDRIVE: Hyperdrive;
+  }
+
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//Hyperdrive 자격 증명을 사용하여 mysql2 드라이버를 사용하여 연결하십시오.
+		const connection = await createConnection({
+			host: env.HYPERDRIVE.host,
+			user: env.HYPERDRIVE.user,
+			password: env.HYPERDRIVE.password,
+			database: env.HYPERDRIVE.database,
+			port: env.HYPERDRIVE.port,
+
+			//WorkersXQ에 대한 mysql2 호환성을 활성화하려면
+			disableEval: true,
+		});
+
+		//mysql2 드라이버 연결과 Drizzle 클라이언트 만들기
+		const db = drizzle(connection);
+
+		//모든 사용자를 얻기 위해 샘플 쿼리
+		const allUsers = await db.select().from(users);
+
+		return Response.json(allUsers);
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+### 2.3. 이동을 위한 Drizzle-Kit 구성 (선택 사항)
+
+:::참조
+데이터베이스에서 테이블을 설정해야하므로 Drizzle ORM은 작업 쿼리를 만들 수 있습니다.
+
+이미 설정한 경우 (예를 들어, 다른 사용자가 데이터베이스에 스키마를 적용한 경우) 또는 Drizzle ORM을 사용하고 스키마는 데이터베이스에 이미 존재하는 것과 일치하는 경우 마이그레이션을 실행할 필요가 없습니다.
+주요 특징
+
+Drizzle Kit CLI를 사용하여 스키마를 기반으로 데이터베이스에 SQL 마이그레이션을 생성하고 실행할 수 있습니다. 더 알아보기[Drizzle ORM 문서](https://orm.drizzle.team/docs/get-started/mysql-new)추가지도.
+
+<Steps>
+  1. 이름 \*`.env`프로젝트의 루트 폴더에 파일, 그리고 데이터베이스 연결 문자열을 추가. Drizzle Kit CLI는 이 연결 문자열을 사용하여 마이그레이션을 만들고 적용합니다.
+
+     ```toml title=".env"
+     # .env
+     # Replace with your direct database connection string
+     DATABASE_URL='mysql://user:password@db-host.cloud/database-name'
+     ```
+
+  2. 이름 \*`drizzle.config.ts`프로젝트의 루트 폴더에 파일은 Drizzle Kit을 구성하고 다음 내용을 추가합니다.
+
+     ```ts title="drizzle.config.ts"
+     import 'dotenv/config';
+     import { defineConfig } from 'drizzle-kit';
+     export default defineConfig({
+     out: './drizzle',
+     schema: './src/db/schema.ts',
+     dialect: 'mysql',
+     dbCredentials: {
+     url: process.env.DATABASE_URL!,
+       },
+     });
+     ```
+
+  3. 귀하의 스키마 파일에 따라 데이터베이스에 대한 마이그레이션 파일을 생성하고 데이터베이스에 마이그레이션을 적용합니다.
+
+     ```bash
+     npx drizzle-kit generate
+     ```
+
+     ```bash output
+     No config path provided, using default 'drizzle.config.ts'
+     Reading config file 'drizzle.config.ts'
+     Reading schema files:
+     /src/db/schema.ts
+
+     1 tables
+     users 4 columns 0 indexes 0 fks
+
+     [✓] Your SQL migration file ➜ drizzle/0000_daffy_rhodey.sql 🚀
+     ```
+
+     ```bash
+     npx drizzle-kit migrate
+     ```
+
+     ```bash output
+     No config path provided, using default 'drizzle.config.ts'
+     Reading config file 'drizzle.config.ts'
+     ```
+</Steps>
+
+## 3. 작업자를 배포
+
+작업자를 배포합니다.
+
+```bash
+npx wrangler deploy
+```
+
+<Render file="create-hyperdrive-config-next-steps" product="hyperdrive" />

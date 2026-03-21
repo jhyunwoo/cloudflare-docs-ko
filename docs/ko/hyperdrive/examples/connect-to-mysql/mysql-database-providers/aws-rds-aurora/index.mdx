@@ -1,0 +1,109 @@
+---
+summary: Connect Hyperdrive to an AWS RDS or AWS Aurora MySQL database instance.
+pcx_content_type: example
+title: AWS RDS와 오로라
+sidebar:
+  order: 14
+description: AWS RDS 데이터베이스 인스턴스에 Hyperdrive를 연결합니다.
+reviewed: 2023-09-28T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/mysql-database-providers/aws-rds-aurora/
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/mysql-database-providers/aws-rds-aurora/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 예제는 Amazon Relational Database Service (Amazon RDS) 또는 Amazon Aurora MySQL 데이터베이스 인스턴스에 HyperdriveXQ를 연결하는 방법을 보여줍니다.
+
+## 1. Hyperdrive 액세스 허용
+
+데이터베이스에 연결하는 Hyperdrive를 허용하려면 Hyperdrive가 유효한 사용자 자격 증명 및 네트워크 액세스를 보장해야합니다.
+
+<Render file="public-connectivity" product="hyperdrive" />
+
+### AWS 콘솔
+
+AWS 콘솔에서 인스턴스를 생성하거나 수정할 때:
+
+1. 설정하기**데이터베이스 클러스터**사용자 정의하려는 다른 설정.
+2. 이름 \***계정 설정** > **Credential 설정**, 주의 아래**사용자 이름**·**마스터 암호**(Aurora 전용).
+3. 이름 \***연결성**헤더, 보증**본문 바로가기**설정**이름 \***.
+4. 자주 묻는 질문**기존 VPC 보안 그룹**그것은 공공 인터넷 액세스를 허용`0.0.0.0/0`데이터베이스 인스턴스를 포트로 설정하면 (과태:`3306`MySQL 인스턴스의 경우).
+5. 제품정보**데이터베이스**.
+
+:::카트로션
+
+당신은 그것을 보장해야[VPC 보안 그룹](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-security-groups.html)데이터베이스와 관련된 공용 IPv4는 데이터베이스 포트에 액세스 할 수 있습니다.
+
+AWS에 Refer[데이터베이스 서버 규칙](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/security-group-rules-reference.html#sg-rules-db-server)RDS 데이터베이스에 특정 규칙을 구성하는 방법에 대한 자세한 내용은.
+
+:::
+
+### 데이터베이스 엔드포인트 검색 (Aurora)
+
+Hyperdrive에 대한 데이터베이스 엔드포인트 (hostname)를 검색하려면 다음을 연결하십시오.
+
+1. 오시는 길**데이터베이스**내 계정**사이트맵**AWS 콘솔에서.
+2. Hyperdrive를 원하는 데이터베이스를 선택합니다.
+3. 이름 \***이름 \***&#xD5E4;더, 주의 아래로**Endpoint 이름**유형으로`Writer`그리고**항구 항구**.
+
+### 데이터베이스 엔드포인트 검색 (RDS MySQL)
+
+정규 RDS 인스턴스 (non-Aurora)의 경우, 데이터베이스의 endpoint 및 포트를 fetch해야합니다.
+
+1. 오시는 길**데이터베이스**내 계정**사이트맵**AWS 콘솔에서.
+2. Hyperdrive를 원하는 데이터베이스를 선택합니다.
+3. 이름 \***연결성 및 보안**헤더, 주의 아래로**끝점**그리고**항구 항구**.
+
+끝점은 닮습니다`YOUR_DATABASE_NAME.cpuo5rlli58m.AWS_REGION.rds.amazonaws.com`, 포트는 기본적으로`3306`.
+
+:::note\[ MySQL 호환 공급자 지원]
+
+AWS Aurora MySQL 데이터베이스에 대한 지원은 곧 출시됩니다. 우리의 초기 미리보기 지원에 가입하십시오.[Hyperdrive Discord 채널](https://discord.cloudflare.com/).
+
+:::
+
+## 2. 사용자 만들기
+
+데이터베이스가 생성되면 Hyperdrive에 대한 사용자를 만들 필요가 있습니다. 사용할 수 있지만**사용자 이름**초기 데이터베이스 생성 중 구성, 최고의 연습은 덜 권한 사용자를 만들 것입니다.
+
+새로운 사용자를 만들려면 데이터베이스에 로그인하고 사용`CREATE USER`명령:
+
+```sh
+#데이터베이스에 로그인
+mysql -h ENDPOINT_NAME -P PORT -u MASTER_USERNAME -p database_name
+```
+
+다음 SQL 문 실행:
+
+```sql
+-- Create a role for Hyperdrive
+CREATE ROLE hyperdrive;
+
+-- Allow Hyperdrive to connect
+GRANT USAGE ON mysql_db.* TO hyperdrive;
+
+-- Grant database privileges to the hyperdrive role
+GRANT ALL PRIVILEGES ON mysql_db.* to hyperdrive;
+
+-- Create a specific user for Hyperdrive to log in as
+CREATE USER 'hyperdrive_user'@'%' IDENTIFIED WITH caching_sha2_password BY 'sufficientlyRandomPassword';
+
+-- Grant this new user the hyperdrive role privileges
+GRANT hyperdrive to 'hyperdrive_user'@'%';
+```
+
+AWS에 Refer[MySQL의 사용자 역할에 대한 문서](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/Appendix.MySQL.CommonDBATasks.privilege-model.html)더 많은 정보.
+
+데이터베이스 사용자, 암호, 데이터베이스 엔드포인트 (hostname 및 포트) 및 데이터베이스 이름을 사용하면 이제 Hyperdrive를 설정할 수 있습니다.
+
+## 3. 데이터베이스 구성 만들기
+
+<Render file="create-hyperdrive-config-mysql" product="hyperdrive" />
+
+<Render file="create-hyperdrive-config-mysql-next-steps" product="hyperdrive" />

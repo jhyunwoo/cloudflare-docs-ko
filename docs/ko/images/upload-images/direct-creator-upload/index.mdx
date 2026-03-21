@@ -1,0 +1,120 @@
+---
+pcx_content_type: how-to
+title: user-uploaded 이미지 수락
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/images/upload-images/direct-creator-upload/'
+translation_source_md: >-
+  https://developers.cloudflare.com/images/upload-images/direct-creator-upload/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare의 직접 크리에이터 업로드 기능 Images는 사용자가 API 키 또는 토큰을 클라이언트로 만료하지 않고 한 번 업로드 URL로 이미지를 업로드 할 수 있습니다. 직접 제작자 업로드를 사용하여 중간 저장 물통 및 저장 / 진입 비용을 제거 할 수도 있습니다.
+
+설정할 수 있습니다.[웹훅](/images/manage-images/configure-webhooks/)직접 제작자 업로드 워크플로우에 알림을 받을 수 있습니다.
+
+## 한 번 업로드 URL을 요청
+
+더 보기`POST`요청하기`direct_upload`참고 자료로 아래 예제를 사용하여 엔드포인트.
+
+:::참조
+더 보기`metadata`요청에 포함 된 것은 최종 사용자와 공유되지 않습니다.
+주요 특징
+
+```bash
+curl --request POST \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/images/v2/direct_upload \
+--header "Authorization: Bearer <API_TOKEN>" \
+--form 'requireSignedURLs=true' \
+--form 'metadata={"key":"value"}'
+```
+
+성공적인 요청 후 아래 예와 비슷한 응답을 받게됩니다. 더 보기`id`필드는 제작자가 업로드 될 미래 이미지 식별자입니다.
+
+```json
+{
+  "result": {
+    "id": "2cdc28f0-017a-49c4-9ed7-87056c83901",
+    "uploadURL": "https://upload.imagedelivery.net/Vi7wi5KSItxGFsWRG2Us6Q/2cdc28f0-017a-49c4-9ed7-87056c83901"
+  },
+  "result_info": null,
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+endpoint를 호출 한 후, 새로운 초안 이미지 레코드가 생성되지만 이미지는 이미지 목록에서 나타나지 않습니다. 이미지 레코드의 상태를 확인하려면 한 번 업로드 URL에 요청을 만들 수 있습니다.`direct_upload`끝점.
+
+## 본문 바로가기
+
+새 초안 이미지 레코드의 상태를 확인하려면 아래 예시로 한 번 업로드 URL을 사용하십시오.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/images/v1/{image_id} \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+성공적인 요청 후 아래 예와 비슷한 응답을 받아야합니다. 더 보기`draft`필드 설정`true`창조자가 이미지를 업로드 할 때까지. 이미지가 업로드 된 후, 초안 필드가 제거됩니다.
+
+```json
+{
+  "result": {
+    "id": "2cdc28f0-017a-49c4-9ed7-87056c83901",
+    "metadata": {
+      "key": "value"
+    },
+    "uploaded": "2022-01-31T16:39:28.458Z",
+    "requireSignedURLs": true,
+    "variants": [
+      "https://imagedelivery.net/Vi7wi5KSItxGFsWRG2Us6Q/2cdc28f0-017a-49c4-9ed7-87056c83901/public",
+      "https://imagedelivery.net/Vi7wi5KSItxGFsWRG2Us6Q/2cdc28f0-017a-49c4-9ed7-87056c83901/thumbnail"
+    ],
+    "draft": true
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+백엔드 엔드포인트가 반환되어야 합니다.`uploadURL`클라이언트에게는 인증 정보를 전달하지 않고 이미지를 업로드합니다.
+
+아래는 HTML 페이지의 예입니다. 한 번 업로드 URL을 가지고 사용자가 선택한 이미지를 업로드합니다.
+
+```html
+<!DOCTYPE html>
+<html>
+<body>
+<form
+action="INSERT_UPLOAD_URL_HERE"
+method="post"
+enctype="multipart/form-data"
+>
+<input type="file" id="myFile" name="file" />
+<input type="submit" />
+</form>
+</body>
+</html>
+```
+
+기본적으로,`uploadURL`사용되지 않은 경우 30 분 후에 만료됩니다. 이 옵션을 무시하려면 cURL 명령에 다음 인수를 추가하십시오.
+
+```txt
+--data '{"expiry":"2021-09-14T16:00:00Z"}'
+```
+
+만료 값은 최소 2 분과 최대 6 시간의 미래이어야합니다.
+
+## Direct Creator 맞춤 ID로 업로드
+
+지정할 수 있습니다.[주문 ID](/images/upload-images/upload-custom-path/)첫 번째 요청시 이미지에 자동으로 생성 된 ID를 사용하여 한 번 업로드 URL을 요청합니다. custom ID를 가진 이미지는 개인에게 할 수 없습니다[URL 토큰](/images/manage-images/serve-images/serve-private-images)특징 (`--requireSignedURLs=true`).
+
+사용자 지정 ID를 지정하려면 아래 예시로 name ID 및 대응 사용자 지정 ID 값으로 양식 필드를 통과하십시오.
+
+```txt
+--form 'id=this/is/my-customid'
+```

@@ -1,0 +1,349 @@
+---
+pcx_content_type: configuration
+title: Cloudflare 민감한 데이터 탐지
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/reference/sensitive-data-detection/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/reference/sensitive-data-detection/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	RuleID,
+	APIRequest,
+	Tabs,
+	TabItem,
+	Steps,
+	DashButton,
+} from "~/components";
+
+:::참조
+이 기능은 유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+주요 특징
+
+Cloudflare Sensitive Data Detection 관리 규정은 소스 서버에 의해 생성 된 데이터 누출을 식별하는 데 도움이됩니다. 이 규칙은 다음과 같은 일반적인 민감한 데이터의 패턴을 찾고 응답의 몸에 달려있다 :
+
+- [개인 식별 정보](https://www.cloudflare.com/learning/privacy/what-is-pii/)(PII) — 예를 들어, 여권 번호.
+- 금융 정보 — 예를 들어, 신용 카드 번호.
+- secrets — 예를 들면, API 열쇠.
+
+Cloudflare Sensitive Data Detection을 켜는 것은 응답 경로 밖에 발생하므로 추가 대기 시간을 제공하지 않습니다. 이런 이유로 규칙은 항상 배포됩니다.*로그인*행동 (당신은 이미 전송 된 응답을 차단 할 수 없습니다), 당신의 기원 서버를 떠나 민감한 데이터에 대한 가시성을 제공.
+
+:::참조
+Cloudflare Sensitive Data Detection 관리 규정에 대한 몇 가지 규칙은 기본적으로 비활성화되어 가짜 긍정적 및 많은 수의 로그 이벤트를 방지합니다. 응용 프로그램에 관련된 PII 및 민감한 데이터를 검토하고 다음 섹션의 지침에 따라 관리 규칙에 적절한 규칙을 켜야합니다.
+주요 특징
+
+## 추가 알림
+
+Cloudflare Sensitive Data Detection은 방문자에게 전송되는 모든 응답을 확인할 수 있습니다 (사용자 지정 필터 표현에 따라 정의된 경우), 캐시 및 응답에서 응답을 포함하여[사이트맵](/workers/).
+
+탐지는 텍스트, HTML, JSON 및 XML 콘텐츠를 최대 1MB까지 처리합니다.
+
+현재 Cloudflare Sensitive Data Detection은 지원하지 않습니다.[일치하는 페이로드 로깅](/waf/managed-rules/payload-logging/).
+
+***
+
+## Cloudflare 민감한 데이터 탐지 규칙 배포{/* deploy-in-the-dashboard */}
+
+:::참조
+유료 애드온과 엔터프라이즈 플랜을 요구합니다.
+주요 특징
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 대시보드" icon="rocket">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. (선택) 필터 로**웹 애플리케이션 악용**.
+
+      3. 기타 제품**민감한 데이터 탐지**규칙을 배포합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="오래된 대시보드">
+    <Steps>
+      1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정과 도메인을 선택합니다.
+      2. 오시는 길**보안 보안** > **민감한 데이터**.
+      3. 기타 제품**Cloudflare 민감한 데이터 탐지**규칙을 배포합니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 대시보드 구성
+
+여러 수준에서 Cloudflare Sensitive Data Detection 규정을 구성할 수 있습니다.
+
+- [규칙 설정 수준](#ruleset-level-configuration)
+- [태그 수준](#tag-level-configuration)
+- [규칙 수준](#rule-level-configuration)
+
+더 특정 구성 (rule 및 태그 수준) 보다 더 큰 우선 순위 보다 적은 특정 구성 (ruleset 레벨). 더 알아보기[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/)더 많은 정보를 위한 Ruleset Engine 문서에.
+
+### Ruleset-level 구성
+
+Cloudflare 대시보드에서 다음 Cloudflare Sensitive Data Detection 설정을 구성할 수 있습니다.
+
+- **관련 상품**: 범위의 사용자 정의 필터 표현을 정의할 때 Cloudflare Sensitive Data Detection Ruleet은 들어오는 요청의 하위 집합에만 적용됩니다. 기본적으로 대시보드에 배포된 관리된 규칙은 모든 수신 트래픽에 적용됩니다.
+
+당신은[Cloudflare 민감한 데이터 탐지 규칙을 배치](#deploy-in-the-dashboard), 대시보드에서 그것을 구성하는 뒤에:
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 대시보드" icon="rocket">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. (선택) 필터 로**웹 애플리케이션 악용**.
+
+      3. 제품 정보**민감한 데이터 탐지**, 선택**구성 규칙: \<SCOPE>**&#xADDC;칙 범위를 편집합니다.<br />모든 수신 요청(Global Range) 또는 하위 설정에 관리된 규칙을 적용하려는 경우 결정하십시오.
+
+      4. 선택한 경우**사용자 정의 필터 표현**, Cloudflare Sensitive Data Detection 규정을 요청하는 필터 표현을 정의합니다.
+
+      5. 제품정보**이름 \***, 다음 선택**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="오래된 대시보드">
+    <Steps>
+      1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정과 도메인을 선택합니다.
+
+      2. 오시는 길**보안 보안** > **민감한 데이터**.
+
+      3. 이름 \***Cloudflare 민감한 데이터 탐지**, 3개의 점을 선정하십시오 >**제품정보**.
+
+      4. 제품정보**연락처**관리된 규칙을 모든 들어오는 요청 또는 하위 설정에 적용하려면 결정하십시오. 자주 묻는 질문**사용자 정의 필터 표현**, Cloudflare Sensitive Data Detection 규정을 요청하는 필터 표현을 정의합니다.
+
+      5. 제품정보**이름 \***, 다음 선택**제품 정보**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+### Tag-level 구성
+
+대시보드의 다음 설정을 구성할 수 있습니다.
+
+- **규칙 상태**: 선택한 태그로 모든 규칙에 대한 규칙 상태를 설정합니다.
+
+:::참조
+특정 태그의 규칙 상태를 설정하면 선택한 태그와 함께 현재 및 미래의 규칙에 영향을 미칩니다.
+주요 특징
+
+당신은[Cloudflare 민감한 데이터 탐지 규칙을 배치](#deploy-in-the-dashboard), 대시보드에 특정 태그와 규칙을 구성하려면 다음을 수행:
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 대시보드" icon="rocket">
+    <Render file="managed-rules-browse-zone-sdd-new-nav" product="waf" />
+
+    <Render
+      file="managed-ruleset-configure-rules-by-tag"
+      product="waf"
+      params={{
+  	rulesetName: "Cloudflare Sensitive Data Detection",
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="오래된 대시보드">
+    <Render file="managed-rules-browse-zone-sdd" product="waf" />
+
+    <Render
+      file="managed-ruleset-configure-rules-by-tag"
+      product="waf"
+      params={{
+  	rulesetName: "Cloudflare Sensitive Data Detection",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### 규칙 수준 윤곽
+
+선택된 규칙을 위한 대시보드에서 다음 설정(또는 override)를 구성할 수 있습니다.
+
+- **규칙 상태**: 단일 규칙의 상태(enabled or disabled)를 설정하거나, 선택된 규칙의 여러 규칙을 선택하면 됩니다.
+
+당신은[Cloudflare 민감한 데이터 탐지 규칙을 배치](#deploy-in-the-dashboard)대시보드의 개별 규칙을 구성하려면 다음을 수행하십시오.
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 대시보드" icon="rocket">
+    <Render file="managed-rules-browse-zone-sdd-new-nav" product="waf" />
+
+    <Render
+      file="managed-ruleset-configure-individual-rules"
+      product="waf"
+      params={{
+  	rulesetName: "Cloudflare Sensitive Data Detection",
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="오래된 대시보드">
+    <Render file="managed-rules-browse-zone-sdd" product="waf" />
+
+    <Render
+      file="managed-ruleset-configure-individual-rules"
+      product="waf"
+      params={{
+  	rulesetName: "Cloudflare Sensitive Data Detection",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## API를 통해 구성
+
+API를 사용하여 주어진 영역에 대한 Cloudflare Sensitive Data Detection Ruleet을 배포하려면 규칙을 작성하십시오.`execute`활동 중[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)제품정보`http_response_firewall_managed`단계.
+
+### 이름 \*
+
+이 예제는 Cloudflare Sensitive Data Detection 규칙을 배치합니다.`http_response_firewall_managed`주어진 영역의 단계 (`$ZONE_ID`) 관리된 규칙을 실행하는 규칙을 작성하여. 관리 규칙의 규칙은 모든 들어오는 요청을 위해 실행됩니다.
+
+1. <Render file="rulesets/api-zone/step1-get-entrypoint" product="waf" params={{ phaseName: "http_response_firewall_managed" }} />
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_response_firewall_managed",
+     }}
+     roles={false}
+   />
+
+   ```json output {4}
+   {
+   	"result": {
+   		"description": "Zone-level phase entry point (response)",
+   		"id": "<RULESET_ID>",
+   		"kind": "zone",
+   		"last_updated": "2024-03-16T15:40:08.202335Z",
+   		"name": "zone",
+   		"phase": "http_response_firewall_managed",
+   		"rules": [
+   			// ...
+   		],
+   		"source": "firewall_managed",
+   		"version": "10"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+2. <Render
+     file="rulesets/api-zone/step2-create-rule"
+     product="waf"
+     params={{
+     	deploymentItem:
+     		"Cloudflare Sensitive Data Detection managed ruleset (with ID `e22d83c647c64a3eae91b71b499d988e`)",
+     }}
+   />
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+     method="POST"
+     json={{
+     	action: "execute",
+     	action_parameters: {
+     		id: "e22d83c647c64a3eae91b71b499d988e",
+     	},
+     	expression: "true",
+     	description:
+     		"Execute the Cloudflare Sensitive Data Detection managed ruleset",
+     }}
+     roles={false}
+   />
+
+   ```json output
+   {
+   	"result": {
+   		"id": "<RULESET_ID>",
+   		"name": "Zone-level phase entry point (response)",
+   		"description": "",
+   		"kind": "zone",
+   		"version": "11",
+   		"rules": [
+   			// ... any existing rules
+   			{
+   				"id": "<RULE_ID>",
+   				"version": "1",
+   				"action": "execute",
+   				"action_parameters": {
+   					"id": "e22d83c647c64a3eae91b71b499d988e",
+   					"version": "latest"
+   				},
+   				"expression": "true",
+   				"description": "Execute the Cloudflare Sensitive Data Detection managed ruleset",
+   				"last_updated": "2024-03-18T18:08:14.003361Z",
+   				"ref": "<RULE_REF>",
+   				"enabled": true
+   			}
+   		],
+   		"last_updated": "2024-03-18T18:08:14.003361Z",
+   		"phase": "http_response_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+3. <Render
+     file="rulesets/api-zone/step3-create-ruleset"
+     product="waf"
+     params={{
+     	deploymentItem:
+     		"Cloudflare Sensitive Data Detection managed ruleset (with ID `e22d83c647c64a3eae91b71b499d988e`)",
+     	scope: "all incoming requests in the zone",
+     }}
+   />
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets"
+     method="POST"
+     json={{
+     	name: "My ruleset",
+     	description: "Entry point ruleset for WAF managed rulesets (response)",
+     	kind: "zone",
+     	phase: "http_response_firewall_managed",
+     	rules: [
+     		{
+     			action: "execute",
+     			action_parameters: {
+     				id: "e22d83c647c64a3eae91b71b499d988e",
+     			},
+     			expression: "true",
+     			description:
+     				"Execute the Cloudflare Sensitive Data Detection managed ruleset",
+     		},
+     	],
+     }}
+     roles={false}
+   />
+
+<Render
+  file="managed-rulesets/api-next-steps"
+  product="waf"
+  params={{
+  	rulesetName: "Cloudflare Sensitive Data Detection managed ruleset",
+  	customizableAction: false,
+  }}
+/>
+
+<Render file="managed-rulesets/api-more-resources" product="waf" />
+
+## 검색 결과
+
+Cloudflare Sensitive Data Detection에 의해 검출되는 모든 데이터 누출을 확인하려면 다음을 수행 할 수 있습니다.
+
+- 자주 묻는 질문[보안 이벤트](/waf/analytics/security-events/)관리 규정에 의해 생성 된 모든 이벤트에 대한.
+- 설정하기[WAF 경고](/waf/reference/alerts/)WAF 이벤트의 모든 스파이크 알림 Advanced Security Events Alert의 경우 엔터프라이즈 플랜에 하나 이상의 도메인을 필터링할 수 있습니다.`Data Loss Protection`Sensitive Data Detection에 대한 특정 경고를 수신하는 서비스.

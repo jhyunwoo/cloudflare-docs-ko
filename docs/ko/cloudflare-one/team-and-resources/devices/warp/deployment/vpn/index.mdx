@@ -1,0 +1,78 @@
+---
+pcx_content_type: reference
+title: 레거시 VPN WARP
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/vpn/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/vpn/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Cloudflare WARP 클라이언트는 대부분의 레거시 타사 VPN과 함께 실행할 수 있습니다. WARP 클라이언트 및 타사 VPN 클라이언트 모두는 방화벽, 라우팅 및 로컬 장치에 DNS 규칙을 시행하기 때문에 두 제품은 IP 및 DNS 트래픽을 제어하기 위해 서로 경쟁 할 것입니다. 호환성을 보장하려면:
+
+- IP 트래픽은 WARP와 VPN 사이에서 터널을 파고 있습니다. 모든 VPN 트래픽은 WARP 및 부사장을 우회해야 합니다.
+- VPN bypasses/allows/은 모든 도메인, IP 및 포트를 제외[WARP 방화벽](/cloudflare-one/team-and-resources/devices/warp/deployment/firewall/).
+- DNS 해상도는 WARP 또는 VPN으로 처리됩니다. 두 제품 중 하나에서 DNS 필터를 비활성화해야합니다.
+
+가장 안정적이고 일관된 연결을 위해, 우리는 당신의 연결을 추천합니다[개인 네트워크 또는 개별 응용](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/)레거시 VPN을 사용하는 대신 Cloudflare에. 그러나 마이그레이션 할 때까지 다음 지침은 Zero Trust 배포 및 실행을 도울 것입니다.
+
+## 교통 및 DNS 모드
+
+내 계정[교통 및 DNS 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#traffic-and-dns-mode-default)모드, WARP는 장치에서 모든 DNS 트래픽을 캡처하고 경로를 허용해야합니다. 사용 가능[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)제3자 VPN 또는 방화벽 뒤에 서버에 DNS 요청을 보내려면 먼저 WARP의 로컬 DNS 프록시를 통해 이동합니다. 더 알아보기[WARP 건축](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/)이 필요조건에 관하여 더 많은 정보를 위해.
+
+VPN에서 DNS를 비활성화할 수 없는 경우, 전환[교통 모드](#secure-web-gateway-without-dns-filtering)WARP에서 DNS를 비활성화하는 모드.
+
+### 1. VPN 구성
+
+타사 VPN 소프트웨어에서 이러한 단계를 수행하십시오. 이 설정을 구성하는 방법에 대한 특정 지침에 대한 VPN의 문서를 참조하십시오.
+
+1. 제3자 VPN에서 터널을 분할할 수 있습니다.
+
+2. 타사 VPN에서 DNS 구성을 비활성화합니다.
+
+### 2. WARP를 형성하십시오
+
+<Render file="warp/vpn-ip-traffic" product="cloudflare-one" />
+
+3. (선택) 안으로[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)VPN의 프라이빗 DNS 서버를 사용하여 해결하려는 도메인을 추가합니다. 예를 들어,
+   | 이름 \*                    | DNS 서버                           |
+   | ------------------------ | -------------------------------- |
+   | `internal.wiki.intranet` | `172.31.26.130`, `172.31.23.120` |
+
+지금 할 수 있습니다[제품정보](#test-the-configuration)WARP가 VPN과 함께 실행하면 됩니다.
+
+## 교통 모드
+
+내 계정[교통 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#traffic-only-mode)모드, WARP는 장치에 어떤 DNS 기능을 수행하지 않습니다. 따라서, 당신이해야 할 모든 것은 당신의 IP 트래픽을 분할합니다.
+
+### 1. VPN 구성
+
+제3자 VPN 소프트웨어에서 터널을 파기할 수 있습니다. 이 설정을 구성하는 방법에 대한 특정 지침에 대한 VPN의 문서를 참조하십시오.
+
+### 2. WARP를 형성하십시오
+
+<Render file="warp/vpn-ip-traffic" product="cloudflare-one" />
+
+3. 장치 프로파일에서, 확인**서비스 모드**설정**교통 모드**.
+
+## 설정 테스트
+
+제3자 VPN을 활성화하기 전에 WARP 클라이언트를 활성화하는 것이 좋습니다. 일부 타사 VPN은 네트워크의 구성을 편집하기 위해 마지막이어야하며 실패합니다.
+
+1. WARP 클라이언트를 연결합니다.
+2. 타사 VPN 클라이언트를 연결합니다.
+3. Split Tunnel 구성을 테스트하려면 VPN 뒤에있는 개인 IP 주소에 연결하십시오. 예를 들어, 터미널을 열고 실행할 수 있습니다.`ping <SERVER-IP>`.
+4. DNS 설정을 테스트하려면 VPN 뒤에 있는 내부 도메인에 연결하십시오. 예를 들어 브라우저를 열고 이동할 수 있습니다.`internal.wiki.intranet`.
+
+:::caution\[ 업데이트 전에 테스트]
+
+위치 및 작업에 구성이 있으면 VPN 소프트웨어를 업데이트하기 전에 완전히 테스트 호환성을 확인하십시오. 소프트웨어가 각 새 버전과 함께 수행해야 할 중요한 소프트웨어와 호환 테스트.
+
+:::

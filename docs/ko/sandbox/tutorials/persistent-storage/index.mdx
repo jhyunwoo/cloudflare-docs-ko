@@ -1,0 +1,258 @@
+---
+title: R2와 데이터 지속
+pcx_content_type: tutorial
+sidebar:
+  order: 6
+description: >-
+  Mount R2 Buckets as local filesystem paths to persist data throughout sandbox
+  lifecycles.
+reviewed: 2025-11-18T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/tutorials/persistent-storage/'
+translation_source_md: >-
+  https://developers.cloudflare.com/sandbox/tutorials/persistent-storage/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, TypeScriptExample } from "~/components";
+
+Mount object storage Buckets as local filesystem paths to persist data against sandbox lifecycles. 이 튜토리얼은 Cloudflare R2를 사용하지만 동일한 접근 방식은 S3- 호환 공급자와 함께 작동합니다.
+
+**완료 시간:**&#x32;0 분
+
+## 당신이 구축 할 것
+
+데이터 처리 작업자, R2 버킷에 저장된 데이터를 로컬 디렉토리로 처리하고 샌드 박스가 파괴되고 다시 생성 한 후 데이터를 인식합니다.
+
+**당신이 배울 수있는 중요한 개념**:
+
+- 설치 R2 물통 파일 시스템 경로로
+- Sandbox Lifecycles의 자동 데이터 지속
+- 표준 파일 작업을 사용하여 장착 된 저장 작업
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+당신은 또한 필요로 할 것입니다:
+
+- [기타 제품](https://www.docker.com/)현지에서
+- R2 버킷 (중 하나 만들기)[Cloudflaredashboard](https://dash.cloudflare.com/?to=/:account/r2))
+
+## 1. 프로젝트 만들기
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"data-pipeline --template=cloudflare/sandbox-sdk/examples/minimal"} />
+
+```sh
+cd data-pipeline
+```
+
+## 2. R2 바인딩 형성
+
+R2 물통을 추가하십시오`wrangler.json`:
+
+```json title="wrangler.json"
+{
+  "name": "data-pipeline",
+  "compatibility_date": "2025-11-09",
+  "durable_objects": {
+    "bindings": [
+      { "name": "Sandbox", "class_name": "Sandbox" }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "DATA_BUCKET",
+      "bucket_name": "my-data-bucket"
+    }
+  ]
+}
+```
+
+기타 제품`my-data-bucket`R2 물통 이름으로. 첫번째 버킷 만들기[Cloudflaredashboard](https://dash.cloudflare.com/?to=/:account/r2).
+
+## 3. 데이터 프로세서 구축
+
+기타 제품`src/index.ts`R2 및 프로세스 데이터를 마운트하는 코드 :
+
+<TypeScriptExample>
+  ```typescript
+  import { getSandbox, type Sandbox } from '@cloudflare/sandbox';
+
+  export { Sandbox } from '@cloudflare/sandbox';
+
+  interface Env {
+  	Sandbox: DurableObjectNamespace<Sandbox>;
+  	DATA_BUCKET: R2Bucket;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const sandbox = getSandbox(env.Sandbox, 'data-processor');
+
+  		//마운트 R2 버킷 /data 디렉토리
+  		await sandbox.mountBucket('my-data-bucket', '/data', {
+  			endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'
+  		});
+
+  		if (url.pathname === '/process') {
+  			//프로세스 데이터 및 R2
+  			const result = await sandbox.exec('python', {
+  				args: ['-c', `
+  import json
+  import os
+  from datetime import datetime
+
+  #입력을 읽으십시오 (또는 표본 자료를 창조하십시오)
+  data = [
+      {'id': 1, 'value': 42},
+      {'id': 2, 'value': 87},
+      {'id': 3, 'value': 15}
+  ]
+
+  #과정: 합계와 평균 산출
+  total = sum(item['value'] for item in data)
+  avg = total / len(data)
+
+  #R2 (/data는 거치한 물통입니다)를 거치하는 결과를 저장하십시오
+  result = {
+      'timestamp': datetime.now().isoformat(),
+      'total': total,
+      'average': avg,
+      'processed_count': len(data)
+  }
+
+  os.makedirs('/data/results', exist_ok=True)
+  with open('/data/results/latest.json', 'w') as f:
+      json.dump(result, f, indent=2)
+
+  print(json.dumps(result))
+  				`]
+  			});
+
+  			return Response.json({
+  				message: 'Data processed and saved to R2',
+  				result: JSON.parse(result.stdout)
+  			});
+  		}
+
+  		if (url.pathname === '/results') {
+  			//거치된 R2에서 결과를 읽으십시오
+  			const result = await sandbox.exec('cat', {
+  				args: ['/data/results/latest.json']
+  			});
+
+  			if (!result.success) {
+  				return Response.json({ error: 'No results found yet' }, { status: 404 });
+  			}
+
+  			return Response.json({
+  				message: 'Results retrieved from R2',
+  				data: JSON.parse(result.stdout)
+  			});
+  		}
+
+  		if (url.pathname === '/destroy') {
+  			//파괴적인 sandbox는 persistence를 보여주기 위하여
+  			await sandbox.destroy();
+  			return Response.json({ message: 'Sandbox destroyed. Data persists in R2!' });
+  		}
+
+  		return new Response(`
+  Data Pipeline with Persistent Storage
+
+  Endpoints:
+  - POST /process  - Process data and save to R2
+  - GET /results   - Retrieve results from R2
+  - POST /destroy  - Destroy sandbox (data survives!)
+
+  Try this flow:
+  1. POST /process  (processes and saves to R2)
+  2. POST /destroy  (destroys sandbox)
+  3. GET /results   (data still accessible from R2)
+  		`, { headers: { 'Content-Type': 'text/plain' } });
+  	}
+  };
+  ```
+</TypeScriptExample>
+
+:::노트\[Replace YOUR ACCOUNT ID]
+기타 제품`YOUR_ACCOUNT_ID`Cloudflare 계정 ID를 가진 엔드포인트 URL에서. 자주 묻는 질문[모델 번호: dashboard](https://dash.cloudflare.com/)이름 \***모델 번호: R2** > **제품정보**.
+:::
+
+## 4. 생산에 배포
+
+**생성 R2 API 토큰:**
+
+1. 오시는 길**모델 번호: R2** > **제품정보**내 계정[Cloudflare dashboard](https://dash.cloudflare.com/)
+2. 제품정보**R2 API 관리 토큰 토큰**
+3. 토큰 만들기**개체 읽기 및 쓰기**이름 \*
+4. 제출하기**액세스 키 ID**·**비밀 액세스 키**
+
+**작업자 비밀로 credentials 설정:**
+
+```sh
+npx wrangler secret put AWS_ACCESS_KEY_ID
+#R2를 붙여넣기 액세스 키 ID
+
+npx wrangler secret put AWS_SECRET_ACCESS_KEY
+#R2 비밀 액세스 키 붙여넣기
+```
+
+Worker 비밀은 암호화되고 배포 된 노동자에게만 접근 할 수 있습니다. SDK는 이 자격 증명을 자동으로 감지합니다.`mountBucket()`이름 \*
+
+**작업자를 배포:**
+
+```sh
+npx wrangler deploy
+```
+
+배포 후, wrangler는 작업자 URL을 출력합니다 (예를 들어,`https://data-pipeline.yourname.workers.dev`).
+
+## 5. persistence 교류를 시험하십시오
+
+이제 배포 된 노동자에 대한 테스트. 기타 제품`YOUR_WORKER_URL`실제 작업자 URL로:
+
+```sh
+#1. 프로세스 데이터 (R2에 저장)
+curl -X POST https://YOUR_WORKER_URL/process
+#반환: { "message": "데이터 처리 ...", "result": { "total": 144, "average": 48, ... } }
+
+#2. Verify 데이터는 접근 가능
+curl https://YOUR_WORKER_URL/results
+#R2에서 동일한 결과를 반환합니다
+
+#3. sandbox를 파괴
+curl -X POST https://YOUR_WORKER_URL/destroy
+#반환: { "message": "샌드 박스 파괴. R2!"에 대한 데이터 분석
+
+#4. 액세스 결과 다시 (새로운 sandbox에서)
+curl https://YOUR_WORKER_URL/results
+#아직도 작동! 샌드박스 수명주기를 통한 데이터
+```
+
+핵심 통찰력: sandbox를 파괴 한 후 다음 요청은 새로운 sandbox 인스턴스를 생성하고 동일한 R2 버킷을 마운트하고 여전히 데이터를 찾습니다.
+
+## 당신이 배운 것
+
+이 튜토리얼에서 R2 버킷 장착을 통해 파일 시스템 지속성을 보여주는 데이터 파이프라인을 구축했습니다.
+
+- **설치 물통**: 사용`mountBucket()`로컬 디렉토리로 R2를 접근 할 수 있도록
+- **표준 파일 작업**: 익숙한 파일 시스템 명령을 사용하여 액세스 마운트 버킷 (access mount Bucket)`cat`모델 번호: Python`open()`, 등)
+- **자동 persistence**: 샌드박스 파괴를 생존하는 데 쓰인 데이터
+- **Credential 관리**: 환경변수를 이용한 R2 접근을 구성하거나 명시적인 자격 증명
+
+## 다음 단계
+
+- [마운트 버킷 가이드](/sandbox/guides/mount-buckets/)- 포괄적인 설치 reference
+- [저장 API](/sandbox/api/storage/)- 완전한 API 문서
+- [환경 변수](/sandbox/configuration/environment-variables/)- Credential 구성 옵션
+
+## 관련 자료
+
+- [R2 문서](/r2/)- Cloudflare R2XQ에 대해 알아보기
+- [배경 프로세스 가이드](/sandbox/guides/background-processes/)- Long-running 데이터 처리
+- [Sandboxes 개념](/sandbox/concepts/sandboxes/)- 샌드박스 수명주기 이해

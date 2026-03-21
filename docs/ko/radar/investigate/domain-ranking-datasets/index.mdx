@@ -1,0 +1,150 @@
+---
+pcx_content_type: reference
+title: 도메인 순위
+sidebar:
+  order: 5
+
+---
+
+Cloudflare는 [1.1.1.1](/1.1.1.1/) 공개 DNS resolver로 들어오는 DNS 쿼리를 기반으로 도메인 순위를 정기적으로 생성합니다. 자세한 설명은 [블로그 글](https://blog.cloudflare.com/radar-domain-rankings/)을 참고하세요. 간단히 말해 Cloudflare는 두 가지 유형의 목록을 생성합니다.
+
+* 전 세계 및 국가별 상위 100개 인기 도메인의 순위 목록. 최근 24시간을 기준으로 하며 매일 갱신됩니다.
+* 다음과 같은 도메인 수 기준 버킷으로 나뉜, 순서가 없는 전역 인기 도메인 데이터셋: 200, 500, 1,000, 2,000, 5,000, 10,000, 20,000, 50,000, 100,000, 200,000, 500,000, 1,000,000. 최근 7일을 포함하며 매주 갱신됩니다.
+
+## 엔드포인트 목록
+
+### 상위
+
+#### 예시: Cloudflare ranking에서 현재 순위가 매겨진 상위 도메인 가져오기
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/ranking/top?name=top&limit=5" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "top_0": [
+			{
+				"rank": 1,
+				"domain": "google.com"
+			},
+			{
+				"rank": 2,
+				"domain": "googleapis.com"
+			},
+			{
+				"rank": 3,
+				"domain": "facebook.com"
+			},
+			{
+				"rank": 4,
+				"domain": "gstatic.com"
+			},
+			{
+				"rank": 5,
+				"domain": "apple.com"
+			}
+    ]
+  },
+	"meta": {
+		// ...
+	}
+}
+```
+
+자세한 내용은 [top domains 가져오기](/api/resources/radar/subresources/ranking/methods/top/)를 참고하세요.
+
+#### 예시: 상위 `x` ranking bucket 파일 다운로드
+
+[블로그 글](https://blog.cloudflare.com/radar-domain-rankings/)에서 설명했듯이 Cloudflare는 상위 100개 도메인에 대해서는 정렬된 순위를 제공하지만, 그 외 나머지에 대해서는 상위 20만, 상위 100만과 같은 ranking bucket만 제공합니다. 이러한 데이터는 Cloudflare의 [datasets endpoints](/api/resources/radar/subresources/datasets/methods/list/)를 통해 이용할 수 있습니다.
+
+다음 예시에서는 마지막으로 제공된 도메인 ranking bucket을 요청합니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/datasets?limit=10&datasetType=RANKING_BUCKET" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"datasets": [
+			{
+				"id": 213,
+				"title": "Top 1000000 ranking domains",
+				"description": "Unordered top 1000000 from 2023-01-02 to 2023-01-09",
+				"type": "RANKING_BUCKET",
+				"tags": [
+					"GLOBAL",
+					"top_1000000"
+				],
+				"meta": {
+					"top": 1000000
+				},
+				"alias": "ranking_top_1000000"
+			},
+			// ...
+		]
+	}
+}
+```
+
+특정 top 값(예: 상위 100만)에 관심이 있다면 `meta.top` 속성을 확인하세요. 원하는 top 값을 찾은 후에는 해당 dataset의 `id`를 얻어 [`GET dataset download url`](/api/resources/radar/subresources/datasets/methods/download/) 엔드포인트로 dataset을 가져올 수 있습니다.
+
+그다음 download url을 요청할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/datasets/download" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "datasetId": 213
+}'
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"dataset": {
+			"url": "https://example.com/download"
+		}
+	}
+}
+```
+
+#### 예시: 마지막 상위 `x` ranking bucket 가져오기
+
+이 엔드포인트를 사용하면 최신 상위 x 버킷(선택적으로 특정 날짜 기준)을 직접 요청할 수 있습니다.
+[Get dataset stream](/api/resources/radar/subresources/datasets/methods/get/) 엔드포인트를 참고하세요.
+
+dataset alias는 위 예시처럼 [Get datasets](/api/resources/radar/subresources/datasets/methods/list/) 엔드포인트에서 가져올 수 있습니다.
+
+이 stream 엔드포인트는 2023-01-08 이후 생성된 dataset에 대해서만 사용할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/datasets/ranking_top_1000" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```csv
+domain
+1rx.io
+2mdn.net
+360yield.com
+3lift.com
+a-msedge.net
+a2z.com
+...
+```
+
+## 다음 단계
+
+전 세계에서 발생하는 outage 데이터를 얻으려면 [Investigate outages](/radar/investigate/outages/)를 참고하세요.

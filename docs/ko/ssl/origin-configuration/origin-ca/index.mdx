@@ -1,0 +1,144 @@
+---
+title: Cloudflare origin CA
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: 설정
+head: []
+description: Cloudflare와 오리진 웹 서버 사이의 트래픽을 암호화하고 오리진 대역폭 사용량을 줄입니다.
+---
+
+import { Details, FeatureTable, Render, TabItem, Tabs, DashButton, GlossaryTooltip } from "~/components";
+
+오리진이 <GlossaryTooltip term="proxy status">프록시된 레코드</GlossaryTooltip>에서 오는 트래픽만 수신한다면 Cloudflare origin CA 인증서를 사용해 Cloudflare와 오리진 웹 서버 간 트래픽을 암호화하고 대역폭 사용량을 줄일 수 있습니다. 배포 후 이 인증서는 [Strict SSL mode](/ssl/origin-configuration/ssl-modes/full-strict/)와 호환됩니다.
+
+origin CA 인증서에 대한 배경 설명은 [소개 블로그 게시물](https://blog.cloudflare.com/cloudflare-ca-encryption-origin/)을 참고하세요.
+
+:::caution[API Access required]
+[**API Access**](https://dash.cloudflare.com/?to=/:account/members)가 없는 사용자는 origin CA 인증서를 생성하거나 폐기하려 할 때 오류를 받습니다.
+[Troubleshooting](/ssl/origin-configuration/origin-ca/troubleshooting/#this-zone-is-either-not-part-of-your-account-or-you-do-not-have-access-to-it)을 참고하세요.
+:::
+
+## Availability
+
+<FeatureTable id="ssl.origin_certificates" />
+
+:::note
+Cloudflare origin CA 인증서를 사용해도 [delegated DCV](/ssl/edge-certificates/changing-dcv-method/methods/delegated-dcv/)를 사용하는 데 제약이 생기지 않습니다.
+:::
+
+---
+
+## Origin CA certificate 배포
+
+### 1. Origin CA certificate 생성
+
+대시보드에서 Origin CA certificate를 생성하려면:
+
+1. Cloudflare 대시보드에서 **Origin Server** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/origin" />
+
+2. **Create Certificate**를 선택합니다.
+
+3. 다음 중 하나를 선택합니다.
+   - **Generate private key and CSR with Cloudflare**: 개인 키 유형은 RSA 또는 ECC를 선택할 수 있습니다.
+   - **Use my private key and CSR**: Certificate Signing Request를 텍스트 필드에 붙여 넣습니다.
+4. 인증서가 SSL 암호화로 보호해야 할 [hostnames(와일드카드 포함)](#hostname-and-wildcard-coverage)을 나열합니다. zone apex와 1단계 wildcard hostname은 기본으로 포함됩니다.
+5. **Certificate Validity** 기간을 선택합니다.
+6. **Create**를 선택합니다.
+7. **Key Format**을 선택합니다.
+   - OpenSSL을 사용하는 Apache, NGINX 같은 서버는 일반적으로 PEM 파일(Base64 인코딩 ASCII)을 기대하지만, 바이너리 DER 파일도 사용할 수 있습니다.
+   - Windows와 Apache Tomcat 서버는 PKCS#7(`.p7b` 파일)을 요구합니다.
+8. 서명된 **Origin Certificate**와 **Private Key**를 각각 별도 파일에 복사합니다. 보안상 이 화면을 벗어나면 **Private Key**를 다시 볼 수 없습니다.
+9. **OK**를 선택합니다.
+
+:::note
+인증서를 프로그래밍 방식으로 다루는 방법은 [API calls](#api-calls)를 참고하세요.
+:::
+
+### 2. Origin CA certificate를 오리진 서버에 설치
+
+오리진 웹 서버에 Origin CA certificate를 추가하려면
+
+1. [1단계](#1-create-an-origin-ca-certificate)에서 생성한 Origin CA certificate를 오리진 웹 서버에 업로드합니다.
+2. 웹 서버 설정을 업데이트합니다.
+
+- [Apache httpd](https://www.digicert.com/kb/csr-ssl-installation/apache-openssl.htm)
+- [GoDaddy Hosting](https://www.digitalcandy.agency/website-tips/cloudflare-origin-ca-free-ssl-installation-on-godaddy/)
+- [Microsoft IIS 7](https://www.digicert.com/csr-ssl-installation/iis-7.htm#ssl_certificate_install)
+- [Microsoft IIS 8 and 8.5](https://www.digicert.com/csr-ssl-installation/iis-8-and-8.5.htm#ssl_certificate_install)
+- [Microsoft IIS 10](https://www.digicert.com/kb/csr-creation-ssl-installation-iis-10.htm)
+- [NGINX](https://www.digicert.com/kb/csr-ssl-installation/nginx-openssl.htm)
+- [Apache Tomcat](https://www.digicert.com/csr-ssl-installation/tomcat-keytool.htm#ssl_certificate_install)
+- [Amazon Web Services](https://www.digicert.com/ssl-certficate-installation-amazon-web-services.htm)
+- [Apache cPanel](https://www.digicert.com/kb/ssl-certificate-installation-apache-cpanel.htm)
+- [Ubuntu Server with Apache2](https://www.digicert.com/kb/csr-ssl-installation/ubuntu-server-with-apache2-openssl.htm#ssl_certificate_install)
+
+:::note
+위 목록에 사용하는 서버가 없다면 [DigiCert documentation](https://www.digicert.com/search-results)를 검색하거나 호스팅 제공업체, 웹 관리자, 서버 공급업체에 문의하세요.
+:::
+
+3. (일부 환경에서 필수) [Cloudflare CA root certificate](#cloudflare-origin-ca-root-certificate)를 오리진 서버에 업로드합니다. certificate chain이라고도 부를 수 있습니다.
+4. 오리진 웹 서버에서 SSL과 포트 `443`을 활성화합니다.
+
+### 3. SSL/TLS mode 변경
+
+Origin CA certificate를 오리진 웹 서버에 설치한 후 애플리케이션의 SSL/TLS encryption mode를 업데이트합니다.
+
+모든 오리진 호스트가 Origin CA 인증서 또는 공개적으로 신뢰되는 인증서로 보호된다면:
+
+1. **SSL/TLS**로 이동합니다.
+2. **SSL/TLS encryption mode**에서 **Full (strict)**를 선택합니다.
+
+인증서로 보호되지 않은 오리진 호스트가 있다면 [Page Rule](/rules/page-rules/)을 사용해 특정 애플리케이션의 **SSL/TLS encryption** mode를 **Full (strict)**로 설정하세요.
+
+:::caution
+
+<Render file="origin-ca-pause-error" product="ssl" />
+:::
+
+## Origin CA certificate 폐기
+
+키 자료를 분실했거나 더 이상 특정 인증서를 신뢰하지 않으려면 인증서를 폐기할 수 있습니다. 이 작업은 되돌릴 수 없습니다.
+
+방문자가 안전하지 않은 인증서 경고를 보지 않게 하려면 인증서를 폐기하기 전에 [SSL/TLS encryption](/ssl/origin-configuration/ssl-modes/)을 **Full** 또는 **Flexible**로 설정하는 것을 고려하세요. 이 작업은 [Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls)를 통해 전체적으로 수행하거나, [Page Rule](/rules/page-rules/)로 특정 hostname에 대해서만 수행할 수 있습니다.
+
+인증서를 폐기하려면:
+
+1. Cloudflare 대시보드에서 **Origin Server** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/origin" />
+
+2. **Origin Certificates**에서 인증서를 선택합니다.
+3. **Revoke**를 선택합니다.
+
+## Additional details
+
+### Cloudflare Origin CA root certificate
+
+일부 오리진 웹 서버는 Cloudflare Origin CA root certificate 또는 certificate chain 업로드를 요구합니다. 다음 링크에서 ECC 또는 RSA 버전을 다운로드해 오리진 웹 서버에 업로드하세요.
+
+- [Cloudflare Origin ECC PEM](/ssl/static/origin_ca_ecc_root.pem) (Apache cPanel에는 사용하지 마세요)
+- [Cloudflare Origin RSA PEM](/ssl/static/origin_ca_rsa_root.pem)
+
+### Hostname and wildcard coverage
+
+인증서는 최대 200개의 개별 Subject Alternative Names(SANs)로 생성할 수 있습니다. SAN은 완전 수식 도메인 이름(`www.example.com`) 또는 와일드카드(`*.example.com`) 형태가 될 수 있습니다. Cloudflare origin CA 인증서에서는 IP 주소를 SAN으로 사용할 수 없습니다.
+
+와일드카드는 한 단계만 커버할 수 있지만 더 넓은 범위를 위해 같은 인증서에서 여러 번 사용할 수 있습니다(예: `*.example.com`과 `*.secure.example.com`을 함께 사용 가능).
+
+## API calls
+
+Origin CA certificate와 관련된 프로세스를 자동화하려면 다음 API 호출을 사용하세요. 인증에는 [Origin CA Keys](/fundamentals/api/get-started/ca-keys/) 또는 **Permissions**에 `Zone`-`SSL and Certificates`-`Edit`가 포함된 [API token](/fundamentals/api/get-started/create-token/)을 사용합니다.
+
+| Operation                                                                   | Method   | Endpoint                           |
+| --------------------------------------------------------------------------- | -------- | ---------------------------------- |
+| [List certificates](/api/resources/origin_ca_certificates/methods/list/)    | `GET`    | `certificates?zone_id=<<ZONE_ID>>` |
+| [Create certificate](/api/resources/origin_ca_certificates/methods/create/) | `POST`   | `certificates`                     |
+| [Get certificate](/api/resources/origin_ca_certificates/methods/get/)       | `GET`    | `certificates/<<ID>>`              |
+| [Revoke certificate](/api/resources/origin_ca_certificates/methods/delete/) | `DELETE` | `certificates/<<ID>>`              |
+
+## Troubleshooting
+
+Cloudflare origin CA 설정 후 `NET::ERR_CERT_AUTHORITY_INVALID` 같은 문제가 발생하면 [troubleshooting](/ssl/origin-configuration/origin-ca/troubleshooting/)을 참고하세요.

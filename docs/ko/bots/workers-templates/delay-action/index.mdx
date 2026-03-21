@@ -1,0 +1,43 @@
+---
+pcx_content_type: how-to
+title: Delay 활동
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/bots/workers-templates/delay-action/'
+translation_source_md: 'https://developers.cloudflare.com/bots/workers-templates/delay-action/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample } from "~/components";
+
+봇 관리 및 고객[작업자](/workers/)구독은 아래 템플릿을 사용하여 봇에서 가능성이있는 요청에 지연을 도입 할 수 있습니다.
+
+템플릿은 최소 및 최대 지연을 설정하고, 봇 점수가 30 미만이고 URI 경로가 시작되는 데 지연 요청`/exampleURI`.
+
+<TypeScriptExample>
+  ```ts title="Workers template"
+  //구성 변수
+  const PATH_START = '/exampleURI';
+  const DELAY_FROM = 5; //몇 초 안에
+  const DELAY_TO = 10; //몇 초 안에
+
+  export default {
+    async fetch(request, env, ctx): Promise<Response> {
+      const url = new URL(request.url);
+      const botScore = request.cf.botManagement.score
+
+      if (url.pathname.startsWith(PATH_START) && botScore < 30) {
+        //DELAY FROM와 DELAY TO 초 사이 무작위 지연
+        const delay = Math.floor(Math.random() * (DELAY_TO - DELAY_FROM + 1)) + DELAY_FROM;
+        await new Promise(resolve => setTimeout(resolve, delay * 1000));
+
+        //자주 묻는 질문
+        return fetch(request);
+      }
+
+      //지연없이 원래 요청을 Fetch
+      return fetch(request);
+    },
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>

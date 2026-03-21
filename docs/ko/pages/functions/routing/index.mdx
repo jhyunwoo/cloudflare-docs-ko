@@ -1,0 +1,207 @@
+---
+pcx_content_type: reference
+title: 로그아웃
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/routing/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/routing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, FileTree, PagesBuildPresetsTable, DashButton } from "~/components";
+
+함수는 파일 기반 라우팅을 사용합니다. 내 계정`/functions`디렉토리 구조는 기능이 실행될 지정된 경로를 결정합니다. 당신은 만들 수 있습니다`/functions`프로젝트의 사용 사례에 필요한 만큼 많은 수준의 디렉토리. 다음 디렉토리를 검토:
+
+<FileTree>
+  - ...
+  - 제품정보
+    - 프로젝트
+    - 다운로드
+    - 다운로드
+    - 과일
+      - 프로젝트
+      - 애플.js
+      - 다운로드
+</FileTree>
+
+위의 파일 구조에 따라 다음과 같은 경로가 생성됩니다. 이 경로는 URL 패턴을 URL로 맵`/functions`방문자가 URL로 갈 때 호출되는 파일 :
+
+| 파일 경로                    | 오시는 길                  |
+| ------------------------ | ---------------------- |
+| /기능/index.js             | 예제.com                 |
+| /기능 / helloworld.js      | 예제.com/helloworld      |
+| /기능/howdyworld.js        | 예제.com/howdyworld      |
+| / 기능 / 기능 / index.js     | 예제.com/fruits          |
+| /functions/fruits/애플.js  | example.com/fruits/애플  |
+| /functions/fruits/바나나.js | example.com/fruits/바나나 |
+
+:::노트\[Trailing slash]
+
+Trailing slash는 선택 사항입니다. 모두 보기`/foo`·`/foo/`가는 길`/functions/foo.js`또는`/functions/foo/index.js`. 당신의 프로젝트가 둘 다 있는 경우에`/functions/foo.js`·`/functions/foo/index.js`파일,`/foo`·`/foo/`오시는 길`/functions/foo/index.js`.
+
+:::
+
+함수가 일치하지 않으면 한 경우 정적 자산으로 돌아올 것입니다. 그렇지 않으면, 기능은 돌아올 것입니다[기본 routing 동작](/pages/configuration/serving-pages/)Pages의 정적 자산을 위해.
+
+## 동적인 노선
+
+동적 경로는 매개 변수화 된 세그먼트와 URL을 일치 할 수 있습니다. 동적 응용 프로그램을 구축하는 경우 유용 할 수 있습니다. 파일명 변경을 통해 단일 경로로 맵을 동적 값을 허용할 수 있습니다.
+
+### 단일 경로 세그먼트
+
+동적 경로를 만들려면 파일 이름 주위에 브래킷 한 세트를 배치합니다. 예를 들어,`/users/[user].js`. 이 작업을 수행하면 단일 경로 세그먼트에 대한 placeholder를 만듭니다.
+
+| 오시는 길          | 경기?   |
+| -------------- | ----- |
+| /사용자 / 네비      | 이름 \* |
+| /users/댄엘      | 이름 \* |
+| /profile/네비    | 이름 \* |
+| /users/nevi/후바 | 이름 \* |
+| /네비            | 이름 \* |
+
+### Multipath 세그먼트
+
+파일명 주위에 부류의 2 세트를 두십시오 – 예를 들면,`/users/[[user]].js`– 당신은 후에 노선의 어떤 깊이도 일치합니다`/users/`:
+
+| 오시는 길                  | 경기?   |
+| ---------------------- | ----- |
+| /사용자 / 네비              | 이름 \* |
+| /users/댄엘              | 이름 \* |
+| /profile/네비            | 이름 \* |
+| /users/nevi/후바         | 이름 \* |
+| /users/daniel/xyz/123번 | 이름 \* |
+| /네비                    | 이름 \* |
+
+:::노트\[광명]
+
+좀 더 특정 루트 (몇 개의 와일드 카드가있는 루트)는 특정 경로보다 우선 순위를 취합니다.
+
+:::
+
+#### 동적 경로 예제
+
+자주 묻는 질문`/functions/`디렉토리 구조:
+
+<FileTree>
+  - ...
+  - 제품정보
+    - 날짜.js
+    - 이름 \*
+      - 특수.js
+      - \[사용자].js
+      - \[\[catchall]].js를
+</FileTree>
+
+다음 요청은 다음 파일과 일치합니다.
+
+| 제품 정보                  | 파일 형식                          |
+| ---------------------- | ------------------------------ |
+| 뚱 베어                   | 한 번 사용할 수 있는 경우 정적 자산으로 이동합니다. |
+| - 연혁                   | 다운로드                           |
+| /users/댄엘              | /users/\[사용자].js               |
+| /사용자 / 네비              | /users/\[사용자].js               |
+| /users/특징              | /사용자/특수.js                     |
+| /users/daniel/xyz/123번 | /users/\[\[catchall]].js       |
+
+위너와 일치하는 URL 세그먼트(s)`[user]`)는 요청에 유효합니다[`context`](/pages/functions/api-reference/#eventcontext)객체. 더 보기[`context.params`](/pages/functions/api-reference/#eventcontext)객체는 주어진 filename placeholder에 대한 일치하는 값을 찾을 수 있습니다.
+
+단일 URL 세그먼트 (괄호의 단일 세트 사용)와 일치하는 파일에 대한 값은 문자열로 반환됩니다.
+
+```js
+export function onRequest(context) {
+	return new Response(context.params.user);
+}
+```
+
+위의 논리가 반환됩니다.`daniel`자주 묻는 질문`/users/daniel`.
+
+여러 URL 세그먼트에 대한 일치 파일 (버킷의 두 배 세트 사용), 값은 배열로 반환됩니다 :
+
+```js
+export function onRequest(context) {
+	return new Response(JSON.stringify(context.params.catchall));
+}
+```
+
+위의 논리가 반환됩니다.`["daniel", "xyz", "123"]`자주 묻는 질문`/users/daniel/xyz/123`.
+
+## 기능 invocation 노선
+
+순수 정적 프로젝트에서 Pages는 무제한 무료 요청을 제공합니다. 그러나 Pages 프로젝트에서 함수를 추가하면 기본적으로 모든 요청은 함수를 호출합니다. 무제한 무료 정적 요청을 계속 수신하려면 프로젝트의 정적 경로 제외`_routes.json`파일. 이 파일은 자동으로 생성됩니다.`functions`디렉토리는 Pages CI 또는 Wrangler로 프로젝트를 게시 할 때 프로젝트에서 감지됩니다.
+
+:::참조
+
+일부 프레임 워크 (예 :[리믹스](/pages/framework-guides/deploy-a-remix-site/), [SvelteKit](/pages/framework-guides/deploy-a-svelte-kit-site/))는 또한 자동적으로 생성합니다`_routes.json`파일. 그러나 선호하는 프레임 워크가 아니라면 프레임 워크 저장소의 문제점을 이 페이지에 연결하거나 우리를 알고[공지사항](https://discord.cloudflare.com). 참조[Framework 가이드](/pages/framework-guides/)전체 스택 프레임 워크에 대한 자세한 내용은.
+
+:::
+
+### 이름 \*`_routes.json`이름 \*
+
+이름 \*`_routes.json`함수가 호출될 때 제어하는 파일. 프로젝트의 빌드 디렉토리에 배치해야합니다.
+
+<Details header="기본 빌드 디렉토리">
+  아래는 인기있는 프레임 워크 및 도구에 대한 일부 표준 빌드 명령 및 디렉터리입니다.
+
+  <PagesBuildPresetsTable />
+</Details>
+
+이 파일은 세 가지 다른 속성을 포함합니다:
+
+- **이름 \***: schema의 버전을 뺍니다. 현재 schema (version 1)의 한 버전이 있지만 앞으로 더 많은 것을 추가하고 호환되는 것을 목표로 할 수 있습니다.
+- **기타 제품**: Functions에 의해 호출될 수 있는 편향 경로. 와일드 카드 행동을 수락합니다.
+- **이름 \***: Functions에 의해 호출되지 않는 경로를 정의합니다. 와일드 카드 행동을 수락합니다.`exclude`항상 우선 순위`include`.
+
+:::참조
+
+Wildcards는 경로 세그먼트(slashes)의 수와 일치합니다. 예를 들어,`/users/*`후에 모든 것을 일치할 것입니다`/users/`경로.
+
+:::
+
+#### 예제 구성
+
+아래는 예입니다.`_routes.json`.
+
+```json
+{
+	"version": 1,
+	"include": ["/*"],
+	"exclude": []
+}
+```
+
+이름 \*`_routes.json`모든 경로에 기능을 호출합니다.
+
+다음은 다른 예입니다.`_routes.json`파일. 안쪽으로 어떤 노선`/build`디렉토리는 함수를 호출하지 않고 함수를 호출하지 않습니다.
+
+```json
+{
+	"version": 1,
+	"include": ["/*"],
+	"exclude": ["/build/*"]
+}
+```
+
+## 실패 / 폐쇄
+
+Workers 무료 플랜에 PagesXQ가 PagesXQXQ의 일일 무료 계층 허용 때 어떻게 동작하는지 설정할 수 있습니다. 기능 요청이 소진됩니다. 예를 들어, Pages의 인증 체크 또는 기타 중요한 기능을 수행하고 있습니다. 기능, 당신은 허용이 소진 될 때 Pages 프로젝트를 비활성화 할 수 있습니다.
+
+1. Cloudflare QX대시보드에서, 갑니다**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+2. Pages 프로젝트를 선택하십시오.
+3. 오시는 길**계정 설정** > **지원하다** > **실패 / 폐쇄**.
+
+"Fail open"은 정적 자산이 Pages가 계속됩니다. 함수는 ordinarily 먼저 실행한다. "Fail close"는 오류 페이지를 반환합니다.
+
+Pages 기능은 향상에 의해 전적으로 제거될 수 있습니다[모델 번호: Workers 제품 정보](/workers/platform/pricing/#workers).
+
+### 제한 사항
+
+작업 경로에는 다음과 같은 제한이 있습니다.
+
+- 당신은 적어도 하나의 규칙을 포함해야합니다.
+- 100 개 이상의 포함 / 제외 규칙이 없습니다.
+- 각 규칙은 100개 이상 특성이 있을지도 모릅니다.

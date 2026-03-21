@@ -1,0 +1,185 @@
+---
+title: 사이트맵
+pcx_content_type: get-started
+sidebar:
+  order: 2
+description: boto3 및 AWS SDK와 같은 S3-compatible SDK를 가진 R2XQ를 사용하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/get-started/s3/'
+translation_source_md: 'https://developers.cloudflare.com/r2/get-started/s3/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { LinkCard, PackageManagers, Render, Tabs, TabItem, Steps } from "~/components";
+
+R2는 지원을 제공합니다[S3- 호환 API](/r2/api/s3/api/)어떤 S3 SDK, 라이브러리 또는 툴을 사용하여 버킷과 상호 작용할 수 있습니다. S3와 함께 작동하는 기존 코드를 가지고 있다면, 엔드포인트 URL을 변경하여 R2로 사용할 수 있습니다.
+
+## 1. 버킷 만들기
+
+<Render file="create-bucket-steps" product="r2" />
+
+## 2. API 자격 증명 생성
+
+S3 API를 사용하려면 생성해야 합니다.[한국어](/r2/api/tokens/)액세스 키 ID 및 비밀 액세스 키:
+
+<Render file="generate-s3-api-token-steps" product="r2" />
+
+Create API Token 확인 페이지 하단에서 찾을 수있는 S3 API 엔드 포인트 URL이 필요하면 토큰을 생성하거나 R2 개요 페이지에 있습니다.
+
+```txt
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+```
+
+## 3. AWS SDK 사용
+
+다음 예제는 Python 및 JavaScript SDK를 사용하는 방법을 보여줍니다. 다른 언어의 경우, 참조[S3-compatible SDK 예제](/r2/examples/aws/)제품 정보[이름 \*](/r2/examples/aws/aws-sdk-go/), [다운로드](/r2/examples/aws/aws-sdk-java/), [PHP를](/r2/examples/aws/aws-sdk-php/), [뚱 베어](/r2/examples/aws/aws-sdk-ruby/)·[모델 번호: Rust](/r2/examples/aws/aws-sdk-rust/).
+
+<Tabs>
+  <TabItem label="Python (보토3)">
+    <Steps>
+      1. 설치하기[뚱 베어](https://boto3.amazonaws.com/v1/documentation/api/latest/index.html):
+
+         ```sh
+         pip install boto3
+         ```
+
+      2. 테스트 파일을 업로드:
+
+         ```sh
+         echo 'Hello, R2!' > myfile.txt
+         ```
+
+      3. 당신의 자격 증명을 사용하여 S3 클라이언트를 만들고 물통과 상호 작용하십시오:
+
+         ```python
+         import boto3
+
+         s3 = boto3.client(
+             service_name='s3',
+             #R2 엔드포인트 제공: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+             endpoint_url='https://<ACCOUNT_ID>.r2.cloudflarestorage.com',
+             #R2 액세스 키 ID 및 비밀 액세스 키
+             aws_access_key_id='<ACCESS_KEY_ID>',
+             aws_secret_access_key='<SECRET_ACCESS_KEY>',
+             region_name='auto',  #필요에 따라 boto3, R2
+         )
+
+         #파일 업로드
+         s3.upload_file('myfile.txt', 'my-bucket', 'myfile.txt')
+         print('Uploaded myfile.txt')
+
+         #파일 다운로드
+         s3.download_file('my-bucket', 'myfile.txt', 'downloaded.txt')
+         print('Downloaded to downloaded.txt')
+
+         #게시판 목록
+         response = s3.list_objects_v2(Bucket='my-bucket')
+         for obj in response.get('Contents', []):
+             print(f"Object: {obj['Key']}")
+         ```
+
+      4. 저장하기`example.py`그리고 그것을 실행:
+
+         ```sh
+         python example.py
+         ```
+
+         ```sh output
+         Uploaded myfile.txt
+         Downloaded to downloaded.txt
+         Object: myfile.txt
+         ```
+    </Steps>
+
+    더 알아보기[boto3 예제](/r2/examples/aws/boto3/)더 많은 작업.
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript">
+    <Steps>
+      1. 설치하기[@aws-sdk/클라이언트-s3](https://www.npmjs.com/package/@aws-sdk/client-s3)포장:
+
+         ```sh
+         npm install @aws-sdk/client-s3
+         ```
+
+      2. 당신의 자격 증명을 사용하여 S3 클라이언트를 만들고 물통과 상호 작용하십시오:
+
+         ```js
+         import {
+         	S3Client,
+         	PutObjectCommand,
+         	GetObjectCommand,
+         	ListObjectsV2Command,
+         } from "@aws-sdk/client-s3";
+
+         const s3 = new S3Client({
+         	region: "auto", //R2
+         	//R2 엔드포인트 제공: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+         	endpoint: "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+         	credentials: {
+         		//R2 액세스 키 ID 및 비밀 액세스 키
+         		accessKeyId: "<ACCESS_KEY_ID>",
+         		secretAccessKey: "<SECRET_ACCESS_KEY>",
+         	},
+         });
+
+         //파일 업로드
+         await s3.send(
+         	new PutObjectCommand({
+         		Bucket: "my-bucket",
+         		Key: "myfile.txt",
+         		Body: "Hello, R2!",
+         	}),
+         );
+         console.log("Uploaded myfile.txt");
+
+         //파일 다운로드
+         const response = await s3.send(
+         	new GetObjectCommand({
+         		Bucket: "my-bucket",
+         		Key: "myfile.txt",
+         	}),
+         );
+         const content = await response.Body.transformToString();
+         console.log("Downloaded:", content);
+
+         //게시판 목록
+         const list = await s3.send(
+         	new ListObjectsV2Command({
+         		Bucket: "my-bucket",
+         	}),
+         );
+         console.log(
+         	"Objects:",
+         	list.Contents.map((obj) => obj.Key),
+         );
+         ```
+
+      3. 저장하기`example.mjs`그리고 그것을 실행:
+
+         ```sh
+         node example.mjs
+         ```
+
+         ```sh output
+         Uploaded myfile.txt
+         Downloaded: Hello, R2!
+         Objects: [ 'myfile.txt' ]
+         ```
+    </Steps>
+
+    더 알아보기[JavaScript 예제 용 AWS SDK](/r2/examples/aws/aws-sdk-js-v3/)더 많은 작업.
+  </TabItem>
+</Tabs>
+
+## 다음 단계
+
+<LinkCard title="위탁된 URL" href="/r2/api/s3/presigned-urls/" description="개인 객체 접근을 위한 임시 URL 생성." />
+
+<LinkCard title="공공 버킷" href="/r2/buckets/public-buckets/" description="HTTP를 통해 직접 파일을 공개 버킷." />
+
+<LinkCard title="사이트맵" href="/r2/buckets/cors/" description="브라우저 기반 업로드에 대한 CORS 구성." />
+
+<LinkCard title="목표 수명주기" href="/r2/buckets/object-lifecycles/" description="구문을 자동으로 삭제하는 Lifecycle 규칙을 설정합니다." />

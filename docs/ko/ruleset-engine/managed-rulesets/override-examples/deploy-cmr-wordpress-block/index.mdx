@@ -1,0 +1,94 @@
+---
+title: 설정 WordPress 블록 규칙
+pcx_content_type: configuration
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 사용 태그 overrides 설정 WordPress 규칙을 Block
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/deploy-cmr-wordpress-block/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/deploy-cmr-wordpress-block/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, APIRequest, Render } from "~/components";
+
+아래의 단계를 따라 관리 규칙을 실행하고 특정 태그와 규칙에 대한 override를 정의합니다.
+
+1. [규칙 추가](/ruleset-engine/basic-operations/deploy-rulesets/)관리 규칙을 실행하는 단계 항목 포인트 규칙.
+2. [태그 override 구성](/ruleset-engine/managed-rulesets/override-managed-ruleset/)주어진 태그로 모든 규칙에 대한 지정된 작업을 설정합니다.
+
+## 지역 수준 예
+
+이 예제는[지역 항목 포인트 규칙 업데이트](/ruleset-engine/rulesets-api/update/)단일의 다음 두 단계 수행 작업`PUT`요구 사항:
+
+- 규칙의 목록을 설정`http_request_firewall_managed`단계 항목 포인트 규칙을 실행하는 단일 규칙[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/).
+- Override 규칙과`wordpress`태그가 동작을 설정`block`. 다른 모든 규칙은 통치자가 제공하는 기본 동작을 사용합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					categories: [
+  						{
+  							category: "wordpress",
+  							action: "block",
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+## 계정 수준 예
+
+이 예제는[계정 입력 포인트 규칙 업데이트](/ruleset-engine/rulesets-api/update/)단일의 다음 두 단계 수행 작업`PUT`요구 사항:
+
+- 규칙의 목록을 설정`http_request_firewall_managed`단계 항목 포인트 규칙을 실행하는 단일 규칙[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/)지역별`example.com`.
+- Override 규칙과`wordpress`태그가 동작을 설정`block`. 다른 모든 규칙은 통치자가 제공하는 기본 동작을 사용합니다.
+
+<Render file="deploy-account-ruleset-requirement" product="ruleset-engine" />
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: 'cf.zone.name eq "example.com" and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					categories: [
+  						{
+  							category: "wordpress",
+  							action: "block",
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+/>

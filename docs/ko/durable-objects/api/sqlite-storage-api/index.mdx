@@ -1,0 +1,309 @@
+---
+title: SQLite-backed 튼튼한 목표 저장
+pcx_content_type: concept
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Type, MetaInfo, GlossaryTooltip, TypeScriptExample, Details, Tabs, TabItem } from "~/components";
+
+:::참조
+이 문서는 더 새로운 SQLite 백업 Durable Objects에 대한 저장 API.
+
+레거시 KV-backed 튼튼한 목표 저장 API를 위해, 참조하십시오[KV-backed 튼튼한 목표 저장 (Legacy)](/durable-objects/api/legacy-kv-storage-api/).
+:::
+
+<Render file="api-storage-introduction" product="durable-objects" />
+
+<Render file="recommend-sqlite-do" product="durable-objects" />
+
+<Render file="do-sqlite-storage-no-bill-note" product="durable-objects" />
+
+## 오시는 길
+
+Durable Objects는 저장 API에 접근을 통해 얻습니다`DurableObjectStorage`인터페이스 및 접근`DurableObjectState::storage`호텔 위치 자주 액세스`this.ctx.storage`이름 \*`ctx`튼튼한 목표 constructor에 통과된 모수.
+
+다음 코드 스니펫은 튼튼한 Object Storage API를 사용하여 데이터를 저장하고 검색하는 방법을 보여줍니다.
+
+<Tabs>
+  <TypeScriptExample omitTabs={true}>
+    ```ts
+    export class Counter extends DurableObject {
+      constructor(ctx: DurableObjectState, env: Env) {
+        super(ctx, env);
+      }
+
+        async increment(): Promise<number> {
+          let value: number = (await this.ctx.storage.get('value')) || 0;
+          value += 1;
+          await this.ctx.storage.put('value', value);
+          return value;
+        }
+
+    }
+
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import DurableObject
+
+    class Counter(DurableObject):
+      def __init__(self, ctx, env):
+        super().__init__(ctx, env)
+
+      async def increment(self):
+        value = (await self.ctx.storage.get('value')) or 0
+        value += 1
+        await self.ctx.storage.put('value', value)
+        return value
+    ```
+  </TabItem>
+</Tabs>
+
+JavaScript는 단일 스레드 및 이벤트 구동 프로그래밍 언어입니다. 이것은 기본적으로 JavaScript 런타임을 의미하며, 통화 버그로 이어질 수있는 각 다른 사람들과 상호 작용할 수 있습니다. Durable Objects 실행 시간은 조합을 사용합니다<GlossaryTooltip term="input gate">입력 문</GlossaryTooltip>·<GlossaryTooltip term="output gate">산출 문</GlossaryTooltip>저장 작업을 수행 할 때 concurrency 버그의이 유형을 방지합니다. 더 알아보기[블로그 게시물](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/).
+
+## SQL API를
+
+더 보기`SqlStorage`인터페이스는 SQLite 데이터베이스를 내구재 객체 내에서 수정하는 방법을 캡슐화합니다. 더 보기`SqlStorage`인터페이스를 통해 접근 가능[`sql`이름 \*](/durable-objects/api/sqlite-storage-api/#sql)이름 \*`DurableObjectStorage`수업.
+
+예를 들어, 사용`sql.exec()`사용자는 테이블과 삽입 줄을 만들 수 있습니다.
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export class MyDurableObject extends DurableObject {
+      sql: SqlStorage;
+      constructor(ctx: DurableObjectState, env: Env) {
+        super(ctx, env);
+        this.sql = ctx.storage.sql;
+
+        this.sql.exec(`
+          CREATE TABLE IF NOT EXISTS artist(
+            artistid    INTEGER PRIMARY KEY,
+            artistname  TEXT
+          );
+          INSERT INTO artist (artistid, artistname) VALUES
+            (123, 'Alice'),
+            (456, 'Bob'),
+            (789, 'Charlie');
+        `);
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import DurableObject
+
+    class MyDurableObject(DurableObject):
+      def __init__(self, ctx, env):
+        super().__init__(ctx, env)
+        self.sql = ctx.storage.sql
+
+        self.sql.exec("""
+          CREATE TABLE IF NOT EXISTS artist(
+            artistid    INTEGER PRIMARY KEY,
+            artistname  TEXT
+          );
+          INSERT INTO artist (artistid, artistname) VALUES
+            (123, 'Alice'),
+            (456, 'Bob'),
+            (789, 'Charlie');
+        """)
+    ```
+  </TabItem>
+</Tabs>
+
+- SQL API 접근 방식`ctx.storage.sql`만 허용[SQLite 저장 백엔드를 가진 튼튼한 목표 종류](/durable-objects/best-practices/access-durable-objects-storage/#create-sqlite-backed-durable-object-class)그리고 KV-storage 백엔드를 가진 튼튼한 목표 종류에 불린 경우에 과실을 돌려보낼 것입니다.
+- 데이터를 작성할 때, 인덱스의 모든 행 업데이트는 추가 행으로 계산됩니다. 그러나, 인덱스는 read-heavy 사용 사례에 유리 할 수 있습니다. 더 알아보기[SQLite Durable Objects를 위한 색인](/durable-objects/best-practices/access-durable-objects-storage/#index-for-sqlite-durable-objects).
+- 데이터 작성[SQLite 가상 테이블](https://www.sqlite.org/vtab.html)행을 썼습니다.
+
+<Render file="d1-do-supported-sqlite-extensions" product="d1" params={{ product: "Durable Objects support" }} />
+
+### `exec`
+
+<code>실행 (query:<Type text="string" />, ...bindings:<Type text="any[]" />)</code>: <Type text="SqlStorageCursor" />
+
+#### 매개 변수
+
+- `query`: <Type text="string" />
+  - SQL 쿼리 문자열을 실행합니다.`query`포함될 수 있습니다`?`매개변수 바인딩을 위한 placeholders. 세미콜론과 분리된 다중 SQL 문은, 안으로 실행될 수 있습니다`query`. 다중 SQL 문으로, 어떤 모수 바인딩은 마지막 SQL 문에 안으로 적용됩니다`query`, 반환된 커서는 마지막 SQL 문에만 있습니다.
+- `...bindings`: <Type text="any[]" /> <MetaInfo text="Optional" />
+  - 선택적 변수의 인수 수에 해당하는`?`회사 소개`query`.
+
+#### 기타 제품
+
+커서 (cursor)`SqlStorageCursor`) 물체로 쿼리 행 결과에.`SqlStorageCursor`JavaScript[제품 정보](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_iterable_protocol), 그것은 그것을 사용`for (let row of cursor)`. `SqlStorageCursor`또한 JavaScript[회사 소개](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_iterator_protocol), 그것은 그것을 사용`cursor.next()`.
+
+`SqlStorageCursor`다음 방법을 지원:
+
+- `next()`
+  - 커서의 다음 값을 나타내는 객체를 반환합니다. 반환된 객체는`done`·`value`JavaScript[회사 소개](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Iteration_protocols#the_iterator_protocol). `done`설정`false`다음 값이 존재할 때,`value`쿼리 결과의 다음 행 객체로 설정됩니다.`done`설정`true`전체 커서를 소비 할 때, 그리고 아니`value`설정입니다.
+- `toArray()`
+  - 나머지 커서 값(s)을 통해 제거하고 반환된 행 객체의 배열을 반환합니다.
+- `one()`
+  - 쿼리 결과가 정확히 한 줄이면 행 객체를 반환합니다. 쿼리 결과가 0 개 이상의 행을 가지고 있다면,`one()`자주 묻는 질문
+- `raw()`: <Type text="Iterator" />
+  - 같은 쿼리 결과에 대한 이더레이터를 반환, 각 행의 배열으로 열 값 (열명 없음) 오히려 객체보다.
+  - Returned Iterator 지원`next()`·`toArray()`위의 방법.
+  - 반환된 커서 및`raw()`같은 쿼리 결과에 iterator iterate와 결합 할 수 있습니다. 예를 들면:
+
+<Tabs>
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    let cursor = this.sql.exec("SELECT * FROM artist ORDER BY artistname ASC;");
+    let rawResult = cursor.raw().next();
+
+    if (!rawResult.done) {
+      console.log(rawResult.value); //인쇄 [ 123, 'Alice' ]
+    } else {
+      //0 결과 반환된 쿼리
+    }
+
+    console.log(cursor.toArray()); //[{ Artistid: 456, Artistname: 'Bob' },{ Artistid: 789, 아티스트 이름: 'Charlie' }]
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    cursor = self.sql.exec("SELECT * FROM artist ORDER BY artistname ASC;")
+    raw_result = cursor.raw().next()
+
+    if not raw_result.done:
+      print(raw_result.value)  #인쇄 [ 123, 'Alice' ]
+    else:
+      #0 결과 반환된 쿼리
+      pass
+
+    print(cursor.toArray())  #[{ Artistid: 456, Artistname: 'Bob' },{ Artistid: 789, 아티스트 이름: 'Charlie' }]
+    ```
+  </TabItem>
+</Tabs>
+
+`SqlStorageCursor`뒤에 오는 재산이 있습니다:
+
+- `columnNames`: <Type text="string[]" />
+  - 순서에 있는 질의 란 이름은 각 줄 배열에서 돌려보내어 나타납니다`raw`관련 기사
+- `rowsRead`: <Type text="number" />
+  - 이 SQL의 일부로 읽는 행 수`query`. 이것은 당신이 커서를 그것으로 증가할지도 모릅니다. 최종 값은 사용됩니다.[SQL 청구](/durable-objects/platform/pricing/#sqlite-storage-backend).
+- `rowsWritten`: <Type text="number" />
+  - 이 SQL의 일부로 기록 된 행 수`query`. 이것은 당신이 커서를 그것으로 증가할지도 모릅니다. 최종 값은 사용됩니다.[SQL 청구](/durable-objects/platform/pricing/#sqlite-storage-backend).
+- 열에 있는 어떤 숫자 가치든지 JavaScript의 수를 위한 52 비트 정밀도에 의해 영향을 받습니다. 매우 큰 번호를 저장하는 경우 (in`int64`), 그 후에 동일한 가치를 검색합니다, 반환 값은 당신의 고유 번호 보다는 더 적은 정확할지도 모릅니다.
+
+:::노트\[SQL 거래]
+주의사항`sql.exec()`거래 관련 진술을 실행할 수 없습니다.`BEGIN TRANSACTION`또는`SAVEPOINT`. 대신, 사용[`ctx.storage.transaction()`](/durable-objects/api/sqlite-storage-api/#transaction)또는[`ctx.storage.transactionSync()`](/durable-objects/api/sqlite-storage-api/#transactionsync)APIs는 트랜잭션을 시작하고 콜백에서 SQL 쿼리를 실행합니다.
+주요 특징
+
+#### 이름 \*
+
+<Render file="durable-objects-sql" product="durable-objects" />
+
+### `databaseSize`
+
+`databaseSize`: <Type text="number" />
+
+#### 기타 제품
+
+현재 SQLite 데이터베이스 크기 바이트.
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    let size = ctx.storage.sql.databaseSize;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    size = ctx.storage.sql.databaseSize
+    ```
+  </TabItem>
+</Tabs>
+
+## PITR (시간 복구 포인트) API
+
+제품 정보[SQLite 백업 Durable Objects](/durable-objects/best-practices/access-durable-objects-storage/#create-sqlite-backed-durable-object-class), 다음 Point-in-time-recovery (PITR) API 메소드는 과거 30 일 동안 시간에 어떤 시점에 견고한 Object's Embedded SQLite 데이터베이스를 복원 할 수 있습니다. 이 방법은 객체의 저장된 SQL 데이터와 키 값 데이터를 사용하여 전체 SQLite 데이터베이스 내용에 적용하고 키 값 데이터를 저장합니다.`put()`API. PITR API는 로컬로 저장되지 않기 때문에 로컬 개발에서 지원되지 않습니다.
+
+PITR API는 'bookmarks'를 사용하여 시간에 포인트를 나타냅니다. bookmark는 주로 알파벳 문자열입니다.`0000007b-0000b26e-00001538-0c3e87bb37b3db5cc52eedb93cd3b96b`. 책갈피는 lexically comparable이기 위하여 디자인됩니다: 시간이 지남에 있는 이전 점을 대표하는 책갈피는 정규적인 끈 비교를 사용하여, 1개 보다는 더 적은을 비교합니다.
+
+### `getCurrentBookmark`
+
+<code>파일 형식</code>: <Type text="Promise<string>" />
+
+- 개체의 역사에서 현재 점을 나타내는 책갈피를 반환합니다.
+
+### `getBookmarkForTime`
+
+<code>ctx.storage.getBookmarkForTime(timestamp:<Type text="number | Date" />)</code>: <Type text="Promise<string>" />
+
+- 지난 30일 동안 주어진 시점을 나타내는 책갈피를 반환합니다. 타임스탬프가 숫자로 표현되면, 사용시 날짜로 변환됩니다.`new Date(timestamp)`.
+
+### `onNextSessionRestoreBookmark`
+
+<code>ctx.storage.onNextSessionRestoreBookmark(북마크:<Type text="string" />)</code>: <Type text="Promise<string>" />
+
+- Configures the 튼튼한 개체 그래서 다음 시간이 다시 시작, 그것은 저장을 정확히 일치해야 저장을 복원해야 저장소 주어진 bookmark에 포함. 이 호출 후, 응용 프로그램은 일반적으로 호출되어야한다`ctx.abort()`튼튼한 개체를 다시 시작하려면 Point-in-time Recovery를 완료하십시오.
+
+이 방법은 복구가 일어나기 전에 즉시 시점을 나타내는 특별한 북마크를 반환합니다 (그 시점이 여전히 기술적으로 미래에). 따라서, 복구 완료 후, 그것은이 책갈피에 두 번째 복구를 수행하여 undone 수 있습니다.
+
+<Tabs>
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    const DAY_MS = 24*60*60*1000;
+    //2 일 전
+    let bookmark = ctx.storage.getBookmarkForTime(Date.now() - 2 * DAYS_MS);
+    ctx.storage.onNextSessionRestoreBookmark(bookmark);
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from datetime import datetime, timedelta
+
+    now = datetime.now()
+    #2 일 전
+    bookmark = ctx.storage.getBookmarkForTime(now - timedelta(days=2))
+    ctx.storage.onNextSessionRestoreBookmark(bookmark)
+    ```
+  </TabItem>
+</Tabs>
+
+## 동시 KV API
+
+<Render file="api-sync-kv" product="durable-objects" />
+
+## 비동기 KV API
+
+<Render file="api-async-kv-legacy" product="durable-objects" />
+
+## 알람 시계
+
+<Render file="api-storage-alarms" product="durable-objects" />
+
+## 이름 \*
+
+<Render file="api-storage-other-methods" product="durable-objects" />
+
+## 공급 능력
+
+### `sql`
+
+`sql`타입의 readonly 속성`DurableObjectStorage`자주 묻는 질문[SQL API를](/durable-objects/api/sqlite-storage-api/#synchronous-sql-api).
+
+## 관련 자료
+
+- [Durable Objects: 쉬운, 빠른, 정확한 3를 선택하십시오](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/)
+- [Zero-latency SQLite 스토리지는 모든 튼튼한 개체 블로그에](https://blog.cloudflare.com/sqlite-in-durable-objects/)
+- [웹소켓 API](/durable-objects/best-practices/websockets/)

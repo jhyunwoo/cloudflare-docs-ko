@@ -1,0 +1,22 @@
+---
+pcx_content_type: concept
+title: Hash
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: Hash 스티어링
+
+---
+
+**Hash steering**은 [엔드포인트 가중치](/load-balancing/understand-basics/traffic-steering/origin-level-steering/#weights)와 해당 IP 주소의 이전 요청을 조합해 Cloudflare가 요청을 엔드포인트로 보내도록 합니다. 같은 IP 주소에서 온 요청은 같은 엔드포인트에 도달하도록 보장하지만, 실제 트래픽 분산은 엔드포인트 가중치와 다를 수 있습니다.
+
+## Workers 사용 시 제한 사항
+
+Hash Steering은 요청의 원래 IP 주소를 판단하기 위해 `x-forwarded-for` 헤더에 의존합니다. 하지만 [Cloudflare Worker](/workers/)를 로드 밸런서 앞단에서 사용하면 Hash Steering의 동작 방식에 영향을 줄 수 있습니다.
+
+브라우저에서 시작된 요청에는 `x-forwarded-for` 헤더가 없지만, Worker가 요청을 로드 밸런서로 프록시하면 이 헤더는 원래 클라이언트 IP가 아니라 Worker의 IP로 채워집니다. Worker의 IP는 대개 Cloudflare 공용 IP이며 요청마다 달라질 수 있으므로, Hash Steering이 같은 클라이언트의 요청을 서로 다른 엔드포인트로 보낼 수 있고, 그 결과 트래픽 라우팅이 일관되지 않을 수 있습니다.
+
+### 해결 방법
+
+Worker를 Load Balancer 앞단에서 사용할 때 Hash Steering이 올바르게 동작하도록 하려면, Worker에서 `x-forwarded-for` 헤더를 클라이언트의 원래 IP 주소로 수동 설정하세요. `x-forwarded-for`를 `CF-Connecting-IP`로 수동 설정하면 Hash Steering이 기대한 대로 동작하여 최종 사용자에 대한 트래픽 일관성이 보장됩니다.

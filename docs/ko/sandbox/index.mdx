@@ -1,0 +1,332 @@
+---
+title: Sandbox SDK (베타)
+pcx_content_type: overview
+sidebar:
+  order: 1
+  badge:
+    text: Beta
+head:
+  - tag: title
+    content: 제품정보
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	CardGrid,
+	Description,
+	Feature,
+	LinkTitleCard,
+	Plan,
+	RelatedProduct,
+	LinkButton,
+	Tabs,
+	TabItem,
+} from "~/components";
+
+<Description>
+  보안, 고립된 코드 실행 환경 구축
+</Description>
+
+<Plan type="workers-paid" />
+
+Sandbox SDK를 사용하면 격리된 환경에서 신뢰할 수 없는 코드를 안전하게 실행할 수 있습니다. 관련 제품[회사 소개](/containers/), Sandbox SDK는 실행 명령, 파일 관리, 실행 배경 프로세스 및 만료 서비스 - 모두에 대한 간단한 API를 제공합니다[모델 번호: Workers](/workers/)신청.
+
+Sandboxes는 코드, 상호 작용하는 발달 환경, 자료 분석 플랫폼, CI/CD 체계 및 가장자리에 안전한 부호 실행을 필요로 하는 어떤 신청든지를 실행할 필요가 있는 AI 대리인을 건축하기에 대하 이상적입니다. 각 샌드박스는 완전한 Linux 환경에서 자체 격리된 컨테이너에서 성능 유지하면서 강력한 보안 경계를 제공합니다.
+
+Sandbox를 사용하면 Python 스크립트를 실행하고 Node.js 응용 프로그램을 실행하고 데이터를 분석하고 코드를 컴파일하고 복잡한 계산을 수행 할 수 있습니다. 간단한 QXQX0002XQ API 및 관리 할 인프라가 없습니다.
+
+<Tabs>
+  <TabItem label="명령 실행">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const sandbox = getSandbox(env.Sandbox, 'user-123');
+
+    		//명령을 실행하고 결과를 얻을
+    		const result = await sandbox.exec('python --version');
+
+    		return Response.json({
+    			output: result.stdout,
+    			exitCode: result.exitCode,
+    			success: result.success
+    		});
+    	}
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="코드 Interpreter">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const sandbox = getSandbox(env.Sandbox, 'user-123');
+
+    		//Python 실행 컨텍스트 만들기
+    		const ctx = await sandbox.createCodeContext({ language: 'python' });
+
+    		//자동 결과 캡처와 Python 코드를 실행
+    		const result = await sandbox.runCode(`
+    import pandas as pd
+    data = {'product': ['A', 'B', 'C'], 'sales': [100, 200, 150]}
+    df = pd.DataFrame(data)
+    df['sales'].sum()  # Last expression is automatically returned
+    	`, { context: ctx });
+
+    			return Response.json({
+    				result: result.results?.[0]?.text,
+    				logs: result.logs
+    			});
+    		}
+    	};
+    ```
+  </TabItem>
+
+  <TabItem label="파일 작업">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const sandbox = getSandbox(env.Sandbox, 'user-123');
+
+    		//프로젝트 구조 만들기
+    		await sandbox.mkdir('/workspace/project/src', { recursive: true });
+
+    		//파일 형식
+    		await sandbox.writeFile(
+    			'/workspace/project/package.json',
+    			JSON.stringify({ name: 'my-app', version: '1.0.0' })
+    		);
+
+    		//파일 읽기
+    		const content = await sandbox.readFile('/workspace/project/package.json');
+
+    		return Response.json({ content });
+    	}
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="파일 watching">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const sandbox = getSandbox(env.Sandbox, 'user-123');
+
+    		//실시간 파일 변경
+    		const watcher = await sandbox.watch('/workspace/src', {
+    			include: ['*.js', '*.ts'],
+    			onEvent: (event) => {
+    				console.log(`${event.type}: ${event.path}`);
+    				if (event.type === 'modify') {
+    					//방아쇠 rebuild 또는 뜨거운 reload
+    					console.log('Code changed, recompiling...');
+    				}
+    			},
+    			onError: (error) => {
+    				console.error('Watch error:', error);
+    			}
+    		});
+
+    		//할 때 보
+    		setTimeout(() => watcher.stop(), 60000);
+
+    		return Response.json({ message: 'File watcher started' });
+    	}
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="터미널 액세스">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const url = new URL(request.url);
+
+    		//터미널 WebSocket 연결
+    		if (url.pathname === '/ws/terminal') {
+    			const sandbox = getSandbox(env.Sandbox, 'user-123');
+    			return sandbox.terminal(request, { cols: 80, rows: 24 });
+    		}
+
+    		return Response.json({ message: 'Terminal endpoint' });
+    	}
+    };
+    ```
+
+    WebSocket을 통해 sandbox shells에 직접 브라우저 터미널을 연결하십시오. 더 알아보기:[브라우저 터미널](/sandbox/guides/browser-terminals/).
+  </TabItem>
+
+  <TabItem label="WebSocket 연결">
+    ```typescript
+    import { getSandbox } from '@cloudflare/sandbox';
+
+    export { Sandbox } from '@cloudflare/sandbox';
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		//Sandbox의 WebSocket 서비스에 연결
+    		if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+    			const sandbox = getSandbox(env.Sandbox, 'user-123');
+    			return await sandbox.wsConnect(request, 8080);
+    		}
+
+    		return Response.json({ message: 'WebSocket endpoint' });
+    	}
+    };
+    ```
+
+    sandboxes에서 실행되는 WebSocket 서버에 연결하십시오. 더 알아보기:[WebSocket 연결](/sandbox/guides/websocket-connections/).
+  </TabItem>
+</Tabs>
+
+<LinkButton variant="primary" href="/sandbox/get-started/">
+  시작하기
+</LinkButton>
+
+<LinkButton variant="secondary" href="/sandbox/api/">
+  API 참조
+</LinkButton>
+
+***
+
+## 주요 특징
+
+<Feature header="안전하게 명령 실행" href="/sandbox/guides/execute-commands/" cta="Learn about command execution">
+  쉘 명령을 실행, Python 스크립트, Node.js 응용 프로그램, 스트리밍 출력 지원 및 자동 타임 아웃 처리와 더.
+</Feature>
+
+<Feature header="파일 및 프로세스 관리" href="/sandbox/guides/manage-files/" cta="Learn about file operations">
+  읽기, 쓰기, 샌드 박스 파일 시스템에 파일을 조작. 배경 프로세스를 실행하고 출력을 모니터링하고 긴 실행 작업을 관리합니다.
+</Feature>
+
+<Feature header="미리보기 URL을 가진 노출 서비스" href="/sandbox/guides/expose-services/" cta="Learn about preview URLs">
+  자동으로 생성된 미리보기 URL을 사용하여 샌드박스에서 실행되는 HTTP 서비스, 대화형 개발 환경 및 응용 프로그램 호스팅에 적합합니다.
+</Feature>
+
+<Feature header="코드를 직접 실행" href="/sandbox/guides/code-execution/" cta="Learn about code execution">
+  Python 및 JavaScript 코드를 실행하여 차트, 테이블 및 이미지를 포함한 풍부한 출력을 제공합니다. AI-generated 코드 및 대화형 워크플로우를 위한 실행 간의 지속적인 상태를 유지합니다.
+</Feature>
+
+<Feature header="대화형 터미널 구축" href="/sandbox/guides/browser-terminals/" cta="Learn about terminal UIs">
+  WebSocket을 통해 샌드박스 쉘에 직접 연결하는 브라우저 기반 터미널 인터페이스를 만듭니다. 상호 작용하는 맨끝, 상호 작용하는 발달 환경 및 자동적인 재연결을 가진 순간 포탄 접근을 건설하십시오.
+</Feature>
+
+<Feature header="물체 저장을 가진 Persistent 저장" href="/sandbox/guides/mount-buckets/" cta="Learn about bucket mounting">
+  S3- 호환 객체 저장 (R2, S3, GCS 등) 로컬 파일 시스템. 샌드박스 라이프사이클 전반에 걸쳐 지속되는 데이터로 표준 파일 작업을 사용하여 액세스 버킷. 관련 제품
+</Feature>
+
+<Feature header="실시간 변경 파일 보기" href="/sandbox/guides/file-watching/" cta="Learn about file watching">
+  native filesystem 이벤트를 사용하여 변경된 파일 및 디렉토리를 모니터링 합니다. Hot reloading development server 구축, 자동화 시스템 구축, 구성 모니터링 도구.
+</Feature>
+
+***
+
+## 사용 사례
+
+Sandbox를 가진 강력한 신청을 건설하십시오:
+
+### AI 코드 실행
+
+큰 언어 모델에 의해 생성 된 코드를 안전하고 신뢰할 수 있습니다. Native 통합[Workers AI](/workers-ai/)GPT-OSS 같은 모델은 샌드박스 실행으로 호출할 수 있습니다. AI 에이전트, 코드 조수 및 비신뢰 코드를 실행할 필요가있는 자율 시스템.
+
+### 데이터 분석 및 노트북
+
+pandas, NumPy 및 Matplotlib와 상호 작용하는 데이터 분석 환경을 만듭니다. 자동 풍부한 출력 포맷으로 차트, 테이블 및 시각화를 생성합니다.
+
+### Interactive 개발 환경
+
+클라우드 IDE, 코딩 놀이터 및 전체 Linux 환경 및 미리보기 URL과 협업 개발 도구 구축.
+
+### CI/CD 및 빌드 시스템
+
+테스트, 컴파일 코드를 실행하고, 병렬 실행 및 스트리밍 로그와 격리된 환경에서 빌드 파이프라인을 실행합니다.
+
+***
+
+## 관련 제품
+
+<RelatedProduct header="회사 소개" href="/containers/" product="containers">
+  Sandbox를 구동하는 Serverless 컨테이너 실행 시간, 가장자리에 모든 컨테이너 작업 부하를 실행할 수 있습니다.
+</RelatedProduct>
+
+<RelatedProduct header="Workers AI" href="/workers-ai/" product="workers-ai">
+  네트워크에서 기계 학습 모델과 LLM을 실행합니다. 안전한 AI 코드 실행 워크플로우를 위한 Sandbox와 결합합니다.
+</RelatedProduct>
+
+<RelatedProduct header="Durable Objects" href="/durable-objects/" product="durable-objects">
+  Sandbox가 강력한 견실함을 가진 지속 가능한 환경을 유지하기 위해 활성화하는 성공적인 조정 층.
+</RelatedProduct>
+
+***
+
+## 더 많은 리소스
+
+<CardGrid>
+  <LinkTitleCard title="다운로드" href="/sandbox/tutorials/" icon="open-book">
+    AI 코드 실행, 데이터 분석 및
+    상호 작용하는 환경.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="자주 묻는 질문" href="/sandbox/guides/" icon="seti:notebook">
+    특정 문제를 해결하고 Sandbox와 함께 기능을 구현하는 방법을 알아보십시오.
+    SDK.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="API 참조" href="/sandbox/api/" icon="seti:json">
+    Sandbox SDK에 대한 완전한 API 문서를 살펴보십시오.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="회사 소개" href="/sandbox/concepts/" icon="seti:info">
+    Sandbox SDK의 주요 개념과 아키텍처에 대해 알아보세요.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="제품 설명" href="/sandbox/configuration/" icon="setting">
+    Sandbox SDK의 구성 옵션에 대해 알아보세요.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="GitHub 저장소" href="https://github.com/cloudflare/sandbox-sdk" icon="github">
+    SDK 소스 코드 보기, 보고서 문제, 프로젝트에 기여.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="베타 정보" href="/sandbox/platform/beta-info/" icon="warning">
+    Sandbox Beta, 현재 상태 및 다가오는 기능에 대해 알아보세요.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="가격 책정" href="/sandbox/platform/pricing/" icon="seti:shell">
+    Underlying Containers 플랫폼을 기반으로 Sandbox 가격 비교.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="제한 사항" href="/sandbox/platform/limits/" icon="error">
+    리소스 제한, quotas 및 작업을위한 모범 사례에 대해 알아보기
+    그들.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="Discord 커뮤니티" href="https://discord.cloudflare.com" icon="discord">
+    Discord 커뮤니티와 연결하십시오. 자주 묻는 질문
+    건물 및 다른 개발자로부터 도움을 받으십시오.
+  </LinkTitleCard>
+</CardGrid>

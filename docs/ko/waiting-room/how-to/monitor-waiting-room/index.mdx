@@ -1,0 +1,109 @@
+---
+pcx_content_type: how-to
+title: 대기실 상태 모니터링
+sidebar:
+  order: 3
+
+---
+
+import { APIRequest } from "~/components";
+
+대기실 상태는 [대시보드](#status-in-the-dashboard) 또는 [API](#status-in-the-api)를 사용해 모니터링할 수 있습니다.
+
+대시보드와 API 엔드포인트에 표시되는 **Total active users** 및 **Queued users**는 추정치라는 점에 유의하세요. 각 지표에 해당하는 데이터는 전 세계 모든 데이터 센터에서 동기화된 뒤 약 30초 동안 캐시됩니다. 따라서 상태는 데이터를 조회하고 집계한 정확한 시점, 그리고 캐시 나이에 따라 현재보다 약 20~50초 과거 범위를 나타냅니다.
+
+대기실을 통과하는 트래픽에 대한 자세한 내용은 [Waiting Room Analytics](/waiting-room/waiting-room-analytics/)를 참고하세요.
+
+## Status in the dashboard
+
+대기실 목록을 보려면 **Waiting Room** 대시보드를 엽니다.
+
+**Status** 열에는 현재 대기실 상태가 표시됩니다.
+
+* **Not queueing**:
+  * 대기실은 활성화되어 있지만, 방문자를 대기실로 보낼 만큼의 트래픽 임계값에는 아직 도달하지 않았습니다.
+  * 애플리케이션에 있는 사용자 수의 추정치를 보여 줍니다.
+* **Queueing**:
+  * 대기실이 활성화되어 있으며 방문자를 대기실로 보내고 있습니다.
+  * 대기열에 있는 사용자 수의 추정치를 보여 줍니다.
+  * 마우스를 올리면 사용자가 예상해야 하는 최대 대기 시간이 표시됩니다.
+* **Disabled**: 대기실이 일시 중지된 상태입니다.
+* **Queue-all**:
+  * 모든 트래픽을 강제로 대기실에서 대기하게 만듭니다.
+  * 마우스를 올리면 대기열에 있는 사용자 수의 추정치를 보여 줍니다.
+
+## Status in the API
+
+구성된 대기실에서 트래픽이 현재 대기 중인지 확인하려면 Cloudflare API 기본 URL 뒤에 다음 엔드포인트를 붙입니다.
+
+<APIRequest
+  path="/zones/{zone_id}/waiting_rooms/{waiting_room_id}/status"
+  method="GET"
+/>
+
+응답은 다음과 같습니다.
+
+* 방문자가 현재 대기실에서 줄을 서고 있으면 `queueing`
+* 방이 비어 있거나 대기실이 일시 중지되었으면 `not_queueing`
+
+구성된 대기실이 일시 중지되었는지, 또는 트래픽이 대기실로 강제 대기되고 있는지 확인하려면 다음 엔드포인트를 Cloudflare API 기본 URL 뒤에 붙입니다.
+
+<APIRequest
+  path="/zones/{zone_id}/waiting_rooms/{waiting_room_id}"
+  method="GET"
+/>
+
+위 엔드포인트는 구성된 대기실의 [모든 설정](/api/resources/waiting_rooms/methods/get/)을 가져옵니다.
+
+```bash
+      "success": true,
+      "errors": [],
+      "messages": [],
+      "result": {
+        "id": "REDACTED",
+        "created_on": "2014-01-01T05:20:00.12345Z",
+        "modified_on": "2014-01-01T05:20:00.12345Z",
+        "name": "shop_waiting_room",
+        "description": "Waiting room for webshop",
+        "suspended": false,
+        "host": "shop.example.com",
+        "path": "/shop",
+        "queue_all": true,
+        "new_users_per_minute": 200,
+        "total_active_users": 300,
+        "session_duration": 1,
+        "disable_session_renewal": false,
+        "json_response_enabled": false,
+        "queueing_method": "random",
+        "cookie_attributes": {
+          "samesite": "auto",
+          "secure": "auto"
+        },
+        "custom_page_html": "{{#waitTimeKnown}} {{waitTime}} mins {{/waitTimeKnown}} {{^waitTimeKnown}} Queue all enabled {{/waitTimeKnown}}"
+      }
+```
+
+`suspended` 값은 대기실이 활성 상태인지 일시 중지 상태인지를 나타냅니다.
+
+* `false`: 대기실이 활성화되어 있습니다.
+* `true`: 대기실이 일시 중지되어 있습니다.
+
+`queue_all` 값은 모든 트래픽이 대기실에서 강제로 대기하는지 여부를 나타냅니다.
+
+* `false`: 트래픽이 설정된 임계값을 초과할 때만 방문자가 대기실로 전환됩니다.
+* `true`: 모든 트래픽이 대기실에서 강제로 대기하며, 대기실에서 origin으로 통과하는 트래픽은 없습니다.
+
+## Queueing activation
+
+Waiting Room은 확장성을 높이기 위해 데이터 센터 수준에서 트래픽을 대기열로 관리하며, 각 데이터 센터가 독립적으로 판단할 수 있도록 설계되어 있습니다.
+
+이 설계 때문에 Waiting Room에 설정하는 트래픽 제한값은 정확한 절대값이라기보다 트래픽 규모를 그 근처에 유지하려는 목표값입니다. 따라서 특정 데이터 센터의 트래픽은 대기실이 `new_users_per_minute` 또는 `total_active_users` 한도에 도달하기 전에 먼저 대기열에 들어갈 수 있습니다.
+
+Waiting Room은 또한 분의 끝 시점만이 아니라 매 분 동안 사용자가 유입되는 속도를 지속적으로 모니터링합니다. 따라서 1분의 시작 시점에 설정한 `new_users_per_minute` 값의 상당 부분이 이미 유입되었다면, 그 분 동안 최종적으로 도달한 전체 `new_users_per_minute` 값이 임계값에 미치지 않더라도 사용자 대기열을 시작할 수 있습니다.
+
+대기실이 적극적으로 대기열을 활성화하는 상황을 줄이려면 `new_users_per_minute` 및/또는 `total_active_users` 값을 늘리세요. Waiting Room이 대기열 결정을 내리는 방식에 대한 자세한 내용은 [블로그 게시물](https://blog.cloudflare.com/how-waiting-room-queues)을 참고하세요.
+
+:::note
+
+Waiting Room은 정상적인 트래픽을 처리하도록 설계되어 있습니다. 대기열이 자주 발생하거나 비정상적인 대기 행동이 보인다면 Cloudflare 보안 제품을 사용해 악성 및 자동화 트래픽을 적절히 처리하고 있는지 확인하세요.
+:::

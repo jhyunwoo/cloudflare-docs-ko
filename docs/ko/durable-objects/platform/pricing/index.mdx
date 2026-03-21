@@ -1,0 +1,135 @@
+---
+pcx_content_type: concept
+title: 가격 책정
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/platform/pricing/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/platform/pricing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Durable Objects는 청구서의 2가지 유형에 incur 할 수 있습니다: compute와 저장.
+
+<Render file="do-plans-note" product="durable-objects" />
+
+Workers에 무료 플랜:
+
+- 무료 계층 제한 중 하나를 초과하면 그 유형의 더 많은 작업이 오류로 실패합니다.
+- 매일 무료 제한 재설정 00:00 UTC.
+
+<Render file="durable-objects-pricing" product="durable-objects" params={{ product: "durable-objects" }} />
+
+## Compute 청구 사례
+
+이 예제는 WorkersXQ에 대한 비용을 제외합니다. 튼튼한 개체의 비용을 모델링 할 때, 주의:
+
+- 요청을 수신하지 않는 비활성 객체는 어떤 기간도 청구하지 않습니다.
+- 더 보기[웹소켓 Hibernation API](/durable-objects/best-practices/websockets/#websocket-hibernation-api)Durable ObjectsXQ는 WebSocket 프로토콜을 통해 고객과의 상호작용을 촉진하고, 특히 메시지가 스팸 간격으로만 전송되는 경우에만 전달될 수 있습니다.
+
+### 예제 1
+
+이 예제는 HTTP를 통해 co-ordination 서비스로 사용되는 간단한 튼튼한 개체를 나타냅니다.
+
+- 단일 튼튼한 개체는 노동자에 의해 호출되었다 1.5 백만 시간
+- 그것은 달에 1,000,000 초 동안 활동적입니다
+
+이 시나리오에서 추정 된 월간 비용은 다음과 같습니다.
+
+**제품정보**:
+
+- (1.5 백만 요청 - 포함 1 백만 요청) x $0.15 / 1,000,000 = $0.075
+
+**Compute 기간**:
+
+- 1,000,000 초 \* 128 MB/1개 GB = 128,000 GB-s
+- (128,000 GB-s - 포함 400,000 GB-s) x $12.50 / 1,000,000 = $0.00
+
+**예상 총**: \~$0.075 (복구) + $0.00 (입구 기간) + 최소 $5/mo 사용 = $5.08 월
+
+### 예제 2
+
+이 예제는 WebSockets를 사용하여 온건하게 트래픽이 많은 Durable Objects 기반 응용 프로그램을 대표하여 연결된 클라이언트를 통해 게임, 채팅 또는 실시간 사용자 상태를 방송합니다.
+
+- 100 Durable Objects에는 각각에 설치된 50 WebSocket 연결이 있습니다.
+- 클라이언트는 하루에 8 시간 동안 약 하나의 메시지를 보냅니다.
+
+이 시나리오에서 추정 된 월간 비용은 다음과 같습니다.
+
+**제품정보**:
+
+- 50 WebSocket 연결 \* 100 Durable Objects WebSockets = 5,000 연결이 매일 생성 \* 30 일 = 150,000 WebSocket 연결 요청.
+- 분 당 50 메시지 \* 100 Durable Objects \* 60 분 \* 8 시간 \* 30 일 = 72,000,000 WebSocket 메시지 요청.
+- 150,000 + (WebSocket 메시지 청구 비율에 대한 72 백만 요청 / 20) = 3.75 백만 청구 요청.
+- (3.75 백만 요청 - 포함 1 백만 요청) x $0.15 / 1,000,000 = $0.41.
+
+**Compute 기간**:
+
+- 100개 Durable Objects \* 60 초 \* 60 분 \* 8 시간 \* 30 일 = 86,400,000 초.
+- 86,400,000 초 \* 128 MB/1 GB = 11,059,200 GB-s.
+- (11,059,200 GB-s - 포함 400,000 GB-s) x $12.50 / 1,000,000 = $133.24.
+
+**예상 총**: $0.41 (요구) + $133.24 (본 기간) + 최소 $ 5 / 월 사용 = $ 138.65.
+
+### 예제 3
+
+이 예제는 WebSockets를 사용하여 수평으로 확장 된 Durable Objects 기반 응용 프로그램을 나타냅니다. 사용자는 각 튼튼한 개체에 연결된 단일 클라이언트에 사용자 별 상태를 통신합니다.
+
+- 100 Durable Objects 각각에는 그들 각각에 설치된 단 하나 WebSocket 연결이 있습니다.
+- 클라이언트는 매월 두 번째로 하나의 메시지를 보내 그래서 Durable Objects는 전체 달에 활성되었다.
+
+이 시나리오에서 추정 된 월간 비용은 다음과 같습니다.
+
+**제품정보**:
+
+- 100 WebSocket 연결 요청.
+- 초당 1 메시지 \* 100 연결 \* 60 초 \* 60 분 \* 24 시간 \* 30 일 = 259,200,000 WebSocket 메시지 요청.
+- 100 + (259.2 백만 요청 / 20 WebSocket 청구 비율) = 12,960,100 요청.
+- (12.9 백만 요청 - 포함 1 백만 요청) x $0.15 / 1,000,000 = $1.79.
+
+**Compute 기간**:
+
+- 100개 Durable Objects \* 60 초 \* 60 분 \* 24 시간 \* 30 일 = 259,200,000 초
+- 259,200,000 초 \* 128 MB/1개 GB = 33,177,600 GB-s
+- (33,177,600 GB-s - 포함 400,000 GB-s) x $12.50 / 1,000,000 = $409.72
+
+**예상 총**: $ 1.79 (요구) + $ 409.72 (본 기간) + 최소 $ 5 / 월 사용 = $ 416.51 / 월
+
+### 예 4
+
+이 예제는 WebSocket Hibernation을 사용하여 온건하게 트래픽이 많은 Durable Objects 기반 응용 프로그램을 대표하여 연결된 클라이언트를 통해 게임, 채팅 또는 실시간 사용자 상태를 방송합니다.
+
+- 100 Durable Objects 각각에는 각각 100개의 Hibernatable WebSocket 연결이 있습니다.
+- 클라이언트는 분 당 1개의 메시지를 보내고, 10ms가 단 하나 메시지를 처리하는 것을 가지고 갑니다`webSocketMessage()`핸들러. 각 튼튼한 목표가 100개의 WebSockets를 취급하기 때문에, 각 튼튼한 목표는 1 초를 위한 JS를 각 분 (100 WebSockets \* 10ms) 실행할 것입니다.
+
+이 시나리오에서 추정 된 월간 비용은 다음과 같습니다.
+
+**제품정보**:
+
+- 100 WebSocket 연결 \* 100 Durable Objects WebSockets = 10,000 초기 WebSocket 연결 요청을 설정할 수 있습니다.
+- 분 당 100 메시지<sup>1</sup>\* 100 Durable Objects \* 60 분 \* 24 시간 \* 30 일 = 432,000,000 요구.
+- 10,000 + (432 백만 요청 / 20 WebSocket 청구 비율) = 21,610,000 백만 요청.
+- (21.6 백만 요청 - 포함 1 백만 요청) x $0.15 / 1,000,000 = $3.09.
+
+**Compute 기간**:
+
+- 100개 Durable Objects \* 1 초<sup>2</sup>\* 60 분 \* 24 시간 \* 30 일 = 4,320,000 초
+- 4,320,000 초 \* 128 MB/1GB = 552,960 GB-s
+- (552,960 GB-s - 포함 400,000 GB-s) x $12.50 / 1,000,000 = $1.91
+
+**예상 총**: $ 3.09 (복구) + $ 1.91 (입구 기간) + 최소 $ 5 / 월 사용 = 월 $ 10.00
+
+<sup>1</sup>분 당 100 메시지가 100 클라이언트가 있음
+각 DO에 연결하고, 각 분 당 1개의 메시지를 보냅니다.
+
+<sup>2</sup>예를 들어 각 튼튼한 개체가 활성화되기 때문에 1 초를 사용합니다.
+분 당 1 초. 이것은 또한 432 백만개의 요청으로 생각될 수 있습니다
+각 10 ms를 실행 (4,320,000 초).
+
+## 자주 묻는 질문
+
+<Render file="do-faq-pricing" product="durable-objects" />

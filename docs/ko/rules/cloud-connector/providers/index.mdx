@@ -1,0 +1,111 @@
+---
+title: Cloud Connector의 클라우드 공급자 지원
+pcx_content_type: reference
+sidebar:
+  order: 5
+  label: 지원된 클라우드 공급자
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/cloud-connector/providers/'
+translation_source_md: 'https://developers.cloudflare.com/rules/cloud-connector/providers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Steps } from "~/components";
+
+Cloud Connector는 현재 다음과 같은 클라우드 공급자 및 서비스를 지원합니다.
+
+- CloudflareR2
+- 아마존 웹 서비스 - S3
+- Google Cloud Platform - 클라우드 스토리지
+- Microsoft Azure - Blob 스토리지
+
+## CloudflareR2
+
+Cloudflare R2 물통은 대중 이어야 하고[사용자 정의 도메인을 사용하여 노출](/r2/buckets/public-buckets/). 버킷을 사용하여 노출`r2.dev`subdomain은 지원되지 않습니다.
+
+또한 사용자 정의 도메인은 클라우드 커넥터 규칙을 구성하는 동일한 영역에서 정의해야합니다.
+
+## 아마존 웹 서비스 - S3
+
+S3 버킷 URL의 호스트명은 다음과 같은 형식 중 하나가 있어야 합니다.`*`와일드 카드 문자입니다):
+
+- `*s3.amazonaws.com`
+- `*s3.<REGION>.amazonaws.com`
+- `*s3-website.<REGION>.amazonaws.com`
+- `*s3-website-<REGION>.amazonaws.com`
+
+Cloud Connector는 하위 도메인과 URI 경로 스타일 URL을 모두 지원합니다.
+
+- **하위 도메인 스타일 URL**: 호스트명 설정`<BUCKET_NAME>.s3.amazonaws.com`. 이 경우에, 당신의 파일은 물통의 뿌리의 밑에 직접 접근할 수 있습니다. 예를 들어,`https://example.com/index.html`본문 바로가기`https://<BUCKET_NAME>.s3.amazonaws.com/index.html`. 사용시**전체 (Strict)**&#x53;SL/TLS 모드,`<BUCKET_NAME>`점은 포함할 수 없습니다 ( 대신 dashes를 사용하십시오). 더 알아보기[AWS S3 엔드포인트에 SSL 연결](#ssl-connections-to-aws-s3-endpoints)상세 정보
+- **URI 경로 스타일 URL**: 호스트명 설정`s3.amazonaws.com`. 여기, 당신의 물통 이름은 당신의 요구에 있는 URI 경로의 부분이어야 합니다. 예를 들어, 버킷 이름이 있다면`<BUCKET_NAME>`, 파일은 같은 경로에 사용할 수 있습니다`https://example.com/<BUCKET_NAME>/index.html`URI 경로에 따라 트래픽을 필터링해야 합니다.`/<BUCKET_NAME>`.
+
+### AWS S3 엔드포인트에 SSL 연결
+
+Cloud Connector와 AWS S3의 요청에 적용되는 SSL 설정은 S3 엔드포인트 유형에 따라 다릅니다.
+
+- **HTTPS 지원 종료점**: 호스트명`*s3.<REGION>.amazonaws.com`·`*s3.amazonaws.com`, Cloudflare는 당신이 당신의 지역의 SSL/TLS 형태를 놓는 경우에 HTTPS에 AWS S3에 연결할 것입니다**한국어**또는**전체 (Strict)**. 사용시**전체 (Strict)**, 물통 이름은 점을 포함할 수 없습니다 (사용 dashes 대신).
+- **Non-HTTPS 엔드포인트**: 웹 사이트 스타일 별명`*s3-website.<REGION>.amazonaws.com`또는`*s3-website-<REGION>.amazonaws.com`HTTPS를 지원하지 않는, Cloudflare는 기본적으로**유연한 SSL**.
+
+### 버킷 URL 받기
+
+<Steps>
+  1. 오시는 길[Amazon S3 콘솔](https://console.aws.amazon.com/s3/)선택하기**기타 제품**내비게이션 팬에.
+  2. 물통 이름을 선택하십시오.
+  3. 오시는 길**제품 정보**탭.
+  4. 선택하기**웹 호스팅**카드. 더 보기**끝점**필드는 버킷 URL을 보여줍니다.
+</Steps>
+
+더 많은 정보를 원하시면, 참조[Amazon S3 문서](https://docs.aws.amazon.com/AmazonS3/latest/userguide/EnableWebsiteHosting.html).
+
+<Render file="cloud-connector-limit-bucket-to-cloudflare-ips" product="rules" />
+
+## Google Cloud Platform - 클라우드 스토리지
+
+Cloud Storage Bucket URL의 호스트명은 다음과 같습니다.`*`와일드 카드 문자입니다):
+
+- `*storage.googleapis.com`
+- `*storage.cloud.google.com`
+
+Cloud Connector는 하위 도메인과 URI 경로 스타일 URL을 모두 지원합니다.
+
+- **하위 도메인 스타일 URL**: 호스트명 설정`<BUCKET_NAME>.storage.googleapis.com`. 이 경우에, 당신의 파일은 물통의 뿌리의 밑에 직접 접근할 수 있습니다. 예를 들어,`https://example.com/index.html`본문 바로가기`https://<BUCKET_NAME>.storage.googleapis.com/index.html`.
+- **URI 경로 스타일 URL**: 호스트명 설정`storage.googleapis.com`. 여기, 당신의 물통 이름은 당신의 요구에 있는 URI 경로의 부분이어야 합니다. 예를 들어, 버킷 이름이 있다면`<BUCKET_NAME>`, 파일은 같은 경로에 사용할 수 있습니다`https://example.com/<BUCKET_NAME>/index.html`URI 경로에 따라 트래픽을 필터링해야 합니다.`/<BUCKET_NAME>`.
+
+### 버킷 URL 받기
+
+<Steps>
+  1. 오시는 길[Google 클라우드 콘솔](https://console.cloud.google.com/storage/browser)선택하기**기타 제품**.
+  2. 물통 이름을 선택하십시오.
+  3. 버킷에서 이미 파일 중 하나 인 경우 링크 아이콘을 선택하십시오.**한국어**열은 클립보드에 파일의 공개 URL을 복사합니다. 파일 URL은 다음과 같은 형식이 있습니다.
+
+     `https://storage.googleapis.com/<BUCKET_NAME>/<OBJECT_NAME>`
+
+     하위 도메인 버킷 URL을 얻기 위해 파일 URL을 다시 설정`<BUCKET_NAME>.storage.googleapis.com`파일 형식.<br />URI 경로 버킷 URL을 얻으려면 제거`https://`·`/<BUCKET_NAME>/<OBJECT_NAME>`파일 URL에서.
+</Steps>
+
+버킷의 파일이 공개적으로 접근 할 수없는 경우 버킷 권한을 변경해야합니다. 자세한 내용은 참조[Google Cloud 스토리지 문서](https://cloud.google.com/storage/docs/access-control/making-data-public#buckets).
+
+<Render file="cloud-connector-limit-bucket-to-cloudflare-ips" product="rules" />
+
+## Microsoft Azure - Blob 스토리지
+
+Blob Storage Bucket URL의 호스트명은 다음과 같은 형식 중 하나가 있어야 합니다.
+
+- `<BUCKET_NAME>.blob.core.windows.net`
+- `<BUCKET_NAME>.web.core.windows.net`
+
+Azure Blog Storage의 경우 Cloud Connector는 하위 도메인 URL만 지원합니다.`<BUCKET_NAME>.blob.core.windows.net`. 이것은 파일이 물통의 뿌리에서 직접 접근 할 수 있다는 것을 의미합니다. 예를 들어,`https://example.com/index.html`본문 바로가기`https://<BUCKET_NAME>.blob.core.windows.net/index.html`.
+
+### 버킷 URL 받기
+
+<Steps>
+  1. 오시는 길[Azure 포털](https://portal.azure.com/)저장 계정 선택.
+  2. 메뉴에서, 아래**계정 설정**, 선택**이름 \***.
+  3. 버킷 URL 받기**Blob 서비스**엔드포인트 또는**웹 사이트**끝점.
+</Steps>
+
+blob 컨테이너가 공공 접근을 위해 구성되지 않은 경우, 컨테이너 설정을 변경해야합니다. 자세한 내용은 참조[Azure Storage 문서](https://learn.microsoft.com/en-us/azure/storage/blobs/anonymous-read-access-configure?tabs=portal).
+
+<Render file="cloud-connector-limit-bucket-to-cloudflare-ips" product="rules" />

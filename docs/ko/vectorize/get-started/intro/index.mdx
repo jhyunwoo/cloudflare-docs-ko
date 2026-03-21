@@ -1,0 +1,522 @@
+---
+title: Vectorize에 소개
+pcx_content_type: get-started
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/get-started/intro/'
+translation_source_md: 'https://developers.cloudflare.com/vectorize/get-started/intro/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+<Render file="vectorize-ga" product="vectorize" />
+
+Vectorize는 Cloudflare의 벡터 데이타베이스입니다. 벡터 데이터베이스는 기계 학습 (ML) 모델을 사용하여 매혹적인 검색, 권고, 분류 및 분석 작업을 수행 할 수 있으며 LLMs (Large Language Models)에 대한 컨텍스트를 제공합니다.
+
+이 가이드는 당신을 통해 지시합니다:
+
+- 첫 번째 Vectorize 인덱스 만들기.
+- 연결하기[Cloudflare 작업자](/workers/)당신의 색인에.
+- 인덱스를 쿼리하여 유사성 검색을 삽입하고 수행하십시오.
+
+## 자주 묻는 질문
+
+:::노트\[Workers 무료 또는 유료 플랜 필수]
+
+Vectorize는 모든 사용자에게 유효합니다[Workers 무료 또는 유료 계획](/workers/platform/pricing/#workers).
+
+:::
+
+계속하려면:
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages)이미 없다면.
+2. 설치하기[`npm`](https://docs.npmjs.com/getting-started).
+3. 설치하기[`Node.js`](https://nodejs.org/en/). Node version Manager를 사용하여[볼트](https://volta.sh/)또는[사이트맵](https://github.com/nvm-sh/nvm)허가 문제를 방지하고 Node.js 버전을 변경하십시오.[Wrangler](/workers/wrangler/install-and-update/)Node 버전이 필요합니다.`16.17.0`또는 나중에.
+
+## 1. 노동자 만들기
+
+:::노트\[Workers?]
+
+더 알아보기[Workers는 어떻게 작동합니까?](/workers/reference/how-workers-works/)Workers Serverless 실행 모델에 대해 알아보세요. 오시는 길[모델 번호: Workers 자주 묻는 질문](/workers/get-started/guide/)첫 번째 노동자를 설정.
+
+:::
+
+Vectorize 인덱스의 클라이언트 애플리케이션 역할을 할 Worker를 포함하는 새로운 프로젝트를 만들 것입니다.
+
+새 프로젝트 만들기`vectorize-tutorial`으로 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"vectorize-tutorial"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새로운 것`vectorize-tutorial`디렉토리. 당신의 새로운`vectorize-tutorial`디렉토리는 다음과 같습니다:
+
+- ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)에 의해`src/index.ts`.
+- ·[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.`wrangler.jsonc`너의 것`vectorize-tutorial`Worker는 색인에 접근할 것입니다.
+
+:::참조
+
+Cloudflare Workers, 또는 연속 통합 (CI) 환경에서 프로젝트를 초기화하는 경우, 새로운 프로젝트가 비동기적으로 설정하여`CI=true`이름 \*[환경변수](/workers/configuration/environment-variables/)현재 위치`create cloudflare@latest`.
+
+예를 들면:`CI=true npm create cloudflare@latest vectorize-tutorial --type=simple --git --ts --deploy=false`기본 "Hello World" 프로젝트를 만들 준비가되어 있습니다.
+
+:::
+
+## 2. 인덱스 생성
+
+벡터 데이터베이스는 전통적인 SQL 또는 NoSQL 데이터베이스와 구별됩니다. 벡터 데이터베이스는 벡터 embeddings를 저장하도록 설계되었지만 원본 데이터 자체가 아닙니다.
+
+첫 번째 Vectorize 인덱스를 만들려면 Workers 프로젝트에서 만든 디렉토리로 변경하십시오.
+
+```sh
+cd vectorize-tutorial
+```
+
+<Render file="vectorize-legacy" product="vectorize" />
+
+인덱스를 만들려면, 당신은 사용해야합니다`wrangler vectorize create`명령과 인덱스의 이름을 제공합니다. 좋은 색인 이름은:
+
+- 더 낮은 케이스 및 / 또는 숫자 ASCII 문자의 조합, 32 문자보다 짧은, 문자로 시작, 대신 공백 대신 dashes (-)를 사용.
+- 사용 사례 및 환경의 설명. 예를 들어, "production-doc-search" 또는 "dev-recommendation-engine".
+- 인덱스를 설명하는 데만 사용되며 코드에서 직접 referenced가 아닙니다.
+
+또한 둘 다 정의해야 할 것`dimensions`벡터의 당신은 인덱스뿐만 아니라 거리에 저장됩니다`metric`인덱스를 만들 때 유사한 벡터를 결정하는 데 사용됩니다. ·`metric`euclidean, cosine, 또는 dot 제품 일 수 있습니다.**이 구성은 나중에 변경할 수 없습니다.**, 벡터 데이터베이스로 설정된 벡터 구성을 구성합니다.
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령:
+
+```sh
+npx wrangler vectorize create tutorial-index --dimensions=32 --metric=euclidean
+```
+
+```sh output
+🚧 Creating index: 'tutorial-index'
+✅ Successfully created a new Vectorize index: 'tutorial-index'
+📋 To start querying from a Worker, add the following binding configuration into 'wrangler.toml':
+
+[[vectorize]]
+binding = "VECTORIZE" #env.VECTORIZE에 있는 당신의 노동자에서 유효한
+index_name = "tutorial-index"
+```
+
+위의 명령은 새로운 벡터 데이터베이스를 만들고 출력합니다.[관련 제품](/workers/runtime-apis/bindings/)다음 단계에서 필요한 구성.
+
+## 3. 당신의 색인에 당신의 노동자를 바짝 죄십시오
+
+Vectorize 색인에 연결하기 위하여 노동자를 위한 바인딩을 창조해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)QXQX0033XQXVectorize 또는 R2XQ, CloudflareQ QXWorkersQXQ와 같은 접근 자원에 당신의 WorkersXQXQXQXQ를 허용하십시오. 노동자의 Wrangler 파일을 업데이트하여 바인딩을 만듭니다.
+
+작업자에게 인덱스를 바인딩하려면 Wrangler 파일의 끝에 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vectorize": [
+  		{
+  			"binding": "VECTORIZE", //env.VECTORIZE에 있는 당신의 노동자에서 유효한
+  			"index_name": "tutorial-index"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+특정한:
+
+- value (string) 설정`<BINDING_NAME>`reference이 작업자의 데이터베이스에 사용됩니다. 이 튜토리얼에서 바인딩 이름을`VECTORIZE`.
+- 바인딩은 있어야 합니다[유효한 JavaScript 가변 이름](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#variables). 예를 들면,`binding = "MY_INDEX"`또는`binding = "PROD_SEARCH_INDEX"`둘 다 바인딩을 위한 유효한 이름일 것입니다.
+- 당신의 의무는 당신의 노동자에서 유효합니다`env.<BINDING_NAME>`Vectorize[클라이언트 API](/vectorize/reference/client-api/)Workers 신청 내의 사용을 위한 이 의무에 드러납니다.
+
+## 4. \[선택] 메타데이터 인덱스 생성
+
+Vectorize를 사용하면 벡터 당 10KiB의 메타데이터를 인덱스로 추가할 수 있으며, 벡터를 쿼리하면서 메타데이터를 필터링할 수 있습니다. 이렇게하려면 Vectorize 인덱스의 "metadata index"로 메타데이터 필드를 지정해야 합니다.
+
+:::note\[ 메타데이터 인덱스를 만들 때?]
+
+현재 벡터가 삽입되기 전에 지정되어야 하는 벡터가 필터링될 수 있는 메타데이터 필드는 이 메타데이터 필드가 Vectorize 인덱스의 생성 후 바로 지정된다는 것을 권장합니다.
+
+:::
+
+쿼리 중 메타데이터 필드에 벡터 필터링을 활성화하려면 다음과 같은 명령을 사용하십시오.
+
+```sh
+npx wrangler vectorize create-metadata-index tutorial-index --property-name=url --type=string
+```
+
+```sh output
+📋 Creating metadata index...
+✅ Successfully enqueued metadata index creation request. Mutation changeset identifier: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.
+```
+
+이름 \*`url`필터링 할 메타데이터 필드입니다. 더 보기`--type`매개변수는 메타데이터 필드의 데이터 유형을 정의한다;`string`, `number`·`boolean`유형은 지원됩니다.
+
+그것은 일반적으로 메타 데이터 인덱스를 위해 몇 초 걸립니다. 실행하여 Vectorize 인덱스의 메타데이터 인덱스 목록을 확인할 수 있습니다.
+
+```sh
+npx wrangler vectorize list-metadata-index tutorial-index
+```
+
+```sh output
+📋 Fetching metadata indexes...
+┌──────────────┬────────┐
+│ propertyName │ type   │
+├──────────────┼────────┤
+│ url          │ String │
+└──────────────┴────────┘
+```
+
+Vectorize 인덱스당 최대 10개의 메타데이터 인덱스를 생성할 수 있습니다.
+
+type의 메타데이터 인덱스`number`, 색인 번호 정밀도는 float64의 그것입니다.
+
+type의 메타데이터 인덱스`string`, 각 벡터는 UTF-8 특성에 truncated 문자열 데이터의 첫 번째 64B를 인덱스는 그 제한 내에서 가장 잘 형성된 UTF-8 substring에 경계, 그래서 벡터는 각 색인 속성에 대한 값의 첫 64B에 필터링 할 수 있습니다.
+
+이름 \*[Vectorize 제한 사항](/vectorize/platform/limits/)제한의 전체 목록입니다.
+
+## 5. 삽입 벡터
+
+벡터 데이터베이스를 쿼리하기 전에 벡터를 삽입해야합니다. 이 벡터는 데이터 (텍스트 또는 이미지와 같은)에서 생성됩니다. 기계 학습 모델에 전달합니다. 그러나이 튜토리얼은 static 벡터를 정의하여 벡터 검색이 어떻게 작동했는지 설명합니다.
+
+첫 번째, 당신의 이동`vectorize-tutorial`노동자와 열려있는`src/index.ts`파일. 더 보기`index.ts`파일은 Vectorize 인덱스로 작업자의 상호 작용을 구성하는 곳입니다.
+
+자주 묻는 질문`index.ts`, 다음 코드를 붙여넣기 snippet 당신의`index.ts`파일. 에 의해`env`매개 변수, 교체`<BINDING_NAME>`이름 \*`VECTORIZE`:
+
+```typescript
+export interface Env {
+	//이것은 env.VECTORIZE.*에서 사용할 수있는 벡터 인덱스 메소드를 만듭니다.
+	//예를 들어, env.VECTORIZE.insert() 또는 쿼리()
+	VECTORIZE: Vectorize;
+}
+
+//표본 벡터: 32 차원 넓게.
+//
+//대중적인 기계 학습 모형에서 벡터는 전형적으로 ~100에서 1536 차원입니다
+//넓은 (또는 더 넓은).
+const sampleVectors: Array<VectorizeVector> = [
+	{
+		id: "1",
+		values: [
+			0.12, 0.45, 0.67, 0.89, 0.23, 0.56, 0.34, 0.78, 0.12, 0.9, 0.24, 0.67,
+			0.89, 0.35, 0.48, 0.7, 0.22, 0.58, 0.74, 0.33, 0.88, 0.66, 0.45, 0.27,
+			0.81, 0.54, 0.39, 0.76, 0.41, 0.29, 0.83, 0.55,
+		],
+		metadata: { url: "/products/sku/13913913" },
+	},
+	{
+		id: "2",
+		values: [
+			0.14, 0.23, 0.36, 0.51, 0.62, 0.47, 0.59, 0.74, 0.33, 0.89, 0.41, 0.53,
+			0.68, 0.29, 0.77, 0.45, 0.24, 0.66, 0.71, 0.34, 0.86, 0.57, 0.62, 0.48,
+			0.78, 0.52, 0.37, 0.61, 0.69, 0.28, 0.8, 0.53,
+		],
+		metadata: { url: "/products/sku/10148191" },
+	},
+	{
+		id: "3",
+		values: [
+			0.21, 0.33, 0.55, 0.67, 0.8, 0.22, 0.47, 0.63, 0.31, 0.74, 0.35, 0.53,
+			0.68, 0.45, 0.55, 0.7, 0.28, 0.64, 0.71, 0.3, 0.77, 0.6, 0.43, 0.39, 0.85,
+			0.55, 0.31, 0.69, 0.52, 0.29, 0.72, 0.48,
+		],
+		metadata: { url: "/products/sku/97913813" },
+	},
+	{
+		id: "4",
+		values: [
+			0.17, 0.29, 0.42, 0.57, 0.64, 0.38, 0.51, 0.72, 0.22, 0.85, 0.39, 0.66,
+			0.74, 0.32, 0.53, 0.48, 0.21, 0.69, 0.77, 0.34, 0.8, 0.55, 0.41, 0.29,
+			0.7, 0.62, 0.35, 0.68, 0.53, 0.3, 0.79, 0.49,
+		],
+		metadata: { url: "/products/sku/418313" },
+	},
+	{
+		id: "5",
+		values: [
+			0.11, 0.46, 0.68, 0.82, 0.27, 0.57, 0.39, 0.75, 0.16, 0.92, 0.28, 0.61,
+			0.85, 0.4, 0.49, 0.67, 0.19, 0.58, 0.76, 0.37, 0.83, 0.64, 0.53, 0.3,
+			0.77, 0.54, 0.43, 0.71, 0.36, 0.26, 0.8, 0.53,
+		],
+		metadata: { url: "/products/sku/55519183" },
+	},
+];
+
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		let path = new URL(request.url).pathname;
+		if (path.startsWith("/favicon")) {
+			return new Response("", { status: 404 });
+		}
+
+		//벡터를 한 번에 삽입해야 합니다.
+		if (path.startsWith("/insert")) {
+			//색인에 몇몇 표본 벡터를 삽입하십시오
+			//실제 애플리케이션에서이 벡터는 기계 학습 (ML) 모델의 출력이 될 것입니다.
+			//Workers AI, OpenAI 또는 Cohere와 같은.
+			const inserted = await env.VECTORIZE.insert(sampleVectors);
+
+			//이 삽입 작업에 대한 mutation 식별자를 반환
+			return Response.json(inserted);
+		}
+
+		return Response.json({ text: "nothing to do... yet" }, { status: 404 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+위의 코드에서:
+
+1. Workers 코드에서 QXQXQ 인덱스에 바인딩을 정의합니다. 이 바인딩은 일치합니다`binding`설정 값`wrangler.jsonc`아래 파일`"vectorise"`주요.
+2. 다음 단계에 대해 쿼리 할 수있는 예제 벡터 세트를 지정합니다.
+3. 인덱스로 그 벡터를 삽입하고 성공했는지 확인합니다.
+
+다음 단계에서, 당신은 색인과 삽입 벡터를 쿼리하는 노동자를 확장합니다.
+
+## 6. Query 벡터
+
+이 단계에서 들어오는 쿼리를 나타내는 벡터를 취하고 인덱스를 검색하는 데 사용합니다.
+
+첫 번째, 당신의 이동`vectorize-tutorial`노동자와 열려있는`src/index.ts`파일. 더 보기`index.ts`파일은 Vectorize 인덱스로 작업자의 상호 작용을 구성하는 곳입니다.
+
+자주 묻는 질문`index.ts`. 다음 코드를 붙여넣기 snippet 당신의`index.ts`파일. 에 의해`env`매개 변수, 교체`<BINDING_NAME>`이름 \*`VECTORIZE`:
+
+```typescript
+export interface Env {
+	//이것은 env.VECTORIZE.*에서 사용할 수있는 벡터 인덱스 메소드를 만듭니다.
+	//예를 들어, env.VECTORIZE.insert() 또는 쿼리()
+	VECTORIZE: Vectorize;
+}
+
+//표본 벡터: 32 차원 넓게.
+//
+//대중적인 기계 학습 모형에서 벡터는 전형적으로 ~100에서 1536 차원입니다
+//넓은 (또는 더 넓은).
+const sampleVectors: Array<VectorizeVector> = [
+	{
+		id: "1",
+		values: [
+			0.12, 0.45, 0.67, 0.89, 0.23, 0.56, 0.34, 0.78, 0.12, 0.9, 0.24, 0.67,
+			0.89, 0.35, 0.48, 0.7, 0.22, 0.58, 0.74, 0.33, 0.88, 0.66, 0.45, 0.27,
+			0.81, 0.54, 0.39, 0.76, 0.41, 0.29, 0.83, 0.55,
+		],
+		metadata: { url: "/products/sku/13913913" },
+	},
+	{
+		id: "2",
+		values: [
+			0.14, 0.23, 0.36, 0.51, 0.62, 0.47, 0.59, 0.74, 0.33, 0.89, 0.41, 0.53,
+			0.68, 0.29, 0.77, 0.45, 0.24, 0.66, 0.71, 0.34, 0.86, 0.57, 0.62, 0.48,
+			0.78, 0.52, 0.37, 0.61, 0.69, 0.28, 0.8, 0.53,
+		],
+		metadata: { url: "/products/sku/10148191" },
+	},
+	{
+		id: "3",
+		values: [
+			0.21, 0.33, 0.55, 0.67, 0.8, 0.22, 0.47, 0.63, 0.31, 0.74, 0.35, 0.53,
+			0.68, 0.45, 0.55, 0.7, 0.28, 0.64, 0.71, 0.3, 0.77, 0.6, 0.43, 0.39, 0.85,
+			0.55, 0.31, 0.69, 0.52, 0.29, 0.72, 0.48,
+		],
+		metadata: { url: "/products/sku/97913813" },
+	},
+	{
+		id: "4",
+		values: [
+			0.17, 0.29, 0.42, 0.57, 0.64, 0.38, 0.51, 0.72, 0.22, 0.85, 0.39, 0.66,
+			0.74, 0.32, 0.53, 0.48, 0.21, 0.69, 0.77, 0.34, 0.8, 0.55, 0.41, 0.29,
+			0.7, 0.62, 0.35, 0.68, 0.53, 0.3, 0.79, 0.49,
+		],
+		metadata: { url: "/products/sku/418313" },
+	},
+	{
+		id: "5",
+		values: [
+			0.11, 0.46, 0.68, 0.82, 0.27, 0.57, 0.39, 0.75, 0.16, 0.92, 0.28, 0.61,
+			0.85, 0.4, 0.49, 0.67, 0.19, 0.58, 0.76, 0.37, 0.83, 0.64, 0.53, 0.3,
+			0.77, 0.54, 0.43, 0.71, 0.36, 0.26, 0.8, 0.53,
+		],
+		metadata: { url: "/products/sku/55519183" },
+	},
+];
+
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		let path = new URL(request.url).pathname;
+		if (path.startsWith("/favicon")) {
+			return new Response("", { status: 404 });
+		}
+
+		//벡터를 한 번에 삽입해야 합니다.
+		if (path.startsWith("/insert")) {
+			//색인에 몇몇 표본 벡터를 삽입하십시오
+			//실제 애플리케이션에서이 벡터는 기계 학습 (ML) 모델의 출력이 될 것입니다.
+			//Workers AI, OpenAI 또는 Cohere와 같은.
+			let inserted = await env.VECTORIZE.insert(sampleVectors);
+
+			//이 삽입 작업에 대한 mutation 식별자를 반환
+			return Response.json(inserted);
+		}
+
+		//return response.json({text: "nothing to do... 아직"}, { status: 404 })
+
+		//실제 응용 프로그램에서 사용자 쿼리를 취할 것입니다. 예를 들어, "what is
+		//벡터 데이터베이스" - 먼저 벡터로 변환합니다.
+		//
+		//이 예제에서, 당신은해야 벡터를 구성 할 것이다
+		//경기 벡터 ID #4
+		const queryVector: Array<number> = [
+			0.13, 0.25, 0.44, 0.53, 0.62, 0.41, 0.59, 0.68, 0.29, 0.82, 0.37, 0.5,
+			0.74, 0.46, 0.57, 0.64, 0.28, 0.61, 0.73, 0.35, 0.78, 0.58, 0.42, 0.32,
+			0.77, 0.65, 0.49, 0.54, 0.31, 0.29, 0.71, 0.57,
+		]; //차원의 벡터 32
+
+		//색인을 쿼리하고 3 (topK = 3) 가장 유사한 벡터를 반환
+		//비슷한 점수를 가진 ID.
+		//
+		//기본적으로, 벡터 값은 반환되지 않습니다, 많은 경우
+		//벡터 ID 및 점수는 벡터를 다시 맵으로 충분합니다.
+		//원래 내용 그것은 나타냅니다.
+		const matches = await env.VECTORIZE.query(queryVector, {
+			topK: 3,
+			returnValues: true,
+			returnMetadata: "all",
+		});
+
+		return Response.json({
+			//이것은 가장 가까운 벡터를 반환합니다: 벡터는 따라 배열됩니다
+			//그들의 점수에. 더 유사하다 Vectors는 상단 근처에 표시됩니다.
+			//이 예제에서 Vector id #4는 queried 벡터와 가장 유사하게 설정할 것입니다.
+			//점수를 확인할 수 있습니다.
+			matches: matches,
+		});
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+Vectorize도 사용할 수 있습니다.`queryById()`색인에서 이미 존재하는 벡터와 유사한 벡터를 검색하는 작업.
+
+## 7. 노동자를 배포
+
+전 세계 노동자를 배포하기 전에 Cloudflare 계정으로 로그인하십시오.
+
+```sh
+npx wrangler login
+```
+
+QXQX0054XQ QXdashboard에 로그인하려면 웹 페이지로 이동합니다. 로그인 한 후 Wrangler가 Cloudflare 계정에 변경할 수 있는 경우 요청됩니다. 스크롤 다운 및 선택**지원하다**계속.
+
+여기에서, 당신은 인터넷에 액세스 할 수있는 프로젝트를 만들 수 있습니다. 노동자를 배포하려면, 실행:
+
+```sh
+npx wrangler deploy
+```
+
+배포되면, 작업자 미리보기`https://vectorize-tutorial.<YOUR_SUBDOMAIN>.workers.dev`.
+
+## 8. Query 당신의 색인
+
+벡터를 삽입하고 쿼리하려면 배포 된 노동자의 URL을 사용하십시오.`https://vectorize-tutorial.<YOUR_SUBDOMAIN>.workers.dev/`. 브라우저를 열고:
+
+1. 먼저 벡터를 삽입하여`/insert`. JSON 아래를 반환해야 합니다.
+
+```json
+// https://vectorize-tutorial.<YOUR_SUBDOMAIN>.workers.dev/insert
+{
+	"mutationId": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+}
+```
+
+mutationId는 이 비동기 인서트 작업에 대응하는 고유 식별자를 나타냅니다. 일반적으로 쿼리에 사용할 수있는 삽입 된 벡터에 대한 몇 초가 걸립니다.
+
+마지막 처리 된 돌연변이를 확인하기 위해 인덱스 정보 작업을 사용할 수 있습니다.
+
+```sh
+npx wrangler vectorize info tutorial-index
+```
+
+```sh output
+📋 Fetching index info...
+┌────────────┬─────────────┬──────────────────────────────────────┬──────────────────────────┐
+│ dimensions │ vectorCount │ processedUpToMutation                │ processedUpToDatetime    │
+├────────────┼─────────────┼──────────────────────────────────────┼──────────────────────────┤
+│ 32         │ 5           │ xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx │ YYYY-MM-DDThh:mm:ss.SSSZ │
+└────────────┴─────────────┴──────────────────────────────────────┴──────────────────────────┘
+```
+
+동일한 벡터 ids를 사용하여 간접적인 삽입은 multation id를 반환하지만 동일한 벡터 ids가 두 번 삽입 할 수 없기 때문에 인덱스 벡터 카운트를 변경하지 않을 것입니다. 당신은 사용할 필요가`upsert`이미 인덱스에 존재하는 id에 대한 벡터 값을 업데이트하는 대신 작업.
+
+2. Query your index - 쿼리 벡터를 기대`[0.13, 0.25, 0.44, ...]`벡터 ID에 가까운`4`루트 경로 방문`/`· 이 쿼리는 3을 반환합니다 (`topK: 3`) 가장 가까운 경기뿐만 아니라 벡터 값과 메타 데이터.
+
+당신은 그 통지`id: 4`한국어`score`이름 \*`0.46348256`. 사용하고 있기 때문에`euclidean`우리의 거리 미터로, 더 가까운 점수`0.0`, 더 가까운 벡터는 입니다.
+
+```json
+// https://vectorize-tutorial.<YOUR_SUBDOMAIN>.workers.dev/
+{
+	"matches": {
+		"count": 3,
+		"matches": [
+			{
+				"id": "4",
+				"score": 0.46348256,
+				"values": [
+					0.17, 0.29, 0.42, 0.57, 0.64, 0.38, 0.51, 0.72, 0.22, 0.85, 0.39,
+					0.66, 0.74, 0.32, 0.53, 0.48, 0.21, 0.69, 0.77, 0.34, 0.8, 0.55, 0.41,
+					0.29, 0.7, 0.62, 0.35, 0.68, 0.53, 0.3, 0.79, 0.49
+				],
+				"metadata": {
+					"url": "/products/sku/418313"
+				}
+			},
+			{
+				"id": "3",
+				"score": 0.52920616,
+				"values": [
+					0.21, 0.33, 0.55, 0.67, 0.8, 0.22, 0.47, 0.63, 0.31, 0.74, 0.35, 0.53,
+					0.68, 0.45, 0.55, 0.7, 0.28, 0.64, 0.71, 0.3, 0.77, 0.6, 0.43, 0.39,
+					0.85, 0.55, 0.31, 0.69, 0.52, 0.29, 0.72, 0.48
+				],
+				"metadata": {
+					"url": "/products/sku/97913813"
+				}
+			},
+			{
+				"id": "2",
+				"score": 0.6337869,
+				"values": [
+					0.14, 0.23, 0.36, 0.51, 0.62, 0.47, 0.59, 0.74, 0.33, 0.89, 0.41,
+					0.53, 0.68, 0.29, 0.77, 0.45, 0.24, 0.66, 0.71, 0.34, 0.86, 0.57,
+					0.62, 0.48, 0.78, 0.52, 0.37, 0.61, 0.69, 0.28, 0.8, 0.53
+				],
+				"metadata": {
+					"url": "/products/sku/10148191"
+				}
+			}
+		]
+	}
+}
+```
+
+여기에서, 다른 것을 통과해서 실험`queryVector`결과 관찰 : 경기와`score`쿼리 벡터와 인덱스의 벡터 사이의 거리에서 변화를 기준으로 변경해야 합니다.
+
+실제 응용 프로그램에서,`queryVector`사용자 또는 시스템에서 쿼리의 벡터 embedding 표현, 그리고 우리의`sampleVectors`실제 콘텐츠에서 생성됩니다. 이 예제에서 빌드하려면, 읽기[벡터 검색 튜토리얼](/vectorize/get-started/embeddings/)Workers AI 및 VectorizeXQ를 결합하여 WorkersXQ와 함께 엔드 투 엔드 응용 프로그램을 구축합니다.
+
+이 튜토리얼을 끝내면, 먼저 Vectorize 지수를 작성하고, 그 인덱스에 접근하고, 글로벌 프로젝트를 배포하는 Worker를 만들었습니다.
+
+## 관련 자료
+
+- [end-to-end 벡터 검색 응용 프로그램 구축](/vectorize/get-started/embeddings/)Workers AI 및 Vectorize를 사용하여.
+- 더 알아보기[벡터 데이터베이스 작업 방법](/vectorize/reference/what-is-a-vector-database/).
+- ...에서[이름 \*](/vectorize/reference/client-api/)CloudflareWorkersXQXQXWorkersXQ에서 QXQXQXQ API를 사용하는 방법.
+- [Euclidean 거리 대 Cosine 유사성](https://www.baeldung.com/cs/euclidean-distance-vs-cosine-similarity).
+- [점 제품](https://en.wikipedia.org/wiki/Dot_product).

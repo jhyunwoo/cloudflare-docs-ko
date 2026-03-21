@@ -1,0 +1,50 @@
+---
+summary: >-
+  Redirect requests to certain URLs based on a mapped object to the request's
+  URL.
+tags:
+  - Redirects
+products:
+  - snippets
+pcx_content_type: example
+title: 대량 리디렉션을 기반으로 맵 객체
+description: 요청의 URL에 맵핑된 객체를 기반으로 하는 특정 URL에 대한 리디렉션 요청.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/bulk-redirect-map/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/bulk-redirect-map/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+export default {
+	async fetch(request) {
+		//리디렉션해야 하는 hostname과 변수를 정의합니다.
+		const externalHostname = "example.com";
+
+		//맵 객체를 정의합니다. 소스 (/pathX) 및 대상 (/redirectX)를 대신하여 케이스에 적용할 수 있습니다.
+		const redirectMap = new Map([
+			["/path1", "https://" + externalHostname + "/redirect1"],
+			["/path2", "https://" + externalHostname + "/redirect2"],
+			["/path3", "https://" + externalHostname + "/redirect3"],
+			["/path4", "https://cloudflare.com"],
+		]);
+
+		//원래 URL을 복제합니다.
+		const requestURL = new URL(request.url);
+
+		//맵에 대한 요청 경로를 확인하고 따라 리디렉션하십시오.
+		const path = requestURL.pathname;
+		const location = redirectMap.get(path);
+
+		if (location) {
+			return Response.redirect(location, 301);
+		}
+
+		//지도에없는 경로가 요청되면, 원래 요청을 반환합니다.
+		return fetch(request);
+	},
+};
+```

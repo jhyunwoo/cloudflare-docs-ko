@@ -1,0 +1,150 @@
+---
+title: Wrangler 구성
+pcx_content_type: configuration
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/configuration/wrangler/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/configuration/wrangler/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+## Minimal 윤곽
+
+Sandbox SDK를 사용하는 최소 필수 구성:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "my-sandbox-worker",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"containers": [
+  		{
+  			"class_name": "Sandbox",
+  			"image": "./Dockerfile",
+  		},
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"class_name": "Sandbox",
+  				"name": "Sandbox",
+  			},
+  		],
+  	},
+  	"migrations": [
+  		{
+  			"new_sqlite_classes": ["Sandbox"],
+  			"tag": "v1",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+## 필수 설정
+
+Sandbox SDK는 Cloudflare 컨테이너에 내장되어 있습니다. 당신의 윤곽은 3개의 단면도를 요구합니다:
+
+1. **회사 소개**- 컨테이너 이미지 정의 (당신의 실행 환경)
+2. **튼튼한 objects.bindings**- Sandbox 튼튼한 개체를 Worker에 담기
+3. **회사연혁**- 튼튼한 개체 클래스를 초기화
+
+위의 최소 구성은 모든 필수 설정을 포함합니다. 상세한 구성 옵션의 경우, 참조[컨테이너 구성 문서](/workers/wrangler/configuration/#containers).
+
+## 백업 저장
+
+이용하기[백업 및 복원 API](/sandbox/api/backups/), 당신은 R2 물통 바인딩 및 위탁된 URL credentials를 필요로 합니다. 컨테이너 업로드 및 다운로드 백업 아카이브 직접 R2X0049XQXR2XQ API 토큰 자격.
+
+### 1. R2 물통 만들기
+
+```sh
+npx wrangler r2 bucket create my-backup-bucket
+```
+
+### 2. 바인딩 및 환경 변수 추가
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"BACKUP_BUCKET_NAME": "my-backup-bucket",
+  		"CLOUDFLARE_ACCOUNT_ID": "<YOUR_ACCOUNT_ID>",
+  	},
+  	"r2_buckets": [
+  		{
+  			"binding": "BACKUP_BUCKET",
+  			"bucket_name": "my-backup-bucket",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+### 3. 비밀로 R2 API credentials를 놓으십시오
+
+```sh
+npx wrangler secret put R2_ACCESS_KEY_ID
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+```
+
+R2 API 토큰 만들기[Cloudflare dashboard](https://dash.cloudflare.com/)이름 \***모델 번호: R2** > **제품정보** > **R2 API 관리 토큰 토큰**. 토큰 요구**개체 읽기 및 쓰기**백업 버킷에 대한 권한.
+
+SDK는 컨테이너가 R2에서 직접 백업 아카이브를 전송할 수 있도록 할당 된 URL을 생성하는 이러한 자격 증명을 사용합니다. 완전한 설정 연습을 위해, 참조[백업 및 복원 가이드](/sandbox/guides/backup-restore/).
+
+## 문제 해결
+
+### 찾을 수 없음
+
+**오류 수정**: `TypeError: env.Sandbox is undefined`
+
+**제품정보**: 확인`wrangler.jsonc`Durable Objects 바인딩을 포함합니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"class_name": "Sandbox",
+  				"name": "Sandbox",
+  			},
+  		],
+  	},
+  }
+  ```
+</WranglerConfig>
+
+### 관련 기사
+
+**오류 수정**: 초기화되지 않는 튼튼한 목표
+
+**제품정보**: Sandbox 클래스에 대한 마이그레이션 추가 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"new_sqlite_classes": ["Sandbox"],
+  			"tag": "v1",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+## 관련 자료
+
+- [수송 형태](/sandbox/configuration/transport/)- WebSocket 수송용 HTTP 구성
+- [Wrangler 문서](/workers/wrangler/)- 완전한 Wrangler reference
+- [Durable Objects 설정](/durable-objects/get-started/)- DO-specific 구성
+- [도커파일 reference](/sandbox/configuration/dockerfile/)- 사용자 정의 컨테이너 이미지
+- [환경 변수](/sandbox/configuration/environment-variables/)- sandboxes에 구성 전달
+- [자주 묻는 질문](/sandbox/get-started/)- 초기 설정 연습

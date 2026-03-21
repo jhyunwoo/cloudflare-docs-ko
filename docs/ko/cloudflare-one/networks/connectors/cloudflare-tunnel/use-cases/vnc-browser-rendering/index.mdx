@@ -1,0 +1,244 @@
+---
+pcx_content_type: how-to
+title: 브라우저에서 VNC 클라이언트 렌더링
+sidebar:
+  order: 10
+  label: VNC 소개
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/vnc-browser-rendering/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/vnc-browser-rendering/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Virtual Network Computer (VNC) 서버는 컴퓨터의 데스크탑 환경에 원격 액세스를 제공합니다. Cloudflare는 클라이언트 측 소프트웨어 또는 윤곽 없이 브라우저에서 VNC 맨끝을 렌더링할 수 있습니다.
+
+브라우저 렌더링 VNC는 VNC 서버를 Cloudflare에 연결하고 공공 호스트 이름을 통해 트래픽을 라우팅해야합니다. VNC 서버에 액세스하려면, 사용자는 구성 된 ID 공급자를 사용하여 Cloudflare 액세스를 통해 공개 호스트 이름 URL로 이동. Cloudflare는 당신의 적용할 것입니다[오시는 길](/cloudflare-one/access-controls/policies/)사용자가 허용되면 브라우저에서 VNC 클라이언트를 렌더링합니다.
+
+:::참조
+여러 VNC 서버 버전, 배포 및 인스턴스가 있습니다. 이 가이드는 XFCE 데스크탑을 실행하는 TightVNC를 사용하지만 브라우저 렌더링 VNC는 대부분의 구성으로 작동합니다.
+주요 특징
+
+## 자주 묻는 질문
+
+- 이름 \*[Cloudflare의 활성 도메인](/fundamentals/manage-domains/add-site/).
+- 도메인은 모두 사용[전체 설정](/dns/zone-setups/full-setup/)또는[부분 (`CNAME`) 설정](/dns/zone-setups/partial-setup/).
+
+## 1. VNC 서버 설정
+
+데모 목적으로 Google Cloud Project (GCP)에서 호스팅되는 Ubuntu 가상 머신 (VM)에서 TightVNC 서버를 만들 것입니다. VNC 서버를 구성하여 XFCE, 원격 액세스에 적합한 경량 데스크탑 환경. 이미 설치된 VNC 서버가 있다면, 이 단계를 건너뛰고[2 단계로 이동](#2-connect-the-server-to-cloudflare).
+
+1. Ubuntu VM의 터미널 창을 엽니다.
+
+2. 다음 명령을 실행하여 XFCE 및 TightVNC를 설치하십시오.
+
+   ```sh
+   sudo apt update
+   sudo apt install xfce4 xfce4-goodies dbus-x11 tightvncserver -y
+
+   ```
+
+   이 명령은 데스크톱, 일부 유용한 유틸리티 및 VNC 서버 소프트웨어를 설치합니다.
+
+3. VNC 서버를 초기화하려면:
+
+   1. VNC 서버 인스턴스 만들기:
+
+      ```sh
+      vncserver
+      ```
+
+   2. 암호를 설정할 수 있습니다. 이 암호는 VNC 서버에 연결할 수 있습니다. 8개의 문자로 제한됩니다.
+
+      TightVNC는 이제 구성 파일을 만들고 디스플레이에 VNC 세션을 시작합니다.`:1`(항을 사용하는)`5901`).
+
+   3. 보기 전용 비밀번호 만들기를 원하신다면 물어보세요. 자주 묻는 질문`n`없음.
+
+   4. 이 초기 세션을 죽이면 구성을 편집 할 수 있습니다.
+
+      ```sh
+      vncserver -kill :1
+      ```
+
+4. XFCE 데스크탑을 출시하려면 VNC를 구성하십시오.
+
+   1. VNC 구성 디렉토리를 만듭니다.
+
+   ```sh
+   mkdir -p ~/.vnc
+   ```
+
+   2. 자주 묻는 질문`xstartup`텍스트 편집기를 사용하여 파일. 예를 들어,
+
+   ```sh
+   vim ~/.vnc/xstartup
+   ```
+
+   3. 다음 구성에 파일을 업데이트:
+
+   ```bash
+   #!/bin/sh
+   unset SESSION_MANAGER
+   unset DBUS_SESSION_BUS_ADDRESS
+   startxfce4
+   ```
+
+   4. 파일 실행 가능:
+
+   ```sh
+   chmod +x ~/.vnc/xstartup
+   ```
+
+5. VNC 서버를 다시 시작:
+
+   ```sh
+   vncserver -localhost :1
+   ```
+
+   더 보기`-localhost`flag는 VNC 서버만 공개 인터넷에서 VM 자체로부터 연결을 듣는다. VNC 서버는 이제 포트에서 실행됩니다.`5901`, 그러나 그것은 단지에서 접근 가능`localhost` (`127.0.0.1`) VM 안쪽에.
+
+6. (추천) 기존 VNC 클라이언트와 함께 VNC 서버를 테스트하여 누락된 패키지 또는 구성 변경 사항을 확인할 수 있습니다. 예를 들어, GCP에서 호스팅되는 VNC 서버를 테스트하려면:
+
+   1. 클라이언트 기계에 맨끝을 엽니다.
+
+   2. SSH 이상의 VNC 서버에 연결하여 로컬 포트를 전달`5901`VNC 서버의 듣는 항구에:
+
+      ```sh
+      gcloud compute ssh [YOUR_VM_NAME] --zone=[YOUR_ZONE] -- -L 5901:localhost:5901
+      ```
+
+   3. 선호하는 VNC 뷰어 응용 프로그램을 엽니 다.
+
+   4. VNC 뷰어에서 주소에 연결`localhost:5901`VNC 서버 암호를 입력합니다.
+
+   Ubuntu VM 데스크탑을 볼 수 있습니다.
+
+7. (선택 사항) 부팅을 시작하려면 VNC 서버를 구성:
+
+   1. 전체 경로 찾기`vncserver`명령:
+
+      ```sh
+      which vncserver
+      ```
+
+      ```sh output
+      /usr/bin/vncserver
+      ```
+   2. 새 서비스 구성 파일 만들기:
+
+   ```sh
+   sudo vim /etc/systemd/system/vncserver@.service
+   ```
+
+   3. 복사 및 붙여넣기 기타 제품`[YOUR_USERNAME]`VNC 서버 사용자. 필요한 경우, 업데이트`/usr/bin/vncserver`내 계정`vncserver`경로.
+
+      ```toml
+      [Unit]
+      Description=Start TightVNC server at startup
+      After=syslog.target network.target
+
+      [Service]
+      Type=forking
+      User=[YOUR_USERNAME]
+      WorkingDirectory=/home/[YOUR_USERNAME]
+
+      PIDFile=/home/[YOUR_USERNAME]/.vnc/%H:%i.pid
+
+      ExecStartPre=-/usr/bin/vncserver -kill :%i > /dev/null 2>&1
+      ExecStart=/usr/bin/vncserver -localhost :%i
+      ExecStop=/usr/bin/vncserver -kill :%i
+
+      [Install]
+      WantedBy=multi-user.target
+      ```
+
+      4. 관련 상품`systemd`새 서비스 파일에서 읽기:
+
+      ```sh
+      sudo systemctl daemon-reload
+      ```
+
+      5. 부팅에서 시작하는 서비스를 활성화 :
+
+      ```sh
+      sudo systemctl enable vncserver@1.service
+      ```
+
+      더 보기`1`변수는 표시를 사용하는 VNC 서비스를 구성`:1`포트에서 실행`5901`).
+
+      6. 기본적으로,`systemd`사용자가 로그인할 때만 실행됩니다. 부팅을 시작하려면 VNC 서비스를 허용하기 위해 (당신은 로그인), 사용자의 사용자 링거를 활성화:
+
+      ```sh
+      sudo loginctl enable-linger [YOUR_USERNAME]
+      ```
+
+      7. 서비스 시작:
+
+      ```sh
+      sudo systemctl start vncserver@1.service
+      ```
+
+      8. 상태 확인:
+
+      ```sh
+      sudo systemctl status vncserver@1.service
+      ```
+
+      VNC 서버는 이제 VM 부츠를 자동으로 시작합니다.
+
+## 2. Cloudflare에 서버를 연결합니다
+
+1. Cloudflare 만들기 다음으로 터널[대시보드 설정 가이드](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/).
+
+2. 오시는 길**네트워크** > **연결관**. 터널을 선택하고 선택**제품정보**.
+
+3. 선택하기**자주 묻는 질문**탭, 다음 선택**게시 된 응용 프로그램 루트 추가**.
+
+4. 드롭다운 메뉴에서 도메인을 선택하고 하위 도메인을 지정하십시오 (예를 들어,`vnc.example.com`).
+
+5. 제품 정보**제품정보**, 선택*TCP 포트*이름 \*`localhost:<5901>`. VNC 서버가 터널을 설치 한 곳에서 다른 기계에 있다면, 입력`<SERVER_IP>:5901`.
+
+   기타 제품`5901`VNC 서버의 청취 포트로. VNC 청취 포트를 결정하기 위해, 실행`sudo ss -lnpt`더 보기`vnc`프로세스 목록에서.
+
+6. 경로 저장.
+
+VNC 서버는 이제 Cloudflare에서 인바운드 요청을 수락 할 준비가되었습니다.
+
+## 3. VNC에 대한 액세스 응용 프로그램 만들기
+
+Cloudflare 만들기 사용자가 브라우저를 통해 액세스 할 수있는 액세스 응용 프로그램 :
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**액세스 제어** > **이름 \***.
+
+2. 제품정보**앱 추가**.
+
+3. 제품정보**셀프 호스팅**.
+
+4. 신청에 대한 이름 입력.
+
+5. 제품정보**공공 hostname 추가**게시된 Application hostname을 입력합니다.`vnc.example.com`).
+
+6. 내 계정**Browser 렌더링 설정**, 세트**브라우저 렌더링**으로*VNC 소개*.
+
+7. <Render file="access/add-access-policies" product="cloudflare-one" />
+
+   <Render file="access/self-hosted-app/browser-rendering-policies" product="cloudflare-one" />
+
+8. 신청 저장.
+
+## 4. 사용자로 연결
+
+사용자는 VNC 클라이언트 소프트웨어를 설치하지 않고 웹 브라우저에서 원격 데스크톱 환경에 직접 액세스 할 수 있습니다.
+
+VNC 서버에 연결하려면:
+
+1. 브라우저를 열고 public hostname URL로 이동 (예를 들어,`https://vnc.example.com`).
+2. Cloudflare에 로그인하여 구성된 정체성 공급자로 접속하십시오.
+3. VNC 서버 암호를 입력하십시오.
+
+브라우저에서 렌더링 된 원격 VNC 서버 데스크톱을 참조하십시오. 모든 연결은 Cloudflare의 네트워크를 통해 보호되며 액세스 정책에 따라 액세스가 제어됩니다.

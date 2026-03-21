@@ -1,0 +1,154 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/4667724478349--You-have-reached-your-quota-for-the-requested-resource-Code-2005-
+title: 문제 해결
+description: 사용자 지정 인증서 문제를 해결합니다
+head:
+  - tag: title
+    content: 문제 해결 | 사용자 지정 인증서
+---
+
+## 일반적인 문제 해결
+
+### 키와 인증서가 일치하는지 확인
+
+[SSLShopper Certificate Key Matcher](https://www.sslshopper.com/certificate-key-matcher.html) 같은 외부 도구를 사용해 인증서와 키가 일치하는지 확인할 수 있습니다.
+
+### 인증서 세부 정보 확인
+
+`openssl`을 사용해 인증서의 모든 세부 정보를 확인할 수 있습니다.
+
+```bash
+openssl x509 -in certificate.crt -noout -text
+```
+
+그런 다음 업로드 전에 모든 정보가 올바른지 확인하세요.
+
+## 이동된 도메인
+
+이전 영역에서 사용자 지정 인증서를 삭제하지 않은 채 도메인을 이동하면, 이전 영역이 [삭제](/dns/zone-setups/reference/domain-status/)될 때까지 그 인증서가 계속 [우선 적용](/ssl/reference/certificate-and-hostname-priority/)되어 방문자에게 제시될 수 있습니다.
+
+자세한 내용은 [Cloudflare 계정 간 도메인 이동](/fundamentals/manage-domains/move-domain/#issue-new-certificates)을 참고하세요.
+
+## Let's Encrypt 체인 업데이트
+
+Cloudflare가 사용하는 [인증 기관(CA)](/ssl/reference/certificate-authorities/) 중 하나인 Let's Encrypt가 [신뢰 체인](/ssl/concepts/#chain-of-trust) 변경을 발표했기 때문에 문제가 생길 수 있습니다.
+
+사용자가 직접 업로드한 Let's Encrypt 인증서를 사용자 지정 인증서로 사용 중이라면 다음을 고려하세요.
+
+- **compatible** 또는 **modern** [bundle method](/ssl/edge-certificates/custom-certificates/bundling-methodologies/)를 사용 중이며 2024년 9월 9일 이전에 인증서를 업로드했다면, 새 체인으로 번들링될 수 있도록 [사용자 지정 인증서를 업데이트](/ssl/edge-certificates/custom-certificates/uploading/#update-an-existing-custom-certificate)하세요.
+- **user-defined** bundle method를 사용하는 경우, 2024년 9월 30일 이후에 업로드한 인증서가 Let's Encrypt cross-signed 체인을 사용하지 않도록 하세요.
+
+## 오류 코드
+
+### Invalid certificate. (Code: 1002)
+
+**근본 원인**
+
+업로드하려는 인증서가 유효하지 않습니다. 예를 들어 불필요한 줄이 있거나 BEGIN/END 텍스트가 올바르지 않거나, 복사/붙여넣기 과정에서 여분의 문자가 추가되었을 수 있습니다.
+
+[PATCH API call](/api/resources/custom_certificates/methods/edit/)로 업데이트할 때는 경로 파라미터 `{custom_certificate_id}`가 잘못되었음을 의미할 수도 있습니다.
+
+**해결 방법**
+
+인증서 내용을 꼼꼼히 확인하세요. `openssl`을 사용해 인증서의 모든 세부 사항을 확인할 수 있습니다.
+
+```bash
+openssl x509 -in certificate.crt -noout -text
+```
+
+API를 사용하는 경우 `{custom_certificate_id}` 경로 파라미터를 정확히 확인하세요. [기존 사용자 지정 인증서 목록 조회](/api/resources/custom_certificates/methods/list/) 응답의 `id` 값으로 인증서 ID를 확인할 수 있습니다.
+
+### You have reached the maximum number of custom certificates. (Code: 1212)
+
+**근본 원인**
+
+사용자 지정 인증서 할당량을 모두 사용했습니다.
+
+**해결 방법**
+
+새 인증서를 추가하려면 기존 인증서 일부를 삭제하세요. Enterprise 고객이라면 계정 팀에 문의하여 사용자 지정 인증서 수를 늘릴 수 있습니다.
+
+### This certificate has already been submitted. (Code: 1220)
+
+**근본 원인**
+
+이미 업로드한 사용자 지정 인증서를 다시 업로드하려고 하고 있습니다.
+
+**해결 방법**
+
+기존 인증서를 삭제한 뒤 다시 시도하세요.
+
+### The SSL attribute is invalid. Please refer to the API documentation, check your input and try again. (Code: 1434)
+
+**근본 원인**
+
+Chromium 기반 브라우저에 필요한 암호군을 하나도 지원하지 않는 사용자 지정 인증서를 업로드하려고 하고 있습니다.
+
+**해결 방법**
+
+Chromium이 지원하는 암호군을 지원하도록 인증서를 수정한 뒤 다시 시도하세요.
+
+### You have reached your quota for the requested resource. (Code: 2005)
+
+**근본 원인**
+
+사용자 지정 인증서 할당량은 인증서 **유형**(**Custom Legacy** vs **Custom Modern**)에 따라 달라집니다.
+
+이미 해당 인증서 **유형**의 할당량에 도달한 상태에서 업로드를 시도하면 이 오류가 발생합니다.
+
+**해결 방법**
+
+먼저 [**Edge Certificates**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/edge-certificates) 페이지에서 사용자 지정 인증서 권한을 확인하세요.
+
+그다음 실제로 인증서를 업로드하거나 편집할 때 **Legacy Client Support**에 적절한 옵션을 선택했는지 확인하세요.
+
+### The certificate chain you uploaded cannot be bundled using Cloudflare's trust store. Please check your input and try again. (Code: 2100)
+
+**근본 원인**
+
+루트 인증서와 리프 인증서를 동시에 포함한 사용자 지정 인증서를 업로드하려고 하고 있습니다.
+
+**해결 방법**
+
+리프 인증서만 업로드하세요.
+
+### The certificate chain you uploaded has no leaf certificates. Please check your input and try again. (Code: 2101)
+
+**근본 원인**
+
+루트 + intermediate + intermediate `.crt` 파일을 업로드하고 있지만 실제 리프 인증서는 별도 파일에 있습니다.
+
+**해결 방법**
+
+리프 인증서를 `.crt` 파일에 추가하거나, 인증 기관의 공개 신뢰 체인이 Cloudflare trust store에 존재하므로 리프 인증서만 사용하세요.
+
+### The certificate chain you uploaded does not include any hostnames from your zone. Please check your input and try again. (Code: 2103)
+
+**근본 원인**
+
+Cloudflare는 업로드된 사용자 지정 인증서에 관련 영역의 호스트 이름이 포함되어 있는지 확인합니다. 또한 이 호스트 이름은 Subject Alternative Name(SAN)으로 포함되어 있어야 합니다. 이는 [CA/Browser Forum](https://cabforum.org/wp-content/uploads/BRv1.2.5.pdf#page=16) 표준을 따르는 것입니다.
+
+**해결 방법**
+
+인증서에 영역 내 호스트 이름을 지정하는 Subject Alternative Name(SAN)이 포함되어 있는지 확인하세요. 아래 `openssl` 명령을 사용하여 출력에서 `Subject Alternative Name`을 찾을 수 있습니다.
+
+```bash
+openssl x509 -in certificateFile.pem -noout -text
+```
+
+없다면 새 인증서를 요청해야 합니다.
+
+### The private key you uploaded is invalid. Please check your input and try again. (Code: 2106)
+
+**근본 원인**
+
+Cloudflare는 SSL 개인 키와 인증서에 대해 pem 인코딩된 별도 파일을 요구합니다.
+
+**해결 방법**
+
+현재 인증서가 이 요구 사항을 충족하는지 인증 기관(CA)에 문의하거나 형식 변환 지원을 요청하세요.
+
+인증서가 이 [요구 사항들](/ssl/edge-certificates/custom-certificates/uploading/#certificate-requirements)을 준수하는지 확인하세요.
+
+Cloudflare 대시보드에서 인증서를 업로드하기 전에 인증서와 개인 키가 일치하는지도 확인하세요. 이 [외부 자료](https://www.sslshopper.com/article-most-common-openssl-commands.html)가 도움이 될 수 있습니다.

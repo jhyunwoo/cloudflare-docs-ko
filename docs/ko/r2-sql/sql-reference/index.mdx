@@ -1,0 +1,543 @@
+---
+title: SQL reference
+pcx_content_type: concept
+description: SQL 구문 및 R2 SQL에서 지원하는 데이터 유형을위한 포괄적 인 referenceXQ.
+tags:
+  - SQL
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2-sql/sql-reference/'
+translation_source_md: 'https://developers.cloudflare.com/r2-sql/sql-reference/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::참조
+R2 SQL은 공개 베타입니다. 지원된 SQL 문법은 시간이 넘을 수 있습니다.
+주요 특징
+
+이 문서는 R2 SQL 구문을 기반으로 현재 공개 베타의 문법을 지원했습니다.
+
+***
+
+## Query 구문
+
+```sql
+SELECT column_list | aggregation_function | approximate_function
+FROM table_name
+WHERE conditions --optional
+[GROUP BY column_list]
+[HAVING conditions]
+[ORDER BY column_name [DESC | ASC]]
+[LIMIT number]
+```
+
+***
+
+## Schema 발견 명령
+
+R2 SQL은 사용할 수 있는 네임스페이스와 테이블을 탐구하기 위해 메타데이터 쿼리를 지원합니다.
+
+### SHOW 자료
+
+모든 네임스페이스를 나열합니다.
+
+```sql
+SHOW DATABASES;
+```
+
+### 비밀번호
+
+알리아스`SHOW DATABASES`. 모든 유효한 namespaces 목록.
+
+```sql
+SHOW NAMESPACES;
+```
+
+### 쇼 테이블
+
+특정 네임스페이스 내에서 모든 테이블을 나열합니다.
+
+```sql
+SHOW TABLES IN namespace_name;
+```
+
+### 사이트맵
+
+열 이름과 데이터 유형을 보여주는 테이블의 구조를 설명합니다.
+
+```sql
+DESCRIBE namespace_name.table_name;
+```
+
+***
+
+## SELECT 항목
+
+### 옵션 정보
+
+```sql
+SELECT column_specification [, column_specification, ...]
+```
+
+### 연락처
+
+- **열 이름**: `column_name`
+- **모든 열**: `*`
+
+### 이름 \*
+
+```sql
+SELECT * FROM namespace_name.table_name
+SELECT user_id FROM namespace_name.table_name
+SELECT user_id, timestamp, status FROM namespace_name.table_name
+SELECT timestamp, user_id, response_code FROM namespace_name.table_name
+```
+
+***
+
+## 관련 기능
+
+### 옵션 정보
+
+```sql
+SELECT aggregation_function(column_name)
+FROM table_name
+GROUP BY column_list
+```
+
+### 지원된 기능
+
+- **계정(\*)**: 총 행 수**이름 \***: 만`*`지원되는
+- **SUM(컬럼)**: 총 수치
+- **AVG(column)**: 숫자 값의 평균 계산
+- **MIN (column)**: 최소값 찾기
+- **MAX (column)**: 최대값 찾기
+
+### 이름 \*
+
+```sql
+-- Count rows by department
+SELECT department, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY department
+
+-- Sum decimal values
+SELECT region, SUM(total_amount)
+FROM my_namespace.sales_data
+GROUP BY region
+
+-- Average by category
+SELECT category, AVG(price)
+FROM my_namespace.products
+GROUP BY category
+
+-- Min and Max
+SELECT department, MIN(salary), MAX(salary)
+FROM my_namespace.employees
+GROUP BY department
+
+-- Invalid: No aliases
+SELECT department, COUNT(*) AS total FROM my_namespace.sales_data GROUP BY department
+
+-- Invalid: COUNT column name
+SELECT COUNT(department) FROM my_namespace.sales_data
+```
+
+***
+
+## 대략적인 집계 기능
+
+대략적인 집계 기능은 statistically 추정된 결과를 두드러지게 더 적은 기억을 사용하고 그들의 정확한 부속 보다는 compute 생성합니다. 큰 datasets에, 대략 기능은 동등한 정확한 집계 보다는 더 빠른 확대의 결과를 돌려보낼 수 있습니다`COUNT(DISTINCT ...)`, 일반적으로 평균 상대적 오류의 단지 몇 %.
+
+큰 데이터셋을 분석하고 대략적인 결과가 허용될 때 대략적인 기능을 사용하십시오 — 예를 들면, 교통 배급을 이해하거나, 최고 가치를 식별하거나, 높은 볼륨 테이블에 걸쳐 cardinality를 평가하십시오. 정확한 결과가 요구될 때 정확한 집계 기능, 청구 또는 수락 보고와 같은.
+
+### 옵션 정보
+
+```sql
+SELECT approximate_function(column_name [, ...])
+FROM table_name
+[WHERE conditions]
+[GROUP BY column_list]
+```
+
+### 지원된 기능
+
+- **APPROX PERCENTILE CONT(column, 퍼센트)**: t-digests 알고리즘을 사용하여 주어진 %ile에서 대략적인 값을 반환합니다. 더 보기`percentile`모수는 사이에서 있어야 합니다`0.0`·`1.0`이름 \* integer 및 소수 열에 작동합니다.
+- **APPROX PERCENTILE CONT WITH WEIGHT(column, 무게, 퍼센트)**: t-digests 알고리즘을 사용하여 대략적인 %ile 무게를 돌려줍니다.`weight`열. 더 보기`percentile`모수는 사이에서 있어야 합니다`0.0`·`1.0`이름 \* integer 및 소수 열에 작동합니다.
+- **APPROX MEDIAN(컬럼)**: t-digests 알고리즘을 사용하여 대략적인 median 값을 반환합니다. 관련 기사`APPROX_PERCENTILE_CONT(column, 0.5)`. 정수와 소수 열에 작동합니다.
+- **APPROX DISTINCT(콜럼)**: 하이퍼로그로그를 사용하여 열에 있는 특정 값의 대략적인 수를 반환합니다. 어떤 열 유형든지에 일하십시오.
+- **APPROX TOP K(컬럼, k)**: 필터링된 공간 절약 알고리즘을 사용하여`k`가장 빈 값은 대략적인 계산과 함께 열입니다. 더 보기`k`매개변수는 긍정적인 정수이어야 합니다. JSON 배열을 반환합니다`\{"value", "count"\}`기타 제품 문자열 열에 작동합니다.
+
+### 이름 \*
+
+```sql
+-- Approximate percentiles on a numeric column
+SELECT approx_percentile_cont(total_amount, 0.25),
+       approx_percentile_cont(total_amount, 0.5),
+       approx_percentile_cont(total_amount, 0.75)
+FROM my_namespace.sales_data
+
+-- Percentile with GROUP BY
+SELECT department, approx_percentile_cont(total_amount, 0.5)
+FROM my_namespace.sales_data
+GROUP BY department
+
+-- Weighted percentile (rows weighted by quantity)
+SELECT approx_percentile_cont_with_weight(unit_price, quantity, 0.5)
+FROM my_namespace.sales_data
+
+-- Approximate median
+SELECT department, approx_median(total_amount)
+FROM my_namespace.sales_data
+GROUP BY department
+
+-- Approximate distinct count
+SELECT approx_distinct(customer_id)
+FROM my_namespace.sales_data
+
+-- Multiple distinct counts in one query
+SELECT approx_distinct(department),
+       approx_distinct(region),
+       approx_distinct(customer_id)
+FROM my_namespace.sales_data
+
+-- Top-k most frequent values
+SELECT approx_top_k(department, 3)
+FROM my_namespace.sales_data
+
+-- Combine approximate and standard aggregations
+SELECT COUNT(*),
+       SUM(total_amount),
+       AVG(total_amount),
+       approx_percentile_cont(total_amount, 0.5)
+FROM my_namespace.sales_data
+
+-- With WHERE filter
+SELECT approx_median(total_amount),
+       approx_distinct(customer_id)
+FROM my_namespace.sales_data
+WHERE region = 'North'
+
+-- Invalid: percentile out of range
+SELECT approx_percentile_cont(total_amount, 1.5) FROM my_namespace.sales_data
+
+-- Invalid: k must be positive
+SELECT approx_top_k(department, 0) FROM my_namespace.sales_data
+```
+
+***
+
+## 이용안내
+
+### 옵션 정보
+
+```sql
+SELECT * FROM table_name
+```
+
+***
+
+## WHERE 항목
+
+### 옵션 정보
+
+```sql
+SELECT * WHERE condition [AND|OR condition ...]
+```
+
+### \* 이름
+
+#### Null 검사
+
+- `column_name IS NULL`
+- `column_name IS NOT NULL`
+
+#### 가치 비교
+
+- `column_name BETWEEN value' AND 'value`
+- `column_name = value`
+- `column_name >= value`
+- `column_name > value`
+- `column_name <= value`
+- `column_name < value`
+- `column_name != value`
+- `column_name LIKE 'value%'`
+
+#### Logical 연산자
+
+- `AND`- 논리 및
+- `OR`- 로그인 또는
+
+### 데이터 유형
+
+- **뚱 베어**- 전체 번호
+- **팟캐스트**- 소수 번호
+- **이름 \***- 텍스트 값 (quoted)
+- **타임 스탬프**- RFC3339 형식 (`'YYYY-DD-MMT-HH:MM:SSZ'`)
+- **이름 \***- Date32/Data64는 문자열로 표현했습니다 (`'YYYY-MM-DD'`)
+- **한국어**- Explicitly 값이 싼 (true, false)
+
+### 이름 \*
+
+```sql
+SELECT * FROM namespace_name.table_name WHERE timestamp BETWEEN '2025-09-24T01:00:00Z' AND '2025-09-25T01:00:00Z'
+SELECT * FROM namespace_name.table_name WHERE status = 200
+SELECT * FROM namespace_name.table_name WHERE response_time > 1000
+SELECT * FROM namespace_name.table_name WHERE user_id IS NOT NULL
+SELECT * FROM namespace_name.table_name WHERE method = 'GET' AND status >= 200 AND status < 300
+SELECT * FROM namespace_name.table_name WHERE (status = 404 OR status = 500) AND timestamp > '2024-01-01'
+```
+
+***
+
+## 그룹 으로 Clause
+
+### 옵션 정보
+
+```sql
+SELECT column_list, aggregation_function
+FROM table_name
+[WHERE conditions]
+GROUP BY column_list
+```
+
+### 이름 \*
+
+```sql
+-- Single column grouping
+SELECT department, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY department
+
+-- Multiple column grouping
+SELECT department, category, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY department, category
+
+-- With WHERE filter
+SELECT region, COUNT(*)
+FROM my_namespace.sales_data
+WHERE status = 'completed'
+GROUP BY region
+
+-- With ORDER BY (COUNT only)
+SELECT region, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY region
+ORDER BY COUNT(*) DESC
+LIMIT 10
+
+-- ORDER BY SUM
+SELECT department, SUM(amount)
+FROM my_namespace.sales_data
+GROUP BY department
+ORDER BY SUM(amount) DESC
+```
+
+***
+
+## HAVING 항목
+
+### 옵션 정보
+
+```sql
+SELECT column_list, COUNT(*)
+FROM table_name
+GROUP BY column_list
+HAVING SUM/COUNT/MIN/MAX/AVG(column_name) comparison_operator value
+```
+
+### 이름 \*
+
+```sql
+-- Filter by count threshold
+SELECT department, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY department
+HAVING COUNT(*) > 1000
+
+-- Multiple conditions
+SELECT region, COUNT(*)
+FROM my_namespace.sales_data
+GROUP BY region
+HAVING COUNT(*) >= 100
+
+-- HAVING with SUM
+SELECT department, SUM(amount)
+FROM my_namespace.sales_data
+GROUP BY department
+HAVING SUM(amount) > 1000000
+```
+
+***
+
+## 자주 묻는 질문
+
+### 옵션 정보
+
+```sql
+--Note: ORDER BY only supports ordering by the partition key
+ORDER BY partition_key [DESC]
+```
+
+- **ASC 소개**: 주문 완료
+- **사이트맵**: Descending 순서
+- **기본 정보**: 파티션 키의 모든 열에 DESC
+- 파티션 키에서 어떤 열을 포함할 수 있습니다
+
+### 이름 \*
+
+```sql
+SELECT * FROM namespace_name.table_name WHERE ... ORDER BY partition_key_A
+SELECT * FROM namespace_name.table_name WHERE ... ORDER BY partition_key_B DESC
+SELECT * FROM namespace_name.table_name WHERE ... ORDER BY partition_key_A ASC
+
+```
+
+***
+
+## LIMIT 항목
+
+### 옵션 정보
+
+```sql
+LIMIT number
+```
+
+- **주요 특징**: 1 \~ 10,000원
+- **제품정보**: 정수만
+- **기본 정보**: 500
+
+### 이름 \*
+
+```sql
+SELECT * FROM namespace_name.table_name WHERE ... LIMIT 100
+```
+
+***
+
+## Query 예제 완료
+
+### 기본 Query
+
+```sql
+SELECT *
+FROM my_namespace.http_requests
+WHERE timestamp BETWEEN '2025-09-24T01:00:00Z' AND '2025-09-25T01:00:00Z'
+LIMIT 100
+```
+
+### Filtered Query 와 분류
+
+```sql
+SELECT user_id, timestamp, status, response_time
+FROM my_namespace.access_logs
+WHERE status >= 400 AND response_time > 5000
+ORDER BY response_time DESC
+LIMIT 50
+```
+
+### 회사 소개
+
+```sql
+SELECT timestamp, method, status, user_agent
+FROM my_namespace.http_requests
+WHERE (method = 'POST' OR method = 'PUT')
+  AND status BETWEEN 200 AND 299
+  AND user_agent IS NOT NULL
+ORDER BY timestamp DESC
+LIMIT 1000
+```
+
+### Null 처리
+
+```sql
+SELECT user_id, session_id, date_column
+FROM my_namespace.user_events
+WHERE session_id IS NOT NULL
+  AND date_column >= '2024-01-01'
+ORDER BY timestamp
+LIMIT 500
+```
+
+### 관련 쿼리
+
+```sql
+SELECT department, COUNT(*)
+FROM my_namespace.sales_data
+WHERE sale_date >= '2024-01-01'
+GROUP BY department
+ORDER BY COUNT(*) DESC
+LIMIT 10
+```
+
+### HAVING의 전도
+
+```sql
+SELECT region, COUNT(*)
+FROM my_namespace.sales_data
+WHERE status = 'completed'
+GROUP BY region
+HAVING COUNT(*) > 1000
+LIMIT 20
+```
+
+### 다중 칼럼 그룹화
+
+```sql
+SELECT department, category, MIN(price), MAX(price)
+FROM my_namespace.products
+GROUP BY department, category
+LIMIT 100
+```
+
+***
+
+## Data Type 참조
+
+### 지원되는 유형
+
+| 제품정보        | 이름 \*              | 예제 값                               |
+| :---------- | :----------------- | :--------------------------------- |
+| `integer`   | 전체 번호              | `1`, `42`, `-10`, `0`              |
+| `float`     | 소수 번호              | `1.5`, `3.14`, `-2.7`, `0.0`       |
+| `string`    | 텍스트 값              | `'hello'`, `'GET'`, `'2024-01-01'` |
+| `boolean`   | Boolean 값          | `true`, `false`                    |
+| `timestamp` | 사이트맵               | `'2025-09-24T01:00:00Z'`           |
+| `date`      | 'YYYYY-MM-DD''에 대해 | `'2025-09-24'`                     |
+
+### 유형 사용 조건
+
+```sql
+-- Integer comparisons
+SELECT * FROM namespace_name.table_name WHERE status = 200
+SELECT * FROM namespace_name.table_name WHERE response_time > 1000
+
+-- Float comparisons
+SELECT * FROM namespace_name.table_name WHERE cpu_usage >= 85.5
+SELECT * FROM namespace_name.table_name WHERE memory_ratio < 0.8
+
+-- String comparisons
+SELECT * FROM namespace_name.table_name WHERE method = 'POST'
+SELECT * FROM namespace_name.table_name WHERE user_agent != 'bot'
+SELECT * FROM namespace_name.table_name WHERE country_code = 'US'
+```
+
+***
+
+## 통신사업
+
+1. **비교 연산자**: `=`, `!=`, `<`, `<=`, `>`, `>=`, `LIKE`, `BETWEEN`, `IS NULL`, `IS NOT NULL`
+2. **이름 \***(고급)
+3. **이름 \***(낮은 주의)
+
+default precedence를 override하기 위하여 parentheses를 사용하십시오:
+
+```sql
+SELECT * FROM namespace_name.table_name WHERE (status = 404 OR status = 500) AND method = 'GET'
+```
+
+***

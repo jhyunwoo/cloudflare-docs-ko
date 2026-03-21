@@ -1,0 +1,100 @@
+---
+title: 문제 해결
+pcx_content_type: troubleshooting
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 도메인 제어 유효성 검사 문제 해결
+---
+
+import { GlossaryTooltip, Render, Tabs, TabItem } from "~/components";
+
+[DCV](/ssl/edge-certificates/changing-dcv-method/dcv-flow/)에 포함된 단계를 고려하면, 일부 상황은 인증서 발급과 갱신을 방해할 수 있습니다.
+
+[차단된 검증 URL](#차단된-검증-url)이나 [잘못 구성된 DNS 설정](#dns-설정-및-레코드)은 <GlossaryTooltip term="Certificate Authority (CA)">인증 기관</GlossaryTooltip>이 검증을 완료하는 능력을 방해할 수 있습니다. 이런 상황에서는 Cloudflare 또는 권한 있는 DNS 제공자 쪽 설정을 업데이트해야 할 수 있습니다. 그 밖에도 [CA 측 오류](#ca-오류)가 있을 수 있습니다.
+
+:::note
+
+Cloudflare API를 사용하는 경우 오류 메시지는 `validation_errors` 파라미터 아래에 표시됩니다.
+:::
+
+## 차단된 검증 URL
+
+HTTP DCV가 적용된 상태에서 문제가 발생한다면 다음 설정을 검토하세요.
+
+- **`/.well-known/*`에 영향을 주는 모든 것**: [WAF 사용자 지정 규칙](/waf/custom-rules/), [IP Access Rules](/waf/tools/ip-access-rules/), 기타 [configuration rules](/rules/configuration-rules/)을 검토하여 검증 URL에 대해 상호작용형 챌린지를 _활성화하지 않도록_ 하세요.
+
+- **Cloudflare 계정 설정** 및 **Page Rules**: [account settings](/fundamentals/reference/under-attack-mode/), [Configuration Rules](/rules/configuration-rules/), [Page Rules](/rules/page-rules/)를 검토하여 검증 URL에 Under Attack mode가 활성화되지 않았는지 확인하세요.
+
+  :::caution
+
+  <Render file="dcv-path-security" product="ssl" />
+
+  :::
+
+## 리디렉션
+
+[Always Use HTTPS](/ssl/edge-certificates/additional-options/always-use-https/)를 활성화해도 검증 프로세스에는 영향을 주지 않습니다.
+
+오리진 쪽에서 토큰을 관리하는 [부분(CNAME) 설정](/ssl/edge-certificates/changing-dcv-method/#부분-dns-설정---때때로-조치-필요)에서는 `/.well-known/*` 경로에서 HTTP에서 HTTPS로의 리디렉션이 발생하지 않도록 해야 합니다.
+
+[Redirect Rules](/rules/url-forwarding/single-redirects/)를 사용하는 경우 `/.well-known/*` 경로는 리디렉션에서 제외해야 합니다.
+
+## DNS 설정 및 레코드
+
+아래 오류는 권한 있는 DNS 제공자에서 조치해야 하는 상황을 가리킵니다.
+
+- `the Certificate Authority had trouble performing a DNS lookup: dns problem: looking up caa for <hostname>: dnssec: bogus`
+- `Certificate authority encountered a SERVFAIL during DNS lookup, please check your DNS reachability.`
+
+문제 해결 시 다음 사항을 고려하세요.
+
+- [DNSSEC](https://www.cloudflare.com/learning/dns/dns-security/)는 올바르게 구성되어야 합니다. [DNSViz](https://dnsviz.net/)를 사용해 DNSSEC 배포 상태를 이해하고 문제를 해결할 수 있습니다.
+- HTTP 검증 프로세스는 우선적으로 **IPv6**를 통해 수행되므로 AAAA 레코드가 존재하면서 A 레코드와 동일한 듀얼스택 위치를 가리키지 않으면 검증이 실패합니다.
+- 호스트 이름 또는 그 상위에 [NS record](/dns/manage-dns-records/reference/dns-record-types/#ns)가 있으면, DNS 해석은 NS 대상에 정의된 외부 DNS 제공자가 관리합니다. 이 경우 DCV TXT 레코드를 외부 DNS 제공자에 추가하거나 Cloudflare에서 NS 레코드를 제거해야 합니다.
+
+### CAA 레코드
+
+- [CAA records](/ssl/edge-certificates/caa-records/)는 모든 위치에서 해석 가능해야 합니다.
+- [CAA records](/ssl/edge-certificates/caa-records/)는 Cloudflare의 파트너 [인증 기관(CA)](/ssl/reference/certificate-authorities/)이 사용자를 대신해 인증서를 발급할 수 있도록 허용해야 합니다.
+- [서브도메인 설정](/dns/zone-setups/subdomain-setup/)(`subdomain.example.com`)을 사용 중이고 부모 도메인(`example.com`)의 권한 있는 DNS 제공자가 Cloudflare가 아니라면, 부모 도메인(`example.com`)에 [Cloudflare의 파트너 CA](/ssl/reference/certificate-authorities/)를 허용하는 CAA 레코드가 있거나 CAA 레코드가 전혀 없는지 확인해야 합니다.
+
+다음 명령으로 CAA 레코드를 확인할 수 있습니다.
+
+<Tabs>
+<TabItem label="macOS 및 Linux">
+
+```bash
+dig example.com CAA +short
+```
+</TabItem>
+
+<TabItem label="Windows">
+
+```powershell
+Resolve-DnsName -Name example.com -Type CAA
+```
+</TabItem>
+</Tabs>
+
+## CA 오류
+
+### 속도 제한
+
+<Render file="error-rate-limiting" product="ssl" />
+
+### Multiple perspective CAA check error
+
+`Certificate authority encountered a multiple perspective CAA check error, please ensure your DNS is configured to allow CAA queries` 오류는 CA가 특정 지리적 위치에서 도메인과 관련된 CAA 레코드를 해석하지 못했다는 뜻입니다.
+
+[ping.pe 도구](https://dig.ping.pe/)를 사용해 해석 오류를 조사할 수 있습니다.
+예를 들어, [Google Trust Services](/ssl/reference/certificate-authorities/#google-trust-services) 인증서에서 이 문제가 발생하면 `<hostname>:CAA:8.8.8.8`을 확인할 수 있습니다.
+
+자세한 내용은 각 인증 기관 문서인 [SSL.com](https://www.ssl.com/blogs/multi-perspective-issuance-corroboration-mpic-arrives/), [Let's Encrypt](https://letsencrypt.org/2020/02/19/multi-perspective-validation), [Google Trust Services](https://pki.goog/faq/#faq-mpic)을 참고하세요.
+
+### 내부 오류
+
+인증 기관이 [DCV 흐름](/ssl/edge-certificates/changing-dcv-method/dcv-flow/)의 CA 확인 단계에서 문제를 발견하면 `Internal error with Certificate Authority` 메시지가 표시될 수 있습니다. 이런 경우에는 기다리거나 다른 인증 기관을 사용해 보세요.
+
+오류에 `certificate authority will not issue for this domain`이라고 표시되면 다른 인증 기관을 사용하거나 해당 CA에 직접 문의할 수 있습니다.

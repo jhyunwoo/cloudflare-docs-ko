@@ -1,0 +1,84 @@
+---
+pcx_content_type: tutorial
+title: Azure Managed HSM
+description: >-
+  이 튜토리얼은 Microsoft Azure의 Managed HSM을 사용해 Keyless SSL 데몬이 실행되는 VM을 배포합니다. 이 지침을 따라 keyless 서버를 배포하세요.
+---
+
+이 튜토리얼은 FIPS 140-2 Level 3 인증 구현인 [Microsoft Azure의 Managed HSM](https://azure.microsoft.com/en-us/updates/akv-managed-hsm-public-preview/)을 사용해 Keyless SSL 데몬이 실행되는 VM을 배포합니다.
+
+---
+
+## 시작하기 전에
+
+다음을 준비했는지 확인하세요.
+
+- managed HSM을 프로비저닝하고 활성화하기 위한 Microsoft [튜토리얼](https://docs.microsoft.com/en-us/azure/key-vault/managed-hsm/quick-create-cli)을 따랐는지
+- 키 서버용 VM을 설정했는지
+
+---
+
+## 1. VM 생성
+
+keyless 데몬을 배포할 VM을 생성합니다.
+
+---
+
+## 2. keyless 서버 배포
+
+[이 지침](/ssl/keyless-ssl/configuration/cloudflare-tunnel/#4-set-up-and-activate-key-server)을 따라 keyless 서버를 배포합니다.
+
+---
+
+## 3. Azure CLI 설정
+
+Azure CLI(개인 키에 접근하는 데 사용됨)를 설정합니다.
+
+예를 들어 macOS를 사용 중이라면 다음과 같습니다.
+
+```
+brew install azure-cli
+```
+
+---
+
+## 4. Managed HSM 설정
+
+1. Azure CLI를 통해 로그인하고, 지원되는 리전 중 하나에 Managed HSM용 리소스 그룹을 생성합니다.
+
+   ```sh
+   az login
+   az group create --name HSMgroup --location southcentralus
+   ```
+
+   :::note
+   지원되는 리전 목록은 [Microsoft 문서](https://azure.microsoft.com/en-us/global-infrastructure/services/?products=key-vault)를 참고하세요.
+   :::
+
+2. HSM을 [생성, 프로비저닝, 활성화](https://docs.microsoft.com/en-us/azure/key-vault/managed-hsm/quick-create-cli)합니다.
+
+3. 개인 키를 `keyvault`에 추가합니다. 그러면 **4단계**에 필요한 URI가 반환됩니다.
+
+   ```
+   az keyvault key import --hsm-name "KeylessHSM" --name "hsm-pub-keyless" --pem-file server.key
+   ```
+
+4. 키 서버가 동일한 계정의 Azure VM에서 실행 중이라면 권한 부여에 **Managed services**를 사용합니다.
+
+   1. UI에서 VM에 managed services를 활성화합니다.
+   2. 서비스 사용자(VM에 연결된 사용자)에게 HSM sign 권한을 부여합니다.
+
+      ```
+      az keyvault role assignment create  --hsm-name KeylessHSM --assignee $(az vm identity show --name "hsmtestvm" --resource-group "HSMgroup" --query principalId -o tsv) --scope / --role "Managed HSM Crypto User"
+      ```
+
+5. `gokeyless` YAML 파일의 `private_key_stores` 아래에 **2단계**에서 얻은 URI를 추가합니다. 예시는 [README](https://github.com/cloudflare/gokeyless/blob/master/README.md)를 참고하세요.
+
+## 5. gokeyless 재시작
+
+구성 파일을 저장한 뒤 `gokeyless`를 다시 시작하고 정상적으로 시작되었는지 확인합니다.
+
+```
+sudo systemctl restart gokeyless.service
+sudo systemctl status gokeyless.service -l
+```

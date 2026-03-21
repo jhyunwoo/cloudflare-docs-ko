@@ -1,0 +1,107 @@
+---
+pcx_content_type: how-to
+title: 모바일 및 기타 브라우저 외 트래픽에 대해 JSON 응답 받기
+tags:
+  - JSON
+sidebar:
+  order: 6
+---
+
+브라우저가 아닌 환경(예: 모바일 앱 또는 웹 앱)에서 트래픽을 관리해야 한다면 Cloudflare는 API 엔드포인트에서 사용할 수 있는 JSON 친화적 대기실을 제공합니다.
+
+1. 사용자가 대기열에 들어가면 Cloudflare 자체 JSON 응답을 반환합니다.
+2. 사용자가 대기실을 벗어나면 요청을 origin 서버로 전달하고 origin 서버가 반환한 응답(JSON, XML, HTML 페이지 등)을 그대로 돌려줍니다.
+
+:::note[Important]
+Turnstile은 Waiting Room JSON 응답에서는 지원되지 않습니다. Turnstile 검사는 브라우저 기반(HTML) 응답에만 적용됩니다. 애플리케이션이 JSON 응답(예: 모바일 앱, API, 기타 비브라우저 트래픽)에 의존하는 경우 Turnstile은 비활성화되며 이러한 요청에는 활성화할 수 없습니다.
+:::
+
+JSON 형식으로 대기실 응답을 사용하려면 다음 단계를 따르세요.
+
+## Step 1 - JSON 응답 활성화
+
+JSON 응답을 받으려면 먼저 대기실에서 해당 옵션을 활성화해야 합니다.
+
+- **대시보드에서**: [대기실을 사용자 지정](/waiting-room/how-to/customize-waiting-room/)할 때 **JSON Response**를 활성화합니다.
+- **API에서**: [대기실을 생성](/api/resources/waiting_rooms/methods/create/)할 때 `json_response_enabled`를 true로 설정합니다.
+
+## Step 2 - JSON 데이터 가져오기
+
+`Accept: application/json` 헤더를 사용해 대기실 엔드포인트로 요청합니다. 헤더 값은 정확히 `Accept: application/json`이어야 합니다. 예를 들어 `Accept: application/json, text/html`처럼 다른 값이 섞여 있으면 JSON 형식 응답이 반환되지 않습니다. 사용자가 대기열에서 앞으로 이동하려면 `refreshIntervalSeconds`마다 요청을 다시 시도해야 합니다.
+
+```bash title="요청"
+curl "https://example.com/waitingroom" \
+--header "Accept: application/json"
+```
+
+```json title="응답"
+{
+	"cfWaitingRoom": {
+		"inWaitingRoom": true,
+		"waitTime": 5,
+		"waitTimeKnown": true,
+		"waitTimeFormatted": "5 minutes",
+		"queueIsFull": false,
+		"queueAll": false,
+		"lastUpdated": "2021-08-03T23:46:00.000Z",
+		"refreshIntervalSeconds": 20
+	}
+}
+```
+
+## 요청 헤더의 쿠키
+
+Waiting Room은 대기열 안에서 사용자의 위치를 결정하는 대기실 쿠키에 의해 동작합니다. 따라서 매 요청마다 응답 헤더에서 쿠키가 업데이트됩니다. Waiting Room이 보호하는 엔드포인트에 대한 각 요청마다 애플리케이션은 이전 요청에서 받은 최신 쿠키를 포함해야 합니다. 사용자가 실제로 대기했는지 여부와 관계없이 이 과정은 필수입니다. 요청에 쿠키가 없으면 Waiting Room은 이를 새로운 사용자로 간주하고 응답 헤더에 새 쿠키를 반환합니다. 그 결과 사용자는 대기열 맨 뒤로 배치됩니다. 따라서 비브라우저 환경에서 대기실을 사용할 때는 요청 헤더에 대기실 쿠키를 포함하고, 매 요청 후 이를 최신 상태로 유지하는 것이 중요합니다.
+
+자세한 내용은 [Waiting Room 쿠키](/waiting-room/reference/waiting-room-cookie/)를 참고하세요.
+
+## 대기열에서 앞으로 이동하기
+
+브라우저 환경에서는 페이지가 `refreshIntervalSeconds`마다 자동으로 새로고침되어 사용자가 대기열에서 앞으로 이동합니다. Waiting Room의 JSON 친화적 API를 사용하는 비브라우저 환경에서는 백엔드 서비스(또는 API)도 `refreshIntervalSeconds`마다 Waiting Room이 구성된 엔드포인트로 새 요청을 보내도록 구현해야 합니다.
+
+다음은 JSON 친화적 응답을 사용할 수 있는 몇 가지 예시입니다(아래 목록은 전체가 아닙니다).
+
+1. 모바일 앱 트래픽에서 사용
+
+   - **Waiting Room 변수 통합** - 모바일 앱에서 JSON 응답을 처리할 새 템플릿을 만듭니다. 변수 전체 목록은 [Cloudflare API 문서](/api/resources/waiting_rooms/methods/create/)의 `json_response_enabled` 파라미터를 참고하세요.
+   - **쿠키 허용** - 위에서 설명한 것처럼 대기실은 [쿠키가 필요](/waiting-room/reference/waiting-room-cookie/)하며, 모바일 앱은 쿠키를 지원해야 합니다. 편의를 위해 [CookieJar](https://pkg.go.dev/net/http#CookieJar) 같은 쿠키 관리자를 사용할 수 있습니다.
+   - **JSON 데이터 사용** - `Accept: application/json` 헤더를 사용해 Waiting Room 엔드포인트에 요청합니다.
+
+2. Cloudflare Workers 내부(또는 자체 백엔드 서비스 내부)에서 사용
+
+   - **Waiting Room 변수 통합** - 백엔드 API에서 JSON 응답을 처리하도록 만듭니다. 변수 전체 목록은 [Cloudflare API 문서](/api/resources/waiting_rooms/methods/create/)의 `json_response_enabled` 파라미터를 참고하세요.
+   - **요청 헤더에 쿠키 포함** - 위에서 설명한 것처럼 대기실은 [쿠키가 필요](/waiting-room/reference/waiting-room-cookie/)하며, 백엔드 API는 쿠키를 지원해야 합니다. 편의를 위해 [CookieJar](https://pkg.go.dev/net/http#CookieJar) 같은 쿠키 관리자를 사용할 수 있습니다.
+   - **JSON 응답 활성화** - 대시보드 또는 API를 통해 활성화합니다.
+   - **JSON 데이터 사용** - `Accept: application/json` 헤더를 사용해 Waiting Room 엔드포인트에 요청합니다.
+
+     아래 예시는 Worker 내부에서 Waiting Room 엔드포인트를 사용하는 방식을 보여 줍니다. 요청 헤더에는 Waiting Room API가 요구하는 `accept`와 `cookie` 값이 포함됩니다. accept 헤더는 사용자가 대기 중일 때 JSON 친화적 응답이 반환되도록 보장합니다. 그렇지 않고 요청이 origin으로 전달되면 origin이 반환한 응답이 그대로 다시 반환됩니다. 이 예시에서는 `__cfwaitingroom` 값을 cookie 필드에 하드코딩했습니다. 실제 애플리케이션에서는 각 후속 요청마다 Waiting Room API가 반환한 쿠키를 사용해 사용자가 대기열에서 올바른 위치를 유지하고, 자신의 차례가 되었을 때 origin으로 통과할 수 있도록 해야 합니다.
+
+```javascript
+const waitingroomSite = "https://examples.cloudflareworkers.com/waiting-room";
+
+export default {
+	async fetch(request, env, ctx) {
+		const init = {
+			headers: {
+				accept: "application/json",
+				cookie: "__cfwaitingroom=F)J@NcRfUjXnZr4u7x!A%D*G-KaPdSgV",
+			},
+		};
+
+		return fetch(waitingroomSite, init)
+			.then((response) => response.json())
+			.then((response) => {
+				if (response.cfWaitingRoom.inWaitingRoom) {
+					return Response("in waiting room", { "content-type": "text/html" });
+				}
+				return new Response(response);
+			});
+	},
+};
+```
+
+:::note
+
+Waiting Room에서 JSON 친화적 형식을 지원하는 기능은 Advanced Waiting Room 고객만 사용할 수 있습니다. 자세한 내용은 [요금제 페이지](/waiting-room/plans/)를 참고하세요.
+
+:::

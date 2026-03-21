@@ -1,0 +1,206 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/360021111972-Troubleshooting-DNSSEC
+title: 문제 해결
+description: DNSSEC 문제를 해결하는 방법을 알아보세요
+sidebar:
+  order: 9
+head:
+  - tag: title
+    content: Troubleshooting DNSSEC
+---
+
+import { Example } from "~/components";
+
+DNSSEC 문제를 해결하는 방법을 자세히 알아보세요.
+
+## Dig로 DNSSEC 테스트
+
+`Dig`는 네임서버에 DNS 레코드를 질의하는 명령줄 도구입니다.
+
+예를 들어 `dig`는 DNS 리졸버에 `www.cloudflare.com`의 IP 주소를 물어볼 수 있습니다.
+
+<Example>
+
+```sh
+dig www.cloudflare.com +short
+```
+
+```sh output
+198.41.215.162
+198.41.214.162
+```
+
+`+short` 옵션은 결과만 출력합니다.
+
+</Example>
+
+레코드에 서명이 되어 있는지 확인하려면 `+dnssec`를 사용하세요.
+
+<Example>
+
+```sh
+dig www.cloudflare.com +dnssec +short
+```
+
+```sh output
+198.41.214.162
+198.41.215.162
+A 13 3 300 20180927180434 20180925160434 35273 cloudflare.com. DYYZ/bhHSAIlpvu/HEUsxlzkC9NsswbCQ7dcfcuiNBrbhYV7k3AI8t46 QMnOlfhwT6jqsfN7ePV6Fwpym3B0pg==
+```
+
+이 예시에서 출력의 마지막 줄은 `RRSIG` 레코드입니다. `RRSIG`는 레코드에 붙는 DNSSEC 서명입니다. DNS 리졸버는 `RRSIG`를 사용해 DNS 응답을 신뢰할 수 있는지 판단합니다.
+
+</Example>
+
+`Dig`는 DNS 레코드를 검증하는 데 사용되는 공개 키인 `DNSKEY`도 가져올 수 있습니다.
+
+<Example>
+
+```sh
+dig DNSKEY cloudflare.com +short
+```
+
+```sh output
+257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+ KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==
+256 3 13 koPbw9wmYZ7ggcjnQ6ayHyhHaDNMYELKTqT+qRGrZpWSccr/lBcrm10Z 1PuQHB3Azhii+sb0PYFkH1ruxLhe5g==
+```
+
+도메인의 DNS 레코드는 모두 동일한 공개 키로 서명됩니다. 따라서 서브도메인(`www.cloudflare.com`)의 공개 키가 아니라 apex 도메인(`cloudflare.com`)의 공개 키를 질의해야 합니다.
+
+DNS 응답에는 두 개의 레코드가 포함됩니다.
+
+- `DNSKEY` 레코드 **256**은 zone signing key(ZSK)라고 하는 공개 키입니다. ZSK는 `A`, `MX`, `CNAME`, `SRV` 등의 DNS 레코드 서명을 검증하는 데 사용됩니다.
+- `DNSKEY` 레코드 **257**은 key signing key(KSK)라고 합니다. KSK는 `DNSKEY`, `CDS`, `CDNSKEY` 레코드의 서명을 검증하는 데 사용됩니다.
+
+</Example>
+
+:::note
+
+공개 키를 사용해 서명을 검증하는 자세한 방법은 이 문서의 범위를 벗어납니다.
+:::
+
+`dig`를 `+short` 없이 사용하면, 응답 헤더에 `ad` 플래그가 나타날 경우 DNS 응답이 DNSSEC 인증을 통과한 것입니다.
+
+<Example>
+
+```sh
+dig www.cloudflare.com
+```
+
+```sh output
+[...]
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 65326
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+[...]
+;; QUESTION SECTION:
+;www.cloudflare.com.        IN  A
+[...]
+;; ANSWER SECTION:
+www.cloudflare.com. 15  IN  A   198.41.215.162
+www.cloudflare.com. 15  IN  A   198.41.214.162
+```
+
+</Example>
+
+---
+
+## DNSViz로 DNSSEC 검증 문제 해결
+
+:::note
+
+DNSViz는 DNSSEC 구성을 시각화하고 문제를 발견하는 데 도움이 되는 공개 무료 온라인 도구이며, Cloudflare와는 **관련이 없습니다**.
+:::
+
+DNSSEC의 잠재적인 문제를 시각화하고 발견하려면 다음을 수행하세요.
+
+1. [http://dnsviz.net/](http://dnsviz.net/)으로 이동합니다.
+2. 표시되는 텍스트 필드에 도메인 이름을 입력합니다.
+3. DNSViz가 해당 사이트를 한 번도 분석한 적이 없다면 나타나는 **Analyze** 버튼을 클릭합니다.
+4. 이미 분석된 적이 있다면 나타나는 **Update Now** 버튼을 클릭합니다.
+
+### 권한 네임서버에서 RRSIG 레코드가 없거나 잘못된 예시
+
+아래는 TLD 네임서버에 게시된 DS 레코드와 일치하는 유효한 DNSKEY 레코드를 권한 네임서버가 제공하지 않을 때 dnsviz.net이 잘못된 위임을 표시하는 예시입니다.
+
+![Incorrect delegation when no valid DNSKEY records are provided](~/assets/images/support/troubleshoot_dnssec-example_no_rrsig.png)
+
+---
+
+## Dig로 DNSSEC 신뢰 체인 보기
+
+도메인 서명(예: `cloudflare.com`)을 완전히 검증하려면 최상위 도메인(예: `.com`)에 있는 key signing key도 검증해야 합니다.
+
+이와 비슷한 검증은 `.com`의 key signing key를 루트 서버 수준에서 확인함으로써 계속 이어집니다. DNSSEC 루트 키는 DNS 클라이언트에 배포되어 신뢰 체인을 완성합니다.
+
+DNSSEC가 활성화되면 등록기관 DNS에 `DS` 레코드가 필요합니다. `DS` 레코드에는 공개 key signing key의 해시와 키에 대한 메타데이터가 포함됩니다.
+
+<Example>
+
+`dig`를 사용하여 `DS` 레코드를 찾을 수 있습니다.
+
+```sh
+dig +short DS cloudflare.com
+```
+
+```sh output
+2371 13 2 32996839A6D808AFE3EB4A795A0E6A7A39A76FC52FF228B22B76F6D6 3826F2B9
+```
+
+`+trace` 옵션을 사용하면 `dig`는 `cloudflare.com`에 대한 응답이 `cloudflare.com`의 네임서버에서 왔는지 `.com`의 네임서버에서 왔는지를 확인합니다. 이 예시에서는 `cloudflare.com`의 `DS` 레코드가 `e.gtld-servers.net`에서 반환됩니다.
+
+```sh
+dig DS cloudflare.com +trace
+```
+
+```sh output
+[...]
+cloudflare.com.     86400   IN  DS  2371 13 2 32996839A6D808AFE3EB4A795A0E6A7A39A76FC52FF228B22B76F6D6 3826F2B9
+[...]
+com.            172800  IN  NS  e.gtld-servers.net.
+[...]
+;; Received 1213 bytes from 2001:502:1ca1::30#53(e.gtld-servers.net) in 37 ms
+
+```
+
+</Example>
+
+위 단계를 수동으로 실행하는 더 쉬운 대안은 서드파티 도구인 [DNSViz](#troubleshoot-dnssec-validation-using-dnsviz)를 사용하는 것입니다.
+
+---
+
+## Dig로 DNSSEC 검증 문제 해결
+
+권한 DNS 공급자를 바꾸었는데 등록기관의 오래된 DNSSEC 레코드를 업데이트하거나 제거하지 않으면 문제가 발생합니다.
+
+<Example>
+
+```sh
+dig A brokendnssec.net @1.0.0.1
+```
+
+```sh output
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+;; ->>HEADER<<- opcode: QUERY, status: SERVFAIL, id: 10663
+```
+
+`SERVFAIL` 응답이 DNSSEC와 관련이 있는지 확인하려면 `+cd` 옵션을 사용해 `dig`를 실행하세요. `+cd` 옵션은 DNSSEC 검증 없이 DNS 결과를 제공합니다.
+
+```sh
+dig A brokendnssec.net @1.0.0.1 +dnssec +cd +short
+```
+
+```sh output
+104.20.49.61
+104.20.48.61
+```
+
+이 예시에서는 `+cd` 옵션을 사용할 때는 정상적인 DNS 응답이 오지만 DNSSEC를 사용한 질의는 `SERVFAIL`을 반환한다면, DNSSEC가 잘못 구성된 것입니다. 이런 문제는 권한 네임서버를 변경했지만 `DS` 레코드를 업데이트하지 않았을 때 자주 발생합니다. 공격자가 질의 응답을 위조하려고 시도할 때도 이런 현상이 일어날 수 있습니다.
+
+</Example>
+
+---
+
+## 다음 단계
+
+DNSSEC 구현에 문제가 발견되면 도메인의 등록기관에 문의하여 `DS` 레코드가 권한 DNS 공급자가 지정한 값과 일치하는지 확인하세요. Cloudflare가 권한 DNS 공급자라면 [Cloudflare에서 DNSSEC 구성](/dns/dnssec/) 지침을 따르세요.

@@ -1,0 +1,509 @@
+---
+pcx_content_type: reference
+title: 일반 정책
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 일반 HTTP 정책
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/common-policies/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/common-policies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, APIRequest } from "~/components";
+
+다음 정책은 일반적으로 HTTP 트래픽을 확보하는 데 사용됩니다.
+
+권장 정책의 기본 설정에 대한 참조[인터넷 트래픽 및 SaaS 앱 보안](/learning-paths/secure-internet-traffic/build-http-policies/recommended-http-policies/).
+
+더 알아보기[HTTP 정책 페이지](/cloudflare-one/traffic-policies/http-policies/)다른 selectors, 연산자 및 작업의 종합 목록.
+
+## 블록 사이트
+
+블록은 hostname 또는 URL 경로로 사이트에 도달하려고합니다. 사이트가 어떻게 구성되는지에 따라 다른 접근법이 필요할 수 있습니다.
+
+### 별 블록 사이트
+
+호스트를 사용하는 모든 하위 도메인을 차단합니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁     | 제품정보             | - 연혁 |
+    | ----- | -------- | ---------------- | ---- |
+    | 이름 \* | 경기 regex | `.*example\.com` | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block sites by hostname",
+  	description: "Block all subdomains that use a specific hostname",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic: 'http.request.host matches ".*example\.com"',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### URL로 블록 사이트
+
+전체 사이트를 차단하지 않고 사이트의 섹션을 차단합니다. 예를 들어 특정 subreddit을 차단할 수 있습니다.`reddit.com/r/gaming`차단 없이,`reddit.com`.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁     | 제품정보        | - 연혁 |
+    | ----- | -------- | ----------- | ---- |
+    | 사이트 맵 | 경기 regex | `/r/gaming` | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block sites by URL",
+  	description: "Block specific parts of a site without blocking the hostname",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic: 'http.request.uri matches "/r/gaming"',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 블록 콘텐츠 범주
+
+조직의 수락가능한 사용 정책에 대하여 가는 구획 내용 종류.
+
+<Render file="gateway/policies/dash-plus-api/http/block-content-categories" product="cloudflare-one" />
+
+## 블록 인증
+
+<Render file="gateway/policies/block-applications" product="cloudflare-one" />
+
+<Render file="gateway/policies/dash-plus-api/http/block-applications" product="cloudflare-one" />
+
+## 사용자 ID
+
+<Render file="gateway/policies/check-user-identity" product="cloudflare-one" />
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보     | 회사연혁 | 제품정보   | 로그인   | - 연혁 |
+    | --------- | ---- | ------ | ----- | ---- |
+    | 제품 설명     | 내 계정 | *회사연혁* | 이름 \* | 제품정보 |
+    | 사용자 그룹 이름 | 내 계정 | *계약자*  |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Check user identity",
+  	description:
+  		"Block access to Salesforce by temporary employees and contractors",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic: "any(app.ids[] in {606})",
+  	identity: 'any(identity.groups.name[] in {"Contractors"})',
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 그룹에 대한 검사
+
+Zoom 또는 Apple 서비스와 같은 특정 클라이언트 애플리케이션은 인증서 핀닝에 의존합니다. 더 보기[TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/)Cloudflare에 의해 실행하는 Gateway는 사용자가 해당 응용 프로그램을 방문 할 때 오류가 발생합니다. 이 동작을 피하기 위해 Do Not Inspect HTTP 정책을 추가해야 합니다.
+
+오시는 길[평가는 첫째로 정책을 검열하지 않습니다](/cloudflare-one/traffic-policies/order-of-enforcement/#http-policies). 우리는 당신의 Do Not Inspect 정책을 구성을 줄이기 위해 목록의 상단에 움직입니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁 | 제품정보        | - 연혁      |
+    | ----- | ---- | ----------- | --------- |
+    | 제품 설명 | 내 계정 | *검사하지 마십시오* | 검사하지 마십시오 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Bypass incompatible applications",
+  	description:
+  		"Skip TLS decryption for applications that are incompatible with Gateway",
+  	enabled: true,
+  	action: "off",
+  	filters: ["http"],
+  	traffic: "any(app.type.ids[*] in {16})",
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+:::참조
+개별 응용 프로그램 또는 전체를 선택할 수 없습니다 Inspect 세트, 새로운 응용 프로그램이 추가 될 것입니다.
+주요 특징
+
+## 장치 자세 검사
+
+특정 소프트웨어를 설치하거나 다른 구성 속성을 가질 필요가 있습니다. 장치 자세 검사 설정에 대한 지침은 참조[Enforce 장치 자세](/cloudflare-one/reusable-components/posture-checks/).
+
+### 최소 OS 버전 강화
+
+지원하다[OS 버전 체크](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/os-version/)사용자가 최소한의 버전을 실행할 수 있도록 합니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보                    | 회사연혁 | 제품정보       | - 연혁 |
+    | ------------------------ | ---- | ---------- | ---- |
+    | Passed Device Posture 검사 | 내 계정 | *최소 OS 버전* | 지원하다 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Require OS version",
+  	description: "Perform an OS version check for minimum version",
+  	enabled: true,
+  	action: "allow",
+  	filters: ["http"],
+  	traffic: "",
+  	identity: "",
+  	device_posture:
+  		'any(device_posture.checks.passed[*] in {"<POSTURE_CHECK_UUID>"})',
+  }}
+    />
+
+    장치 자세 검사의 UUIDs를 얻으려면, 사용[목록 장치 자세 규칙](/api/resources/zero_trust/subresources/devices/subresources/posture/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+### 특정 파일 확인
+
+지원하다[파일 체크](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/file-check/)사용자가 장치에 특정 파일이 있는지 확인합니다.
+
+파일 경로가 각 운영 체제에 따라 다르기 때문에 각 시스템에 대한 파일 체크를 구성하고 사용**또는**논리 연산자는 패스에 체크 중 하나를 필요로.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보                    | 회사연혁 | 제품정보          | 로그인 | - 연혁 |
+    | ------------------------ | ---- | ------------- | --- | ---- |
+    | Passed Device Posture 검사 | 내 계정 | *macOS 파일 확인* | 또는  | 지원하다 |
+    | Passed Device Posture 검사 | 내 계정 | *Linux 파일 확인* |     |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Check for specific file",
+  	description:
+  		"Ensure users have a specific file on their device regardless of operating system",
+  	enabled: true,
+  	action: "allow",
+  	filters: ["http"],
+  	traffic: "",
+  	identity: "",
+  	device_posture:
+  		'any(device_posture.checks.passed[] in {"<POSTURE_CHECK_1_UUID>"}) or any(device_posture.checks.passed[] in {"<POSTURE_CHECK_2_UUID>"})',
+  }}
+    />
+
+    장치 자세 검사의 UUIDs를 얻으려면, 사용[목록 장치 자세 규칙](/api/resources/zero_trust/subresources/devices/subresources/posture/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+## 세션 기간
+
+[re-authenticate 사용자 필요](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-sessions/)특정 시간 후에 탈출.
+
+## 원격 브라우저의 높은 위험 사이트
+
+사용중인 경우[브라우저 Isolation 추가](/cloudflare-one/remote-browser-isolation/), 우리의 명부를 참조하십시오[일반적인 Isolate 정책](/cloudflare-one/remote-browser-isolation/isolation-policies/#common-policies).
+
+## 자기 서명 인증서의 우회 검사
+
+인증서가 서명하지 않은 소스 서버에 액세스 할 때, 당신은 TLS 해독을 우회해야합니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁 | 제품정보                   | - 연혁      |
+    | ----- | ---- | ---------------------- | --------- |
+    | 이름 \* | 내 계정 | `internal.example.com` | 검사하지 마십시오 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Bypass internal site inspection",
+  	description:
+  		"Bypass TLS decryption for internal sites with self-signed certificates",
+  	enabled: true,
+  	action: "off",
+  	filters: ["http"],
+  	traffic: 'any(http.request.domains[*] in {"internal.example.com"})',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 블록 파일 유형
+
+<Render file="gateway/policies/block-file-types" product="cloudflare-one" />
+
+지원되는 파일 유형에 대한 자세한 내용은 참조[파일 형식 다운로드 및 업로드](/cloudflare-one/traffic-policies/http-policies/#download-and-upload-file-types).
+
+## Isolate 또는 블록 그림자 IT 응용
+
+Isolate shadow IT 응용 프로그램에서 발견[회사연혁](/cloudflare-one/team-and-resources/app-library/)아직 검토되지 않았거나 현재 검토 중이며, 귀하의 조직에서 승인되지 않은 응용 프로그램을 차단합니다.
+
+shadow IT 응용 프로그램 검토에 대한 자세한 내용은 참조[회사연혁](/cloudflare-one/team-and-resources/app-library/#review-applications).
+
+### 1. Isolate unreviewed 또는 검토 신청에서
+
+승인 상태가 있는 경우 Isolate 애플리케이션*평가 없음*또는*리뷰에서*.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁  | 제품정보    | 로그인 | - 연혁 |
+    | ----- | ----- | ------- | --- | ---- |
+    | 적용현황  | 이름 \* | *평가 없음* | 또는  | 사이트맵 |
+    | 적용현황  | 이름 \* | *리뷰에서*  |     |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Isolate unreviewed or in review application status",
+  	description:
+  		"Isolate Shadow IT applications that have not been reviewed or are in review in the Application Library",
+  	enabled: true,
+  	action: "isolate",
+  	filters: ["http"],
+  	traffic:
+  		'any(app.statuses[*] == "unreviewed") or any(app.statuses[*] == "in review")',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### 2. 구획 unapproved 신청
+
+승인 상태가 있는 경우 Block Application*계정 관리*.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁  | 제품정보    | - 연혁 |
+    | ----- | ----- | ------- | ---- |
+    | 적용현황  | 이름 \* | *계정 관리* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block unapproved application status",
+  	description:
+  		"Block Shadow IT applications that have been marked as unapproved in the Application Library",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic: 'any(app.statuses[*] == "unapproved")',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## Google 서비스 차단
+
+Google 드라이브 트래픽 게이트웨이 검사를 활성화하려면 반드시 해야 합니다.[Google 드라이브에 Cloudflare 인증서 추가](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/#google-drive).
+
+### Google 드라이브 다운로드
+
+Google Drive에서 블록 파일 다운로드.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보       | 회사연혁     | 제품정보                       | 로그인   | - 연혁 |
+    | ----------- | -------- | -------------------------- | ----- | ---- |
+    | 제품 설명       | 내 계정     | *Google 드라이브*              | 이름 \* | 제품정보 |
+    | URL 경로 및 쿼리 | 경기 regex | `.*(e=download\|export).*` |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block Google Drive downloads",
+  	description: "Block file downloads from Google Drive",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic:
+  		'any(app.ids[] in {554}) and http.request.uri.path_and_query matches ".(e=download\|export).*"',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### 블록 Google 드라이브 업로드
+
+Google 드라이브에서 블록 파일 업로드.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보       | 회사연혁     | 제품정보                                   | 로그인   | - 연혁 |
+    | ----------- | -------- | -------------------------------------- | ----- | ---- |
+    | 제품 설명       | 내 계정     | *Google 드라이브*                          | 이름 \* | 제품정보 |
+    | Mime 유형 업로드 | 경기 regex | `.*`                                   | 이름 \* |      |
+    | 이름 \*       | 아니다.     | `drivefrontend-pa.clients6.google.com` |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block Google Drive uploads",
+  	description: "Block file uploads to Google Drive",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic:
+  		'any(app.ids[] in {554}) and http.upload.mime matches "." and not(http.request.host == "drivefrontend-pa.clients6.google.com")',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### Block Gmail 다운로드
+
+Gmail에서 블록 파일 다운로드.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보       | 회사연혁  | 제품정보                                    | 로그인   | - 연혁 |
+    | ----------- | ----- | --------------------------------------- | ----- | ---- |
+    | 이름 \*       | 이름 \* | `mail-attachment.googleusercontent.com` | 이름 \* | 제품정보 |
+    | URL 경로 및 쿼리 | 이름 \* | `/attachment/u/0`                       |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block Gmail downloads",
+  	description: "Block file downloads from Gmail",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic:
+  		'http.request.host == "mail-attachment.googleusercontent.com" and http.request.uri.path_and_query matches "/attachment/u/0"',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### Google 번역 프록시
+
+Google 번역의 블록 사용 전체 웹 페이지 번역.
+
+웹 사이트를 번역 할 때, Google 번역 프록시 웹 페이지와`translate.goog`사이트 맵 사용자들은 이 서비스를 사용하여 다른 게이트웨이 정책을 우회할 수 있습니다. 차단을 해제`translate.goog`, 사용자는 여전히 다른 Google 번역 기능을 액세스 할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁     | 제품정보                       | - 연혁 |
+    | ----- | -------- | -------------------------- | ---- |
+    | 이름 \* | 경기 regex | `^(.+\.)?translate\.goog$` | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block Google Translate for websites",
+  	description: "Block use of Google Translate to translate entire webpages",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic:
+  		'any(http.request.domains[*] matches "^(.+\\.)?translate\\.goog$")',
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 필터 WebSocket 트래픽
+
+Gateway는 검사하거나 로그하지 않습니다.[웹소켓](https://datatracker.ietf.org/doc/html/rfc6455)교통. 대신 Gateway는 WebSocket 연결뿐만 아니라 WebSocket 연결을 만드는 데 사용되는 HTTP 세부 사항을 로그합니다.[네트워크 세션 정보](/logs/logpush/logpush-job/datasets/account/zero_trust_network_sessions/). WebSocket 트래픽을 필터링하려면 정책을 작성하십시오.`101`HTTP 응답 코드.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보   | 회사연혁  | 제품정보                | - 연혁 |
+    | ------- | ----- | ------------------- | ---- |
+    | HTTP 응답 | 이름 \* | *101 스위치 PROTOCOLS* | 지원하다 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Filter WebSocket",
+  	description: "Filter WebSocket traffic with HTTP response code 101",
+  	enabled: true,
+  	action: "allow",
+  	filters: ["http"],
+  	traffic: "http.response.status_code == 101",
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>

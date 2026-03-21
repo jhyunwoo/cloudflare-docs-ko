@@ -1,0 +1,117 @@
+---
+title: 사전 - 버전 1
+pcx_content_type: reference
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: SaaS의 SSL에 대한 사전 통지 - 버전 1
+chatbot_deprioritize: true
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/reference/versioning/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/reference/versioning/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+SaaS에 대한 SSL의 첫 번째 버전은 2021년 9월 1일 이전에 공개됩니다.
+
+## SaaS가 변화하는 이유는 무엇입니까?
+
+SSL for SaaS v1에서는 Custom Hostnames의 트래픽은 SaaS가 활성화된 SSL을 가진 영역에 할당된 IP 주소에 근거하여 원래의 값에 부합합니다. IP 기반 라우팅은 Zero downtime으로 변경되는 고객을 막아주는 복합체를 소개합니다.
+
+SSL for SaaS v2는 IP 기반 라우팅 및 관련 문제를 제거합니다. 대신, 트래픽은 SaaS 영역의 사용자 정의 호스트 이름에 근거를 둔 근원에 proxied. 이것은 Custom Hostnames가 이제 통과해야합니다.**비밀번호**Custom Hostname 생성 후 단계 및 SSL 인증서 검증 외에도. SSL for SaaS v1에서 보안 레이어를 추가하여 검증된 호스트명만이 당신의 근원에 부합합니다.
+
+## 어떤 행동이 필요합니까?
+
+귀하의 서비스가 중단되지 않도록, 당신은 모든 새로운 사용자 정의 호스트 이름에 추가 소유권 확인을 수행해야합니다. 소유권을 확인하는 세 가지 방법이 있습니다. TXT, HTTP 및 CNAME. TXT 및 HTTP를 사용하여 사전 유효성을 검증하기 위해 트래픽 전에 사용자 지정 호스트 이름은 Cloudflare의 가장자리에 의해 발음됩니다.
+
+### 자주 묻는 질문
+
+사용 방법[사이트맵](#dns-txt-record)또는[HTTP: HTTP](#http-token)유효성 검사 방법 당신은 당신의 이동 도중 가동불능시간을 피하는 것을 돕습니다. 사용하려면[CNAME 유효성](#cname-validation), 당신의 도메인은 그것의 뒤에 떨어질지도 모릅니다[백오프 일정](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/).
+
+#### DNS TXT 기록
+
+TXT 메소드로 Custom Hostname을 만들 때[사이트맵](/api/resources/custom_hostnames/methods/create/)TXT 소유권 verification 레코드는 소유권 유효성 검사에 대한 DNS에 추가하기 위해 고객에게 제공됩니다. TXT 레코드가 추가되면, Custom Hostname은 표시될 것입니다.**지원하다**사용자 지정 호스트 이름 탭에서 QXQX0114XQ SSL/TLS 앱에서.
+
+#### HTTP 토큰
+
+Custom Hostname을 HTTP로 만들 때[사이트맵](/api/resources/custom_hostnames/methods/create/)HTTP 소유권 verification 토큰이 제공됩니다. HTTP 검증은 주로 HTTPS 지원과 사용자 정의 도메인의 큰 배치 된베이스와 조직에 의해 사용됩니다. 당신의 근원 웹 서버에서 HTTP 토큰을 봉사하는 것은 CloudflareXQ를 통해 도메인 트래픽을 프록시하기 전에 호스트 이름 검증을 허용합니다.
+
+Cloudflare는 HTTP url에 요청을 보냅니다`User-Agent: Cloudflare Custom Hostname Verification`.
+
+Cloudflare를 통해 트래픽을 프록시하지 않는 호스트명을 검증하면, Custom Hostname이 표시될 것입니다.**지원하다**Cloudflare SSL/TLS 앱에서 HTTP 토큰이 확인될 때 (아래에)**사용자 이름**탭)
+
+호스트명이 이미 Cloudflare를 통해 프록시 트래픽이라면 HTTP 유효성 검사는 DNS 기반 검증이 완료될 때만 활성화됩니다.
+
+### 다른 검증 방법
+
+사용할 수 있는 것[CNAME 유효성](#cname-validation), 우리는 당신이 이용하는 것을 추천합니다[사이트맵](#dns-txt-record)또는[HTTP: HTTP](#http-token)검증 방법.
+
+#### CNAME 유효성
+
+사용자 정의 호스트명은 한 번 유효 할 수 있습니다 Cloudflare는 사용자 정의 호스트명은 SaaS 도메인에 SSL을 구성하는 가을 기록에 대한 CNAME 레코드 포인트입니다. 이것은 가장 간단한 검증 방법이지만 오류의 위험을 증가시킵니다. CNAME 레코드는 Cloudflare의 가장자리에 트래픽을 전달하기 때문에 사용자 정의 호스트 이름 이전에 우리의 가장자리에 도달 할 수 있습니다 유효성 검사 또는 SSL 인증서가 발급되었습니다.
+
+사용자 정의 호스트 이름 생성 프로세스에 호스트 이름 유효성 검사 단계를 추가하면 계정 팀에 SaaS v1 영역에 SSL을 마이그레이션 할 수 있도록해야합니다. 귀하의 계정 팀은 가동 중단없이 기존의 사용자 정의 호스트 이름을 검증 할 수 있습니다.
+
+## BYOIP 또는 Apex 프록시를 사용하는 경우:
+
+Apex 프록시를 위해 구성된 BYOIP 주소와 IP 주소는 호스트 이름 검증을 허용하여 BYOIP 주소 또는 정점 프록시 IP 주소가 DNS A 레코드의 대상으로 성공적으로 완료할 수 있습니다.
+
+## SaaS의 새로운 버전에서 사용할 수 있습니까?
+
+SSL for SaaS v2는 SaaS v1의 SSL과 동일하지만, Cloudflare의 가장자리와 Cloudflare의 범용 SSL 제품을 사용하는 요건을 제거합니다.
+
+:::참조
+
+SaaS v2에 대한 SSL은 이제 SaaS의 Cloudflare이라고합니다.
+주요 특징
+
+## 마이그레이션 중에 어떤 일이 발생합니까?
+
+마이그레이션이 영역(s)에 시작되면, Cloudflare는 호스트 이름 확인 체크를 통과하기 위해 모든 사용자 지정 호스트 이름이 필요합니다. DNS CNAME 레코드를 가진 CloudflareXQ에 프록시되는 Custom Hostnames는 자동 재 유효성 및 가동 중단 없이 새로운 버전으로 마이그레이션합니다. 이전의 시작 후 생성 된 모든 사용자 정의 호스트 이름은 위 언급 된 검증 방법 중 하나를 사용하여 호스트 이름 유효성 검사를 통과해야합니다.
+
+:::참조
+
+언제든지 마이그레이션을 할 수 있습니다.
+
+:::
+
+### 이전 이전
+
+마이그레이션 전에, 당신은해야:
+
+1. 검증 방법을 테스트하려면 테스트 영역을 설정하고 계정 팀이 SaaS v2에 SSL을 활성화하도록 요청하십시오.
+2. 당신의 계정 팀에 대한 대기 우리의 이전 도구를 실행합니다. 이 도구 그룹은 다음 상태 중 하나에 호스트 이름:
+   - `test_pending`: 검증된 공정에서 검증을 위해 검증되고 재조정되지 않았습니다. 사용자 정의 hostname은 이동하기 전에 25 번 재 수료됩니다.`test_failed`이름 \*
+   - `test_active`: CNAME 인증 통과
+   - `test_active_apex`: Apex 프록시 검증
+   - `test_blocked`: Hostname은 해당 구역에 속하므로 마이그레이션 중에 차단됩니다. 귀하의 계정 팀에 문의하여 사용자 정의 호스트명을 금지하고 마이그레이션을 진행합니다.
+   - `test_failed`: 실패한 hostname 검증 25배
+3. 다음 방법 중 하나를 사용하여 사전 마이그레이션 도구 (당신의 계정 팀에 의해 실행)의 결과를 검토:
+   - API를 통해:`https://api.cloudflare.com/client/v4/zones/{zone_tag}/custom_hostnames?hostname_status={status}`
+   - CSV 파일을 통해 (당신의 계정 팀에 의해 제공)
+   - Cloudflare 대시보드를 통해:
+     ![대시보드에서 SSL 마이그레이션 상태를 검토](~/assets/images/cloudflare-for-platforms/ssl-migration-status.png)
+4. 이동을 Approve. 귀하의 계정 팀은 SaaS 영역에 대한 SSL의 각 마이그레이션 창을 계획 할 수 있습니다.
+
+## 이동 중
+
+마이그레이션이 시작된 후 진행 시간이 몇 시간, Cloudflare는 마이그레이션에 실패한 사용자 지정 호스트 이름의 목록을 생성하고 마이그레이션을 완료하기 위해 승인을 요청합니다. 승인을 받으면 마이그레이션이 완료됩니다. SaaS v1의 SSL은 영역에서 비활성화되며 호스트 이름 유효성을 완료하지 않은 사용자 정의 호스트 이름은 더 이상 작동하지 않습니다.
+
+마이그레이션 타임 라인은 사용자 지정 호스트 이름의 수에 따라 달라집니다. 예를 들어, 지역이 10,000 개 이상의 사용자 정의 호스트 이름이있는 경우, 목록은 마이그레이션 시작 후 시간 주위에 생성 할 수 있습니다. 지역은 사용자 지정 호스트 이름의 수백만을 가지고 있다면, 그것은 성공적으로 마이그레이션 실패한 인스턴스를 식별하기 위해 최대 24 시간 걸릴 수 있습니다.
+
+계정 팀이 마이그레이션을 완료하기 위해 승인을 요청할 때 적시에 응답하십시오. 당신은**2 주**그들은 체계적으로 삭제되기 전에 나머지 사용자 정의 호스트명을 검증합니다.
+
+## 이주일 때?
+
+마이그레이션 과정은 2021년 3월 31일에 시작하여 2021년 9월 1일 최종 결정까지 계속됩니다.
+
+2021년 3월 31일 이전에 이주 절차를 시작하려면 계정 팀에 문의하고 프로세스를 expedite로 작업하십시오. 그렇지 않으면, 계정 팀은 마이그레이션 창의 시간에 도달 할 것입니다 그래서 귀하의 영역이 이전 전에 마이그레이션**2021년 9월 1일**끝의 생활 날짜.
+
+## 추가 질문이있는 경우?
+
+궁금한 점이 있으시면 계정 팀에 문의하거나[SaaSv2@cloudflare.com](mailto:saasv2@cloudflare.com).

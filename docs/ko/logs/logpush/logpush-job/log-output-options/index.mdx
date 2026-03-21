@@ -1,0 +1,250 @@
+---
+pcx_content_type: concept
+title: 로그 출력 옵션
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/logpush/logpush-job/log-output-options/'
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/log-output-options/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components"
+
+Logpush의 작업은 이제 새로운 열쇠가 있습니다.**output 옵션**대체하는**logpull 옵션**더 유연한 포맷을 허용합니다. 수정할 수 있습니다.**output 옵션**API를 통해.
+
+## logpull options를 대체
+
+이전, Logpush 작업은 필드 목록, 샘플링 속도 및 타임스탬프 형식을 지정하여 사용자 정의 할 수 있습니다**logpull 옵션**이름 \*[URL 인코딩 매개 변수](/logs/logpush/logpush-job/api-configuration/#options). 예를 들면:
+
+```json
+{
+  "id": <JOB_ID>,
+  "dataset": "http_requests",
+  "enabled": false,
+  "name": "<DOMAIN_NAME>",
+  "logpull_options": "fields=ClientIP,EdgeStartTimestamp,RayID&sample=0.1&timestamps=rfc3339",
+  "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2"
+}
+```
+
+우리는 이것으로 대체했습니다**output 옵션**Logpull과 Logpush 모두에 사용됩니다.
+
+```json
+{
+  "id": <JOB_ID>,
+  "dataset": "http_requests",
+  "enabled": false,
+  "name": "<DOMAIN_NAME>",
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "sample_rate": 0.1,
+    "timestamp_format": "rfc3339"
+  },
+  "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2"
+}
+```
+
+## 산출 유형
+
+기본적으로 Logpush는 JSON의 단일 라인으로 각 레코드를 출력합니다.`ndjson`).
+
+이름 \***output 옵션**CSV 또는 단일 JSON 객체로 전환 할 수 있습니다. 추가 접두사, suffixes, delimiters를 사용자 정의하거나 자신의 레코드 템플릿을 제공하십시오. (Go의 스트립 다운 버전에서[텍스트 / 템플릿](https://pkg.go.dev/text/template)구문).
+
+더 보기**output 옵션**객체는 다음과 같은 설정이 있습니다:
+
+- **필드 이름**: 문자열의 배열. 순간에는 모든 필드를 한 번에 추가 할 수있는 옵션이 없습니다. 필드 이름을 지정해야합니다.
+- **출력 type**: 출력 유형 지정 문자열 등`ndjson`또는`csv`(과태)`ndjson`). 선택된 출력 유형에 따라 설정의 나머지에 대한 기본 값을 설정합니다. 몇몇 체재 규칙 (문자 같이)는 산출 유형 사이 다릅니다.
+- **일괄 처리 prefix**: 각 일괄 처리 전에 미리 처리되는 문자열.
+- **일괄 처리 suffix**: 각 배치 후 묶일 문자열.
+- **기록 prefix**: 각 기록의 앞에 prepended 문자열.
+- **기록 suffix**: 각 레코드가 끝난 후 문자열.
+- **기록 template**: default comma-separated list 대신 각 레코드의 템플릿으로 사용할 문자열. 템플릿에 사용되는 모든 필드는 현재 있어야합니다.**필드 이름**또한, 그렇지 않으면 그들은 끝날 것입니다`null`. 어떤 표준 기능 없이 Go text/template로 체재 (조건, 반복, sub-templates, 등 같이). 템플릿은 이러한 세 가지 유형의 토큰으로만 구성할 수 있습니다.
+  - 동작: 이것은`{{ .Field }}`또는`{{ "constant text" }}`.
+  - 텍스트: 이것은 단지 일정한 텍스트 in-between`{{ actions }}`.
+  - 댓글:`{{/* comments */}}`자주 묻는 질문
+- **기록 delimiter**: string in-between 레코드를 구분합니다.
+- **필드 delimiter**: 필드에 문자열. 할 때 무시**기록 template**설정입니다.
+- **타임스탬프 format**: 타임스탬프의 형식을 지정하는 문자열`unixnano`(nanoseconds 단위),`unix`(초 단위), 또는`rfc3339`(초 단위). 기본 정보`unixnano`. API 기본값은`unixnano`현재 위치`timestamp_format`작업에 지정되지 않습니다. 그러나, Cloudflare 대시보드에서 Logpush 작업을 만들 때,`timestamp_format`명시적으로 설정`rfc3339`기본값으로.
+- **샘플 rate**: 샘플링 비율 (기본 1.0 : 샘플링 없음)을 지정하는 플로팅 번호. 샘플링은 필터링의 상단에 적용되며 현재의 sample interval에 관계없이 데이터의 샘플링이 적용됩니다.
+- **모델 번호: CVE-2021-44228**: bool, 기본 false. true로 설정하면 모든 발생이 발생합니다.`${`생성된 파일에서 대체로`x{`.
+
+## 이름 \*
+
+이름 \***필드 이름**·**출력 type**지정된 경우 아래로 구성되는 나머지 옵션에서 발생합니다.**출력 type**:
+
+### ndjson, 영국
+
+<Details header="`ndjson`를 위한 기본 output options">
+  ```json
+  {
+    "record_prefix": "{",
+    "record_suffix": "}\n",
+    "field_delimiter": ","
+  }
+  ```
+</Details>
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "ndjson"
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```json
+  {"ClientIP":"89.163.242.206","EdgeStartTimestamp":1506702504433000200,"RayID":"3a6050bcbe121a87"}
+  {"ClientIP":"89.163.242.207","EdgeStartTimestamp":1506702504433000300,"RayID":"3a6050bcbe121a88"}
+  {"ClientIP":"89.163.242.208","EdgeStartTimestamp":1506702504433000400,"RayID":"3a6050bcbe121a89"}
+  ```
+</Details>
+
+- `ndjson`다른 분야 이름으로:
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "ndjson",
+    "record_template": "\"client-ip\":{{.ClientIP}},\"timestamp\":{{.EdgeStartTimestamp}},\"ray-id\":{{.RayID}}"
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```json
+  {"client-ip":"89.163.242.206","timestamp":1506702504433000200,"ray-id":"3a6050bcbe121a87"}
+  {"client-ip":"89.163.242.207","timestamp":1506702504433000300,"ray-id":"3a6050bcbe121a88"}
+  {"client-ip":"89.163.242.208","timestamp":1506702504433000400,"ray-id":"3a6050bcbe121a89"}
+  ```
+
+  두 배 curly 악대를 가진 리터럴`({{}})`, 즉,`"double{{curly}}braces"`, 다음을 삽입 할 수 있습니다 텍스트 / 템플릿 컨벤션, 즉,,`"{{`더블커리브`}}"`.
+</Details>
+
+### 사이트맵
+
+<Details header="CSV의 기본 output options">
+  ```json
+  {
+    "record_suffix": "\n",
+    "field_delimiter": ","
+  }
+  ```
+</Details>
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "csv"
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```csv
+  "89.163.242.206",1506702504433000200,"3a6050bcbe121a87"
+  "89.163.242.207",1506702504433000300,"3a6050bcbe121a88"
+  "89.163.242.208",1506702504433000400,"3a6050bcbe121a89"
+
+  ```
+</Details>
+
+### csv/json 변형
+
+위에 기초를 두어, csv 또는 json와 유사한 다른 체재는 또한 지원됩니다:
+
+- 헤더를 가진 csv:
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "csv",
+    "batch_prefix": "ClientIP,EdgeStartTimestamp,RayID\n"
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```csv
+  ClientIP,EdgeStartTimestamp,RayID
+  "89.163.242.206",1506702504433000200,"3a6050bcbe121a87"
+  "89.163.242.207",1506702504433000300,"3a6050bcbe121a88"
+  "89.163.242.208",1506702504433000400,"3a6050bcbe121a89"
+  ```
+</Details>
+
+- 헤더를 가진 tsv:
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "csv",
+    "batch_prefix": "ClientIP\tEdgeStartTimestamp\tRayID\n",
+    "field_delimiter": "\t"
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```csv
+  ClientIP EdgeStartTimestamp  RayID
+  "89.163.242.206"    1506702504433000200 "3a6050bcbe121a87"
+  "89.163.242.207"    1506702504433000300 "3a6050bcbe121a88"
+  "89.163.242.208"    1506702504433000400 "3a6050bcbe121a89"
+  ```
+</Details>
+
+- 배열된 객체와 json:
+
+<Details header="output options 예제">
+  ```json
+  "output_options": {
+    "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+    "output_type": "ndjson",
+    "batch_prefix": "{\"events\":[",
+    "batch_suffix": "\n]}\n",
+    "record_prefix": "\n  {\"info\":{",
+    "record_suffix": "}}",
+    "record_delimiter": ","
+  }
+  ```
+</Details>
+
+<Details header="예제 출력">
+  ```json
+  {"events":[
+    {"info":{"ClientIP":"89.163.242.206","EdgeStartTimestamp":1506702504433000200,"RayID":"3a6050bcbe121a87"}},
+    {"info":{"ClientIP":"89.163.242.207","EdgeStartTimestamp":1506702504433000300,"RayID":"3a6050bcbe121a88"}},
+    {"info":{"ClientIP":"89.163.242.208","EdgeStartTimestamp":1506702504433000400,"RayID":"3a6050bcbe121a89"}}
+  ]}
+  ```
+</Details>
+
+## 어떻게 마이그레이션
+
+사용중인 작업의 마이그레이션**logpull 옵션**새 소식**output 옵션**, 이 단계를 가지고:
+
+1. 수정하기`&fields=ClientIP,EdgeStartTimestamp,RayID`배열에 매개변수`output_options.field_names`.
+2. 수정하기`&sample=0.1`매개 변수`output_options.sample_rate`.
+3. 수정하기`&timestamps=rfc3339`매개 변수`output_options.timestamp_format`.
+4. 수정하기`&CVE-2021-44228=true`매개 변수`output_options.CVE-2021-44228`.
+
+예를 들어, logpull options가 있는 경우`fields=ClientIP,EdgeStartTimestamp,RayID&sample=0.1&timestamps=rfc3339&CVE-2021-44228=true`, output options는:
+
+```json
+"output_options": {
+  "field_names": ["ClientIP", "EdgeStartTimestamp", "RayID"],
+  "sample_rate": 0.1,
+  "timestamp_format": "rfc3339",
+  "CVE-2021-44228": true
+}
+```

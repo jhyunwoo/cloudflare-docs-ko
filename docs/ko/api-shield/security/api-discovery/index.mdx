@@ -1,0 +1,118 @@
+---
+pcx_content_type: concept
+
+title: API Discovery
+sidebar:
+  order: 1
+---
+
+import {
+	GlossaryTooltip,
+	Render,
+	Tabs,
+	TabItem,
+	Steps,
+	DashButton,
+} from "~/components";
+
+대부분의 개발 팀은 자신들의 API를 추적하는 데 어려움을 겪습니다. Cloudflare API Discovery는 공격 표면을 파악하고 이해하는 데 도움을 줍니다.
+
+## 프로세스
+
+Cloudflare는 경로 정규화 과정을 통해 <GlossaryTooltip term="API endpoint">API endpoints</GlossaryTooltip>의 단순하고 신뢰할 수 있는 지도를 생성합니다.
+
+예를 들어 수천 개의 API가 있을 수 있지만, 많은 호출은 다음처럼 비슷하게 보일 수 있습니다.
+
+- `api.example.com/profile/238`
+- `api.example.com/profile/392`
+
+두 경로는 모두 비슷한 목적, 즉 사용자가 계정에 로그인할 수 있게 하는 역할을 하지만 완전히 동일하지는 않습니다. 엔드포인트를 단순화하기 위해 이 예시는 둘 다 `api.example.com/profile/*`로 매핑될 수 있습니다.
+
+API Discovery는 모든 트래픽에 대해 이 과정을 실행하여 다음과 같은 단순한 엔드포인트 맵을 생성합니다.
+
+```
+/api/login/{customer_identifier}
+/api/auth
+/api/account/{customer_identifier}
+/api/password_reset
+/api/logout
+```
+
+마찬가지로 동일한 엔드포인트 집합을 공유하는 여러 서브도메인이 있다면 Cloudflare는 서브도메인을 통합합니다.
+
+```txt
+us-api.example.com/api/v1/users/{var1}
+de-api.example.com/api/v1/users/{var1}
+fr-api.example.com/api/v1/users/{var1}
+jp-api.example.com/api/v1/users/{var1}
+```
+
+그러면 이를 `{hostVar1}.example.com/api/v1/users/{var1}`로 통합합니다.
+
+더 기술적인 세부 내용은 [블로그 글](https://blog.cloudflare.com/ml-api-discovery-and-schema-learning/)을 참고하세요.
+
+### Inbox view
+
+API Shield는 먼저 발견된 API 엔드포인트를 이메일 inbox 스타일의 보기로 분류합니다. API Discovery에서 엔드포인트를 [Endpoint Management](/api-shield/management-and-monitoring/)에 저장하거나, 화면에서 제거하기 위해 무시할 수 있습니다.
+
+API Discovery 결과에서 잠재적인 오탐은 **Save** 또는 **Ignore**를 선택해 걸러내면서, 발견된 모든 API 엔드포인트를 Endpoint Management에 저장해야 합니다. 또는 여러 엔드포인트를 한꺼번에 선택해 저장하거나 무시할 수도 있습니다. 우선 변수 있는 모든 엔드포인트를 저장하는 것부터 시작할 수 있습니다. 검색창에서 `var1`을 검색한 뒤 결과 엔드포인트를 모두 추가하세요. 경로 변수 없는 엔드포인트는 나중에 정확성을 확인해도 됩니다.
+
+엔드포인트를 Endpoint Management에 추가하면 플랫폼의 추가 [security](/api-shield/security/), [visibility](/api-shield/management-and-monitoring/#endpoint-analysis), [management](/api-shield/management-and-monitoring/) 기능을 사용할 수 있습니다. Endpoint Management는 API 엔드포인트를 저장, 업데이트, 성능 메트릭 모니터링을 통해 상태를 추적합니다.
+
+실수로 무시한 엔드포인트를 복구하려면 **Ignored**로 필터링한 다음 **Restore**를 선택하세요.
+
+API Discovery는 지속적인 과정입니다. 새로운 API Discovery 결과를 정기적으로 확인하세요. 검토가 필요한 엔드포인트 수는 API Shield dashboard에 배지로 표시됩니다. 시간이 지나면서 **Needs Review**와 **Ignored** 메트릭의 수량이 바뀔 수 있습니다. 실제 API나 API 트래픽 패턴이 바뀌면, 저장되지 않은 API Discovery 결과는 사라질 수 있습니다.
+
+:::note
+
+Cloudflare는 향후 릴리스에서 무시된 엔드포인트에 대한 여러분의 피드백을 활용해 API Discovery 머신 러닝 모델을 더 잘 학습시킬 예정입니다.
+:::
+
+### Machine Learning 기반 Discovery
+
+API 엔드포인트는 Session Identifier 기반 Discovery와 Machine Learning 기반 Discovery를 함께 사용해 발견됩니다.
+
+Machine Learning 기반 Discovery에 접근하려면 다음 단계를 따르세요.
+
+{/* prettier-ignore-start */}
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="New dashboard" icon="rocket">
+    <Steps>
+      1. In the Cloudflare dashboard, go to the **Web Assets** page.
+
+          <DashButton url="/?to=/:account/:zone/security/web-assets" />
+      2. Go to the **Discovery** tab.
+      3. Filter the source results by `Session Identifier` or `Machine Learning` to view results from each Discovery method.
+    </Steps>
+  </TabItem>
+  <TabItem label="Old dashboard">
+    <Steps>
+      1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/), and select your account and domain.
+      2. Go to **API Shield** > **Discovery**.
+      3. Filter the source results by `Session Identifier` or `Machine Learning` to view results from each Discovery method.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+{/* prettier-ignore-end */}
+
+zone의 모든 API 트래픽에 구성한 <GlossaryTooltip term="session identifier">session identifier</GlossaryTooltip>가 포함되어 있다면, 두 소스는 기초 방법론이 비슷하므로 동일한 결과를 제공할 수도 있습니다. 하지만 API가 session identifier를 사용하지 않는 경우에도 Machine Learning 기반 Discovery는 API 트래픽을 발견하는 데 강점을 보일 것으로 기대합니다.
+
+API Discovery 결과에 대한 피드백은 계정 팀에 전달할 수 있습니다.
+
+## 요구 사항
+
+Cloudflare가 API 엔드포인트를 성공적으로 발견하고 매핑하려면, 엔드포인트 트래픽이 특정 운영 기준을 만족해야 합니다.
+
+엔드포인트가 Discovery inbox에 나타나지 않는다면, 보통 시스템이 연속된 기간 동안 충분한 유효 요청을 관찰하지 못했기 때문입니다. API Discovery는 다음 요구 사항을 모두 만족하는 요청만 처리합니다.
+
+- 요청은 Cloudflare edge에서 `2xx` 응답 코드를 반환해야 합니다.
+- 요청은 Cloudflare Workers에서 직접 오면 안 됩니다.
+- 엔드포인트는 10일 동안 최소 500개의 요청을 받아야 합니다.
+
+session identifiers를 사용해 발견된 엔드포인트는 Cloudflare dashboard에서 그렇게 표시됩니다. session identifiers로 발견되지 않은 엔드포인트는 머신 러닝 기반 [API Discovery](/api-shield/security/api-discovery/)를 통해 발견됩니다.
+
+## 제공 대상
+
+API Discovery는 Enterprise 고객만 사용할 수 있습니다. 이 제품에 관심 있는 Enterprise 고객이라면 계정 팀에 문의하세요.

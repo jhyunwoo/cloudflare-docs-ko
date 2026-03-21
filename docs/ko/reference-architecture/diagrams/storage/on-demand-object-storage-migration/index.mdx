@@ -1,0 +1,48 @@
+---
+title: On-demand Object Storage 데이터 마이그레이션
+pcx_content_type: reference-architecture-diagram
+products:
+  - r2
+sidebar:
+  order: 1
+  label: On-demand Object Storage 데이터 마이그레이션
+reviewed: 2024-09-16T00:00:00.000Z
+description: Cloudflare 마이그레이션 도구를 사용하여 클라우드 객체 저장 공급자 간의 데이터를 마이그레이션합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/on-demand-object-storage-migration/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/on-demand-object-storage-migration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+클라우드 객체 저장 공급자 간의 데이터 마이그레이션은 도전적이고 비쌉니다. 새로운 데이터가 이동 중에 있을 때, 개체가 놓칠 수 없는 것을 보장해야 합니다. 또한 고려해야 할 중요한 1 시간 데이터 전송 수수료가있을 수 있습니다.
+
+이러한 문제를 해결하기 위해 Cloudflare는 두 가지 마이그레이션 도구를 만들었습니다.[사이트맵](/r2/data-migration/sippy/)·[슈퍼 Slurper](/r2/data-migration/super-slurper/). Sippy는 주문한 자료 이동 서비스이고, 이 참고 자료 건축 도표의 1 차적인 초점입니다. 다른 한편, Super Slurper는 대규모로 설계되었으며, Cloudflare의 글로벌 객체 저장 서비스에 대한 일회성 마이그레이션[모델 번호: R2](/r2/). 한 번에 모든 데이터를 이동하면 시나리오에 작동하지 않을 수 있으므로 Sippy는 도움이 될 수 있습니다.
+
+Sippy는 다른 클라우드 공급자로부터 데이터를 Cloudflare R2로 전송할 수 있습니다. 이 워크플로우는 큰 상향 데이터 전송 청구서 및 선택적으로 마이그레이션 데이터를 액세스 할 수있는 상황에 이상적입니다.
+
+다른 벤더 클라우드 스토리지를 사용할 때 마이그레이션 특정 egress 수수료는 이미 R2에 개체를 복사 할 수있는 egress 수수료를 지불 할 수있는 응용 프로그램의 흐름 내에서 요청을 레버리지함으로써 감소됩니다.
+
+Sippy를 사용하여 일반적으로 액세스 된 데이터 개체를 마이그레이션하고 즉시 egress 수수료 절감을 시작합니다. 그런 다음 Super Sluper를 사용하여 나머지 데이터를 마이그레이션하십시오.
+
+Sippy가 어떻게 작동합니까? R2 저장에서 객체를 검색하는 최초의 시도가 될 것입니다. 객체가 R2에 없다면 소스 클라우드 객체 저장에서 객체를 검색합니다. 동시에 R2에 개체를 추가하여 향후 액세스에 대한 원활하고 효율적인 데이터 마이그레이션 프로세스를 보장합니다.
+
+## Sippy로 주문형 Object Storage Data 마이그레이션
+
+![그림 1: R2 Sippy로 주문형 Object Storage Data 마이그레이션](~/assets/images/reference-architecture/on-demand-object-storage-migration/sippy-migration-diagram.svg "Figure 1: On-demand Object Storage Data Migration with Sippy")
+
+1. 클라이언트 요청 R2에서 객체를 사용하여[모델 번호: Workers](https://developers.cloudflare.com/r2/api/workers/),[사이트맵](https://developers.cloudflare.com/r2/api/s3/), 또는[회사 소개](https://developers.cloudflare.com/r2/buckets/public-buckets/).
+2. 객체가 R2 Bucket에서 발견되면 클라이언트에게 제공됩니다.
+3. 객체가 R2에서 찾을 수없는 경우, 객체는 소스 저장 물통에서 동시에 반환되며 R2로 복사됩니다. 참고 : 일부 대형 개체는 멀티 파트 업로드로 복사되기 때문에 R2로 복사 할 수있는 여러 요청을 취할 수 있습니다. 클라이언트의 관점에서 그들은 여전히 요청하는 파일을 얻을 것이다.
+
+객체가 복사 된 후, 이후 요청은 R2에서 제공되며 즉시 egress 수수료에 절약 할 수 있습니다.
+
+## 관련 자료
+
+- [Sippy 문서](/r2/data-migration/sippy/)
+- [Super Slurper 문서](/r2/data-migration/super-slurper/)

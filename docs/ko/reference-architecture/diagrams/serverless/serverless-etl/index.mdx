@@ -1,0 +1,69 @@
+---
+title: Serverless ETL 파이프라인
+pcx_content_type: reference-architecture-diagram
+products:
+  - queues
+  - r2
+  - workers
+sidebar:
+  order: 1
+  label: Serverless ETL 파이프라인
+reviewed: 2024-04-12T00:00:00.000Z
+description: >-
+  Cloudflare는 완전히 serverless ETL 파이프라인을 가능하게 하고, 크게 복잡성을 감소시키고, 생산에 시간을 가속하고,
+  전반적인 비용을 낮추.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/serverless/serverless-etl/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/serverless/serverless-etl/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+추출, Transform, Load (ETL) 파이프라인은 데이터 엔지니어링의 영역에있는 코너스톤이며, 원료에서 구조화 된, 사용 가능한 형식으로 데이터의 원활한 흐름을 촉진합니다. ETL 파이프 라인은 데이터 처리 여행의 장비이며, 특히 데이터가 수집되고 깨끗하게 처리되어야하며 대상 목적지로로드되기 전에 변환됩니다.
+
+프로세스는 추출으로 시작되며, 데이터는 데이터베이스, 파일, 스트림과 같은 다양한 소스에서 수집됩니다. 이 원시 데이터는 종종 변형 및 구조화, 다음 단계의 필요성 : 변환. 변환 중, 데이터는 형식을 표준화하기 위해 일련의 작업을 수행, 깨끗하고 일관성, 그리고 추가 컨텍스트 또는 계산과 풍부한. 이 단계는 데이터 품질 및 일관성을 보장하기 위해 중요하며, 다운스트림 애플리케이션 및 분석의 요구 사항과 일치합니다.
+
+마지막으로 변형 된 데이터는 데이터 창고, 데이터베이스 또는 기타 저장 솔루션이 될 수있는 목적지로로드됩니다. 적재 단계는 효과적으로 가공한 자료를 그것의 예정된 목적지에 이동하는 것을 포함합니다, 그것 쉽게 접근되고 보고 분석과 같은 각종 목적을 위해 이용되고, 또는 기계 학습 모형으로 먹이는.
+
+ETL 파이프라인은 업계 전반에 걸쳐 데이터 중심의 의사결정 프로세스의 역할을 수행하며, 조직은 데이터 자산의 derive insights 및 가치를 가능하게 합니다. ETL 파이프라인은 기존의 데이터에 대한 경쟁력을 확보하기 위해 프로세스를 최적화하고, 기존의 데이터 중심의 풍경에 대한 경쟁력을 확보하기 위해 기업을 자동화하고 간소화합니다.
+
+ETL 파이프 라인의 예는 여러 소매점에서 판매 데이터를 추출하고 표준화 된 형식으로 변환하고 분석 및보고 목적으로 중앙 데이터 창고로로드하는 시나리오를 포함합니다. ETL 파이프라인은 데이터 마이그레이션 프로젝트에서 활용되며, 레거시 데이터는 현대 시스템에 마이그레이션해야 하며, 프로세스 전반에 걸쳐 데이터 무결성 및 일관성을 보장하는 데 필요합니다.
+
+Cloudflare는 완전한 serverless ETL 파이프라인의 배치를 허용합니다, 이는 복잡성, 생산 및 전반적인 비용에 시간을 감소시킬 수 있습니다. 다음 다이어그램은 Cloudflare가 공통 ETL 파이프라인 배포에서 사용할 수있는 방법의 다른 방법을 보여줍니다.
+
+## HTTP 기반 ingest와 ETL 파이프라인
+
+![그림 1: Serverless: HTTP 기반 소화](~/assets/images/reference-architecture/serverless-etl/serverless-etl-http-based.svg "Figure 1: ETL pipeline with HTTP-based ingest")
+
+이 아키텍처는 API endpoint와 완전히 Serverless ETL 파이프라인을 보여줍니다. 클라이언트는 처리될 HTTP 요청을 통해 데이터를 보냅니다. Common 예제에는 click-stream 데이터 또는 분석이 포함됩니다.
+
+1. **고객 요청**: 데이터로 POST 요청을 전송하여 소화됩니다. 예제는 클릭 스트림 데이터, 분석 엔드포인트가 포함될 것입니다.
+2. **입력 처리**: 사용방법[모델 번호: Workers](/workers/)메시지 보내기[모델 번호: Queues](/queues/)backlog 처리에 추가.
+3. **Data 처리**: 사용[모델 번호: Queues](/queues/)트리거하기[회사 소개](/queues/reference/how-queues-works/#consumers)일괄 처리에 입력 데이터를 처리하여 다운스트림 과부하 및 증가 효율을 방지합니다. 소비자는 모든 데이터 청소, 변환 및 표준화 작업을 수행합니다.
+4. **Object 저장**: 처리 된 데이터 업로드[모델 번호: R2](/r2/)persistent 저장을 위해.
+5. **Ack/Retry 기계장치**: Signal Success/error by 사용[Queues 런타임 API](/queues/configuration/javascript-apis/#message)각 문서에 대한 소비자.[모델 번호: Queues](/queues/)필요한 경우 retries를 일정합니다.
+6. **Data 쿼리**: 외부 서비스로부터의 접근 처리된 데이터
+
+## 객체 저장 ingest를 가진 ETL 파이프라인
+
+![Figure 2: Serverless: 객체 저장 ingest](~/assets/images/reference-architecture/serverless-etl/serverless-etl-object-storage.svg "Figure 2: ETL pipeline with object storage ingest")
+
+이 아키텍처는 객체 저장을 ingest로 완전히 Serverless ETL 파이프라인을 보여줍니다. 일반적인 예제에는 로그 및 unstructured 문서 처리가 포함됩니다.
+
+1. **고객 요청**: S3-compatible API를 통해 R2에 원료 데이터를 업로드합니다. Common 예제는 로그 및 분석 데이터를 포함합니다.
+2. **입력 처리**: 메시지 보내기[모델 번호: Queues](/queues/)이름 \*[R2 이벤트 알림](/r2/buckets/event-notifications/)객체 업로드.
+3. **Data 처리**: 사용[모델 번호: Queues](/queues/)트리거하기[회사 소개](/queues/reference/how-queues-works/#consumers)일괄 처리에 입력 데이터를 처리하여 다운스트림 과부하 및 증가 효율을 방지합니다. 소비자는 모든 데이터 청소, 변환 및 표준화 작업을 수행합니다.
+4. **Object 저장**: 처리 된 데이터 업로드[모델 번호: R2](/r2/)persistent 저장을 위해.
+5. **Ack/Retry 기계장치**: Signal Success/error by 사용[Queues 런타임 API](/queues/configuration/javascript-apis/#message)각 문서에 대한 소비자.[모델 번호: Queues](/queues/)필요한 경우 retries를 일정합니다.
+6. **Data 쿼리**: 외부 서비스로부터의 접근 처리된 데이터
+
+## 관련 자료
+
+- [Workers: 시작하기](/workers/get-started/guide/)
+- [Queues: 시작하기](/queues/get-started/)
+- [R2: 시작하기](/r2/get-started/)

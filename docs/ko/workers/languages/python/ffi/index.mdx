@@ -1,0 +1,92 @@
+---
+pcx_content_type: concept
+title: 외국 기능 공용영역 (FFI)
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: 'JavaScript 개체, 방법, 기능 및 글로벌 Python WorkersQ'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/languages/python/ffi/'
+translation_source_md: 'https://developers.cloudflare.com/workers/languages/python/ffi/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+이름 \*[사이트맵](https://pyodide.org/en/stable/), Python Workers는 제공합니다[외국 기능 공용영역 (FFI)](https://en.wikipedia.org/wiki/Foreign_function_interface)JavaScript.에. 이렇게 하면:
+
+- 제품 정보[관련 제품](/workers/runtime-apis/bindings/)Cloudflare에 자원에, 포함하여[모델 번호: Workers AI](/workers-ai/), [모델 번호: Vectorize](/vectorize/), [모델 번호: R2](/r2/), [모델 번호: KV](/kv/), [모델 번호: D1](/d1/), [모델 번호: Queues](/queues/), [모델 번호: Durable Objects](/durable-objects/), [서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)더 많은 것.
+- JavaScript 글로벌 사용[`Request`](/workers/runtime-apis/request/), [`Response`](/workers/runtime-apis/response/)·[`fetch()`](/workers/runtime-apis/fetch/).
+- Cloudflare WorkersXQXQ의 전체 기능 세트를 사용하여 - API가 JavaScriptXQ에서 접근할 수 있는 경우에, 당신은 또한 QXQX0350XQ 노동자에 접근할 수 있습니다, 독점적으로 PythonXQQXQ 부호를 쓰고.
+
+Pyodide의 외국 기능 인터페이스의 세부 사항은 문서화됩니다.[이름 \*](https://pyodide.org/en/stable/usage/type-conversions.html), WorkersXQ는 Python에 쓴 이것의 가득 차있는 이점을 가지고 갈 수 있습니다.
+
+## Python Workers
+
+Bindings는 Cloudflare 개발자 플랫폼에 자원과 상호 작용하는 노동자를 허용합니다. Worker에 바인딩을 선언하면 특정 기능을 부여하여 파일을 읽고 쓸 수 있습니다.[모델 번호: R2](/r2/)물통.
+
+예를 들어, 접근[모델 번호: KV](/kv)Python의 네임스페이스 노동자, 당신은 당신의 노동자의 뒤에 선언할 것입니다[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"main": "./src/index.py",
+  	"kv_namespaces": [
+  		{
+  			"binding": "FOO",
+  			"id": "<YOUR_KV_NAMESPACE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+...다음 호출`.get()`에 노출되는 바인딩 객체에`env`:
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        await self.env.FOO.put("bar", "baz")
+        bar = await self.env.FOO.get("bar")
+        return Response(bar) #반환 "baz"
+```
+
+후드 아래에,`env`실제로 JavaScript 객체입니다. 전화 번호`.FOO`, 당신은이 속성에 액세스[`JsProxy`](https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.JsProxy)— JavaScript 객체가 Python 객체처럼 동작하는 특수 프록시 객체.
+
+### Python를 JavaScript로 변환
+
+JavaScript API로 상호 운용하려면 Python 객체를 JavaScriptXQXQXQXQ로 변환해야 할 수도 있습니다. Pyodide는`to_js`이 변환을 촉진하는 기능.
+
+````python
+from js import Object
+from pyodide.ffi import to_js as _to_js
+
+from workers import WorkerEntrypoint, Response
+
+#to js는 Python 사전과 JavaScript Objects 사이 변환합니다.
+def to_js(obj):
+   return _to_js(obj, dict_converter=Object.fromEntries)
+	```
+````
+
+더 자세한 내용을 보려면[관련 기사`pyodide.ffi.to_js`](https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.to_js).
+
+## JavaScript 글로벌 Python Workers
+
+WorkersXQXQXQXQXQXQXQ를 작성하면 JavaScript글로벌에 액세스할 수 있습니다.`js`모듈. 예를 들어,`Response`에서 수입되는`js`아래 예시:
+
+```python
+from workers import WorkerEntrypoint
+from js import Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return Response.new("Hello World!")
+```
+
+더 알아보기[Python 예제](/workers/languages/python/examples/)JavaScript의 PythonXQ로 전화하는 방법을 배우십시오.`console.log`and logging, 옵션 제공`Response`JSON을 파싱합니다.

@@ -1,0 +1,237 @@
+---
+pcx_content_type: reference
+title: 애플리케이션 계층 공격
+sidebar:
+  order: 3
+
+---
+
+[HTTP requests](/radar/investigate/http-requests)에서는 모든 종류의 웹 요청을 살펴볼 수 있는 반면, 애플리케이션 계층 공격에서는 완화된 HTTP 요청만 확인할 수 있습니다. 이러한 요청은 [WAF](/waf/), [Cloudflare DDoS Protection](/ddos-protection/), [Cloudflare bot solutions](/bots/) 등 여러 Cloudflare 제품에 의해 완화될 수 있습니다.
+
+:::note[완화된 트래픽]
+
+완화된 트래픽은 Cloudflare 플랫폼에서 종료 동작이 적용된 최종 사용자발 HTTP 요청을 의미합니다. 여기에는 `BLOCK`이나 [challenges](/cloudflare-challenges/)와 같은 동작이 포함됩니다.
+:::
+
+이 문서에서는 공격을 다루므로, 공격의 양쪽 측면인 공격의 출발 위치와 목표 위치를 모두 살펴볼 수 있습니다. 공격의 출발 위치는 Cloudflare가 해당 공격이 발생한 IP에 연결된 위치를 사용합니다. 단, 공격을 지휘한 사람이 실제 공격을 발생시키는 컴퓨터와 다른 위치에 있을 수 있다는 점에 유의하세요. 공격의 목표 위치는 공격받는 zone에 연결된 청구지 주소 위치를 사용합니다.
+
+공격의 양쪽 측면으로 필터링하는 기능은 `top locations` 엔드포인트에서만 사용할 수 있습니다. 별도 명시가 없는 한, 다른 엔드포인트는 공격의 출발 위치처럼 source location을 기준으로 필터링합니다.
+
+공격의 규모는 완화된 요청의 총수로 정의됩니다.
+
+[HTTP requests](/radar/investigate/http-requests)와 마찬가지로, 이 엔드포인트들은 시계열 조회, 전체 날짜 범위를 요약한 단일 값 조회, 상위 위치 목록 조회로 나눌 수 있습니다.
+
+## 엔드포인트 목록
+
+### 시계열
+
+#### 예시: 제품별 시간당 완화 요청
+
+완화된 요청의 전역 분포를 제품별로 살펴보겠습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer7/timeseries_groups/mitigation_product?aggInterval=1h&dateRange=1d&name=attacks&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+아래 축약된 응답을 보면, 분산 서비스 거부(DDoS) 공격이 요청의 대부분을 차지함을 알 수 있습니다. DDoS 공격은 그 특성상 더 많은 요청을 수행하므로 이는 자연스러운 결과입니다. 그다음은 WAF, 그리고 IP reputation 요청이 뒤따릅니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "attacks": {
+      "timestamps": ["2022-11-05T11:00:00Z", ".."],
+      "ddos": ["53.824302", "54.305823",  ".."],
+      "waf": ["39.760956", "39.31228",  ".."],
+      "ip_reputation": ["5.623487", "5.485468",  ".."],
+      "access_rules": ["0.648368", "0.676456",  ".."],
+      "bot_management": ["0.139733", "0.217155",  ".."],
+      "api_shield": ["0.003154", "0.002819",  ".."],
+      "data_loss_prevention": ["0.0", "0.0",  ".."]
+    },
+    "meta": {
+      "dateRange": {
+        "startTime": "2022-11-05T11:00:00Z",
+        "endTime": "2022-11-06T11:00:00Z"
+      },
+			// ...
+    }
+  }
+}
+```
+
+자세한 내용은 [시간대별 layer 7 attacks by mitigation technique 가져오기](/api/resources/radar/subresources/attacks/subresources/layer7/subresources/timeseries_groups/)를 참고하세요.
+
+### 요약
+
+#### 예시: 제품별 완화 요청
+
+source location으로도 필터링해 특정 지역에서 발생하는 공격을 살펴볼 수 있습니다. 다음 예시에서는 영국에서 발생한 공격을 확인합니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer7/summary?location=GB&name=attacks_gb&aggInterval=1h&dateRange=1d&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"attacks_gb": {
+			"waf": "75.012138",
+			"ddos": "18.539149",
+			"ip_reputation": "5.721021",
+			"access_rules": "0.592515",
+			"bot_management": "0.131998",
+			"api_shield": "0.003178",
+			"data_loss_prevention": "0.0"
+  	},
+		"meta": {
+			// ...
+    }
+	}
+}
+```
+
+이 응답은 영국에서 발생한 완화된 요청 전체 중 75%가 [WAF](/waf/) 제품에 의해 완화되었음을 의미합니다.
+
+자세한 내용은 [layer 7 attacks summary 가져오기](/api/resources/radar/subresources/attacks/subresources/layer7/subresources/summary/methods/get/)를 참고하세요.
+
+### 상위
+
+#### 예시: 상위 target locations
+
+다음 예시에서는 지난 24시간 동안 애플리케이션 계층 공격의 표적이 된 상위 위치를 살펴봅니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer7/top/locations/target?name=attacks_target&limit=5&dateRange=1d&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "attacks_target": [
+			{
+				"targetCountryName": "Belgium",
+				"targetCountryAlpha2": "BE",
+				"value": "18.536740",
+				"rank": 1
+			},
+			{
+				"targetCountryName": "United States",
+				"targetCountryAlpha2": "US",
+				"value": "16.116210",
+				"rank": 2
+			},
+			{
+				"targetCountryName": "China",
+				"targetCountryAlpha2": "CN",
+				"value": "13.864696",
+				"rank": 3
+			},
+			{
+				"targetCountryName": "India",
+				"targetCountryAlpha2": "IN",
+				"value": "4.344139",
+				"rank": 4
+			},
+			{
+				"targetCountryName": "Germany",
+				"targetCountryAlpha2": "DE",
+				"value": "4.182777",
+				"rank": 5
+			}
+		],
+    "meta": {
+      "dateRange": {
+        "startTime": "2022-11-05T12:00:00Z",
+        "endTime": "2022-11-06T12:00:00Z"
+      },
+			// ...
+    }
+  }
+}
+```
+
+지정한 날짜 범위 동안 벨기에에 청구지 주소가 있는 zone으로 향한 완화 요청이 18%를 차지했다는 의미입니다.
+
+자세한 내용은 [layer 7 top target locations 가져오기](/api/resources/radar/subresources/attacks/subresources/layer7/subresources/top/subresources/locations/methods/target/)를 참고하세요.
+
+#### 예시: 상위 공격
+
+지난 24시간 동안 가장 큰 공격을 구성한 source-target 위치 쌍은 무엇일까요?
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer7/top/attacks?limit=5&dateRange=1d&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+일반적인 응답은 다음과 비슷합니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"top_0": [
+			{
+				"originCountryName": "United States",
+				"originCountryAlpha2": "US",
+				"targetCountryName": "United States",
+				"targetCountryAlpha2": "US",
+				"value": "3.790724",
+				"rank": 1
+			},
+			{
+				"originCountryName": "United States",
+				"originCountryAlpha2": "US",
+				"targetCountryName": "Belgium",
+				"targetCountryAlpha2": "BE",
+				"value": "3.602177",
+				"rank": 2
+			},
+			{
+				"originCountryName": "China",
+				"originCountryAlpha2": "CN",
+				"targetCountryName": "Netherlands",
+				"targetCountryAlpha2": "NL",
+				"value": "3.017341",
+				"rank": 3
+			},
+			{
+				"originCountryName": "China",
+				"originCountryAlpha2": "CN",
+				"targetCountryName": "China",
+				"targetCountryAlpha2": "CN",
+				"value": "2.472068",
+				"rank": 4
+			},
+			{
+				"originCountryName": "Indonesia",
+				"originCountryAlpha2": "ID",
+				"targetCountryName": "China",
+				"targetCountryAlpha2": "CN",
+				"value": "2.056729",
+				"rank": 5
+			}
+		],
+    "meta": {
+			// ...
+    }
+  }
+}
+```
+
+이는 완화된 요청 전체 중 3.79%가 미국에서 미국으로 향했고, 3.6%는 미국에서 벨기에로 향했음을 뜻합니다.
+
+자세한 내용은 [layer 7 top attack pairs 가져오기](/api/resources/radar/subresources/attacks/subresources/layer7/subresources/top/methods/attacks/)를 참고하세요.
+
+## 다음 단계
+
+OSI(Open Systems Interconnection) 모델의 3계층 데이터에 대해 더 알아보려면 [Network layer attacks](/radar/investigate/network-layer-attacks/)를 참고하세요.

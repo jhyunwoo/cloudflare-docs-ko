@@ -1,0 +1,317 @@
+---
+pcx_content_type: concept
+title: 원격 MCP 서버 구축
+tags:
+  - MCP
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/remote-mcp-server/'
+translation_source_md: 'https://developers.cloudflare.com/agents/guides/remote-mcp-server/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { Details, Render, PackageManagers, LinkCard } from "~/components";
+
+이 가이드는 Cloudflare에서 자신의 원격 MCP 서버를 배포하는 방법을 보여줍니다.[Streamable HTTP 전송](/agents/model-context-protocol/transport/), 현재 MCP 명세 기준. 두 가지 옵션이 있습니다:
+
+- **인증 없이**- 누구든지 서버 (등록 필요 없음)를 연결할 수 있습니다.
+- **이름 \*[인증 및 인증](/agents/guides/remote-mcp-server/#add-authentication)**- 도구에 액세스하기 전에 사용자 기호, 그리고 당신은 에이전트가 사용자의 권한을 기반으로 호출 할 수있는 제어 할 수 있습니다.
+
+## 접근을 선택
+
+Agents SDK는 MCP 서버를 만들 수있는 여러 가지 방법을 제공합니다. 사용 사례에 맞는 접근 방식을 선택하십시오.
+
+| 계정 관리                                                          | 국가?   | Durable Objects가 필요합니까? | 제품 정보                                    |
+| -------------------------------------------------------------- | ----- | ----------------------- | ---------------------------------------- |
+| [`createMcpHandler()`](/agents/api-reference/mcp-handler-api/) | 이름 \* | 이름 \*                   | Stateless 도구, 간단한 설정                     |
+| [`McpAgent`](/agents/api-reference/mcp-agent-api/)             | 이름 \* | 이름 \*                   | Stateful 도구, per-session 상태, elicitation |
+| 이름 \*`WebStandardStreamableHTTPServerTransport`                | 이름 \* | 이름 \*                   | 풀 컨트롤, SDK 의존성 없음                        |
+
+- **`createMcpHandler()`**&#xAC00;장 빠른 방법은 stateless MCP 서버 실행. 도구가 영구 상태가 필요하지 않을 때 사용하십시오.
+- **`McpAgent`**&#xB0B4;장 상태 관리, elicitation 지원 및 SSE 및 Streamable HTTP 운송과 함께 세션 당 튼튼한 개체를 제공합니다.
+- **공급 업체**당신이 사용하려는 경우 당신에게 전체 제어를 제공`@modelcontextprotocol/sdk`Agents SDK 도움자 없이 직접.
+
+## 첫 번째 MCP 서버 배포
+
+배포하여 시작할 수 있습니다.[MCP 서버](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless)인증 없이, 나중에 사용자 인증 및 범위 인증이 추가됩니다. 이미 서버를 알고 있다면 인증이 필요합니다.[다음 섹션](/agents/guides/remote-mcp-server/#add-authentication).
+
+### ‘대시보드’를 통해
+
+아래 버튼은 모든 것을 통해 안내합니다.[MCP 서버](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless)'Cloudflare' 계정으로:
+
+[![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-authless)
+
+일단 배포되면, 이 서버는 당신의 일에 살 것이다`workers.dev`subdomain (예를 들면,`remote-mcp-server-authless.your-account.workers.dev/mcp`). 즉시 연결할 수 있습니다.[AI 놀이터](https://playground.ai.cloudflare.com/)( 먼 MCP 클라이언트),[MCP 검사기](https://github.com/modelcontextprotocol/inspector)또는[다른 MCP 클라이언트](/agents/guides/remote-mcp-server/#connect-your-remote-mcp-server-to-claude-and-other-mcp-clients-via-a-local-proxy).
+
+새로운 git 저장소는 MCP 서버의 GitHub 또는 GitLab 계정에서 설정되며, 변경을 푸시하거나 저장소의 주요 지점에 pull request를 병합할 때마다 Cloudflare로 자동 배포하도록 구성되었습니다. 이 저장소를 복제 할 수 있습니다.[현지화](/agents/guides/remote-mcp-server/#local-development), 그리고 당신의 자신의 MCP 서버를 사용자 정의 시작[회사 소개](/agents/model-context-protocol/tools/).
+
+### CLI를 통해
+
+당신은 사용할 수 있습니다[Wrangler 클립](/workers/wrangler)로컬 머신에서 새로운 MCP 서버를 만들고 Cloudflare로 배포합니다.
+
+1. 터미널을 열고 다음 명령을 실행:
+
+   <PackageManagers
+     type="create"
+     pkg="cloudflare@latest"
+     args={
+      "remote-mcp-server-authless --template=cloudflare/ai/demos/remote-mcp-authless"
+   }
+   />
+
+   설정 중 다음 옵션을 선택하십시오: - For*AI 코딩 도구를 이해하는 데 도움이 AGENTS.md 파일을 추가하려면
+   Cloudflare APIs?*, 선택`No`. - 대*버전 컨트롤에 대한 git을 사용하려면?*, 선택`No`. - 대*응용 프로그램을 배포하려면?*, 선택`No`(우리는 배포하기 전에 서버를 테스트합니다).
+
+   이제 MCP 서버 설정이 설치되어 있습니다.
+
+2. 프로젝트 폴더로 이동:
+
+   ```sh
+   cd remote-mcp-server-authless
+   ```
+
+3. 새 프로젝트의 디렉토리에서 다음 명령을 실행하여 개발 서버를 시작합니다.
+
+   ```sh
+   npm start
+   ```
+
+   ```sh output
+   ⎔ Starting local server...
+   [wrangler:info] Ready on http://localhost:8788
+   ```
+
+   로컬 포트의 명령 출력을 확인합니다. 이 예에서 MCP 서버는 포트에서 실행됩니다.`8788`, MCP 엔드포인트 URL은`http://localhost:8788/mcp`·
+   :::참조
+   MCP 서버와 상호 작용할 수 없습니다.`/mcp`웹 브라우저에서 URL을 직접. 더 보기`/mcp`endpoint는 MCP 클라이언트가 기본으로하지 않는 브라우저가 MCP 프로토콜 메시지를 보낼 것으로 기대합니다. 다음 단계에서 MCP 클라이언트를 사용하여 서버에 연결하는 방법을 설명합니다.
+   주요 특징
+
+4. 로컬 서버 테스트:
+   1. 새로운 터미널에서 실행[MCP 검사기](https://github.com/modelcontextprotocol/inspector). MCP 검사기는 MCP 서버와 웹 브라우저에서 invoke 도구에 연결할 수 있는 상호 작용하는 MCP 클라이언트입니다.
+
+      ```sh
+      npx @modelcontextprotocol/inspector@latest
+      ```
+
+      ```sh output
+      🚀 MCP Inspector is up and running at:
+      	http://localhost:5173/?MCP_PROXY_AUTH_TOKEN=46ab..cd3
+
+      🌐 Opening browser...
+      ```
+
+      MCP Inspector는 웹 브라우저에서 시작됩니다. 브라우저를 열고`http://localhost:<PORT>`. MCP Inspector가 실행되는 로컬 포트에 대한 명령 출력을 확인합니다. 이 예제에서 MCP Inspector는 포트에 제공됩니다.`5173`.
+
+   2. MCP 검사기에서 MCP 서버의 URL을 입력하십시오 (`http://localhost:8788/mcp`) 및 선택**연결하기**. 선택**회사연혁**MCP 서버가 노출되는 도구를 보여줍니다.
+
+5. 이제 MCP 서버를 Cloudflare로 배포할 수 있습니다. 프로젝트 디렉토리에서 실행:
+
+   ```sh
+   npx wrangler@latest deploy
+   ```
+
+   이미 있다면[git 저장소에 연결](/workers/ci-cd/builds/)MCP 서버와 함께 작업자에, 당신은 변경을 밀어하여 MCP 서버를 배치하거나 저장소의 주요 지점에 끌어 요청을 수 있습니다.
+
+   MCP 서버가 배포됩니다.`*.workers.dev`하위 도메인`https://remote-mcp-server-authless.your-account.workers.dev/mcp`.
+
+6. 원격 MCP 서버를 테스트하려면 배포 된 MCP 서버의 URL을 (를)`https://remote-mcp-server-authless.your-account.workers.dev/mcp`) 그리고에 달리는 MCP inspector에서 그것을 입력하십시오`http://localhost:5173`.
+
+이제 MCP 클라이언트가 연결할 수있는 원격 MCP 서버가 있습니다.
+
+## 로컬 프록시를 통해 MCP 클라이언트에서 연결
+
+이제 원격 MCP 서버가 실행되고 있습니다.[`mcp-remote`지역 프록시](https://www.npmjs.com/package/mcp-remote)Claude 데스크톱 또는 다른 MCP 클라이언트를 연결하기 위해 - MCP 클라이언트가 클라이언트 측에 원격 수송 또는 허가를 지원하지 않는 경우에도. 원격 MCP 서버와의 상호 작용이 실제 MCP 클라이언트와 같습니다.
+
+예를 들어, Claude Desktop에서 연결하기:
+
+1. Claude 데스크탑 구성을 업데이트하여 MCP 서버의 URL로 가십시오.
+
+   ```json
+   {
+   	"mcpServers": {
+   		"math": {
+   			"command": "npx",
+   			"args": [
+   				"mcp-remote",
+   				"https://remote-mcp-server-authless.your-account.workers.dev/mcp"
+   			]
+   		}
+   	}
+   }
+   ```
+
+2. MCP Server를로드하는 Restart Claude 데스크톱. 이 작업을 완료하면, Claude는 원격 MCP 서버에 호출 할 수 있습니다.
+
+3. 테스트하려면 Claude에게 도구 중 하나를 사용합니다. 예를 들면:
+
+   ```txt
+   Could you use the math tool to add 23 and 19?
+   ```
+
+   Claude는 도구를 호출하고 원격 MCP 서버에서 생성 된 결과를 보여줍니다.
+
+다른 MCP 클라이언트와 원격 MCP 서버를 사용하는 방법을 배우려면, 참조[원격 MCP 서버 테스트](/agents/guides/test-remote-mcp-server).
+
+## 인증 추가
+
+퍼블릭 MCP 서버 예제를 배포하기 전에 클라이언트가 로그인하지 않고 연결 및 호출 도구를 연결할 수 있습니다. MCP 서버에 사용자 인증을 추가하려면 OAuth 공급자로 Cloudflare Access 또는 타사 서비스를 통합 할 수 있습니다. MCP 서버는 MCP 클라이언트가 인증된 도구 통화를 만들 수 있는 안전한 로그인 흐름과 문제 접근 토큰을 처리합니다. OAuth 공급자와 로그인하여 AI 에이전트 권한을 부여하여 MCP 서버에 노출되는 도구와 상호 작용합니다.
+
+### Cloudflare 액세스 OAuth
+
+MCP 서버를 구성하여 Cloudflare Access를 통해 사용자 인증을 요청할 수 있습니다. Cloudflare Access는 ID 집계로 작동하며 사용자 이메일, 기존의 신호를 검증합니다.[ID 공급자](/cloudflare-one/integrations/identity-providers/)( GitHub 또는 Google과 같은) 및 IP 주소 또는 장치 인증서와 같은 다른 속성. 사용자가 MCP 서버에 연결하면 구성 된 정체성 공급자에 로그인하여 액세스 권한을 부여합니다.[오시는 길](/cloudflare-one/access-controls/policies/#selectors).
+
+단계별 배포 가이드를 위해, 참조[SaaS에 대한 액세스 보안 MCP 서버](/cloudflare-one/access-controls/ai-controls/saas-mcp/).
+
+### 제3자 OAuth
+
+MCP 서버에 연결할 수 있습니다.[OAuth 공급자](/agents/model-context-protocol/authorization/#2-third-party-oauth-provider)GitHub, Google, Slack 등 OAuth 2.0 사양을 지원합니다.[사이트맵](/agents/model-context-protocol/authorization/#stytch), [오스0](/agents/model-context-protocol/authorization/#auth0), [작업OS](/agents/model-context-protocol/authorization/#workos), 더 많은 것.
+
+다음 예제는 GitHub를 OAuth 공급자로 사용하는 방법을 설명합니다.
+
+#### 단계 1 — 새로운 MCP 서버 만들기
+
+다음 명령을 실행하여 GitHub OAuth로 새로운 MCP 서버를 만듭니다.
+
+<PackageManagers
+  type="create"
+  pkg="cloudflare@latest"
+  args={
+  	"my-mcp-server-github-auth --template=cloudflare/ai/demos/remote-mcp-github-oauth"
+  }
+/>
+
+이제 MCP 서버 설정이 설치되어 있습니다. 그 프로젝트 폴더로 이동:
+
+```sh
+cd my-mcp-server-github-auth
+```
+
+MCP 서버가 열리면`src/index.ts`, 주요 차이점은`defaultHandler`설정`GitHubHandler`:
+
+```ts ins="OAuthProvider.GitHubHandler"
+import GitHubHandler from "./github-handler";
+
+export default new OAuthProvider({
+	apiRoute: "/mcp",
+	apiHandler: MyMCP.serve("/mcp"),
+	defaultHandler: GitHubHandler,
+	authorizeEndpoint: "/authorize",
+	tokenEndpoint: "/token",
+	clientRegistrationEndpoint: "/register",
+});
+```
+
+사용자들이 GitHub로 리디렉션됩니다. 이 작업을 수행하려면 아래 단계에서 OAuth 클라이언트 앱을 만들 필요가 있습니다.
+
+#### 단계 2 - OAuth 앱 만들기
+
+2개를 만들 필요가 있습니다.[GitHub OAuth 앱](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app)MCP 서버에 대한 인증 제공업체로서 GitHub를 사용하여 로컬 개발 및 생산에 대한 하나.
+
+#### 단계 2.1 - 로컬 개발을 위한 새로운 OAuth 앱 만들기
+
+1. 바로가기[github.com/설정/개발자](https://github.com/settings/developers)다음 설정으로 새로운 OAuth 앱 만들기:
+   - **신청 이름**: `My MCP Server (local)`
+   - **홈페이지 URL**: `http://localhost:8788`
+   - **인증 콜백 URL**: `http://localhost:8788/callback`
+
+2. OAuth 앱을 사용하면 OAuth 앱의 클라이언트 ID를`GITHUB_CLIENT_ID`클라이언트 비밀을 생성하고, 그것으로 추가하십시오`GITHUB_CLIENT_SECRET`한국어`.env`프로젝트의 루트에 파일, 이는[현지 개발에서 비밀을 설정하는 데 사용될 것입니다.](/workers/configuration/secrets/).
+
+   ```sh
+   touch .env
+   echo 'GITHUB_CLIENT_ID="your-client-id"' >> .env
+   echo 'GITHUB_CLIENT_SECRET="your-client-secret"' >> .env
+   cat .env
+   ```
+
+3. 개발 서버를 시작하려면 다음 명령을 실행하십시오.
+
+   ```sh
+   npm start
+   ```
+
+   MCP 서버가 이제 실행 중입니다.`http://localhost:8788/mcp`.
+
+4. 새로운 터미널에서 실행[MCP 검사기](https://github.com/modelcontextprotocol/inspector). MCP 검사기는 MCP 서버와 웹 브라우저에서 invoke 도구에 연결할 수 있는 상호 작용하는 MCP 클라이언트입니다.
+
+   ```sh
+   npx @modelcontextprotocol/inspector@latest
+   ```
+
+5. 웹 브라우저에서 MCP 검사기를 엽니 다 :
+
+   ```sh
+   open http://localhost:5173
+   ```
+
+6. 검사기에서 MCP 서버의 URL을 입력합니다.`http://localhost:8788/mcp`
+
+7. 오른쪽의 메인 패널에서 클릭**OAuth 설정**버튼과 클릭**빠른 OAuth 흐름**.
+
+   GitHub 로그인 또는 인증 페이지로 이동합니다. MCP Client(감사자)를 GitHub 계정으로 승인한 후, 검사관으로 돌아갈 것입니다.
+
+8. 이름 \***연결하기**사이드바에서 MCP 서버가 노출되는 도구를 나열하는 "List Tools"버튼을 참조하십시오.
+
+#### 단계 2.2 - 생산을위한 새로운 OAuth 앱 만들기
+
+당신은 반복해야합니다[단계 2.1](#step-21--create-a-new-oauth-app-for-local-development)생산을위한 새로운 OAuth 앱을 만들려면.
+
+1. 바로가기[github.com/설정/개발자](https://github.com/settings/developers)다음 설정으로 새로운 OAuth 앱 만들기:
+
+- **신청 이름**: `My MCP Server (production)`
+- **홈페이지 URL**: 배치 된 MCP 서버의 workers.dev URL을 입력하십시오 (예 :`worker-name.account-name.workers.dev`)
+- **인증 콜백 URL**: 입력`/callback`deployed MCP 서버의 workers.dev URL의 경로 (예:`worker-name.account-name.workers.dev/callback`)
+
+2. OAuth 앱의 경우, 클라이언트 ID와 클라이언트 비밀을 추가하고, Wrangler CLI를 사용하여:
+
+```sh
+npx wrangler secret put GITHUB_CLIENT_ID
+```
+
+```sh
+npx wrangler secret put GITHUB_CLIENT_SECRET
+```
+
+```
+npx wrangler secret put COOKIE_ENCRYPTION_KEY # add any random string here e.g. openssl rand -hex 32
+```
+
+:::카트로션
+첫 번째 비밀을 만들 때, Wrangler는 새로운 노동자를 만들려면 묻습니다. 새로운 노동자를 만들고 비밀을 저장하기 위해 "Y"를 제출하십시오.
+주요 특징
+
+3. KVnamespace 설정
+
+   a. KV 네임 스페이스 만들기:
+
+   ```bash
+   npx wrangler kv namespace create "OAUTH_KV"
+   ```
+
+   b. 업데이트`wrangler.jsonc`결과를 가진 파일 KV ID:
+
+   ```json
+   {
+   	"kvNamespaces": [
+   		{
+   			"binding": "OAUTH_KV",
+   			"id": "<YOUR_KV_NAMESPACE_ID>"
+   		}
+   	]
+   }
+   ```
+
+4. MCP 서버를 Cloudflare로 배포합니다.`workers.dev`이름:
+
+   ```bash
+   npm run deploy
+   ```
+
+5. 서버에 연결`worker-name.account-name.workers.dev/mcp`사용 방법[AI 놀이터](https://playground.ai.cloudflare.com/)MCP 검사기, 또는[다른 MCP 클라이언트](/agents/guides/test-remote-mcp-server/), GitHub의 인증
+
+## 다음 단계
+
+<LinkCard title="MCP 도구" href="/agents/model-context-protocol/tools/" description="MCP 서버에 도구를 추가합니다." />
+
+<LinkCard title="이름 *" href="/agents/model-context-protocol/authorization/" description="인증 및 인증." />

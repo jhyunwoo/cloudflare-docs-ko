@@ -1,0 +1,160 @@
+---
+summary: Use the Durable Objects Alarms API to batch requests to a Durable Object.
+pcx_content_type: example
+title: Alarms API 사용
+sidebar:
+  order: 3
+description: Durable Objects 알람 API를 사용하여 일괄 요청을 튼튼한 개체에 사용합니다.
+reviewed: 2023-10-09T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/examples/alarms-api/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/examples/alarms-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, TabItem, Tabs, WranglerConfig } from "~/components";
+
+이 예제는 구현<GlossaryTooltip term="alarm">`alarm()`</GlossaryTooltip>단일 내구성 개체에 요청에 배치 할 수있는 핸들러.
+
+요청이 수신되고 알람이 설정되면 향후 10 초 동안 알람을 설정합니다. 더 보기`alarm()`핸들러 프로세스 그 10 초 창 내에서받은 모든 요청.
+
+새로운 요청이 수신되지 않은 경우 다음 요청이 도착 때까지 더 알람이 설정되지 않습니다.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		return await env.BATCHER.getByName("foo").fetch(request);
+    	},
+    };
+
+    //튼튼한 목표
+    export class Batcher extends DurableObject {
+    	constructor(ctx, env) {
+    		super(ctx, env);
+    		this.storage = ctx.storage;
+    		this.ctx.blockConcurrencyWhile(async () => {
+    			let vals = await this.storage.list({ reverse: true, limit: 1 });
+    			this.count = vals.size == 0 ? 0 : parseInt(vals.keys().next().value);
+    		});
+    	}
+
+    	async fetch(request) {
+    		this.count++;
+
+    		//현재 설정되지 않은 알람이 없다면 현재 10 초 동안 설정하십시오.
+    		//다음 10 초에 더 많은 POST는이 배치의 일부가 될 것입니다.
+    		let currentAlarm = await this.storage.getAlarm();
+    		if (currentAlarm == null) {
+    			this.storage.setAlarm(Date.now() + 1000 * 10);
+    		}
+
+    		//일괄 처리에 요청을 추가합니다.
+    		await this.storage.put(this.count, await request.text());
+    		return new Response(JSON.stringify({ queued: this.count }), {
+    			headers: {
+    				"content-type": "application/json;charset=UTF-8",
+    			},
+    		});
+    	}
+
+    	async alarm() {
+    		let vals = await this.storage.list();
+    		await fetch("http://example.com/some-upstream-service", {
+    			method: "POST",
+    			body: Array.from(vals.values()),
+    		});
+    		await this.storage.deleteAll();
+    		this.count = 0;
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import DurableObject, Response, WorkerEntrypoint, fetch
+    import time
+
+    #작업자
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		stub = self.env.BATCHER.getByName("foo")
+    		return await stub.fetch(request)
+
+    #튼튼한 목표
+    class Batcher(DurableObject):
+    	def __init__(self, ctx, env):
+    		super().__init__(ctx, env)
+    		self.storage = ctx.storage
+
+    		@self.ctx.blockConcurrencyWhile
+    		async def initialize():
+    			vals = await self.storage.list(reverse=True, limit=1)
+    			self.count = 0
+    			if len(vals) > 0:
+    			    self.count = int(vals.keys().next().value)
+
+    	async def fetch(self, request):
+    		self.count += 1
+
+    		#현재 설정되지 않은 알람이 없다면 현재 10 초 동안 설정하십시오.
+    		#다음 10 초에 더 많은 POST는이 배치의 일부가 될 것입니다.
+    		current_alarm = await self.storage.getAlarm()
+    		if current_alarm is None:
+    			self.storage.setAlarm(int(time.time() * 1000) + 1000 * 10)
+
+    		#일괄 처리에 요청을 추가합니다.
+    		await self.storage.put(self.count, await request.text())
+    		return Response.json(
+    			{"queued": self.count}
+    		)
+
+    	async def alarm(self):
+    		vals = await self.storage.list()
+    		await fetch(
+    			"http://example.com/some-upstream-service",
+    			method="POST",
+    			body=list(vals.values())
+    		)
+    		await self.storage.deleteAll()
+    		self.count = 0
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`alarm()`핸들러는 매 10 초마다 한 번 호출됩니다. 예상치 못한 오류가 튼튼한 개체를 종료하면,`alarm()`핸들러는 다른 기계에 재 instantiated. 짧은 지연 후,`alarm()`핸들러는 다른 기계에 시작에서 실행됩니다.
+
+마지막으로, Wrangler 파일을 구성하여 튼튼한 개체를 포함[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/)이전에 선택한 네임스페이스 및 클래스 이름을 기반으로 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "durable-object-alarm",
+  	"main": "src/index.ts",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "BATCHER",
+  				"class_name": "Batcher"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"Batcher"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>

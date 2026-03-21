@@ -1,0 +1,255 @@
+---
+title: 튼튼한 목표 기초 종류
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/api/base/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/api/base/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Tabs,
+	TabItem,
+	GlossaryTooltip,
+	Type,
+	MetaInfo,
+	TypeScriptExample,
+} from "~/components";
+
+더 보기`DurableObject`기본 클래스는 모든 Durable Objects에서 상속되는 요약 클래스입니다. 이 기본 클래스는 이벤트에 응답 할 수있는 핸들러 방법로 자주 언급 한 옵션 방법 세트를 제공합니다. 예를 들어`webSocketMessage`사용시[웹소켓 Hibernation API](/durable-objects/best-practices/websockets/#durable-objects-hibernation-websocket-api). 구체적인 예를 제공하기 위하여는, 여기에서 튼튼한 목표입니다`MyDurableObject`기타 제품`DurableObject`그리고 "Hello, World!"를 호출하기 위해 fetch 핸들러를 구현합니다.
+
+<Tabs>
+  <TypeScriptExample omitTabs={true}>
+    ```ts
+    export class MyDurableObject extends DurableObject {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		super(ctx, env);
+    	}
+
+        async fetch(request: Request) {
+        	return new Response("Hello, World!");
+        }
+
+    }
+
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import DurableObject, Response
+
+    class MyDurableObject(DurableObject):
+    	def __init__(self, ctx, env):
+    		super().__init__(ctx, env)
+
+    	async def fetch(self, request):
+    		return Response("Hello, World!")
+    ```
+  </TabItem>
+</Tabs>
+
+## 제품 설명
+
+### `fetch`
+
+- <code>
+    볶음(request)<Type text="Request" />)
+  </code>
+  : <Type text="Response" /> | <Type text="Promise<Response>" />- HTTP를 가지고
+  [제품 정보](https://developers.cloudflare.com/workers/runtime-apis/request/)·
+  HTTP를 반환
+  [관련 기사](https://developers.cloudflare.com/workers/runtime-apis/response/)·
+  이 메소드는 Worker가 있는 HTTP 서버를 emulate하는 튼튼한 오브젝트를 허용합니다.
+  그 객체의 바인딩은 클라이언트입니다. - - - 이 방법은 일 수 있습니다`async`.
+  - Durable Objects 지원[RPC 통화](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)호환성 날짜의[2024-04-03](/workers/configuration/compatibility-flags/#durable-object-stubs-and-service-bindings-support-rpc). RPC 방법은 위에 선호됩니다`fetch()`응용 프로그램이 HTTP 요청 / 응답 흐름을 따르지 않는 경우.
+
+#### 매개 변수
+
+- `request` <Type text="Request" />- 수신된 HTTP 요청 객체.
+
+#### 반환 값
+
+- ·<Type text="Response" />또는<Type text="Promise<Response>" />.
+
+#### 이름 \*
+
+<TypeScriptExample>
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+  	async fetch(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+  		if (url.pathname === "/hello") {
+  			return new Response("Hello, World!");
+  		}
+  		return new Response("Not found", { status: 404 });
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### `alarm`
+
+- <code>
+    알람(alarmInfo?<Type text="AlarmInvocationInfo" />)
+  </code>
+  : <Type text="void" /> | <Type text="Promise<void>" />
+  - 예정된 알람 시간이 도달될 때 시스템에 의해 호출됩니다.
+
+  - 더 보기`alarm()`핸들러는 at-least-once 실행을 보장하고 최대 6개의 retries를 위한 2개의 두번째 지연에서 시작된 exponential backoff를 사용하여 실패에 retried. Retries는 uncaught 예외로 실패한 경우 수행됩니다.
+
+  - 이 방법은 일 수 있습니다`async`.
+
+  - 더 알아보기[알람 시계](/durable-objects/api/alarms/)더 많은 정보.
+
+#### 매개 변수
+
+- `alarmInfo` <Type text="AlarmInvocationInfo" />(선택 사항) - retry 정보를 포함하는 객체:
+  - `retryCount` <Type text="number" />- 이 알람 이벤트의 수는 다시 시도되었습니다.
+  - `isRetry` <Type text="boolean" /> - `true`이 알람 이벤트가 재발이라면,`false`다른 것.
+
+#### 반환 값
+
+- 없음.
+
+#### 이름 \*
+
+<TypeScriptExample>
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+  	async alarm(alarmInfo?: AlarmInvocationInfo): Promise<void> {
+  		if (alarmInfo?.isRetry) {
+  			console.log(`Alarm retry attempt ${alarmInfo.retryCount}`);
+  		}
+  		await this.processScheduledTask();
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### `webSocketMessage`
+
+- <code>
+    웹SocketMessage(ws)<Type text="WebSocket" />, 메시지{" "}
+    <Type text="string | ArrayBuffer" />)
+  </code>
+  : <Type text="void" /> | <Type text="Promise<void>" />- 시스템에 의해 호출
+  허용되는 WebSocket이 메시지를 수신 할 때. - 이 방법은 호출되지 않습니다
+  WebSocket 제어 프레임. 시스템은 들어오는 것에 응답합니다.[웹소켓
+  프로토콜 ping](https://www.rfc-editor.org/rfc/rfc6455#section-5.5.2)중단 없이 자동적으로.
+  - 이 방법은 일 수 있습니다`async`.
+
+#### 매개 변수
+
+- `ws` <Type text="WebSocket" />- 한국어[웹소켓](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)그 메시지를 받았습니다. 이 참고 자료를 사용하여 응답을 보내거나 serialized 부착물에 접근하십시오.
+- `message` <Type text="string | ArrayBuffer" />- 메시지 데이터. 문자 메시지로 도착`string`, 바이너리 메시지`ArrayBuffer`.
+
+#### 반환 값
+
+- 없음.
+
+#### 이름 \*
+
+<TypeScriptExample>
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+  	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+  		if (typeof message === "string") {
+  			ws.send(`Received: ${message}`);
+  		} else {
+  			ws.send(`Received ${message.byteLength} bytes`);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### `webSocketClose`
+
+- <code>
+    webSocket닫기<Type text="WebSocket" />, 코드<Type text="number" />·
+    이름 \*<Type text="string" />, 클린<Type text="boolean" />)
+  </code>
+  : <Type text="void" /> | <Type text="Promise<void>" />- 시스템에 의해 호출
+  WebSocket 연결이 닫힐 때. - 너**지원하다**이름 \*`ws.close(code,
+  reason)`이 핸들러 내부는 WebSocket close Handhake를 완료합니다.
+  닫히는 것을 reciprocate에 직면하는 것은 결과에서`1006`클라이언트의 오류,
+  WebSocket 명세 당 비정상적인 마감을 대표합니다.
+  - 이 방법은 일 수 있습니다`async`.
+
+#### 매개 변수
+
+- `ws` <Type text="WebSocket" />- 한국어[웹소켓](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)그것은 닫혔다.
+- `code` <Type text="number" />- 한국어[WebSocket 닫기 코드](https://developer.mozilla.org/en-US/docs/Web/API/CloseEvent/code)동료에 의해 보내 (예 :,`1000`정상적인 마감을 위해,`1001`계속하기
+- `reason` <Type text="string" />- 연결이 닫힌 이유를 나타내는 문자열. 비어있습니다.
+- `wasClean` <Type text="boolean" /> - `true`연결이 적절히 닫히면,`false`다른 것.
+
+#### 반환 값
+
+- 없음.
+
+#### 이름 \*
+
+<TypeScriptExample>
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+  	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+  		//WebSocket 닫기를 완료
+  		ws.close(code, reason);
+  		console.log(`WebSocket closed: code=${code}, reason=${reason}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### `webSocketError`
+
+- <code>
+    웹소켓Error(ws)<Type text="WebSocket" />, 오류<Type text="unknown" />)
+  </code>
+  : <Type text="void" /> | <Type text="Promise<void>" />- 시스템에 의해 호출
+  non-disconnection 오류가 WebSocket 연결에 발생합니다. - - - 이 방법
+  수 있습니다`async`.
+
+#### 매개 변수
+
+- `ws` <Type text="WebSocket" />- 한국어[웹소켓](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)오류가 발생했습니다.
+- `error` <Type text="unknown" />- 발생되는 오류. 5월은`Error`오류 소스에 따라 객체 또는 다른 유형.
+
+#### 반환 값
+
+- 없음.
+
+#### 이름 \*
+
+<TypeScriptExample>
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+  	async webSocketError(ws: WebSocket, error: unknown) {
+  		const message = error instanceof Error ? error.message : String(error);
+  		console.error(`WebSocket error: ${message}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 제품 정보
+
+### `ctx`
+
+`ctx`타입의 readonly 속성[`DurableObjectState`](/durable-objects/api/state/)저장, WebSocket 관리 및 기타 인스턴스에 대한 액세스를 제공합니다.
+
+### `env`
+
+`env`Wrangler 구성에 정의된 것과 같이 이 튼튼한 목표에 유효한 환경 바인딩을 포함합니다.
+
+## 관련 자료
+
+- [WebSockets 사용](/durable-objects/best-practices/websockets/)WebSocket handler 모범 사례에 대해
+- [경보 API](/durable-objects/api/alarms/)스케줄링을 위해
+- [RPC 방법](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)type-safe 메소드 호출.

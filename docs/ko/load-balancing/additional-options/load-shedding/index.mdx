@@ -1,0 +1,143 @@
+---
+pcx_content_type: tutorial
+title: Load Shedding
+sidebar:
+  order: 14
+description: >-
+  위험 상태의 엔드포인트가 비정상 상태가 되어 장애 조치 프로세스가 시작되는 것을 방지하려면 load shedding을 사용하세요.
+---
+
+import { Details } from "~/components";
+
+위험 상태의 엔드포인트가 [비정상 상태가 되어](/load-balancing/understand-basics/health-details/) 장애 조치 프로세스가 시작되는 것을 방지하려면 load shedding을 사용하세요.
+
+풀에 load shedding을 구성하면 해당 풀은 load shedding 설정과 로드 밸런서의 [steering policy](/load-balancing/understand-basics/traffic-steering/steering-policies/)에 따라 트래픽을 다른 풀로 우회시키기 시작합니다.
+
+## 1단계 — 위험 상태의 엔드포인트 식별
+
+내부 메트릭을 사용해 장애 임계값에 도달할 위험이 있는 엔드포인트를 식별합니다.
+
+- 엔드포인트의 트래픽이 증가하고 있지만 아직 장애 위험은 없다면 [2단계](#step-2--shed-default-traffic-from-a-pool)부터 시작하세요.
+- 엔드포인트가 곧 장애에 이를 것 같다면 [4단계](#step-4--shed-additional-traffic-optional)부터 시작하세요.
+
+<div id="step-2--shed-default-traffic-from-a-pool"></div>
+
+## 2단계 — 풀에서 기본 트래픽 줄이기
+
+위험 상태의 엔드포인트를 식별했다면 해당 엔드포인트가 속한 풀에서 **Default** 트래픽을 소량 줄이세요. 이 트래픽은 기존 [Session affinity](/load-balancing/understand-basics/session-affinity/) 세션과 연결되지 않은 트래픽입니다.
+
+[대시보드](#configure-via-dashboard) 또는 [API](#configure-via-api)를 통해 load shedding을 구성하세요.
+
+<div id="configure-via-dashboard"></div>
+
+### 대시보드에서 구성
+
+대시보드에서 특정 풀에 대해 load shedding을 활성화하려면 다음을 수행합니다.
+
+1. **Load Balancing**으로 이동합니다.
+2. **Pools** 탭을 선택합니다.
+3. 풀에서 **Edit**를 선택합니다.
+4. **Configure Load Shedding** 드롭다운을 엽니다.
+5. **Default traffic**에 대해 **Policy**와 **Shed %**를 선택합니다.
+
+<Details header="정책 옵션">
+
+**Default traffic**을 줄일 때 사용할 수 있는 **Policy** 옵션은 두 가지입니다.
+
+- **Random**: _Shed %_에 지정한 비율만큼의 요청을 무작위로 줄입니다. 트래픽을 더 정확하게 분산하지만, 동일한 IP에서 온 요청이 서로 다른 엔드포인트에 도달할 수 있습니다.
+- **IP hash**: _Shed %_에 지정한 비율만큼의 IP 주소 해시 공간을 줄입니다. 동일한 IP에서 오는 요청이 같은 엔드포인트에 도달하도록 보장하지만, 실제 줄어드는 요청 비율이 예상보다 훨씬 높거나 낮을 수 있습니다.
+
+어떤 정책을 선택할지에 대한 자세한 안내는 [Shedding 정책](#shedding-policies)을 참고하세요.
+
+</Details>
+
+<Details header="Shed %">
+
+**Shed %**를 선택할 때는 작은 비율부터 시작해서 점진적으로 늘리세요. 특히 [IP hash shedding policy](#shedding-policies)를 선택하면 예상보다 더 많은 트래픽이 줄어들 수 있습니다.
+
+</Details>
+
+<div id="configure-via-api"></div>
+
+### API로 구성
+
+API를 통해 특정 풀에 대해 load shedding을 활성화하려면 풀의 `load_shedding` 객체 값을 [업데이트](/api/resources/load_balancers/subresources/pools/methods/update/)하세요.
+
+<Details header="요청 예시">
+
+```bash title="Request"
+curl --request PATCH \
+"https://api.cloudflare.com/client/v4/accounts/{account_id}/load_balancers/pools/{pool_id}" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data-binary '{
+  "load_shedding": {
+    "default_percent": 20,
+    "default_policy": "random",
+    "session_percent": 0,
+    "session_policy": "hash"
+  }
+}'
+```
+
+</Details>
+
+어떤 shedding 정책을 선택할지에 대한 자세한 안내는 [Shedding 정책](#shedding-policies)을 참고하세요.
+
+## 3단계 — 트래픽 모니터링
+
+기본 트래픽을 줄이기 시작했다면 Load Balancing analytics의 [**Overview** 메트릭](/load-balancing/reference/load-balancing-analytics/)을 검토하여 영향을 평가하세요. 이 수치와 내부 메트릭을 바탕으로 풀에서 추가 트래픽을 더 우회시켜야 하는지 판단할 수 있습니다.
+
+풀로 향하는 트래픽이 늘어나는 경우에는 추가 트래픽을 줄여야 할 수 있습니다. 풀은 전체 트래픽의 일정 비율을 줄이므로, 총 트래픽이 증가하면 실제로 해당 풀에 도달하는 트래픽도 함께 증가합니다.
+
+<div id="step-4--shed-additional-traffic-optional"></div>
+
+## 4단계 — 추가 트래픽 줄이기(선택 사항)
+
+풀의 트래픽을 더 줄여야 한다면 다음을 수행하세요.
+
+1. [2단계](#step-2--shed-default-traffic-from-a-pool)에 설명된 절차를 따릅니다.
+   - 대시보드에서는 **Default traffic** 및/또는 **Session affinity traffic**의 **Shed %**를 높입니다.
+   - API에서는 `default_percent` 및/또는 `session_percent` 값을 높입니다.
+
+**Session Affinity traffic**을 줄이면 [기존 세션](/load-balancing/understand-basics/session-affinity/)이 끊어지고 고객 경험이 저하될 수 있으므로, 풀이 곧 비정상 상태가 될 위험이 있거나 기존 세션 관련 트래픽 비율이 높은 경우에만 이 옵션을 활성화하세요. 자세한 안내는 [Shedding 정책](#shedding-policies)을 참고하세요.
+
+## 5단계 — Load Shedding 비활성화
+
+엔드포인트가 더 이상 위험 상태가 아니라면 풀에서 load shedding을 제거합니다.
+
+대시보드에서 load shedding을 제거하려면 [대시보드에서 load shedding 구성](#configure-via-dashboard)과 같은 절차를 수행하되 **Default traffic**과 **Session affinity traffic**의 **Shed %**를 모두 `0`으로 설정합니다.
+
+API를 통해 load shedding을 제거하려면 [API로 load shedding 구성](#configure-via-api)과 같은 절차를 수행하되 `load_shedding` 객체를 `null`로 설정합니다.
+
+## 추가 참고 사항
+
+<div id="shedding-policies"></div>
+
+### Shedding 정책
+
+**Default traffic**에 대해서는 두 가지 shedding 정책을 선택할 수 있습니다.
+
+_Random_ 정책:
+
+- _Shed %_에 지정된 비율만큼 요청을 무작위로 줄입니다.
+- 요청 단위로 트래픽을 줄이므로 분산이 더 정확합니다.
+- 같은 IP에서 온 요청이 서로 다른 엔드포인트에 도달할 수 있어, [DNS-only load balancer](/load-balancing/understand-basics/proxy-modes/#dns-only-load-balancing)에서는 캐시 미스, 불안정한 지연 시간, 세션 중단이 발생할 수 있습니다.
+
+_IP hash_ 정책:
+
+- _Shed %_에 지정된 비율만큼 IP 주소 해시 공간을 줄입니다.
+- 같은 IP에서 오는 요청이 같은 엔드포인트에 도달하도록 보장해 캐시 적중률을 높이고, 일관된 지연 시간을 제공하며, 세션을 유지합니다.
+- 해싱은 IP가 완벽하게 고르게 분포된다는 보장이 없고 개별 IP가 서로 다른 비율의 요청을 차지할 수 있으므로, 요청을 너무 많이 또는 너무 적게 줄일 수 있습니다.
+
+원시 요청을 더 정확하게 분산하고 싶다면 _Random_ 정책을, 단일 IP가 서로 다른 엔드포인트 사이를 오가며 흔들리는 상황을 막고 싶다면 _IP hash_ 정책을 선택하세요.
+
+**Session Affinity traffic**에는 기존 세션과 관련된 요청이므로 _IP hash_ 정책만 사용할 수 있습니다. [기존 세션](/load-balancing/understand-basics/session-affinity/)을 중단해도 괜찮을 때만 _Shed %_를 늘리세요.
+
+### Fallback 풀
+
+로드 밸런서 내의 모든 풀에서 _Load shedding_이 활성화되어 있으면 일부 트래픽이 fallback 풀로 이동합니다. 어떤 트래픽도 fallback 풀에 도달하지 않게 하려면 로드 밸런서 안의 적어도 한 풀에는 load shedding을 **활성화하지 마세요**.
+
+### 여러 로드 밸런서에 포함된 풀
+
+풀에서 load shedding을 활성화하면 모든 로드 밸런서에서 동일한 비율의 트래픽이 줄어듭니다. 서로 다른 로드 밸런서마다 엔드포인트가 다른 비율의 트래픽을 줄이게 하려면 해당 엔드포인트를 여러 풀에 나누어 넣으세요.

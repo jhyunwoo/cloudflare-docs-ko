@@ -1,0 +1,150 @@
+---
+summary: Cache data or API responses in Workers KV to improve application performance
+pcx_content_type: example
+title: Workers KV
+sidebar:
+  order: 5
+description: Workers KVXQ를 사용하는 방법의 예는 배부된 신청 윤곽 상점을 건설합니다.
+reviewed: 2025-03-27T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/kv/examples/cache-data-with-workers-kv/'
+translation_source_md: >-
+  https://developers.cloudflare.com/kv/examples/cache-data-with-workers-kv/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Tabs, TabItem } from "~/components";
+
+Workers KVXQ는 당신의 신청을 가속화하는 QXQX0235XQQ QXWorkersXQ에서 접근 가능한 지속, 단 하나, 세계적인 캐시로 사용될 수 있습니다.
+Workers QXKVXQ에서 캐시된 자료는 다른 Cloudflare 위치 뿐 아니라, expiry 또는 deletion까지 persists에서 접근 가능합니다.
+
+Workers 신청에 있는 외부 자원에서 자료를 fetching 후에, 당신은 Workers QXKV에 자료를 쓸 수 있습니다.
+후속 작업자 요청 (다른 지역에서 동일한 지역 또는 다른 지역에서), 당신은 외부 API를 호출 대신 Workers KVXQXQ에서 캐시 된 데이터를 읽을 수 있습니다.
+이 작업자의 성능과 탄력성을 향상시켜 외부 리소스에 부하를 줄입니다.
+
+이 예제는 Workers QXQXKV에서 데이터를 캐시하고 Workers QXKVXQ에서 캐시 된 데이터를 읽는 방법을 보여줍니다.
+
+:::주\[주]
+
+Workers에서 데이터를 캐시 할 수 있습니다.[캐시 API](/workers/runtime-apis/cache/). 캐시 API로,
+캐시의 내용이 시작된 데이터 센터 밖에 복제하지 않으며 캐시는 ephemeral (evicted 할 수 있습니다)입니다.
+
+Workers KV로, 자료는 기본적으로에 의해 persisted[중앙 상점](/kv/concepts/how-kv-works/)(또는 설정할 수 있습니다[구매하기](/kv/api/write-key-value-pairs/#expiring-keys), 다른 Cloudflare 위치에서 접근될 수 있습니다.
+주요 특징
+
+## 당신의 노동자 신청에서 Workers KVXQ에 있는 캐시 자료
+
+다음에서`index.ts`파일, 외부 서버에서 노동자 fetches 데이터 및 Workers QXKV의 응답을 캐시합니다. 데이터가 이미 Workers KV에서 캐시 된 경우, 노동자는 Workers KVQXKV에서 캐시 된 데이터를 읽습니다.
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```js title="index.ts" collapse={42-1000}
+    interface Env {
+      CACHE_KV: KVNamespace;
+    }
+
+    export default {
+      async fetch(request, env, ctx): Promise<Response> {
+
+         const EXPIRATION_TTL = 30; //초에 캐시 만료
+        const url = 'https://example.com';
+        const cacheKey = "cache-json-example";
+
+        //KV 캐시에서 데이터를 얻는 방법
+        let data = await env.CACHE_KV.get(cacheKey, { type: 'json' });
+        let fromCache = true;
+
+        //데이터가 캐시되지 않은 경우, example.com에서 fetch it
+        if (!data) {
+          console.log('Cache miss. Fetching fresh data from example.com');
+          fromCache = false;
+
+        		//이 예에서 HTML 콘텐츠를 fetching하지만 API 응답 또는 기타 데이터도 할 수 있습니다.
+          const response = await fetch(url);
+        		const htmlData = await response.text();
+
+        		//이 예제에서, 우리는 HTML을 JSON으로 변환하여 Workers QXKV
+        		//어떤 유형의 데이터를 캐시 할 수 있거나 HTML 데이터를 직접 캐시 할 수 있습니다.
+        		data = helperConvertToJSON(htmlData);
+        		//expirationTtl 옵션은 캐시 항목에 대한 만료 시간을 설정하는 데 사용됩니다 (초), 그렇지 않으면 그것은 무한하게 저장됩니다
+        		await env.CACHE_KV.put(cacheKey, JSON.stringify(data), { expirationTtl: EXPIRATION_TTL });
+        }
+
+        //적절한 응답 형식을 반환
+        	return new Response(JSON.stringify({
+        		data,
+        		fromCache
+        	}), {
+        		headers: { 'Content-Type': 'application/json' }
+        	});
+
+    }
+    } satisfies ExportedHandler<Env>;
+
+    //HTML을 JSON으로 변환하는 Helper 기능
+    function helperConvertToJSON(html: string) {
+    //Parse HTML 및 관련 데이터를 추출
+    const title = helperExtractTitle(html);
+    const content = helperExtractContent(html);
+    const lastUpdated = new Date().toISOString();
+
+        return { title, content, lastUpdated };
+
+    }
+
+    //HTML에서 제목을 추출하는 Helper 기능
+    function helperExtractTitle(html: string) {
+    const titleMatch = html.match(/<title>(.\*?)<\/title>/i);
+    return titleMatch ? titleMatch[1] : 'No title found';
+    }
+
+    //HTML에서 콘텐츠를 추출하는 Helper 기능
+    function helperExtractContent(html: string) {
+    const bodyMatch = html.match(/<body>(.\*?)<\/body>/is);
+    if (!bodyMatch) return 'No content found';
+
+        //간단한 텍스트 표현을위한 스트립 HTML 태그
+        const textContent = bodyMatch[1].replace(/<[^>]*>/g, ' ')
+        	.replace(/\s+/g, ' ')
+        	.trim();
+
+        return textContent;
+
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    ```json
+    {
+    	"$schema": "node_modules/wrangler/config-schema.json",
+    	"name": "<ENTER_WORKER_NAME>",
+    	"main": "src/index.ts",
+    	"compatibility_date": "2025-03-03",
+    	"observability": {
+    		"enabled": true
+    	},
+    	"kv_namespaces": [
+    		{
+    			"binding": "CACHE_KV",
+    			"id": "<YOUR_BINDING_ID>"
+    		}
+    	]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+이 코드 스 니펫은 Workers KVXQXQ에서 캐시 된 데이터를 읽고 업데이트하는 방법을 보여줍니다.
+데이터가 Workers KV 캐시에 있지 않다면, Worker는 외부 서버에서 데이터를 태깅하고 Workers KV에서 캐시합니다.
+
+이 예제에서, 우리는 JSON 데이터를 Workers KVXQ로 캐시하는 방법을 설명하기 위해 HTML을 변환하지만, 데이터의 모든 유형
+Workers KV에서 캐시될 수 있습니다. 예를 들어, API 응답, HTML 콘텐츠 또는 요청에 따라 persist로 원하는 다른 데이터를 캐시 할 수 있습니다.
+
+## 관련 자료
+
+- [RustXQ 지원 Workers](/workers/languages/rust/).
+- [KVXQ를 사용하여 QXQXQXQXQ](/kv/get-started/).

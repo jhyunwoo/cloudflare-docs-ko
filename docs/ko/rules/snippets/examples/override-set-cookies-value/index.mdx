@@ -1,0 +1,58 @@
+---
+summary: Get a specific `Set-Cookie` header and update it with a certain value.
+tags:
+  - Headers
+  - Cookies
+  - Response modification
+products:
+  - snippets
+pcx_content_type: example
+title: 설정 쿠키 헤더를 특정 값으로 상속
+description: 특정 `Set-Cookie` 헤더를 가져와 특정 값으로 업데이트하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/snippets/examples/override-set-cookies-value/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/override-set-cookies-value/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+export default {
+	async fetch(request) {
+		//출처에서 응답 받기
+		const response = await fetch(request);
+
+		//응답 헤더를 수정하는 새로운 헤더 객체 만들기
+		const newHeaders = new Headers(response.headers);
+
+		//모든 Set-Cookie 헤더를 가져옵니다
+		const cookieArray = response.headers.getSetCookie();
+		if (cookieArray.length > 0) {
+			const updatedCookies = cookieArray.map((cookie) => {
+				//예를 들어, GBP로 통화 값을 대체합니다.
+				if (cookie.trim().startsWith("currency=")) {
+					return cookie.replace(/currency=[^;]+/, "currency=GBP");
+				}
+				return cookie;
+			});
+
+			//기존 설정 쿠키 헤더 삭제
+			newHeaders.delete("Set-Cookie");
+
+			//업데이트 된 Set-Cookie 헤더를 개별적으로 추가하십시오.
+			updatedCookies.forEach((cookie) => {
+				newHeaders.append("Set-Cookie", cookie.trim());
+			});
+		}
+
+		//업데이트 된 헤더와 수정 된 응답을 반환
+		return new Response(response.body, {
+			status: response.status,
+			headers: newHeaders,
+		});
+	},
+};
+```

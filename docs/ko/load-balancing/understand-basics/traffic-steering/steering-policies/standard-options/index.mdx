@@ -1,0 +1,40 @@
+---
+pcx_content_type: concept
+title: 표준
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 표준 트래픽 스티어링 정책
+
+---
+
+**표준 스티어링** 정책에는 **Off - Failover**와 **Random**이 포함됩니다.
+
+이들은 **Traffic steering**을 구매하지 않은 비-Enterprise 고객이 사용할 수 있는 유일한 스티어링 정책입니다.
+
+## Off - Failover
+
+Failover 스티어링은 풀 순서를 사용해 장애 조치 우선순위(장애 조치 순서)를 결정합니다.
+
+Failover는 [헬스 모니터](/load-balancing/monitors/)와 **Health Threshold**로 판단된 비정상 풀에서 구성의 다음 정상 풀로 트래픽을 보냅니다. 고객은 일반적으로 이 옵션을 사용해 [active - passive failover](/load-balancing/load-balancers/common-configurations/#active---passive-failover)를 설정합니다.
+
+모든 풀이 비정상으로 표시되면 Load Balancing은 트래픽을 fallback pool로 보냅니다. 기본 fallback pool은 Load Balancing 구성에 나열된 마지막 풀입니다.
+
+로드 밸런서에 연결된 모니터가 없으면 트래픽은 기본 풀로만 전달됩니다.
+
+### Failback 동작
+
+오리진 풀 두 개로 이루어진 active/standby 구성에서는:
+
+- Pool 1(기본 풀)이 비정상이 되지 않는 한 트래픽은 항상 Pool 1로 라우팅됩니다.
+- Pool 1이 비정상으로 표시되면 트래픽은 Pool 2(대기 풀)로 이동합니다.
+- Pool 1이 다시 정상 상태가 되면, [session affinity](/load-balancing/understand-basics/session-affinity/)나 다른 설정으로 인해 후속 요청이 계속 Pool 2에 머물러야 하는 경우가 아니라면 트래픽은 자동으로 Pool 1로 되돌아갑니다.
+
+이 동작을 failback이라고 하며, 기본 풀이 복구되면 트래픽이 정상 라우팅을 다시 시작하도록 보장합니다.
+
+## Random 스티어링
+
+정상 풀로 무작위 라우팅하려면 **Random**을 선택하세요. 고객은 이 옵션을 사용해 여러 풀 간에 트래픽을 균등하게 분산하는 [active - active failover](/load-balancing/load-balancers/common-configurations/#active---active-failover) 구성(라운드 로빈이라고도 함)을 설정할 수 있습니다.
+
+각 엔드포인트로 전달되는 트래픽 양을 정하기 위해 Weights를 설정하는 것과 비슷하게, 고객은 [API](/api/resources/load_balancers/methods/create/)의 `random_steering` 객체를 통해 풀에도 Weights를 설정하여 각 풀로 전송되는 트래픽 비율을 결정할 수 있습니다.

@@ -1,0 +1,108 @@
+---
+title: 프레임 워크와 통합
+pcx_content_type: reference
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/transform-images/integrate-with-frameworks/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/transform-images/integrate-with-frameworks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## Next.js
+
+이미지 변환은 Next.js로 자동적으로 사용될 수 있습니다[`<Image />`제품정보](https://nextjs.org/docs/api-reference/next/image).
+
+이미지 변환을 사용하려면 글로벌 이미지 로더 또는 여러 사용자 정의 로더를 정의하십시오.`<Image />`부품.
+
+Next.js는 폭과 질을 위한 정확한 모수를 가진 이미지를 요구할 것입니다.
+
+이미지 변환은 캐싱을 담당하며 고객에게 최적의 형식을 제공합니다.
+
+### 글로벌 로더
+
+이미지 사용**모든 것**앱의 이미지, 글로벌 정의[로드 파일](https://nextjs.org/docs/pages/api-reference/components/image#loaderfile)앱에 대해
+
+다음 설정 추가**다음.config.js**Next.js 응용 프로그램 루트에 위치한 파일.
+
+```ts
+module.exports = {
+  images: {
+    loader: 'custom',
+    loaderFile: './imageLoader.ts',
+  },
+}
+```
+
+다음, 생성`imageLoader.ts`지정된 경로에 파일 (Next.js 응용 프로그램의 루트에 관계).
+
+```ts
+import type { ImageLoaderProps } from "next/image";
+
+const normalizeSrc = (src: string) => {
+    return src.startsWith("/") ? src.slice(1) : src;
+};
+
+export default function cloudflareLoader({
+    src,
+    width,
+    quality,
+}: ImageLoaderProps) {
+    const params = [`width=${width}`];
+    if (quality) {
+      params.push(`quality=${quality}`);
+    }
+    if (process.env.NODE_ENV === "development") {
+      return `${src}?${params.join("&")}`;
+    }
+    return `/cdn-cgi/image/${params.join(",")}/${normalizeSrc(src)}`;
+}
+```
+
+### 주문 Loaders
+
+또는, 각 로더 정의`<Image />`부품.
+
+```js
+import Image from 'next/image';
+
+const normalizeSrc = (src) => {
+  return src.startsWith('/') ? src.slice(1) : src;
+};
+
+const cloudflareLoader = ({ src, width, quality }) => {
+  const params = [`width=${width}`];
+  if (quality) {
+    params.push(`quality=${quality}`);
+  }
+  if (process.env.NODE_ENV === "development") {
+    return `${src}?${params.join("&")}`;
+  }
+  return `/cdn-cgi/image/${params.join(",")}/${normalizeSrc(src)}`;
+};
+
+const MyImage = (props) => {
+  return (
+    <Image
+      loader={cloudflareLoader}
+      src="/me.png"
+      alt="Picture of the author"
+      width={500}
+      height={500}
+      {...props}
+    />
+  );
+};
+```
+
+:::참조
+
+현지 개발을 위해, 당신은 할 수 있습니다[어떤 근원 checkbox에서 크기 이미지](/images/get-started/)당신의 지역을 위해. 다음, 교체`/cdn-cgi/image/${paramsString}/${normalizeSrc(src)}`절대 URL 경로로:
+
+`https://<YOUR_DOMAIN.COM>/cdn-cgi/image/${paramsString}/${normalizeSrc(src)}`
+
+:::

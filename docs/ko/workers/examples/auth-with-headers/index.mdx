@@ -1,0 +1,136 @@
+---
+summary: >-
+  Allow or deny a request based on a known pre-shared key in a header. This is
+  not meant to replace the WebCrypto API.
+tags:
+  - Authentication
+  - WebCrypto
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 머리에 Auth
+sidebar:
+  order: 1001
+description: 헤더의 알려진 사전 공유 키에 따라 요청을 허용하거나 거부 할 수 있습니다. 이것은 WebCrypto API를 대체하지 않습니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/auth-with-headers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/auth-with-headers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+:::caution\[제작시 주의사항]
+
+예제 코드에는 일반적인 헤더 키와 값이 포함되어 있습니다.`X-Custom-PSK`·`mypresharedkey`. 귀하의 리소스를 보호하려면 코드를 저장하기 전에 Workers 편집기에서 헤더 키와 값을 변경하십시오.
+주요 특징
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * @param {문자} PRESHARED AUTH HEADER KEY   테크니컬 열쇠를 검사하는 주문 우두머리
+    * @param {문자} PRESHARED AUTH HEADER  밸브 하드 코딩 키 값*/
+    		const PRESHARED_AUTH_HEADER_KEY = "X-Custom-PSK";
+    		const PRESHARED_AUTH_HEADER_VALUE = "mypresharedkey";
+    		const psk = request.headers.get(PRESHARED_AUTH_HEADER_KEY);
+
+    		if (psk === PRESHARED_AUTH_HEADER_VALUE) {
+    			//정확한 preshared 헤더 키 공급. 원래의 Fetch 요청.
+    			return fetch(request);
+    		}
+
+    		//잘못된 키 공급. 요청을 거부합니다.
+    		return new Response("Sorry, you have supplied an invalid key.", {
+    			status: 403,
+    		});
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * @param {문자} PRESHARED AUTH HEADER KEY   테크니컬 열쇠를 검사하는 주문 우두머리
+    * @param {문자} PRESHARED AUTH HEADER  밸브 하드 코딩 키 값*/
+    		const PRESHARED_AUTH_HEADER_KEY = "X-Custom-PSK";
+    		const PRESHARED_AUTH_HEADER_VALUE = "mypresharedkey";
+    		const psk = request.headers.get(PRESHARED_AUTH_HEADER_KEY);
+
+    		if (psk === PRESHARED_AUTH_HEADER_VALUE) {
+    			//정확한 preshared 헤더 키 공급. 원래의 Fetch 요청.
+    			return fetch(request);
+    		}
+
+    		//잘못된 키 공급. 요청을 거부합니다.
+    		return new Response("Sorry, you have supplied an invalid key.", {
+    			status: 403,
+    		});
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            PRESHARED_AUTH_HEADER_KEY = "X-Custom-PSK"
+            PRESHARED_AUTH_HEADER_VALUE = "mypresharedkey"
+
+            psk = request.headers[PRESHARED_AUTH_HEADER_KEY]
+
+            if psk == PRESHARED_AUTH_HEADER_VALUE:
+                #정확한 preshared 헤더 키 공급. 원래의 Fetch 요청.
+                return fetch(request)
+
+            #잘못된 키 공급. 요청을 거부합니다.
+            return Response("Sorry, you have supplied an invalid key.", status=403)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    const app = new Hono();
+
+    //인증 Midware 추가
+    app.use('*', async (c, next) => {
+      /** 이름
+    * 인증 일정 정의*/
+      const PRESHARED_AUTH_HEADER_KEY = "X-Custom-PSK";
+      const PRESHARED_AUTH_HEADER_VALUE = "mypresharedkey";
+
+      //요청 헤더에서 사전 공유 키를 가져옵니다.
+      const psk = c.req.header(PRESHARED_AUTH_HEADER_KEY);
+
+      if (psk === PRESHARED_AUTH_HEADER_VALUE) {
+        //정확한 preshared 헤더 키 공급. 다음 핸들러로 계속.
+        await next();
+      } else {
+        //잘못된 키 공급. 요청을 거부합니다.
+        return c.text("Sorry, you have supplied an invalid key.", 403);
+      }
+    });
+
+    //모든 인증된 요청을 전달하여 전달
+    app.all('*', async (c) => {
+      return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

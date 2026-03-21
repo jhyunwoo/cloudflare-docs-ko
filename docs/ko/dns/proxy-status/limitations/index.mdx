@@ -1,0 +1,55 @@
+---
+pcx_content_type: concept
+title: 프록시 제한 사항
+sidebar:
+  order: 2
+  label: 제한 사항
+---
+
+import { Render, GlossaryTooltip, Details } from "~/components";
+
+이 페이지는 <GlossaryTooltip term="proxy status">DNS 레코드를 프록시할 때</GlossaryTooltip> 예상되는 제한 사항을 설명합니다. 프록시에 대한 추가 정보는 [How Cloudflare works](/fundamentals/concepts/how-cloudflare-works/)를 참고하세요.
+
+## 프록시 가능 대상
+
+HTTP 또는 HTTPS 트래픽을 제공하는 A, AAAA, CNAME DNS 레코드만 프록시할 수 있습니다. 다른 레코드 유형은 프록시할 수 없습니다.
+
+프록시할 수 없는 [CNAME 레코드](/dns/manage-dns-records/reference/dns-record-types/#cname)를 만나게 되는 경우가 있는데, 보통 다른 CDN 제공업체와 관련되어 있습니다. 이 레코드의 프록시 버전을 만들면 연결 오류가 발생합니다. Cloudflare는 이러한 잘못된 구성을 막기 위해 해당 레코드의 프록시를 의도적으로 차단합니다.
+
+<Details header="프록시할 수 없는 대상">
+
+- 정확히 일치:
+	- `dkim2.mcsv.net` ([Mailchimp 문서](https://mailchimp.com/help/set-up-email-domain-authentication/))
+  - `dkim3.mcsv.net` ([Mailchimp 문서](https://mailchimp.com/help/set-up-email-domain-authentication/))
+  - `zmverify.zoho.com` ([Zoho 문서](https://www.zoho.com/mail/help/adminconsole/domain-verification.html))
+  - `dkim.infusionmail.com` ([Keap 문서](https://help.keap.com/help/dmarc))
+- 정확히 일치하거나 해당 서브도메인:
+	- `dkim.amazonses.com` ([Amazon SES 문서](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html#just-verify-domain-proc))
+- 해당 서브도메인:
+	- `onmicrosoft.com` ([Microsoft 문서](https://learn.microsoft.com/defender-office-365/email-authentication-dkim-configure))
+  - `dkim.intercom.io` ([Intercom 문서](https://www.intercom.com/help/articles/9744849-connect-your-email-support-channel))
+  - `acm-validations.aws` ([AWS certificate manager 문서](https://docs.aws.amazon.com/acm/latest/userguide/dns-validation.html))
+
+</Details>
+
+### Pre-signed DNSSEC
+
+Cloudflare를 [secondary DNS provider](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/)로 사용하고 [Secondary DNS Overrides](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/proxy-traffic/)를 이용해 레코드를 프록시 상태로 설정하는 경우, [Pre-signed DNSSEC](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/dnssec-for-secondary/)를 선택하면 Cloudflare가 해당 레코드를 DNS-only로 처리한다는 점에 유의하세요.
+
+## 포트 및 프로토콜
+
+[비표준 포트](/fundamentals/reference/network-ports/)에서의 HTTP/HTTPS 트래픽을 프록시하거나 TCP/UDP 기반 애플리케이션을 프록시하려면 [Cloudflare Spectrum](/spectrum/)을 사용하세요.
+
+## Pending 도메인
+
+<Render file="onboard-warning" product="dns" />
+
+즉, Zone이 활성화될 때까지 DNS 레코드(Cloudflare를 통한 [프록시 트래픽](#proxy-eligibility)으로 설정한 레코드 포함)는 모두 [DNS-only](/dns/proxy-status/#dns-only-records)로 동작하며, 해당 DNS 레코드에 대한 모든 요청은 오리진 서버의 IP 주소를 반환합니다.
+
+이 경고가 24시간이 지나도 계속 보인다면 [Troubleshooting](/dns/troubleshooting/)을 참고하세요.
+
+보안을 강화하려면 Zone이 활성화된 뒤 호스팅 제공업체에서 오리진 IP 주소를 교체할 것을 권장합니다. 이 조치는 온보딩 중 오리진 IP가 노출되는 것을 방지합니다.
+
+## Windows 인증
+
+Microsoft Integrated Windows Authentication, NTLM, Kerberos는 HTTP/1.1 규격을 위반하므로 프록시된 DNS 레코드와 호환되지 않습니다.

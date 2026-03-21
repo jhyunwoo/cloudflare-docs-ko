@@ -1,0 +1,181 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 시작하기 — Regional Services
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/data-localization/regional-services/get-started/
+translation_source_md: >-
+  https://developers.cloudflare.com/data-localization/regional-services/get-started/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, APIRequest, DashButton, Render } from "~/components";
+
+:::참조
+
+관심있는 고객은 계정 팀에 문의하여 DNS Regionalisation을 활성화해야합니다.
+
+:::
+
+대시보드 또는 API를 통해 지역 서비스를 사용할 수 있습니다.
+
+## 대시보드 지역의 서비스 구성
+
+지역 서비스를 사용하려면 먼저 대시보드에 DNS 레코드를 만듭니다.
+
+1. Cloudflare 대시보드에서**이름 \***&#xC0AC;이트 맵
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 이 단계를 따르십시오.[DNS 레코드 생성](/dns/manage-dns-records/how-to/create-dns-records/).
+
+3. 에 의&#xD574;**(주)**&#x64;ropdown, 당신은 당신의 도메인에 사용하려는 지역을 선택하십시오. 이 값은 동일한 호스트 이름의 모든 DNS 레코드에 적용됩니다. 이것은 같은 호스트 이름의 두 개의 DNS 레코드를 가지고 있고 그들 중 하나에 대한 지역을 변경하면 두 레코드는 동일한 지역을 가질 것입니다.
+
+:::참조
+
+일부 지역은 새로 발표 된 지구 때문에 드롭 다운에 나타나지 않을 수 있습니다.[블로그 게시물](https://blog.cloudflare.com/expanding-regional-services-configuration-flexibility-for-customers)Cloudflare의 내부 팀의 승인을 받아야 합니다. 더 많은 정보와 제목은 계정 팀에 도달합니다.
+
+:::
+
+테이블에 Refer[유효한 지역 및 제품 지원](/data-localization/region-support/)유효한 지역의 완전한 명부를 위해, 그들의 정의 및 제품 지원
+
+## API를 통한 지역 서비스 구성
+
+API를 통해 지역 서비스를 사용할 수 있습니다.
+
+현재 SuperAdmins 및 Admin 역할만 DLS 구성을 편집할 수 있습니다. Zone-level 사용**DNS: 읽기/쓰기**API 권한`/addressing/`지역 서비스 구성을 읽거나 쓰는 endpoint.
+
+API 요청의 예입니다.
+
+<Details header="모든 지역 목록">
+  <APIRequest path="/accounts/{account_id}/addressing/regional_hostnames/regions" method="GET" />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": [
+  		{
+  			"key": "ca",
+  			"label": "Canada"
+  		},
+  		{
+  			"key": "eu",
+  			"label": "Europe"
+  		}
+  	],
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Details header="새로운 지역 호스트 이름 항목 만들기">
+  <APIRequest
+    path="/zones/{zone_id}/addressing/regional_hostnames"
+    method="POST"
+    json={{
+  	hostname: "ca.regional.ipam.rocks",
+  	region_key: "ca",
+  }}
+  />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": {
+  		"hostname": "ca.regional.ipam.rocks",
+  		"region_key": "ca",
+  		"created_on": "2023-01-13T23:59:45.276558Z"
+  	},
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Details header="지역별로 모든 지역 별명을 나열하거나 특정 것을 얻을">
+  <APIRequest path="/zones/{zone_id}/addressing/regional_hostnames" method="GET" />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": [
+  		{
+  			"hostname": "ca.regional.ipam.rocks",
+  			"region_key": "ca",
+  			"created_on": "2023-01-14T00:47:57.060267Z"
+  		}
+  	],
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Details header="특정 영역에 대한 모든 지역 호스트 이름 목록">
+  <APIRequest path="/zones/{zone_id}/addressing/regional_hostnames/{hostname}" method="GET" />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": {
+  		"hostname": "ca.regional.ipam.rocks",
+  		"region_key": "ca",
+  		"created_on": "2023-01-13T23:59:45.276558Z"
+  	},
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Details header="특정 호스트 이름에 대한 지역을 패치">
+  <APIRequest
+    path="/zones/{zone_id}/addressing/regional_hostnames/{hostname}"
+    method="PATCH"
+    json={{
+  	region_key: "eu",
+  }}
+  />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": {
+  		"hostname": "ca.regional.ipam.rocks",
+  		"region_key": "eu",
+  		"created_on": "2023-01-13T23:59:45.276558Z"
+  	},
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Details header="지역 설정 삭제">
+  <APIRequest path="/zones/{zone_id}/addressing/regional_hostnames/{hostname}" method="DELETE" />
+
+  ```json title="Response"
+  {
+  	"success": true,
+  	"errors": [],
+  	"result": null,
+  	"messages": []
+  }
+  ```
+</Details>
+
+## Zero Trust 지역 맵 확인
+
+<Render file="verify-regional-map" product="data-localization" />
+
+## Terraform 지원
+
+Terraform을 사용하여 지역 서비스를 구성할 수 있습니다. 자세한 내용은 참조[`cloudflare_regional_hostname`주요사업](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/regional_hostname)Terraform 문서에서.

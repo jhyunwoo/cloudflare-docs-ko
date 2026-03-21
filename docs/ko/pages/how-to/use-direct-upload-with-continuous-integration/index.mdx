@@ -1,0 +1,205 @@
+---
+pcx_content_type: how-to
+title: 연속 통합과 Direct 업로드
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/how-to/use-direct-upload-with-continuous-integration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Cloudflare PagesXQ는 당신이 당신의 신청을 위한 주문 구조 단계를 이용하고 Pages에 배치하는 것을 허용하는 당신이 미리 건설한 자산을 직접 올려주기하는 것을 지원합니다[Wrangler](/workers/wrangler/install-and-update/). 이 가이드는 지속적인 통합을 사용하여 PagesXQ에 응용 프로그램을 배포하는 방법을 가르칩니다.
+
+## Wrangler로 배포
+
+프로젝트 디렉토리에서 설치[Wrangler](/workers/wrangler/install-and-update/)그래서 다음 명령을 실행하여 미리 만들어진 자산의 폴더를 배포할 수 있습니다.
+
+```sh
+#프로젝트
+$ CLOUDFLARE_ACCOUNT_ID=<ACCOUNT_ID> npx wrangler pages deploy <DIRECTORY> --project-name=<PROJECT_NAME>
+```
+
+## Cloudflare
+
+### API 토큰 생성
+
+API 토큰을 생성하려면:
+
+1. Cloudflare 대시보드에서, 가십시오**API 토큰**사이트 맵
+
+   <DashButton url="/?to=/:account/api-tokens" />
+2. 제품정보**토큰 만들기**.
+3. 이름 \***주문 토큰**, 선택**시작하기**.
+4. API 이름 토큰에**토큰 이름**이름 \*
+5. 이름 \***제출**, 선택*계좌정보*, *Cloudflare Pages*·*제품정보*:
+6. 제품정보**자주 묻는 질문** > **토큰 만들기**.
+
+![Cloudflare PagesXQ](~/assets/images/pages/how-to/select-api-token-for-pages.png)
+
+이제 API 토큰을 만들었으므로 지속적인 통합 플랫폼에서 프로젝트를 밀어넣을 수 있습니다.
+
+### 프로젝트 계정 ID
+
+계정 ID 찾기, 이동**지역 개요**Cloudflare 대시보드XQ의 페이지.
+
+<DashButton url="/?to=/:account/:zone/" />
+
+계정 ID 찾기**사이트맵**오른쪽 메뉴의 섹션.
+
+영역을 추가하지 않은 경우, 선택하여 하나를 추가**더 보기** > **도메인 연결**. 도메인을 구입하실 수 있습니다.[Cloudflare의 레지스트라](/registrar/).
+
+## GitHub 작업 사용
+
+[GitHub 작업](https://docs.github.com/en/actions)GitHub를 사용하여 빌드, 테스트, 배포 파이프라인을 자동화할 수 있는 지속적인 통합 및 지속적인 납품(CI/CD) 플랫폼입니다. 모든 풀 요청을 저장소에 구축하고 테스트 할 수있는 워크플로우를 만들거나 생산에 병합 된 풀 요청을 배치 할 수 있습니다.
+
+프로젝트를 설정한 후, GitHub Action을 설정하여 Wrangler로 후속 배포를 자동화할 수 있습니다.
+
+### 추가 Cloudflare 자격 증명 GitHub 비밀
+
+GitHub Action에서 설정된 환경 변수는 Cloudflare PagesXPagesXQ까지 프로젝트를 밀어야 합니다. 프로젝트의 GitHub 저장소에 이러한 환경 변수의 값을 추가하려면:
+
+1. GitHub의 프로젝트 저장소로 이동합니다.
+2. 저장소의 이름 아래, 선택**계정 설정**.
+3. 제품정보**계정 관리** > **관련 기사** > **새로운 저장소 비밀**.
+4. 한 비밀을 만들고 넣어**CLOUDFLARE   계정 ID**Cloudflare 계정 ID가 있는 값의 이름으로.
+5. 다른 비밀을 만들고 넣어**CLOUDFLARE API  토큰**Cloudflare API 토큰의 값이 있는 이름으로.
+
+Cloudflare 계정 ID 및 Cloudflare API 토큰의 값을 추가하십시오`CLOUDFLARE_ACCOUNT_ID`·`CLOUDFLARE_API_TOKEN`각각. 이것은 이러한 비밀이 안전하다는 것을 보증하고, 각 시간은 행동 실행, 이 비밀에 액세스 할 것입니다.
+
+### 워크플로우 설정
+
+이름 \*`.github/workflows/pages-deployment.yaml`프로젝트의 루트에 파일. 더 보기`.github/workflows/pages-deployment.yaml`파일이 요청을 지정하는 작업을 포함 할 것이다, 즉:`on: [push]`이 경우. 그것은 또한 잡아당기기 요구에 일 수 있습니다. GitHub Actions 구문에 대한 자세한 설명은 참조[공식 문서](https://docs.github.com/en/actions).
+
+내 계정`pages-deployment.yaml`파일, 다음 내용을 복사:
+
+```yaml
+on: [push]
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    name: Deploy to Cloudflare Pages
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      #프로젝트의 빌드 단계 실행
+      #- 이름: 구조
+      #실행: npm install && npm run build
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy YOUR_DIRECTORY_OF_STATIC_ASSETS --project-name=YOUR_PROJECT_NAME
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+```
+
+위 코드 블록에서 저장소에 코드를 밀어 때 실행되는 동작을 설정했습니다. 기타 제품`YOUR_PROJECT_NAME`Cloudflare Pages 프로젝트 이름과 함께`YOUR_DIRECTORY_OF_STATIC_ASSETS`프로젝트의 출력 디렉토리와 각각.
+
+더 보기`${{ secrets.GITHUB_TOKEN }}`GitHub Actions에서 자동으로 제공됩니다.`contents: read`·`deployments: write`이름 \* 이것은 우리의 Cloudflare Pages 활동을 활성화하여 대신 배포를 만들 수 있습니다.
+
+:::참조
+
+이 워크플로우는 현재 git 지점에서 자동으로 트리거합니다.`branch`옵션에`with`이름 \*
+
+:::
+
+## CI/CD용 CircleCI 사용
+
+[서클CI](https://circleci.com/)또 다른 연속 통합 및 지속적인 납품 (CI/CD) 플랫폼은 빌드, 테스트 및 배포 파이프라인을 자동화 할 수 있습니다. 캐싱, 도커 레이어 캐싱, 리소스 클래스와 복잡한 파이프라인을 효율적으로 실행할 수 있습니다.
+
+GitHub Action과 마찬가지로, CircleCI는 Wrangler를 사용하여 프로젝트를 지속적으로 배포할 수 있습니다.
+
+### CircleCI에 Cloudflare 자격 추가
+
+Cloudflare API 토큰을 생성한 후 대시보드에 계정 ID를 찾을 수 있습니다. 원CI 대시보드에 추가하면 프로젝트에서 환경 변수를 사용할 수 있습니다.
+
+환경 변수를 추가하려면 CircleCI 웹 응용 프로그램에서:
+
+1. Pages 프로젝트로 이동 >**계정 설정**.
+2. 제품정보**프로젝트**옆 메뉴에서.
+3. 프로젝트의 행에 ellipsis (...) 버튼을 선택합니다. 환경 변수를 추가하는 옵션을 볼 수 있습니다.
+4. 제품정보**환경 변수** > **환경 변수 추가**.
+5. Cloudflare 자격 증명 (새로운 환경 변수의 이름과 값을 입력)`CLOUDFLARE_ACCOUNT_ID`·`CLOUDFLARE_API_TOKEN`).
+
+![위의 지침을 따라 환경 변수를 CircleCI 설정에 추가하십시오.](~/assets/images/pages/how-to/project-settings-env-var-v2.png)
+
+### 워크플로우 설정
+
+이름 \*`.circleci/config.yml`프로젝트의 루트에 파일. 이 파일은 작업 흐름의 순서에 따라 실행될 작업이 포함되어 있습니다. 내 계정`config.yml`파일, 다음 내용을 복사:
+
+```yaml
+version: 2.1
+jobs:
+  Publish-to-Pages:
+    docker:
+      - image: cimg/node:18.7.0
+
+    steps:
+      - checkout
+      #프로젝트의 빌드 단계 실행
+      - run: npm install && npm run build
+      #wrangler와 함께 게시
+      - run: npx wrangler pages deploy dist --project-name=<PROJECT NAME> #빌드 폴더의 이름을 바꾸고 프로젝트 이름을 입력
+
+workflows:
+  Publish-to-Pages-workflow:
+    jobs:
+      - Publish-to-Pages
+```
+
+연속 통합 워크플로우는 CircleCI를 사용할 때 작업으로 끊어집니다. 위의 코드 블록에서, 당신은 먼저 각 커밋에서 실행하는 작업 목록을 정의 할 수 있습니다. 예를 들어, 저장소는 미리 만들어진 도커 이미지에서 실행됩니다.`cimg/node:18.7.0`. 먼저 이미지에 지정된 Node 버전과 저장소를 확인합니다.
+
+:::주\[주]
+
+Wrangler는 최소한의 노드 버전을 요구합니다`16.17.0`. 당신은 당신의 버전이 더 낮은 경우에 당신의 Node.js 버전을 격상해야 합니다`16.17.0`.
+
+:::
+
+Wrangler 명령을 수정할 수 있습니다.[`wrangler pages deploy`옵션 정보](/workers/wrangler/commands/#deploy-1).
+
+지정된 모든 단계 후, 정의`workflow`파일 끝에. CircleCI의 맞춤 프로세스를 만드는 방법에 대해 자세히 알아볼 수 있습니다.[공식 문서](https://circleci.com/docs/2.0/concepts/).
+
+## CI/CD를 위한 추적 CI
+
+Travis CI는 프로젝트 워크플로우에 대한 풀 요청 및 코드 푸시와 같은 특정 작업을 처리하는 오픈 소스 연속 통합 도구입니다. Travis CI는 GitHub 프로젝트, 데이터베이스 및 빌드 구성에서 사용 가능한 기타 사전 설치된 서비스로 통합될 수 있습니다. Travis CI를 사용하려면 GitHub, Bitbucket, GitLab 또는 Assembla 계정이 있어야 합니다.
+
+### TravisCI에 Cloudflare 자격 추가
+
+Travis 프로젝트에서 Cloudflare 자격 증명을 추가하여 Cloudflare QXQXQX대시보드에서 생성한 QXQXQXQ를 추가하여`travis.yml`파일. Travis CI 대시보드로 이동하여 현재 프로젝트를 선택하세요 >**더 많은 옵션** > **계정 설정** > **환경 변수**.
+
+환경 변수의 이름과 값을 설정하고 싶은 지점을 첨부합니다. 개인 정보 보호도 설정할 수 있습니다.
+
+### 설치하기
+
+오시는 길[사이트 맵](https://Travis-ci.com)귀하의 선호되는 공급자와 로그인하여 저장소를 활성화하십시오. 이 가이드는 GitHub를 사용합니다. 다음, 생성`.travis.yml`파일 및 파일로 다음을 복사:
+
+```yaml
+language: node_js
+node_js:
+  - "18.0.0" #CI 프로세스를 원하는 노드의 더 많은 버전을 지정할 수 있습니다.
+branches:
+  only:
+    - travis-ci-test #CI 프로세스를 원하는 지점을 지정하십시오.
+install:
+  - npm install
+
+script:
+  - npm run build #빌드 명령으로 이것을 전환하거나 빌드 단계가 없다면 제거하십시오.
+  - npx wrangler pages deploy dist --project-name=<PROJECT NAME>
+
+env:
+  - CLOUDFLARE_ACCOUNT_ID: { $CLOUDFLARE_ACCOUNT_ID }
+  - CLOUDFLARE_API_TOKEN: { $CLOUDFLARE_API_TOKEN }
+```
+
+이것은 Node.js 버전 18에 놓을 것입니다. 지속적인 통합을 원하는 지점도 설정했습니다. 마지막으로, 입력`PROJECT NAME`스크립트 섹션에서 CI 프로세스가 예상대로 작동해야 합니다.
+
+Wrangler 명령을 수정할 수도 있습니다.[`wrangler pages deploy`옵션 정보](/workers/wrangler/commands/#deploy-1).

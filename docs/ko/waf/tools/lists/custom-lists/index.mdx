@@ -1,0 +1,137 @@
+---
+pcx_content_type: concept
+title: 주문 목록
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/tools/lists/custom-lists/'
+translation_source_md: 'https://developers.cloudflare.com/waf/tools/lists/custom-lists/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components";
+
+사용자 정의 목록은 참고 자료가 공동으로, 이름, 규칙 표현에서 동일한 유형 (예를 들면, IP 주소, 호스트 이름, 또는 ASNs)의 하나 이상의 항목을 포함합니다.
+
+Cloudflare는 뒤에 오는 주문 명부 유형을 지원합니다:
+
+- [IP 주소 목록](#ip-lists)(또한 IP 목록으로 알려져)
+- [호스트 이름 목록](#lists-with-hostnames)
+- [ASNs 목록](#lists-with-asns) ([자율 시스템](https://www.cloudflare.com/learning/network-layer/what-is-an-autonomous-system/)번호)
+
+:::참조
+
+hostnames와 ASNs를 가진 명부는 기업 고객에게서만 유효합니다. 더 알아보기[적용분야](/waf/tools/lists/#availability)상세 정보
+주요 특징
+
+각 유형에는 자체 속성과 CSV 파일 형식이 있습니다. 자세한 내용은 다음 섹션을 참조하십시오.
+
+Cloudflare에 의해 관리되는 목록에 대한 자세한 내용은, 관리된 IP 명부와 같은 참조[관리 목록](/waf/tools/lists/managed-lists/).
+
+## 사용자 정의 목록 만들기
+
+더 알아보기[대시보드의 목록 만들기](/waf/tools/lists/create-dashboard/)또는 에[API 목록](/waf/tools/lists/lists-api/)사이트 맵
+
+## 사용자 지정 목록 사용
+
+규칙에서 사용자 정의 목록 사용[이름 \*](/ruleset-engine/rules-language/expressions/)이름 \*`in`연산자 및 사용자 정의 목록에 의해 지원되는 필드:
+
+```txt
+<FIELD> in $<LIST_NAME>
+```
+
+목록 항목 유형에 따라 다를 수 있는 필드:
+
+| 상품 유형 | 관련 제품                                                                             |
+| ----- | --------------------------------------------------------------------------------- |
+| IP 주소 | 유형의 필드`IP address`로그인[필드 참고 자료](/ruleset-engine/rules-language/fields/reference/) |
+| 이름 \* | `http.host`                                                                       |
+| 사이트맵  | `ip.src.asnum`                                                                    |
+
+더 많은 정보와 예를 들어, 참조[표현의 목록 사용](/waf/tools/lists/use-in-expressions/).
+
+***
+
+## 주문 목록 유형
+
+### IP 주소 목록 (IP 목록){/* ip-lists */}
+
+IP 주소로 사용자 정의 목록의 항목은 다음 형식 중 하나에 있어야합니다.
+
+- 개인 IPv4 주소
+- 개인 IPv6 주소
+- IPv4 CIDR 범위는 접두사에서`/8`으로`/32`
+- IPv6 CIDR 범위에서 접두사`/12`으로`/128`
+
+동일한 목록은 개별 주소와 CIDR 범위를 포함 할 수 있습니다.
+
+목록에서 IPv6 주소에 대 한 상부 또는 하부 문자를 사용할 수 있습니다. 그러나, 목록을 저장할 때, uppercase 문자는 Lowercase로 변환됩니다.
+
+<Details header="CSV 파일 형식">
+  CSV 파일을 통해 IP 주소로 사용자 지정 목록에 항목을 업로드하면 다음 파일 형식을 사용하십시오 (라인당 하나의 항목에):
+
+  ```txt
+  <IP_ADDRESS_1>,<DESCRIPTION>
+  <IP_ADDRESS_2>
+  ```
+
+  더 보기`<DESCRIPTION>`분야는 선택적입니다.
+</Details>
+
+### 호스트 이름 목록
+
+:::참조
+
+기업 고객에게 유효한.
+주요 특징
+
+hostnames를 가진 주문 목록에 있는 품목은 완전히 자격이 된 도메인 이름 (FQDNs)이어야 합니다. 상품은 포함될 수 있습니다`*`prefix/subdomain 와일드 카드, 다음해야`.`(기간). 항목은 포함 할 수 없습니다 (예를 들어,`https://`) 또는 URL 경로.
+
+예를 들어, 다음과 같은 항목은 호스트 이름과 사용자 정의 목록에 유효합니다.
+
+- `example.com`
+- `api.example.com`
+- `*.example.com`
+
+그러나,`example.com/path/subfolder`유효 입국이 되지 않습니다.
+
+유효한 hostname(FQDN)을 hostnames로 지정할 수 있습니다. hostnames는 현재 Cloudflare 계정에 속할 필요가 없습니다.
+
+<Details header="CSV 파일 형식">
+  CSV 파일을 통해 hostnames와 custom list에 항목을 업로드하면 다음 파일 형식을 사용하십시오.
+
+  ```txt
+  <HOSTNAME_1>,<DESCRIPTION>
+  <HOSTNAME_2>
+  ```
+
+  더 보기`<DESCRIPTION>`분야는 선택적입니다.
+</Details>
+
+### ASNs 목록
+
+:::참조
+
+기업 고객에게 유효한.
+주요 특징
+
+자율주행 시스템 번호(ASNs)를 가진 사용자 지정 목록 항목은 정수 값이어야 합니다.
+
+예를 들어, 다음과 같은 항목은 ASNs와 목록에서 유효합니다.
+
+- `1`
+- `13335`
+- `64512`
+
+<Details header="CSV 파일 형식">
+  CSV 파일을 통해 ASNs와 사용자 지정 목록에 항목을 업로드하면 다음 파일 형식을 사용하십시오.
+
+  ```txt
+  <ASN_1>,<DESCRIPTION>
+  <ASN_2>
+  ```
+
+  더 보기`<DESCRIPTION>`분야는 선택적입니다.
+</Details>

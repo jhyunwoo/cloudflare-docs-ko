@@ -1,0 +1,262 @@
+---
+title: 내용 납품 네트워크 (CDN) 참고 자료 회사연혁
+pcx_content_type: reference-architecture
+products:
+  - cache
+sidebar:
+  order: 1
+  label: 콘텐츠 전달 네트워크 (CDN)
+reviewed: 2022-12-02T00:00:00.000Z
+description: >-
+  이 참고 자료 건축술은 웹 신청, Cloudflare CDN가 이 도전 및 CDN 건축술 및 디자인을 해결하는 방법의 전통적인 도전 고객
+  얼굴을 토론합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/reference-architecture/architectures/cdn/'
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/architectures/cdn/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PublicStats } from "~/components";
+
+## 제품정보
+
+매일 인터넷 사용자들은 성능과 신뢰성의 혜택을 누릴 수 있습니다.[콘텐츠 배송 네트워크](https://www.cloudflare.com/learning/cdn/what-is-a-cdn/)(CDNs). CDN은 인터넷에 콘텐츠를 전달하는 주요 회사에 대한 대기 시간 및 요구 사항을 전투해야합니다. 고객에 대한 성능과 신뢰성을 제공하면서, CDN은 또한 기업들이 애플리케이션을 확보하고 비용을 삭감할 수 있도록 합니다. 이 문서는 웹 응용 프로그램과 함께 전통적인 도전 고객 얼굴에 대해 논의, Cloudflare CDN이 이러한 도전과 CDN 아키텍처와 디자인을 해결하는 방법.
+
+### 이 문서는 누구입니까?
+
+이 참고 자료 아키텍처는 조직의 기존 인프라와 함께 IT 또는 네트워크 전문가를 위해 설계되었습니다. 기술 및 개념에 대한 몇 가지 경험은 캐싱, DNS 및 방화벽을 포함한 콘텐츠 전달에 중요합니다.
+
+Cloudflare의 더 강한 기본 이해를 구축하려면 다음 리소스를 권장합니다.
+
+<Render file="what-is-cloudflare-link" product="reference-architecture" />
+
+- CDN이란? |[웹 사이트](https://www.cloudflare.com/learning/cdn/what-is-a-cdn/)(5 분 읽기)
+- 분석 보고서:[Cloudflare는 내용 납품 네트워크를 위한 2024 GigaOm 레이더에 있는 지도자를 지명했습니다](https://www.cloudflare.com/lp/gigaom-radar-cdn/)(20 분 읽기)
+
+이 참고 자료 건축술을 읽는 사람들은 배울 것입니다:
+
+- 어떻게 Cloudflare CDN는 크게 당신의 고객에게 내용의 납품을 개량할 수 있습니다
+- 어떤 캐스트 IP 라우팅은 신뢰할 수있는 CDN 성능을 보장하는 것이 중요합니다.
+- tiered 캐싱 옵션의 범위와 당신의 요구에 대한 하나를 선택하는 방법
+
+## 웹 애플리케이션 배포
+
+지난 몇 년 동안, 특히 COVID-19 전염병의 모험과 원격 작업에 초점, 인터넷 트래픽에 상당한 성장, 더 효율적으로 네트워크 트래픽을 관리 할 필요가 증가, 빠른 대기 시간, 및 성능 증가.
+
+클라우드 또는 온-프레미스의 응용 프로그램을 실행하는 회사는 다음과 같은 도전에 직면하고있다:
+
+1. 성능 향상을 위한 솔루션 구축
+2. 수요가 성장함에 따라 가용성과 중복 문제를 해결하기 위해 아키텍처를 확장
+3. 성장하는 인터넷 위협으로부터의 환경과 응용을 확보
+4. 위와 관련된 성장 비용 절감
+
+전 세계 고객에게 서비스를 제공하는 기업으로, 위의 과제는 중요한 과제가 필요합니다. 일반적으로 웹 사이트 / 응용 프로그램은 중앙으로 배치되고 가용성을위한 다른 지역으로 복제됩니다. 또는 웹 사이트 / 응용 프로그램은 서버의 수호를 통해 배포됩니다. 때로는 탄력성을위한 여러 데이터 센터를 통해.
+
+웹 사이트를 호스팅하는 서버는 Origin 서버라고합니다. 클라이언트가 웹 사이트에 액세스 할 때, 그들은 서버에서 리소스에 대한 요청을한다. 하나의 웹 사이트에 탐색은 HTML, CSS, 이미지, 비디오 등에 대한 브라우저에서 수백 가지 요청을 생성 할 수 있습니다. HTTP 이전의 HTTP 버전으로 HTTP / 2, 각 HTTP 요청은 새로운 TCP 연결을 요구합니다.
+
+HTTP / 2 및 HTTP / 3의 향상은 단일 TCP 연결을 통해 동일한 서버에 다중 요청을 허용하므로 서버 리소스를 절약 할 수 있습니다. 그러나, compute 및 네트워크 리소스는 여전히 서버가 이러한 요청에 응답으로 소비됩니다. 더 많은 클라이언트가 웹 사이트에 액세스 할 때 다음과 같은 결과가 발생할 수 있습니다.
+
+- Origin 서버는 요청, 가용성에 대한 과부하가되기 시작합니다. 회사는 추가 부하를 처리하기 위해 사기를 시작
+- 각 요청으로 인해 Origin 서버, 성능 및 사용자 경험에 대한 그것의 방법을 만들 수 있습니다.
+- 최종 사용자의 대기 시간은 클라이언트와 원래 서버 사이의 거리로 비례가됩니다. 따라서 클라이언트 위치에 따라 다양한 경험에서 결과. 이것은 특히 중국과 같은 국가 또는 그 나라의 교통으로 인해 대기 시간을 경험할 수있는 특정 국가에 대한 사실입니다.
+- Origin 서버는 증가된 요청, 대역폭, egress 및 compute 비용 증가로 응답합니다.
+- 트래픽에서 증가한 수요를 처리하기 위해 고객조차도 인프라 수준과 애플리케이션 수준 분산 denial-of-service (DDoS) 공격에 노출되어 있습니다.
+
+아래 그림 1에는 CDN이 없으며 미국에 앉아있는 기원 서버가 없습니다. 클라이언트가 웹 사이트에 액세스하면, 첫 번째 단계는 DNS 해상도이며, 일반적으로 사용자의 ISP에 의해 수행됩니다. 다음 단계는 HTTP 요청이 원래 서버로 직접 전송됩니다. 사용자 경험은 해당 위치에 따라 달라질 수 있습니다. 예를 들어, 미국 사용자를 위해 대기 시간이 훨씬 낮을 수 있습니다. Origin 서버가 있습니다. 미국 이외의 사용자를 위해 대기 시간이 증가하므로 더 높은 왕복 시간에 결과 (RTT).
+
+더 많은 클라이언트는 근원 서버에 요청을, 네트워크와 서버 증가에 짐, 자원과 대역폭 사용을 위한 더 높은 대기권 및 더 높은 비용 결과로.
+
+보안 관점에서 소스 서버는 인프라와 애플리케이션 레이어 모두에서 DDoS 공격에 취약합니다. DDoS 공격은 봇넷에서 원시 서버, 소모 자원에 대한 수백만의 요청을 전송하고 합법적 인 클라이언트로부터 방지 할 수 있습니다.
+
+또한, 탄력의 관점에서, 근원 서버가 일시적으로 오프라인으로 간다면, 모든 콘텐츠는 사용자에게 접근 할 수 있습니다.
+
+![Figure 1: CDN없이 DNS 및 Origin 서버 간의 HTTP 웹 요청 다이어그램.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure1.svg "Figure 1: HTTP Request with no CDN")
+
+## CDN tackles 웹 응용 프로그램 문제
+
+CDN은 지연, 성능, 가용성, 중복, 보안 및 비용을 중심으로 고객의 문제를 해결하는 데 도움이됩니다. CDN의 핵심 목표는 웹 사이트 및 응용 프로그램에 대한 대기 시간 감소 및 증가 성능이 최종 사용자 또는 해당 콘텐츠에 액세스 할 수 있기 때문에 닫힙니다.
+
+CDNs는 대기 시간이 감소하고 세계 각국의 많은 데이터 센터 위치를 확보하여 성능이 증가합니다. 이 목표는 사용자가 쉽게 닫히는 내용이 있기 때문에 컨텐츠는 CDN 공급자의 네트워크의 가장자리에서 캐시됩니다.
+
+### 제품정보
+
+- **향상된 웹 사이트로드 시간**: 각 클라이언트 대신 원시 서버에 요청을 작성하는 대신 상당한 거리에 위치 할 수 있으며, 요청은 캐시 된 콘텐츠로 응답하는 로컬 서버로 전환되므로 대기 시간을 줄이고 전반적인 성능을 증가시킵니다. 원래 서버와 클라이언트가 어디에 있는지에 관계없이 성능은 CDN이 가능한 경우 로컬로 캐시 된 콘텐츠를 제공합니다.
+
+- **콘텐츠 가용성 및 중복 증가:**&#xBAA8;든 클라이언트 요청이 더 이상 원래 서버로 전송 될 필요가 없기 때문에 CDN은 성능 혜택뿐만 아니라 가용성 및 중복을 제공합니다. 요청은 캐시 된 콘텐츠로 로컬 서버에서 균형을 잡습니다. 이 서버는 로컬 요청에 응답하고, 원래 서버에서 전반적인 부하를 크게 감소시킵니다. 원본 서버는 필요한 경우만 접촉됩니다 (내용이 캐시되지 않거나 동적 비 캐시가능한 내용에 대한).
+
+- **향상된 웹 사이트 보안 :**&#x43;DN은 역 프록시로 작동하며 원래 서버 앞에 앉아 있습니다. 따라서 DDoS 완화, 보안 인증서 개선 및 기타 최적화와 같은 향상된 보안을 제공 할 수 있습니다.
+
+- **대역폭 비용 절감:**&#x43;DN은 요청에 대응하기 위해 캐시 된 콘텐츠를 사용하므로, 원래 서버로 전송 된 요청 수는 감소되므로 관련 대역폭 비용을 줄일 수 있습니다.
+
+### CDN 노드에 대한 추적 요청
+
+일부 CDN 구현의 중요한 차이점은 해당 로컬 CDN 노드에 트래픽을 경로를하는 방법입니다. CDN 노드의 루팅 요청은 두 가지 다른 방법을 통해 수행 할 수 있습니다.
+
+**DNS unicast 여정**
+
+이 방법에서, recursive DNS 쿼리는 CDN 노드에 요청을 리디렉션; 클라이언트의 DNS 리디렉터는 CDN의 저자명서에 요청을 전달합니다. DNS unicast routing에 근거한 CDNs는 그 클라이언트가 DNS 결심자에서 지리적으로 분산될지도 모른다는 것을 이상하지 않습니다. Closest-proximity CDN 노드에 대한 결정은 클라이언트의 IP 주소 대신 클라이언트의 DNS 서버에 근거합니다. 또한 DNS 응답에 대한 변경 사항이 필요하면 DNS 시간에 의존성이 있습니다 (TTL) 만료.
+
+DNS 라우팅이 unicast 주소를 사용했기 때문에 트래픽은 특정 노드에 직접 접근되어 DDoS 공격으로 트래픽 스파이크가 있을 때 가능한 문제를 만들 수 있습니다.
+
+DNS 기반 CDN과의 또 다른 도전은 DNS가 실패시 매우 우아하지 않다는 것입니다. 일반적으로 새로운 세션 또는 응용 프로그램은 다른 IP 주소를 사용하여 DNS 해결자에게 시작해야합니다.
+
+**Anycast 여정**
+
+다음 섹션에서 더 자세히 논의되는 Cloudflare CDN은 anycast 룰렛을 사용합니다. Anycast는 같은 IP 주소를 가지고 네트워크에 노드를 허용합니다. 동일한 IP 주소는 다른 위치에 여러 노드에서 발표되며 클라이언트 리디렉션은 인터넷의 라우팅 프로토콜, BGP를 통해 처리됩니다.
+
+anycast 기반 CDN을 사용하여 몇 가지 이점이 있습니다.
+
+- 수신 트래픽은 요청을 효율적으로 처리 할 수있는 용량으로 가장 가까운 데이터 센터로 이동합니다.
+- 가용성과 중복은 inherently 제공됩니다. 여러 노드가 동일한 IP 주소를 가지고 있기 때문에, 노드가 실패한 경우, 요청은 가까운 근접에 있는 다른 노드로 전환됩니다.
+- Anycast는 여러 데이터 센터를 통해 트래픽을 배포하기 때문에 전체 표면 영역을 증가시켜서 요청으로 압도적인 한 위치를 방지합니다. 이런 이유로, anycast 네트워크는 DDoS 공격에 매우 의존합니다.
+
+## Cloudflare CDN 소개
+
+Cloudflare는 CDN을 위한 서비스 (SaaS) 모형으로 소프트웨어를 제공합니다. Cloudflare의 SaaS 모델로 고객은 Cloudflare CDN에서 어떤 인프라 또는 소프트웨어를 관리하거나 유지하지 않고 혜택을 누릴 수 있습니다.
+
+Cloudflare CDN의 이점은 이 단면도에 있는 세부사항 더에서 토론된 2개의 점에, 특성될 수 있습니다.
+
+1. CDNs는 사용자가 서버에서 콘텐츠를 캐싱하여 성능을 증가시킵니다.
+2. 독특한 Cloudflare 아키텍처 및 통합 생태계
+
+그림 2는 Cloudflare CDN의 단순화 된보기를 보여줍니다. 클라이언트는 Cloudflare의 글로벌 anycast 네트워크가 가까운 서버에서 응답을 수신하므로 대기 시간과 RTT를 크게 감소시킵니다. 도표는 클라이언트와 근원의 물리적 위치에 관계 없이 일관된 최종 사용자 경험을 묘사합니다.
+
+![Figure 2는 클라이언트와 Cloudflare의 글로벌 anycast 네트워크 간의 트래픽을 나타내는 다이어그램입니다.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure2.svg "Figure 2: HTTP request to Cloudflare CDN with anycast")
+
+## Cloudflare CDN 건축과 디자인
+
+그림 3은 Cloudflare CDN의 전망입니다. 네트워크 성능 및 탄력성에 대한 모든 캐스트를 사용 외에도 Cloudflare CDN은 고객을위한 비용을 절약하면서 최적화 된 결과를 제공합니다. 고객은 또한 할 수 있습니다[Argo Smart Routing을 활성화](/argo-smart-routing/get-started/)가장 빠른 네트워크 경로를 찾을 수 있습니다. 이 기능은 이 문서의 나머지 부분에서 설명됩니다.
+
+![그림 3 : WAF 및 DDoS 보호를 포함한 Cloudflare 제품에 의해 보호 된 최종 사용자로부터 오는 요청을 나타내는 다이어그램은 Smart Tiered Cache를 사용하여 원래 서버에 도달하기 위해 anycast 네트워크를 통해 여행합니다.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure3.svg "Figure 3: Cloudflare CDN with Tiered Cache on global anycast network")
+
+위의 다이어그램에서, Cloudflare CDN에 대해 이해하는 몇 가지 중요한 키 포인트가 있으며, 글로벌 anycast 네트워크는 다음과 같습니다.
+
+- 중요한 differentiator는 Cloudflare가 하나의 글로벌 네트워크를 활용하고 모든 Cloudflare 데이터 센터의 모든 서버에서 모든 서비스를 실행하는 것입니다. 따라서 최종 사용자는 Cloudflare의 서비스에 가장 가까운 근접한, 높은 규모, 탄력성 및 성능.
+- Cloudflare는 역 프록시이며 클라이언트에서 요청을 수신하고 고객의 기원 서버로 다시 요청을 프록시합니다. 따라서, 고객의 네트워크에 도달하기 전에 Cloudflare의 네트워크를 통해서 각 요구 traverses. Cloudflare는 가장자리 (ingress)에 그것의 인프라를 강하게 하고 보호해, 모든 고객은 또한 인프라 수준과 부피계 DDoS 공격에서 보호됩니다. 요청 및 트래픽은 고객의 기원 서버에 도달하기 전에 보호 된 Cloudflare 네트워크를 통해 이동해야합니다.
+- Cloudflare CDN은 Cloudflare 글로벌 anycast 네트워크를 활용합니다. 따라서 들어오는 요청은 노드가 사용자에게 가장 가까운 응답하는 것입니다.
+- Anycast의 불완전한 이점은 지연, 네트워크 탄력성, 더 높은 가용성, 및 법적인 교통 짐과 DDoS 공격을 흡수하기를 위한 더 큰 표면 지역 때문에 증가된 안전 감소됩니다. Cloudflare의 세계적인 anycast 네트워크 경간[전세계 수백 도시](https://www.cloudflare.com/network/), 제공하는 동안 50 밀리 초 이내에 세계 인터넷 연결 인구의 95 %에 도달<PublicStats id="total_bandwidth" />그리고 DDoS 보호 기능.
+- Cloudflare 네트워크 캐시 콘텐츠의 소스 서버에서 Edge 노드는 캐시된 복사를 통해 요청할 수 있습니다. Cloudflare는 또한 제공합니다[DNS 보호](/dns/), [DDoS 보호](/ddos-protection/), [모델 번호: WAF](/waf/), 그리고 다른 성과, 신뢰성 및 동일한 가장자리 건축술을 사용하여 안전 서비스.
+- [아르고](/argo-smart-routing/)Cloudflare 네트워크를 통해 최적화된 라우팅 및 캐싱 기술을 사용하여 사용자들에게 신속하게 대응하고 안정적으로 안전하게 전달합니다. Argo는 스마트 라우팅과[계층화된 캐시](/cache/how-to/tiered-cache/). Cloudflare는 Argo를 활용하여 향상된 CDN 솔루션을 제공합니다.
+
+### 계층화된 캐시
+
+사이트가 내장되면 표준 캐싱은 기본적으로 구성됩니다. 표준 캐싱으로 각 데이터 센터는 원래 서버의 직접 역 프록시 역할을합니다. ingress data center의 Origin 서버에 전송되는 요청의 모든 데이터 센터 결과에 캐시를 놓습니다.
+
+표준 캐싱이 작동하지만, 가장 최적의 디자인이 아닙니다. 클라이언트에 캐시 된 콘텐츠는 다른 Cloudflare 데이터 센터에 이미 존재 할 수 있으며, 원래 서버는 때때로 결과적으로 과부하되지 않습니다. 따라서, 모든 Cloudflare 계획에 포함되는 Tiered Cache를 활성화하는 것이 좋습니다. Tiered Cache로, 특정 데이터 센터는 다른 데이터 센터에 대한 원래 프록시를 반전하고, 더 많은 캐시와 빠른 응답 시간에 결과.
+
+Tiered Cache는 Cloudflare의 네트워크의 스케일을 활용하여 고객의 기원에 대한 요청을 최소화합니다. 요청이 Cloudflare 데이터 센터에 제공되면 요청된 내용이 로컬로 캐시되지 않은 경우, 다른 Cloudflare 데이터 센터는 캐시 된 내용에 대해 확인됩니다.
+
+Cloudflare 데이터 센터는 데이터 센터와 고객 기원 서버 간의 연결보다 짧은 거리와 더 빠른 경로가 있으며 캐시 히트 비율의 상당한 개선으로 클라이언트에 대한 응답을 최적화합니다. Cloudflare CDN은 Argo Smart Routing 데이터를 활용하여 Tiered Cache를 사용하기 위해 최고의 상위 계층 데이터 센터를 결정합니다. Argo Smart Routing은 데이터 센터와 캐시미어 및 동적 트래픽의 다른 유형에 대한 소스 서버 간의 빠른 경로를 제공하기 위해 애드온으로 활성화 할 수 있습니다.
+
+Cloudflare CDN은 고객이 계층 캐싱을 구성 할 수 있습니다. Cloudflare 계획에 따라 다른 화제가 Tiered Cache를 사용할 수 있습니다. 기본적으로, 계층화 캐싱은 비활성화되어 메인 메뉴의 캐싱 탭에서 활성화 할 수 있습니다.
+
+#### 계층화된 캐시 토폴로지
+
+다른 캐시 토폴더는 고객이 Cloudflare가 원래 서버와 상호 작용하는 방법을 제어하고 더 높은 캐시 히트 비율, 적은 기원 연결 및 감소 된 대기 시간을 보장하는 데 도움이됩니다.
+
+| **Smart Tiered Cache Topology (모든 계획)**                                 | **일반 글로벌 계층화 Topology (Enterprise only)**                                                    | **사용자 지정 계층 캐시 토폴로지 (Enterprise only)**                                                                 |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| 대부분의 배포에 대한 추천. Tiered Cache가 활성화되면 기본 구성입니다.                           | 전 세계 퍼지는 높은 트래픽을 가진 사람들을 위해 추천하고 가장 높은 캐시 사용과 최고의 성능을 원하는.                                   | 사용자 기반에 대한 추가 데이터가 있는 고객에 대해 권장하고 해당 지역의 특정 지리적 지역이 있습니다.                                               |
+| 성능에 대한 CDN을 활용하려는 고객은 Cloudflare 및 Origin 서버 간의 기본 서버 및 대역폭 활용을 최소화합니다. | 일반적인 Global Tiered Topology는 캐시 효율과 대기 시간 사이에 균형. Cloudflare는 갑상선으로 모든 Tier 1 데이터 센터를 사용합니다. | Custom Tiered Cache Topology는 고객이 특정 요구 사항에 맞는 맞춤형 토폴로지를 설정할 수 있습니다. (예 : 더 많은 고객이 제공하는 특정 지리적 위치에 상층). |
+| Cloudflare는 Argo 성과와 여정 자료를 사용하여 근원을 위한 단 하나 제일 위 층을 동적으로 찾아낼 것입니다.     |                                                                                              | 사용자 정의 topology를 구축하기 위해 계정 팀을 참여하십시오.                                                                  |
+
+### 교통 흐름: 계층화된 캐시, 스마트 Tiered 캐시 토폴로지
+
+그림 4에서 Tiered Caching은 Smart Tiered Cache Topology에서 활성화됩니다. 도표는 아래에 요약된 2개의 분리된 교통 교류를 묘사합니다. 첫 번째 트래픽 흐름 (클라이언트 1)은 데이터 센터 1에 오는 클라이언트에서 요청입니다. 두 번째 트래픽 흐름 (클라이언트 2)는 다른 데이터 센터, 데이터 센터 2.에 동일한 리소스에 대한 후속 요청입니다.
+
+![그림 4 : 그림 3과 같은 다이어그램은 end user와 Origin server 사이에 요청을 해독하고 Smart Tiered Cache가 활성화 한 트래픽 흐름을 나타내는 양방향 화살표가 있습니다.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure4.svg "Figure 4: HTTP requests and traffic flow through Cloudflare CDN")
+
+| 요청 1                                                                                                                                                                  | 요청 2                                                                                        |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| First 요청은 Data Center 1 결과 캐시 미트에서 수신되며, 요청은 이전에 어떤 클라이언트로 만들지 않았습니다.                                                                                                 | Data Center 3의 다른 클라이언트가 수신 한 두 번째 요청은 요청이 이전에 Data Center 3에 의해 제공되지 않았기 때문에 캐시 미트에서 3 결과. |
+| 검색 결과를 찾을 수 없음, 그래서 데이터 센터 1은 상단 계층 데이터 센터와 체크하여 내용을 복사합니다.                                                                                                           | 검색 결과를 찾을 수 없음, 그래서 데이터 센터 3 상단 계층 데이터 센터와 체크 내용을 요청하기 위해.                                  |
+| 위 계층 데이터 센터는 로컬로 캐시 된 콘텐츠를 가지고 있지 않습니다. 따라서 콘텐츠의 기원 서버에 대한 요청을합니다. 컨텐츠를 수신하면 위 계층 데이터 센터는 로컬로 캐시하고 더 낮은 계층 데이터 센터에 콘텐츠를 릴레이합니다. 더 낮은 계층 데이터 센터는 콘텐츠를 캐시하고 고객에게 응답합니다. | 위층 데이터 센터에 있는 예약된 내용. Data Center 3 검색 및 이 콘텐츠를 로컬로 캐시하고 클라이언트에 응답합니다.                      |
+
+그림 4에서, 최고 최종 사용자 트래픽 흐름은 클라이언트 요청이 클라이언트에 가까운 데이터 센터에 의해 수신 될 때 트래픽 흐름을 표시, 데이터 센터 1. ingress data center와 tiered caching에 로컬로 캐시가 없습니다. 요청은 위 계층 데이터 센터로 전송되어 컨텐츠의 사본을 캐시 할 수 있습니다. 위 층 데이터 센터는 또한 내용이 캐시되지 않기 때문에, 그것은 원래 서버에 요청을 보내, 응답에 수신 된 내용을 캐시하고 캐시 된 내용과 낮은 층 데이터 센터에 응답합니다. 더 낮은 계층 데이터 센터는 콘텐츠를 캐시하고 고객에게 응답합니다.
+
+동일한 내용에 대한 새로운 요청이 다른 데이터 센터 (바닥 최종 사용자 트래픽 흐름), 데이터 센터 3, 콘텐츠는 로컬로 캐시되지 않습니다; 그러나, 콘텐츠는 상단 계층 데이터 센터에서 재생됩니다, 그것은 같은 내용에 대한 첫 번째 요청에서 캐시 된.
+
+상위 계층 데이터 센터는 두 번째 요청에 대한 캐시 된 콘텐츠를 반환하고, 기원 서버로 여행은 더 높은 캐시 히트 비율, 빠른 응답 시간, Cloudflare 네트워크와 기원 서버 사이에 저장된 대역폭 비용을 방지하고, 요청에 응답하는 원래 서버에서 부하를 감소시킵니다.
+
+### 지역 계층 캐시
+
+Smart Tiered Cache와 Global tiered cache의 주요 차이점은 원래 서버와 대화 할 수있는 상위 계층의 수입니다. Smart Tiered Cache를 사용하여 가장 가까운 위층은 Argo 성능과 라우팅 데이터를 사용하여 선택됩니다. 이것은 캐시를 경험하는 모든 요청을 의미합니다.`MISS`더 낮은 층은 이 단 하나 위 층을 통해서 funnel이고 캐시의 더 높은 비율 기회가 있습니다`HIT`Origin 서버에 트래픽을 전송하는 것을 방지하기 위해. 그러나, 이 건축 옆에는 더 낮은 층은 위 층에서 지구의 맞은편에 있을 수 있다는 것입니다. 위 층은 캐시에서 요청을 수행 할 수 있지만, 위 층과 낮은 층 사이의 거리는 여전히 거리 여행에 따라 응답에 대기 시간을 추가 할 수 있습니다. 요약하려면 Smart Tiered Cache는 캐시를 증가시키는 단일 상층 캐시 위치를 통해 캐시 흐름에 대한 모든 요청을 보장합니다.`HIT`퍼센트, 그리고 원래 서버에 요청을 감소, 그러나 그것은 요청을 시작 낮은 계층에서 멀리 위치 할 수 있기 때문에 더 높은 점수를 충족 할 수 있습니다.
+
+Generic Global Tiered Cache와 함께 Cloudflare는 일반적으로 상위 계층 캐시로 전 세계에서 가장 큰 데이터 센터를 사용하며, 위 계층 캐시가 더 낮은 계층 캐시에 훨씬 가깝습니다. 이것은 더 낮은 층이 위 층에 요청을 전달할 필요가 있을 때 다량 지연 시간을 감소시킬 수 있습니다. 그러나, 이것은 궁극적으로 각 상층 캐시가 기원에서 포용해야합니다. 정상화하기 위하여, 일반적인 Global Tiered 캐시는 캐시가 대중화될 때 응답 시간을 개량할 수 있고, 또한 근원 서버에 짐을 증가할 것입니다.
+
+Regional Tiered Cache는 아키텍처에 캐시의 추가 레이어를 추가하여 이러한 전략의 최고를 결합합니다. Smart Tiered Caching과 지역 계층 캐시 옵션을 사용하여 단일 계층 캐시 위치가 기원에 가장 가까운 반면 지역 계층 레이어는 하위 계층에 지리적으로 더 낮은 계층 사이에 추가되었습니다. 이제 더 낮은 계층의 요청은 이제 상단 계층으로 전송되기 전에 캐시의 지역 계층을 확인합니다. 단일 지역 계층은 여러 낮은 계층 캐시에서 요청을 허용 할 수 있으며 그 때문에, 크게 글로벌 사용 가능한 응용 프로그램에 대한 성능과 대기 시간을 향상시킬 수 있습니다.
+
+Regional Tiered Caching는 Smart Tiered Caching 및 Custom Tiered Caching과 함께 사용하기 위해 권장됩니다. 그러나 Regional Tiered Cache는 Generic Global Tiered Cache와 같은 많은 지역에서 많은 상위 계층을 고객에게 유리하지 않습니다.
+
+#### 교통 흐름: 계층화된 캐시, 지역 계층화된 캐시를 가진 똑똑한 계층화된 캐시
+
+Figure 5에서 Tiered Caching은 Smart Tiered Cache Topology에서 활성화됩니다. 다이어그램은 지역 Tiered Cache를 사용하여 Smart Tiered Cache의 topology를 묘사합니다. 더 낮은 층 캐시, 그들은 캐시를 경험할 때`MISS`먼저 요청을 더 로컬, 지역 허브 데이터 센터에 보내서 캐시가 요청을 처리 할 수 있는지 확인합니다. 그렇지 않은 경우, 요청은 상단 계층에 계속됩니다. 그리고 그 후 원래 서버, 필요한 경우.
+
+![Figure 5: Diagram는 최종 사용자와 원래 서버 사이에 요청을 설명하고, 지역 및 상위 계층 캐싱 활성화.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure5.svg "Figure 5: Cloudflare CDN with Tiered Cache and Regional Tiered Cache")
+
+### Argo 스마트 여정
+
+Argo Smart Routing은 Cloudflare 네트워크를 통해 최적화된 루트를 찾아 사용자가 더 빠르게 응답할 수 있는 서비스입니다. 이전에 논의 된 Cloudflare CDN은 Argo Smart Routing을 활용하여 Tiered Cache의 최고 계층 데이터 센터를 결정합니다.
+
+또한 Argo Smart Routing은 Cloudflare 네트워크를 통해 가장 빠른 경로가 상층 데이터 센터와 기원 서버 사이에 가져갈 수 있습니다. Argo Smart Routing없이, 상위 계층 데이터 센터 간의 통신은 여전히 인터넷의 문제 주위에 지능적으로 소스의 가용성을 보장합니다.
+
+Argo Smart Routing는 초당 거의 50 백만 HTTP 요청을 라우팅에서 실시간 데이터 및 네트워크 인텔리전스를 고려하여 트래픽을 가속화합니다. 그것은 가장 빠르고 신뢰할 수있는 네트워크 경로가 Cloudflare 네트워크에서 원래 서버로 추적됩니다. 평균적으로 Argo Smart Routing 계정은 웹 자산의 30 % 빠른 성능입니다.
+
+#### 교통 흐름: 계층화된 캐시, Argo Smart Routing을 가진 똑똑한 Tiered Cache Topology
+
+Figure 6 Tiered Cache와 Argo Smart Routing이 활성화되지 않을 때 트래픽 흐름을 세부 사항. 요청은 가장 가까운 데이터 센터로 제공되며, 컨텐츠는 로컬로 캐시되지 않고 계층화된 캐시가 활성화되지 않기 때문에, 요청은 콘텐츠의 기원 서버로 직접 전송됩니다. Argo Smart Routing이 활성화되지 않았기 때문에 신뢰할 수 있지만, 아마도 가장 빠르고, 경로는 원래 서버와 통신 할 때 촬영됩니다.
+
+![그림 6: Argo Smart Routing 활성화 없이 최종 사용자와 Origin 서버 간의 요청을 나타내는 양방향 화살표를 가진 다이어그램.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure6.svg "Figure 6: Cloudflare CDN without Tiered Cache or Argo Smart Routing")
+
+Figure 7는 Tiered Cache와 Argo Smart Routing을 통해 트래픽 흐름을 강조합니다. 요청이 Data Center 1에 의해 수신되면, 캐시가 놓습니다, 위 계층 데이터 센터의 캐시, 데이터 센터 6, 검사됩니다. 캐시된 내용이 위 계층 데이터 센터에서 발견되지 않은 경우 Argo Smart Routing가 활성화된 경우, 요청은 위 계층 데이터 센터의 가장 빠른 경로에 전달됩니다.
+
+가장 빠른 경로는 Argo 네트워크 인텔리전스 기능에 의해 결정되며 congestion, latency 및 RTT와 같은 실시간 네트워크 데이터로 이동합니다.
+
+**Cloudflare CDN로, Argo 똑똑한 여정은 때 사용됩니다:**
+
+1. 캐시미트가 있고, 요청은 원본 서버에 전송되어야 합니다.
+2. 동적 콘텐츠 (예: APIs)와 같은 non-cacheable 콘텐츠에 대한 요청이 있으며, 요청은 원래 서버로 이동합니다.
+
+![Figure 7: Argo Smart Routing을 사용하여 최종 사용자와 Origin 서버 간의 요청을 나타내는 양방향 화살표로 다이어그램.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure7.svg "Figure 7: Cloudflare CDN with Tiered Cache and Argo Smart Routing")
+
+### Cache 예약
+
+Tiered Cache의 아이디어에 확장, 캐시 추가 R2, Cloudflare의 지속적 객체 저장을 캐시하는 동안 Cloudflare 네트워크의 규모와 속도를 활용, 더 이상 캐시 콘텐츠를 캐시. Cache Reserve는 고객이 원산지에서 승인 수수료를 제거하여 청구서를 줄이고, 여러 레이어의 탄력성과 보호를 제공하여 콘텐츠가 빠르게 콘텐츠로드를 통해 웹 사이트 성능을 향상시킬 수 있는지 확인합니다. 기본적으로 Cache Reserve는 더 긴 보존 기간을 가진 캐시의 추가적인 더 높은 층입니다.
+
+Cache Reserve는 Tiered Cache를 활성화하지 않아도 작동할 수 있지만, Cache Reserve와 함께 Tiered Cache를 활성화하는 것이 좋습니다. Tiered Cache는 Cache Reserve로 가는 요청을 집약하고 경우에 따라 제거하여, 중복 읽기 작업과 캐시 콘텐츠의 중복 저장을 없애 egress 및 저장 비용을 줄여 줍니다. Cloudflare 대시보드에서 Cache Reserve를 활성화할 때 Tiered Cache가 활성화되지 않은 상태라면 경고가 표시됩니다.
+
+캐시 보전은 캐시 헤더 또는 TTL 정책에 관계없이 30 일 동안 캐시 된 콘텐츠를 보관하는 것을 의미 30 일의 보존 기간이 있습니다. TTL 정책은 여전히 콘텐츠 캐시 TTL이 캐시 예약 내부 만료 될 때 의미하는 내용의 신선도에 영향을 미칩니다. 내용은 업데이트의 기원을 확인하여 다시 유효하게 될 것입니다. TTL 정책은 Cache-Control, CDN-Cache-Control 응답 헤더, Edge Cache TTL, 캐시 TTL, 상태 코드 또는 캐시 규칙과 같은 모든 방법에 의해 설정할 수 있습니다. 모든 시간 캐시는 캐시 보전에서 읽습니다, 보유 타이머는 30 일로 다시 놓입니다. 30 일 후, 캐시 된 내용이 캐시 예약에서 읽지 않은 경우 캐시가 삭제됩니다.
+
+Cache Reserve을 통해 캐시 할 수있는 콘텐츠에 대한 일치에 세 가지 주요 기준이 있습니다 :
+
+1. 내용이 캐시되어야 합니다. 이름 \*[Cache 문서](/cache/)cacheable 내용에 대한 자세한 내용은.
+2. TTL는 적어도 10 시간 놓입니다. 이전 단락에서 어떤 방법으로 설정할 수 있습니다.
+3. Content-Length 헤더는 응답 헤더에 사용되어야 합니다. 주의하십시오. 이것은 \[Transfer-Method "chunked"가 대중화 된 캐시 예약을 방지한다는 것을 의미합니다.
+
+Tiered Caching 및 Argo Smart Routing과 결합하면 Cache Reserve는 캐시를 증가시키는 강력한 도구가 될 수 있으며 원래 서버에서 부하를 줄이면서 최종 사용자에 대한 콘텐츠를 더 가까이 가져올 수 있습니다.
+
+:::참조
+
+사용 방법[이미지 Resizing](/images/transform-images/)Cache Reserve는 Cache Reserve에서 저장되는 이미지가 Cache Reserve에서 저장되지 않습니다. 크기의 이미지는 재조합 후에 제공될 때 다른 유효한 층에서 캐시될 것입니다.
+
+:::
+
+### 교통 흐름: 캐시 예약 topology
+
+Figure 8는 Cache Reserve가 원래 서버에서 로드를 줄일 수 있도록 돕는 방법을 설명합니다.
+
+![Figure 8: 최종 사용자와 Cache를 보여주는 Origin 서버와 Cloudflare CDN 솔루션의 아키텍처에서 최종 단계.](~/assets/images/reference-architecture/cdn-reference-architecture-images/ref-arch-cdn-figure8.svg "Figure 8: Cloudflare CDN with Tiered Cache and Cache Reserve")
+
+### 중국 네트워크 및 글로벌 가속 중국
+
+지연 시간은 클라이언트가 원래 또는 캐시에서 얼마나 떨어져 있는지에 달려 있지만 중국과 같은 트래픽의 지리적 영역에서 크게 영향을 미칠 수 있습니다. 이러한 지연 도전을 해결하려면 Cloudflare는 두 가지 주요 솔루션을 제공합니다.
+
+1. [중국 네트워크](/china-network/)중국에있는 최종 사용자를위한 중국 캐싱 제공, 원산지 위치와 상관없이. 이 솔루션은 JD Cloud와 협업하여 데이터 센터를 사용하여 중국 이외의 데이터 센터에 비해 빠르고 신뢰할 수있는 캐시 성능을 보장합니다.
+2. [글로벌 가속](/china-network/concepts/global-acceleration/)중국에서 JD 클라우드 데이터 센터에 소스에서 콘텐츠를 스트리밍하는 신뢰할 수 있고 안전한 연결을 제공합니다. 이것은 웹 애플리케이션 및 API 호출과 같은 동적 콘텐츠에 특히 유용합니다.
+
+## 제품정보
+
+요약하려면 Cloudflare CDN은 대기 시간, 성능, 가용성, 중복, 보안 및 비용을 중심으로 고객의 문제를 해결하는 SaaS입니다. Cloudflare CDN은 Cloudflare의 글로벌 anycast 네트워크와 Tiered Cache를 활용하여 고객에게 최적화된 결과를 제공합니다. 고객은 Argo Smart(스마트)\[argo-smart-routing/get-started/]도 가능합니다. 가장 빠른 네트워크 경로를 보장하기 위해 Routing는 원래 서버로 요청을 경로에 사용되며 또한 Cache Reserve를 사용하여 캐시를 더 절감하고 웹 사이트 또는 응용 프로그램의 성능을 증가시킵니다.

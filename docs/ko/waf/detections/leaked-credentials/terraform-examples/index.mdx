@@ -1,0 +1,65 @@
+---
+title: Terraform 구성 예제
+pcx_content_type: configuration
+sidebar:
+  order: 4
+  label: Terraform 예제
+head:
+  - tag: title
+    content: Terraform 구성 예제 | 누출 식별 검출
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/leaked-credentials/terraform-examples/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/leaked-credentials/terraform-examples/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+다음과 같은 Terraform 구성 예제는 관리, 구성 및 누출 된 credentials 감지를 사용하는 일반적인 시나리오를 사용합니다.
+
+더 많은 정보를 원하시면, 참조[Terraform Cloudflare 공급자 문서](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs).
+
+Cloudflare API를 사용하는 경우, 참조[Common API 호출](/waf/detections/leaked-credentials/api-calls/).
+
+## Enable leaked credentials 탐지
+
+<Render file="detections/leaked-credentials-enable-terraform" product="waf" />
+
+## 사용자 정의 감지 위치 구성
+
+<Render file="detections/leaked-credentials-configure-location-terraform" product="waf" />
+
+사용자 정의 검색 위치에 있는 사용자의 표현만 제공해야 합니다.
+
+## 누출 된 자격 증명을 사용하여 요청을 도전하는 사용자 정의 규칙을 추가하십시오.
+
+이 예제는 추가[주문 규칙](/waf/custom-rules/)그 도전 과제가 해결된 자격 증명을 사용하여[유출된 자격 분야](/waf/detections/leaked-credentials/#leaked-credentials-fields)규칙 표현에서.
+
+이용하기[`cf.waf.credential_check.username_and_password_leaked`](/ruleset-engine/rules-language/fields/reference/cf.waf.credential_check.username_and_password_leaked/)당신은 있어야[누출 검출 가능](#enable-leaked-credentials-detection).
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "zone_custom_firewall_leaked_creds" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Phase entry point ruleset for custom rules in my zone"
+  description = ""
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    ref         = "challenge_leaked_username_password"
+    description = "Challenge requests with a leaked username and password"
+    expression  = "(cf.waf.credential_check.username_and_password_leaked)"
+    action      = "managed_challenge"
+  }
+}
+```
+
+## 더 많은 리소스
+
+추가 Terraform 구성 예제의 경우, 참조[WAF Terraform을 사용하여 사용자 정의 규칙 구성](/terraform/additional-configurations/waf-custom-rules/).

@@ -1,0 +1,59 @@
+---
+pcx_content_type: concept
+
+title: Sequence Analytics
+sidebar:
+  order: 3
+
+---
+
+import { GlossaryTooltip } from "~/components"
+
+Sequence Analytics는 시간에 따른 API 엔드포인트 요청 순서를 추적하여 사용자가 API와 어떻게 상호작용하는지 발견할 수 있게 해 줍니다. Sequence Analytics는 API 전반에서 중요한 사용자 여정(시퀀스)을 그룹화하고 강조 표시합니다. [Sequence mitigation](/api-shield/security/sequence-mitigation/)을 사용하면 선호하는 시퀀스를 강제할 수 있습니다.
+
+## 프로세스
+
+### Sequence building
+
+시퀀스는 특정 방문자가 웹사이트를 탐색하거나, 모바일 앱을 사용하거나, API를 통해 B2B 파트너와 상호작용할 때 수행한 HTTP API 요청의 시간 순서 목록입니다.
+
+예를 들어 은행 자금 이체 도중 생성되는 시퀀스의 일부는 다음과 같을 수 있습니다.
+
+| Order | Method | Path | Description |
+| ----- | ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | `GET`  | `/api/v1/users/{user_id}/accounts`      | `user_id`는 활성 사용자입니다. |
+| 2     | `GET`  | `/api/v1/accounts/{account_id}/balance` | `account_id`는 사용자의 계정 중 하나입니다. |
+| 3     | `GET`  | `/api/v1/accounts/{account_id}/balance` | `account_id`는 사용자에게 속한 다른 계정입니다. |
+| 4     | `POST` | `/api/v1/transferFunds`                 | 이 요청에는 자금을 출금할 계좌, 입금할 계좌, 이체 금액을 설명하는 요청 본문이 포함됩니다. |
+
+API Shield는 구성한 <GlossaryTooltip term="session identifier">session identifier</GlossaryTooltip>와 저장된 엔드포인트를 사용하여, 세션별로 요청된 순서 있는 API 작업(HTTP host, method, path) 집합을 만듭니다. API Shield가 시퀀스에 부여한 점수에 따라 다양한 길이의 시퀀스를 보여 줄 수 있습니다.
+
+### Sequence scoring
+
+API Shield는 precedence score라는 메트릭으로 시퀀스를 평가합니다. Sequence Analytics는 precedence score가 높은 순서대로 시퀀스를 표시합니다. 점수가 높은 시퀀스는 순서대로 함께 발생할 가능성이 큰 API 요청을 포함합니다.
+
+위 예시에서 높은 점수는 시퀀스의 마지막 작업인 `POST /api/v1/transferFunds`가, 그 이전에 `GET /api/v1/users/{user_id}/accounts`, 이어서 `GET /api/v1/accounts/{account_id}/balance`가 발생했을 가능성이 매우 높다는 뜻입니다. 점수는 확률이며, API Shield는 최근 24시간의 데이터를 사용해 이를 추정합니다.
+
+### API 보호하기
+
+API를 선제적으로 보호하려면 가장 높은 점수를 가진 시퀀스를 검사해야 합니다. 각 고득점 시퀀스에 대해, 개발 팀과 함께 시퀀스의 마지막 작업이 반드시 앞선 다른 작업들에 의해 선행되어야 하는지 확인해야 합니다.
+
+위 예시에서 `POST /api/v1/transferFunds`가 실제로 항상 `GET /api/v1/users/{user_id}/accounts`와 `GET /api/v1/accounts/{account_id}/balance?` 뒤에만 와야 한다면, 시퀀스의 마지막 작업에 대해 sequence mitigation에서 **Allow** 규칙을 만들어야 합니다.
+
+또한 이러한 엔드포인트에 다른 API Shield 보호 기능([rate limiting suggestions](/api-shield/security/volumetric-abuse-detection/), [Schema validation](/api-shield/security/schema-validation/), [JWT validation](/api-shield/security/jwt-validation/), [mTLS](/api-shield/security/mtls/))을 적용하는 것도 고려해야 합니다.
+
+자세한 내용은 [블로그 글](https://blog.cloudflare.com/api-sequence-analytics)를 참고하세요.
+
+### 반복되는 시퀀스
+
+실제 API 사용에서는 연속해서 반복되는 작업이 많이 나타납니다. 탐색을 쉽게 하기 위해 Sequence Analytics는 연속해서 반복되는 작업을 하나로 합칩니다.
+
+## 제공 대상
+
+Sequence Analytics는 모든 API Shield 고객이 사용할 수 있습니다. API Shield를 구매하지 않은 Pro, Business, Enterprise 고객은 Cloudflare dashboard에서 [API Shield trial을 활성화](https://dash.cloudflare.com/?to=/:account/:zone/security/api-shield)하거나 계정 관리자에게 문의해 시작할 수 있습니다.
+
+## 제한 사항
+
+Sequence Analytics는 현재 API 소비자가 만든 시퀀스를 빌드하고 추적하기 위해 session identifier와 저장된 엔드포인트가 필요합니다. 반드시 [session identifier(s)를 설정](/api-shield/get-started/#session-identifiers)하고 [엔드포인트를 저장](/api-shield/management-and-monitoring/endpoint-management/)했는지 확인하세요.
+
+시퀀스 길이는 현재 최대 9개 작업으로 제한됩니다.

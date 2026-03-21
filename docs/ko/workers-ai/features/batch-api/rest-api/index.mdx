@@ -1,0 +1,97 @@
+---
+pcx_content_type: how-to
+title: REST API를
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/features/batch-api/rest-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/batch-api/rest-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+대신 REST API와 직접 작동하려면[모델 번호: Cloudflare 작업자](/workers-ai/features/batch-api/workers-binding/), 아래는 그것을 수행하는 방법에 대한 단계입니다:
+
+## 1. 배치 요청 보내기
+
+다음 패턴을 사용하여 POST 요청을 만드십시오. 당신은 통행 할 수 있습니다`external_reference`응답에 반환되는 유일한 ID per-prompt로.
+
+```bash title="Sending a batch request" {11,15,19}
+curl "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/run/@cf/baai/bge-m3?queueRequest=true" \
+ --header "Authorization: Bearer $API_TOKEN" \
+ --header 'Content-Type: application/json' \
+ --json '{
+    "requests": [
+        {
+            "query": "This is a story about Cloudflare",
+            "contexts": [
+                {
+                    "text": "This is a story about an orange cloud",
+                    "external_reference": "story1"
+                },
+                {
+                    "text": "This is a story about a llama",
+                    "external_reference": "story2"
+                },
+                {
+                    "text": "This is a story about a hugging emoji",
+                    "external_reference": "story3"
+                }
+            ]
+        }
+    ]
+  }'
+```
+
+```json output {4}
+{
+	"result": {
+		"status": "queued",
+		"request_id": "768f15b7-4fd6-4498-906e-ad94ffc7f8d2",
+		"model": "@cf/baai/bge-m3"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 2. 배치 응답을 검색
+
+수신 후`request_id`초기 POST에서 다른 POST 요청으로 결과를 조사하거나 검색할 수 있습니다.
+
+```bash title="Retrieving a response"
+curl "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/ai/run/@cf/baai/bge-m3?queueRequest=true" \
+ --header "Authorization: Bearer $API_TOKEN" \
+ --header 'Content-Type: application/json' \
+ --json '{
+    "request_id": "<uuid>"
+  }'
+```
+
+```json output
+{
+	"result": {
+		"responses": [
+			{
+				"id": 0,
+				"result": {
+					"response": [
+						{ "id": 0, "score": 0.73974609375 },
+						{ "id": 1, "score": 0.642578125 },
+						{ "id": 2, "score": 0.6220703125 }
+					]
+				},
+				"success": true,
+				"external_reference": null
+			}
+		],
+		"usage": { "prompt_tokens": 12, "completion_tokens": 0, "total_tokens": 12 }
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```

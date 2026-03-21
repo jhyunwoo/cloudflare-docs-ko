@@ -1,0 +1,149 @@
+---
+reviewed: 2024-04-01T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: HuggingFace에서 AutoTrain를 가진 정밀한 Tune 모형
+tags:
+  - AI
+  - LLM
+description: Workers AI에 LoRA 어댑터가있는 미세 조정 AI 모델은 LLM 미세 조정과 같은 맞춤형 교육 데이터를 추가 할 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/fine-tune-models-with-autotrain/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/fine-tune-models-with-autotrain/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Fine tuning an AI model gives you the opportunity to add 추가 교육 데이터 모델. Workers AI는을 위해 허용합니다[저랭크 적응, LoRA, 어댑터](/workers-ai/features/fine-tunes/loras/)그것은 당신이 우리의 모델을 미세하게 할 수 있습니다.
+
+이 튜토리얼에서 우리는 우리의 자신의 LoRA를 만드는 방법을 탐구합니다. 우리는에 집중할 것입니다[사이트맵 AutoTrain를 사용하는 Finetuning](https://huggingface.co/docs/autotrain/llm_finetuning).
+
+## 1. 교육 데이터로 CSV 파일을 만듭니다.
+
+CSV, Comma 별도의 값, 파일을 생성하여 시작하십시오. 이 파일은 하나의 열이 있습니다.`text`. 제목을 추가하여 헤더를 설정`text`자체로 선에.
+
+이제 모델에 추가하려는 것을 알아야합니다.
+
+예제 형식은 다음과 같습니다 :
+
+```text
+### Human: What is the meaning of life? ### Assistant: 42.
+```
+
+훈련 행이 newlines를 포함 하는 경우, 견적으로 포장 해야 합니다.
+
+```text
+"human: What is the meaning of life? \n bot: 42."
+```
+
+Mistral와 같은 다른 모형은, 특정한을 제공할 것입니다[채팅 템플릿/instruction 형식](https://huggingface.co/mistralai/Mistral-7B-Instruct-v0.1#instruction-format)
+
+```text
+<s>[INST] What is the meaning of life? [/INST] 42</s>
+```
+
+## 2. HuggingFace Autotrain 고급 노트북 구성
+
+자주 묻는 질문[HuggingFace Autotrain 고급 노트북](https://colab.research.google.com/github/huggingface/autotrain-advanced/blob/main/colabs/AutoTrain_LLM.ipynb)
+
+AutoTrain ample 메모리를 제공하려면 다른 Runtime을 선택할 필요가 있습니다. 노트북 상단의 메뉴에서 Runtime > Change Runtime Type을 선택합니다. A100을 선택하십시오.
+
+:::참조
+
+이 GPU는 돈을 지불합니다. 전형 AutoTrain 세션은 일반적으로 $ 1 미만입니다.
+주요 특징
+
+노트북은 우리가 변경할 필요가 있는 몇몇 상호 작용하는 단면도를 포함합니다.
+
+### 프로젝트 Config
+
+다음 필드를 수정
+
+- **프로젝트 name**: 나중에 기억하기 위해 원고 이름을 선택하십시오.
+- **모델 이름**: 우리가 지원하는 공식 HuggingFace 기본 모델 중 하나에서 선택하십시오.
+  - `mistralai/Mistral-7B-Instruct-v0.2`
+  - `google/gemma-2b-it`
+  - `google/gemma-7b-it`
+  - `meta-llama/llama-2-7b-chat-hf`
+
+### 선택 섹션: 허브에 푸시
+
+AutoTrain을 사용하지 않아도 됩니다.[뚱 베어 얼굴 계정](https://huggingface.co/join)당신은 나중에 참조하기 위해 편리한 저장소에 당신의 미세한 artifacts를 유지할 수 있습니다.
+
+HuggingFace 설정을 수행하지 않으면 노트북에서 파일을 다운로드 할 수 있습니다.
+
+자주 묻는 질문[노트북에서](https://colab.research.google.com/github/huggingface/autotrain-advanced/blob/main/colabs/AutoTrain_LLM.ipynb)계정과 토큰을 만들려면 필요한 경우.
+
+### 단면도: Hyperparameters
+
+우리는 QXQX0135XQ QXWorkers AI에 일을 지키는 이 분야의 몇몇을 바꾸는 필요.
+
+- **공급 능력**: 드롭 다운`none`
+- **로라-r**: 값 변경`8`
+
+:::카트로션
+
+이 글의 시간에, 정량화 필드는 코드 생성을 깰. 코드를 편집하고 값 주위에 인용해야합니다.
+
+말한다 선 변경`quantization = none`으로`quantization = "none"`.
+:::
+
+## 3. 노트북에 CSV 파일을 업로드
+
+노트북에는 왼쪽 손 내비게이션 바에서 폴더 아이콘을 클릭하여 액세스 할 수있는 폴더 구조가 있습니다.
+
+폴더를 만듭니다.
+
+CSV 파일을 노트북에 드래그할 수 있습니다.
+
+이름과 일치**기차.csv**
+
+## 4. 노트북을 실행
+
+노트북 메뉴에서 Runtime > Run All를 선택하십시오.
+
+그것은 노트북의 각 세포를 통해 실행됩니다, 첫 번째 설치, 다음 구성 및 실행 AutoTrain 세션.
+
+train.csv 파일의 크기에 따라 시간이 걸릴 수 있습니다.
+
+다음 오류가 발생하면 메모리 오류가 발생합니다. 더 큰 GPU 백엔드로 런타임을 변경할 수 있습니다.
+
+```bash
+subprocess.CalledProcessError: Command '['/usr/bin/python3', '-m', 'autotrain.trainers.clm', '--training_config', 'blog-instruct/training_params.json']' died with <Signals.SIGKILL: 9>.
+```
+
+## 5. LoRA 다운로드
+
+### 옵션: HuggingFace
+
+HuggingFace에 푸시하면 새 모델 카드를 찾을 수 있습니다.**프로젝트 name**위. 모델 카드는 기본적으로 개인입니다. 파일로 이동하고 아래에 나열된 파일을 다운로드하십시오.
+
+### 팟캐스트
+
+노트북에서 필요한 파일을 찾을 수 있습니다. 새로운 폴더를 일치**프로젝트 name**있습니다.
+
+다음 파일을 다운로드:
+
+- `adapter_model.safetensors`
+- `adapter_config.json`
+
+## 6. 갱신 접합기 Config
+
+한 줄을 추가해야 합니다.`adapter_config.json`다운로드
+
+`"model_type": "mistral"`
+
+이름 \*`model_type`건축입니다. 현재 유효한 값은`mistral`, `gemma`·`llama`.
+
+## 7. 당신의 Cloudflare 계정에 정밀한 Tune를 업로드하십시오
+
+이제 파일을 가지고, 당신은 당신의 계정에 추가 할 수 있습니다.
+
+당신은 할 수 있습니다[REST API 또는 Wrangler](/workers-ai/features/fine-tunes/loras/).
+
+## 8. 당신의 발생에 있는 당신의 정밀한 Tune를 사용하십시오
+
+당신의 새로운 멋진 튜닝을 설정 한 후, 당신은 준비가되어 있습니다[당신의 inference 요청에 사용하도록](/workers-ai/features/fine-tunes/loras/#running-inference-with-loras).

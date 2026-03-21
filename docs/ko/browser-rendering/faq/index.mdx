@@ -1,0 +1,195 @@
+---
+title: 제품 정보
+pcx_content_type: faq
+sidebar:
+  order: 11
+head:
+  - tag: title
+    content: 자주 묻는 질문 Cloudflare 브라우저 렌더링
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/faq/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/faq/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render, DashButton, Steps } from "~/components";
+
+아래에서 가장 일반적으로 브라우저 렌더링에 대한 질문에 대한 답변을 찾을 수 있습니다.
+
+가격 질문, 방문[가격 FAQ](/browser-rendering/pricing/#faq)·
+사용 제한 질문에 대한, 방문[제한 FAQ](/browser-rendering/limits/#faq)·
+당신이 찾고있는 대답을 찾을 수없는 경우, 우리를 가입[공지사항](https://discord.cloudflare.com).
+
+***
+
+## 오류 및 문제 해결
+
+### 오류: undefined의 속성을 읽을 수 없습니다 (reading 'fetch')
+
+이 오류는 일반적으로 귀하의 Puppeteer 출시가 브라우저 바인딩을받지 않기 때문에 발생합니다. 이 오류를 해결하려면 브라우저 바인딩을`puppeteer.launch`.
+
+### 오류: 429 브라우저 시간 제한 초과
+
+이 오류 (`Unable to create new browser: code: 429: message: Browser time limit exceeded for today`) Workers 무료 플랜에 매일 브라우저 인스턴스 제한을 누르고 있습니다.[Workers 무료 플랜 계정은 하루 10 분 동안 브라우저에서 캡핑됩니다.](/browser-rendering/limits/#workers-free). 그 제한을 초과하면, 추가 생성 시도는 다음 UTC 날까지 429 오류를 반환합니다.
+
+이 오류를 해결하려면[Workers로 업그레이드 유료 플랜](/workers/platform/pricing/)하루에 10 분 이상의 사용을 허용하고 더 높은[제한 사항](/browser-rendering/limits/#workers-paid). 최근에 업그레이드되었지만 여전히이 오류를 볼 수 있다면, 당신의 사용을 보장하기 위해 작업자가 새로운 계획과 올바르게 연관되어 있습니다.
+
+### 오류: 422 처리되지 않는 기업
+
+·`422 Unprocessable Entity`오류는 일반적으로 브라우저 렌더링이 사이트에 문제가 있기 때문에 작업을 완료 할 수 없습니다.
+
+이것은 경우에 일어날 수 있습니다:
+
+- 웹 사이트는 렌더링 중에 너무 많은 메모리를 소비합니다.
+- 페이지 자체가 충돌하거나 오류를 반환하기 전에 작업 완료.
+- 요청은 중 하나를 초과[시간 제한](/browser-rendering/reference/timeouts/)페이지 부하, 요소 부하, 또는 작업에 대 한.
+
+가장 자주,이 오류는 타임 아웃에 의해 발생. 다른 타이머와 제한을 검토 할 수 있습니다.[REST API 타임아웃 참고 자료](/browser-rendering/reference/timeouts/).
+
+### 왜 내 페이지 내용이 누락되거나 불완전합니까?
+
+스크린 샷, PDF 또는 스크랩 콘텐츠가 브라우저에서 페이지를 볼 때 나타나는 요소가 누락되면 브라우저 렌더링 전에 페이지가 완료되지 않았을 것입니다.
+
+JavaScript-heavy 페이지 및 단일 페이지 응용 프로그램 (SPAs) 종종 초기 HTML이 패딩 된 후 동적으로 콘텐츠를로드합니다. 기본적으로 브라우저 렌더링 대기`domcontentloaded`JavaScript가 페이지 렌더링을 완료하기 전에 화재가 발생했습니다.
+
+이 문제를 해결하려면`goToOptions.waitUntil`이 값 중 하나와 매개 변수:
+
+| 제품정보           | 사용시                                                                       |
+| -------------- | ------------------------------------------------------------------------- |
+| `networkidle0` | 페이지는 완전히 idle (500 ms를 위한 네트워크 요구 없음)이어야 합니다. 모든 컨텐츠를 올린 페이지에 가장 적합합니다.   |
+| `networkidle2` | 페이지는 2개의 지속적인 연결 (분석 또는 websockets와 같은)가 있을 수 있습니다. 가장 역동적인 페이지에 대 한 최고의. |
+
+REST API 예제:
+
+```json
+{
+  "url": "https://example.com",
+  "goToOptions": {
+    "waitUntil": "networkidle2"
+  }
+}
+```
+
+콘텐츠가 여전히 누락된 경우:
+
+- 제품 정보`waitForSelector`capturing 전에 나타나는 특정 요소를 기다립니다.
+- 더 보기`goToOptions.timeout`(최대 60 초) 느린 로딩 페이지.
+- 페이지를 확인하면 인증 또는 봇에 다른 콘텐츠를 반환합니다.
+
+완전한 참고 자료를 위해, 보십시오[REST API 타임아웃](/browser-rendering/reference/timeouts/).
+
+***
+
+## 시작 및 개발
+
+### 로컬 개발은 모든 브라우저 렌더링 기능을 지원합니까?
+
+아직 없습니다. 현지 개발은 현재 다음과 같은 제한이 있습니다.
+
+- 1MB 이상 요청은 지원되지 않습니다.
+
+<Render file="remote-binding-note" product="workers" />
+
+### REST API를 사용하여 인증된 페이지를 어떻게 렌더링합니까?
+
+렌더링이 필요한 경우 인증이 필요합니다. 다음 방법 중 하나를 사용하여 자격 증명을 통과 할 수 있습니다. 이 매개 변수는 모든 작업[REST API를](/browser-rendering/rest-api/)끝점.
+
+HTTP 기본 Auth:
+
+```json
+{
+  "authenticate": {
+    "username": "user",
+    "password": "pass"
+  }
+}
+```
+
+쿠키 기반 인증:
+
+```json
+{
+  "cookies": [
+    {
+      "name": "session_id",
+      "value": "abc123",
+      "domain": "example.com",
+      "path": "/",
+      "secure": true,
+      "httpOnly": true
+    }
+  ]
+}
+```
+
+토큰 기반 인증:
+
+```json
+{
+  "setExtraHTTPHeaders": {
+    "Authorization": "Bearer your-token"
+  }
+}
+```
+
+모든 세 가지 방법의 완전한 작업 예제를 위해, 참조[정품 페이지의 스크린 샷 캡처](/browser-rendering/rest-api/screenshot-endpoint/#capture-a-screenshot-of-an-authenticated-page).
+
+### 브라우저 렌더링은 봇 관리에 의해 감지됩니까?
+
+예, 브라우저 렌더링 요청은 항상 Cloudflare로 봇 트래픽으로 식별됩니다. Cloudflare는 기본적으로 봇 보호를 시행하지 않습니다 — 고객의 선택입니다.
+
+자신의 영역을 스캔하려고하고 브라우저 렌더링을 원하는 경우 봇 보호 구성 간섭없이 웹 사이트에 자유롭게 액세스 할 수 있습니다, 당신은 WAF Skip 규칙을 만들 수 있습니다[Allowlist 브라우저 렌더링](/browser-rendering/faq/#can-i-allowlist-browser-rendering-on-my-own-website).
+
+### 내 자신의 웹 사이트에 브라우저 렌더링을 허용 할 수 있습니까?
+
+WAF 사용자 정의 규칙이 액세스해야하기 때문에 WAF 사용자 정의 규칙이 자신의 웹 사이트에 허용하는 엔터프라이즈 플랜에 있어야합니다[Bot 관리](/bots/get-started/bot-management/)사이트 맵
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**보안 규칙**계정 및 도메인의 페이지.
+
+     <DashButton url="/?to=/:account/:zone/security/security-rules" />
+
+  2. 새로운 빈 규칙을 만들기 위해, 선택**규칙 만들기** > **주문 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**, 등`Allow Browser Rendering`.
+
+  4. 이름 \***수신 요청 일치**, 사용**제품정보**선택에 dropdown*봇 탐지 ID*.를 위해**회사연혁**, 선택*이름 \**.를 위해**제품정보**, 입력`128292352`.
+
+  5. 이름 \***다음 작업을 수행**, 에서**자주 묻는 질문**dropdown, 선택**팟캐스트**.
+
+  6. 이름 \***이름 \***, 규칙의 순서를 선택하십시오**주문하기**드롭다운**한국어**. 주문 설정**한국어**후속 규칙을 적용 할 수 있습니다.
+
+  7. 규칙을 저장하고 배포하려면, 선택**계정 만들기**.
+</Steps>
+
+### 브라우저 렌더링은 아웃바운드 요청에 IP 주소를 회전합니까?
+
+이름 \* 브라우저 렌더링 요청은 Cloudflare의 글로벌 네트워크에서 시작되며 IP 회전 당 구성할 수 없습니다. 모든 렌더링 트래픽은 Cloudflare IP 범위와 요청에 따라 제공됩니다.[자동적인 headers](/browser-rendering/reference/automatic-request-headers/), 등`cf-biso-request-id`·`cf-biso-devtools`그래서 원래 서버는 그들을 식별 할 수 있습니다.
+
+### 단일 브라우저 세션이 처리 할 수있는 몇 가지 요청이 있습니까?
+
+브라우저 세션 당 요청에 대한 고정 제한이 없습니다. 단일 브라우저는 사용할 수 있는 compute 및 메모리 제한 내에서 머물면서 여러 요청을 처리 할 수 있습니다.
+
+### 브라우저 렌더링에서 사용자 정의 글꼴을 사용할 수 있습니까?
+
+예. 웹 페이지 또는 PDF가 사전 설치되지 않은 글꼴을 필요로하면 렌더링 시간에 사용자 정의 글꼴을로드 할 수 있습니다.`addStyleTag`. 이 작품 모두[REST API를](/browser-rendering/rest-api/)·[모델 번호: Workers 회사 소개](/browser-rendering/workers-bindings/). 지침 및 예제의 경우, 참조[사용자 정의 글꼴](/browser-rendering/features/custom-fonts/).
+
+<Render file="manage-concurrency-faq" product="browser-rendering" />
+
+***
+
+## 보안 및 데이터 처리
+
+### Cloudflare 저장소 또는 렌더링을 제출하는 HTML 콘텐츠를 유지합니까?
+
+이름 \* Cloudflare 프로세스 콘텐츠 ephemerally and does not keep customer-submitted HTML 또는 생성 된 출력 (PDF 또는 스크린과 같은) 렌더링 작업을 수행하는 데 필요한 것을 초과. 응답이 반환되면, 콘텐츠는 즉시 렌더링 환경에서 삭제됩니다.
+
+이것은 둘 다에 적용합니다[REST API를](/browser-rendering/rest-api/)·[Workers 회사 소개](/browser-rendering/workers-bindings/)(사용)`@cloudflare/puppeteer`또는`@cloudflare/playwright`).
+
+### 제출 된 내용의 임시 캐싱이 있습니까?
+
+제품정보[REST API를](/browser-rendering/rest-api/), 생성된 내용은 5 초 동안 기본적으로 캐시됩니다 (를 통해 1 일까지 구성 가능)`cacheTTL`매개 변수, 또는 설정`0`비활성화). 이 캐시는 동일한 계정으로 동일한 URL에 대한 반복된 요청에 대해 보호합니다. Customer-submitted HTML 내용 자체는 캐시되지 않습니다.
+
+제품 정보[Workers 회사 소개](/browser-rendering/workers-bindings/), 캐싱은 사용되지 않습니다. 콘텐츠는 렌더링 작업의 기간 동안 메모리에만 존재하며 응답이 반환된 후 즉시 삭제됩니다.

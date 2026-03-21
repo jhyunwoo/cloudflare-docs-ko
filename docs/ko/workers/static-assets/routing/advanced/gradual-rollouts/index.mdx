@@ -1,0 +1,117 @@
+---
+pcx_content_type: concept
+title: 연락처
+sidebar:
+  order: 4
+head: []
+description: gradual Worker 배포에 대한 정적 자산 라우팅 솔루션을 제공합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/static-assets/routing/advanced/gradual-rollouts/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/static-assets/routing/advanced/gradual-rollouts/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example } from "~/components";
+
+[Gradual 배포](/workers/configuration/versions-and-deployments/gradual-deployments/)설정된 비율을 기준으로 다른 Worker 버전의 경로 요청. 노동자가 정적 자산을 제공 할 때,이 per-request 라우팅은 404 오류 및 깨진 사용자 경험 결과로 자산 reference mismatches를 일으킬 수 있습니다.
+
+현대 JavaScript 기구는 일반적으로 건축 도중 지문 자산 파일 이름을 생성합니다. 예를 들어, Vite와 React 응용 프로그램을 구축 할 때 자산은 다음과 같습니다.
+
+```
+dist/
+├── index.html
+├── assets/
+│   ├── index-a1b2c3d4.js    # Main bundle with content hash
+│   ├── index-e5f6g7h8.css   # Styles with content hash
+│   └── logo-i9j0k1l2.svg    # Images with content hash
+```
+
+응용 프로그램의 두 가지 버전 사이의 점차적인 롤아웃 중, 당신은 가질 수 있습니다:
+
+**버전 A (old build):**
+
+- `index.html`모델 번호: referenceS`assets/index-a1b2c3d4.js`
+- `assets/index-a1b2c3d4.js`현재 위치
+
+**버전 B (새로운 빌드):**
+
+- `index.html`모델 번호: referenceS`assets/index-m3n4o5p6.js`
+- `assets/index-m3n4o5p6.js`현재 위치
+
+사용자의 초기 요청이 있는 경우`/`버전 A로 이동, 그들은 referenceS가 HTML을 받게됩니다`index-a1b2c3d4.js`. 그러나, 그 브라우저가 요청할 때`/assets/index-a1b2c3d4.js`, 그 요청은 버전 B로 갈 수 있습니다, 만 포함`index-m3n4o5p6.js`404 오류가 발생했습니다.
+
+이 문제는 지문 자산을 포함한 모든 프레임 워크와 내장 된 응용 프로그램에 영향을줍니다.
+
+- **모델 번호: React**(React 앱, Next.js, Vite)
+- **모델 번호: Vue**(Vue CLI, Nuxt.js, 바이트)
+- **이름 \***(Angular CLI)
+- **스벨트**(SvelteKit, 라이트)
+- **정체되는 위치 발전기**자산 적재 최적화
+
+## 버전 affinity를 가진 자산 mismatches 방지
+
+[버전 친화](/workers/configuration/versions-and-deployments/gradual-deployments/#version-affinity)동일한 사용자의 모든 요청은 동일한 노동자 버전으로 처리되며 자산 reference mismatches를 완전히 방지합니다. 이 사용을 구성할 수 있습니다.[Transform 규칙](/rules/transform/request-header-modification/)자동 설정`Cloudflare-Workers-Version-Key`헤더.
+
+### 세션 기반 친화
+
+사용자 세션과 애플리케이션을 위해 세션 식별자를 사용합니다.
+
+<Example>
+  본문 바로가기**Expression 편집기**:
+
+  ```txt
+  http.cookie contains "session_id"
+  ```
+
+  선택된 작업**요청 헤더를 수정**: *동적 설정*
+
+  **헤더 이름**: `Cloudflare-Workers-Version-Key`
+
+  **제품정보**: `http.request.cookies["session_id"][0]`
+</Example>
+
+### 사용자 기반 친화성
+
+인증된 응용 프로그램에는 쿠키나 헤더에 저장된 사용자 식별자를 사용합니다.
+
+<Example>
+  본문 바로가기**Expression 편집기**:
+
+  ```txt
+  http.cookie contains "user_id"
+  ```
+
+  선택된 작업**요청 헤더를 수정**: *동적 설정*
+
+  **헤더 이름**: `Cloudflare-Workers-Version-Key`
+
+  **제품정보**: `http.request.cookies["user_id"][0]`
+</Example>
+
+## 테스트 및 모니터링
+
+생산에 밖으로 압연하기 전에, 당신의 버전 친화성 체제가 제대로 작동한다는 것을 확인:
+
+```bash
+#버전 친화 테스트 - 둘 다 요청은 동일한 버전을 명중해야
+curl -H "Cookie: session_id=test123" https://your-worker.example.com/
+curl -H "Cookie: session_id=test123" https://your-worker.example.com/assets/index.js
+```
+
+gradual rollouts 도중, 증가된 404 응답 비율을 위한 당신의 노동자의 분석을, 특히 자산 파일을 위해 감시하십시오 (`.js`, `.css`, `.png`). 제품 정보[Analytics 엔진](/analytics/analytics-engine/)또는[다운로드](/workers/observability/logs/logpush/)이 메트릭을 추적하고 자산 잡기 문제를 일찍 잡습니다.
+
+## 좋은 관행
+
+gradual rollouts를 사용하여 지문 자산으로 응용 프로그램을 배포 할 때 :
+
+- affinity (preferably session-based)를 사용하여 일관된 자산 로딩을 보장합니다.
+- rollout 비율을 증가하기 전에 버전 overrides를 사용하여 자산 로딩 테스트
+- 신속하게 문제를 잡기 위해 배포 중에 404의 비율을 모니터링
+- Case Asset 문제 발생 시 rollback 절차를 준비했습니다.
+- 응용 프로그램의 인증 모델에 따라 세션 기반 또는 사용자 기반 친화성을 선택하십시오.
+
+적절한 버전 친화성 구성으로 누락 된 자산에서 깨진 사용자 경험에 대해 걱정없이 현대 빌드 도구 및 자산 최적화를 사용하는 응용 프로그램의 점차적인 배포를 안전하게 수행 할 수 있습니다.

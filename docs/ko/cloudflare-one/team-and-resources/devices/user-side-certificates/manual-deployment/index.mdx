@@ -1,0 +1,1252 @@
+---
+pcx_content_type: how-to
+title: 수동으로 인증서 설치
+sidebar:
+  order: 2
+head: []
+description: 수동으로 Cloudflare 인증서를 모바일 장치 및 개별 응용 프로그램에 추가합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, TabItem, Tabs } from "~/components";
+
+:::참조
+이 절차는 특정한 Cloudflare Zero Trust 특징을 가능하게 하기 위하여만 요구되고, 당신의 IT 부의 방향에서만 행해야 합니다. 이 절차는 소비자를 위한 WARP 클라이언트를 가능하게 하기 위하여 요구되지 않습니다.
+주요 특징
+
+기기가 지원되지 않는 경우[WARP를 통한 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/), 당신은 수동으로 Cloudflare 증명서를 설치할 수 있습니다. 인증서를 모두 추가해야 합니다.[시스템 keychain](#add-the-certificate-to-operating-systems)·[고객 서비스](#add-the-certificate-to-applications). 이 단계는 HTTP 필터링 대상이 되는 각 새로운 장치에서 수행되어야 합니다.
+
+Zero Trust는 설치된 증명서 세트를 사용하여만 교통을 검열할 것입니다[**이용안내**·**제품정보**](/cloudflare-one/team-and-resources/devices/user-side-certificates/#activate-a-root-certificate).
+
+인증서를 수동으로 설치하려면 다음을해야합니다.
+
+1. Cloudflare 인증서를 다운로드하고 확인합니다.
+2. 운영 체제의 인증서 저장소에 인증서를 설치합니다.
+3. 대상 응용 프로그램은 운영 체제에서 인증서를받지 않는 경우, 응용 프로그램의 인증서 저장소에 인증서를 설치해야합니다.
+
+## 1. Cloudflare 루트 인증서 다운로드
+
+:::note\[다운로드 제한]
+Cloudflare One 대시보드 또는 WARP로 Cloudflare-generated 인증서만 다운로드할 수 있습니다.
+주요 특징
+
+첫 번째,[제품정보](/cloudflare-one/team-and-resources/devices/user-side-certificates/#generate-a-cloudflare-root-certificate)Cloudflare 인증서 다운로드 증명서는 둘 다에서 유효합니다`.pem`·`.crt`파일 형식. 특정 응용 프로그램은 특정 파일 유형에 있어야 인증서를 요구하므로 사용 사례에 가장 적합한 파일을 다운로드하십시오.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정**.
+2. 제품정보**인증서**.
+3. 다운로드하려는 인증서를 선택하십시오.
+4. 제품정보**더 많은 작업**.
+5. 원하는 형식에 따라 선택**다운로드 .pem**및/또는**다운로드 .crt**.
+
+대안으로, 당신은 다운로드하고 인증서를 설치 할 수 있습니다[WARP 사용](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/#install-a-certificate-using-warp). WARP는 장치의 시스템 인증서 저장소에 인증서를 추가합니다`installed_certs/<certificate_id>.pem`.
+
+## 2. 다운로드 된 인증서 확인
+
+다운로드를 확인하려면 다운로드 된 인증서의 해시가 아래에 나열된 썸프를 일치시키는 터미널을 사용하십시오.**인증서 썸프린트**. 예를 들면:
+
+### 사이트맵
+
+```sh title="SHA1 .crt example"
+openssl x509 -noout -fingerprint -sha1 -inform der -in <certificate.crt>
+```
+
+```sh output
+SHA1 Fingerprint=BB:2D:B6:3D:6B:DE:DA:06:4E:CA:CB:40:F6:F2:61:40:B7:10:F0:6C
+```
+
+```sh title="SHA1 .pem example"
+openssl x509 -noout -fingerprint -sha1 -inform pem -in <certificate.pem>
+```
+
+```sh output
+SHA1 Fingerprint=BB:2D:B6:3D:6B:DE:DA:06:4E:CA:CB:40:F6:F2:61:40:B7:10:F0:6C
+```
+
+### 모델 번호: SHA256
+
+```sh title="SHA256 .crt example"
+openssl x509 -noout -fingerprint -sha256 -inform der -in <certificate.crt>
+```
+
+```sh output
+sha256 Fingerprint=F5:E1:56:C4:89:78:77:AD:79:3A:1E:83:FA:77:83:F1:9C:B0:C6:1B:58:2C:2F:50:11:B3:37:72:7C:62:3D:EF
+```
+
+```sh title="SHA256 .pem example"
+openssl x509 -noout -fingerprint -sha256 -inform pem -in <certificate.pem>
+```
+
+```sh output
+sha256 Fingerprint=F5:E1:56:C4:89:78:77:AD:79:3A:1E:83:FA:77:83:F1:9C:B0:C6:1B:58:2C:2F:50:11:B3:37:72:7C:62:3D:EF
+```
+
+## 3. (선택)는 증명서를 변환합니다
+
+일부 응용 프로그램은 인증서 형식이 필요합니다.`.cer`파일 형식. 다운로드 된 인증서를 변환 할 수 있습니다.[열린SSL](https://www.openssl.org/):
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1. [OpenSSL 설치](https://wiki.openssl.org/index.php/Compilation_and_Installation).
+    2. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+    3. 터미널에서 인증서를 DER 형식으로 변환`.cer`파일 형식 :
+       ```sh
+       openssl x509 -inform PEM -in ~/Downloads/certificate.pem -outform DER -out ~/Downloads/certificate.cer
+       ```
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. [Windows용 OpenSSL 설치](https://slproweb.com/products/Win32OpenSSL.html).
+    2. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+    3. PowerShell 터미널에서 인증서를 DER 형식으로 변환`.cer`파일 형식 :
+       ```powershell
+       openssl x509 -inform PEM -in "$HOME\Downloads\certificate.pem" -outform DER -out "$HOME\Downloads\certificate.cer"
+       ```
+  </TabItem>
+</Tabs>
+
+## 4. 운영 체제에 인증서 추가
+
+Cloudflare 인증서를 데스크톱 장치에 배포하는 경우, 사용[WARP를 사용하여 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/)방법.
+
+모바일 장치는 아래 지침에 자세히 설명하는 수동 설치가 필요합니다.
+
+### 맥 OS
+
+macOS에서 인증서를 설치하려는 keychain을 선택할 수 있습니다. 각 keychain 영향은 사용자가 루트 인증서를 신뢰함으로써 영향을받습니다.
+
+| QR 코드 | 오시는 길                  |
+| ----- | ---------------------- |
+| 이름 \* | 로그인 사용자                |
+| 사이트 맵 | iCloud 비밀번호에 액세스하는 사용자 |
+| 시스템   | 시스템의 모든 사용자            |
+
+macOS에서 Cloudflare 인증서를 설치하려면 키 체인 액세스 응용 프로그램 또는 터미널을 사용할 수 있습니다. 두 방법 모두에 당신을 요구합니다[인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.crt`파일 형식.
+
+<Tabs>
+  <TabItem label="키 체인 액세스">
+    1. Cloudflare 인증서 다운로드
+       <Render file="keychain-access" params={{ cert: ".crt" }} product="cloudflare-one" />
+
+    루트 인증서가 설치되고 사용할 준비가되었습니다.
+  </TabItem>
+
+  <TabItem label="이름 *">
+    1. Cloudflare 인증서 다운로드
+    2. 오픈 터미널
+    3. keychain에 인증서를 추가하십시오.
+
+    ```sh
+    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain <path-to-certificate.crt>
+    ```
+
+    이 keychain은 모든 사용자가 인증서에 액세스 할 수 있습니다. 다른 keychain에 인증서를 설치하려는 경우 교체`System.keychain`keychain의 이름으로.
+
+    4. Cloudflare 인증서를 포함하려면 OpenSSL CA Store를 업데이트하십시오.
+
+    ```sh
+    echo | sudo tee -a /etc/ssl/cert.pem < certificate.pem
+    ```
+
+    루트 인증서가 설치되고 사용할 준비가되었습니다.
+  </TabItem>
+</Tabs>
+
+:::note\[인증 접근 범위 변경]
+Cloudflare 인증서에 사용자 액세스를 변경하려면 키 체인 액세스를 열고 왼쪽 사이드 바에 다른 키 체인에 인증서를 이동합니다.
+주요 특징
+
+### 윈도우
+
+Windows는 인증서를 설치하기 위해 두 개의 위치를 제공합니다, 사용자가 루트 인증서를 신뢰하여 영향을받을 각 영향.
+
+| 매장 위치      | 오시는 길       |
+| ---------- | ----------- |
+| 현재 사용자 스토어 | 로그인 사용자     |
+| 회사 소개      | 시스템의 모든 사용자 |
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate).
+2. 인증서 파일을 마우스 오른쪽 단추로.
+3. 제품정보**기타**. 보안 경고가 나타나면, 선택**기타**계속하기
+4. 더 보기**인증번호**창이 나타납니다. 제품정보**인증서 설치**.
+5. 지금 매장 위치 선택. 보안 경고가 나타나면, 선택**이름 \***&#xACC4;속하기
+6. 다음 화면에서, 선택**계정 만들기**.
+7. 목록에서, 선택*신뢰할 수있는 루트 인증 기관*이름 \*
+8. 제품정보**이름 \***, 다음 선택**제품 정보**.
+
+루트 인증서가 설치되고 사용할 준비가되었습니다.
+
+:::카트로션
+인증서가 설치되면**회사 소개**·[장치 자세 검사](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/)인증서를 찾고 실패합니다. 인증서를 설치**현재 사용자 스토어**성공적인 자세 장치 체크를 보장하기 위해.
+주요 특징
+
+### 리눅스
+
+루트 인증서가 설치된 위치는 Linux 배포에 따라 다릅니다. 당신의 배급을 위한 특정한 지시를 따르십시오.
+
+<Tabs>
+  <TabItem label="Debian 기반" icon="seti:debian">
+    다음 절차는 Debian, Ubuntu 및 Kali Linux와 같은 Debian 기반 시스템에 적용됩니다.
+
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+
+    2. 설치하기`ca-certificates`패키지.
+
+       ```sh
+       sudo apt-get install ca-certificates
+       ```
+
+    3. 시스템에 인증서를 복사, 파일 확장을 변경`.crt`.
+
+       ```sh
+       sudo cp certificate.pem /usr/share/ca-certificates/certificate.crt
+       ```
+
+    4. 인증서를 가져옵니다.
+
+       ```sh
+       sudo dpkg-reconfigure ca-certificates
+       ```
+  </TabItem>
+
+  <TabItem label="Red Hat 기반" icon="seti:redhat">
+    다음 절차는 CentOS 및 Red Hat Enterprise Linux (RHEL)와 같은 Red Hat 기반 시스템에 적용됩니다.
+
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)모두에서`.crt`·`.pem`파일 형식.
+
+    2. 설치하기`ca-certificates`패키지.
+
+       ```sh
+       sudo dnf install ca-certificates
+       ```
+
+    3. 신뢰 저장소에 인증서를 모두 복사합니다.
+
+       ```sh
+       sudo cp certificate.crt certificate.pem /etc/pki/ca-trust/source/anchors
+       ```
+
+    4. 인증서를 가져옵니다.
+
+       ```sh
+       sudo update-ca-trust
+       ```
+  </TabItem>
+
+  <TabItem label="프로젝트" icon="seti:nix">
+    NixOS는 자체 업데이트 및 대신 인증서에 대한 시스템 인증서 저장소를 사용하지 않습니다`~/.nix-profile/etc/ssl/certs`또는 제공`NIX_SSL_CERT_FILE`런타임에.
+  </TabItem>
+</Tabs>
+
+### iOS 앱
+
+1. 사파리에서[Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 파일 열기**이름 \***.
+3. 다운로드 된 인증서 파일을 찾아 엽니 다. 이 메시지를 나눔으로써 Checking Profile 서포트 해 주세요. 제품정보**이름 \***.
+4. 설정 열기. 선택하기**Profile 다운로드**Apple 계정 정보 아래 섹션. 대안으로, 이동**주요사업** > **VPN 및 장치 관리**그리고 선택**게이트웨이 CA - Cloudflare 관리 G1**이름 \*
+5. 제품정보**설치하기**. iOS 기기가 passcode-protected인 경우, passcode를 입력할 수 있습니다.
+6. 인증서 경고가 나타날 것입니다. 제품정보**설치하기**. 두번째 프롬프트가 나타나면, 선택**설치하기**다시.
+7. 프로필 설치 화면이 나타납니다. 제품정보**이름 \***. 인증서가 설치되었습니다. 그러나 사용되기 전에 장치에서 신뢰할 수 있어야합니다.
+8. 설정에서, 이동**주요사업** > **제품정보** > **인증서 신뢰 설정**. 설치 된 루트 인증서는 루트 인증서에 대한 전체 신뢰에 따라 표시됩니다.
+9. Cloudflare 인증서를 켜십시오.
+10. 보안 경고 메시지가 나타납니다. 제품 정보**계속하기**.
+
+루트 인증서가 설치되고 사용할 준비가되었습니다.
+
+### 다운로드
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate).
+2. 설정에서, 이동**보안 보안** > **지원하다** > **암호화 및 자격** > **인증서 설치**.
+3. 제품정보**CA 인증서**.
+4. 제품정보**자주 묻는 질문**.
+5. 당신의 정체성을 확인합니다.
+6. 설치하려는 인증서 파일을 선택하십시오.
+
+루트 인증서가 설치되고 사용할 준비가되었습니다.
+
+### 크롬 OS
+
+ChromeOS 기기는 다른 방법을 사용하여 루트 인증서를 저장하고 배포합니다. 증명서는 밑에 떨어질지도 모릅니다**VPN 및 앱**또는**CA 인증서**설정. 기기에 대응하는 절차를 따르십시오.
+
+<Tabs>
+  <TabItem label="VPN 및 앱">
+    <Render file="chromeos-cert-settings" product="cloudflare-one" params={{ one: "Install from SD card" }} />
+
+    5. 파일 열기 대화 상자에서, 선택`certificate.crt`다운로드 파일. 제품정보**기타**.
+    6. 인증서를 식별하는 이름을 입력합니다. 이름 \***Credential 사용**설정*VPN 및 앱*.
+    7. 제품정보**이름 \***.
+  </TabItem>
+
+  <TabItem label="CA 인증서">
+    <Render file="chromeos-cert-settings" product="cloudflare-one" params={{ one: "Install a certificate > CA certificate" }} />
+
+    5. 개인 정보 보호 경고로 신속한 경우, 선택**자주 묻는 질문**.
+    6. 파일 열기 대화 상자에서, 선택`certificate.crt`다운로드 파일. 제품정보**기타**.
+    7. 인증서를 설치하고 신뢰할 수 있도록, 이동**계정 설정** > **앱 다운로드** > **Google Play 스토어** > **Android P참고 자료s 관리** > **보안 보안** > **회사 소개** > **신뢰할 수있는 자격** > **사용자 이름**.
+  </TabItem>
+</Tabs>
+
+Cloudflare 인증서를 ChromeOS에 추가 한 후, 당신은 또한해야 할 수 있습니다[브라우저에서 인증서를 설치](#browsers).
+
+## 5. 신청에 증명서 추가
+
+몇몇 신청은 체계 증명서 상점을 이용하지 않으며 그러므로 신청에 직접 추가될 증명서가 요구합니다. 아래의 것들과 같은 특정 응용 프로그램을 위해이 섹션에서 단계를 따르고 TLS 해독에 대한 응용 프로그램에 Cloudflare 인증서를 올바르게 추가해야합니다.
+
+Cloudflare 인증서를 신뢰할 수있는 응용 프로그램을 업데이트하지 않으면 응용 프로그램은 연결 거부하고 신뢰할 수없는 인증서 오류를 받게됩니다.
+
+먼저 아래의 모든 응용 프로그램은 Cloudflare 인증서를 다운로드해야합니다.[위의 지침](#download-the-cloudflare-root-certificate). macOS에서 시스템 키 체인 데이터베이스 파일에 기본 경로는`/Library/Keychains/System.keychain`. Windows에서, 기본 경로는 입니다`\Cert:\CurrentUser\Root`.
+
+:::참조
+일부 응용 프로그램은 공개적으로 신뢰할 수있는 인증서의 사용을 요구합니다 - 그들은 시스템 인증서를 신뢰하지 않으며 구성 가능한 개인 저장소가 없습니다. 이 응용 프로그램을 위해, 당신은 추가해야합니다[Inspect 정책 없음](/cloudflare-one/traffic-policies/http-policies/#do-not-inspect)도메인 또는 IP에 대한 응용 프로그램이 의존합니다.
+주요 특징
+
+:::카트로션
+WARP를 배포하더라도[WARP를 사용하여 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/)방법, 당신은 여전히 특정 응용 프로그램에 Cloudflare 인증서를 추가해야합니다. WARP 방법을 사용하여 설치 인증서는 Cloudflare 인증서를 운영 체제 인증서 저장소에 설치합니다.
+주요 특징
+
+### 사이트 맵
+
+브라우저는 자체 인증서 상점을 사용하거나 운영 체제 인증서 저장소에 의존 할 수 있습니다.
+
+#### 크롬
+
+Chrome의 버전 113 사용 전에 Chrome[운영 체계 뿌리 상점](https://support.google.com/chrome/answer/95617?visit_id=638297158670039236-3119581239\&p=root_store\&rd=1#zippy=%2Cmanage-device-certificates-on-mac-windows)macOS 및 Windows에서. Chrome 113 및 macOS 및 Windows의 최신 버전 -- 및 Linux 및 ChromeOS의 모든 버전 -- 사용[Chrome 내부 신뢰점](https://www.chromium.org/Home/chromium-security/root-ca-policy/#introduction).
+
+Cloudflare 인증서를 Chrome에 수동으로 설치하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 크롬에서, 이동**계정 설정** > **개인정보 및 보안** > **보안 보안**.
+3. 제품정보**인증서 관리**.
+4. 오시는 길**이름 \***. 선택**제품정보**.
+5. 파일 열기 대화 상자에서, 선택`certificate.pem`다운로드 파일.
+6. 대화 상자에서, 켜기*웹 사이트를 식별하기위한이 인증서를 신뢰*, *이 인증서를 신뢰할 수 있는 이메일 사용자*·*이 인증서를 신뢰하십시오.*. 선택**이름 \***.
+7. 인증서를 설치하고 신뢰할 수 있도록, 그것을 찾아**이름 \***.
+
+Cloudflare 인증서 설치에 대한 자세한 내용은 여기를 참조하십시오.[Google의 Chrome Enterprise 및 교육 문서](https://support.google.com/chrome/a/answer/3505249).
+
+#### 파이어 폭스
+
+Cloudflare 인증서를 Firefox에 수동으로 설치하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. Firefox에서**계정 설정** > **개인정보 및 보안**.
+3. 내 계정**보안 보안**, 선택**인증서** > **인증서 보기**.
+4. 내 계정**이름 \***, 선택**제품정보**.
+5. 파일 열기 대화 상자에서, 선택`certificate.pem`다운로드 파일.
+6. 대화 상자에서, 켜기*이 CA를 신뢰하여 웹 사이트를 식별*·*이 CA를 신뢰하여 이메일 사용자 식별*. 선택**이름 \***.
+7. 인증서를 설치하고 신뢰할 수 있도록 테이블에 위치**사이트맵**.
+
+Cloudflare 인증서 설치에 대한 자세한 내용은 여기를 참조하십시오.[Mozilla 지원 기사](https://support.mozilla.org/en-US/kb/setting-certificate-authorities-firefox).
+
+### 모바일 장치 관리 (MDM) 소프트웨어
+
+Zero Trust는 몇몇과 통합합니다[모바일 장치 관리 (MDM) 소프트웨어 파트너](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/partners/)장치에서 WARP를 배포합니다.
+
+#### 마이크로 소프트 Intune
+
+Microsoft Intune의 Cloudflare 인증서 업로드 및 배포하려면:
+
+1. [Cloudflare 인증서 다운로드 및 변환](#convert-the-certificate)DER 형식에`.cer`파일 형식.
+2. Microsoft Intune에서[신뢰할 수있는 인증서 프로필 만들기](https://learn.microsoft.com/mem/intune/protect/certificates-trusted-root#to-create-a-trusted-certificate-profile)당신의 변환된 증명서로.
+
+더 많은 정보를 원하시면, 참조[Microsoft 문서](https://learn.microsoft.com/mem/intune/protect/certificates-trusted-root).
+
+#### Jamf 프로
+
+Jamf Pro의 Cloudflare 인증서 업로드 및 배포하려면:
+
+1. [Cloudflare 인증서 다운로드 및 변환](#convert-the-certificate)DER 형식에`.cer`파일 형식.
+2. Jamf Pro에서 이동**컴퓨터** > **구성 프로파일**컴퓨터 구성 프로파일을 만들거나 이동**제품정보** > **구성 프로파일**모바일 장치 구성 프로파일을 만들려면. 제품정&#xBCF4;**- 한국어**.
+3. 프로필에 대한 이름과 설명을 추가합니다.
+4. Jamf를 사용하여 인증서를 자동으로 설치하거나 셀프 서비스로 설치하고, 단일 사용자 또는 장치에서 모든 사용자의 인증서를 설치하려는지 여부를 선택하십시오.
+5. 제품정보**더 보기** > **인증번호**. 인증서 파일을 선택하십시오.
+6. 체크 아웃**keychain에서 수출 허용**.
+7. 제품정보**관련 상품**, 그런 다음 어떤 장치 또는 그룹이 인증서를 배포하도록 선택합니다.
+8. 제품정보**제품 정보**.
+
+더 많은 정보를 원하시면, 참조[Jamf Pro 문서](https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/PKI_Certificates.html).
+
+#### 스낵 바
+
+Kandji에서 Cloudflare 인증서를 업로드 및 배포하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.crt`파일 형식.
+2. Kandji에서[인증서 업로드](https://support.kandji.io/support/solutions/articles/72000558739-certificate-profile)PKCS #1-formatted 인증서로.
+
+#### 사이트맵
+
+Hexnode에서 Cloudflare 인증서를 업로드 및 배포하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. Hexnode에서 인증서를 추가하는 방향을 따르십시오.[맥 OS](https://www.hexnode.com/mobile-device-management/help/how-to-add-certificates-for-mac-devices-with-hexnode-mdm/), [iOS 앱](https://www.hexnode.com/mobile-device-management/help/add-certificates-for-ios-devices-with-hexnode-mdm/), 및/또는[다운로드](https://www.hexnode.com/mobile-device-management/help/how-to-add-certificates-for-android-devices-using-hexnode-mdm/)장치.
+
+#### 채용정보
+
+JumpCloud에서 Cloudflare 인증서를 업로드 및 배포하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. JumpCloud에서,[인증서 업로드](https://jumpcloud.com/support/manage-device-trust-certificates#distributing-global-device-certificates-).
+3. [상태 접근 정책을 구성](https://jumpcloud.com/support/configure-a-conditional-access-policy)기기에서 인증서를 배포합니다.
+
+### 프로그래밍 언어 및 실행 시간
+
+프로그래밍 언어 런타임은 종종 자신의 인증서 상점을 유지하거나 언어 별 인증서 관리 도구를 사용합니다.
+
+#### 사이트맵
+
+Python 버전에 따라 설치 및 구성이 필요한 경우 사용해야 할 수도 있습니다.`python`또는`python3`명령. 이용안내[가상 환경](https://docs.python.org/3/library/venv.html), 당신은 각 가상 환경 안에 뒤에 오는 단계를 반복할 필요가 있을 것입니다.
+
+<Tabs>
+  <TabItem label="윈도우" icon="seti:windows">
+    Windows에서 Python 인증서를 자동으로 설치하려면`pip`·`certifi`(인증 유효성에 대한 기본 인증서 번들).
+
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.crt`파일 형식.
+    2. PowerShell 터미널에서 설치`certifi`포장:
+       ```powershell
+       python -m pip install certifi
+       ```
+    3. Python CA 저장소 식별:
+       ```powershell
+       $CERT_PATH = python -c "import certifi; print(certifi.where())"
+       ```
+    4. Cloudflare 인증서를 포함하는 번들을 업데이트하십시오:
+       ```powershell
+       gc "$env:USERPROFILE\Downloads\certificate.crt" | ac $CERT_PATH
+       ```
+    5. (선택 사항) PowerShell의 구성 파일에 추가하여 CA 저장소로 시스템 변수를 구성:
+       ```powershell
+       [System.Environment]::SetEnvironmentVariable('CERT_PATH', $CERT_PATH, 'Machine')
+       [System.Environment]::SetEnvironmentVariable('SSL_CERT_FILE', $CERT_PATH, 'Machine')
+       [System.Environment]::SetEnvironmentVariable('REQUESTS_CA_BUNDLE', $CERT_PATH, 'Machine')
+       ```
+    6. 당신의 맨끝을 재시작하십시오.
+  </TabItem>
+
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+    2. 터미널에서 설치`certifi`포장:
+       ```sh
+       python -m pip install certifi
+       ```
+    3. Cloudflare 인증서를 실행하여이 CA 저장소에 승인:
+       ```sh
+       echo | cat - certificate.pem >> $(python -m certifi)
+       ```
+    4. (선택 사항) 쉘의 구성 파일에 추가하여 CA 저장소로 시스템 변수를 구성 (예 :`~/.zshrc`또는`~/.bash_profile`). 예를 들면:
+       ```sh
+       echo 'export CERT_PATH=$(python -c "import certifi; print(certifi.where())")
+       export SSL_CERT_FILE=${CERT_PATH}
+       export REQUESTS_CA_BUNDLE=${CERT_PATH}' >> ~/.zshrc
+       ```
+    5. 당신의 맨끝을 재시작하십시오.
+  </TabItem>
+</Tabs>
+
+#### 다운로드
+
+Java는 Java를 포함하는 다른 설치 또는 응용 프로그램에 따라 여러 인증서 키 저장소 위치를 가질 수 있습니다. Java Virtual Machine (JVM) 설치에 따라 각 인스턴스의 인증서를 설치할 필요가 있습니다. 각 Java 응용 프로그램을 수동으로 구성하고 인증서를 신뢰 할 수도 있습니다.
+
+시스템 JVM에서 Cloudflare 루트 인증서를 설치하려면 운영 체제의 절차를 따르십시오. 이 단계는 당신을 요구합니다[다운로드`.pem`인증번호](#download-a-cloudflare-root-certificate).
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1. 설치하기[열린SSL](https://www.openssl.org/).
+
+    2. 터미널에서 Cloudflare 인증서를 Java로 포맷합니다.
+
+       ```sh
+       openssl x509 -in Cloudflare_CA.pem -inform pem -out Cloudflare_CA.der -outform der
+       ```
+
+    3. 변환 된 인증서를 Java 키 저장소에 가져 오기.
+
+       ```sh
+       sudo $JAVA_HOME/bin/keytool -import -trustcacerts -alias 'Cloudflare Root CA' -file Cloudflare_CA.der -keystore $JAVA_HOME/jre/lib/security/cacerts -storepass changeit -noprompt 2>&1
+       ```
+
+    4. Java의 모든 인스턴스를 복원합니다.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. 설치하기[Windows용 OpenSSL](https://slproweb.com/products/Win32OpenSSL.html).
+
+    2. 관리자 PowerShell 터미널에서, Java 용 Cloudflare 인증서를 포맷합니다.
+
+       ```powershell
+       openssl x509 -in Cloudflare_CA.pem -inform pem -out Cloudflare_CA.der -outform der
+       ```
+
+    3. 변환 된 인증서를 Java 키 저장소에 가져 오기.
+
+       ```powershell
+       "%JAVA_HOME%\bin\keytool" -import -trustcacerts -alias "Cloudflare Root CA" -file Cloudflare_CA.der -keystore "%JAVA_HOME%\jre\lib\security\cacerts" -storepass changeit -noprompt
+       ```
+
+    4. Java의 모든 인스턴스를 복원합니다.
+  </TabItem>
+</Tabs>
+
+#### 뚱 베어
+
+RubyGems의 Cloudflare 루트 인증서를 신뢰하려면 운영 체제의 절차를 따르십시오. 이 단계는 당신을 요구합니다[다운로드`.pem`인증번호](#download-a-cloudflare-root-certificate).
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1. 설치하기[열린SSL](https://www.openssl.org/).
+
+    2. 터미널에서, Ruby의 Cloudflare 인증서를 포맷합니다.
+
+       ```sh
+       openssl x509 -in ~/Downloads/certificate.pem -out ~/Downloads/ruby-root-ca.crt
+       ```
+
+    3. RubyGems 인증서 디렉토리를 홈 폴더에 만듭니다.
+
+       ```sh
+       mkdir -p ~/.gem/ssl
+       ```
+
+    4. Cloudflare 인증서를 RubyGems 인증서 저장소에 복사합니다.
+
+       ```sh
+       cp ~/Downloads/ruby-root-ca.crt ~/.gem/ssl/rubygems.org.pem
+       ```
+
+    5. RubyGems를 구성하여 인증서를 사용합니다.
+
+       ```sh
+       gem sources --add-trusted-cert ~/.gem/ssl/rubygems.org.pem
+       ```
+
+       또는 RubyGems 구성 파일에 다음 줄을 추가합니다.`~/.gemrc`인증서를 세계적으로 신뢰하는 파일:
+
+       ```yaml
+       :ssl_cert: ~/.gem/ssl/rubygems.org.pem
+       ```
+
+    6. 모든 터미널 세션을 복원합니다.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. 설치하기[Windows용 OpenSSL](https://slproweb.com/products/Win32OpenSSL.html).
+
+    2. PowerShell 터미널에서 Ruby의 Cloudflare 인증서를 형식합니다.
+
+       ```powershell
+       openssl x509 -in %UserProfile%\Downloads\certificate.pem -out %UserProfile%\Downloads\ruby-root-ca.crt
+       ```
+
+    3. RubyGems 인증서 디렉토리를 홈 폴더에 만듭니다.
+
+       ```powershell
+       mkdir -Force "$env:USERPROFILE\.gem\ssl"
+       ```
+
+    4. Cloudflare 인증서를 RubyGems 인증서 저장소에 복사합니다.
+
+       ```powershell
+       Copy-Item "$env:USERPROFILE\Downloads\ruby-root-ca.crt" "$env:USERPROFILE\.gem\ssl\rubygems.org.pem"
+       ```
+
+    5. RubyGems를 구성하여 인증서를 사용합니다.
+
+       ```powershell
+       gem sources --add-trusted-cert "$env:USERPROFILE\.gem\ssl\rubygems.org.pem"
+       ```
+
+       또는 RubyGems 구성 파일에 다음 줄을 추가합니다.`$HOME\.gemrc`글로벌 신뢰 인증서:
+
+       ```yaml
+       :ssl_cert: C:/Users/<username>/.gem/ssl/rubygems.org.pem
+       ```
+
+    6. 모든 터미널 세션을 복원합니다.
+  </TabItem>
+</Tabs>
+
+#### 사이트맵
+
+Rust의 패키지 관리자 Cargo는 대부분의 플랫폼에서 기본으로 시스템 인증서 저장소를 사용합니다. 그러나 일부 경우에 명시적으로 구성해야 할 수도 있습니다.
+
+<Tabs>
+  <TabItem label="윈도우" icon="seti:windows">
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+    2. 설정하기`CARGO_HTTP_CAINFO`환경 변수는 인증서에 점. PowerShell에서:
+       ```powershell
+       [System.Environment]::SetEnvironmentVariable('CARGO_HTTP_CAINFO', "$HOME\Downloads\certificate.pem", 'User')
+       ```
+    3. 당신의 맨끝을 재시작하십시오.
+
+    대안으로, 당신은 당신의 화물 윤곽 파일에서 이것을 구성할 수 있습니다`%USERPROFILE%\.cargo\config.toml`:
+
+    ```toml
+    [http]
+    cainfo = "C:\\Users\\<username>\\Downloads\\certificate.pem"
+    ```
+  </TabItem>
+
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+    2. 설정하기`CARGO_HTTP_CAINFO`쉘의 구성 파일에 추가하여 환경 변수 (예 :`~/.zshrc`또는`~/.bash_profile`):
+       ```sh
+       export CARGO_HTTP_CAINFO="$HOME/Downloads/certificate.pem"
+       ```
+    3. 당신의 맨끝을 재시작하십시오.
+
+    대안으로, 당신은 당신의 화물 윤곽 파일에서 이것을 구성할 수 있습니다`~/.cargo/config.toml`:
+
+    ```toml
+    [http]
+    cainfo = "/path/to/certificate.pem"
+    ```
+  </TabItem>
+</Tabs>
+
+### 개발 도구 및 패키지 관리자
+
+개발 도구 및 패키지 관리자는 종종 안전한 패키지 다운로드 및 저장소 액세스 인증서 구성을 요구합니다.
+
+#### 사이트맵
+
+<Tabs>
+  <TabItem label="윈도우" icon="seti:windows">
+    1. PowerShell을 엽니다.
+
+    2. 다음 명령을 실행:
+
+       ```powershell
+       git config -l
+       ```
+
+       이 명령은 출력됩니다:
+
+       ```txt
+       core.symlinks=false
+       core.autocrlf=true
+       core.fscache=true
+       color.diff=auto
+       color.status=auto
+       color.branch=auto
+       color.interactive=true
+       help.format=html
+       rebase.autosquash=true
+       http.sslcainfo=C:/Program Files/Git/mingw64/ssl/certs/ca-bundle.crt
+       http.sslbackend=openssl
+       diff.astextplain.textconv=astextplain
+       filter.lfs.clean=git-lfs clean -- %f
+       filter.lfs.smudge=git-lfs smudge -- %f
+       filter.lfs.process=git-lfs filter-process
+       filter.lfs.required=true
+       credential.helper=manager
+       ```
+
+    3. 더 보기`http.sslcainfo`CA 인증서 저장을 정의합니다. Cloudflare 인증서를 CA 번들에 추가하려면 업데이트`http.sslcainfo`.
+
+       ```powershell
+       gc .\certificate.pem | ac $(git config --get http.sslcainfo)
+       ```
+  </TabItem>
+
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    Cloudflare 인증서를 신뢰하려면 다음 명령을 실행하십시오.
+
+    ```sh
+    git config --global http.sslcainfo [PATH_TO_CLOUDFLARE_CERT]
+    ```
+  </TabItem>
+</Tabs>
+
+#### ₢ 킹
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 설정하기`cafile`Cloudflare 인증서를 사용하는 구성:
+   ```sh
+   npm config set cafile [PATH_TO_CLOUDFLARE_CERT.pem]
+   ```
+
+일부 시스템에는 경로 / 수출 목록에서 다음을 설정해야합니다.
+
+```sh
+export NODE_EXTRA_CA_CERTS='[PATH_TO_CLOUDFLARE_CERT.pem]'
+```
+
+#### PHP 컴파일러
+
+아래 명령은[`cafile`](https://getcomposer.org/doc/06-config.md#cafile)내부의 구성`composer.json`Cloudflare 루트 인증서를 사용하려면. 자주 묻는 질문[인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+
+```sh
+composer config cafile [PATH_TO_CLOUDFLARE_CERT.pem]
+```
+
+대안으로, 당신은 당신의 수동으로 추가할 수 있습니다`composer.json`아래 파일`config`주요.
+
+#### 기타 제품
+
+Docker 컨테이너에서 사용할 인증서를 설치하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+
+2. Docker 프로젝트에서 인증서의 디렉토리 만들기:
+
+   ```sh
+   cd docker-project
+   mkdir certs
+   mv /path/to/downloaded/certificate.pem certs/
+   ```
+
+3. 인증서가 올바르게 디렉토리로 이동합니다. 프로젝트는 다음과 같은 구조가 있어야 합니다.
+
+   ```sh
+   docker-project/
+   ├── Dockerfile
+   └── certs/
+       └── certificate.pem
+   ```
+
+4. Docker 이미지에 인증서를 추가하십시오:
+
+   <Tabs>
+     <TabItem label="구조 과정">
+       빌드 과정에서 Dockerfile에 인증서를 추가하려면:
+
+       1. 인증서가 Dockerfile에 방향을 설치합니다. 예를 들면:
+
+          ```docker title="Red Hat-based images"
+          FROM registry.access.redhat.com/ubi9/ubi:latest
+          # Or FROM centos:7 or FROM fedora:38
+
+          # Install necessary certificates package
+          RUN dnf install -y ca-certificates
+
+          # Copy and add Cloudflare root certificate
+          COPY certs/certificate.pem /etc/pki/ca-trust/source/anchors/certificate.crt
+          RUN update-ca-trust extract
+          ```
+
+          ```docker title="Debian-based images"
+          FROM debian:12
+          # Or FROM ubuntu:22.04
+
+          # Install necessary certificates package
+          RUN apt-get update && apt-get install -y ca-certificates
+
+          # Copy and add Cloudflare root certificate
+          COPY certs/certificate.pem /usr/local/share/ca-certificates/certificate.crt
+          RUN update-ca-certificates
+          ```
+
+          ```docker title="Alpine-based images"
+          FROM alpine:3.18
+
+          # Install necessary certificates package
+          RUN apk add --no-cache ca-certificates
+
+          # Copy and add Cloudflare root certificate
+          COPY certs/certificate.pem /usr/local/share/ca-certificates/certificate.crt
+          RUN update-ca-certificates
+          ```
+
+       2. Docker 이미지 구축:
+
+          ```sh
+          docker build -t <your-container-name> .
+          ```
+
+       3. 인증서가 설치되었습니다.
+
+          ```sh title="Red Hat-based images"
+          docker run --rm your-image-name sh -c "cat /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem | grep Cloudflare"
+          ```
+
+          ```sh title="Debian and Alpine-based images"
+          docker run --rm your-image-name sh -c "cat /etc/ssl/certs/certificate.pem"
+          ```
+     </TabItem>
+
+     <TabItem label="실행 시간">
+       실행 중에 Docker Compose 파일에 인증서를 추가하려면:
+
+       1. 인증서를 추가하면 방향을 설치합니다.`docker-compose.yml`파일. 예를 들면:
+
+          ```yaml title="Red Hat-based containers"
+          version: '3'
+          services:
+          	redhat-app:
+          		image: registry.access.redhat.com/ubi9/ubi:latest
+           		volumes:
+           			- certs/certificate.pem:/etc/pki/ca-trust/source/anchors/certificate.pem
+           		entrypoint: /bin/sh -c "dnf install -y ca-certificates && update-ca-trust extract && app start"
+          ```
+
+          ```yaml title="Debian-based containers"
+          version: '3'
+          services:
+          	debian-app:
+          		image: debian:12
+           		volumes:
+           			- certs/certificate.pem:/usr/local/share/ca-certificates/certificate.crt
+           		entrypoint: /bin/sh -c "apt-get update && apt-get install -y ca-certificates && update-ca-certificates && app start"
+          ```
+
+          ```yaml title="Alpine-based containers"
+          version: '3'
+          services:
+          	alpine-app:
+          		image: alpine:3.18
+           		volumes:
+           			- certs/certificate.pem:/usr/local/share/ca-certificates/certificate.pem
+           		entrypoint: /bin/sh -c "apk add --no-cache ca-certificates && update-ca-certificates && app start"
+          ```
+
+       2. 컨테이너를 실행:
+
+          ```sh
+          docker-compose up
+          ```
+
+       3. 인증서가 설치되었습니다.
+
+          ```sh title="Red Hat-based containers"
+          docker exec -it <container-name> sh -c "cat /etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem | grep Cloudflare"
+          ```
+
+          ```sh title="Debian and Alpine-based containers"
+          docker exec -it <container-name> sh -c "cat /etc/ssl/certs/ca-certificates.crt | grep Cloudflare"
+          ```
+     </TabItem>
+   </Tabs>
+
+### 명령줄 도구
+
+Command-line 도구는 일반적으로 시스템 인증서 저장소를 사용하지만 특정 구성이 필요할 수 있습니다.
+
+#### 사이트맵
+
+기본적으로 cURL은 운영 체제의 기본 인증서 저장소를 사용합니다. 기본 인증서를 사용하려면 cURL을 강제하려면 추가`--ca-native`명령에 플래그. 예를 들면:
+
+```curl
+curl --ca-native https://example.com
+```
+
+<Tabs>
+  <TabItem label="맥 OS" icon="apple">
+    macOS에서 cURL을 가진 Cloudflare 루트 인증서를 사용하려면[운영 체제 keychain에 인증서를 설치](#macos). cURL은 기본으로 macOS 루트 인증서를 사용합니다.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    CURL의 버전과 Cloudflare 인증서를 사용하여 Schannel (WinSSL) 백엔드를 사용하는 Windows 또는 다른 버전에서 사전 설치,[Windows 인증서 저장소에 인증서를 설치](#windows). 만약 당신이 OpenSSL 백엔드와 내장된 cURL의 이전 또는 사용자 정의 버전을 사용한다면, 당신은 필요가 있을 것입니다[수동으로 인증서를 사용하려면 cURL을 구성](#curl).
+  </TabItem>
+
+  <TabItem label="리눅스" icon="seti:linux">
+    Linux에서 cURL을 가진 Cloudflare 루트 인증서를 사용하려면[당신의 배급의 증명서 상점에 인증서를 설치하십시오](#linux). cURL은 기본적으로 Linux 루트 인증서를 사용합니다.
+  </TabItem>
+</Tabs>
+
+#### GNU 위젯
+
+기본적으로 GNU Wget은 운영 체제의 기본 인증서 저장소를 사용합니다. Wget을 강제로 기본 인증서를 사용하여 추가`--ca-certificate`명령에 플래그.
+
+<Tabs>
+  <TabItem label="맥 OS" icon="apple">
+    macOS에서 Wget을 가진 Cloudflare 루트 인증서를 사용하려면[운영 체제 keychain에 인증서를 설치](#macos). Wget은 기본으로 macOS 루트 인증서를 사용합니다.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    Windows에서 Wget과 Cloudflare 인증서를 사용하려면[Windows 인증서 저장소에 인증서를 설치](#windows). Wget은 기본적으로 Windows 루트 인증서를 사용합니다.
+  </TabItem>
+
+  <TabItem label="리눅스" icon="seti:linux">
+    Linux에서 Wget을 가진 Cloudflare 루트 인증서를 사용하려면[당신의 배급의 증명서 상점에 인증서를 설치하십시오](#linux). Wget은 기본적으로 Linux 루트 인증서를 사용합니다.
+
+    또는, 당신은 직접 인증서 파일을 지정할 수 있습니다:
+
+    ```sh
+    wget --ca-certificate=[PATH_TO_CLOUDFLARE_CERT.pem] https://example.com
+    ```
+
+    이 영구을 만들기 위해 다음을 추가하십시오.`~/.wgetrc`파일 :
+
+    ```sh
+    ca_certificate = [PATH_TO_CLOUDFLARE_CERT.pem]
+    ```
+  </TabItem>
+</Tabs>
+
+### IDE 및 개발 환경
+
+통합 개발 환경은 종종 자신의 JVM 또는 인증서 매장을 사용합니다.
+
+#### Android 스튜디오
+
+Android Studio는 자체 JVM 및 인증서 저장소를 사용합니다. Cloudflare 루트 인증서를 설치하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate).
+
+2. 자주 묻는 질문`java.home`Android Studio 설치에 대한 가치.
+   1. Android Studio에서 이동**지원하다** > **제품정보**(주)**Android 스튜디오** > **Android Studio 소개**macOS에서
+   2. 대화 상자에 표시되는 JRE 경로 복사. 예를 들면:
+      ```txt
+      /Applications/Android Studio.app/Contents/jbr/Contents/Home
+      ```
+
+3. Cloudflare 인증서를 Android Studio의 JVM에 추가하십시오.
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1) 터미널에서 환경 변수로 복사한 JRE 경로를 추가합니다.
+
+       ```sh
+       export JAVA_HOME="/path/to/jre"
+       ```
+
+    2) 지원하다`keytool`Cloudflare 인증서를 설치하고 신뢰합니다.
+
+       ```sh
+       "$JAVA_HOME/bin/keytool" -import -file ~/Downloads/certificate.crt -alias CloudflareRootCA -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit -trustcacerts -noprompt
+       ```
+
+    3) Restart 안드로이드 스튜디오.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. 관리자 PowerShell 터미널에서 환경 변수로 복사 한 JRE 경로를 추가합니다.
+
+       ```powershell
+       $env:JAVA_HOME = "C:\Program Files\Android\Android Studio\jbr"
+       ```
+
+    2. 지원하다`keytool`Cloudflare 인증서를 설치하고 신뢰합니다.
+
+       ```powershell
+       & "$env:JAVA_HOME\bin\keytool.exe" -import -file "$env:USERPROFILE\Downloads\certificate.crt" -alias CloudflareRootCA -keystore "$env:JAVA_HOME\lib\security\cacerts" -storepass changeit -trustcacerts -noprompt
+       ```
+
+    3. Restart 안드로이드 스튜디오.
+  </TabItem>
+</Tabs>
+
+Gradle 빌드는 Android Studio 내에서 Gradle JVM을 구성해야 할 수도 있습니다. Gradle JVM 위치의 동일한 단계에 따라 인증서를 신뢰할 수 있습니다.
+
+#### 제트 보트
+
+JetBrains 제품에 Cloudflare 루트 인증서를 설치하려면 아래 링크 참조 :
+
+- [앱코드](https://www.jetbrains.com/help/objc/settings-tools-server-certificates.html)
+- [제품정보](https://www.jetbrains.com/help/clion/settings-tools-server-certificates.html)
+- [데이터 그립](https://www.jetbrains.com/help/datagrip/settings-tools-server-certificates.html)
+- [자료실](https://www.jetbrains.com/help/dataspell/settings-tools-server-certificates.html)
+- [바로가기](https://www.jetbrains.com/help/go/settings-tools-server-certificates.html)
+- [인텔리전스 IDEA](https://www.jetbrains.com/help/idea/settings-tools-server-certificates.html)
+- [사이트맵](https://www.jetbrains.com/help/phpstorm/settings-tools-server-certificates.html)
+- [사이트맵](https://www.jetbrains.com/help/pycharm/settings-tools-server-certificates.html)
+- [라이더](https://www.jetbrains.com/help/rider/Settings_Tools_Server_Certificates.html)
+- [웹 사이트](https://www.jetbrains.com/help/webstorm/settings-tools-server-certificates.html)
+
+#### 인기 카테고리
+
+Java Developers를 위한 Eclipse IDE에 Cloudflare root 인증서를 설치하려면 Eclipse가 사용하는 Java Virtual Machine (JVM)에 인증서를 추가해야 합니다.
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate).
+
+2. 자주 묻는 질문`java.home`Eclipse 임명을 위한 가치.
+
+   1. Eclipse에서 이동**인기 카테고리** > **Eclipse 소개**(주)**지원하다** > **Eclipse 소개**Windows 및 Linux에서
+   2. 제품정보**설치 세부 사항**, 다음 이동**제품 설명**.
+   3. 관련 기사`java.home`, 다음 값을 찾습니다. 예를 들면:
+
+   ```txt null {2}
+   *** System properties:
+   java.home=/Users/<username>/.p2/pool/plugins/org.eclipse.justj.openjdk.hotspot.jre.full.macosx.aarch64_17.0.8.v20230831-1047/jre
+   ```
+
+   4. 전체 경로 복사 후`java.home=`.
+
+3. Cloudflare 인증서를 Eclipse의 JVM에 추가하십시오:
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    1) 맨끝에서, 추가하십시오`java.home`환경 변수로 복사한 값.
+
+       ```sh
+       export JAVA_HOME=$(echo /path/to/java.home)
+       ```
+
+    2) 지원하다`keytool`Cloudflare 인증서를 설치하고 신뢰합니다.
+
+       ```sh
+       "$JAVA_HOME/bin/keytool" -import -file ~/Downloads/certificate.crt -alias CloudflareRootCA -keystore "$JAVA_HOME/lib/security/cacerts" -storepass changeit -trustcacerts -noprompt
+       ```
+
+    3) 휴식 Eclipse.
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. 맨끝에서, 추가하십시오`java.home`환경 변수로 복사한 값.
+
+       ```powershell
+       set JAVA_HOME="\path\to\java.home"
+       ```
+
+    2. 지원하다`keytool`Cloudflare 인증서를 설치하고 신뢰합니다.
+
+       ```powershell
+       "%JAVA_HOME%\bin\keytool.exe" -import -file "%UserProfile%\Downloads\Cloudflare_CA.crt" -alias CloudflareRootCA -keystore "%JAVA_HOME%\lib\security\cacerts" -storepass changeit -trustcacerts -noprompt
+       ```
+
+    3. 휴식 Eclipse.
+  </TabItem>
+</Tabs>
+
+Eclipse에 인증서 추가에 대한 자세한 정보`keytool`, 참조[IBM의 문서](https://www.ibm.com/docs/en/ram/7.5.4?topic=client-adding-server-public-certificate-eclipse).
+
+### 클라우드 및 인프라 도구
+
+Cloud 서비스 제공 업체 및 인프라 도구는 종종 API 액세스 및 리소스 관리를위한 인증서 구성을 요구합니다.
+
+#### Google 클라우드
+
+##### 구글 클라우드 SDK
+
+아래 명령은 Cloudflare 인증서를 사용하여 Google Cloud SDK를 설정합니다. Google Cloud SDK 구성에 대한 자세한 내용은 참조[Google Cloud 문서](https://cloud.google.com/sdk/docs/proxy-settings).
+
+1. 컬의 받기`cacert`뭉치.
+
+   ```sh
+   curl --remote-name https://curl.se/ca/cacert.pem
+   ```
+
+2. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+
+3. 단 하나에 certs를 결합`.pem`파일.
+
+   ```sh
+   cat cacert.pem certificate.pem > ~/ca.pem
+   ```
+
+4. Google Cloud를 구성하여 결합`.pem`.
+
+   ```sh
+   gcloud config set core/custom_ca_certs_file ~/ca.pem
+   ```
+
+:::참조
+
+파일에`~/ca.pem`주문에 남아 있어야`gcloud`활용할 수 있는 유틸리티. 파일이 이동되면, 다시 실행해야 3 점`gcloud`파일의 새로운 위치로.
+주요 특징
+
+##### 숙박 플랜
+
+Google Cloud SDK를 사용하는 경우 Cloudflare 인증서를 설치해야 합니다.[Kaniko CA 가게](https://docs.gitlab.com/ee/ci/docker/using_kaniko.html#using-a-registry-with-a-custom-certificate). 자세한 내용은, 참조[`gcloud`관련 기사](https://cloud.google.com/sdk/gcloud/reference/builds/submit).
+
+##### Google 앱 관리자 (GAM)
+
+Google Apps Manager (GAM)는 자체 인증서 저장소를 사용합니다. Cloudflare 인증서를 GAM에 추가하려면, 참조[GAM 문서](https://github.com/GAM-team/GAM/wiki/#using-gam-with-ssl--tls-mitm-inspection).
+
+#### AWS 클립
+
+##### 글로벌 config
+
+인증서의 위치를 영구적으로 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+
+2. 찾아보기[AWS 구성 파일](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html#cli-configure-files-where).
+
+3. 설정하기[`ca_bundle`설치하기](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html#cli-configure-files-settings)인증서의 위치. 예를 들면:
+
+   ```diff lang="ini" title=".aws/config"
+   [default]
+   region = us-west-1
+
+   +ca_bundle = /path/to/certificate.pem
+   ```
+
+4. 당신의 맨끝을 재시작하십시오.
+
+##### 환경 변수
+
+환경 변수로서의 인증서의 위치를 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 터미널에서 설정[`AWS_CA_BUNDLE`환경 변수](https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html)운영 체제에 따라 인증서의 위치에.
+3. 당신의 맨끝을 재시작하십시오.
+
+#### Azure 클립
+
+##### 글로벌 config
+
+인증서의 위치를 영구적으로 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 설정하기`REQUESTS_CA_BUNDLE`환경변수는 운영 체제에 따라 인증서에 할당합니다.
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    쉘의 구성 파일에 다음을 추가하십시오 (예 :`~/.zshrc`또는`~/.bash_profile`):
+
+    ```sh
+    export REQUESTS_CA_BUNDLE="$HOME/Downloads/certificate.pem"
+    ```
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    PowerShell에서:
+
+    ```powershell
+    [System.Environment]::SetEnvironmentVariable('REQUESTS_CA_BUNDLE', "$HOME\Downloads\certificate.pem", 'User')
+    ```
+  </TabItem>
+</Tabs>
+
+3. 당신의 맨끝을 재시작하십시오.
+
+##### 회사 소개
+
+단일 명령의 인증서의 위치를 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 설정하기`REQUESTS_CA_BUNDLE`명령을 실행할 때 환경 변수:
+
+   ```sh
+   REQUESTS_CA_BUNDLE=/path/to/certificate.pem az <command>
+   ```
+
+더 많은 정보를 원하시면, 참조[Azure CLI 문서](https://learn.microsoft.com/cli/azure/use-cli-effectively#work-behind-a-proxy).
+
+#### 보토3
+
+Python용 AWS SDK는 여러 가지 방법으로 Cloudflare 인증서를 사용할 수 있습니다.
+
+##### 환경 변수
+
+환경 변수를 사용하여 인증서의 위치를 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 설정하기`AWS_CA_BUNDLE`운영 체제에 따라 환경 변수.
+
+<Tabs>
+  <TabItem label="macOS 및 Linux" icon="seti:shell">
+    쉘의 구성 파일에 다음을 추가하십시오 (예 :`~/.zshrc`또는`~/.bash_profile`):
+
+    ```sh
+    export AWS_CA_BUNDLE="$HOME/Downloads/certificate.pem"
+    ```
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    PowerShell에서:
+
+    ```powershell
+    [System.Environment]::SetEnvironmentVariable('AWS_CA_BUNDLE', "$HOME\Downloads\certificate.pem", 'User')
+    ```
+  </TabItem>
+</Tabs>
+
+3. 당신의 맨끝을 재시작하십시오.
+
+##### AWS 설정 파일
+
+AWS 구성의 인증서의 위치를 영구적으로 설정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. 찾아보기[AWS 구성 파일](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html#cli-configure-files-where).
+3. 설정하기[`ca_bundle`설치하기](https://docs.aws.amazon.com/cli/v1/userguide/cli-configure-files.html#cli-configure-files-settings)인증서의 위치. 예를 들면:
+
+   ```diff lang="ini" title=".aws/config"
+   [default]
+   region = us-west-1
+
+   +ca_bundle = /path/to/certificate.pem
+   ```
+
+##### 로그인
+
+Python 코드에서 인증서를 직접 지정하려면:
+
+1. [Cloudflare 인증서 다운로드](#download-a-cloudflare-root-certificate)내 계정`.pem`파일 형식.
+2. Boto3 클라이언트 또는 리소스를 만들 때 인증서 경로를 전달하십시오.
+
+   ```python
+   import boto3
+
+   client = boto3.client(
+       's3',
+       verify='/path/to/certificate.pem'
+   )
+   ```
+
+더 많은 정보를 원하시면, 참조[Boto3 문서](https://boto3.amazonaws.com/v1/documentation/api/latest/guide/configuration.html).
+
+### Enterprise 응용
+
+Enterprise 데스크톱 응용 및 전문 도구는 사용자 정의 인증서 구성을 필요로 할 수 있습니다.
+
+#### Google 드라이브
+
+Google Drive 데스크톱 애플리케이션에서 Cloudflare 루트 인증서를 신뢰하려면 운영 체제의 절차를 따르십시오. 이 단계는 당신을 요구합니다[다운로드`.pem`인증번호](#download-a-cloudflare-root-certificate).
+
+<Tabs>
+  <TabItem label="맥 OS" icon="apple">
+    1. 터미널에서 문서 폴더와 같은 영구 위치에 새로운 인증서 파일에 Google Drive 인증서 파일의 내용을 복사합니다. 예를 들면:
+
+       ```sh
+       cat /Applications/"Google Drive.app"/Contents/Resources/roots.pem > ~/Documents/gdrivecerts.pem
+       ```
+
+    2. 다운로드 된 인증서의 내용을 새 파일의 끝으로 승인하십시오. 예를 들면:
+
+       ```sh
+       cat ~/Downloads/certificate.pem >> ~/Documents/gdrivecerts.pem
+       ```
+
+    3. 새로 생성 된 루트 인증서를 Google 드라이브 응용 프로그램에 적용하십시오. 예를 들면:
+
+       ```sh
+       sudo defaults write /Library/Preferences/com.google.drivefs.settings TrustedRootCertsFile "/Users/$(whoami)/Documents/gdrivecerts.pem"
+       ```
+
+    다음 명령으로 업데이트를 확인할 수 있습니다.
+
+    ```sh
+    defaults read /Library/Preferences/com.google.drivefs.settings
+    ```
+  </TabItem>
+
+  <TabItem label="윈도우" icon="seti:windows">
+    1. 관리자 PowerShell 터미널에서 문서 폴더와 같은 영구 위치에 새로운 인증서 파일에 Google Drive 인증서 파일의 내용을 복사합니다. 예를 들면:
+
+       ```powershell
+       Get-Content "C:\Program Files\Google\Drive File Stream\roots.pem" | Set-Content "$HOME\Documents\gdrivecerts.pem"
+       ```
+
+    2. 다운로드 된 인증서의 내용을 새 파일의 끝으로 승인하십시오. 예를 들면:
+
+       ```powershell
+       Get-Content "$HOME\Downloads\certificate.pem" | Add-Content "$HOME\Documents\gdrivecerts.pem"
+       ```
+
+    3. 새로 생성 된 루트 인증서를 Google 드라이브 응용 프로그램에 적용하십시오. 예를 들면:
+
+       ```powershell
+       Set-ItemProperty -Path "HKLM:\SOFTWARE\Google\DriveFS" -Name "TrustedRootCertsFile" -Value "$HOME\Documents\gdrivecerts.pem"
+       ```
+
+    다음 명령으로 업데이트를 확인할 수 있습니다.
+
+    ```powershell
+    Get-ItemProperty -Path "HKLM:\SOFTWARE\Google\DriveFS" | Select-Object TrustedRootCertsFile
+    ```
+  </TabItem>
+</Tabs>
+
+더 많은 정보를 원하시면, 참조[Google 문서](https://support.google.com/a/answer/7644837)제품정보`TrustedRootCertsFile`설정.
+
+#### 미니쿠베
+
+Minikube에서 Cloudflare 루트 인증서를 신뢰하려면, 참조[x509: 알 수없는 권위에 의해 서명 된 인증서](https://minikube.sigs.k8s.io/docs/handbook/vpn_and_proxy/#x509-certificate-signed-by-unknown-authority).

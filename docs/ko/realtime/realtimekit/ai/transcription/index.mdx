@@ -1,0 +1,186 @@
+---
+pcx_content_type: how-to
+title: 이름 *
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/ai/transcription/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/ai/transcription/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+RealtimeKit는 Cloudflare Workers AIXQ에 의해 구동되는 2개의 transcription 형태를 제공합니다:
+
+| 주요 특징      | 모델 번호:                                                        | 사용 사례       |
+| ---------- | ------------------------------------------------------------- | ----------- |
+| **실시간 채팅** | [그림 Nova-3](/workers-ai/models/nova-3/)                       | 회의 중 라이브 캡션 |
+| **관련 기사**  | [Whisper 큰 v3 터보](/workers-ai/models/whisper-large-v3-turbo/) | 정확한 오프라인 구독 |
+
+## 실시간 구독
+
+Streams transcripts는 참가자에게 그들이 사용하는 말을[그림 Nova-3](/workers-ai/models/nova-3/)Cloudflare AI 게이트웨이를 통해.
+
+### preset를 통해 활성화
+
+설치하기`transcription_enabled: true`참가자의[기타 제품](/realtime/realtimekit/concepts/preset/):
+
+```json
+{
+	"name": "webinar_host",
+	"transcription_enabled": true
+}
+```
+
+이 깃발을 가진 참가자는 그들의 오디오 transcribed가 있을 것입니다.
+
+### 설정하기
+
+패스워드`ai_config.transcription`현재 위치[회의 만들기](/realtime/realtimekit/concepts/meeting/):
+
+```json
+{
+	"title": "Team Standup",
+	"ai_config": {
+		"transcription": {
+			"language": "en-US",
+			"keywords": ["RealtimeKit", "Cloudflare"],
+			"profanity_filter": false
+		}
+	}
+}
+```
+
+| 옵션 정보              | 제품정보   | 기본 정보   | 이름 \*                    |
+| ------------------ | ------ | ------- | ------------------------ |
+| `language`         | 이름 \*  | `en-US` | transcription에 대한 언어 코드  |
+| `keywords`         | 문자열\[] | `[]`    | 승인 (이름, jargon)를 밀어주는 용어 |
+| `profanity_filter` | 한국어    | `false` | 필터 공격 언어                 |
+
+### 지원 언어
+
+Real-time transcription은 구동됩니다.[그림 Nova-3](/workers-ai/models/nova-3/)Workers AI.에.
+
+<Render file="nova-3-supported-languages" product="workers-ai" />
+
+### 논문 제출
+
+#### 클라이언트 SDK
+
+```javascript
+//모든 성적표
+const transcripts = meeting.ai.transcripts;
+
+//새로운 성적표
+meeting.ai.on("transcript", (data) => {
+	if (data.isPartialTranscript) {
+		//Interim result - 스피커는 여전히 이야기
+		updateLiveCaption(data.peerId, data.transcript);
+	} else {
+		//최종 결과
+		appendToHistory(data);
+	}
+});
+```
+
+#### Transcript 페이로드
+
+```json
+{
+	"id": "1a2b3c4d-5678-90ab-cdef-1234567890ab",
+	"name": "Alice",
+	"peerId": "4f5g6h7i-8j9k-0lmn-opqr-1234567890st",
+	"userId": "uvwxyz-1234-5678-90ab-cdefghijklmn",
+	"customParticipantId": "abc123xyz",
+	"transcript": "Hello everyone",
+	"isPartialTranscript": false,
+	"date": "2024-08-07T10:15:30.000Z"
+}
+```
+
+| 제품정보                  | 이름 \*                                 |
+| --------------------- | ------------------------------------- |
+| `isPartialTranscript` | `true`= interim (실행 말하기),`false`= 마지막 |
+| `peerId`              | participant rejoins의 변화               |
+| `userId`              | Persistent 참가자 ID                     |
+| `customParticipantId` | Participant API 추가에서 사용자 정의 ID        |
+
+***
+
+## 게시물 구독
+
+회의 종료 후 성적표 생성[Whisper 큰 v3 터보](/workers-ai/models/whisper-large-v3-turbo/). 모든 참가자의 Transcripts는 통합된 타임라인으로 통합되고 webhook 또는 REST API를 통해 전달됩니다.
+
+:::참조
+Post-meeting transcription은 현재 닫히는 베타입니다. 이 기능에 관심이 있다면 계정 팀에 문의하십시오.
+주요 특징
+
+### 지원 언어
+
+모든 언어 지원[Whisper 큰 v3 터보](/workers-ai/models/whisper-large-v3-turbo/). ISO 639-1 언어 코드를 사용합니다.
+
+### 출력 형식
+
+| 지원하다        | 사용 사례                                     |
+| ----------- | ----------------------------------------- |
+| **CSV 파일**  | Spreadsheets, 데이터 분석                      |
+| **RSS 피드**  | Video 자막 파일                               |
+| **VTT 소개**  | 웹 비디오 캡션 (Web video captions)`<track>`성분) |
+| **JSON 파일** | Programmatic 접근                           |
+
+#### CSV 예제
+
+```csv
+Timestamp,Participant ID,User ID,Custom Participant ID,Participant Name,Transcript
+2024-08-07T10:15:30.000Z,peer-123,user-456,cust-789,Alice,Hello everyone
+2024-08-07T10:15:35.000Z,peer-234,user-567,cust-890,Bob,Hi Alice
+```
+
+#### JSON 예제
+
+```json
+[
+	{
+		"startTime": 0,
+		"endTime": 2.5,
+		"sentence": "Hello everyone",
+		"peerData": {
+			"id": "peer-123",
+			"userId": "user-456",
+			"displayName": "Alice",
+			"cpi": "cust-789"
+		}
+	}
+]
+```
+
+### Fetch 성적표
+
+#### 웹훅
+
+설정하기`meeting.transcript`행사일정[웹훅](/api/resources/realtime_kit/subresources/webhooks/):
+
+```json
+{
+	"event": "meeting.transcript",
+	"meetingId": "meeting-123",
+	"sessionId": "session-456",
+	"transcriptDownloadUrl": "https://...",
+	"transcriptDownloadUrlExpiry": "2024-08-14T10:15:30.000Z"
+}
+```
+
+#### REST API를
+
+더 알아보기[세션에 대한 완전한 성적표](/api/resources/realtime_kit/subresources/sessions/#fetch-the-complete-transcript-for-a-session).
+
+```bash
+curl -X GET "https://api.cloudflare.com/client/v4/accounts/{account_id}/realtime/kit/{app_id}/sessions/{session_id}/transcript" \
+  -H "Authorization: Bearer {api_token}"
+```
+
+Transcript를 사용할 수 있습니다.**7 일**회의 끝 후에.

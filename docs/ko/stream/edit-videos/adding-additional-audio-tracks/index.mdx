@@ -1,0 +1,172 @@
+---
+pcx_content_type: how-to
+title: 추가 오디오 트랙 추가
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/stream/edit-videos/adding-additional-audio-tracks/
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/edit-videos/adding-additional-audio-tracks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+추가 오디오 트랙이 첨부되기 전에 비디오가 업로드되어야합니다. 다음 예 URL에서 비디오의 UID는 referenced입니다.`VIDEO_UID`.
+
+비디오에 오디오 트랙을 추가하려면[Cloudflare API를 토큰 토큰](https://www.cloudflare.com/a/account/my-account)참고사항
+
+API는 업로드 된 오디오 파일과 비디오 시간의 기간 사이에 모든 실수를 처리 할 수있는 최선의 노력을 기울일 것입니다. 비디오의 기간과 일치하는 오디오 파일을 업로드하는 것이 좋습니다. 오디오 파일의 지속 시간이 비디오보다 길어지면 추가 오디오 트랙이 비디오 기간과 일치하도록 truncated 것입니다. 오디오 파일의 지속 시간이 비디오보다 짧으면 침묵은 비디오 기간과 일치하는 오디오 트랙의 끝에 부과됩니다.
+
+## 연결하기
+
+클라우드 스토리지 버킷에 저장된 오디오 파일이있는 경우, 파일을 HTTP 링크를 전달 할 수 있습니다. 스트림은 파일을 fetch하고 스트리밍을 위해 사용할 수 있습니다.
+
+`label`필수이며 지정된 비디오의 다른 오디오 트랙 라벨 중 하나를 고유하게 식별해야합니다.
+
+```bash
+curl -X POST \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+ -d '{"url": "https://www.examplestorage.com/audio_file.mp3", "label": "Example Audio Label"}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/audio/copy
+```
+
+```json title="Example response to add additional audio tracks"
+{
+ "result": {
+   "uid": "<AUDIO_UID>",
+   "label": "Example Audio Label",
+   "default": false
+   "status": "queued"
+ },
+ "success": true,
+ "errors": [],
+ "messages": []
+}
+```
+
+더 보기`uid`오디오 트랙을 고유하게 식별하고 오디오 트랙을 편집하거나 삭제하는 데 사용할 수 있습니다. 이 작업을 수행하는 방법에 대한 지침을 참조하십시오.
+
+더 보기`default`오디오 트랙이 플레이어에서 기본적으로 재생될지 여부를 나타냅니다. 추가 오디오 트랙에는`false`기본 상태이지만 아래 지침에 따라 편집 할 수 있습니다.
+
+더 보기`status`본문 바로가기`ready`오디오 트랙이 성공적으로 업로드되고 인코딩 된 후. 이 과정에서 오류가 발생하면 상태가 나타날 것입니다.`error`.
+
+## HTTP를 통해 업로드
+
+HTTP 요청을 작성하고 오디오 파일을 이름 설정으로 입력 할 수 있습니다.`file`.
+
+오디오 파일 업로드는 크기에서 200 MB를 초과할 수 없습니다. 오디오 파일이 더 크면 업로드하기 전에 파일을 압축하십시오.
+
+양식 입력`label`필수이며 지정된 비디오의 다른 오디오 트랙 라벨 중 하나를 고유하게 식별해야합니다.
+
+cURL 정보`-F`플래그는 자동으로 Content-type 헤더와 맵을 구성합니다.`audio_file.mp3`본문내용 바로가기`file`.
+
+```bash
+curl -X POST \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+ -F file=@/Desktop/audio_file.mp3 \
+ -F label='Example Audio Label' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/audio
+```
+
+```json title="Example response to add Additional audio tracks"
+{
+ "result": {
+   "uid": "<AUDIO_UID>",
+   "label": "Example Audio Label",
+   "default": false
+   "status": "queued"
+ },
+ "success": true,
+ "errors": [],
+ "messages": []
+}
+```
+
+## 비디오에서 추가 오디오 트랙 목록
+
+추가 오디오 트랙을 비디오에 추가하려면:
+
+```bash
+curl \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/audio
+```
+
+```json title="Example response to get the audio tracks associated with a video"
+{
+  "result": {
+    "audio": [
+      {
+        "uid": "<AUDIO_UID>",
+        "label": "Example Audio Label",
+        "default": false,
+        "status": "ready"
+      },
+      {
+        "uid": "<AUDIO_UID>",
+        "label": "Another Audio Label",
+        "default": false,
+        "status": "ready"
+      }
+    ]
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+이 API는 동영상 업로드에 첨부된 오디오에 대한 정보를 반환하지 않습니다.
+
+## 추가 오디오 트랙 편집
+
+편집하기`default`상태 또는`label`추가 오디오 트랙의:
+
+```bash
+curl -X PATCH \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+ -d '{"label": "Edited Audio Label", "default": true}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/audio/<AUDIO_UID>
+```
+
+편집하기`default`오디오 트랙의 상태`true`비디오에 다른 모든 오디오 트랙을 표시 할 것이다`default`관련 정보`false`.
+
+```json title="Example response to edit the audio tracks associated with a video"
+{
+  "result": {
+    "uid": "<AUDIO_UID>",
+    "label": "Edited Audio Label",
+    "default": true
+    "status": "ready"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 추가 오디오 트랙 삭제
+
+동영상과 관련된 추가 오디오 트랙을 제거하려면:
+
+```bash
+curl -X DELETE \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/audio/<AUDIO_UID>
+```
+
+자주 묻는 질문`default`오디오 트랙은 허용되지 않습니다. 다른 오디오 트랙을 지정해야 합니다.`default`관련 기사
+
+입장이 있는 경우`errors`응답 분야, 오디오 트랙은 없었다
+로그아웃
+
+```json title="Example response to delete an audio track"
+{
+  "result": "ok",
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```

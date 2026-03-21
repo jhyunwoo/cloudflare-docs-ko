@@ -1,0 +1,70 @@
+---
+pcx_content_type: how-to
+title: HTTP/2
+sidebar:
+  order: 1
+---
+
+import { FeatureTable, TabItem, Tabs } from "~/components";
+
+HTTP/2는 TCP 전송 프로토콜과 TLS를 사용해 통신을 보호하며 페이지 로드 시간을 개선합니다.
+
+:::note
+
+HTTP/2에 대한 더 많은 배경 설명은 [Learning Center](https://www.cloudflare.com/learning/performance/http2-vs-http1.1/)를 참고하세요.
+
+:::
+
+## 가용성
+
+<FeatureTable id="speed.http2" />
+
+## HTTP/2 활성화
+
+HTTP/2는 모든 플랜에서 기본적으로 활성화되어 있습니다(단, [Cloudflare 엣지 네트워크의 SSL 인증서](/ssl/get-started/)는 필요합니다).
+
+## HTTP/2 비활성화
+
+Free 플랜의 도메인은 Cloudflare의 HTTP/2 설정을 비활성화할 수 없습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+대시보드에서 **HTTP/2**를 비활성화하려면 다음을 수행하세요.
+
+1. [Cloudflare dashboard](https://dash.cloudflare.com)에 로그인합니다.
+2. 계정과 zone을 선택합니다.
+3. **Speed** > **Settings**로 이동합니다.
+4. **Protocol Optimization**으로 이동합니다.
+5. **HTTP/2**의 토글을 **Off**로 전환합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 **HTTP/2**를 비활성화하려면 URI 경로에서 설정 이름을 `http2`로 지정하고, `value` 파라미터를 `"off"`로 설정한 [`PATCH`](/api/resources/zones/subresources/settings/methods/edit/) 요청을 보내세요.
+
+</TabItem> </Tabs>
+
+## ERR_HTTP2_PROTOCOL_ERROR
+
+Cloudflare를 통해 프록시된 요청은 방문자 측에서 `ERR_HTTP2_PROTOCOL_ERROR` 오류 코드를 Developer Tools Console에 표시할 수 있습니다. 이러한 오류는 대체로 오리진 웹 서버 구성 문제로 인해 발생하지만, 클라이언트 브라우저의 동작에 따라 Cloudflare를 통해 요청이 프록시될 때만 드러날 수도 있습니다. 가능한 원인은 다음과 같습니다.
+
+### 잘못된 형식의 HTTP 응답 헤더
+
+오리진 웹 서버가 잘못된 형식의 HTTP 응답 헤더를 보내고 있을 수 있습니다.
+
+#### 해결 방법
+
+오리진 웹 서버에 직접 요청을 보내고 HTTP 응답 헤더에 이상이 없는지 확인하세요. 필드 값이 다음 요구 사항을 준수하는지 확인하세요.
+
+- [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-5.5)
+- [RFC 9113](https://www.rfc-editor.org/rfc/rfc9113.html#section-8.2.1)
+- [RFC 5234](https://www.rfc-editor.org/rfc/rfc5234#appendix-B.1)
+
+### 압축 문제
+
+압축 문제의 예로는, 오리진 웹 서버가 gzip으로 인코딩된 압축 콘텐츠를 제공하면서 `Content-Length` 헤더를 갱신하지 못하거나, 손상된 gzip 압축 콘텐츠를 제공하는 경우가 있습니다.
+
+#### 해결 방법
+
+오리진 웹 서버에서 압축을 비활성화하고 Cloudflare가 [콘텐츠를 압축](/speed/optimization/content/compression/)하도록 맡기는 방법을 시도할 수 있습니다.
+
+압축이 예상대로 동작하는지 확인하기 위해 오리진 서버의 압축 설정을 검토할 수도 있습니다.

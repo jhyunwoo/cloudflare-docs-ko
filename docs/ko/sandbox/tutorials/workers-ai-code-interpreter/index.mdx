@@ -1,0 +1,229 @@
+---
+title: Workers AI를 가진 부호 해석기
+pcx_content_type: tutorial
+sidebar:
+  order: 3
+description: Workers AI GPT-OSS 모델을 사용하여 코드 해석기를 구축하십시오.
+reviewed: 2026-01-28T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/sandbox/tutorials/workers-ai-code-interpreter/
+translation_source_md: >-
+  https://developers.cloudflare.com/sandbox/tutorials/workers-ai-code-interpreter/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+강력한 코드 해석기 구축[gpt-oss 모델](/workers-ai/models/gpt-oss-120b/)Workers AI에서 QXQX0166XQXCloudflare Sandbox SDK를 사용하여 PythonXQXQ 코드를 실행할 수 있습니다.
+
+**완료 시간:**&#x31;5 분
+
+## 당신이 구축 할 것
+
+Cloudflare 자연 언어 프롬프트를 수용하는 노동자는 Python 코드 실행이 필요한 경우 결정하기 위해 GPT-OSS를 사용하여 격리 된 샌드 박스에 코드를 실행하고 AI 전원 설명으로 결과를 반환합니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+당신은 또한 필요로 할 것입니다:
+
+- [기타 제품](https://www.docker.com/)현지에서
+
+## 1. 프로젝트 만들기
+
+새로운 Sandbox SDK 프로젝트 만들기:
+
+<PackageManagers
+  type="create"
+  pkg="cloudflare@latest"
+  args={
+  	"workers-ai-interpreter --template=cloudflare/sandbox-sdk/examples/code-interpreter"
+  }
+/>
+
+```sh
+cd workers-ai-interpreter
+```
+
+## 2. 구현 검토
+
+템플릿은 최신 모범 사례를 사용하여 완벽한 구현을 포함합니다. 중요한 성분을 검사하자:
+
+```typescript
+//프로젝트
+import { getSandbox } from "@cloudflare/sandbox";
+import { generateText, stepCountIs, tool } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
+import { z } from "zod";
+
+const MODEL = "@cf/openai/gpt-oss-120b" as const;
+
+async function handleAIRequest(input: string, env: Env): Promise<string> {
+	const workersai = createWorkersAI({ binding: env.AI });
+
+	const result = await generateText({
+		model: workersai(MODEL),
+		messages: [{ role: "user", content: input }],
+		tools: {
+			execute_python: tool({
+				description: "Execute Python code and return the output",
+				inputSchema: z.object({
+					code: z.string().describe("The Python code to execute"),
+				}),
+				execute: async ({ code }) => {
+					return executePythonCode(env, code);
+				},
+			}),
+		},
+		stopWhen: stepCountIs(5),
+	});
+
+	return result.text || "No response generated";
+}
+```
+
+**직접 REST API 호출에 대한 주요 개선:**
+
+- **공식 패키지**: 용도`workers-ai-provider`수동 API 호출 대신
+- **Vercel AI SDK를**: 레버리지`generateText()`·`tool()`깨끗한 기능 호출
+- **API 키 없음**: 환경 변수 대신 기본 AI 바인딩을 사용합니다.
+- **유형 안전**: 적절한 타이핑과 TypeScript 지원
+
+## 3. 설정 확인
+
+템플릿에는 적절한 Wrangler 구성이 포함됩니다.
+
+<WranglerConfig>
+  ```json
+  {
+    "name": "sandbox-code-interpreter-example",
+    "main": "src/index.ts",
+    "compatibility_date": "$today",
+    "ai": {
+      "binding": "AI"
+    },
+    "containers": [
+      {
+        "class_name": "Sandbox",
+        "image": "./Dockerfile",
+        "name": "sandbox",
+        "max_instances": 1,
+        "instance_type": "basic"
+      }
+    ],
+    "durable_objects": {
+      "bindings": [
+        {
+          "class_name": "Sandbox",
+          "name": "Sandbox"
+        }
+      ]
+    }
+  }
+  ```
+</WranglerConfig>
+
+**구성 강조:**
+
+- **AI 바인딩**: Workers AI 모델에 직접 액세스 가능
+- **컨테이너 설정**: Dockerfile과 sandbox 컨테이너 구성
+- **모델 번호: Durable Objects**: 상태 관리와 지속적 샌드박스 제공
+
+## 4. 로컬 테스트
+
+개발 서버 시작:
+
+```sh
+npm run dev
+```
+
+:::참조
+첫 번째 실행 Docker 컨테이너 구축 (2-3 분). 연속 실행은 훨씬 빠릅니다.
+주요 특징
+
+컬을 가진 시험:
+
+```sh
+#간단한 계산
+curl -X POST http://localhost:8787/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Calculate 5 factorial using Python"}'
+
+#회사연혁
+curl -X POST http://localhost:8787/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Use Python to find all prime numbers under 20"}'
+
+#Data 분석
+curl -X POST http://localhost:8787/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Create a list of the first 10 squares and calculate their sum"}'
+```
+
+## 5. 배포
+
+작업자를 배포:
+
+```sh
+npx wrangler deploy
+```
+
+:::카트로션
+첫 번째 배포 후, 요청하기 전에 컨테이너 규정에 2-3 분을 기다립니다.
+주요 특징
+
+## 6. 배포 테스트
+
+더 복잡한 쿼리를 시도:
+
+```sh
+#Data 시각화
+curl -X POST https://workers-ai-interpreter.YOUR_SUBDOMAIN.workers.dev/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Generate sample sales data for 12 months and calculate quarterly totals"}'
+
+#Algorithm 구현
+curl -X POST https://workers-ai-interpreter.YOUR_SUBDOMAIN.workers.dev/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Implement a binary search function and test it with a sorted array"}'
+
+#수학 계산
+curl -X POST https://workers-ai-interpreter.YOUR_SUBDOMAIN.workers.dev/run \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Calculate the standard deviation of [2, 4, 4, 4, 5, 5, 7, 9]"}'
+```
+
+## 어떻게 작동합니까?
+
+1. **사용자 입력**: 자연적인 언어를 즉시 보내십시오`/run`끝점
+2. **AI 결정**: GPT-OSS는 프롬프트를 받는다.`execute_python`사용 가능
+3. **스마트 실행**: 모델은 Python 코드 실행이 필요한지 결정합니다.
+4. **Sandbox 고립**: 고립 된 Cloudflare에서 코드 실행 Sandbox 컨테이너
+5. **AI 설명**: 결과가 최종 출력에 대한 AI의 응답으로 다시 통합됩니다.
+
+## 당신이 내장 된
+
+정교한 코드 해석기를 배포했습니다.
+
+- **Workers AI 통합**: 공식 사용`workers-ai-provider`원활한 통합을 위한 패키지
+- **기능 호출**: Clean Tool 정의 및 실행을 위한 Vercel AI SDK 활용
+- **보안 실행**: 고립 된 샌드박스 컨테이너에 Python 코드를 실행
+- **지적인 응답**: 코드 실행 결과와 AI reasoning
+
+## 다음 단계
+
+- [AI로 분석 데이터](/sandbox/tutorials/analyze-data-with-ai/)- 고급 데이터 분석을위한 pandas 및 matplotlib 추가
+- [코드 Interpreter API](/sandbox/api/interpreter/)- 구조화된 산출을 가진 붙박이 부호 해석기
+- [출력 전력](/sandbox/guides/streaming-output/)- 실시간 실행 진행
+- [API reference](/sandbox/api/)- 모든 사용 가능한 sandbox 방법 탐색
+
+## 관련 자료
+
+- [Workers AI](/workers-ai/)- Cloudflare의 AI 플랫폼에 대해 알아보기
+- [workers-ai-provider 패키지](https://github.com/cloudflare/ai/tree/main/packages/workers-ai-provider)- 공식 Workers AI 통합
+- [Vercel AI SDK를](https://sdk.vercel.ai/)- AI 애플리케이션용 범용 툴킷
+- [GPT-OSS 모델 문서](/workers-ai/models/gpt-oss-120b/)- 모형 세부사항과 기능

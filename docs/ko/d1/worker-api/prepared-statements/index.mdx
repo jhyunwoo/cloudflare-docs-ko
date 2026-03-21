@@ -1,0 +1,495 @@
+---
+title: 자주 묻는 질문
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/worker-api/prepared-statements/'
+translation_source_md: 'https://developers.cloudflare.com/d1/worker-api/prepared-statements/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, MetaInfo, Details, Tabs, TabItem } from "~/components";
+
+이 장 문서 당신이 실행할 수있는 다양한 방법 및 당신이 가지고있는 후 쿼리의 결과를 검색[자주 묻는 질문](/d1/worker-api/d1-database/#prepare).
+
+## 제품 설명
+
+### `bind()`
+
+준비된 문에 매개 변수를 배치합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const someVariable = `Bs Beverages`;
+    const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    some_variable = "Bs Beverages"
+    stmt = self.env.DB.prepare(
+      "SELECT * FROM Customers WHERE CompanyName = ?"
+    ).bind(some_variable)
+    ```
+  </TabItem>
+</Tabs>
+
+#### 제품 설명
+
+- <code>옵션 정보</code>: <Type text="string" />
+  - 준비된 문에 추가될 변수. 이름 \*[- 연혁](#guidance)아래.
+
+#### 반환 값
+
+- <code>D1프리미엄</code>: <Type text="Object" />
+  - ·`D1PreparedStatement`입력 매개 변수가 문에 포함 된 곳에.
+
+#### 구시가지
+
+- D1는 따릅니다[SQLite 대회](https://www.sqlite.org/lang_expr.html#varparam)준비된 문 매개변수 바인딩을 위해. 현재, D1는 주문 만 지원합니다 (`?NNNN`)와 익명 (`?`) 모수. 앞으로, D1는 모수 뿐 아니라 이름을 지원할 것입니다.
+
+  | 옵션 정보  | 제품정보  | 이름 \*                                                                                                                                                                                                                                                                                |
+  | ------ | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+  | `?NNN` | 이름 \* | 자주 묻는 질문`NNN`자주 묻는 질문`NNN`-th 모수.`NNN`수시`1`·`SQLITE_MAX_VARIABLE_NUMBER`                                                                                                                                                                                                             |
+  | `?`    | 이름 \* | 숫자에 의해 따르지 않는 질문 표는 이미 할당된 가장 큰 모수 수 보다는 더 중대한 수를 가진 모수를 창조합니다. 이 매개 변수 번호가 더 큰 경우`SQLITE_MAX_VARIABLE_NUMBER`, 그것은 오류입니다. 이 매개 변수 형식은 다른 데이터베이스 엔진과의 호환성을 위해 제공됩니다. 그러나 그것은 질문 표를 miscount하기 쉬운 때문에, 이 모수 체재의 사용은 discouraged입니다. 프로그래머는 아래에 상징적인 체재의 한을 사용하도록 격려됩니다`?NNN`대신 위의 형식. |
+
+  매개 변수를 바인딩하려면`.bind`방법.
+
+  주문 및 익명 예:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const stmt = db.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind("");
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      stmt = db.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind("")
+      ```
+    </TabItem>
+  </Tabs>
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="JavaScript" icon="seti:javascript">
+      ```js
+      const stmt = db
+      	.prepare("SELECT * FROM Customers WHERE CompanyName = ? AND CustomerId = ?")
+      	.bind("Alfreds Futterkiste", 1);
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      stmt = db.prepare(
+      "SELECT * FROM Customers WHERE CompanyName = ? AND CustomerId = ?"
+      ).bind("Alfreds Futterkiste", 1)
+      ```
+    </TabItem>
+  </Tabs>
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="JavaScript" icon="seti:javascript">
+      ```js
+      const stmt = db
+      	.prepare(
+        "SELECT * FROM Customers WHERE CompanyName = ?2 AND CustomerId = ?1"
+      ).bind(1, "Alfreds Futterkiste");
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      stmt = db.prepare("SELECT * FROM Customers WHERE CompanyName = ?2 AND CustomerId = ?1").bind(1, "Alfreds Futterkiste")
+      ```
+    </TabItem>
+  </Tabs>
+
+#### 정적 문
+
+D1 API는 정적 진술을 지원합니다. 정적 진술은 변수가 하드 코딩 된 SQL 문입니다. 정적 진술을 작성할 때, 문 문자열 내에서 변수를 수동으로 입력합니다.
+
+:::노트\[ 준비된 성명]
+자주 묻는 질문[자주 묻는 질문](/d1/worker-api/d1-database/#prepare)SQL을 실행하고 매개 변수를 바인딩합니다. Binding 매개 변수 사용[`bind()`](/d1/worker-api/prepared-statements/#bind)준비된 진술을 사용하면 코드를 작성한 진술을 재사용하고 SQL 주입 공격을 방지 할 수 있습니다.
+
+:::
+
+동적 경계 값으로 준비된 성명의 예:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const someVariable = `Bs Beverages`;
+    const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+    //변수 (someVariable)는 쿼리에서 placeholder '?'를 대체합니다.
+    //`stmt`는 준비된 문입니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    some_variable = "Bs Beverages"
+    stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+    #변수 (some variable)는 위주 '?'를 쿼리에 대체합니다.
+    #`stmt`는 준비된 문입니다.
+    ```
+  </TabItem>
+</Tabs>
+
+정적 진술의 예 :
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'");
+    //"Bs 음료"는 쿼리에 하드 코딩됩니다.
+    //`stmt`는 정적 진술입니다.
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'")
+    #"Bs 음료"는 쿼리에 하드 코딩됩니다.
+    #`stmt`는 정적 진술입니다.
+    ```
+  </TabItem>
+</Tabs>
+
+### `run()`
+
+준비된 쿼리 (또는 쿼리)를 실행하고 결과를 반환합니다. 반환된 결과는 metadata를 포함합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const returnValue = await stmt.run();
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    return_value = await stmt.run()
+    ```
+  </TabItem>
+</Tabs>
+
+#### 제품 설명
+
+- 없음.
+
+#### 반환 값
+
+- <code>D1 결과</code>: <Type text="Object" />
+  - 성공 상태, 메타 객체 및 쿼리 결과를 포함하는 개체의 배열을 포함하는 객체.
+  - 개체에 대한 자세한 내용은 참조[`D1Result`](/d1/worker-api/return-object/#d1result).
+
+<Details header="반환 값의 예" open={false}>
+  <Tabs syncKey="workersExamples">
+    <TabItem label="JavaScript" icon="seti:javascript">
+      ```js
+      const someVariable = `Bs Beverages`;
+      const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+      const returnValue = await stmt.run();
+      return Response.json(returnValue);
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      some_variable = "Bs Beverages"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+      return_value = await stmt.run()
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  {
+    "success": true,
+    "meta": {
+      "served_by": "miniflare.db",
+      "duration": 1,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 8192,
+      "rows_read": 4,
+      "rows_written": 0
+    },
+    "results": [
+      {
+        "CustomerId": 11,
+        "CompanyName": "Bs Beverages",
+        "ContactName": "Victoria Ashworth"
+      },
+      {
+        "CustomerId": 13,
+        "CompanyName": "Bs Beverages",
+        "ContactName": "Random Name"
+      }
+    ]
+  }
+  ```
+</Details>
+
+#### 구시가지
+
+- `results`같은 작업에 대 한 빈`UPDATE`, `DELETE`, 또는`INSERT`.
+- TypeScript를 사용할 때, 당신은 통과할 수 있습니다[유형 모수](/d1/worker-api/#typescript-support)으로[`D1PreparedStatement::run`](#run)typed result 객체를 반환합니다.
+- [`D1PreparedStatement::run`](#run)기능적으로 동등한 것`D1PreparedStatement::all`, 그리고 별명으로 대우될 수 있습니다.
+- 자주 묻는 질문(FAQ)`results`반환 객체의 속성.
+
+<Details header="반환의 예 `results`" open={false}>
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      return Response.json(returnValue.results);
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      return Response.json(return_value.results)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  [
+    {
+      "CustomerId": 11,
+      "CompanyName": "Bs Beverages",
+      "ContactName": "Victoria Ashworth"
+    },
+    {
+      "CustomerId": 13,
+      "CompanyName": "Bs Beverages",
+      "ContactName": "Random Name"
+    }
+  ]
+  ```
+</Details>
+
+### `raw()`
+
+준비된 쿼리 (또는 쿼리)를 실행하고 배열의 배열으로 결과를 반환합니다. 반환된 결과는 metadata를 포함하지 않습니다.
+
+열 이름은 기본적으로 설정된 결과에 포함되지 않습니다. 결과 배열의 첫 번째 행으로 열 이름을 포함하기 위해, 설정`.raw({columnNames: true})`.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const returnValue = await stmt.raw();
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    return_value = await stmt.raw()
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>열 이름</code>: <Type text="Object" /> <MetaInfo text="Optional" />
+  - 결과 배열의 첫 번째 행으로 열 이름을 포함하는 boolean 객체.
+
+#### 반환 값
+
+- <code>지원하다</code>: <Type text="Array" />
+  - 배열의 배열. 각 sub-array는 행을 나타냅니다.
+
+<Details header="반환 값의 예" open={false}>
+  <Tabs syncKey="workersExamples">
+    <TabItem label="JavaScript" icon="seti:javascript">
+      ```js
+      const someVariable = `Bs Beverages`;
+      const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+      const returnValue = await stmt.raw();
+      return Response.json(returnValue);
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      some_variable = "Bs Beverages"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+      return_value = await stmt.raw()
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  [
+    [11, "Bs Beverages",
+      "Victoria Ashworth"
+    ],
+    [13, "Bs Beverages",
+      "Random Name"
+    ]
+  ]
+  ```
+
+  매개 변수`columnNames: true`:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const someVariable = `Bs Beverages`;
+      const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+      const returnValue = await stmt.raw({columnNames:true});
+      return Response.json(returnValue)
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      from pyodide.ffi import to_js
+      from workers import Response
+
+      some_variable = "Bs Beverages"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+      return_value = await stmt.raw(columnNames=True)
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  [
+    [
+      "CustomerId",
+      "CompanyName",
+      "ContactName"
+    ],
+    [11, "Bs Beverages",
+      "Victoria Ashworth"
+    ],
+    [13, "Bs Beverages",
+      "Random Name"
+    ]
+  ]
+  ```
+</Details>
+
+#### 구시가지
+
+- TypeScript를 사용할 때, 당신은 통과할 수 있습니다[유형 모수](/d1/worker-api/#typescript-support)으로[`D1PreparedStatement::raw`](#raw)typed 결과 배열을 반환합니다.
+
+### `first()`
+
+준비된 쿼리 (또는 쿼리)를 실행하고 쿼리 결과의 첫 번째 행을 객체로 반환합니다. 메타데이터를 반환하지 않습니다. 대신, 그것은 직접 객체를 반환합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const values = await stmt.first();
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    values = await stmt.first()
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>열 이름</code>: <Type text="String" /> <MetaInfo text="Optional" />
+  - 이름 \*`columnName`쿼리 결과의 첫 번째 행에 특정 열에서 값을 반환합니다.
+- 없음.
+  - 첫번째 행에서 모든 열을 얻는 모수를 통과하지 마십시오.
+
+#### 반환 값
+
+- <code>첫 번째로</code>: <Type text="Object" /> <MetaInfo text="Optional" />
+  - 쿼리 결과의 첫 번째 행을 포함하는 객체.
+  - 반환 값은 특정 속성에 추가 필터링됩니다.`columnName`지정되었습니다.
+
+- `null`: <Type text="null" />
+  - 쿼리가 행을 반환하지 않는 경우.
+
+<Details header="반환 값의 예" open={false}>
+  첫번째 줄에서 모든 열을 얻으십시오:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const someVariable = `Bs Beverages`;
+      const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+      const returnValue = await stmt.first();
+      return Response.json(returnValue)
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      some_variable = "Bs Beverages"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+      return_value = await stmt.first()
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  {
+    "CustomerId": 11,
+    "CompanyName": "Bs Beverages",
+    "ContactName": "Victoria Ashworth"
+  }
+  ```
+
+  첫번째 행에서 특정한 란을 얻으십시오:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const someVariable = `Bs Beverages`;
+      const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+      const returnValue = await stmt.first("CustomerId");
+      return Response.json(returnValue)
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      some_variable = "Bs Beverages"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+      return_value = await stmt.first("CustomerId")
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  11
+  ```
+</Details>
+
+#### 구시가지
+
+- 쿼리가 줄을 반환하는 경우`column`존재하지 않습니다.[`D1PreparedStatement::first`](#first)관련 기사`D1_ERROR`예외.
+- [`D1PreparedStatement::first`](#first)SQL 쿼리를 변경하지 않습니다. 성능 향상, 승인 고려`LIMIT 1`자주 묻는 질문
+- TypeScript를 사용할 때, 당신은 통과할 수 있습니다[유형 모수](/d1/worker-api/#typescript-support)으로[`D1PreparedStatement::first`](#first)typed result 객체를 반환합니다.

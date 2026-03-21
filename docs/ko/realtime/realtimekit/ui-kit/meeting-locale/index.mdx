@@ -1,0 +1,323 @@
+---
+pcx_content_type: navigation
+title: 회의 Locale
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/ui-kit/meeting-locale/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/ui-kit/meeting-locale/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+RealtimeKit의 UI Kit를 사용하면 비디오 통화 인터페이스 내에서 모든 텍스트를 사용자 정의 할 수 있습니다. 특정한 Locale 필요에 맞게 텍스트를 개인화할 수 있습니다.
+
+:::노트\[필수]
+이 페이지는[기본 회의 UI 렌더링](/realtime/realtimekit/ui-kit/) & [자체 UI 구축](/realtime/realtimekit/ui-kit/build-your-own-ui/)관련 기사 먼저 읽고 기본 회의 UI 구성 요소를 사용하는 방법을 이해해야합니다.
+주요 특징
+
+<RTKSDKSelector />
+
+## 언어 팩을 사용자 정의
+
+현재 위치 Kit의 기본 언어 팩은 애플리케이션의 Locale 요구 사항에 맞게 사용자 정의 할 수 있습니다. UI Kit 컴포넌트에서 사용되는 텍스트 문자열을 삭제할 수 있습니다.
+
+## Language Utilities를 가져옵니다
+
+<RTKCodeSnippet id="web-web-components">
+  현재 위치 장비의 기본 언어 팩은 다음과 같이 가져올 수 있습니다:
+
+  ```html
+  <script type="module">
+  	import {
+  		useLanguage,
+  		defaultLanguage,
+  	} from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit-ui/dist/esm/index.js";
+  </script>
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-react">
+  현재 위치 장비의 기본 언어 팩은 다음과 같이 가져올 수 있습니다:
+
+  ```jsx
+  import { defaultLanguage, useLanguage } from "@cloudflare/realtimekit-react-ui";
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  현재 위치 장비의 기본 언어 팩은 다음과 같이 가져올 수 있습니다:
+
+  ```typescript
+  import {
+  	defaultLanguage,
+  	useLanguage,
+  } from "@cloudflare/realtimekit-angular-ui";
+  ```
+</RTKCodeSnippet>
+
+## 사용자 지정 언어 팩 만들기
+
+Realtime 교체 키트의 기본 Locale 와 함께, 사용자 정의 언어 팩을 확산하여`defaultLanguage`객체 및 overriding 특정 키:
+
+<RTKCodeSnippet id="web-web-components">
+  ```html
+  <body>
+  	<rtk-meeting id="my-meeting"></rtk-meeting>
+
+  	<script type="module">
+  		import RealtimeKitClient from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/index.es.js";
+  		import {
+  			useLanguage,
+  			defaultLanguage,
+  		} from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit-ui/dist/esm/index.js";
+
+  		// Customize RealtimeKit's default locale object
+  		const myLanguagePack = useLanguage({
+  			...defaultLanguage,
+  			mute_all: "Mute All Users",
+  			leave: "Exit Call",
+  			join: "Join Now",
+  		});
+
+  		const init = async () => {
+  			const meeting = await RealtimeKitClient.init({
+  				authToken: "<participant_auth_token>",
+  			});
+
+  			const meetingEl = document.getElementById("my-meeting");
+  			meetingEl.meeting = meeting;
+  			meetingEl.showSetupScreen = true;
+
+  			// Pass custom language pack
+  			meetingEl.t = myLanguagePack;
+  		};
+
+  		init();
+  	</script>
+  </body>
+  ```
+
+  더 보기`useLanguage`함수는 사용자 정의 locale 객체를 인수로 유지하고 제공된 키와 관련된 값을 검색하는 함수를 생성합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  import {
+  	RealtimeKitProvider,
+  	useRealtimeKitClient,
+  } from "@cloudflare/realtimekit-react";
+  import {
+  	RtkMeeting,
+  	defaultLanguage,
+  	useLanguage,
+  } from "@cloudflare/realtimekit-react-ui";
+  import { useEffect, useState } from "react";
+
+  function App() {
+  	const [meeting, initMeeting] = useRealtimeKitClient();
+  	const [authToken, setAuthToken] = useState("<participant_auth_token>");
+
+  	//RealtimeKit의 기본 Locale 개체를 사용자 정의
+  	const myLanguagePack = useLanguage({
+  		...defaultLanguage,
+  		mute_all: "Mute All Users",
+  		leave: "Exit Call",
+  		join: "Join Now",
+  	});
+
+  	useEffect(() => {
+  		if (authToken) {
+  			initMeeting({
+  				authToken: authToken,
+  			});
+  		}
+  	}, [authToken]);
+
+  	return (
+  		<RealtimeKitProvider value={meeting}>
+  			<RtkMeeting showSetupScreen={true} meeting={meeting} t={myLanguagePack} />
+  		</RealtimeKitProvider>
+  	);
+  }
+  ```
+
+  더 보기`useLanguage`Hook은 사용자 정의 로컬 객체를 인수로 유지하고 제공된 키와 관련된 값을 검색하는 기능을 생성합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  import { Component, OnInit } from "@angular/core";
+  import RealtimeKitClient from "@cloudflare/realtimekit-angular";
+  import {
+  	defaultLanguage,
+  	useLanguage,
+  } from "@cloudflare/realtimekit-angular-ui";
+
+  @Component({
+  	selector: "app-meeting",
+  	template: `
+  		<rtk-meeting [meeting]="meeting" [t]="myLanguagePack"></rtk-meeting>
+  	`,
+  })
+  export class MeetingComponent implements OnInit {
+  	meeting: any;
+  	myLanguagePack: any;
+
+  	async ngOnInit() {
+  		//RealtimeKit의 기본 Locale 개체를 사용자 정의
+  		this.myLanguagePack = useLanguage({
+  			...defaultLanguage,
+  			mute_all: "Mute All Users",
+  			leave: "Exit Call",
+  			join: "Join Now",
+  		});
+
+  		this.meeting = await RealtimeKitClient.init({
+  			authToken: "<participant_auth_token>",
+  		});
+  	}
+  }
+  ```
+
+  더 보기`useLanguage`함수는 사용자 정의 locale 객체를 인수로 유지하고 제공된 키와 관련된 값을 검색하는 함수를 생성합니다.
+</RTKCodeSnippet>
+
+## UI Provider로 Custom Locale 사용
+
+사용자 정의 UI를 구축 할 때 UI 공급자 구성 요소에 사용자 정의 언어 팩을 전달할 수 있습니다.
+
+<RTKCodeSnippet id="web-web-components">
+  ```html
+  <body>
+  	<rtk-ui-provider id="ui-provider">
+  		<!--사용자 정의 UI 구성 요소-->
+  	</rtk-ui-provider>
+
+  	<script type="module">
+  		import RealtimeKitClient from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/index.es.js";
+  		import {
+  			useLanguage,
+  			defaultLanguage,
+  		} from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit-ui/dist/esm/index.js";
+
+  		const myLanguagePack = useLanguage({
+  			...defaultLanguage,
+  			mute_all: "Mute All Users",
+  		});
+
+  		const meeting = await RealtimeKitClient.init({
+  			authToken: "<participant_auth_token>",
+  		});
+
+  		const uiProvider = document.getElementById("ui-provider");
+  		uiProvider.meeting = meeting;
+  		uiProvider.t = myLanguagePack;
+  	</script>
+  </body>
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  import {
+  	RealtimeKitProvider,
+  	useRealtimeKitClient,
+  } from "@cloudflare/realtimekit-react";
+  import {
+  	RtkUIProvider,
+  	defaultLanguage,
+  	useLanguage,
+  } from "@cloudflare/realtimekit-react-ui";
+  import { useEffect, useState } from "react";
+
+  function App() {
+  	const [meeting, initMeeting] = useRealtimeKitClient();
+  	const [authToken, setAuthToken] = useState("<participant_auth_token>");
+
+  	const myLanguagePack = useLanguage({
+  		...defaultLanguage,
+  		mute_all: "Mute All Users",
+  	});
+
+  	useEffect(() => {
+  		if (authToken) {
+  			initMeeting({
+  				authToken: authToken,
+  			});
+  		}
+  	}, [authToken]);
+
+  	return (
+  		<RealtimeKitProvider value={meeting}>
+  			<RtkUIProvider meeting={meeting} t={myLanguagePack}>
+  				{/*사용자 정의 UI 구성 요소*/}
+  			</RtkUIProvider>
+  		</RealtimeKitProvider>
+  	);
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  import { Component, OnInit } from "@angular/core";
+  import RealtimeKitClient from "@cloudflare/realtimekit-angular";
+  import {
+  	defaultLanguage,
+  	useLanguage,
+  } from "@cloudflare/realtimekit-angular-ui";
+
+  @Component({
+  	selector: "app-meeting",
+  	template: `
+  		<rtk-ui-provider [meeting]="meeting" [t]="myLanguagePack">
+  			<!-- Your custom UI components -->
+  		</rtk-ui-provider>
+  	`,
+  })
+  export class MeetingComponent implements OnInit {
+  	meeting: any;
+  	myLanguagePack: any;
+
+  	async ngOnInit() {
+  		this.myLanguagePack = useLanguage({
+  			...defaultLanguage,
+  			mute_all: "Mute All Users",
+  		});
+
+  		this.meeting = await RealtimeKitClient.init({
+  			authToken: "<participant_auth_token>",
+  		});
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+## 기본 언어 참조
+
+RealtimeKit은 UI Kit을 통해 사용되는 모든 텍스트 문자열을 가진 종합적인 기본 언어 팩을 제공합니다. 회의 인터페이스에 표시된 텍스트를 사용자 정의 할 수 있습니다.
+
+RealtimeKit에서 제공하는 완전한 기본 언어 팩은 다음과 같습니다.
+
+<Render file="realtimekit/web/language-pack-json" product="realtime" />
+
+사용자 정의 언어 팩에 이러한 키의 모든 것을 override 할 수 있습니다. 예를 들어, 스페인어로 인터페이스를 번역하려면:
+
+```javascript
+const spanishLanguagePack = useLanguage({
+	...defaultLanguage,
+	leave: "Salir",
+	join: "Unirse",
+	mute: "Silenciar",
+	participants: "Participantes",
+	chat: "Chat",
+	settings: "Configuración",
+});
+```

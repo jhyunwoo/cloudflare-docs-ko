@@ -1,0 +1,195 @@
+---
+pcx_content_type: configuration
+title: TCP 소켓
+head: []
+description: '`connect()` API를 사용하여 WorkersXQ에서 아웃바운드 TCP 연결을 만듭니다.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/tcp-sockets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Workers 런타임은`connect()`아웃바운드 생성을 위한 API[TCP 연결](https://www.cloudflare.com/learning/ddos/glossary/tcp-ip/)Workers에서.
+
+많은 애플리케이션 레이어 프로토콜은 전송 제어 프로토콜 (TCP)의 상단에 내장되어 있습니다. SSH, MQTT, SMTP, FTP, IRC 및 MySQL, PostgreSQL, MongoDB를 포함한 대부분의 데이터베이스 와이어 프로토콜을 포함하여이 응용 프로그램 계층 프로토콜은 작업하기 위해 TCP 소켓 API를 기본적으로 요구합니다.
+
+:::참조
+
+PostgreSQL 데이터베이스에 연결? 자주 묻는 질문[Hyperdrive](/hyperdrive/), 제공`connect()`내장 연결 풀 및 쿼리 캐싱 API.
+주요 특징
+
+:::참조
+
+TCP Workers 아웃바운드 연결은 접두사에서 전원을 공급합니다.[IP 범위 목록](https://www.cloudflare.com/ips/).
+:::
+
+## `connect()`
+
+더 보기`connect()`함수는 TCP 소켓을 돌려줍니다.[더 읽기](/workers/runtime-apis/streams/readablestream/)·[이름 \*](/workers/runtime-apis/streams/writablestream/)데이터 스트림. 연결이 열리기 때문에 계속적으로 데이터를 읽고 쓸 수 있습니다.
+
+`connect()`이용안내[실행 시간 API](/workers/runtime-apis/), 그리고 수입에 의해 접근된다`connect`기능에서`cloudflare:sockets`. 이 과정은 Node.js에 있는 1개의 수입품 붙박이 단위와 유사합니다. TCP 소켓을 만들기의 예에 대한 다음 코드 블록을 참조, 그것을 작성, 그리고 응답으로 소켓의 읽기 쉬운 측면을 반환:
+
+```typescript
+import { connect } from 'cloudflare:sockets';
+
+export default {
+  async fetch(req): Promise<Response> {
+    const gopherAddr = { hostname: "gopher.floodgap.com", port: 70 };
+    const url = new URL(req.url);
+
+    try {
+      const socket = connect(gopherAddr);
+
+      const writer = socket.writable.getWriter()
+      const encoder = new TextEncoder();
+      const encoded = encoder.encode(url.pathname + "\r\n");
+      await writer.write(encoded);
+      await writer.close();
+
+      return new Response(socket.readable, { headers: { "Content-Type": "text/plain" } });
+    } catch (error) {
+      return new Response("Socket connection failed: " + error, { status: 500 });
+    }
+  }
+} satisfies ExportedHandler;
+```
+
+- <code>connect(주소: SocketAddress | 문자열, 옵션?: 옵션 소켓옵션)</code> : `Socket`
+  - `connect()`URL 문자열 또는[`SocketAddress`](/workers/runtime-apis/tcp-sockets/#socketaddress)호스트 이름과 포트 번호를 정의하여 연결하고, 옵션 구성 객체,[`SocketOptions`](/workers/runtime-apis/tcp-sockets/#socketoptions). 인스턴스를 반환합니다.[`Socket`](/workers/runtime-apis/tcp-sockets/#socket).
+
+### `SocketAddress`
+
+- `hostname`이름 \*
+  - 연결되는 hostname. 예:`cloudflare.com`.
+
+- `port`이름 \*
+  - 연결 포트 번호. 예:`5432`.
+
+### `SocketOptions`
+
+- `secureTransport`"off" | "on" | "starttls" - 기본 설정`off`
+  - 사용 여부를 지정합니다.[사이트맵](https://www.cloudflare.com/learning/ssl/transport-layer-security-tls/)TCP 소켓을 만들 때.
+  - `off`— TLS를 사용하지 마십시오.
+  - `on`— TLS를 사용합니다.
+  - `starttls`— TLS를 처음 사용 하지 마십시오, 하지만 소켓을 사용 하 여 TLS를 사용 하 여 업그레이드[`startTls()`](/workers/runtime-apis/tcp-sockets/#opportunistic-tls-starttls).
+
+- `allowHalfOpen`boolean - 기본값으로`false`
+  - TCP 소켓의 writable 측이 end-of-file (EOF)에 자동으로 닫을지 여부를 결정합니다. 설정할 때`false`, TCP 소켓의 writable 측은 EOF에 자동적으로 닫을 것입니다. 설정할 때`true`, TCP 소켓의 writable 측은 EOF에 열릴 것입니다.
+  - 이 옵션은 Node.js[`net`모듈](https://nodejs.org/api/net.html)이를 활용한 코드와 상호 운용성을 허용합니다.
+
+### `SocketInfo`
+
+- `remoteAddress`문자열 | null
+  - 리모트 동료의 주소는 소켓에 연결됩니다. 항상 설정할 수 없습니다.
+
+- `localAddress`문자열 | null
+  - 이 소켓의 로컬 네트워크 엔드 포인트의 주소. 항상 설정할 수 없습니다.
+
+### `Socket`
+
+- <code>더 읽기</code>: ReadableStream
+  - TCP 소켓의 읽기 쉬운 측면을 반환합니다.
+
+- <code>이름 \*</code>: WritableStream
+  - TCP 소켓의 writable 측면을 반환합니다.
+  - 더 보기`WritableStream`반환은 chunks의`Uint8Array`또는 그 전망.
+
+- `opened` `Promise<SocketInfo>`
+  - 소켓 연결이 설치될 때 이 약속은 해결되고 소켓이 오류가 발생하면 거절됩니다.
+
+- `closed` `Promise<void>`
+  - 소켓이 닫힐 때 이 약속은 해결되고 소켓이 오류가 발생하면 거절됩니다.
+
+- `close()` `Promise<void>`
+  - TCP 소켓을 닫습니다. 읽을 수 있고 쓸 수 있는 시내는 forcibly 닫힙니다.
+
+- <code>startTls()</code>: 소켓
+  - TLS를 사용하는 안전한 소켓을 업그레이드하고 새로운 반환[관련 제품](/workers/runtime-apis/tcp-sockets#socket). 호출하기 위해서는 주의`startTls()`, 설정해야 합니다[`secureTransport`](/workers/runtime-apis/tcp-sockets/#socketoptions)으로`starttls`자주 묻는 질문`connect()`소켓을 만듭니다.
+
+## 기회 TLS (StartTLS)
+
+많은 TCP 기반 시스템, 데이터베이스 및 이메일 서버를 포함하여, 클라이언트가 opportunistic TLS (otherwise known as[시작TLS](https://en.wikipedia.org/wiki/Opportunistic_TLS)) 연결 때. 이 패턴에서 클라이언트는 먼저 TLS없이 insecure TCP 소켓을 만들고 TLS를 사용하는 안전한 TCP 소켓으로 업그레이드합니다. 더 보기`connect()`API는 메소드를 제공함으로써 이것을 단순화합니다.`startTls()`, 새로운 반환`Socket`TLS를 사용하는 경우:
+
+```typescript
+import { connect } from "cloudflare:sockets"
+
+const address = {
+  hostname: "example-postgres-db.com",
+  port: 5432
+};
+const socket = connect(address, { secureTransport: "starttls" });
+const secureSocket = socket.startTls();
+```
+
+- `startTls()`할 수 있습니다.`secureTransport`설정`starttls`초기 TCP 소켓을 만들 때.
+- 1시간`startTls()`호출, 초기 소켓은 닫히고 더 이상에서 읽을 수 없습니다. 위의 예에서, 이후 언제든지`startTls()`호출, 당신은 새로 만든 사용`secureSocket`. 본래 소켓 떨어져 근거를 둔 어떤 기존하는 독자 및 작가는 더 이상 일하지 않을 것입니다. 새로 만든 새로운 독자와 작가를 만들려면`secureSocket`.
+- `startTls()`기존 소켓에 한 번만 호출해야합니다.
+
+## 핸들 오류
+
+새로운 TCP 소켓을 만들 때 오류를 처리하려면 소켓에서 읽기, 또는 소켓에 쓰기, 내부 호출을 포장[`try...catch`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch)문 블록. 다음 예제는 Google.com에 연결을 열고 HTTP 요청을 시작하며 응답을 반환합니다. 이 실패하고 예외를 던져, 그것은 반환[`500`](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-500/)응답:
+
+```typescript
+import { connect } from 'cloudflare:sockets';
+const connectionUrl = { hostname: "google.com", port: 80 };
+export interface Env { }
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    try {
+      const socket = connect(connectionUrl);
+      const writer = socket.writable.getWriter();
+      const encoder = new TextEncoder();
+      const encoded = encoder.encode("GET / HTTP/1.0\r\n\r\n");
+      await writer.write(encoded);
+      await writer.close();
+
+      return new Response(socket.readable, { headers: { "Content-Type": "text/plain" } });
+    } catch (error) {
+      return new Response(`Socket connection failed: ${error}`, { status: 500 });
+    }
+  }
+} satisfies ExportedHandler<Env>;
+```
+
+## TCP 연결 닫기
+
+호출하여 TCP 연결을 닫을 수 있습니다.`close()`소켓에. 이것은 소켓의 읽기 쉬운 그리고 writable 측 둘 다 닫습니다.
+
+```typescript
+import { connect } from "cloudflare:sockets"
+
+const socket = connect({ hostname: "my-url.com", port: 70 });
+const reader = socket.readable.getReader();
+socket.close();
+
+//닫히는 후에 ()는, 당신은 더 이상 소켓의 읽기 쉬운 측에서 읽을 수 없습니다
+const reader = socket.readable.getReader(); //이 실패
+```
+
+## 관련 기사
+
+- 아웃바운드 TCP 소켓[Cloudflare IP 범위](https://www.cloudflare.com/ips/)차단됩니다.
+- TCP 소켓은 글로벌 범위에서 만들 수 없으며 요청에 따라 공유 할 수 없습니다. 항상 핸들러 내에서 TCP 소켓을 만들려면 (ex:[`fetch()`](/workers/get-started/guide/#3-write-code), [`scheduled()`](/workers/runtime-apis/handlers/scheduled/), [`queue()`](/queues/configuration/javascript-apis/#consumer)) 또는[`alarm()`](/durable-objects/api/alarms/).
+- 각 열린 TCP 소켓은 최대 숫자로 계산합니다.[연결하기](/workers/platform/limits/#simultaneous-open-connections)동시에 열 수 있습니다.
+- 기본적으로 Workers는 포트에 아웃바운드 TCP 연결을 만들 수 없습니다.`25`SMTP 메일 서버에 이메일을 보내려면.[Cloudflare 이메일 Workers](/email-routing/email-workers/)API를 처리하고 이메일을 전달합니다.
+- inbound TCP 연결 처리 지원[현재 위치](https://blog.cloudflare.com/workers-tcp-socket-api-connect-databases/). 현재, 그것은 당신의 노동자에 inbound TCP 연결을 만들 수 없습니다, 예를 들어, 사용 하 여`CONNECT`HTTP 방법.
+
+## 문제 해결
+
+일반적인 오류 메시지의 설명은 TCP 소켓과 작업 할 때 볼 수 있습니다, 오류 메시지가 의미, 그리고 어떻게 해결.
+
+### `proxy request failed, cannot connect to the specified address`
+
+소켓은 허용 된 주소로 연결됩니다. 허용된 주소의 예에는 Cloudflare IP가 포함됩니다.`localhost`, 그리고 개인 네트워크 IPs.
+
+포트에 연결해야 하는 경우`80`또는`443`HTTP 요청을 만들기 위해, 사용[`fetch`](/workers/runtime-apis/fetch/).
+
+### `TCP Loop detected`
+
+소켓은 아웃바운드 연결을 개시하는 Worker로 다시 연결됩니다. 다른 말에서 노동자는 스스로 연결됩니다. 이것은 현재 지원되지 않습니다.
+
+### `Connections to port 25 are prohibited`
+
+소켓은 포트에 주소에 연결됩니다.`25`. 이것은 일반적으로 SMTP 메일 서버에 사용되는 포트입니다. Workers는 항구에 outbound 연결을 창조할 수 없습니다`25`. 사용 고려[Cloudflare 이메일 Workers](/email-routing/email-workers/)대신.

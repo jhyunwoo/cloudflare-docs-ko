@@ -1,0 +1,170 @@
+---
+title: MX 기록으로 Microsoft 365
+tags:
+  - Microsoft
+pcx_content_type: integration-guide
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/email-security/setup/pre-delivery-deployment/prerequisites/m365-email-security-mx/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/email-security/setup/pre-delivery-deployment/prerequisites/m365-email-security-mx/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Markdown, GlossaryTooltip } from "~/components";
+
+![이메일 보안이 수신된 이메일의 수명주기에 있는 schematic 전시](~/assets/email-security/Email_security_M365_MX_Inline.png)
+
+이 튜토리얼에서는 MX 레코드로 Microsoft 365를 구성하는 방법을 배울 수 있습니다.
+
+<Render file="email-security/deployment/mx-deployment-prereq" product="cloudflare-one" />
+
+## 1. 이메일 보안 IP 주소 추가
+
+1. 오시는 길[Anti-spam 정책 페이지](https://security.microsoft.com/antispam)> 선택**연결 필터 정책**.
+2. 내 계정**항상 다음 IP 주소 또는 주소 범위에서 메시지를 허용**, IP 주소 및 CIDR 블록 추가[IP 등급](/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/)사이트 맵
+3. 제품정보**제품 정보**.
+4. Microsoft는 SPF 하드를 비활성화하는 것이 좋습니다. 이메일 솔루션이 앞에 배치 될 때:
+   - 자주 묻는 질문[안티 스팸 옵션](https://security.microsoft.com/antispam).
+   - 제품정보**기본 안티 스팸 정책**.
+   - 제품정&#xBCF4;**[스팸 임계 값 및 속성 편집](https://learn.microsoft.com/en-us/defender-office-365/anti-spam-bulk-complaint-level-bcl-about)** > **스팸으로 마크** > **SPF 기록: 단단한 실패**, 그리고 그것을 설치합니다**이름 \***.
+5. 제품정보**제품 정보**.
+
+## 2. 향상된 필터링 구성
+
+### inbound 연결관을 창조하십시오
+
+1. [연결관을 설치하십시오](https://learn.microsoft.com/en-us/exchange/mail-flow-best-practices/use-connectors-to-configure-mail-flow/set-up-connectors-to-route-mail#1-set-up-a-connector-from-your-email-server-to-microsoft-365-or-office-365).
+2. 제품정보**파트너 조직**이름 \***연결에서**.
+   - 연결관을 위한 이름을 제공하십시오:
+     - **이름 \***: `Email security Inbound Connector`
+     - **이름 \***: `Inbound connector for Enhanced Filtering`
+3. 내 계정**인증된 이메일**, 선택**전송 서버의 IP 주소가 다음과 같은 IP 주소 중 하나에 일치하여 파트너 조직에 속합니다.**
+4. 모든 egress IP를 입력[IP 등급](/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/)사이트 맵
+5. 내 계정**보안 제한**, 기본값을 받아들입니다**TLS를 통해 보내지 않는 경우 이메일 메시지를 거부**설정.
+
+### 향상된 필터링
+
+이제 인바운드 커넥터가 구성되었으므로 커넥터의 향상된 필터 구성을 가능하게해야합니다.
+
+1. 오시는 길[보안 관리자 콘솔](https://security.microsoft.com/homepage)·[향상된 필터링](https://learn.microsoft.com/en-us/exchange/mail-flow-best-practices/use-connectors-to-configure-mail-flow/enhanced-filtering-for-connectors#use-the-microsoft-defender-portal-to-configure-enhanced-filtering-for-connectors-on-an-inbound-connector).
+2. 제품정보**자동 감지 및 마지막 IP 주소를 건너 뛰기**·**전체 조직에 적용**.
+3. 제품정보**제품 정보**.
+
+## 3. 스팸 방지 정책을 구성
+
+스팸 방지 정책을 구성하려면:
+
+1. 자주 묻는 질문[Microsoft 365 수비수 콘솔](https://security.microsoft.com/).
+2. 오시는 길**이메일 & 협력** > **정책 및 규칙**.
+3. 제품정보**위협 정책**.
+4. 이름 \***회사연혁**, 선택**안티 스팸**.
+5. 선택하기**Anti-spam inbound 정책 (기본값)**&#xD14D;스트 (Checkbox 없음).
+6. 내 계정**관련 기사**, 스크롤 다운 및 선택**편집 작업**.
+7. 다음 조건과 행동을 설정하십시오 (당신은 스크롤하거나 찾을 필요가있을 수 있습니다) :
+
+- **스낵 바**: *Junk Email 폴더로 메시지 이동*.
+- **높은 신뢰 스팸**: *Quarantine 메시지*.
+  - **선택 quarantine 정책**: *AdminOnlyAccess정책*.
+- **한국어**: *Quarantine 메시지*.
+  - **선택 quarantine 정책**: *AdminOnlyAccess정책*.
+- **높은 신뢰 phishing**: *Quarantine 메시지*.
+  - **선택 quarantine 정책**: *AdminOnlyAccess정책*.
+- **이 많은 일 동안 quarantine에 있는 스팸을 유지합니다**: 기본값은 15일입니다. 이메일 보안은 15-30 일을 권장합니다.
+  - 위의 단계에서 스팸 작업을 선택하십시오 :
+
+8. 제품정보**제품 정보**.
+
+## 4. 수송 규칙 창조
+
+전송 규칙을 만들려면 특정으로 이메일을 보낼[관련 기사](/cloudflare-one/email-security/reference/dispositions-and-attributes/#dispositions)이메일 보안:
+
+1. 새소식[Exchange 관리자 센터](https://admin.exchange.microsoft.com/#/homepage).
+
+2. 오시는 길**메일 흐름** > **이름 \***.
+
+3. 제품정보**규칙 추가** > **새로운 규칙 만들기**.
+
+4. 다음 규칙 조건을 설정:
+   - **이름 \***: *이메일 보안은 Junk 이메일 폴더에 전달*.
+   - **이 규칙을 적용하면**: *메시지 헤더* > *이 단어를 포함*.
+     - **본문 바로가기**: `X-CFEmailSecurity-Disposition` > **제품 정보**.
+     - **이름 \***: `BULK` > **더 보기** > **제품 정보**.
+   - **이 규칙을 적용하면**: 선&#xD0DD;**+**&#xB450; 번째 상태를 추가합니다.
+   - **이름 \***: *보낸 사람* > *IP 주소는 이러한 범위 또는 정확히 일치의 모든*> 에 언급 된 egress IP를 입력<a href="/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/" target="_blank">IP 등급</a>.
+   - **다음 것** - *메시지 속성 수정* > *Spam Confidence 레벨 설정 (SCL)* > *5*.
+
+5. 제품정보**이름 \***.
+
+6. 이 화면의 기본값을 사용할 수 있습니다. 제품정보**이름 \***.
+
+7. 설정 및 선택**제품 정보** > **이름 \***.
+
+8. 규칙 선택**이메일 보안은 Junk 이메일 폴더에 전달**당신은 단지 만든, 그리고**이름 \***.
+
+9. 제품정보**규칙 추가** > **새로운 규칙 만들기**.
+
+10. 다음 규칙 조건을 설정:
+    - **이름 \***: `Email security Deliver to Junk Email folder`.
+    - **이 규칙을 적용하면**: *메시지 헤더* > *이 단어를 포함*.
+      - **본문 바로가기**: `X-CFEmailSecurity-Disposition` > **제품 정보**.
+      - **이름 \***: `MALICIOUS`, `UCE`, `SPOOF` > **더 보기** > **제품 정보**.
+    - **이 규칙을 적용하면**: 선&#xD0DD;**+**&#xB450; 번째 상태를 추가합니다.
+    - **이름 \***: *보낸 사람* > *IP 주소는 이러한 범위 또는 정확히 일치의 모든*> egress IP를 입력<a href="/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/" target="_blank">IP 등급</a>.
+    - **다음 것**: *메시지를 다시* > *호스팅 quarantine*.
+
+11. 제품정보**이름 \***.
+
+12. 이 화면의 기본값을 사용할 수 있습니다. 제품정보**이름 \***.
+
+13. 설정 및 선택**제품 정보** > **이름 \***.
+
+14. 당신이 만든 규칙을 선택하고, 선택**이름 \***.
+
+## 5. MX / 인라인 설정
+
+<Render file="email-security/deployment/set-up-mx-inline-step" product="cloudflare-one" />
+
+## 6. (추천) MX 레코드 우회에서 Microsoft 365 보안
+
+DNS 공격의 한 가지 방법은 오래된 MX 레코드를 검색하고 전송하는 것입니다<GlossaryTooltip term="phishing">피싱</GlossaryTooltip>메일 서버에 직접 이메일을 보냅니다. 이메일 흐름을 확보하려면 이메일 보안을 시작했을 때 인바운드 메시지가 Microsoft 365에서만 허용되는 이메일 흐름을 시행해야 합니다. 이 커넥터를 추가하여 TLS 암호화를 사용하여 이메일 보안을 허용 할 수 있습니다. 이 단계는 선택적이지만 권장됩니다.
+
+:::카ution\[중요]
+이 단계는 Microsoft 365 조직의 모든 도메인이 이메일 보안에 내장 된 후 72 시간까지 수행 할 수 없으며 이메일 보안은 MX 레코드입니다. 도메인이 내장되거나 DNS가 여전히 전파되지 않은 경우 도메인의 생산 이메일 흐름에 영향을 줄 것입니다.
+주요 특징
+
+#### 연결하기
+
+1. 새 소식[Exchange 관리자 센터](https://admin.exchange.microsoft.com/#/homepage).
+
+2. 오시는 길**메일 흐름** > **연결관**.
+
+3. 제품정보**커넥터 추가**.
+
+4. 오시는 길**연결에서** > **파트너 조직**.
+
+5. 제품정보**이름 \***.
+
+6. 다음 옵션을 설정:
+   - **이름 \*** - `Secure M365 Inbound`
+   - **이름 \*** - `Only accept inbound email from Email security`
+
+7. 제품정보**이름 \***.
+
+8. 자주 묻는 질문**sender 도메인이 다음과 같은 도메인 중 하나를 일치하도록 검증**선택 사항
+
+9. 이름 \*`*`텍스트 필드에서 선&#xD0DD;**+**.
+
+10. 제품정보**이름 \***.
+
+11. 자주 묻는 질문**TLS를 통해 보내지 않는 경우 이메일 메시지를 거부**선택 사항
+
+12. 같은 화면에서 여전히, 선택**이 IP 주소 범위 내에서 전송되지 않은 경우 이메일 메시지를 거부**, 모든 egress IP를 입력[IP 등급](/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/)사이트 맵
+
+13. 제품정보**이름 \***.
+
+14. 설정 및 선택**연결하기**.

@@ -1,0 +1,112 @@
+---
+summary: >-
+  Set common security headers such as X-XSS-Protection, X-Frame-Options, and
+  X-Content-Type-Options.
+tags:
+  - Headers
+  - Response modification
+products:
+  - snippets
+pcx_content_type: example
+title: 보안 헤더 설정
+description: >-
+  X-XSS-Protection, X-Frame-Options 및 X-Content-Type-Options와 같은 일반적인 보안 헤더를
+  설정합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/security-headers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/security-headers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+export default {
+	async fetch(request) {
+		//설정하려는 보안 헤더와 객체를 정의합니다.
+		//더 많은 옵션을 위해 https://developers.cloudflare.com/rules/snippets/examples/security-headers/#other-common-security-headers를 참조하십시오.
+		const DEFAULT_SECURITY_HEADERS = {
+			"X-Content-Type-Options": "nosniff",
+			"Referrer-Policy": "strict-origin-when-cross-origin",
+			"Cross-Origin-Embedder-Policy": 'require-corp; report-to="default";',
+			"Cross-Origin-Opener-Policy": 'same-site; report-to="default";',
+			"Cross-Origin-Resource-Policy": "same-site",
+		};
+
+		//헤더를 삭제할 수도 있습니다.
+		const BLOCKED_HEADERS = [
+			"Public-Key-Pins",
+			"X-Powered-By",
+			"X-AspNet-Version",
+		];
+
+		//출처에서 응답을 받으십시오.
+		let response = await fetch(request);
+
+		//응답 헤더를 수정하는 새로운 헤더 객체 만들기
+		let newHeaders = new Headers(response.headers);
+
+		//이것은 HTML 응답을위한 헤더를 설정합니다 :
+		if (
+			newHeaders.has("Content-Type") &&
+			!newHeaders.get("Content-Type").includes("text/html")
+		) {
+			return new Response(response.body, {
+				status: response.status,
+				statusText: response.statusText,
+				headers: newHeaders,
+			});
+		}
+
+		//DEFAULT SECURITY HEADERS 개체를 사용하여 새로운 보안 헤더를 설정합니다.
+		Object.keys(DEFAULT_SECURITY_HEADERS).map((name) => {
+			newHeaders.set(name, DEFAULT_SECURITY_HEADERS[name]);
+		});
+
+		//위에 정의된 BLOCKED HEADERS 객체를 사용하여 차단하고자 하는 헤더를 삭제합니다.
+		BLOCKED_HEADERS.forEach((name) => {
+			newHeaders.delete(name);
+		});
+
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: newHeaders,
+		});
+	},
+};
+```
+
+## 다른 일반적인 보안 헤더
+
+- Content-Security-Policy headers: 이 헤더를 활성화하면 신뢰할 수있는 도메인과 모든 하위 도메인에서 콘텐츠를 사용할 수 있습니다.
+  더 알아보기[콘텐츠 보안 정책](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy)상세 정보
+
+```js
+"Content-Security-Policy": "default-src 'self' example.com *.example.com",
+```
+
+- Strict-Transport-Security 헤더: 이 웹 사이트가 Chrome의 HSTS 사전로드 목록에 추가되기 때문에 자동으로 설정되지 않습니다.
+
+```js
+"Strict-Transport-Security" : "max-age=63072000; includeSubDomains; preload",
+```
+
+- Permissions-Policy 헤더: FLoC에서 선택과 같은 브라우저 기능의 사용을 허용하거나 거부할 수 있습니다.
+
+```js
+"Permissions-Policy": "interest-cohort=()",
+```
+
+- X-XSS-Protection 헤더: XSS 공격이 감지되면 로딩에서 페이지를 방지합니다. 더 알아보기[X-XSS 보호](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection)상세 정보
+
+```js
+"X-XSS-Protection": "0",
+```
+
+- X-Frame-Options 헤더: click-jacking 공격을 방지합니다. 더 알아보기[X-Frame-옵션](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options).
+
+```js
+"X-Frame-Options": "DENY",
+```

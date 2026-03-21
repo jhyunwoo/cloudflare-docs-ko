@@ -1,0 +1,225 @@
+---
+title: 제한 속도 (이전 버전) 업그레이드
+pcx_content_type: reference
+sidebar:
+  order: 3
+  label: 비율 제한 향상
+head:
+  - tag: title
+    content: 제한 속도 (이전 버전) 업그레이드
+description: 이전 버전에서 새 버전으로 규칙을 제한하는 업그레이드 속도 가이드.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/reference/legacy/old-rate-limiting/upgrade/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/reference/legacy/old-rate-limiting/upgrade/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare는 생성된 모든 비율 제한 규칙을 격상시킵니다[이전 버전](/waf/reference/legacy/old-rate-limiting/)이름 \*[새로운 버전의 비율 제한 규칙](/waf/rate-limiting-rules/).
+
+Cloudflare 대시보드는 이제 단일 목록에서 모든 속도 제한 규칙을 보여줍니다.
+
+:::caution\[조정안내]
+
+**더 보기[비율 제한 API](/api/resources/rate_limits/)그리고[`cloudflare_rate_limit`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/rate_limit)이전 버전의 비율 제한 규칙에 대한 Terraform 자원은 이제 deprecated.**
+
+이 API 및 Terraform 자원은 2025-06-15 이후 더 이상 지원되지 않습니다. 당신은 사용해야[규칙 세트 API](/ruleset-engine/rulesets-api/)그리고[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)규정을 제한하는 비율을 구성하는 Terraform 리소스.
+
+:::
+
+## 주요 차이점
+
+- **빌링 모델:**&#xC774;전 버전의 비율 제한은 사용에 따라 청구되었으며 모든 계획에 추가 할 수있었습니다. 새로운 버전은 Cloudflare 계획에 포함되어 있습니다. Enterprise 계획의 경우, Rate Limiting은 총 계약된 HTTP 트래픽을 기반으로 합니다. 새로운 속도 제한 규칙은 여러 가지 추가 기능과 함께 제한된 이전 버전의 비율에서 사용할 수있는 모든 기능을 제공합니다.
+
+- **고급 범위 표현:**&#xC774;전 버전의 Rate Limiting을 사용하면 요청의 단일 경로 및 방법에 따라 규칙을 범위 할 수 있습니다. 새 버전에서, 당신은 같은 규칙을 쓸 수 있습니다[WAF 사용자 정의 규칙](/waf/custom-rules/)HTTP 요청의 여러 매개 변수를 결합합니다.
+
+- **분리된 계산 및 완화 표현:**&#xC0C8;로운 버전의 비율 제한, 계산 및 완화 표현은 별도입니다 (사업 및 기업 고객을위한). counting expression은 요청이 비율을 계산하는 데 사용됩니다. mitigation expression은 임계 값이 도달 한 번에 요청이 미묘한 것을 정의합니다. 이 별도의 표현을 사용하여 특정 경로의 요청 속도를 추적 할 수 있습니다.`/login`IP가 임계값을 초과하면 도메인에 동일한 IP 주소로 모든 요청을 차단합니다.
+
+- **추가 계산 차원 (Advanced Rate Limiting only):**&#xC694;금 제한 이전 버전과 마찬가지로 새로운 요금 제한으로 고객은 Cloudflare가 들어오는 요청의 소스 IP 주소를 기반으로 요청을 계산하는 IP 기반 속도를 얻을 수 있습니다. IP 기반 속도 제한 외에도 고급 속도 제한에 가입하는 새로운 비율을 가진 고객은 API 키, 쿠키, 세션 헤더, ASN, 쿼리 매개 변수 또는 특정 JSON 바디 필드의 값과 같은 다른 특성에 따라 그룹 요청을 할 수 있습니다. 더 알아보기[최고 관행 제한](/waf/rate-limiting-rules/best-practices/)예제.
+
+- **계획 당 규칙의 수**: Cloudflare 계획 당 정확한 특징외, 계획 당 규칙의 수는 새로운 버전의 비율 제한 (새로운 버전 한계에 대한 정보를 위해, 참조[비율 제한 규칙](/waf/rate-limiting-rules/#availability)):
+
+  | 제품정보           | 무료 다운로드 | 지원하다 | 회사연혁 | RL 부가에 기업,<br />또는 동등한 계획 |
+  | -------------- | :-----: | :--: | :--: | :-----------------------: |
+  | 비율 제한 (이전 버전)  |    1    |  10  |  15  |            100            |
+  | 비율 제한 (새로운 버전) |    1    |   2  |   5  |            100            |
+
+  Enterprise 고객은 계약에 적용 보안이 있어야 하며 제한 규칙에 액세스할 수 있습니다.
+
+  더 알아보기[업그레이드에 대한 중요한 말](#important-remarks-about-the-upgrade)Cloudflare가 업그레이드 후 필요한 경우 규칙 할당량을 조정할 수 있습니다.
+
+이전과 새로운 속도 제한 규칙의 차이에 대한 자세한 내용은 참조[우리의 블로그 게시물](https://blog.cloudflare.com/unmetered-ratelimiting/).
+
+## 업그레이드에 대한 중요한 말
+
+- **업그레이드 후 Cloudflare 플랜의 새로운 규칙 할당량 위에 있는 동안 규칙을 제한하거나 편집할 수 없습니다.**&#x43;loudflare 플랜에 포함 된 제한 규칙의 수는 이전보다 낮을 수 있습니다. 새로운 제한을 초과하면 더 많은 규칙을 제공하는 계획으로 업그레이드해야합니다. 또는 규칙의 수까지 기존 규칙을 삭제하면 계획의 새로운 최대 규칙과 동일합니다.
+
+- **사용자 정의 타임 아웃은 가장 가까운 지원 타임 아웃에 라운드됩니다.**&#xC0AC;용자 정의 계산 기간 및 사용자 정의 완화 타임 아웃은 가장 가까운 계산 기간 및 새로운 버전에서 지원되는 완화 타임 아웃으로 위로 또는 아래로 돌릴 것입니다 (재판[적용분야](/waf/rate-limiting-rules/#availability)플랜 당 이용 가능한 값에 대한 자세한 내용은<br />예를 들어, 55 초의 완화 타임 아웃으로 제한 된 규칙이있을 경우,이 타임 아웃은 1 분까지 라운드됩니다 (가장 값).<br />엔터프라이즈 고객은 업그레이드 후 규칙에 대한 사용자 정의 완화 타임 아웃을 설정할 수 있지만이 구성은 API를 통해만 사용할 수 있습니다.
+
+- **사업 계획의 고객 (또는 더 높은)는 접근할 것입니다[NAT 지원 IP](/waf/rate-limiting-rules/parameters/#use-cases-of-ip-with-nat-support)특징.**&#xC774; 특성은 NAT의 요청과 같은 상황을 처리하는 데 사용됩니다.
+
+- **이전 비율 제한을 건너 뛰는 사용자 정의 규칙은 대신 새로운 버전을 건너뛰기 위해 업데이트되지 않습니다.**&#x43;loudflare는 기존의 사용자 정의 규칙을 업데이트하지 않습니다.**더 많은 구성 요소 건너뛰기** > **제한 규칙 (이전 버전)**) 새 버전을 건너뛰기.<br />기존의 건너뛰기 규칙(custom rules)*팟캐스트*액션), 당신은 수동으로 업데이트해야, 필요한 경우, 제한 규칙의 새로운 버전을 건너 (**WAF 구성 요소** > **모든 비율 제한 규칙**옵션) 이전 구현 대신.
+
+***
+
+### 대시보드 관련 변화
+
+Cloudflare Rate Limiting의 이전 버전에 액세스 한 경우 이제 동일한 목록에서 모든 속도 제한 규칙을 찾을 수 있습니다.**보안 보안** > **사이트맵** > **비율 제한 규칙**·
+이전 버전에서 생성 된 제한 규칙은 태그가 있습니다.`Previous version`Cloudflare 대시보드에.
+
+![이전 버전에서 생성 된 두 가지 규칙을 보여주는 제한 규칙 사용자 인터페이스.](~/assets/images/waf/reference/rate-limiting-rules-upgrade-ui.png)
+
+새로운 것을 사용한다면[신청 안전 대시보드](/security/), 새로운 버전으로 업그레이드 된 속도 제한 규칙 만 표시됩니다.**보안 보안** > **보안 규칙**.
+
+대시보드의 이 태그를 사용하여 규칙을 편집하면 이전 버전의 속도 제한 규칙에 대한 API 및 Terraform 리소스를 사용하여 규칙을 편집 할 수 없습니다. 이 경우에, 당신은 시작해야 할 것입니다[규칙 세트 API](/ruleset-engine/rulesets-api/)또는[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)이 목적을 위한 Terraform 자원. 더 알아보기[API 사용자를 위한 관련 변화](#relevant-changes-for-api-users)·[Terraform 사용자의 관련 변화](#relevant-changes-for-terraform-users)더 많은 정보.
+
+### API 사용자를 위한 관련 변화
+
+**API를 제한하는 이전 비율은 deprecated입니다.**&#x41;PI는 2025-06-15 이후 더 이상 지원되지 않습니다. 당신은에 따라 모든 자동화를 업데이트해야합니다[이전 속도 제한 API](/api/resources/rate_limits/)이름 \*[규칙 세트 API](/waf/rate-limiting-rules/create-api/)어떤 문제를 방지하기 위해.
+
+새로운 속도 제한 규칙을 기반으로[Ruleset 엔진](/ruleset-engine/). API를 통해 이러한 비율 제한 규칙을 구성하려면 사용해야 합니다.[규칙 세트 API](/ruleset-engine/rulesets-api/). 이전 버전에서 생성 된 속도 제한 규칙은 새로운 버전으로 업그레이드 된 이후이 API는 새로운 버전에서 생성 된 규칙을 반환합니다.
+
+더 보기[규칙 세트 API](/ruleset-engine/rulesets-api/)규칙을 생성하고 편집하고 삭제할 수있는 유일한 API입니다. 규칙을 생성 한 구현 버전에 관계없이 모든 비율 제한 규칙을 삭제합니다. 더 보기[이전 속도 제한 API](/api/resources/rate_limits/)대시보드 또는 새로운 API/Terraform 리소스를 통해 수정되지 않은 이전 버전에서 생성 된 속도 제한 규칙과 함께 작동합니다.
+
+API 일몰 날짜까지, 당신은 사용할 수 있습니다[이전 속도 제한 API](/api/resources/rate_limits/)이전 버전 (Cloudflare 업그레이드 된 새로운 버전)에서 생성 된 제한 규칙을 생성하고 편집하고 삭제합니다. 그러나 이전 버전에서 생성 된 규칙을 편집하려면 Rulesets API를 사용하거나 Cloudflare 대시보드의 규칙을 변경하면 규칙 주문을 변경할 수 없습니다. 이전 버전에서 이 규칙을 관리 할 수 없습니다 (이전 버전에서 업그레이드 한 다음 규칙 API를 사용하여 업데이트). 이 경우에, 당신은 완전하게 스위치에 필요로 할 것입니다[규칙 세트 API](/ruleset-engine/rulesets-api/)이 특정 규칙을 관리합니다.
+
+### Terraform 사용자의 관련 변화
+
+**더 보기`cloudflare_rate_limit`Terraform 자원은 deprecated입니다.**&#xB9AC;소스는 2025-06-15 이후 더 이상 지원되지 않습니다. Terraform에서 설정한 속도를 수동으로 업데이트해야 합니다.[`cloudflare_rate_limit`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/rate_limit)회사 소개[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)어떤 문제를 방지하기 위해 자원.
+
+새로운 속도 제한 규칙을 기반으로[Ruleset 엔진](/ruleset-engine/). Terraform을 가진 이 비율 제한 규칙을 구성하려면`cloudflare_ruleset`Terraform 자원.
+
+더 보기[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)Terraform 리소스는 규칙을 생성, 편집, 삭제할 수 있는 유일한 자원입니다. 더 보기`cloudflare_rate_limit`Terraform 리소스는 대시보드에서 편집하거나 새로운 API/Terraform 리소스를 통해 수정되지 않은 이전 버전에서 생성 된 속도 제한 규칙과 함께 작동합니다.
+
+일몰까지`cloudflare_rate_limit`Terraform 리소스, 이전 버전에서 생성 된 규칙을 생성, 편집 및 삭제하는이 리소스를 사용할 수 있습니다 (Cloudflare가 새 버전으로 업그레이드). 그러나 시작하면`cloudflare_ruleset`이전 버전에서 생성 된 규칙을 관리 할 수있는 Terraform 리소스, 또는 Cloudflare 대시보드에 이러한 규칙을 편집하는 경우 - 규칙 주문을 변경하는 것을 포함하여 -이 규칙을 관리 할 수 없습니다 (이전 버전에서 업그레이드 한 다음 새로운 리소스를 사용하여 업데이트) 오래된 Terraform 리소스를 사용하여. 이 경우에, 당신은 완전하게 스위치에 필요로 할 것입니다`cloudflare_ruleset`이 특정 규칙을 관리하기위한 Terraform 리소스.
+
+Terraform 문서 참조[Terraform을 사용하여 새로운 비율 제한 규칙을 구성하는 예](/terraform/additional-configurations/rate-limiting-rules/).
+
+### cf-terraforming으로 구성 교체
+
+당신은 사용할 수 있습니다[`cf-terraforming`](https://github.com/cloudflare/cf-terraforming)이전 버전에서 생성 된 속도 제한 규칙에 대한 새로운 Terraform 구성을 생성하는 도구. 그런 다음 Terraform 상태에 새로운 리소스를 가져올 수 있습니다.
+
+Terraform의 이전 속도 제한 구성을 대체하기위한 권장 단계는 다음과 같습니다.
+
+1. 다음 명령을 실행하여 영역의 모든 규칙 구성을 생성합니다.
+
+   ```sh null {3,6}
+   cf-terraforming generate --zone <ZONE_ID> --resource-type "cloudflare_ruleset"
+   ```
+
+   ```tf output {1,4}
+   resource "cloudflare_ruleset" "terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31" {
+     kind    = "zone"
+     name    = "default"
+     phase   = "http_ratelimit"
+     zone_id = "<ZONE_ID>"
+     rules {
+       # (...)
+     }
+     # (...)
+   }
+   # (...)
+   ```
+
+2. 이전 명령은 다른 Cloudflare 제품에 대한 추가 규칙 구성을 반환 할 수도 있습니다.[Ruleset 엔진](/ruleset-engine/). 제한 규칙 구성을 업데이트하고 있기 때문에 Terraform 리소스만 유지`http_ratelimit`단계 및 저장 그것 에 a`.tf`구성 파일. 다음 단계에 전체 리소스 이름을 필요로합니다.
+
+3. 구매하기`cloudflare_ruleset`이전에 Terraform state로 확인된 리소스`terraform import`명령. 예를 들면:
+
+   ```sh
+   terraform import cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31 zone/<ZONE_ID>/3c0b456bc2aa443089c5f40f45f51b31
+   ```
+
+   ```txt output
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Importing from ID "zone/<ZONE_ID>/3c0b456bc2aa443089c5f40f45f51b31"...
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Import prepared!
+     Prepared cloudflare_ruleset for import
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+
+   Import successful!
+
+   The resources that were imported are shown above. These resources are now in
+   your Terraform state and will henceforth be managed by Terraform.
+   ```
+
+4. 지원하다`terraform plan`Terraform이 이제 새로운 상태를 확인합니다.`cloudflare_ruleset`다른 기존 리소스 외에도 Terraform이 이미 관리했습니다. 예를 들면:
+
+   ```sh
+   terraform plan
+   ```
+
+   ```txt output
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+   [...]
+   cloudflare_rate_limit.my_rate_limiting_rules: Refreshing state... [id=0580eb5d92e344ddb2374979f74c3ddf]
+   [...]
+   ```
+
+5. 지정된 레이트 제한 규칙과 관련된 모든 국가 제거`cloudflare_rate_limit`Terraform 상태의 자원:
+
+   :::카ution\[중요]
+   지정된 제한 규칙을 제거해야합니다.`cloudflare_rate_limit`Terraform state의 자원은 구성을 삭제하기 전에`.tf`문제를 방지하기 위해 구성 파일.
+   주요 특징
+
+   1. 다음 명령을 실행하여 제한 규칙 (이전 버전)과 관련된 모든 리소스를 찾을 수 있습니다.
+
+      ```sh
+      terraform state list | grep -E '^cloudflare_rate_limit\.'
+      ```
+
+      ```txt output
+      cloudflare_rate_limit.my_rate_limiting_rules
+      ```
+
+   2. 시작하기`terraform state rm ...`건조한 실행 모드에서 명령은 어떤 변경을 수행하지 않고 그 리소스를 제거의 영향을 이해합니다.
+
+      ```sh
+      terraform state rm -dry-run cloudflare_rate_limit.my_rate_limiting_rules
+      ```
+
+      ```txt output
+      Would remove cloudflare_rate_limit.my_rate_limiting_rules
+      ```
+
+   3. 충격이 정확하면 동일한 명령을 실행합니다.`-dry-run`실제로 Terraform 국가의 리소스를 제거하는 매개 변수 :
+
+      ```sh
+      terraform state rm cloudflare_rate_limit.my_rate_limiting_rules
+      ```
+
+      ```txt output
+      Removed cloudflare_rate_limit.my_rate_limiting_rules
+      Successfully removed 1 resource instance(s).
+      ```
+
+6. 제거 후`cloudflare_rate_limit`Terraform state의 자원, 이러한 모든 리소스를 삭제`.tf`구성 파일.
+
+7. 지원하다`terraform plan`구성 파일에서 삭제 된 리소스는 더 이상 나타납니다. 당신은 어떤 말썽도 없다.
+
+   ```sh
+   terraform plan
+   ```
+
+   ```txt output
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+   [...]
+
+   No changes. Your infrastructure matches the configuration.
+
+   Terraform has compared your real infrastructure against your configuration and found no differences, so no changes are needed.
+   ```
+
+Cloudflare 리소스를 Terraform에 가져오고`cf-terraforming`도구, 다음 리소스를 참조 :
+
+- [Cloudflare 리소스 가져 오기](/terraform/advanced-topics/import-cloudflare-resources/)
+- [`cf-terraforming`GitHub 저장소](https://github.com/cloudflare/cf-terraforming)
+
+## 더 많은 리소스
+
+각 Cloudflare 플랜의 사용 가능한 기능을 포함한 새로운 속도 제한 구현에 대한 자세한 내용은 참조[비율 제한 규칙](/waf/rate-limiting-rules/).
+
+Cloudflare는 또한 기업 고객에게 유효한 비율 제한의 진보된 버전을 제안합니다. 더 많은 정보를 원하시면, 참조[Advanced Rate Limiting 소개](https://blog.cloudflare.com/advanced-rate-limiting/)블로그 게시물.
+
+새로운 속도 제한으로 할 수있는 것에 대해 더 알아 보려면, 참조[최고 관행 제한](/waf/rate-limiting-rules/best-practices/).

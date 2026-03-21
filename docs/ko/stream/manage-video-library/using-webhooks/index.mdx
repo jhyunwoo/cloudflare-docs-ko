@@ -1,0 +1,265 @@
+---
+pcx_content_type: how-to
+title: 웹훅 사용
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/manage-video-library/using-webhooks/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/manage-video-library/using-webhooks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, DashButton } from "~/components";
+
+Webhooks는 비디오를 성공적으로 처리하고 스트림 또는 비디오가 오류 상태를 입력하면 서비스를 통지합니다.
+
+:::참조
+
+Webhooks는 라이브 방송을 위해 다르게 작동합니다. 더 많은 정보를 원하시면, 참조[라이브 Webhooks 받기](/stream/stream-live/webhooks/).
+
+:::
+
+## 웹훅 알림 구독
+
+웹훅 알림을 수신하거나 기존 구독을 수정하려면 API 토큰을 생성합니다.**계정 API 토큰**Cloudflare dashboardXQ의 페이지.
+
+<DashButton url="/?to=/:account/api-tokens" />
+
+webhook 알림 URL은 프로토콜을 포함해야 합니다. 한국어`http://`또는`https://`지원됩니다.
+
+```bash
+curl -X PUT --header 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/webhook \
+--data '{"notificationUrl":"<WEBHOOK_NOTIFICATION_URL>"}'
+```
+
+```json title="Example response"
+{
+	"result": {
+		"notificationUrl": "http://www.your-service-webhook-handler.com",
+		"modified": "2019-01-01T01:02:21.076571Z",
+		"secret": "85011ed3a913c6ad5f9cf6c5573cc0a7"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 공지사항
+
+계정에서 비디오를 처리 할 때, 당신은 받게됩니다`POST`비디오에 대한 정보와 요청 알림.
+
+```json title="Example POST request body sent in response to successful encoding"
+{
+	"uid": "6b9e68b07dfee8cc2d116e4c51d6a957",
+	"creator": null,
+	"thumbnail": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.jpg",
+	"thumbnailTimestampPct": 0,
+	"readyToStream": true,
+	"status": {
+		"state": "ready",
+		"pctComplete": "39.000000",
+		"errorReasonCode": "",
+		"errorReasonText": ""
+	},
+	"meta": {
+		"filename": "small.mp4",
+		"filetype": "video/mp4",
+		"name": "small.mp4",
+		"relativePath": "null",
+		"type": "video/mp4"
+	},
+	"created": "2022-06-30T17:53:12.512033Z",
+	"modified": "2022-06-30T17:53:21.774299Z",
+	"size": 383631,
+	"preview": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/watch",
+	"allowedOrigins": [],
+	"requireSignedURLs": false,
+	"uploaded": "2022-06-30T17:53:12.511981Z",
+	"uploadExpiry": "2022-07-01T17:53:12.511973Z",
+	"maxSizeBytes": null,
+	"maxDurationSeconds": null,
+	"duration": 5.5,
+	"input": {
+		"width": 560,
+		"height": 320
+	},
+	"playback": {
+		"hls": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.m3u8",
+		"dash": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.mpd"
+	},
+	"watermark": null
+}
+```
+
+- `uid`– 비디오의 고유 식별자.
+- `readytoStream`– 반환`true`적어도 1개의 질 수준이 암호로 고쳐지고 돌릴 준비가.
+- `status`– 처리 상태.
+  - `state`– 반환`ready`비디오가 처리되고 모든 품질 수준이 인코딩 될 때.
+  - `pctComplete`– 처리의 비율은 완료됩니다. 이 도달`100`, 모든 품질 수준은 유효합니다.
+    :::가격
+    가장 높은 그림 품질을 보장하려면 비디오 재생 만 활성화하십시오.`state`이름 \*`ready`·`pctComplete`이름 \*`100`.
+    :::
+- `meta`– 업로드 파일과 관련된 메타데이터.
+- `created`– 비디오 레코드가 생성되었을 때 타임스탬프.
+
+## 오류 코드
+
+비디오가 성공적으로 처리 할 수없는 경우,`state`필드 반환`error`, 그리고`errReasonCode`아래 나열된 값 중 하나를 반환합니다.
+
+- `ERR_NON_VIDEO`– 업로드는 비디오가 아닙니다.
+- `ERR_DURATION_EXCEED_CONSTRAINT`– 비디오 지속 시간은 직접 제작자 업로드에 정의 된 제약을 초과합니다.
+- `ERR_FETCH_ORIGIN_ERROR`– 비디오는 URL에서 다운로드 실패.
+- `ERR_MALFORMED_VIDEO`– 비디오는 유효한 파일이지만 복구 할 수없는 손상된 데이터를 포함합니다.
+- `ERR_DURATION_TOO_SHORT`– 비디오의 지속 시간은 0.1 초 미만입니다.
+- `ERR_UNKNOWN`– 스트림이 자동으로 왜 비디오가 오류를 반환하는지 결정할 수 없는 경우,`ERR_UNKNOWN`코드가 사용됩니다.
+
+더 알아보기`state`필드, 비디오의`readyToStream`필드는`true`영상을 재생합니다.
+
+```bash title="Example error response" {2,4,7}
+{
+  "readyToStream": false,
+  "status": {
+    "state": "error",
+    "step": "encoding",
+    "pctComplete": "39",
+    "errReasonCode": "ERR_MALFORMED_VIDEO",
+    "errReasonText": "The video was deemed to be corrupted or malformed.",
+  }
+}
+```
+
+## Webhook 인증
+
+Cloudflare Stream은 알림 URL에 전송된 webhook 요청을 서명하고 각 요청의 서명을 포함합니다.`Webhook-Signature`HTTP 헤더. 웹훅 요청이 스트림에 의해 전송되도록 응용 프로그램을 허용합니다.
+
+서명을 확인하려면 웹훅 서명 비밀을 검색해야합니다. 이 값은 웹훅을 만들거나 검색할 때 API 응답에서 반환됩니다.
+
+서명을 확인하려면, 값을 얻을`Webhook-Signature`아래 예제와 유사하게 보입니다.
+
+`Webhook-Signature: time=1230811200,sig1=60493ec9388b44585a29543bcf0de62e377d4da393246a8b1c901d0e3e672404`
+
+### 1. 서명
+
+다운로드`Webhook-Signature`webhook 요청에서 헤더와 문자열을 분할`,`문자.
+
+각 값을 다시 분할`=`문자.
+
+가치에 대한`time`현재는[UNIX 시간](https://en.wikipedia.org/wiki/Unix_time)서버가 요청을 보냈습니다.`sig1`요청 몸의 서명입니다.
+
+이 시점에서, 당신은 당신의 응용 프로그램에 너무 오래 된 타임스탬프와 요청을 discard해야합니다.
+
+### 2. 서명 소스 문자열 만들기
+
+서명 소스 문자열을 준비하고 다음 문자열을 concatenate:
+
+- 가치의`time`예를 들어`1230811200`
+- 이름 \*`.`
+- Webhook 요청 몸 (newline 문자로 완료, 적용 가능한 경우)
+
+요청 몸의 모든 바이트는 성공적인 서명 검증을 위해 무례해야 합니다.
+
+### 3. 예상 서명 만들기
+
+웹훅 비밀과 소스 문자열을 사용하여 SHA256 기능 (HMAC-SHA256)과 HMAC를 컴퓨터 2.
+이 단계는 당신의 신청에 의해 이용된 프로그램 언어에 달려 있습니다.
+
+Cloudflare의 서명은 hex에 인코딩됩니다.
+
+### 4. 예상 및 실제 서명 비교
+
+요청 헤더의 서명과 예상 서명 비교. Preferably는 서명을 비교하기 위해 일정한 비교 기능을 사용합니다.
+
+서명이 일치하면 Cloudflare가 webhook을 보냈습니다.
+
+## 제한 사항
+
+- Webhooks는 비디오 처리가 완료된 후만 전송되며, 몸은 비디오 처리가 성공하거나 실패 여부를 나타냅니다.
+- 1개의 webhook 구독만 허용됩니다.
+- Cloudflare는 webhooks를 보낼 수 없습니다`localhost`또는 로컬 IP 주소. 공개적으로 접근 가능한 URL이 필요합니다. 현지 테스트를 위해, 사용[빠른 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)인터넷에 로컬 서버를 노출합니다. 단계별 연습을 위해, 참조[웹훅을 로컬로 테스트](/stream/examples/test-webhooks-locally/).
+
+## 이름 \*
+
+**채용 정보**
+
+사용 방법[암호화/hmac](https://golang.org/pkg/crypto/hmac/#pkg-overview):
+
+```go
+package main
+
+import (
+ "crypto/hmac"
+ "crypto/sha256"
+ "encoding/hex"
+ "log"
+)
+
+func main() {
+ secret := []byte("secret from the Cloudflare API")
+ message := []byte("string from step 2")
+
+ hash := hmac.New(sha256.New, secret)
+ hash.Write(message)
+
+ hashToCheck := hex.EncodeToString(hash.Sum(nil))
+
+ log.Println(hashToCheck)
+}
+
+```
+
+**Node.js**
+
+```js
+var crypto = require("crypto");
+
+var key = "secret from the Cloudflare API";
+var message = "string from step 2";
+
+var hash = crypto.createHmac("sha256", key).update(message);
+
+hash.digest("hex");
+```
+
+**뚱 베어**
+
+```ruby
+    require 'openssl'
+
+    key = 'secret from the Cloudflare API'
+    message = 'string from step 2'
+
+    OpenSSL::HMAC.hexdigest('sha256', key, message)
+```
+
+**JavaScript (예를 들면, Cloudflare WorkersXQ)에서 사용**
+
+```javascript
+const key = "secret from the Cloudflare API";
+const message = "string from step 2";
+
+const getUtf8Bytes = (str) =>
+	new Uint8Array(
+		[...decodeURIComponent(encodeURIComponent(str))].map((c) =>
+			c.charCodeAt(0),
+		),
+	);
+
+const keyBytes = getUtf8Bytes(key);
+const messageBytes = getUtf8Bytes(message);
+
+const cryptoKey = await crypto.subtle.importKey(
+	"raw",
+	keyBytes,
+	{ name: "HMAC", hash: "SHA-256" },
+	true,
+	["sign"],
+);
+const sig = await crypto.subtle.sign("HMAC", cryptoKey, messageBytes);
+
+[...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, "0")).join("");
+```

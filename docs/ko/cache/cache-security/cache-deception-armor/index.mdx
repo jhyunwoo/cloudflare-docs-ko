@@ -1,0 +1,43 @@
+---
+pcx_content_type: concept
+title: Cache Deception Armor
+
+---
+
+import { DashButton } from "~/components";
+
+Cache Deception Armor를 알아보기 전에 먼저 Web Cache Deception 공격이 어떻게 동작하는지 이해해야 합니다.
+
+## Web Cache Deception 공격
+
+Web Cache Deception 공격은 공격자가 사용자를 `http://www.example.com/newsfeed/foo.jpg` 형식의 링크로 유도해 열게 만드는 상황에서 발생합니다. 여기서 `http://www.example.com/newsfeed`는 사용자마다 다른 콘텐츠를 반환하는 동적 스크립트의 위치입니다.
+
+이 시나리오는 웹사이트가 처리할 수 있는 경로 종류에 대해 유연하게 구성되어 있을 때 문제가 됩니다. 더 구체적으로는 `/x/y/z`처럼 존재하지 않는 경로에 대한 요청을, 존재하는 상위 경로 `/x`에 대한 요청과 동등하게 처리하는 경우입니다.
+
+예를 들어 공격자가 사용자에게 `http://www.example.com/newsfeed/foo.jpg` 링크를 보내 사용자의 뉴스피드로 이동하게 할 수 있습니다. 요청이 Cloudflare를 통과할 때 경로가 `.jpg`로 끝나므로 요청은 캐시됩니다. 공격자는 이후 동일한 URL에 직접 접근할 수 있고, 그 요청은 Cloudflare 캐시에서 제공되므로 사용자의 민감한 콘텐츠가 노출됩니다.
+
+## Cache Deception Armor는 공격을 방어합니다
+
+[캐시 규칙 생성](/cache/cache-security/cache-deception-armor/#enable-cache-deception-armor)을 통해 사용자를 Web Cache Deception 공격으로부터 보호할 수 있습니다. 이 규칙을 사용하면 정적 자산을 계속 캐시하면서도, URL의 확장자가 반환된 `Content-Type`과 일치하는지를 검증할 수 있습니다.
+
+위 뉴스피드 예시에서 `http://www.example.com/newsfeed`가 웹페이지를 출력하는 스크립트라면 `Content-Type`은 `text/html`입니다. 반면 `http://www.example.com/newsfeed/foo.jpg`는 `Content-Type`으로 `image/jpeg`가 기대됩니다. Web Cache Deception 공격으로 이어질 수 있는 불일치가 발견되면 Cloudflare는 해당 응답을 캐시하지 않습니다.
+
+### 예외
+
+* 반환된 `Content-Type`이 `application/octet-stream`인 경우에는 브라우저에 자산을 표시하는 대신 저장하라고 지시하는 신호인 경우가 많으므로 확장자는 중요하지 않습니다.
+* Cloudflare는 `.jpg`를 `image/webp`로 제공하거나 `.gif`를 `video/webm`으로 제공하는 등, 공격일 가능성이 낮다고 판단되는 다른 경우도 허용합니다.
+* Cache Deception Armor는 [Origin Cache Control](/cache/concepts/cache-control/)에 의존한다는 점을 유념하세요. 오리진의 `Cache-Control` 헤더나 [Edge Cache TTL Cache Rule](/cache/how-to/cache-rules/settings/#edge-ttl)이 이 보호를 재정의할 수 있습니다.
+
+## Cache Deception Armor 활성화
+
+Cache Deception Armor를 활성화하려면 먼저 [캐시 규칙](/cache/how-to/cache-rules/)을 생성해야 합니다. 다음 단계를 따라 진행하세요.
+
+1. Cloudflare 대시보드에서 **Cache Rules** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/cache-rules" />
+
+2. **Create rule**을 선택합니다.
+3. **When incoming requests match** 아래에서 [규칙 표현식](/ruleset-engine/rules-language/expressions/edit-expressions/#expression-builder)을 정의합니다.
+4. **Then** 아래의 **Cache eligibility** 섹션에서 **Eligible for cache**를 선택합니다.
+5. 규칙에 **Cache Key** 설정을 추가하고 **Cache deception armor**를 켭니다.
+6. 규칙을 저장하고 배포하려면 **Deploy**를 선택합니다. 아직 배포할 준비가 되지 않았다면 **Save as Draft**를 선택합니다.

@@ -1,0 +1,118 @@
+---
+title: 열린Telemetry
+pcx_content_type: configuration
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/observability/otel-integration/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/observability/otel-integration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+AI Gateway는 OpenTelemetry-compatible 백엔드를 내보내고 기존의 Observability 인프라와 함께 AI 요청 성능을 모니터링하고 분석할 수 있습니다.
+
+## 제품정보
+
+OpenTelemetry (OTEL) 통합 자동으로 게이트웨이를 통해 처리 된 AI 요청에 대한 추적 스팬을 수출합니다. 이 스팬은 상세한 정보를 포함:
+
+- 모델 및 공급자
+- 토큰 사용 (입력 및 출력)
+- 신속한 요청 및 완료
+- 비용 견적
+- 주문 metadata
+
+이 통합은 다음과 같습니다.[OpenTelemetry 사양](https://opentelemetry.io/docs/specs/otel/)OTLP (OpenTelemetry Protocol) JSON 형식을 배포하고 사용합니다.
+
+## 제품 설명
+
+게이트웨이를 위해 OpenTelemetry tracing을 활성화하려면 게이트웨이 설정에서 하나 이상의 OTEL exporters를 구성합니다. 각 수출상은 요구합니다:
+
+- **사이트 맵**: OTEL 수집가의 엔드포인트 URL (OTLP/JSON 형식을 허용하지 않음)
+- **이름 \***(선택): 참고 자료는 당신의 허가 우두머리 가치를 포함하는 비밀에
+- **기타 제품**(선택): 수출 요청에 포함할 것이다 추가 주문 우두머리
+
+### Dashboard를 통한 구성
+
+1. Cloudflare 대시보드
+2. 오시는 길**계정 설정**이름 \*
+3. 수집가 엔드포인트 URL로 OTEL 수출
+4. 인증이 필요한 경우, 권한 헤더에 대한 비밀을 구성
+
+## 수출된 경간 Attributes
+
+AI Gateway 수출은 다음과 같은 속성과 함께합니다.[Gen AI의 Semantic 협약](https://opentelemetry.io/docs/specs/semconv/gen-ai/):
+
+### 표준 특성
+
+| 사이트 맵                        | 제품정보  | 이름 \*                                |
+| ---------------------------- | ----- | ------------------------------------ |
+| `gen_ai.request.model`       | 이름 \* | 요청에 사용되는 AI 모델                       |
+| `gen_ai.model.provider`      | 이름 \* | AI 공급자 (예:`openai`, `anthropic`)     |
+| `gen_ai.usage.input_tokens`  | 뚱 베어  | 소비된 입력 토큰 수                          |
+| `gen_ai.usage.output_tokens` | 뚱 베어  | 생성된 산출 토큰의 수                         |
+| `gen_ai.prompt_json`         | 이름 \* | JSON-encoded prompt/messages는 모델로 전송 |
+| `gen_ai.completion_json`     | 이름 \* | JSON 인코딩 완료 / 모델에서 응답                |
+| `gen_ai.usage.cost`          | 더블 더블 | 요청의 예상 비용                            |
+
+### 메타데이터
+
+모든 사용자 정의 메타 데이터는 요청에 추가`cf-aig-metadata`header는 또한 경간 특성으로 포함될 것입니다. 사용자는 사용자 ID, 팀 이름, 기타 비즈니스 컨텍스트로 추적할 수 있습니다.
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header 'Authorization: Bearer {api_token}' \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-metadata: {"user_id": "user123", "team": "engineering"}' \
+  --data '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+위의 요청은 다음을 포함합니다.`user_id`·`team`수출된 추적에 있는 추가 경간 속성으로.
+
+:::참조
+
+사용자 정의 metadata 속성`gen_ai.`표준 GenAI semantic 컨벤션에 대한 예약은 사용자 정의 속성으로 추가되지 않습니다.
+
+:::
+
+## Trace Context 전파
+
+AI Gateway는 추적 컨텍스트 propagation을 지원하며 애플리케이션의 추적과 AI Gateway를 연결할 수 있습니다. 사용자 정의 헤더를 사용하여 추적 상황에 제공 할 수 있습니다:
+
+- `cf-aig-otel-trace-id`(선택 사항): 추적 ID로 사용하려면 32-character hex 문자열
+- `cf-aig-otel-parent-span-id`(선택 사항): 16-character hex 문자열은 부모의 스팬 ID로 사용
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header 'cf-aig-otel-trace-id: a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6' \
+  --header 'cf-aig-otel-parent-span-id: a1b2c3d4e5f6g7h8' \
+  --header 'Authorization: Bearer {api_token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "gpt-4o",
+    "messages": [{"role": "user", "content": "Hello!"}]
+  }'
+```
+
+이 헤더가 제공되면 AI Gateway span은 기존 추적과 연결하기 위해 사용됩니다. 제공되지 않은 경우, AI Gateway는 새로운 추적 ID를 자동으로 생성합니다.
+
+## 일반 OTEL 백엔드
+
+AI Gateway의 OTEL 통합은 다음과 같은 OTLP / JSON 형식을 수용하는 OpenTelemetry 호환 백엔드와 함께 작동합니다.
+
+- [허니콤](https://www.honeycomb.io/)
+- [뇌신뢰](https://www.braintrust.dev/docs/integrations/sdk-integrations/opentelemetry)
+- [팟캐스트](https://langfuse.com/integrations/native/opentelemetry)
+
+:::참조
+
+우리는 OTLP protobuf 형식을 지원하지 않습니다, 그래서 그것을 사용하는 공급자 (예를들면, Datadog) AI Gateway의 OTEL 통합과 작동하지 않을 것입니다.
+
+:::
+
+올바른 OTLP 엔드포인트 URL 및 인증 요구 사항에 대한 관찰성 플랫폼 문서에 대한 참조.

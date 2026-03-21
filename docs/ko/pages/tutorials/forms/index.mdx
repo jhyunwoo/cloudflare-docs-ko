@@ -1,0 +1,349 @@
+---
+reviewed: 2022-07-28T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: HTML 양식 만들기
+tags:
+  - Forms
+  - JavaScript
+description: >-
+  이 튜토리얼은 HTML 양식의 기초에 간략하게 접촉합니다. 이 튜토리얼은 Cloudflare Pages 및 WorkersXQ 통합의 무거운
+  사용을 만들 것입니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/tutorials/forms/'
+translation_source_md: 'https://developers.cloudflare.com/pages/tutorials/forms/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 튜토리얼에서는 간단하게 만들 것입니다.`<form>`일반 HTML 및 CSS를 사용하여 Cloudflare QXPages에 배포합니다. 이렇게하려면 HTML 양식 속성과 Worker 내에서 제출 된 데이터를 수집하는 방법에 대해 배울 것입니다.
+
+:::노트\[MDN소개 시리즈]
+
+이 튜토리얼은 HTML 양식의 기초에 간략하게 접촉합니다. 더 심층적인 개요를 위해, MDN의 참조[웹 양식 – 사용자 데이터 작업](https://developer.mozilla.org/en-US/docs/Learn/Forms)introductory 시리즈.
+
+:::
+
+이 자습서는 Cloudflare Pages의 무거운 사용을 만들 것입니다[Workers 통합](/pages/functions/). 참조[자주 묻는 질문](/pages/get-started/)플랫폼에 익숙한 가이드.
+
+## 제품정보
+
+웹에서 양식은 사용자와 웹 문서 간의 상호 작용의 일반적인 점입니다. 사용자가 데이터를 입력하고 일반적으로 데이터를 서버에 제출할 수 있습니다. 양식은 적어도 하나의 양식 입력으로 구성되어 있으며 텍스트 필드에서 드롭다운을 체크 박스와 더 많은 수 있습니다.
+
+각 입력은 지명되어야 합니다 – 사용[`name`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input#attr-name)속성 – 그래서 입력의 값은 서버에서 수신 할 때 식별 가능한 이름이 있습니다. 또한 HTML5의 발전과 함께, 형태 요소는 자동 형태 검증을 선택하기 위해 추가 속성을 선언 할 수 있습니다. 유효한 유효성 검사는 입력 유형에 따라 다릅니다; 예를 들면, 이메일 (via)를 받아들이는 원본 입력[`type=email`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input#input_types)) 값은 유효한 이메일 주소, 숫자 입력 (via를 통해 보이는 것을 지킬 수 있습니다`type=number`)는 integers 또는 decimal 값 ( 허용되는 경우)만 허용되며 일반적인 텍스트 입력은 사용자 정의를 정의 할 수 있습니다.[`pattern`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input#attr-pattern)수 있습니다. 그러나 모든 입력은 값이 아닌지 선언 할 수 있습니다.[`required`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input#attr-required).
+
+아래는 몇 가지 입력과 검증 규칙이 정의된 HTML5 양식입니다.
+
+```html
+<form method="POST" action="/api/submit">
+	<input type="text" name="fullname" pattern="[A-Za-z]+" required />
+	<input type="email" name="email" required />
+	<input type="number" name="age" min="18" required />
+
+	<button type="submit">Submit</button>
+</form>
+```
+
+HTML5 양식이 정의 된 검증 규칙을 가지고 있다면 브라우저는 사용자가 양식을 제출하려고 시도 할 때 모든 규칙을 자동으로 확인할 수 있습니다. 오류가 발생하면 제출이 방지되고 브라우저는 오류 메시지(s)를 수정할 수 있습니다. 더 보기`<form>`계정 만들기`POST`데이터에`/submit`탁월한 검증 오류가 없을 때 endpoint. 이 전체 프로세스는 HTML5에 기본이며, 적절한 형태와 입력 속성이 존재하도록 요구합니다. - JavaScript는 필요하지 않습니다.
+
+형태 성분은 또한 있을지도 모릅니다[`<label>`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/label)그들과 관련된 요소는 명확하게 각 입력을 설명 할 수 있습니다. 이것은 시각적 명확성, 물론, HTML 마크 업이 더 잘 정의되어 있기 때문에 더 많은 액세스 가능한 사용자 경험을 허용합니다. 이 분야에서 직접 이익을 얻을 수있는 기술; 예를 들어, 화면 리더는 다음과 같이 발표 할 수 있습니다`<input>`초점. 그리고 때`<label>`클릭, 할당 된 양식 입력 대신 초점을 맞추고, 입력에 대한 활성화 영역을 증가.
+
+이를 가능하게 하기 위해, 당신은 창조해야 합니다`<label>`각 입력에 대한 요소와 각 할당`<input>`요소 및 고유`id`속성 값. 더 보기`<label>`자주 묻는 질문[`for`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/label#attr-for)입력의 고유성을 반영한 속성`id`가치. 이전 스니펫이 다음을 생성해야합니다 :
+
+```html
+<form method="POST" action="/api/submit">
+	<label for="i-fullname">Full Name</label>
+	<input
+		id="i-fullname"
+		type="text"
+		name="fullname"
+		pattern="[A-Za-z]+"
+		required
+	/>
+
+	<label for="i-email">Email Address</label>
+	<input id="i-email" type="email" name="email" required />
+
+	<label for="i-age">Your Age</label>
+	<input id="i-age" type="number" name="age" min="18" required />
+
+	<button type="submit">Submit</button>
+</form>
+```
+
+:::참조
+
+내 계정`for`·`id`값은 위의 값을 정확히 일치하지 않습니다. 당신은 어떤 사용할 수 있습니다`id`HTML 문서에 독특합니다. ·`<label>`연결 가능`<input>`만약에`for`·`id`속성 일치.
+
+:::
+
+현재 위치`<form>`유효한 데이터로 제출되어 서버로 전송됩니다. 이 데이터가 양식 자체의 속성을 선언하여 전송되는 방법을 사용자 정의 할 수 있습니다. 이 세부 사항을 제공하지 않는 경우,`<form>`현재 URL 주소로 데이터를 얻을 것이다, 이는 거의 원하는 행동이다. 이 문제를 해결하려면 최소한으로 정의해야합니다.[`action`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form#attr-action)대상 URL 주소를 가진 속성, 하지만 선언[`method`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form#attr-method)기본적으로 redeclaring 경우에도 종종 권장됩니다.`GET`가치.
+
+기본적으로 HTML 양식은 자신의 내용을 보냅니다.`application/x-www-form-urlencoded`MIME 유형. 이 값은 반영됩니다.`Content-Type`HTTP 헤더, 수신 서버는 데이터 내용을 파싱하는 방법을 결정해야합니다. MIME 유형을 통해 사용자 정의 할 수 있습니다.[`enctype`](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/form#attr-enctype)이름 \* 예를 들어, 파일을 수락하기 위해 (via`type=file`), 당신은 변화해야 합니다`enctype`이름 \*`multipart/form-data`가치:
+
+```html
+<form method="POST" action="/api/submit" enctype="multipart/form-data">
+	<label for="i-fullname">Full Name</label>
+	<input
+		id="i-fullname"
+		type="text"
+		name="fullname"
+		pattern="[A-Za-z]+"
+		required
+	/>
+
+	<label for="i-email">Email Address</label>
+	<input id="i-email" type="email" name="email" required />
+
+	<label for="i-age">Your Age</label>
+	<input id="i-age" type="number" name="age" min="18" required />
+
+	<label for="i-avatar">Profile Picture</label>
+	<input id="i-avatar" type="file" name="avatar" required />
+
+	<button type="submit">Submit</button>
+</form>
+```
+
+그 때문에`enctype`변경된 브라우저는 서버로 데이터를 전송하는 방법을 변경합니다. 더 보기`Content-Type`HTTP 헤더는 새로운 접근 방식을 반영하고 HTTP 요청의 몸은 새로운 MIME 유형에 따릅니다. 수신 서버는 새로운 형식을 수용하고 요청 파싱 방법을 조정해야합니다.
+
+## 라이브 예제
+
+이 튜토리얼의 나머지는 PagesXQ에 HTML 양식을 구축하고 양식 제출을 수신하고 파싱 할 수있는 작업자를 포함.
+
+:::노트\[GitHub Repository]
+
+이 예제의 소스 코드는[GitHub에서](https://github.com/cloudflare/submit.pages.dev). 그것은 살아있는 Pages 신청입니다[라이브 데모](https://submit.pages.dev/)이용 가능
+
+:::
+
+### 설치하기
+
+시작하려면[새로운 GitHub 저장소](https://repo.new/). 그런 다음 기계에 새로운 로컬 디렉토리를 만들고, git을 초기화하고, GitHub 위치를 원격 목적지로 연결하십시오.
+
+```sh
+#새 디렉토리
+mkdir new-project
+#새 디렉토리
+cd new-project
+#초기화
+git init
+#원격 연결
+git remote add origin git@github.com:<username>/<repo>.git
+#기본 지점 이름 변경
+git branch -M main
+```
+
+지금부터 일할 수 있습니다.`new-project`만든 디렉토리.
+
+### 공지사항
+
+이 예제의 양식은 상당히 간단합니다. 여러 값을 선택하기 위해 체크박스를 포함한 다른 입력 유형의 배열이 포함되어 있습니다. 이 양식은 또한 유효성을 포함하지 않습니다 그래서 빈 및 / 또는 누락 된 값이 서버에 해석되는 방법을 볼 수 있습니다.
+
+이 예 프로젝트의 일반 HTML만 사용할 수 있습니다. 선호하는 JavaScript 프레임 워크를 사용할 수 있지만 원시 언어는 단순성 및 친숙성을 위해 선택되었습니다. 모든 프레임 워크는 요약 및 / 또는 유사한 결과를 생성합니다.
+
+이름 \*`public/index.html`프로젝트 디렉토리에. 모든 front-end 자산은 이 안에 존재합니다.`public`디렉토리 및 이`index.html`파일은 웹 사이트에 대한 홈 페이지 역할을합니다.
+
+다음 내용을 복사하고 붙여넣기`public/index.html`파일 :
+
+```html
+<html lang="en">
+	<head>
+		<meta charset="utf8" />
+		<title>Form Demo</title>
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+	</head>
+	<body>
+		<form method="POST" action="/api/submit">
+			<div class="input">
+				<label for="name">Full Name</label>
+				<input id="name" name="name" type="text" />
+			</div>
+
+			<div class="input">
+				<label for="email">Email Address</label>
+				<input id="email" name="email" type="email" />
+			</div>
+
+			<div class="input">
+				<label for="referers">How did you hear about us?</label>
+				<select id="referers" name="referers">
+					<option hidden disabled selected value></option>
+					<option value="Facebook">Facebook</option>
+					<option value="Twitter">Twitter</option>
+					<option value="Google">Google</option>
+					<option value="Bing">Bing</option>
+					<option value="Friends">Friends</option>
+				</select>
+			</div>
+
+			<div class="checklist">
+				<label>What are your favorite movies?</label>
+				<ul>
+					<li>
+						<input id="m1" type="checkbox" name="movies" value="Space Jam" />
+						<label for="m1">Space Jam</label>
+					</li>
+					<li>
+						<input
+							id="m2"
+							type="checkbox"
+							name="movies"
+							value="Little Rascals"
+						/>
+						<label for="m2">Little Rascals</label>
+					</li>
+					<li>
+						<input id="m3" type="checkbox" name="movies" value="Frozen" />
+						<label for="m3">Frozen</label>
+					</li>
+					<li>
+						<input id="m4" type="checkbox" name="movies" value="Home Alone" />
+						<label for="m4">Home Alone</label>
+					</li>
+				</ul>
+			</div>
+
+			<button type="submit">Submit</button>
+		</form>
+	</body>
+</html>
+```
+
+이 HTML 문서는 사용자가 채우기 위해 몇 가지 필드를 포함 할 것입니다. 양식 내에서 유효 규칙이 없기 때문에 모든 필드는 선택 사항이며 사용자는 빈 양식을 제출할 수 있습니다. 이 예제의 경우, 이것은 행동입니다.
+
+:::note\[선택 내용]
+
+기술적으로, 단지`<form>`그리고 그 아이 요소가 필요합니다. 더 보기`<head>`관련 기사`<html>`·`<body>`태그는 옵션이며 유효 HTML 문서에 엄격히 필요하지 않습니다.
+
+HTML 페이지는 브라우저의 기본 UI 및 색상 팔레트에 의존하는이 시점에서 완전히 unstyled입니다. 페이지를 스타일링하는 것은 완전히 선택적이지 않으며 기능에 대한 양식이 필요하지 않습니다. CSS 스타일 시트를 첨부하려는 경우, 당신은 할 수 있습니다[추가하기`<link>`이름 \*](https://developer.mozilla.org/en-US/docs/Learn/CSS/First_steps/Getting_started#adding_css_to_our_document). 완성 된 튜토리얼의 참조[소스 코드](https://github.com/cloudflare/submit.pages.dev/blob/8c0594f48681935c268987f2f08bcf3726a74c57/public/index.html#L11)예를 들어 또는 어떤 영감 – 유일한 요구 사항은 CSS 스타일 시트가 내부에 의존한다는 것입니다.`public`디렉토리.
+
+:::
+
+### 작업자
+
+HTML 양식은 배포 완료 및 준비. 사용자가 이 양식을 제출할 때 모든 데이터가 전송됩니다.`POST`요청하기`/api/submit`URL. 이 양식의`method`·`action`이름 \* 그러나 현재 요청 핸들러가 없습니다.`/api/submit`이름 \* 지금 만들겠습니다.
+
+Cloudflare Pages는 제안합니다[제품정보](/pages/functions/)동적 동작을 위해 WorkersXQ를 정의하고 배포할 수 있는 기능.
+
+기능에 연결됩니다`functions`디렉토리 및 편리한 구성 URL 요청 핸들러 관계`functions`파일 구조. 예를 들어,`functions/about.js`파일에 맵`/about`URL 및`functions/hello/[name].js`핸들링`/hello/:name`URL 패턴, 어디`:name`어떤 일치 URL 세그먼트입니다. 더 알아보기[기능 라우팅](/pages/functions/routing/)더 많은 정보를 위한 문서.
+
+핸들러를 정의하려면`/api/submit`, 당신은 창조해야 합니다`functions/api/submit.js`파일. 즉,`functions`·`public`감독은 다음과 같은 총 프로젝트 구조와 함께 siblings이어야한다.
+
+```txt
+├── functions
+│   └── api
+│       └── submit.js
+└── public
+    └── index.html
+```
+
+더 보기`<form>`공지사항`POST`요청, 즉,`functions/api/submit.js`파일 수출 필요`onRequestPost`핸들:
+
+```js
+/** 이름
+* POST /api/submit*/
+export async function onRequestPost(context) {
+	//TODO : 양식 제출 처리
+}
+```
+
+더 보기`context`매개 변수는 잠재적 인 관심의 여러 값으로 채워진 객체입니다. 이 예제의 경우, 당신은 단지 필요[`Request`](/workers/runtime-apis/request/)접근할 수 있는 객체`context.request`주요.
+
+언급했듯이,`<form>`기본값으로`application/x-www-form-urlencoded`제출할 때 MIME 유형. 그리고, 더 진보된 시나리오를 위해,`enctype="multipart/form-data"`속성이 필요합니다. 다행히, 둘 다 MIME 유형은 파종되고 대우될 수 있습니다[`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData). 이것은 WorkersXQ를 포함하는 PagesXQ를 가진다는 것을 의미합니다 Functions – 네이티브를 사용할 수 있습니다.[`Request.formData`](https://developer.mozilla.org/en-US/docs/Web/API/Request/formData)파서.
+
+illustrative 목적을 위해, 예를 들면 신청의 모양 핸들러는 주어진 모든 가치로 대답할 것입니다. ·`Response`항상 핸들러에 의해 반환되어야한다.
+
+```js
+/** 이름
+* POST /api/submit*/
+export async function onRequestPost(context) {
+	try {
+		let input = await context.request.formData();
+		let pretty = JSON.stringify([...input], null, 2);
+		return new Response(pretty, {
+			headers: {
+				"Content-Type": "application/json;charset=utf-8",
+			},
+		});
+	} catch (err) {
+		return new Response("Error parsing JSON content", { status: 400 });
+	}
+}
+```
+
+이 핸들러와 함께, 예제는 이제 완전히 기능입니다. 제출이 수신되면 Worker는 JSON 목록에 응답합니다.`FormData`키 값 쌍.
+
+그러나, key-value 쌍 대신 JSON 객체로 회신하려는 경우 ( Array of Array), 그런 다음 수동으로 수행해야합니다. 최근 JavaScript 추가[`Object.fromEntries`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/fromEntries)관련 기사 이것은 어떤 경우에 잘 작동합니다; 그러나, 예`<form>`다음을 포함합니다`movies`여러 값을 허용하는 체크리스트. 사용 방법`Object.fromEntries`, 생성 된 객체는 단지 하나의 유지`movies`값, 나머지를 무시. 이를 피하기 위해, 당신은 당신의 자신의 쓰기해야`FormData`으로`Object`대신 유틸리티:
+
+```js
+/** 이름
+* POST /api/submit*/
+export async function onRequestPost(context) {
+	try {
+		let input = await context.request.formData();
+
+		//FormData를 JSON으로 변환
+		//참고: 키 당 여러 값을 허용
+		let output = {};
+		for (let [key, value] of input) {
+			let tmp = output[key];
+			if (tmp === undefined) {
+				output[key] = value;
+			} else {
+				output[key] = [].concat(tmp, value);
+			}
+		}
+
+		let pretty = JSON.stringify(output, null, 2);
+		return new Response(pretty, {
+			headers: {
+				"Content-Type": "application/json;charset=utf-8",
+			},
+		});
+	} catch (err) {
+		return new Response("Error parsing JSON content", { status: 400 });
+	}
+}
+```
+
+최종 snippet (above)는 Worker가 모든 값을 유지하고 JSON 응답을 정확한 표현으로 돌려줍니다.`<form>`제출.
+
+### 계정 만들기
+
+이제 프로젝트를 배포할 준비가 되어 있습니다.
+
+이미 수행하지 않은 경우, 내의 진행 상황을 저장`git`그리고 GitHub 저장소에 커밋(s)을 밀어:
+
+```sh
+#모든 파일 추가
+git add -A
+#w/ 메시지
+git commit -m "working example"
+#원격에 푸시 커밋(s)
+git push -u origin main
+```
+
+GitHub 저장소 내에서 작업이 중단됩니다. 즉, Pages도 접근할 수 있습니다.
+
+이것은 당신의 첫번째 Cloudflare Pages 프로젝트인 경우에, 참조합니다[자주 묻는 질문](/pages/get-started/)완전한 walkthrough를 위해. 적절한 GitHub 저장소를 선택한 후 다음 빌드 설정으로 프로젝트를 구성해야 합니다.
+
+- **프로젝트 이름**– 당신의 선택
+- **생산 지점** – `main`
+- **프레임 워크**– 없음
+- **명령 실행**– 없음 / 빈
+- **출력 디렉토리** – `public`
+
+자주 묻는 질문**저장 및 배포**버튼, Pages 프로젝트는 첫 번째 배포를 시작합니다. 성공할 때, 당신은 독특합니다`*.pages.dev`subdomain 및 라이브 데모에 대한 링크.
+
+이 튜토리얼에서는 Cloudflare PagesXQXQXPagesXQ를 사용하여 웹 사이트 및 백엔드 로직을 구축하고 배포했습니다. 작업자 핸들러와 통신하는 양식을 가진 정적 HTML 문서를 작성하여 제출 요청(s)를 파기합니다.
+
+이 응용 프로그램에 대한 전체 소스 코드를 검토하고 싶다면, 당신은 그것을 찾을 수 있습니다[프로젝트](https://github.com/cloudflare/submit.pages.dev).
+
+## 관련 자료
+
+- [Cloudflare Workers](/pages/tutorials/build-an-api-with-pages-functions/)
+- [Airtable를 가진 손잡이 모양 제출](/workers/tutorials/handle-form-submissions-with-airtable/)

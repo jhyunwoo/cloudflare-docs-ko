@@ -1,0 +1,170 @@
+---
+title: API를 통해 페이로드 로깅 구성
+pcx_content_type: how-to
+sidebar:
+  order: 4
+  label: API를 통해 구성
+head:
+  - tag: title
+    content: API를 통해 관리되는 규칙에 대한 페이로드 로깅 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/payload-logging/configure-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/payload-logging/configure-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { RuleID, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 관리된 규칙에 대한 페이로드 로깅을 구성합니다.
+
+## 페이로드 로깅 구성 및 활성화
+
+1. 사용 방법[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)다음 ID를 얻는 가동:
+   - ID의[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_firewall_managed` [단계별](/ruleset-engine/about/phases/).
+   - ID의`execute`WAF 관리 규칙을 배포하는 규칙은, 당신은 payload 로깅을 구성하고 싶은.
+
+2. 사용 방법[지역 규칙 규칙 업데이트](/api/resources/rulesets/methods/update/)이전 단계에서 확인 된 규칙을 업데이트하는 작업.
+
+   다음 것`matched_data`규칙의 객체`action_parameters`payload 로깅을 구성하는 객체. 더 보기`matched_data`객체에는 다음과 같은 구조가 있습니다.
+
+   ```json null {3-5}
+   "action_parameters": {
+     // ...
+     "matched_data": {
+       "public_key": "<PUBLIC_KEY_VALUE>"
+     }
+   }
+   ```
+
+   기타 제품`<PUBLIC_KEY_VALUE>`payload 로깅을 사용하려는 공공 키. 공공 키를 생성 할 수 있습니다[명령줄에서](/waf/managed-rules/payload-logging/command-line/generate-key-pair/)또는[Cloudflare 대시보드에](/waf/managed-rules/payload-logging/configure/).
+
+:::note\[Account-level 구성]
+
+계정 레벨에 배포된 관리된 규칙에 대한 페이로드 로깅을 구성하려면 (결제된 애드온과 엔터프라이즈 플랜에서만 사용 가능), 대신 다음 API 작업을 사용하십시오:
+
+- 단계 1:[계정 입력 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)
+- 단계 2:[계정 규칙 업데이트](/api/resources/rulesets/subresources/rules/methods/edit/)
+
+:::
+
+### 이름 \*
+
+이 예제는 payload 로깅을 구성합니다.[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/), 이미 ID를 가진 지역을 위해 배치되는`$ZONE_ID`.
+
+1. Invoke에[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)현재 입력된 규칙을 얻기 위해 작업의 항목 포인트 규칙`http_request_firewall_managed`단계.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+      ruleset_phase: "http_request_firewall_managed",
+   }}
+     roles={false}
+   />
+
+   ```json output {3,12,20}
+   {
+   	"result": {
+   		"id": "060013b1eeb14c93b0dcd896537e0d2c", // entry point ruleset ID
+   		"name": "default",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "1bdb49371c1f46958fc8b985efcb79e7", // `execute` rule ID
+   				"version": "1",
+   				"action": "execute",
+   				"expression": "true",
+   				"last_updated": "2024-01-20T14:21:28.643979Z",
+   				"ref": "1bdb49371c1f46958fc8b985efcb79e7",
+   				"enabled": true,
+   				"action_parameters": {
+   					"id": "efb7b8c949ac4650a09736fc376e9aee", // "Cloudflare Managed Ruleset" ID
+   					"version": "latest"
+   				}
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2024-01-20T14:29:00.190643Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+2. 다음 단계에 대한 다음 ID를 저장:
+
+   - 항목 포인트 규칙의 ID :`060013b1eeb14c93b0dcd896537e0d2c`
+   - ID의`execute`Cloudflare 관리 규칙을 배치하는 규칙:`1bdb49371c1f46958fc8b985efcb79e7`
+
+   정확한 규칙을 찾을`rules`배열, 검색`execute`Cloudflare 관리 규칙 세트의 ID를 포함하는 규칙 (<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />) 에서`action_parameters` > `id`.
+
+   :::참조
+
+   기존 WAF 관리 규칙의 ID를 얻으려면, 참조[사용 가능한 관리 규정](/waf/managed-rules/#available-managed-rulesets)또는 사용[계정 규칙](/api/resources/rulesets/methods/list/)가동.
+   주요 특징
+
+3. Invoke에[지역 규칙 규칙 업데이트](/api/resources/rulesets/methods/update/)확인되는 규칙의 윤곽을 새롭게 하기 위하여 가동. 규칙은 이제 payload 로깅 구성을 포함합니다 (`matched_data`객체).
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+     method="PATCH"
+     parameters={{
+      ruleset_id: "060013b1eeb14c93b0dcd896537e0d2c",
+      rule_id: "1bdb49371c1f46958fc8b985efcb79e7",
+   }}
+     json={{
+      action: "execute",
+      action_parameters: {
+      	id: "efb7b8c949ac4650a09736fc376e9aee",
+      	matched_data: {
+      		public_key: "Ycig/Zr/pZmklmFUN99nr+taURlYItL91g+NcHGYpB8=",
+      	},
+      },
+      expression: "true",
+   }}
+     code={{
+      mark: [{ range: "8-10" }],
+   }}
+     roles={false}
+   />
+
+   응답은 규칙을 업데이트 한 후 완전한 규칙을 포함합니다.
+
+API를 통해 관리된 규칙을 배포하는 방법에 대한 자세한 내용은 참조[관리 규칙 배포](/ruleset-engine/managed-rulesets/deploy-managed-ruleset/)Ruleset Engine 문서에서.
+
+***
+
+## Disable 페이로드 로깅
+
+관리 규칙에 대한 지불로드 로깅을 비활성화하려면 :
+
+1. 사용 방법[지역 규칙 규칙 업데이트](/api/resources/rulesets/methods/update/)관리 규칙을 배포하는 규칙을 업데이트하는 작업 (A 규칙`"action": "execute"`).
+
+2. 규칙 정의를 수정하십시오.`matched_data`로그인`action_parameters`.
+
+예를 들어, 다음`PATCH`요청 ID로 규칙 업데이트`$RULE_ID`설치하기[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/)그래서 그 payload 로깅은 비활성화:
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  json={{
+  	action: "execute",
+  	action_parameters: {
+  		id: "efb7b8c949ac4650a09736fc376e9aee",
+  	},
+  	expression: "true",
+  }}
+  roles={false}
+/>
+
+항목 포인트 규칙 ID 및 규칙의 ID를 얻기에 대한 자세한 내용은 업데이트, 참조[페이로드 로깅 구성 및 활성화](/waf/managed-rules/payload-logging/configure-api/#configure-and-enable-payload-logging).

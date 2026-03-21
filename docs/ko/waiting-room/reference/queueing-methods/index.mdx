@@ -1,0 +1,52 @@
+---
+pcx_content_type: concept
+title: Queueing method
+---
+
+import { Render } from "~/components";
+
+**queueing method**는 방문자가 활성 대기실을 빠져나와 애플리케이션에 도달하는 순서를 결정합니다.
+
+First In First Out(FIFO) 이외의 queueing method는 일부 고객만 사용할 수 있습니다. 자세한 내용은 [요금제](/waiting-room/plans/) 페이지를 참고하세요.
+
+:::note[Note:]
+
+queueing method와 관계없이 `queueAll`이 활성화되어 있거나 이벤트가 사전 대기(prequeue) 중이면, 대기실에 있는 사용자는 origin으로 입장할 수 없습니다. 이 사용자들은 항상 자동 새로고침되는 대기실 페이지를 받게 됩니다.
+
+:::
+
+## First In First Out (FIFO)
+
+대기실은 사용자가 대기실에 들어온 시점을 기준으로 방문자를 정렬합니다.
+
+![First In First Out flow showing visitors entering the origin by order of arrival to the waiting room](~/assets/images/waiting-room/fifo-queueing-method.png)
+
+기술적으로는 각 사용자가 활성 대기열 상태의 대기실에 처음 도달한 시각이 담긴 [쿠키](/waiting-room/reference/waiting-room-cookie/)를 받습니다. Cloudflare는 이 타임스탬프를 사용해 방문자 순서를 정하고 예상 대기 시간을 제공합니다.
+
+줄에 먼저 들어와 더 오래 기다린 방문자에게 보상을 주고 싶다면 이 방식을 사용하세요.
+
+## Random
+
+애플리케이션에 빈 자리가 생기면 대기실은 무작위로 방문자를 선택해 대기실을 나가 애플리케이션에 들어가게 합니다.
+
+![Random queueing flow showing visitors randomly exiting the waiting room and entering an origin](~/assets/images/waiting-room/random-queueing-method.png)
+
+상품이나 서비스를 더 공정하게 분배하고 싶을 때 이 방식을 사용하세요. 먼저 들어온 사용자는 선택될 기회가 더 많기 때문에 예상 대기 시간보다 일찍 대기실을 빠져나갈 가능성이 더 높습니다.
+
+## Passthrough
+
+`queueing_method`를 **passthrough**로 설정하면 모든 트래픽이 대기실을 즉시 통과해 애플리케이션으로 들어가도록 할 수 있습니다.
+
+이 설정은 이벤트 기간에만 대기실을 사용하고 싶고, 그 외 저트래픽 시간대에는 대기시키고 싶지 않을 때 적합합니다. 이벤트 중에는 queueing method를 변경하면 됩니다.
+
+또한 대기시키지는 않으면서 트래픽에 대한 analytics를 수집하고 싶을 때도 이 queueing method를 사용할 수 있습니다. passthrough가 켜져 있으면 모든 트래픽은 직접 origin으로 전달됩니다. 대신 `total active users`, `new users per minute`, `time on origin`에 대한 analytics는 계속 수집됩니다. 트래픽 패턴에 대한 인사이트를 수집해 적절한 임계값 설정을 결정하는 데 도움이 되는 유용한 테스트 방식으로 권장합니다.
+
+## Reject
+
+`queueing_method`를 **reject**로 설정하면 어떤 트래픽도 애플리케이션에 도달하지 못하게 할 수 있습니다. 사용자는 정적 페이지를 받게 됩니다.
+
+이 설정은 이벤트 전용 엔드포인트이거나 애플리케이션 유지보수를 수행할 때 유용합니다.
+
+## Queueing methods 변경
+
+<Render file="change-queueing-method" product="waiting-room" />

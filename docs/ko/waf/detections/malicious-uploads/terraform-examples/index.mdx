@@ -1,0 +1,65 @@
+---
+title: Terraform 구성 예제
+pcx_content_type: configuration
+sidebar:
+  order: 5
+  label: Terraform 예제
+head:
+  - tag: title
+    content: terraform 구성 예제 | WAF 콘텐츠 스캐닝
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/malicious-uploads/terraform-examples/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/malicious-uploads/terraform-examples/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip } from "~/components";
+
+다음 Terraform 구성 예제는 WAF 콘텐츠 스캔을 사용하여 관리, 구성 및 관리를위한 일반적인 시나리오를 사용합니다.
+
+더 많은 정보를 원하시면, 참조[Terraform Cloudflare 공급자 문서](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs).
+
+Cloudflare API를 사용하는 경우, 참조[Common API 호출](/waf/detections/malicious-uploads/api-calls/).
+
+## WAF 콘텐츠 스캐닝
+
+<Render file="detections/malicious-uploads-enable-terraform" product="waf" />
+
+## 사용자 정의 스캔 표현 구성
+
+<Render file="detections/malicious-uploads-configure-expression-terraform" product="waf" />
+
+더 많은 정보를 원하시면, 참조[사용자 정의 스캔 표현](/waf/detections/malicious-uploads/#custom-scan-expressions).
+
+## 악성행위를 막는 사용자 정의 규칙을 추가
+
+이 예제는 추가[주문 규칙](/waf/custom-rules/)그 블록은 하나 이상의 요청<GlossaryTooltip term="content object">내용물</GlossaryTooltip>악의적 행위[콘텐츠 스캔 필드](/waf/detections/malicious-uploads/#content-scanning-fields)규칙 표현에서.
+
+이용하기[`cf.waf.content_scan.has_malicious_obj`](/ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.has_malicious_obj/)당신은 있어야[콘텐츠 스캔](#enable-waf-content-scanning).
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "zone_custom_firewall_malicious_uploads" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Phase entry point ruleset for custom rules in my zone"
+  description = ""
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    ref         = "block_malicious_uploads"
+    description = "Block requests uploading malicious content objects"
+    expression  = "(cf.waf.content_scan.has_malicious_obj and http.request.uri.path eq \"/upload.php\")"
+    action      = "block"
+  }
+}
+```
+
+## 더 많은 리소스
+
+추가 Terraform 구성 예제의 경우, 참조[WAF Terraform을 사용하여 사용자 정의 규칙 구성](/terraform/additional-configurations/waf-custom-rules/).

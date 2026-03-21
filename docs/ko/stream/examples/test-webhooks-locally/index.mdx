@@ -1,0 +1,263 @@
+---
+summary: >-
+  Test Cloudflare Stream webhook notifications locally using a Cloudflare Worker
+  and Cloudflare Tunnel.
+pcx_content_type: example
+title: 웹훅을 로컬로 테스트
+sidebar:
+  order: 11
+description: 시험 Cloudflare Cloudflare Worker 및 QXQX0013XQ 터널을 사용하여 로컬 웹훅 알림을 스트리밍합니다.
+tags:
+  - JavaScript
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/examples/test-webhooks-locally/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/examples/test-webhooks-locally/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+Cloudflare 스트림을 보낼 수 없습니다[webhook 알림](/stream/manage-video-library/using-webhooks/)으로`localhost`또는 로컬 IP 주소. 로컬 개발 중에 webhooks를 테스트하려면 로컬 컴퓨터에 요청을 전달하는 공개적으로 접근 가능한 URL이 필요합니다.
+
+:::참조
+
+이 예제는 on-demand (VOD) 비디오를 위해 webhooks를 포함합니다. 라이브 스트림 webhooks는 다르게 구성됩니다. 더 많은 정보를 원하시면, 참조[라이브 webhooks 받기](/stream/stream-live/webhooks/).
+
+:::
+
+이 예제는 다음과 같은 방법을 보여줍니다:
+
+1. 시작하기[Cloudflare 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)현지 환경에 대한 공개 URL을 얻을 수 있습니다.
+2. 웹훅 엔드포인트로 URL을 등록하면 서명 비밀을 반환합니다.
+3. Cloudflare 웹훅 이벤트를 수신하고 서명을 검증하는 노동자.
+
+## 자주 묻는 질문
+
+- ·[Cloudflare 계정](https://dash.cloudflare.com/sign-up)Stream 활성화
+- [Node.js](https://nodejs.org/)(v18 이상)
+- 더 보기[Wrangler 클립](/workers/wrangler/install-and-update/)설치 (`npm install -g wrangler`)
+
+## 1. Worker 프로젝트 만들기
+
+webhook 요청을 받을 새로운 Worker 프로젝트 만들기:
+
+```sh
+npm create cloudflare@latest stream-webhook-handler
+```
+
+## 2. Cloudflare 갱도를 시작합니다
+
+웹훅 URL을 등록하기 전에 로컬 머신에 포인트를 보내는 공개 URL이 필요합니다. 터미널에서 시작[빠른 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)기본적으로 Wrangler dev 서버 포트에 전달 (`8787`):
+
+```sh
+npx cloudflared tunnel --url http://localhost:8787
+```
+
+`cloudflared`다음과 같은 공개 URL을 출력합니다:
+
+```txt
+https://example-words-here.trycloudflare.com
+```
+
+이 URL 복사. 터널을 다시 시작합니다.
+
+## 3. 웹훅 엔드포인트로 터널 URL을 등록
+
+Stream API를 사용하여 웹훅 알림 URL로 터널 URL을 설정합니다. API 응답에는`secret`필드 - 웹훅 서명을 확인하려면이 필요합니다.
+
+<APIRequest
+  path="/accounts/{account_id}/stream/webhook"
+  method="PUT"
+  json={{
+  	notificationUrl: "https://example-words-here.trycloudflare.com",
+  }}
+/>
+
+응답은 포함될 것입니다`secret`유형:
+
+```json title="Example response"
+{
+	"result": {
+		"notificationUrl": "https://example-words-here.trycloudflare.com",
+		"modified": "2024-01-01T00:00:00.000000Z",
+		"secret": "85011ed3a913c6ad5f9cf6c5573cc0a7"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+구매하기`secret`가치. 다음 단계에서 사용할 수 있습니다.
+
+## 4. 로컬 개발을위한 webhook 비밀 저장
+
+이름 \*`.dev.vars`당신의 노동자 프로젝트의 뿌리에 파일 및 API 응답에서 webhook 비밀을 추가:
+
+```txt title=".dev.vars"
+WEBHOOK_SECRET=85011ed3a913c6ad5f9cf6c5573cc0a7
+```
+
+단계 3에서 실제 비밀로 값을 바꾸십시오. Wrangler는 자동적으로 적재합니다`.dev.vars`현재 위치`wrangler dev`.
+
+:::카트로션
+
+계정 없음`.dev.vars`버전 제어. 당신에 게 추가`.gitignore`파일. 더 많은 정보를 원하시면, 참조[비밀번호](/workers/configuration/secrets/#local-development-with-secrets).
+
+:::
+
+## 5. webhook 핸들러 추가
+
+본문 바로가기`src/index.ts`다음 코드로 작업자 프로젝트에서. 이 노동자는 webhook을받습니다.`POST`요청,[서명 확인](/stream/manage-video-library/using-webhooks/#verify-webhook-authenticity), 그리고 payload를 기록합니다.
+
+```ts title="src/index.ts"
+export interface Env {
+	WEBHOOK_SECRET: string;
+}
+
+async function verifyWebhookSignature(
+	request: Request,
+	secret: string,
+): Promise<{ valid: boolean; body: string }> {
+	const signatureHeader = request.headers.get("Webhook-Signature");
+	if (!signatureHeader) {
+		return { valid: false, body: "" };
+	}
+
+	const body = await request.text();
+
+	//파스 "time=<unix ts>,sig1=<hex signature>"
+	const parts = Object.fromEntries(
+		signatureHeader.split(",").map((part) => {
+			const [key, value] = part.split("=");
+			return [key, value];
+		}),
+	);
+
+	const time = parts["time"];
+	const receivedSig = parts["sig1"];
+
+	if (!time || !receivedSig) {
+		return { valid: false, body };
+	}
+
+	//소스 문자열 만들기: "<time>.<body>"
+	const sourceString = `${time}.${body}`;
+	const encoder = new TextEncoder();
+
+	const key = await crypto.subtle.importKey(
+		"raw",
+		encoder.encode(secret),
+		{ name: "HMAC", hash: "SHA-256" },
+		false,
+		["sign"],
+	);
+
+	const signature = await crypto.subtle.sign(
+		"HMAC",
+		key,
+		encoder.encode(sourceString),
+	);
+
+	const expectedSig = [...new Uint8Array(signature)]
+		.map((b) => b.toString(16).padStart(2, "0"))
+		.join("");
+
+	//타이밍 안전 비교를 사용하십시오.
+	//길이가 다를 때 일찍 반환하지 마십시오 - 예상된 누출
+	//타이밍을 통한 시그니처의 길이. 대신 자기와 negate에 대한 비교.
+	const expectedBytes = encoder.encode(expectedSig);
+	const receivedBytes = encoder.encode(receivedSig);
+
+	const lengthsMatch = expectedBytes.byteLength === receivedBytes.byteLength;
+	const signaturesMatch = lengthsMatch
+		? crypto.subtle.timingSafeEqual(expectedBytes, receivedBytes)
+		: !crypto.subtle.timingSafeEqual(expectedBytes, expectedBytes);
+
+	return { valid: signaturesMatch, body };
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		if (request.method !== "POST") {
+			return new Response("Method not allowed", { status: 405 });
+		}
+
+		if (!env.WEBHOOK_SECRET) {
+			console.error("WEBHOOK_SECRET is not set");
+			return new Response("Server misconfigured", { status: 500 });
+		}
+
+		const { valid, body } = await verifyWebhookSignature(
+			request,
+			env.WEBHOOK_SECRET,
+		);
+
+		if (!valid) {
+			console.error("Invalid webhook signature");
+			return new Response("Invalid signature", { status: 403 });
+		}
+
+		console.log("Webhook signature verified successfully");
+
+		const payload = JSON.parse(body);
+
+		console.log("Stream webhook received:", JSON.stringify(payload, null, 2));
+		console.log("Video UID:", payload.uid);
+		console.log("Status:", payload.status?.state);
+		console.log("Ready to stream:", payload.readyToStream);
+
+		//자신의 처리 논리 추가 — 예를 들어, 데이터베이스 업데이트
+		//또는 downstream 서비스를 통지합니다.
+
+		return new Response("OK", { status: 200 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+## 6. 로컬 dev 서버 시작
+
+별도의 터미널에서 (터널 실행을 완료), Wrangler와 함께 작업자를 로컬로 시작:
+
+```sh
+npx wrangler dev
+```
+
+Wrangler는 적재할 것입니다`WEBHOOK_SECRET`내 계정`.dev.vars`파일 자동.
+
+## 7. 시험 사건을 방아쇠
+
+웹훅 이벤트를 트리거하기 위해 스트림에 비디오를 업로드합니다. 비디오 처리 완료되면 웹훅 페이로드가 터미널 실행에 기록됩니다.`wrangler dev`, 서명이 확인 된 확인과 함께.
+
+## 회사연혁
+
+로컬 테스트가 완료되면 Worker를 배포하고 생산 엔드포인트에 webhook URL을 업데이트합니다.
+
+```sh
+npx wrangler deploy
+```
+
+그런 다음 배포 된 Worker URL에 웹훅 구독을 업데이트하십시오.
+
+<APIRequest
+  path="/accounts/{account_id}/stream/webhook"
+  method="PUT"
+  json={{
+  	notificationUrl: "https://your-worker.your-subdomain.workers.dev",
+  }}
+/>
+
+:::카트로션
+
+웹훅 URL을 업데이트하면 서명 비밀을 회전합니다. 생산 종료점에 URL을 업데이트 한 후, 새로운 복사`secret`API 응답에서 배포 된 노동자에 비밀로 설정:
+
+```sh
+npx wrangler secret put WEBHOOK_SECRET
+```
+
+추가 로컬 테스트를 위해 터널을 다시 시작하면 새로운 터널 URL을 등록하고 비밀을 업데이트하려면 3 및 4 단계를 반복해야합니다.`.dev.vars`.
+
+:::

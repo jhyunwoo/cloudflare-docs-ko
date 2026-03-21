@@ -1,0 +1,409 @@
+---
+pcx_content_type: how-to
+title: cURL로 Logpush 관리
+sidebar:
+  order: 88
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/logpush/examples/example-logpush-curl/'
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/examples/example-logpush-curl/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+cURL을 사용하여 명령 줄에서 Cloudflare Logpush 서비스를 관리 할 수 있습니다.
+
+시작하기 전에 다음 문서를 검토하십시오.
+
+- [API 구성](/logs/logpush/logpush-job/api-configuration/)
+
+:::참조
+
+아래 예제는 Zone-scoped datasets입니다. account-scoped datasets는 사용해야 합니다`/accounts/{account_id}`대신에`/zone/{zone_id}`.
+
+:::
+
+## Step 1 - 소유권 도전
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/ownership"
+  method="POST"
+  json={{
+  destination_conf: "s3://<BUCKET_PATH>?region=us-west-2"
+}}
+/>
+
+### 매개 변수
+
+- **대상 conf**- 참고[여행 정보](/logs/logpush/logpush-job/api-configuration/#destination)상세 정보
+
+### 관련 기사
+
+도전 파일은 목적지로 작성되며, 파일 이름은 응답 (파일 이름은 목적지에 적합한 경로로 표현될 수 있습니다). 예를 들면:
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "filename": "burritobot/logs/ownership-challenge.txt",
+    "valid": true,
+    "message": ""
+  }
+}
+```
+
+다음 단계에서 작업을 만들 때이 파일에 포함된 토큰을 제공해야합니다.
+
+:::주\[주]
+
+Sumo Logic을 사용할 때 도움이 될 수 있습니다.[라이브 꼬리](https://help.sumologic.com/05Search/Live-Tail/About-Live-Tail)업로드가 가능한 한 빨리 도전 파일을 볼 수 있습니다.
+
+:::
+
+## Step 2 - 직업 만들기
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  name: "<DOMAIN_NAME>",
+  destination_conf: "s3://<BUCKET_PATH>?region=us-west-2",
+  dataset: "http_requests",
+  output_options: {
+    field_names: [
+      "ClientIP",
+      "ClientRequestHost",
+      "ClientRequestMethod",
+      "ClientRequestURI",
+      "EdgeEndTimestamp",
+      "EdgeResponseBytes",
+      "EdgeResponseStatus",
+      "EdgeStartTimestamp",
+      "RayID"
+    ],
+    timestamp_format: "rfc3339"
+  },
+  ownership_challenge: "<OWNERSHIP_CHALLENGE_TOKEN>"
+}}
+/>
+
+### 매개 변수
+
+- **이름 \***(선택 사항) - 도메인 이름을 사용하여 작업 이름; 이름은 생성 된 후 변경 될 수 없습니다.
+- **대상 conf**- 참고[여행 정보](/logs/logpush/logpush-job/api-configuration/#destination)상세 정보
+- **데이터셋**- 수신하려는 로그의 범주. 더 알아보기[데이터셋](/logs/logpush/logpush-job/datasets/)지원된 데이터 세트의 전체 목록을 위해; 이 매개 변수는 작업이 생성 된 후 변경 될 수 없습니다.
+- **output 옵션**(선택) - Refer에[로그 출력 옵션](/logs/logpush/logpush-job/log-output-options/).
+  - 일반적으로 원하는 필드와 타임스탬프 형식을 포함합니다.
+  - 타임스탬프 형식을 설정`RFC 3339` (`"timestamp_format": "rfc3339"`)를 위해:
+    - Google BigQuery 사용.
+    - Sumo Logic 내의 자동화된 타임스탬핑; 참조[Sumo Logic의 타임스탬프](https://help.sumologic.com/03Send-Data/Sources/04Reference-Information-for-Sources/Timestamps%2C-Time-Zones%2C-Time-Ranges%2C-and-Date-Formats)상세 정보
+- **소유권 challenge**- 대상 소유권을 증명해야 하는 도전 토큰.
+- **이름 \***(선택 사항) - Logpush 및 Edge Log 배달 작업 간의 차별화에 사용됩니다. 더 알아보기[이름 \*](/logs/logpush/logpush-job/api-configuration/#kind)상세 정보
+- **제품정보**(선택) - Refer에[필터링](/logs/logpush/logpush-job/filters/)상세 정보
+
+### 관련 기사
+
+응답에서 새로 만들기 작업 ID를 얻습니다. 예를 들면:
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": false,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": null,
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+## Step 3 - 직업 (업데이트)
+
+특정 직업에 대한 정보를 검색하여 시작, 작업 ID를 사용하여:
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs/{job_id}" method="GET" />
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": false,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": null,
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+기본적으로 작업이 활성화되지 않습니다 (`"enabled": false`).
+
+작업 ID를 기억하지 않으면 영역 ID를 사용하여 검색 할 수 있습니다.
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs" method="GET" />
+
+다음 작업을 활성화하려면 업데이트 요청을 보내주십시오.
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs/{job_id}"
+  method="PUT"
+  json={{
+  enabled: true
+}}
+/>
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": true,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": null,
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+작업이 활성화되면 몇 분 이내에 로그를 수신하고 작업을 비활성화 할 때까지 가능한 한 빨리 배치에서 시작합니다. 아주 높은 요구 양을 가진 지역을 위해, 그것은 당신이 첫번째로를 받기 시작하기 전에 몇 시간을 가지고 갈지도 모릅니다.
+
+수정 이외에`enabled`, 당신은 또한 가치를 새롭게 할 수 있습니다**output 옵션**. 수정하기**대상 conf**, 당신은 소유권 도전을 요청하고 업데이트 요청과 관련된 토큰을 제공해야합니다. 현재 작업을 삭제하고 새로운 것을 만들 수 있습니다.
+
+작업이 활성화되고 실행 시작되면,**마지막 complete**필드는 로그의 마지막 배치가 성공적으로 목적지로 전송 될 때 시간을 보여줍니다 :
+
+### ID로 직업을 얻고 참조**마지막 complete**제품 정보
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs/{job_id}" method="GET" />
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": true,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": "2018-08-09T21:26:00Z",
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+## 선택 - 작업 삭제
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs/{job_id}" method="DELETE" />
+
+이 행동이 반전 될 수 없기 때문에 일을 삭제 할 때 조심하십시오.
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {},
+  "success": true
+}
+```
+
+## 선택 - 작업 검색
+
+특정 작업을 검색, 작업 ID를 사용하여:
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs/{job_id}" method="GET" />
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": <JOB_ID>,
+      "dataset": "http_requests",
+      "enabled": true,
+      "name": "<DOMAIN_NAME>",
+      "output_options": {
+        "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+        "timestamp_format": "rfc3339"
+      },
+      "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+      "last_complete": null,
+      "last_error": null,
+      "error_message": null
+    }
+  ],
+  "success": true
+}
+```
+
+모든 datasets에 대한 모든 작업을 검색:
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs" method="GET" />
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": <JOB_ID>,
+      "dataset": "spectrum_events",
+      "enabled": true,
+      "name": "<DOMAIN_NAME>",
+      "output_options": {
+        "field_names": ["Application", "ClientAsn", "ClientIP", "ColoCode", "Event", "OriginIP", "Status"],
+      },
+      "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+      "last_complete": "2019-10-01T00:25:00Z",
+      "last_error": null,
+      "error_message": null
+    },
+    {
+      "id": <JOB_ID>,
+      "dataset": "http_requests",
+      "enabled": false,
+      "name": "<DOMAIN_NAME>",
+      "output_options": {
+        "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+        "timestamp_format": "rfc3339"
+      },
+      "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+      "last_complete": "2019-09-24T21:15:00Z",
+      "last_error": null,
+      "error_message": null
+    }
+  ]
+}
+```
+
+## 옵션 - 업데이트**output 옵션**
+
+(또는 제거) 필드를 추가하려는 경우, 타임스탬프 형식을 변경하거나, 보호합니다.`Log4j - CVE-2021-44228`취약점, 첫번째는 현재를 검색합니다**output 옵션**당신의 지역을 위해.
+
+<APIRequest path="/zones/{zone_id}/logpush/jobs/{job_id}" method="GET" />
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "kind": "",
+    "enabled": true,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": "2021-12-14T19:56:49Z",
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+다음, 편집**output 옵션**원하는대로 만들고`PUT`이름 \* 다음 예제를 사용하면**모델 번호: CVE-2021-44228**redaction 옵션.
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs/{job_id}"
+  method="PUT"
+  json={{
+  output_options: {
+    field_names: [
+      "ClientIP",
+      "ClientRequestHost",
+      "ClientRequestMethod",
+      "ClientRequestURI",
+      "EdgeEndTimestamp",
+      "EdgeResponseBytes",
+      "EdgeResponseStatus",
+      "EdgeStartTimestamp",
+      "RayID"
+    ],
+    timestamp_format: "rfc3339"
+  }
+}}
+/>
+
+이 시간에 주의,**모델 번호: CVE-2021-44228**UI를 통해 옵션을 사용할 수 없으며, UI를 통해 Logpush 작업을 업데이트하면이 옵션을 제거 할 수 있습니다.
+
+### 관련 기사
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "kind": "",
+    "enabled": true,
+    "name": null,
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_PATH>?region=us-west-2",
+    "last_complete": "2021-12-14T20:02:19Z",
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```

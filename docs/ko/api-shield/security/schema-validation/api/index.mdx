@@ -1,0 +1,453 @@
+---
+title: API를 통해 Schema validation 구성하기
+pcx_content_type: how-to
+
+sidebar:
+    label: API
+head:
+  - tag: title
+    content: Schema validation 구성하기
+---
+
+import { GlossaryTooltip, Steps, APIRequest } from "~/components"
+
+Schema validation 2.0은 관련된 모든 구성 호출을 API를 통해 수행할 수 있게 합니다. 이 검증은 개별 <GlossaryTooltip term="API endpoint">endpoints</GlossaryTooltip> 중심으로 이루어지며, 엔드포인트별로 완화 조치를 개별 설정할 수 있습니다. 또한 개별 엔드포인트에 대해, Cloudflare가 트래픽에서 [자동 학습한](/api-shield/management-and-monitoring/#endpoint-schema-learning) learned schemas를 사용할 수도 있습니다.
+
+:::note
+
+[Classic Schema validation documentation](/api-shield/reference/classic-schema-validation/)은 참고용으로 제공됩니다.
+:::
+
+## API를 통해 Schema validation에 스키마 업로드
+
+<Steps>
+1. 스키마를 업로드합니다.
+2. 엔드포인트가 Endpoint Management에 추가되어 있는지 확인합니다.
+3. 아직 그렇지 않다면 schema를 `active`로 설정합니다.
+4. Schema validation zone-wide action을 `none`에서 `log`로 변경합니다.
+5. schema를 위반하는 테스트 트래픽을 보냅니다.
+6. **Service** > **API Shield - Schema validation**으로 필터링해 Security Events에서 테스트 트래픽을 봅니다.
+7. 선택 사항:
+   - 단일 엔드포인트를 `block`으로 설정
+   - Schema validation zone-wide를 `block`으로 설정
+   - zone 전체에서 모든 schema를 일시적으로 `none`으로 override
+   - 임시 override 제거
+</Steps>
+
+Cloudflare는 설정을 변경한 뒤 test traffic을 다시 실행하고 HTTP 응답 코드를 모니터링하여 Schema validation이 기대대로 동작하는지 확인할 것을 권장합니다.
+
+설정 변경 사항이 적용되기까지 몇 분이 걸릴 수 있습니다.
+
+:::note
+
+Schema validation이 요청과 매치되려면 엔드포인트가 Endpoint Management에 등록되어 있어야 합니다.
+:::
+
+## 구성
+
+### 스키마 업로드 및 활성화
+
+`POST`를 사용해 v4 API로 schema를 업로드합니다. 이 예시는 현재 폴더에 `example_schema.yaml` 파일이 있다고 가정합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/schema_validation/schemas"
+  method="POST"
+  json={{
+    kind: "openapi_v3",
+    name: "example_schema",
+    source: "<SOURCE>",
+    validation_enabled: true
+  }}
+/>
+
+```json output
+{
+    "result":
+    {
+        "schema":
+        {
+            "schema_id": "af632e95-c986-4738-a67d-2ac09995017a",
+            "name": "example_schema",
+            "kind": "openapi_v3",
+            "source": "<SOURCE>",
+            "created_at": "2023-04-03T15:10:08.902309Z"
+        }
+    },
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+기본적으로 업로드된 schema에서는 Schema validation이 비활성화되어 있어 먼저 내용을 검사할 수 있습니다. form parameter `validation_enabled=true`를 설정하면 업로드와 동시에 schema를 활성화할 수 있습니다.
+
+검사 후 schema를 활성화하려면 `PATCH` 요청을 사용하세요.
+
+<APIRequest
+  path="/zones/{zone_id}/api_gateway/user_schemas/{schema_id}"
+  method="PATCH"
+  json={{
+    validation_enabled: true,
+  }}
+/>
+
+```json output
+{
+    "result":
+    {
+        "schema_id": "0bf58160-5da3-48ac-80a9-069f9642c1a0",
+        "name": "api_schema.json",
+        "kind": "openapi_v3",
+        "validation_enabled": true,
+        "created_at": "0001-01-01T00:00:00Z"
+    },
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+schema가 active 상태가 되면 각 operation에 지정된 mitigation action에 따라 동작합니다. [기본 및 operation별 mitigation action 변경](#change-the-default-and-operation-specific-mitigation-action)을 참고하세요.
+
+### 새 operations를 Endpoint Management에 추가
+
+schema는 servers, paths, methods 집합을 포함하며, 이 조합이 operation을 정의합니다. Schema validation은 API Shield Endpoint Management에 추가된 operation으로 향하는 요청에만 동작합니다. schema에 Endpoint Management에 추가되지 않은 operation이 있다면, 추가된 operation의 구성 정보와 함께 조회할 수 있습니다.
+
+```bash title="cURL command"
+curl --request GET "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/user_schemas/{schema_id}/operations?feature=schema_info&operation_status=new&page=1&per_page=5000" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header 'Content-Type: application/json'
+```
+
+```json output
+{
+    "result":
+        [
+          {
+              "method": "GET",
+              "host": "example.com",
+              "endpoint": "/pets"
+          }
+     ],
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+        "page": 1,
+        "per_page": 30,
+        "count": 1,
+        "total_count": 1
+    }
+}
+```
+
+기존 operations의 구성 정보를 받으려면 `?feature=schema_info` parameter를 함께 전달하는 것을 권장합니다.
+
+schema의 새로운 operations를 Endpoint Management에 추가하려면 `POST`를 사용합니다.
+
+```bash title="cURL command"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header 'Content-Type: application/json' \
+--data '[
+  {
+   "method": "GET",
+   "host": "example.com",
+   "endpoint": "/pets",
+  }
+]'
+```
+
+```json output
+{
+    "result":  [
+            {
+                "operation_id": "6c734fcd-455d-4040-9eaa-dbb3830526ae",
+                "method": "GET",
+                "host": "example.com",
+                "endpoint": "/pets",
+                "last_updated": "2023-04-04T16:07:37.575971Z"
+         }
+     ],
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+schema에 포함되지만 Endpoint Management에 아직 존재하지 않는 모든 operations를 하나의 명령으로 추가할 수도 있습니다. 이 API 호출은 최대 20 operations까지 허용합니다. 아래 예시에는 `jq` 도구가 필요합니다.
+
+```bash title="cURL command"
+curl --silent "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data "$(curl --silent "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/user_schemas/{schema_id}/operations?feature=schema_info&page=1&per_page=5000" --header "Authorization: Bearer <API_TOKEN>" | jq ".result")"
+```
+
+:::note
+
+이 명령을 곧바로 다시 실행하면, 이제 모든 `new_operations`가 `existing_operations`가 되었기 때문에 오류가 발생합니다.
+:::
+
+<div id="change-the-default-and-operation-specific-mitigation-action"></div>
+
+### 기본 및 operation별 mitigation action 변경
+
+schema가 업로드되어 어떤 operations에 active 상태로 적용되면, 해당 operations로 들어오는 요청을 검증하고 mitigation action을 수행할지 결정합니다. 이 mitigation action은 operation별로 정의되며 **none**, **log**, **block** 값을 가질 수 있습니다. 각각 아무 조치 없음, 요청 기록, origin에 도달하기 전 차단에 해당합니다.
+
+새 operations에는 mitigation action이 설정되지 않으며, zone-wide default mitigation action을 사용합니다. 현재 기본 mitigation action은 `GET`으로 조회할 수 있습니다.
+
+```bash title="cURL command"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/settings/schema_validation" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json output
+{
+    "result":  {
+        "validation_default_mitigation_action": "none",
+        "validation_override_mitigation_action": null
+    }
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+`none`, `log`, `block` 중 새로운 값을 `PUT`으로 설정할 수 있습니다.
+
+```bash title="cURL command"
+curl --request PUT "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/settings/schema_validation" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "validation_default_mitigation_action": "block"
+}'
+```
+
+```json output
+{
+    "result":  {
+        "validation_default_mitigation_action": "block",
+        "validation_override_mitigation_action": null
+    }
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+
+```
+
+개별 operation의 mitigation action 값이 궁금하다면 operation ID로 `GET` 조회할 수 있습니다.
+
+```bash title="cURL command"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations/{operation_id}/schema_validation" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json output
+{
+    "result":  {
+        "mitigation_action": "null"
+    }
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+
+```
+
+값이 `null`이면 해당 operation에 별도 mitigation action이 지정되지 않았고 기본 mitigation action이 사용되고 있다는 뜻입니다.
+
+`PUT`을 사용하면 `none`, `block`, `log`, `null` 중 하나로 mitigation action을 설정할 수 있습니다.
+
+```bash title="cURL command"
+curl --request PUT "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations/{operation_id}/schema_validation" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+    "mitigation_action": "block"
+}'
+```
+
+```json output
+{
+    "result":  {
+        "mitigation_action": "block"
+    }
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+### 모든 schemas 목록 보기
+
+zone에 현재 active 상태인 schemas 개요를 `GET`으로 가져올 수 있습니다.
+
+`validation_enabled=true`는 선택적 parameter입니다.
+
+<APIRequest
+  path="/zones/{zone_id}/schema_validation/schemas"
+  method="GET"
+/>
+
+```json output
+{
+    "result":  [
+        {
+	        "schema_id": "af632e95-c986-4738-a67d-2ac09995017a",
+	        "name": "example_schema",
+	        "kind": "openapi_v3",
+	        "source": "<SOURCE>",
+	        "created_at": "2023-04-03T15:10:08.902309Z"
+	    }
+    ]
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+
+```
+
+:::note
+
+출력을 줄이기 위해 active schemas만 보고 각 schema의 source를 가져오지 않으려면 `omit_source=true` query parameter를 사용하는 것을 권장합니다.
+:::
+
+### 스키마 삭제
+
+schema는 `DELETE`로 삭제할 수 있습니다.
+
+<APIRequest
+  path="/zones/{zone_id}/schema_validation/schemas/{schema_id}"
+  method="DELETE"
+/>
+
+```json output
+{
+    "result":  null,
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+### operation에 learned schema 활성화
+
+Cloudflare는 충분한 요청량이 있는 Endpoint Management의 모든 operations에 대해 parameter schemas를 자동으로 학습합니다. learned schema는 `GET`으로 확인할 수 있습니다.
+
+```bash title="cURL command"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations/{operation_id}?feature=parameter_schemas" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json output
+{
+    "result":
+    {
+        "operation_id": "5c734fcd-455d-4040-9eaa-dbb3830526ae",
+        "method": "PATCH",
+        "host": "example.com",
+        "endpoint": "/pets",
+        "last_updated": "2023-04-04T16:07:37.575971Z",
+        "features":
+        {
+            "parameter_schemas":
+            {
+                "last_updated": "2023-04-03T20:11:55.879006Z",
+                "parameter_schemas":
+                {
+                    "responses": null,
+                    "parameters":
+                    [
+                        {
+                            "in": "query",
+                            "name": "var1",
+                            "schema":
+                            {
+                                "type": "string"
+                            },
+                            "required": true,
+                            "description": "Sufficient requests have been observed for this parameter to provide high confidence in this parameter schema."
+                        }
+                    ],
+                    "x-cf-parameter-schemas": "operation schema with automatically learned path and query parameters"
+                }
+            }
+        }
+    },
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```
+
+검사한 parameter schema가 만족스럽다면, `PUT`으로 추가하고 활성화할 수 있습니다.
+
+```bash title="cURL command"
+curl --request PUT "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/operations/{operation_id}/cloudflare_learned_schema?timestamp=2023-04-03T20:11:55.879006Z" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json output
+{
+    "result": null,
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+
+```
+
+:::note
+
+parameter schemas는 24시간에서 최대 1주 사이의 주기로 업데이트됩니다. 검사 중 parameter schema가 바뀌지 않았는지 보장하려면, timestamp query parameter에는 전체 operation의 `last_updated`가 아니라 parameter-schema feature의 `last_updated`를 식별자로 전달하는 것을 권장합니다.
+:::
+
+### Schema validation 비활성화
+
+zone 전체의 Schema validation을 빠르게 비활성화하려면 `PATCH`를 사용하세요. 이 작업은 모든 operation-mitigation actions를 override합니다.
+
+```bash title="cURL command"
+curl --request PATCH "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/settings/schema_validation" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header 'Content-Type: application/json' \
+--data '{
+  "validation_override_mitigation_action": "none"
+}'
+```
+
+```json output
+{
+    "result":  {
+        "validation_default_mitigation_action": "block",
+        "validation_override_mitigation_action": "none"
+    }
+    "success": true,
+    "errors":
+    [],
+    "messages":
+    []
+}
+```

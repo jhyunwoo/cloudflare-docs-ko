@@ -1,0 +1,386 @@
+---
+pcx_content_type: configuration
+title: 실시간 WebSockets API
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/usage/websockets-api/realtime-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/usage/websockets-api/realtime-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+일부 AI 제공 업체는 WebSockets에서 실시간, 낮은-latency 상호 작용을 지원합니다. AI Gateway는 텍스트, 오디오 및 비디오와 같은 다중 상호 작용을 지원하는 이러한 API와 원활한 통합을 허용합니다.
+
+## 지원되는 공급자
+
+- [오시는 길](https://platform.openai.com/docs/guides/realtime-websocket)
+- [Google AI 스튜디오](https://ai.google.dev/gemini-api/docs/multimodal-live)
+- [카테고리](https://docs.cartesia.ai/api-reference/tts/tts)
+- [ElevenLabs의 장점](https://elevenlabs.io/docs/conversational-ai/api-reference/conversational-ai/websocket)
+- [랄 AI](https://docs.fal.ai/model-apis/model-endpoints/websockets)
+- [딥그램 (Workers AI)](https://developers.cloudflare.com/workers-ai/models/?authors=deepgram)
+
+## 인증현황
+
+실시간 WebSockets의 경우, 인증은 다음과 같이 수행될 수 있습니다.
+
+- Headers (비범용 환경)
+- `sec-websocket-protocol`(브라우저)
+
+:::참조
+공급자 특정한 API 열쇠는 또한 우리의 AI Gateway에 대안으로 형성될 수 있습니다[로드 중 ...](/ai-gateway/configuration/bring-your-own-keys)이름 \* 아직 포함해야`cf-aig-authorization`websocket 요청에 있는 헤더.
+주요 특징
+
+## 이름 \*
+
+### 오시는 길
+
+```javascript
+import WebSocket from "ws";
+
+const url =
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/openai?model=gpt-4o-realtime-preview-2024-12-17";
+const ws = new WebSocket(url, {
+	headers: {
+		"cf-aig-authorization": process.env.CLOUDFLARE_API_KEY,
+		Authorization: "Bearer " + process.env.OPENAI_API_KEY,
+		"OpenAI-Beta": "realtime=v1",
+	},
+});
+
+ws.on("open", () => console.log("Connected to server."));
+ws.on("message", (message) => console.log(JSON.parse(message.toString())));
+
+ws.send(
+	JSON.stringify({
+		type: "response.create",
+		response: { modalities: ["text"], instructions: "Tell me a joke" },
+	}),
+);
+```
+
+### Google AI 스튜디오
+
+```javascript
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/google?api_key=<google_api_key>",
+	["cf-aig-authorization.<cloudflare_token>"],
+);
+
+ws.on("open", () => console.log("Connected to server."));
+ws.on("message", (message) => console.log(message.data));
+
+ws.send(
+	JSON.stringify({
+		setup: {
+			model: "models/gemini-2.5-flash",
+			generationConfig: { responseModalities: ["TEXT"] },
+		},
+	}),
+);
+```
+
+### 카테고리
+
+```javascript
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/cartesia?cartesia_version=2024-06-10&api_key=<cartesia_api_key>",
+	["cf-aig-authorization.<cloudflare_token>"],
+);
+
+ws.on("open", function open() {
+	console.log("Connected to server.");
+});
+
+ws.on("message", function incoming(message) {
+	console.log(message.data);
+});
+
+ws.send(
+	JSON.stringify({
+		model_id: "sonic",
+		transcript: "Hello, world! I'm generating audio on ",
+		voice: { mode: "id", id: "a0e99841-438c-4a64-b679-ae501e7d6091" },
+		language: "en",
+		context_id: "happy-monkeys-fly",
+		output_format: {
+			container: "raw",
+			encoding: "pcm_s16le",
+			sample_rate: 8000,
+		},
+		add_timestamps: true,
+		continue: true,
+	}),
+);
+```
+
+### ElevenLabs의 장점
+
+```javascript
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/elevenlabs?agent_id=<elevenlabs_agent_id>",
+	[
+		"xi-api-key.<elevenlabs_api_key>",
+		"cf-aig-authorization.<cloudflare_token>",
+	],
+);
+
+ws.on("open", function open() {
+	console.log("Connected to server.");
+});
+
+ws.on("message", function incoming(message) {
+	console.log(message.data);
+});
+
+ws.send(
+	JSON.stringify({
+		text: "This is a sample text ",
+		voice_settings: { stability: 0.8, similarity_boost: 0.8 },
+		generation_config: { chunk_length_schedule: [120, 160, 250, 290] },
+	}),
+);
+```
+
+### 랄 AI
+
+Fal AI는 WebSocket API에서 HTTP를 통해 실시간 모델 상호 작용을 위한 WebSocket 연결을 지원합니다.
+
+```javascript
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/fal/fal-ai/fast-lcm-diffusion",
+	["fal-api-key.<fal_api_key>", "cf-aig-authorization.<cloudflare_token>"],
+);
+
+ws.on("open", function open() {
+	console.log("Connected to server.");
+});
+
+ws.on("message", function incoming(message) {
+	console.log(message.data);
+});
+
+ws.send(
+	JSON.stringify({
+		prompt: "generate an image of a cat flying an aeroplane",
+	}),
+);
+```
+
+Fal AI의 WebSocket API에 대한 자세한 내용은 여기를 참조하십시오.[WebSocket 문서에 HTTP](https://docs.fal.ai/model-apis/model-endpoints/websockets).
+
+### 딥그램 (Workers AI)
+
+Workers AI는 WebSocket 연결을 통해 실시간 연설-to-text (STT) 및 텍스트-to-speech (TTS) 기능을 제공합니다.
+
+#### 음성 텍스트 (STT)
+
+Workers AI는 2개의 Deepgram STT 모형을 지원합니다:`@cf/deepgram/nova-3`·`@cf/deepgram/flux`. 다음 예제는 마이크에서 실시간 오디오 트랜지션을 보여줍니다.
+
+```javascript
+import WebSocket from "ws";
+import mic from "mic";
+
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/workers-ai?model=@cf/deepgram/nova-3&encoding=linear16&sample_rate=16000&interim_results=true",
+	{
+		headers: {
+			"cf-aig-authorization": process.env.CLOUDFLARE_API_KEY,
+		},
+	},
+);
+
+//마이크 구성
+const micInstance = mic({
+	rate: "16000",
+	channels: "1",
+	debug: false,
+	exitOnSilence: 6,
+});
+
+const micInputStream = micInstance.getAudioStream();
+
+micInputStream.on("data", (data) => {
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.send(data);
+	}
+});
+
+micInputStream.on("error", (error) => {
+	console.error("Microphone error:", error);
+});
+
+ws.onopen = () => {
+	console.log("Connected to WebSocket");
+	console.log("Starting microphone...");
+	micInstance.start();
+};
+
+ws.onmessage = (event) => {
+	try {
+		const parse = JSON.parse(event.data);
+		if (parse.channel?.alternatives?.[0]?.transcript) {
+			if (parse.is_final) {
+				console.log(
+					"Final transcript:",
+					parse.channel.alternatives[0].transcript,
+				);
+			} else {
+				console.log(
+					"Interim transcript:",
+					parse.channel.alternatives[0].transcript,
+				);
+			}
+		}
+	} catch (error) {
+		console.error("Error parsing message:", error);
+	}
+};
+
+ws.onerror = (error) => {
+	console.error("WebSocket error:", error);
+};
+
+ws.onclose = () => {
+	console.log("WebSocket closed");
+	micInstance.stop();
+};
+```
+
+#### 텍스트로 변환 (TTS)
+
+Workers AI는 Deepgram를 지원합니다`@cf/deepgram/aura-1`TTS를 위한 모형. 다음 예제는 오디오로 텍스트 입력을 변환합니다.
+
+```javascript
+import WebSocket from "ws";
+import readline from "readline";
+import Speaker from "speaker";
+
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/<account_id>/<gateway>/workers-ai?model=@cf/deepgram/aura-1",
+	{
+		headers: {
+			"cf-aig-authorization": process.env.CLOUDFLARE_API_KEY,
+		},
+	},
+);
+
+//스피커 관리
+let currentSpeaker = null;
+let isPlayingAudio = false;
+
+//텍스트 입력을 위한 Setup readline
+const rl = readline.createInterface({
+	input: process.stdin,
+	output: process.stdout,
+	prompt: "Enter text to speak (or \"quit\" to exit): ",
+});
+
+ws.onopen = () => {
+	console.log("Connected to Deepgram TTS WebSocket");
+	rl.prompt();
+};
+
+ws.onmessage = (event) => {
+	//메시지가 JSON (metadata, flushed, etc.) 또는 원시 오디오인지 확인
+	if (event.data instanceof Buffer || event.data instanceof ArrayBuffer) {
+		//Raw audio data - 필요한 경우 새로운 스피커 만들기
+		if (!currentSpeaker) {
+			currentSpeaker = new Speaker({
+				channels: 1,
+				bitDepth: 16,
+				sampleRate: 24000,
+			});
+			isPlayingAudio = true;
+		}
+		currentSpeaker.write(Buffer.from(event.data));
+	} else {
+		try {
+			const message = JSON.parse(event.data);
+			switch (message.type) {
+				case "Metadata":
+					console.log("Model info:", message.model_name, message.model_version);
+					break;
+				case "Flushed":
+					console.log("Audio complete");
+					//완충기 underflow를 방지하기 위하여 플러시 후에 끝 스피커
+					if (currentSpeaker && isPlayingAudio) {
+						currentSpeaker.end();
+						currentSpeaker = null;
+						isPlayingAudio = false;
+					}
+					rl.prompt();
+					break;
+				case "Cleared":
+					console.log("Audio cleared, sequence:", message.sequence_id);
+					break;
+				case "Warning":
+					console.warn("Warning:", message.description);
+					break;
+			}
+		} catch (error) {
+			//JSON은 문자열로 원시 오디오가 될 수 있습니다.
+			if (!currentSpeaker) {
+				currentSpeaker = new Speaker({
+					channels: 1,
+					bitDepth: 16,
+					sampleRate: 24000,
+				});
+				isPlayingAudio = true;
+			}
+			currentSpeaker.write(Buffer.from(event.data));
+		}
+	}
+};
+
+ws.onerror = (error) => {
+	console.error("WebSocket error:", error);
+};
+
+ws.onclose = () => {
+	console.log("WebSocket closed");
+	if (currentSpeaker) {
+		currentSpeaker.end();
+	}
+	rl.close();
+	process.exit(0);
+};
+
+//핸들 사용자 입력
+rl.on("line", (input) => {
+	const text = input.trim();
+
+	if (text.toLowerCase() === "quit") {
+		//자주 묻는 질문
+		ws.send(JSON.stringify({ type: "Close" }));
+		ws.close();
+		return;
+	}
+
+	if (text.length > 0) {
+		//TTS에 텍스트를 전송
+		ws.send(
+			JSON.stringify({
+				type: "Speak",
+				text: text,
+			}),
+		);
+
+		//즉시 오디오를 얻기
+		ws.send(JSON.stringify({ type: "Flush" }));
+		console.log("Flushing audio");
+	}
+
+	rl.prompt();
+});
+
+rl.on("close", () => {
+	if (ws.readyState === WebSocket.OPEN) {
+		ws.close();
+	}
+});
+```

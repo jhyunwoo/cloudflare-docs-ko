@@ -1,0 +1,68 @@
+---
+title: 예상치 못한 DNS 레코드
+pcx_content_type: troubleshooting
+sidebar:
+  order: 11
+  label: 예상치 못한 DNS 레코드
+---
+
+import { GlossaryTooltip } from "~/components"
+
+## 가져오기 후 추가된 레코드
+
+도메인을 Cloudflare에 추가한 뒤 예상하지 못한 DNS 레코드 여러 개가 보입니다.
+
+### 원인
+
+이전 authoritative DNS 공급자에 있던 와일드카드(`*`) 레코드가 Cloudflare로 가져와지는 과정에서 추가 레코드를 생성하는 방식으로 변환되었을 수 있습니다.
+
+### 해결 방법
+
+다음 중 하나를 수행할 수 있습니다.
+
+- [레코드를 일괄 삭제](/dns/manage-dns-records/how-to/batch-record-changes/#delete-records-in-bulk)합니다.
+
+- 도메인을 제거한 뒤 다시 추가합니다.
+
+   1. Cloudflare에서 [도메인을 제거](/fundamentals/manage-domains/remove-domain/)합니다.
+   2. authoritative DNS에서 와일드카드 레코드를 삭제합니다.
+   3. 도메인을 다시 [추가](/fundamentals/manage-domains/add-site/)합니다.
+
+---
+
+## acme_challenge TXT 레코드
+
+도메인이 `_acme-challenge.<hostname>` 같은 TXT 레코드를 반환하지만 Cloudflare 대시보드의 DNS 탭에서는 찾을 수 없는 경우가 있습니다.
+
+### 원인
+
+이 레코드는 Cloudflare edge certificates([universal](/ssl/edge-certificates/universal-ssl/), [advanced](/ssl/edge-certificates/advanced-certificate-manager/), [backup](/ssl/edge-certificates/backup-certificates/))를 프로비저닝할 수 있도록 자동 생성됩니다. `_acme-challenge` 레코드는 <GlossaryTooltip term="Certificate Authority (CA)">certificate authorities (CAs)</GlossaryTooltip>가 SSL/TLS 인증서를 발급하기 전에 도메인 소유권을 검증할 수 있도록 필요합니다. 자세한 내용은 [Domain control validation (DCV)](/ssl/edge-certificates/changing-dcv-method/)를 참고하세요.
+
+### 해결 방법
+
+이 레코드는 인증서와 연결되어 있으므로 Cloudflare 대시보드 DNS 탭에서 삭제할 수 없습니다.
+
+사용자 측에서 인증서를 프로비저닝하기 위해 `_acme-challenge.<hostname>` TXT 레코드가 더 필요하다면 [DNS records](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 아래에서 직접 [수동으로 추가](/dns/manage-dns-records/how-to/create-dns-records/)할 수 있습니다.
+
+이 레코드를 제거하려면:
+
+ * [Disable Universal SSL](/ssl/edge-certificates/universal-ssl/disable-universal-ssl/)로 universal 및 backup 인증서 관련 레코드를 제거합니다.
+ * [Delete advanced certificates](/ssl/edge-certificates/advanced-certificate-manager/manage-certificates/#delete-a-certificate)로 advanced 인증서 관련 레코드를 제거합니다.
+
+---
+
+## DNS 질의 결과가 올바르지 않음
+
+[TTL](/dns/manage-dns-records/reference/ttl/)이 만료될 만큼 기다렸는데도 DNS 질의가 올바르지 않은 결과를 반환하는 경우가 있습니다.
+
+### 원인
+
+서드파티 도구는 재귀 DNS 캐시가 갱신되지 않으면 올바른 DNS 결과를 반환하지 못하는 경우가 있습니다.
+
+### 해결 방법
+
+이 경우 다음 방법으로 공용 DNS 캐시를 퍼지하세요.
+
+- [OpenDNS의 DNS 캐시 퍼지](http://www.opendns.com/support/cache/)
+- [Google의 DNS 캐시 퍼지](https://developers.google.com/speed/public-dns/cache)
+- [로컬 DNS 캐시 퍼지](https://docs.cpanel.net/knowledge-base/dns/how-to-clear-your-dns-cache/)

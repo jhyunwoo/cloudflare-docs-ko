@@ -1,0 +1,43 @@
+---
+summary: Dynamically set a cookie expiration and test group.
+tags:
+  - A/B testing
+  - Cookies
+products:
+  - snippets
+pcx_content_type: example
+title: A/B 테스트를 사용하여 쿠키에 대한 추가 정보
+description: Dynamically는 쿠키 만료 및 테스트 그룹을 설정합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/snippets/examples/append-dates-to-cookies/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/append-dates-to-cookies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+export default {
+	async fetch(request) {
+		const response = await fetch(request);
+
+		//더 이상 immutable 인 응답을 복제
+		const newResponse = new Response(response.body, response);
+
+		//동적 expiry 시간을 정의합니다. 24시간 * 60m * 60초 * 1000ms = 86,400,000ms
+		const expiry = new Date(Date.now() + 7 * 86400000).toUTCString();
+		//그룹 변수 정의. "A" 요청 헤더 "userGroup"이 "premium", "B"일 경우.
+		const group = request.headers.get("userGroup") == "premium" ? "A" : "B";
+
+		//값을 가진 사용자 정의 헤더를 승인
+		newResponse.headers.append(
+			"Set-Cookie",
+			`testGroup=${group}; Expires=${expiry}; Path=/`,
+		);
+
+		return newResponse;
+	},
+};
+```

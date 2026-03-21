@@ -1,0 +1,258 @@
+---
+pcx_content_type: configuration
+title: 클라이언트 API
+sidebar:
+  order: 40
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/constellation/platform/client-api/'
+translation_source_md: 'https://developers.cloudflare.com/constellation/platform/client-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Constellation 클라이언트 API는 개발자가 각 프로젝트를 위해 구성된 모델을 사용하여 인워스 엔진과 상호 작용할 수 있습니다. Inference는 기계 학습 모형에 자료 입력의 과정이고 산출을 생성하고, 또는 예측으로 그렇지 않으면 알려집니다.
+
+Constellation 클라이언트 API를 사용하기 전에 다음을해야합니다.
+
+- 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up).
+- Cloudflare QX대시보드 > 로깅하여 일관성**Workers & Pages** > **관련 기사**.
+- Constellation 프로젝트를 만들고 바인딩을 구성합니다.
+- 구매하기`@cloudflare/constellation`코드에 라이브러리:
+
+```javascript
+import { Tensor, run } from "@cloudflare/constellation";
+```
+
+## Tensor 클래스
+
+Tensors는 텍스트, 이미지 또는 시간 시리즈와 같은 모든 종류의 데이터를 나타내는 데 사용되는 거의 다차원 수치 배열입니다. TensorFlow 인기 있는 사용의[회사 소개](https://www.tensorflow.org/guide/tensor)기계 학습 (이름). 다른 프레임 워크와 런타임은 같은 개념을 따르기 때문에 있습니다.
+
+constellation는 또한 모형 입력을 위한 Tensors를 사용합니다.
+
+Tensors에는 데이터 유형, 모양, 데이터 및 이름이 있습니다.
+
+```typescript
+enum TensorType {
+    Bool = "bool",
+    Float16 = "float16",
+    Float32 = "float32",
+    Int8 = "int8",
+    Int16 = "int16",
+    Int32 = "int32",
+    Int64 = "int64",
+}
+
+type TensorOpts = {
+  shape?: number[],
+  name?: string
+}
+
+declare class Tensor<TensorType> {
+  constructor(
+    type: T,
+    value: any | any[],
+    opts: TensorOpts = {}
+  )
+}
+```
+
+### 새로운 Tensor 만들기
+
+```typescript
+new Tensor(
+  type:TensorType,
+  value:any | any[],
+  options?:TensorOpts
+  )
+```
+
+#### 제품정보
+
+Tensor에서 표현된 데이터의 유형을 무시합니다. 옵션은:
+
+- TensorType. 로그아웃
+- TensorType.플로트16
+- TensorType.플로트32
+- TensorType. 사이트맵
+- TensorType. Int16의
+- TensorType. 인치32
+- 텐서 타입.Int64
+
+#### 제품정보
+
+10sor의 데이터입니다. 예제 tensor 값은 다음을 포함 할 수 있습니다.
+
+- 사기: 4
+- 벡터: \[1, 2, 3]
+- 2 축 3x2 매트릭스: \[\[1,2], \[2,4], \[5,6]]]
+- 3 축 3x2 매트릭스 \[\[1, 2], \[3, 4]]], \[\[5, 6], \[7, 8]], \[\[9, 10], \[11, 12]]]
+
+#### 옵션 정보
+
+당신은 당신의 tensor에 선택권을 통과할 수 있습니다:
+
+##### 이름 \*
+
+Tensors 상점 다차원 자료. 데이터의 모양은 사기, 벡터, 2D 모체 또는 다중 차축 모체 일 수 있습니다. 몇몇 예:
+
+- \[] - 사기 데이터
+- \[3] - 3 요소와 벡터
+- \[3, 2] - 2 축 3x2 매트릭스
+- \[3, 2, 2] - 3 축 2x2 매트릭스
+
+더 알아보기[TensorFlow 문서](https://www.tensorflow.org/guide/tensor)모양에 대한 자세한 내용은.
+
+모양을 통과하지 않으면 값 객체에서 infer하려고합니다. 우리가 할 수없는 경우, 우리는 오류를 던졌습니다.
+
+##### 이름 \*
+
+10sor를 Naming은 선택 사항이며 10sor 입력을 구축 할 때 매핑 작업에 유용한 키가 될 수 있습니다.
+
+### Tensor 예제
+
+#### 사기꾼
+
+```javascript
+  new Tensor(TensorType.Int16, 123);
+```
+
+#### 기타 제품
+
+```javascript
+  new Tensor(TensorType.Int32, [1, 23]);
+  new Tensor(TensorType.Int32, [ [1, 2], [3, 4], ], { shape: [2, 2] });
+  new Tensor(TensorType.Int32, [1, 23], { shape: [1] });
+```
+
+#### 이름 \*
+
+```javascript
+  new Tensor(TensorType.Int32, 1, { name: "foo" });
+```
+
+### Tensor 속성
+
+생성 된 후 열의 속성을 읽을 수 있습니다.
+
+```javascript
+const tensor = new Tensor(TensorType.Int32, [ [1, 2], [3, 4], ], { shape: [2, 2], name: "test" });
+
+console.log ( tensor.type );
+//TensorType. 인치32
+
+console.log ( tensor.shape );
+//[2, 2]
+
+console.log ( tensor.name );
+//제품정보
+
+console.log ( tensor.value );
+//[ [1, 2], [3, 4], ]
+```
+
+### Tensor 방법
+
+#### async tensor.toJSON()
+
+JSON 객체에 tensor를 직렬화:
+
+```javascript
+const tensor = new Tensor(TensorType.Int32, [ [1, 2], [3, 4], ], { shape: [2, 2], name: "test" });
+
+tensor.toJSON();
+
+{
+  type: TensorType.Int32,
+  name: "test",
+  shape:  [2, 2],
+  value: [ [1, 2], [3, 4], ]
+}
+```
+
+#### async의 tensor.fromJSON()
+
+JSON 객체를 Tensor에 직렬화:
+
+```javascript
+const tensor = Tensor.fromJSON(
+  {
+    type: TensorType.Int32,
+    name: "test",
+    shape:  [2, 2],
+    value: [ [1, 2], [3, 4], ]
+  }
+);
+```
+
+## InferenceSession 클래스
+
+Constellation은 작업 실행하기 전에 의도 세션이 필요합니다. 세션은 특정 프로젝트에 잠겨있어 바인딩 및 프로젝트 모델에 정의됩니다.
+
+당신은 할 수 있고, 가능한 경우, 같은 inference 세션에서 여러 작업을 실행. 같은 세션을 재사용, 우리가 런타임을 즉석하고 한 번 기억에 모델을로드한다는 것을 의미합니다.
+
+```typescript
+export class InferenceSession {
+    constructor(binding: any, modelId: string, options: SessionOptions = {})
+}
+
+export type InferenceSession = {
+  binding: any;
+  model: string;
+  options: SessionOptions;
+};
+```
+
+### InferenceSession 방법
+
+#### 새로운 InferenceSession()
+
+새로운 세션 만들기:
+
+```javascript
+import { InferenceSession } from "@cloudflare/constellation";
+
+const session = new InferenceSession(
+  env.PROJECT,
+  "0ae7bd14-a0df-4610-aa85-1928656d6e9e"
+);
+```
+
+- **사이트맵**Wrangler 구성에 정의된 프로젝트 바인딩입니다.
+- **0ae7bd14...**&#xD504;로젝트 내부의 모델 ID입니다. Wrangler를 사용하여 프로젝트의 모델과 ID를 나열합니다.
+
+#### async 세션.run()
+
+생성된 inference 세션에서 작업을 실행합니다. 입력으로 10sors 목록을 가져옵니다.
+
+```javascript
+import { Tensor, InferenceSession, TensorType } from "@cloudflare/constellation";
+
+const session = new InferenceSession(
+  env.PROJECT,
+  "0ae7bd14-a0df-4610-aa85-1998656d6e9e"
+);
+
+const tensorInputArray = [ new Tensor(TensorType.Int32, 1), new Tensor(TensorType.Int32, 2), new Tensor(TensorType.Int32, 3) ];
+
+const out = await session.run(tensorInputArray);
+
+```
+
+당신은 또한 개체를 사용 하 고 당신의 tensors 이름.
+
+```javascript
+const tensorInputNamed = {
+  "tensor1": new Tensor(TensorType.Int32, 1),
+  "tensor2": new Tensor(TensorType.Int32, 2),
+  "tensor3": new Tensor(TensorType.Int32, 3)
+};
+
+out = await session.run(tensorInputNamed);
+```
+
+이것은 당신이 tensor를 만들 때 이름 선택권을 사용하여 동일합니다.
+
+```javascript
+{ "tensor1": new Tensor(TensorType.Int32, 1) } == [ new Tensor(TensorType.Int32, 1, { name: "tensor1" } ];
+```

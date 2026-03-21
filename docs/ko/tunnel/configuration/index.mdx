@@ -1,0 +1,132 @@
+---
+title: 제품 설명
+pcx_content_type: reference
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/tunnel/configuration/'
+translation_source_md: 'https://developers.cloudflare.com/tunnel/configuration/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	DashButton,
+	Details,
+	Render,
+	Tabs,
+	TabItem,
+	TunnelCalculator,
+} from "~/components";
+
+이 페이지는 가장 일반적인 구성 옵션을 커버`cloudflared`높은 가용성, 방화벽 규칙 및 실행 매개 변수를 포함한 터널.
+
+## Replicas 및 높은 가용성
+
+터널을 실행할 때,`cloudflared`4개의 아웃바운드만 설치[게시물-퀀텀 암호화](/ssl/post-quantum-cryptography/)적어도 2개의 명백한 Cloudflare 자료 센터에 연결. 어떤 연결, 서버 또는 데이터 센터가 오프라인으로 진행되는 경우, 리소스는 사용할 수 있습니다.
+
+복제는 추가`cloudflared`같은 터널에 점이 있는 경우. 각 복제는 4개의 새로운 연결을 창조하고, 당신의 근원에 추가 진입 점을 제공하. 터널당 최대 25개의 복제(100개의 연결)을 실행할 수 있습니다. 지리적으로 가까운 복제에 대한 교통 경로.
+
+<Render file="tunnel/availability/cloudflared-replicas-diagram" product="cloudflare-one" />
+
+### 복제를 배포
+
+<Tabs>
+  <TabItem label="대시보드">
+    원격 관리 터널의 복제를 배포하려면:
+
+    1. 내 계정[Cloudflare 대시보드](https://dash.cloudflare.com/), 이동**사업영역** > **연락처**.
+
+       <DashButton url="/?to=/:account/tunnels" />
+
+    2. 터널을 선택하십시오.
+
+    3. 제품정보**복제 추가**.
+
+    4. 복제를 배포하려는 호스트의 운영 체제를 선택합니다.
+
+    5. 설치 명령을 복사하고 호스트에서 실행합니다.
+  </TabItem>
+
+  <TabItem label="제품정보">
+    복제를 배포하려면[로컬 관리 터널](/tunnel/advanced/local-management/), 실행`cloudflared tunnel run <NAME>`같은 호스트에[터널 자격](/tunnel/advanced/local-management/tunnel-permissions/).
+  </TabItem>
+</Tabs>
+
+:::참조
+지적인 교통 조타를 위해, 실패로 논리, 또는 건강 경고, 사용[Cloudflare 부하 균형](/tunnel/routing/#load-balancing)복제 대신.
+주요 특징
+
+## 방화벽 규칙
+
+`cloudflared`포트에 CloudflareXQ에 아웃바운드 연결`7844`. 방화벽은 다음과 같은 목적지에 egress를 허용해야 합니다. 긍정 보안 모델에 대한 모든 진입 트래픽을 블록 - 터널 구성의 서비스 만 노출됩니다.
+
+### 필수 포트
+
+<Render file="tunnel/firewall/required-ports" product="cloudflare-one" />
+
+<Details header="미국 지역 IP">
+  <Render file="tunnel/firewall/us-region-ports" product="cloudflare-one" params={{ regionURL: "#region" }} />
+</Details>
+
+<Details header="파일 형식 높은 IP">
+  <Render file="tunnel/firewall/fedramp-high-ports" product="cloudflare-one" params={{ tunnelTokenURL: "/tunnel/advanced/tunnel-tokens/" }} />
+</Details>
+
+<Details header="SNI-enforcing 방화벽">
+  <Render file="tunnel/firewall/sni-hostnames" product="cloudflare-one" />
+</Details>
+
+<Details header="선택 포트 443 목적지">
+  열기 항구`443`소프트웨어 자동 업데이트 및 액세스 JWT 검증과 같은 옵션 기능을 사용할 수 있습니다.`cloudflared`이 연결없이 올바르게 실행하십시오.
+
+  | 여행 정보                                   | 제품정보                       |
+  | --------------------------------------- | -------------------------- |
+  | `api.cloudflare.com`                    | 소프트웨어 업데이트 체크              |
+  | `update.argotunnel.com`                 | 소프트웨어 업데이트 체크              |
+  | `github.com`                            | 최신 버전 다운로드                 |
+  | `<team-name>.cloudflareaccess.com`      | 액세스 JWT 유효성 (액세스가 활성화된 경우) |
+  | `pqtunnels.cloudflareresearch.com`      | Post-quantum 오류 보고         |
+  | `cfd-features.argotunnel.com`(DNS의 TXT) | UDP 데이터그램 버전 협상            |
+</Details>
+
+방화벽을 확인하려면 터널 트래픽을 확인, 참조[연결 오류](/tunnel/troubleshooting/#connection-errors).
+
+## 실행 매개 변수
+
+이 플래그는`cloudflared tunnel run`명령. 터널이 운영 체제에서 실행되는 방법을 제어합니다.
+
+가장 일반적으로 사용되는 매개 변수:
+
+| 제품 설명                                                     | 기본 정보             | 이름 \*                                            |
+| --------------------------------------------------------- | ----------------- | ------------------------------------------------ |
+| [`--loglevel`](/tunnel/advanced/run-parameters/#loglevel) | `info`            | 로그 동사성:`debug`, `info`, `warn`, `error`, `fatal` |
+| [`--logfile`](/tunnel/advanced/run-parameters/#logfile)   | 사이트맵              | 로그 출력을 쓰는 경로                                     |
+| [`--metrics`](/tunnel/advanced/run-parameters/#metrics)   | `127.0.0.1:2024x` | Prometheus 메트릭 엔드포인트 주소                          |
+| [`--protocol`](/tunnel/advanced/run-parameters/#protocol) | `auto`            | 연결 의정서:`auto`, `quic`, `http2`                   |
+| [`--region`](/tunnel/advanced/run-parameters/#region)     | 글로벌               | 미국 전용 데이터 센터를 통해 노선`us`                          |
+| [`--token`](/tunnel/advanced/run-parameters/#token)       | —                 | 터널 토큰 (remotely-managed Tunnels)                 |
+
+다음 예제는 구성 플래그와 터널을 수동으로 실행하는 방법을 보여줍니다 :
+
+```sh
+cloudflared tunnel --loglevel info --logfile /var/log/cloudflared/cloudflared.log run --token <TOKEN VALUE>
+```
+
+터널 서비스에 추가하는 방법에 대한 실행 매개 변수 및 지침의 전체 목록을 보려면, 참조[실행 매개 변수](/tunnel/advanced/run-parameters/).
+
+## 근원 모수
+
+Origin 설정 매개 변수 제어 방법`cloudflared`프록시 트래픽을 Origin 서버에.
+
+가장 일반적으로 사용되는 매개 변수:
+
+| 제품 설명                                                                      | 기본 정보   | 이름 \*                    |
+| -------------------------------------------------------------------------- | ------- | ------------------------ |
+| [`originServerName`](/tunnel/advanced/origin-parameters/#originservername) | `""`    | Origin 인증서에서 예상되는 호스트 이름 |
+| [`noTLSVerify`](/tunnel/advanced/origin-parameters/#notlsverify)           | `false` | TLS 인증                   |
+| [`httpHostHeader`](/tunnel/advanced/origin-parameters/#httphostheader)     | `""`    | HTTP 보안 호스트 헤더           |
+| [`connectTimeout`](/tunnel/advanced/origin-parameters/#connecttimeout)     | `30s`   | TCP 연결 시간                |
+
+원산지 매개 변수 및 설정 지침의 전체 목록은 참조[근원 모수](/tunnel/advanced/origin-parameters/).

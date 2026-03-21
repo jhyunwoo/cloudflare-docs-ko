@@ -1,0 +1,93 @@
+---
+pcx_content_type: reference
+title: 규칙에 추가
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/add-rule/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/rulesets-api/add-rule/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+기존 규칙에 단일 규칙을 추가합니다. 이 엔드포인트를 사용하여 요청의 모든 기존 규칙 규칙을 포함하지 않고 규칙을 추가하십시오.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 생성](/api/resources/rulesets/subresources/rules/methods/create/)<br />
+  `POST /accounts/{account_id}/rulesets/{ruleset_id}/rules`
+- [영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)<br />
+  `POST /zones/{zone_id}/rulesets/{ruleset_id}/rules`
+
+요청 몸의 규칙 정의를 포함.
+
+기본적으로 규칙은 규칙의 기존 목록의 끝에 추가됩니다. 규칙에 대한 특정 위치를 정의하려면`position`요청에 따라 신체의 객체는 지침에 따라[규칙의 순서를 변경](/ruleset-engine/rulesets-api/update-rule/#change-the-order-of-a-rule-in-a-ruleset).
+
+이 방법을 호출하면 규칙의 새로운 버전을 만듭니다.
+
+## 이름 \*
+
+다음 것`POST`요청은 규칙을 추가합니다.`$RULESET_ID`영역의`$ZONE_ID`. 규칙 ID는 이전에 얻었다[영역 규칙](/api/resources/rulesets/methods/list/)작업, 및 항목 점 규칙에 대응`http_request_firewall_custom`단계.
+
+응답은 규칙을 추가 한 후 완전한 규칙을 포함합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "js_challenge",
+  	expression:
+  		'(ip.src.country in {"GB" "FR"} and cf.bot_management.score < 20 and not cf.bot_management.verified_bot)',
+  	description: "challenge GB and FR based on bot score",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone Ruleset 1",
+		"description": "My phase entry point ruleset at the zone level",
+		"kind": "zone",
+		"version": "11",
+		"rules": [
+			{
+				"id": "<RULE_ID_1>",
+				"version": "1",
+				"action": "challenge",
+				"expression": "not http.request.uri.path matches \"^/api/.*$\"",
+				"last_updated": "2023-11-23T11:36:24.192361Z",
+				"ref": "<RULE_REF_1>",
+				"enabled": true
+			},
+			{
+				"id": "<NEW_RULE_ID>",
+				"version": "1",
+				"action": "js_challenge",
+				"expression": "(ip.src.country in {\"GB\" \"FR\"} and cf.bot_management.score < 20 and not cf.bot_management.verified_bot)",
+				"description": "challenge GB and FR based on bot score",
+				"last_updated": "2024-06-22T12:35:58.144683Z",
+				"ref": "<NEW_RULE_REF>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2024-06-22T12:35:58.144683Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 규칙의 위치를 정의
+
+규칙의 새로운 규칙의 위치를 정의하려면, 포함`position`요청의 객체, 다음 중 하나를 포함:
+
+<Render file="rule-position-values" product="ruleset-engine" />
+
+사용 예제`position`객체, 참조[규칙을 업데이트](/ruleset-engine/rulesets-api/update-rule/#examples).

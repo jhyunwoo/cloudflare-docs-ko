@@ -1,0 +1,158 @@
+---
+summary: Redirect a response based on the country code in the header of a visitor.
+tags:
+  - Redirects
+  - Geolocation
+  - JavaScript
+  - TypeScript
+  - Python
+preview:
+  - true
+pcx_content_type: example
+title: 국가 코드 리디렉션
+sidebar:
+  order: 1001
+description: 방문자의 헤더에 국가 코드를 기반으로 응답을 다시.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/country-code-redirect/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/country-code-redirect/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 빨리 원하면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/country-code-redirect)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0151XQQ QXWorkers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * URL의 맵으로 리디렉션
+    * @param {Object} 국가지도*/
+    		const countryMap = {
+    			US: "https://example.com/us",
+    			EU: "https://example.com/eu",
+    		};
+
+    		//cf 개체를 사용하여 요청의 국가를 얻기
+    		//cf 객체에 더: https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
+    		const country = request.cf.country;
+
+    		if (country != null && country in countryMap) {
+    			const url = countryMap[country];
+    			//최종 출력에서 이 로깅 문 제거.
+    			console.log(
+    				`Based on ${country}-based request, your user would go to ${url}.`,
+    			);
+    			return Response.redirect(url);
+    		} else {
+    			return fetch("https://example.com", request);
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * URL의 맵으로 리디렉션
+    * @param {Object} 국가지도*/
+    		const countryMap = {
+    			US: "https://example.com/us",
+    			EU: "https://example.com/eu",
+    		};
+
+    		//cf 개체를 사용하여 요청의 국가를 얻기
+    		//cf 객체에 더: https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
+    		const country = request.cf.country;
+
+    		if (country != null && country in countryMap) {
+    			const url = countryMap[country];
+    			return Response.redirect(url);
+    		} else {
+    			return fetch(request);
+    		}
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            countries = {
+                "US": "https://example.com/us",
+                "EU": "https://example.com/eu",
+            }
+
+            #cf 개체를 사용하여 요청의 국가를 얻기
+            #cf 객체에 더: https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
+            country = request.cf.country
+
+            if country and country in countries:
+                url = countries[country]
+                return Response.redirect(url)
+
+            return fetch("https://example.com", request)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    //Cloudflare-specific 속성을 추가하기 위한 RequestWithCf 인터페이스 정의
+    interface RequestWithCf extends Request {
+      cf: {
+        country: string;
+        //다른 CF 속성은 필요에 따라 추가 될 수 있습니다.
+      };
+    }
+
+    const app = new Hono();
+
+    app.get('*', async (c) => {
+      /** 이름
+    * URL의 맵으로 리디렉션*/
+      const countryMap: Record<string, string> = {
+        US: "https://example.com/us",
+        EU: "https://example.com/eu",
+      };
+
+      //Cloudflare-specific 속성을 포함하는 원료 요청을 던지기
+      const request = c.req.raw as RequestWithCf;
+
+      //cf 개체를 사용하여 요청의 국가를 얻기
+      //cf 객체에 더: https://developers.cloudflare.com/workers/runtime-apis/request#incomingrequestcfproperties
+      const country = request.cf.country;
+
+      if (country != null && country in countryMap) {
+        const url = countryMap[country];
+        //Hono의 리디렉션 헬퍼를 사용하여 리디렉션
+        return c.redirect(url);
+      } else {
+        //기본 fallback
+        return fetch("https://example.com", request);
+      }
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

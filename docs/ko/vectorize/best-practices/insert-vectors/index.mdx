@@ -1,0 +1,216 @@
+---
+title: 벡터 삽입
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/best-practices/insert-vectors/'
+translation_source_md: >-
+  https://developers.cloudflare.com/vectorize/best-practices/insert-vectors/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Vectorize 인덱스는 어떤 시점에서 벡터를 삽입 할 수 있습니다: Vectorize는 벡터 검색이 효율적 유지되도록 장면 뒤에 인덱스를 최적화 할 것입니다, 새로운 벡터 추가 또는 기존 벡터 업데이트.
+
+:::노트\[인출 vs Upsert]
+
+같은 벡터 ID가 있다면*관련 제품*Vectorize 인덱스에서 두 번, 인덱스는 먼저 추가 된 벡터를 반영합니다.
+
+같은 벡터 ID가 있다면*맨 위로*Vectorize 인덱스에서 두 번, 인덱스는 마지막으로 추가 된 벡터를 반영합니다.
+
+엠에디터 매크로 참조:upsert operation
+
+:::
+
+## 지원되는 벡터 체재
+
+Vectorize는 3개의 체재에 있는 벡터의 삽입/upsert를 지원합니다:
+
+- 플로팅 포인트 번호의 배열 (JavaScript로 변환`number[]`배열).
+- ·[플로트32Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float32Array)
+- ·[플로트64Array](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Float64Array)
+
+대부분의 경우,`number[]`배열은 다른 API를 취급할 때 가장 easiest이고, 대부분의 machine-learning APIs의 반환 유형입니다.
+
+Vectorize 상점은 Float32로 벡터 크기를 재구성합니다; Float64로 제공된 벡터 차원은 저장되기 전에 Float32로 개조될 것입니다.
+
+## 메타데이터
+
+Metadata는 삽입 또는 upsert에 벡터에 부착 할 수있는 키 값 쌍의 옵션 세트이며 벡터 자체에 대한 데이터를 embed 또는 co-locate 할 수 있습니다.
+
+메타데이터 키는 빈 할 수 없습니다, 도트 문자를 포함 (`.`), 이중 인용 문자를 포함 (`"`), 또는 달러 문자로 시작 (`$`).
+
+Metadata는 다음과 같이 사용될 수 있습니다:
+
+- 객체 저장 키, 데이터베이스 UUID 또는 기타 식별자를 포함하여 콘텐츠를 벡터 embedding 표현합니다.
+- JSON 데이터를 저장합니다 (최대에서[메타데이터 제한](/vectorize/platform/limits/)), 당신은 더 작은 내용에 대 한 추가 보기를 건너 뛸 수 있습니다.
+- 벡터 embedding가 생성되거나 생성된 방법에 대해 설명하는 날짜, 타임스탬프 또는 다른 메타 데이터의 추적을 유지하십시오.
+
+예를 들어, 이미지를 나타내는 벡터 embedding는 경로가 포함될 수 있습니다.[R2 객체](/r2/)그것은에서 생성되었다, 형식, 그리고 범주 조회:
+
+```ts
+{ id: '1', values: [32.4, 74.1, 3.2, ...], metadata: { path: 'r2://bucket-name/path/to/image.png', format: 'png', category: 'profile_image' } }
+```
+
+### Metadata에 의해 필터링 할 때 성능 팁
+
+큰 Vectorize 색인을 만들 때, 우리는 사용자가 앞서 생각하고 그들이이 메타데이터에 필터를 가진 벡터에 대한 쿼리하는 방법을 계획하는 것을 권장합니다.
+
+당신의 쿼리와 관련하여 metadata 값의 cardinality를 조심하십시오. Cardinality는 설정된 데이터 값의 고유성 수준입니다. 낮은 cardinality는 몇 가지 독특한 값이 있음을 의미합니다. 예를 들어, 태양계의 행성 수; 세계에서 국가 수. 높은 cardinality는 많은 독특한 값이 있음을 의미합니다 : UUIv4 문자열; 밀리 초 정밀도로 타임 스탬프.
+
+높은 cardinality는 동등한 선택에 좋습니다 (`$eq`) 필터. 예를 들어, 사용자 ID와 관련된 벡터를 찾는 경우. 하지만 필터는 모든 벡터가 동일한 값이 있다면 도움이되지 않습니다. 그것은 극단적인 낮은 cardinality의 예입니다.
+
+높은 cardinality는 여러 가지 unqiue 메타 데이터 값을 검색하는 범위 쿼리에도 영향을 줄 수 있습니다. 예를 들어, 밀리 초 타임스탬프를 사용하여 색인 된 메타 데이터 값은 범위가 수천 개의 벡터를 고유 한 타임 스탬프가 작성 한 경우 낮은 성능을 볼 수 있습니다.
+
+장면 뒤에, Vectorize는 벡터 ids에 지도 가치에 반전 색인을 이용합니다. 특정 범위의 고유 한 값의 수는 너무 높다, 그런 다음 인덱스의 큰 부분을 읽을 필요가 ( 최악의 경우 전체 인덱스 검사). 이것은 기억 문제로 지도할 것입니다, 그래서 Vectorize는 요구에 응하기 위하여 질문의 성과 그리고 정확도를 degrade할 것입니다.
+
+높은 cardinality 데이터에 대한 하나의 접근은 더 많은 벡터가 동일한 값으로 그룹화되는 버킷을 만드는 방법입니다. 밀리 초 타임스탬프 예제를 계속하면 일반적으로 과립의 5 분 증가를 가진 날짜 범위와 필터를 상상할 수 있습니다. 우리는 마지막 5 분 점에 돌리는 타임스탬프를 사용할 수 있었습니다. 이 "windows"우리의 메타데이터 값은 5 분 증가합니다. 그리고 우리는 여전히 고유의 밀리 초 타임스탬프를 별도의 비 색인 필드로 저장할 수 있습니다.
+
+## 이름공간
+
+Namespaces는 인덱스 내에서 벡터를 구분하는 방법을 제공합니다. 예를 들면, 고객, 상인 또는 상점 ID에 의하여.
+
+namespace와 벡터를 연결하려면 선택적으로 제공 할 수 있습니다.`namespace: string`삽입 또는 upsert 가동을 실행할 때 값. 쿼리 할 때, 쿼리에 옵션 매개 변수로 검색 할 네임스페이스를 전달할 수 있습니다.
+
+네임스페이스는 길이가 64자(바이트)까지 가능하며, 인덱스당 최대 1,000개의 네임스페이스를 가질 수 있습니다. 더 알아보기[제한 사항](/vectorize/platform/limits/)더 자세한 내용은 문서.
+
+네임스페이스가 쿼리 작업에 지정되면 네임스페이스 내에서 벡터만 검색에 사용됩니다. Namespace 필터링은 벡터 검색 전에 적용되며, 일치하는 결과의 정밀도를 증가시킵니다.
+
+namespace로 벡터를 삽입하려면:
+
+```ts
+//Mock 벡터
+//기계 학습 모형에서 벡터는 전형적으로 ~100에서 1536 차원입니다
+//넓은 (또는 더 넓은).
+const sampleVectors: Array<VectorizeVector> = [
+	{
+		id: "1",
+		values: [32.4, 74.1, 3.2, ...],
+		namespace: "text",
+	},
+	{
+		id: "2",
+		values: [15.1, 19.2, 15.8, ...],
+		namespace: "images",
+	},
+	{
+		id: "3",
+		values: [0.16, 1.2, 3.8, ...],
+		namespace: "pdfs",
+	},
+];
+
+//벡터를 삽입하고 벡터 ID를 반환합니다.
+let inserted = await env.TUTORIAL_INDEX.insert(sampleVectors);
+```
+
+namespace 내에서 벡터를 쿼리하려면:
+
+```ts
+//QueryVector는 namespace 내 벡터에 대해 검색됩니다 (만)
+let matches = await env.TUTORIAL_INDEX.query(queryVector, {
+	namespace: "images",
+});
+```
+
+## 글쓰기 처리량 향상
+
+쿼리에 표시된 업데이트 시간을 단축하는 한 가지 방법은 몇 가지 요청으로 더 많은 벡터를 배치하는 것입니다. 이것은 쓰기 무거운 작업 부하에 중요합니다. 단일 요청에 쓸 수 있는 몇 가지 벡터가 있는지 확인하려면,[제한 사항](/vectorize/platform/limits/)사이트 맵
+
+Vectorize는 내구성을 위한 쓰기 앞서 로그에 immeditely를 씁니다. 이 글을 읽으려면 비동기 작업은 R2에서 현재 인덱스 파일을 읽을 필요가 있으며 업데이트 된 인덱스를 작성하고 R2로 다시 새로운 인덱스 파일을 작성하고 변경을 할 수 있습니다. 쓰기의 오버 헤드를 유지하고 쓰기 처리량을 향상시키기 위해 Vectorize는 단일 배치로 여러 변경을 결합합니다. 그것은 배치의 최대 크기를 200,000 총 벡터 또는 1,000 개의 개별 업데이트로 설정합니다. 즉, 그것은 먼저 히트.
+
+예를 들어, 우리는 우리의 인덱스에 삽입하고 싶습니다 250,000 벡터가 있다고합니다. 삽입 API 250,000 번 호출 한 번에 삽입하기로 결정합니다. Vectorize는 각 일에 있는 1000의 벡터를 가공하고, 250의 총 일을 통해서 일할 필요가 있을 것입니다. 이것은 적어도 한 시간 걸릴 수 있었습니다.
+
+더 나은 접근은 우리의 업데이트를 배치하는 것입니다. 예를 들어, 우리는 각 파일이 2,500 벡터를 가지고있는 100 파일로 250,000 벡터를 분할 할 수 있습니다. 우리는 삽입 HTTP API 100 시간을 호출합니다. Vectorize는 2개 3개의 일에 색인을 업데이트할 것입니다. 모든 250,000 벡터는 몇 분 안에 쿼리에 표시됩니다.
+
+## 이름 \*
+
+### 모델 번호: Workers
+
+사용 방법`insert()`·`upsert()`CloudflareXQ 안에 색인에 유효한 방법 현재 인덱스로 벡터를 삽입하는 작업자.
+
+```ts
+//Mock 벡터
+//기계 학습 모형에서 벡터는 전형적으로 ~100에서 1536 차원입니다
+//넓은 (또는 더 넓은).
+const sampleVectors: Array<VectorizeVector> = [
+	{
+		id: "1",
+		values: [32.4, 74.1, 3.2, ...],
+		metadata: { url: "/products/sku/13913913" },
+	},
+	{
+		id: "2",
+		values: [15.1, 19.2, 15.8, ...],
+		metadata: { url: "/products/sku/10148191" },
+	},
+	{
+		id: "3",
+		values: [0.16, 1.2, 3.8, ...],
+		metadata: { url: "/products/sku/97913813" },
+	},
+];
+
+//벡터를 삽입하고 벡터 ID를 반환합니다.
+let inserted = await env.TUTORIAL_INDEX.insert(sampleVectors);
+```
+
+더 알아보기[Vectorize의 API](/vectorize/reference/client-api/)추가 예제.
+
+### wrangler 클립
+
+:::노트\[Cloudflare API 속도 제한]
+
+글로벌을 방지하기 위해 embeddings.ndjson 파일 당 최대 5000 벡터를 사용하십시오[비율 제한](/fundamentals/api/reference/limits/)Cloudflare API를 위해.
+
+:::
+
+대량 업로드 벡터 embeddings 직접:
+
+- 파일에는 newline-delimited JSON (NDJSON 형식)이 있어야 합니다. 각 완전한 벡터는 새로운 라인이 분리되어야 하며 배열이나 객체 안에는 안됩니다.
+- 벡터는 완료되어야하며 독특한 문자열을 포함해야합니다.`id`벡터 당.
+
+NDJSON 포맷 된 파일 :
+
+```json
+{ "id": "4444", "values": [175.1, 167.1, 129.9], "metadata": {"url": "/products/sku/918318313"}}
+{ "id": "5555", "values": [158.8, 116.7, 311.4], "metadata": {"url": "/products/sku/183183183"}}
+{ "id": "6666", "values": [113.2, 67.5, 11.2], "metadata": {"url": "/products/sku/717313811"}}
+```
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+```sh
+wrangler vectorize insert <your-index-name> --file=embeddings.ndjson
+```
+
+### 웹 사이트
+
+Vectorize는 또한 삽입 벡터를 통해 지원합니다[REST API를](/api/resources/vectorize/subresources/indexes/methods/insert/)기존 머신러닝 툴링 및 언어에서 Vectorize 인덱스를 운영할 수 있는 , (PythonQ를 포함).
+
+예를 들어, embeddings를 삽입[NDJSON 형식](#workers-api)Python 스크립트에서 직접:
+
+```py
+import requests
+
+url = "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/v2/indexes/{}/insert".format("your-account-id", "index-name")
+
+headers = {
+    "Authorization": "Bearer <your-api-token>"
+}
+
+with open('embeddings.ndjson', 'rb') as embeddings:
+    resp = requests.post(url, headers=headers, files=dict(vectors=embeddings))
+    print(resp)
+```
+
+이 코드는 정의된 벡터를 삽입할 것입니다`embeddings.ndjson`제공된 인덱스로. Python 라이브러리는 Pandas를 포함한 NDJSON 형식을 내장하여 지원합니다.`read_json`방법:
+
+```py
+import pandas as pd
+data = pd.read_json('embeddings.ndjson', lines=True)
+```

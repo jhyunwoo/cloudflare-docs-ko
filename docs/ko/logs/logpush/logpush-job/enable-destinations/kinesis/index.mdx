@@ -1,0 +1,98 @@
+---
+pcx_content_type: how-to
+title: Amazon Kinesis 사용
+sidebar:
+  order: 98
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/kinesis/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/kinesis/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Logpush 지원[아마존 Kinesis](https://aws.amazon.com/kinesis/)모든 데이터 세트의 목적지로. Logpush가 전송하는 각 Kinesis 레코드는 newline-delimited JSON 형식의 GZIP-compressed 데이터의 배치를 포함 할 것입니다 (기본값으로), 또는 지정된 형식으로[`output_options`](/logs/logpush/logpush-job/log-output-options/)작업이 생성되었을 때 매개 변수.
+
+## STS Assume 역할 (추천)을 사용하여 Kinesis 구성
+
+1. Cloudflare Logpush에 대한 IAM 역할 만들기 다음의 신뢰 관계와 함께 애용:
+
+```java
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": [
+                    "arn:aws:iam::391854517948:user/cloudflare-logpush"
+                ]
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+2. IAM 역할이 수행 할 수있는 권한을 보장`PutRecord`Kinesis 스트림에 작업. 기타 제품`<AWS_REGION>`, `<YOUR_AWS_ACCOUNT_ID>`·`<STREAM_NAME>`자신의 값으로:
+
+```java
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "kinesis:PutRecord",
+            "Resource": "arn:aws:kinesis:<AWS_REGION>:<YOUR_AWS_ACCOUNT_ID>:stream/<STREAM_NAME>"
+        }
+    ]
+}
+```
+
+3. Logpush 작업 만들기, 다음 형식을 사용하여`destination_conf`유형:
+
+```bash
+kinesis://<STREAM_NAME>?region=<AWS_REGION>&sts-assume-role-arn=arn:aws:iam::<YOUR_AWS_ACCOUNT_ID>:role/<IAM_ROLE_NAME>
+```
+
+4. (선택) STS Assume 롤을 사용할 때, 다음을 포함할 수 있습니다.`sts-external-id`한국어`destination_conf`매개변수 그래서 그것은 Kinesis에 당신의 Logpush 일의 요구에 포함됩니다. 더 알아보기[AWS 계정 액세스에 대한 외부 ID를 사용하여 다른 사람에 의해 소유](https://aws.amazon.com/blogs/apn/securely-using-external-id-for-accessing-aws-accounts-owned-by-others/)더 많은 정보.
+
+```bash
+kinesis://<STREAM_NAME>?region=<AWS_REGION>&sts-assume-role-arn=arn:aws:iam::<YOUR_AWS_ACCOUNT_ID>:role/<IAM_ROLE_NAME>&sts-external-id=<EXTERNAL_ID>
+```
+
+### STS Assume 역할 예제
+
+```bash
+$ curl https://api.cloudflare.com/client/v4/zones/$ZONE_TAG/logpush/jobs \
+-H 'Authorization: Bearer <API_TOKEN>' \
+-H 'Content-Type: application/json' -d '{
+  "name": "kinesis",
+  "destination_conf": "kinesis://<STREAM_NAME>?region=<AWS_REGION>&sts-assume-role-arn=arn:aws:iam::<YOUR_AWS_ACCOUNT_ID>:role/<IAM_ROLE_NAME>",
+  "dataset": "http_requests",
+  "enabled": true
+}'
+```
+
+## IAM Access Keys를 사용하여 Kinesis 구성
+
+IAM Access Keys를 사용하여 Logpush 작업을 구성하면 IAM 사용자가 수행 할 수있는 권한을 보장합니다.`PutRecord`당신의 Kinesis 스트림에 활동:
+
+```bash
+kinesis://<STREAM_NAME>?region=<AWS_REGION>&access-key-id=<AWS_ACCESS_KEY_ID>&secret-access-key=<AWS_SECRET_ACCESS_KEY>
+```
+
+### IAM 액세스 키 예
+
+```bash
+$ curl https://api.cloudflare.com/client/v4/zones/$ZONE_TAG/logpush/jobs \
+-H 'Authorization: Bearer <API_TOKEN>' \
+-H 'Content-Type: application/json' -d '{
+  "name": "kinesis",
+  "destination_conf": "kinesis://<STREAM_NAME>?region=<AWS_REGION>&access-key-id=<AWS_ACCESS_KEY_ID>&secret-access-key=<AWS_SECRET_ACCESS_KEY>",
+  "dataset": "http_requests",
+  "enabled": true
+}'
+```

@@ -1,0 +1,254 @@
+---
+pcx_content_type: configuration
+title: 텍스트 (ctx)
+head: []
+description: >-
+  Cloudflare WorkersXQ의 컨텍스트 API, props, exports, waitUntil 및
+  passThroughOnException 등
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/context/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/context/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, WranglerConfig } from "~/components";
+
+Context API는 작업자 또는 튼튼한 개체의 수명주기를 관리하는 방법을 제공합니다.
+
+Context는 다음과 같은 장소를 통해 노출됩니다:
+
+- 세 번째 매개 변수로[핸들러](/workers/runtime-apis/handlers/), 등[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch/). (`fetch(request, env, ctx)`)
+- 고급 호텔[`WorkerEntrypoint`한국어](/workers/runtime-apis/bindings/service-bindings/rpc) (`this.ctx`)
+
+Context API는 stateless contexts에서 엄격히 유효하다는 것을 주의하십시오, 그것이 아닙니다,[모델 번호: Durable Objects](/durable-objects/). 그러나, Durable Objects에는 다른 목표가, 있습니다[튼튼한 목표 국가](/durable-objects/api/state/), 유효한`this.ctx`튼튼한 개체 클래스 내부, Context API와 같은 기능을 제공합니다.
+
+## `props`
+
+`ctx.props`추가 설정을 전달하는 방법을 제공합니다. 예를 들어, 노동자가 다른 노동자에 의해 호출되면,`ctx.props`호출 노동자에 대한 정보를 제공 할 수 있습니다.
+
+예를 들어, "frontend-worker"라는 Worker를 구성하는 것을 상상해보십시오. 문서를 조작하기 위해 "doc-worker"라는 다른 Worker와 대화해야합니다. "frontend-worker"를 구성할 수 있습니다.[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings)다음 것:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"services": [
+  		{
+  			"binding": "DOC_SERVICE",
+  			"service": "doc-worker",
+  			"entrypoint": "DocServiceApi",
+  			"props": {
+  				"clientId": "frontend-worker",
+  				"permissions": [
+  					"read",
+  					"write"
+  				]
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이제 frontend-worker는 같은 코드와 doc-worker 호출 할 수 있습니다`env.DOC_SERVICE.getDoc(id)`. 이것은[원격 절차 호출](/workers/runtime-apis/rpc/)방법을 호출`getDoc()`수업의`DocServiceApi`·[`WorkerEntrypoint`한국어](/workers/runtime-apis/bindings/service-bindings/rpc)doc-worker에 의해 수출하는.
+
+설정은 포함`props`가치. arbitrary JSON 값에 있습니다. 언제까지`DOC_SERVICE`바인딩은, 사용됩니다`DocServiceApi`호출을 수신하면이 액세스 할 수 있습니다.`props`값으로`this.ctx.props`. 여기에서, 우리는 형성했습니다`props`호출이 frontend-worker에서 온다는 것을 지정하려면 문서를 읽고 쓸 수 있어야한다. 그러나, 내용의`props`당신이 원하는 무엇이든 일 수 있습니다.
+
+Workers 플랫폼은 그 것을 지키기 위하여 디자인됩니다`ctx.props`작업자를 편집하고 배포하는 권한이 있는 사람만 설정할 수 있습니다. 이것은 당신이 그 콘텐츠를 믿을 수 있다는 것을 의미합니다`ctx.props`이름 \* 비밀 키 또는 암호화 서명을 사용할 필요가 없습니다`ctx.props`가치.
+
+`ctx.props`RPC 인터페이스를 구성할 수도 있습니다.*이름 \**&#xC790;원, 따라서 "사용자 정의 바인딩". 예를 들어, 특정 문서에만 액세스 권한을 부여하는 "doc-worker"에 서비스 바인딩을 구성 할 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"services": [
+  		{
+  			"binding": "FOO_DOCUMENT",
+  			"service": "doc-worker",
+  			"entrypoint": "DocumentApi",
+  			"props": {
+  				"docId": "e366592caec1d88dff724f74136b58b5",
+  				"permissions": [
+  					"read",
+  					"write"
+  				]
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+여기에, 우리는 배치`docId`뚱 베어`ctx.props`·`DocumentApi`클래스는 API를 특정 문서로 제공하도록 설계되었습니다.`ctx.props.docId`, 주어진 허가를 위해.
+
+## `exports`
+
+:::노트\[Compatibility flag required]
+
+이용안내`ctx.exports`, 당신은 사용해야 합니다[이름 \*`enable_ctx_exports`호환성 깃발](/workers/configuration/compatibility-flags#enable-ctxexports).
+
+:::
+
+`ctx.exports`자동적으로 구성된 "loopback"는 당신의 최고 수준의 수출 전부를 위해 묶습니다.
+
+- 각 최고 수준의 수출을 위해`extends WorkerEntrypoint`(또는 단순히 fetch 핸들러를 구현),`ctx.exports`자동 포함[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings).
+- 각 최고 수준의 수출을 위해`extends DurableObject`(그리고 저장을 통해 구성 된[회사연혁](/durable-objects/reference/durable-objects-migrations/)), `ctx.exports`자동 포함[튼튼한 목표 namespace 바인딩](/durable-objects/api/namespace/).
+
+예를 들면:
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export class Greeter extends WorkerEntrypoint {
+	greet(name) {
+		return `Hello, ${name}!`;
+	}
+}
+
+export default {
+	async fetch(request, env, ctx) {
+		let greeting = await ctx.exports.Greeter.greet("World");
+		return new Response(greeting);
+	},
+};
+```
+
+이 예제에서, 기본 fetch 핸들러 호출`Greeter`RPC 이상의 클래스는 서비스 바인딩을 사용하는 방법을 좋아합니다. 그러나 외부 구성이 필요하지 않습니다.`ctx.exports`인기 상품*제품정보*당신의 최고 수준의 수입에서.
+
+### 이름 \*`ctx.props`사용시`ctx.exports`
+
+루프백 서비스 바인딩`ctx.exports`일반 서비스 바인딩이 하지 않는 추가 기능이 있다: 콜러의 값을 지정할 수 있다`ctx.props`호출자에게 전달되어야한다.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { WorkerEntrypoint } from "cloudflare:workers";
+
+    export class Greeter extends WorkerEntrypoint {
+    	greet(name) {
+    		return `${this.ctx.props.greeting}, ${name}!`;
+    	}
+    }
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		//인사 "Welcome"를 사용하는 맞춤형 인사를하십시오.
+    		let greeter = ctx.exports.Greeter({ props: { greeting: "Welcome" } });
+
+    		//세상을 그리다. "환영, 세계!"
+    		let greeting = await greeter.greet("World");
+
+    		return new Response(greeting);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { WorkerEntrypoint } from "cloudflare:workers";
+
+    type Props = {
+    	greeting: string;
+    };
+
+    export class Greeter extends WorkerEntrypoint<Env, Props> {
+    	greet(name) {
+    		return `${this.ctx.props.greeting}, ${name}!`;
+    	}
+    }
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		//인사 "Welcome"를 사용하는 맞춤형 인사를하십시오.
+    		let greeter = ctx.exports.Greeter({ props: { greeting: "Welcome" } });
+
+    		//세상을 그리다. "환영, 세계!"
+    		let greeting = await greeter.greet("World");
+
+    		return new Response(greeting);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+역학적으로 props를 지정하는 것은 콜러가 동일한 노동자이기 때문에 이 경우에 허용됩니다, 따라서 어떤 props를 지정하기 위하여 presumed 할 수 있습니다. props를 사용자 정의 할 수있는 능력은 특히 결과 바인딩이 RPC 이상 다른 노동자로 전달 될 때 유용합니다 또는 사용`env`한국어[동적인 적재된 노동자](/workers/runtime-apis/bindings/worker-loader/).
+
+주의사항`props`이 방법으로 지정된 값은 "persistently" serializable type을 포함 할 수 있습니다. 이것은 모든 기본을 포함합니다[구조화된 clonable 자료 유형](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm). 그것은 또한 Service Bindings 자체를 포함합니다: 당신은 서비스 바인딩을에 두골`props`다른 서비스 바인딩의.
+
+### TypeScript 유형`ctx.exports`·`ctx.props`
+
+TypeScript를 사용하는 경우에, 당신은 사용해야 합니다[이름 \*`wrangler types`이름 \*](/workers/wrangler/commands/#types)당신의 프로젝트에 대한 자동 생성 유형. 생성된 유형은 지킵니다`ctx.exports`제대로 입력됩니다.
+
+받아 들일 수 있는 엔트리포인트 클래스를 선언할 때`props`, 그것을 선언해야`extends WorkerEntrypoint<Env, Props>`, 어디`Props`유형의`ctx.props`. 위의 예제를 참조하십시오.
+
+## `waitUntil`
+
+`ctx.waitUntil()`작업자의 수명을 연장하고 응답을 차단하지 않고 작업을 수행 할 수 있으며 응답이 반환된 후 계속 될 수 있습니다. 그것은 받아들입니다`Promise`Workers 런타임이 계속 실행되고, 응답이 Worker's에 의해 반환된 후에도,[회사 소개](/workers/runtime-apis/handlers/).
+
+`waitUntil`일반적으로 사용 :
+
+- 외부 분석 공급자에게 이벤트를 차단합니다. (사용할 때)[모델 번호: Workers Analytics 엔진](/analytics/analytics-engine/), 당신은 사용할 필요가 없습니다`waitUntil`)
+- 아이템을 캐시로 넣어[캐시 API](/workers/runtime-apis/cache/)
+
+:::카트로션\[`waitUntil`30초 제한이 있습니다.
+
+Worker의 수명은 응답이 전송되거나 클라이언트가 차단된 후 최대 30 초 동안 연장됩니다. 이 시간 제한은 모두에서 공유됩니다.`waitUntil()`같은 요청 내에서 호출 - 어떤 약속이 30 초 후에 정착하지 않은 경우, 그들은 취소됩니다. 시간 :`waitUntil`작업이 취소되고, 다음 경고는 로그인됩니다.[모델 번호: Workers 로그인](/workers/observability/logs/workers-logs/)모든 첨부[꼬리 Workers](/workers/observability/logs/tail-workers/): `waitUntil() tasks did not complete within the allowed time after invocation end and have been cancelled.`
+
+작업이 성공적으로 완료되면 메시지를 보내야합니다.[이름 \*](/queues/)그리고 별도의 소비자 노동자에서 그들을 처리. Queues는 믿을 수 있는 납품 및 자동적인 화물을 제공하고, 당신의 일은 잃지 않습니다.
+
+:::
+
+:::노트\[오시는 길]
+
+자주 묻는 질문`waitUntil()`로그 또는 예외를 방출하기 위해, 우리는 사용하는 것이 좋습니다[꼬리 Workers](/workers/observability/logs/tail-workers/)대신. 직장인이 불안정한 예외를 던지더라도, 꼬리 노동자가 실행될 것이며, 노동자의 고용 상태에 관계없이 로그 또는 예외를 방출할 수 있습니다.
+
+[CloudflareQueues](/queues/)클라이언트 노동자에 대한 응답을 돌려 차단하지 않고 수행 작업 아웃 밴드에 대한 목적이 있습니다.
+주요 특징
+
+전화 번호`waitUntil()`여러 번. 이름 \*`Promise.allSettled`, 약속이 하나에게 통과하더라도`waitUntil`호출은 거부, 다른 사람에게 전달 약속`waitUntil()`호출은 계속됩니다.
+
+예를 들면:
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		//앞으로/proxy 본래 요구
+		let res = await fetch(request);
+
+		//사용자 정의 헤더 추가(s)
+		res = new Response(res.body, res);
+		res.headers.set("x-foo", "bar");
+
+		//응답을 캐시
+		//참고 : 차단되지 않음 / 대기
+		ctx.waitUntil(caches.default.put(request, res.clone()));
+
+		//이름 *
+		return res;
+	},
+};
+```
+
+## `passThroughOnException`
+
+:::카트로션\[몸의 재사용]
+
+Workers Runtime은 요청 및 응답체에 대한 스트리밍을 사용합니다. 그것은 몸을 버퍼하지 않습니다. Hence는 신체가 소모 한 후 예외가 발생하면`passThroughOnException()`몸을 다시 보낼 수 없습니다.
+
+이 문제를 일으킬 경우, 우리는 요청 신체를 복제하고 코드의 예외를 처리하는 것이 좋습니다. 이것은 uncaught 부호 예외에 대하여 보호합니다. 그러나 CPU 또는 메모리 제한과 같은 몇 가지 예외 시간은 미분화되지 않습니다.
+주요 특징
+
+더 보기`passThroughOnException`방법은 노동자를 할 수[실패 개방](https://community.microfocus.com/cyberres/b/sws-22/posts/security-fundamentals-part-1-fail-open-vs-fail-closed), 그리고 Worker가 unhandled 예외를 던질 때 Origin 서버에 대한 요청을 전달합니다. Workers를 기존 서비스의 앞에 레이어로 사용할 때 유용 할 수 있으며, 작업자가 작업자가 직장에서 발생 한 예기치 않은 오류를 처리 할 수 있습니다.
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		//unhandled/uncaught 예외에 근원에 프록시
+		ctx.passThroughOnException();
+		throw new Error("Oops");
+	},
+};
+```

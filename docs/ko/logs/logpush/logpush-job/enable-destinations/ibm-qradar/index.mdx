@@ -1,0 +1,92 @@
+---
+pcx_content_type: how-to
+title: IBM QRadar 사용
+sidebar:
+  order: 98
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/ibm-qradar/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/ibm-qradar/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components"
+
+QRadar/Cloudflare 통합을 구성하려면 다음 방법 중 하나를 사용하는 옵션이 있습니다.
+
+- [HTTP: HTTP 수신기 프로토콜](/logs/logpush/logpush-job/enable-destinations/ibm-qradar/#http-receiver-protocol)
+- [아마존 AWS S3 나머지 API](/logs/logpush/logpush-job/enable-destinations/ibm-qradar/#amazon-aws-s3-rest-api)
+
+## HTTP 수신기 프로토콜
+
+Cloudflare 로그를 QRadar로 보내려면[HTTP endpoints에 Logpush 작업](/logs/logpush/logpush-job/enable-destinations/http/)API를 통해. 아래에서 Cloudflare 방화벽 이벤트 및 Cloudflare HTTP 이벤트를 QRadar로 보내려면 두 개의 컬 예제를 찾을 수 있습니다.
+
+### 모델 번호: Cloudflare 방화벽 이벤트
+
+<APIRequest
+  method="POST"
+  path="/zones/{zone_id}/logpush/jobs"
+  json={{
+  name: "<NAME>",
+  output_options: {
+    field_names: [
+      "Action", "ClientIP", "ClientASN", "ClientASNDescription", "ClientCountry", "ClientIPClass",
+      "ClientRefererHost", "ClientRefererPath", "ClientRefererQuery", "ClientRefererScheme",
+      "ClientRequestHost", "ClientRequestMethod", "ClientRequestPath", "ClientRequestProtocol",
+      "ClientRequestQuery", "ClientRequestScheme", "ClientRequestUserAgent", "EdgeColoCode",
+      "EdgeResponseStatus", "Kind", "MatchIndex", "Metadata", "OriginResponseStatus",
+      "OriginatorRayID", "RayID", "RuleID", "Source", "Datetime"
+    ],
+    timestamp_format: "rfc3339"
+  },
+  destination_conf: "<QRADAR_URL>:<LOG_SOURCE_PORT>",
+  max_upload_bytes: 5000000,
+  max_upload_records: 1000,
+  dataset: "firewall_events",
+  enabled: true
+}}
+/>
+
+### Cloudflare HTTP 이벤트
+
+<APIRequest
+  method="POST"
+  path="/zones/{zone_id}/logpush/jobs"
+  json={{
+  name: "<NAME>",
+  output_options: {
+    field_names: [
+      "ClientRequestMethod", "EdgeResponseStatus", "ClientIP", "ClientSrcPort", "CacheCacheStatus",
+      "ClientCountry", "ClientDeviceType", "ClientIPClass", "ClientMTLSAuthCertFingerprint", "ClientMTLSAuthStatus",
+      "ClientRegionCode", "ClientRequestBytes", "ClientRequestHost", "ClientRequestPath", "ClientRequestProtocol",
+      "ClientRequestReferer", "ClientRequestScheme", "ClientRequestSource", "ClientRequestURI", "ClientRequestUserAgent",
+      "ClientSSLCipher", "ClientSSLProtocol", "ClientXRequestedWith", "EdgeEndTimestamp", "EdgeRequestHost",
+      "EdgeResponseBodyBytes", "EdgeResponseBytes", "EdgeServerIP", "EdgeStartTimestamp", "SecurityActions",
+      "SecurityRuleIDs", "SecuritySources", "OriginIP", "OriginResponseStatus", "OriginSSLProtocol", "ParentRayID",
+      "RayID", "SecurityAction", "WAFAttackScore", "SecurityRuleID", "SecurityRuleDescription", "WAFSQLiAttackScore",
+      "WAFXSSAttackScore", "EdgeStartTimestamp"
+    ],
+    timestamp_format: "rfc3339"
+  },
+  destination_conf: "<QRADAR_URL>:<LOG_SOURCE_PORT>",
+  max_upload_bytes: 5000000,
+  max_upload_records: 1000,
+  dataset: "http_requests",
+  enabled: true
+}}
+/>
+
+Cloudflare는 IP 주소, 포트의 접근성을 확인하고 HTTP 수신 로그 소스의 인증서를 검증합니다. 모든 매개 변수가 유효하다면, Logpush는 생성되고, HTTP 수신기 로그 소스에 이벤트를 보낼 시작합니다.
+
+## 아마존 AWS S3 나머지 API
+
+Amazon S3 REST API 프로토콜을 사용할 때 IBM QRadar는 Cloudflare를 수집합니다. 아마존 S3 버킷에서 이벤트 로그. 이 옵션을 사용하려면:
+
+1. 이름 \*[아마존 S3 물통](https://docs.aws.amazon.com/AmazonS3/latest/userguide/creating-bucket.html)Cloudflare 로그 저장. 양동이 이름과 AWS 액세스 키 ID 및 비밀 액세스 키의 메모를 버킷에 쓸 수있는 충분한 권한으로 만드십시오.
+2. [Amazon S3에 Logpush를 사용](/logs/logpush/logpush-job/enable-destinations/aws-s3/).
+3. AWS 관리 콘솔에서 Amazon S3 서비스에 이동하십시오. Cloudflare를 허용하는 버킷 엔드 포인트를 생성하여 S3 버킷에 직접 로그를 보냅니다.
+4. 자주 묻는 질문[통합 Cloudflare Amazon AWS S3 REST API 프로토콜을 이용하여 QRadar로 로그인](https://www.ibm.com/docs/en/dsm?topic=configuration-cloudflare-logs).
+5. Cloudflare에서 일부 로그를 생성하여 구성을 테스트하고 S3 버킷에 전달되고 QRadar로 전달되는 것을 보장합니다.

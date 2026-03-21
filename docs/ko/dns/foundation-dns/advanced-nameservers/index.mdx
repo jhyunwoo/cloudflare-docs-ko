@@ -1,0 +1,72 @@
+---
+pcx_content_type: concept
+title: 고급 네임서버
+sidebar:
+  order: 2
+---
+
+import { Details, GlossaryTooltip, Render } from "~/components";
+
+[Foundation DNS](/dns/foundation-dns/)에 포함된 고급 네임서버는 더 향상된 복원력과 더 일관된 네임서버 할당을 제공합니다.
+
+고급 네임서버에 대한 자세한 내용은 아래 섹션을 참고하고, 이 기능을 활성화하는 방법은 [고급 네임서버 설정](/dns/foundation-dns/setup/)을 확인하세요.
+
+:::note
+<Render file="ns-advanced-vs-custom" product="dns" />
+
+또한 표준 네임서버와 비교하면 [일부 동작이 다릅니다](/dns/foundation-dns/setup/#differences-from-standard-nameservers).
+:::
+
+## 애니캐스트 네트워크 그룹
+
+복원력을 높이기 위해 고급 네임서버 IP 광고는 세 개의 <GlossaryTooltip term="anycast">애니캐스트</GlossaryTooltip> 네트워크 그룹으로 구성됩니다.
+
+두 그룹은 지리적으로 분산된 데이터 센터에서 광고되는 IP로 이루어지고, 세 번째 그룹은 Cloudflare 네트워크의 모든 데이터 센터에서 광고되는 IP로 이루어집니다.
+
+<Details header="영국 예시">
+
+| IPs             | 그룹 | 데이터 센터         |
+| --------------- | ----- | -------------------- |
+| `108.162.198.1` | A     | 런던 및 에든버러 |
+| `172.64.40.1`   | B     | 맨체스터           |
+| `162.159.60.1`  | C     | 맨체스터, 런던, 에든버러 |
+
+</Details>
+
+DNS 해석 과정에서 리졸버는 결국 도메인의 권한 네임서버에 도달할 수 있는 모든 IP 목록을 얻게 되고, 일반적으로는 해석 성능이 가장 좋은 IP를 선호합니다.
+
+모든 데이터 센터에서 모든 IP를 광고하는 대신 이러한 그룹 논리를 적용하면, 한 데이터 센터에 국지적인 문제가 생기더라도 리졸버가 다음으로 가까운 데이터 센터에서 광고되는 IP로 대체할 수 있으므로 복원력이 향상됩니다. 세 번째 그룹은 또 하나의 중복 계층을 추가하여 복원력을 더욱 높입니다.
+
+분산 그룹 논리에 대한 심층 설명은 [블로그 게시물](https://blog.cloudflare.com/foundation-dns-launch)을 참고하세요.
+
+:::note
+<Render file="ns-static-ips" product="dns" />
+:::
+
+## 전용 릴리스 프로세스
+
+고급 네임서버를 사용하는 영역은 사고나 소프트웨어 회귀에 덜 노출됩니다.
+
+전용 릴리스 프로세스는 한동안 프로덕션에서 검증된 변경만 고급 네임서버에 도달하도록 한다는 의미입니다.
+
+## 네임서버 호스팅 및 할당
+
+표준 Cloudflare 네임서버는 `ns.cloudflare.com` 또는 `secondary.cloudflare.com` 아래에서 호스팅되지만, 고급 네임서버는 다음과 같은 별도 도메인을 사용합니다.
+
+- `foundationdns.com`
+- `foundationdns.net`
+- `foundationdns.org`
+
+서로 다른 TLD(`.com`, `.net`, `.org`)를 사용하고 이를 Enterprise 계정에서만 이용 가능하게 함으로써 네임서버 할당의 예측 가능성과 일관성이 향상됩니다.
+
+또한 직접 하위에 있는 영역들이 동일한 네임서버 집합을 갖지 않도록 보장할 때 충돌도 더 적어집니다.
+
+<Details header="하위 영역 예시">
+
+도메인 `example.com`과 하위 도메인 `abc.example.com`, `123.example.com`을 생각해 보세요.
+
+- `abc.example.com`과 `123.example.com`은 `example.com`의 직접 하위이므로 `example.com`과 동일한 네임서버를 가질 수 없습니다.
+- `abc.example.com`과 `123.example.com`은 형제 도메인이므로 동일한 네임서버를 가질 수 있습니다.
+- `new.abc.example.com`은 `abc.example.com`과 `example.com` 모두의 직접 하위이므로 이들과 동일한 네임서버를 가질 수 없지만, `123.example.com`과는 동일한 네임서버를 가질 수 있습니다.
+
+</Details>

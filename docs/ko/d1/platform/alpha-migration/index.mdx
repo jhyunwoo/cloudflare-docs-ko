@@ -1,0 +1,100 @@
+---
+pcx_content_type: concept
+title: Alpha 데이터베이스 마이그레이션 가이드
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/platform/alpha-migration/'
+translation_source_md: 'https://developers.cloudflare.com/d1/platform/alpha-migration/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::카트로션
+
+D1 알파 데이터베이스는 8 월 22, 2024에서 라이브 SQL 쿼리를 받아 들였습니다.
+
+:::
+
+D1의 오픈 베타 10월 2023에서 시작되었으며 새로 만들어진 데이터베이스는 향상된 데이터베이스 크기, 향상된 쿼리 처리량 및 감소 된 대기 시간으로 훨씬 신뢰할 수 있고 수행되는 다양한 하위 아키텍처를 사용합니다.
+
+이 가이드는 우리의 생산ready 체계에 알파 D1 데이타베이스를 개조할 것입니다.
+
+## 자주 묻는 질문
+
+1. 당신은[`wrangler`명령줄 도구](/workers/wrangler/install-and-update/)설치하기
+2. 당신은 사용`wrangler`이름 \*`3.33.0`또는 나중에 (출시 March 2024) 이전 버전은 없습니다[`--remote`계정 만들기](/d1/platform/release-notes/#2024-03-12)이 가이드의 일부로서의 필요
+3. 'alpha' D1 데이터베이스. 7월 27일 이전의 모든 데이터베이스, 2023 ([출시 노트](/d1/platform/release-notes/#2024-03-12)) 더 이상 지원되지 않는 알파 저장 백엔드를 사용하고 생산을 위해 추천되지 않았습니다.
+
+## 1. 데이터베이스가 알파임을 검증
+
+```sh
+npx wrangler d1 info <database_name>
+```
+
+데이터베이스가 알파인 경우, 명령의 출력은 다음과 같습니다.`version`설정하기`alpha`:
+
+```
+...
+│ version           │ alpha                                 │
+...
+```
+
+## 2. 수동 백업 만들기
+
+```sh
+npx wrangler d1 backup create <alpha_database_name>
+```
+
+## 3. 수동 백업 다운로드
+
+아래 명령은 알파 데이터베이스의 수동 백업을 다운로드합니다.`.sqlite3`파일 :
+
+```sh
+npx wrangler d1 backup download <alpha_database_name> <backup_id> #wrangler d1 백업 목록 <database name>와 함께 사용 가능한 백업보기
+```
+
+## 4. SQL 문으로 수동 백업을 변환
+
+아래 명령은 다운로드에서 알파 데이터베이스의 수동 백업을 변환합니다.`.sqlite3`그런 다음 새로운 데이터베이스로 가져올 수있는 SQL 문으로 파일 :
+
+```sh
+sqlite3 db_dump.sqlite3 .dump > db.sql
+```
+
+위의 명령을 실행하면 D1와 호환되는 출력 SQL 파일을 편집해야합니다.
+
+1. 기타 제품`BEGIN TRANSACTION`·`COMMIT;`파일에서.
+2. 다음 표 생성 문 제거:
+
+   ```sql
+   CREATE TABLE _cf_KV (
+    	key TEXT PRIMARY KEY,
+    	value BLOB
+   ) WITHOUT ROWID;
+   ```
+
+## 5. 새로운 D1 데이터베이스 만들기
+
+모든 새로운 D1 데이터베이스는 기본적으로 업데이트 된 아키텍처를 사용합니다.
+
+다음 명령을 실행하여 새 데이터베이스를 만듭니다.
+
+```sh
+npx wrangler d1 create <new_database_name>
+```
+
+## 6. 새로운 D1 데이터베이스에 대한 SQL 문 실행
+
+```sh
+npx wrangler d1 execute <new_database_name> --remote --file=./db.sql
+```
+
+## 7. 알파 데이터베이스 삭제
+
+이전 알파 데이터베이스를 삭제하려면, 실행:
+
+```sh
+npx wrangler d1 delete <alpha_database_name>
+```

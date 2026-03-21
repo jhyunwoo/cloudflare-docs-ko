@@ -1,0 +1,101 @@
+---
+title: 아마존 S3 사용
+pcx_content_type: how-to
+sidebar:
+  order: 56
+head:
+  - tag: title
+    content: Amazon S3에 Logpush 사용 가능
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/aws-s3/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/aws-s3/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+모델 번호: Cloudflare Logpush는 Cloudflare 대시보드 또는 API를 통해 Amazon S3에 직접 로그를 밀어줍니다. AWS GovCloud 위치를 사용하는 고객은 당사를 사용해야 합니다.**S3- 호환 엔드포인트**그리고 아니**아마존 S3 엔드포인트**.
+
+## Cloudflare 대시보드를 통해 관리
+
+<Render file="enable-logpush-job" product="logs" />
+
+4. 내 계정**자주 묻는 질문**, 선택**아마존 S3**.
+
+5. 다음 목적지 정보 입력 또는 선택:
+   - **제품정보**- S3 버킷 이름
+   - **오시는 길**- 저장 용기 안에 물통 위치
+   - **로그인을 일일 폴더로 구성**(추천)
+   - **물통 지역**
+   - 귀하의 정책이 필요한 경우[AWS SSE-S3 AES256 서버 사이드 암호화](https://docs.aws.amazon.com/AmazonS3/latest/userguide/serv-side-encryption.html).
+   - 제품 정보**Grant Cloudflare 파일 업로드**, 당신의 물통이 있는지 확인합니다[- 연혁](https://docs.aws.amazon.com/AmazonS3/latest/userguide/example-policies-s3.html#iam-policy-ex0)(당신은 이미 추가하지 않았다면):
+     - JSON 정책을 복사 한 다음 Amazon S3 콘솔에서 버킷으로 이동하고 정책을 붙여**제출** > **버킷 정책**선택하기**제품 정보**.
+
+목적지 정보를 입력할 때, 선택**계속하기**.
+
+6. 소유권을 증명하려면 Cloudflare는 지정된 목적지에 파일을 보낼 것입니다. 토큰을 찾으려면**기타**단추에서**모델 번호: 개요**소유권 도전 파일의 탭, 다음 Cloudflare 대시보드에 붙여넣기하여 버킷에 대한 액세스를 확인합니다. 이름 \***소유권 토큰**선택하기**계속하기**.
+
+7. Dataset을 선택하여 저장 서비스로 밀어줍니다.
+
+8. 다음 단계에서, 당신은 당신의 logpush 작업을 구성해야:
+   - 이름 \***이름 \***.
+   - 이름 \***로그인**, 당신은 이벤트를 선택하고 / 또는 로그에서 제거 할 수 있습니다. 더 알아보기[필터링](/logs/logpush/logpush-job/filters/)더 많은 정보. 모든 datasets에는 이 선택권이 있습니다.
+   - 내 계정**다음 필드를 보내십시오**, 당신은 당신의 저장 목적지에 모든 로그를 밀어 또는 선택적으로 당신이 밀어하려는 로그를 선택할 수 있습니다.
+
+9. 내 계정**고급 옵션**, 당신은 할 수 있습니다:
+   - 로그인의 타임스탬프 필드의 형식을 선택하십시오 (`RFC3339`(과태)`Unix`, 또는`UnixNano`).
+   - 선택하기[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)로그인 또는 로그의 무작위 샘플 비율을 밀어.
+   - 사용 가능한 적색`CVE-2021-44228`. 이 선택권은 각 발생을 대체할 것입니다`${`이름 \*`x{`.
+
+10. 제품정보**제출하기**일단 당신이 당신의 logpush 일을 구성하고 있습니다.
+
+## S3 버킷에 액세스하고
+
+Cloudflare는 Amazon Identity와 Access Management(IAM)을 사용하여 S3 Bucket에 액세스할 수 있습니다. Cloudflare IAM 사용자 필요`PutObject`버킷의 허가.
+
+로그는 S3 액세스 제어 목록 (ACL)을 사용하여 gzipped 개체로 그 물통으로 작성됩니다
+`Bucket-owner-full-control`이름 \*
+
+illustrative 목적을 위해, 당신이 물통에 로그를 저장하고 싶은 상상`burritobot`, 에서`logs`디렉토리. S3 URL은 그런 다음`s3://burritobot/logs`.
+
+<Render file="enable-read-permissions" product="logs" />
+
+<br />
+
+Amazon S3에 Logpush를 활성화하려면:
+
+1. S3 버킷을 만듭니다. 더 알아보기[Amazon의 지시](https://docs.aws.amazon.com/AmazonS3/latest/gsg/CreatingABucket.html).
+
+   :::주\[주]
+   중국 지역에서 버킷 ( Buckets)`cn-north-1`, `cn-northwest-1`)는 현재 지원되지 않습니다.
+   주요 특징
+
+2. 아래 정책 편집 및 붙여넣기**사이트맵** > **제품정보** > **제출** > **버킷 정책**, 교체`Resource`자신의 물통 경로와 값. 더 보기`AWS` `Principal`Cloudflare가 소유하고 변경되지 않아야합니다.
+
+```json
+{
+	"Id": "<POLICY_ID>",
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "Stmt1506627150918",
+			"Action": ["s3:PutObject"],
+			"Effect": "Allow",
+			"Resource": "arn:aws:s3:::burritobot/logs/*",
+			"Principal": {
+				"AWS": ["arn:aws:iam::391854517948:user/cloudflare-logpush"]
+			}
+		}
+	]
+}
+```
+
+:::주\[주]
+
+Logpush는 S3에 대한 멀티 파트 업로드를 사용합니다. Aborted uploads은 버킷에 남아있는 불완전한 파일에서 발생합니다. 스토리지 비용을 최소화하기 위해 Amazon은 Lifecycle 규칙을 구성하는 것이 좋습니다.`AbortIncompleteMultipartUpload`활동. 더 알아보기[multipart 업로드를 사용하여 객체 업로드 및 복사](https://docs.aws.amazon.com/AmazonS3/latest/dev/mpuoverview.html#mpu-abort-incomplete-mpu-lifecycle-config).
+
+:::

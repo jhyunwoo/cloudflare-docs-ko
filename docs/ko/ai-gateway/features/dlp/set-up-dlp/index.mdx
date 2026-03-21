@@ -1,0 +1,213 @@
+---
+pcx_content_type: how-to
+title: 데이터 손실 방지 설정 (DLP)
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/features/dlp/set-up-dlp/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/features/dlp/set-up-dlp/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Data Loss Prevention (DLP)를 AI Gateway로 추가하여 민감한 데이터에 대한 AI 프롬프트 및 응답을 스캔합니다.
+
+## 자주 묻는 질문
+
+- 현재 위치[AI 게이트웨이](/ai-gateway/get-started/)
+
+## AI Gateway를 위한 DLP 사용
+
+1. 로그인[Cloudflare 대시보드](https://dash.cloudflare.com/)계정 선택
+2. 오시는 길**사이트맵** > **AI 게이트웨이**.
+3. DLP를 활성화하려는 게이트웨이를 선택하십시오.
+4. 오시는 길**비밀번호**탭.
+5. 제품정보**데이터 손실 방지 (DLP)**&#xC73C;로**이름 \***.
+
+## DLP 정책 추가
+
+DLP를 활성화한 후, 민감한 데이터를 처리하는 방법을 정의하는 정책을 만들 수 있습니다:
+
+1. DLP 섹션에서, 클릭**추가 정책**.
+
+2. 각 정책의 다음 필드를 구성:
+   - **정책 ID**: 이 정책에 대한 고유의 이름을 입력하십시오 (예 : "Block-PII-Requests")
+
+   - **DLP 프로필**: DLP 프로파일을 선택하여 검사합니다. AI 요청 / 응답은 선택한 프로필의 각에 대해 확인할 수 있습니다. 유효한 단면도는 다음을 포함합니다:
+
+     - **금융정보**- 신용 카드, 은행 계좌, 라우팅 번호
+     - **개인 식별 정보 (PII)**- 이름, 주소, 전화번호
+     - **정부 식별자**- SSN, 여권 번호, 운전 면허증
+     - **의료 정보**- 의료 기록 번호, 환자 데이터
+     - **사용자 정의 프로파일**- 조직별 데이터 패턴
+
+     :::참조
+     DLP 프로파일을 만들 수 있으며 관리할 수 있습니다.[Zero Trust DLP 대시보드](/cloudflare-one/data-loss-prevention/dlp-profiles/).
+     :::
+
+   - **- 연혁**: 선택된 프로파일 경기 중 하나를 취할 수있는 작업을 선택하십시오 :
+     - **팟캐스트**- 차단 없이 감사 목적을 위한 탐지 기록
+     - **제품정보**- 진행중인 요청/책임 방지
+
+   - **기타**: 스캔을 선택 :
+     - **제품 정보**- 스캔 사용자는 AI 공급자로 전송
+     - **관련 기사**- 사용자가 반환하기 전에 AI 모델 응답 스캔
+     - **모두 보기**- 두 요청 및 응답 스캔
+
+3. 이름 \***제품 정보**정책 설정 저장.
+
+## DLP 정책 관리
+
+다른 구성으로 여러 DLP 정책을 만들 수 있습니다.
+
+- **여러 정책 추가**: 클릭**추가 정책**다른 프로파일 조합 또는 행동과 추가 정책을 만들려면
+- **이용 약관**: 각 정책 옆에 toggle을 사용하여 개별적으로 활성화하거나 구성을 삭제하지 않고 비활성화하십시오.
+- **정책 편집**: 기존 정책에서 설정 수정
+- **비밀번호**: 항상 클릭**제품 정보**어떤 변화가 적용된 후
+
+## 설정 테스트
+
+DLP 설정 후:
+
+1. 샘플 민감한 데이터를 포함하는 게이트웨이를 통해 테스트 AI 요청.
+2. 자주 묻는 질문**AI Gateway 로그**DLP 스캐닝을 확인하려면
+3. 검출 결과를 검토하고 필요에 따라 프로파일 또는 작업을 조정할 수 있습니다.
+
+## 모니터 DLP 이벤트
+
+### AI Gateway에서 DLP 로그 보기
+
+DLP 이벤트는 AI Gateway 로그에 통합됩니다. DLP 정책이 일치할 때 로그 항목은 공급자, 모델, 토큰 및 비용과 같은 표준 로그 필드와 일치에 대한 세부 정보를 포함합니다.
+
+1. 오시는 길**사이트맵** > **AI 게이트웨이**> 당신의 출입구 >**로그인**.
+2. 자주 묻는 질문 DLP 정책이 트리거 된 요청을 위해 로그 항목에는 추가 DLP 필드가 포함됩니다.
+
+<Render file="dlp-log-fields" product="ai-gateway" />
+
+### Logs API의 DLP 필드
+
+로그를 검색할 때[로그 API](/api/resources/ai_gateway/subresources/logs/methods/list/), DLP 정책이 일치한 요청에 대한 로그 항목은 응답의 DLP-specific 필드를 포함합니다. 이 필드는 대시보드 및 QXQ에서 표면과 동일한 일치 데이터를 포함하고`cf-aig-dlp`행동을 포함하여 응답 헤더, 일치 정책 ID, 일치 프로필 ID 및 항목 ID.
+
+로그 필드에 대한 자세한 내용은, 참조[관련 문서](/ai-gateway/observability/logging/).
+
+### 필터 DLP 이벤트
+
+DLP 관련 요청만 볼 수 있습니다:
+
+1. 에 의해**로그인**탭, 선택**필터 추가**.
+2. 제품정보**DLP 작업**필터 옵션에서.
+3. 필터로 선택:
+   - **사이트맵**- 민감한 데이터가 파쇄 된 유일한 요청 표시
+   - **공지사항**- DLP 정책으로 막힌 유일한 요청 표시
+
+## 오류 처리
+
+DLP 정책이 트리거 될 때, 귀하의 응용 프로그램은 응답 헤더 및 오류 코드를 통해 추가 정보를 받게됩니다.
+
+### DLP 응답 헤더
+
+요청 시 DLP 정책 (whether flagged 또는 blocked), 추가`cf-aig-dlp`header는 일치에 대한 자세한 정보를 반환합니다.
+
+#### 헤드러 스키마
+
+```json
+{
+  "findings": [
+    {
+      "profile": {
+        "context": {},
+        "entry_ids": ["string"],
+        "profile_id": "string"
+      },
+      "policy_ids": ["string"],
+      "check": "REQUEST" | "RESPONSE"
+    }
+  ],
+  "action": "BLOCK" | "FLAG"
+}
+```
+
+#### 예제 헤더 값
+
+```json
+{
+	"findings": [
+		{
+			"profile": {
+				"context": {},
+				"entry_ids": [
+					"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+					"f7e8d9c0-b1a2-3456-789a-bcdef0123456"
+				],
+				"profile_id": "12345678-90ab-cdef-1234-567890abcdef"
+			},
+			"policy_ids": ["block_financial_data"],
+			"check": "REQUEST"
+		}
+	],
+	"action": "BLOCK"
+}
+```
+
+이 헤더를 사용하여 프로그래밍적으로 DLP 프로파일과 항목이 일치하고, 이는 정책이 트리거되고, 일치 여부는 요청 또는 응답에서 발생했습니다.
+
+### 차단된 요청에 대한 오류 코드
+
+DLP는 요청을 차단할 때, 애플리케이션은 구조화된 오류 응답을 받게 됩니다:
+
+- **DLP에 의해 차단된 요청**
+  - `"code": 2029`
+  - `"message": "Request content blocked due to DLP policy violations"`
+
+- **DLP에 의해 차단되는 응답**
+  - `"code": 2030`
+  - `"message": "Response content blocked due to DLP policy violations"`
+
+응용 프로그램에 이러한 오류를 처리:
+
+```js
+try {
+  const res = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    prompt: userInput
+  }, {
+    gateway: {id: 'your-gateway-id'}
+  })
+  return Response.json(res)
+} catch (e) {
+  if ((e as Error).message.includes('2029')) {
+    return new Response('Request contains sensitive data and cannot be processed.')
+  }
+  if ((e as Error).message.includes('2030')) {
+    return new Response('AI response was blocked due to sensitive content.')
+  }
+  return new Response('AI request failed')
+}
+```
+
+## 좋은 관행
+
+- **flagging로 시작**: 차단을 구현하기 전에 데이터가 감지되는 것을 이해하는 "Flag"작동
+- **Tune 신뢰 수준**: 잘못된 긍정적 인 공차를 기반으로 감지 감도 조정
+- **적절한 프로파일 사용**: 데이터 보호 요구 사항에 맞는 DLP 프로파일 선택
+- **자주 묻는 질문**: 정책 확인을 위해 DLP 이벤트를 검토하고 예상대로 작업
+- **완전히 시험**: 생산 배포 전에 샘플 민감한 데이터와 DLP 동작 검증
+
+## 문제 해결
+
+### DLP 트리거하지 않음
+
+- Verify DLP toggle는 게이트웨이에서 활성화됩니다.
+- 선택한 DLP 프로파일은 테스트 데이터에 적합
+- 신뢰 레벨이 너무 높은 설정되지 않음
+
+### 위험 차단
+
+- DLP 로그를 검토하여 프로파일 트리거
+- 문제에 대한 신뢰 수준을 낮추기
+- 검출 패턴을 이해하기 위해 다른 샘플 데이터를 테스트
+- 필요한 경우 프로파일 선택 조정
+
+DLP 구성에 대한 추가 지원은 참조[Cloudflare 데이터 손실 방지 문서](/cloudflare-one/data-loss-prevention/)또는 Cloudflare 지원 팀을 접촉하십시오.

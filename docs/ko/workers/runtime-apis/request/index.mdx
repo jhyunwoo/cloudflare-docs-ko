@@ -1,0 +1,439 @@
+---
+pcx_content_type: configuration
+title: 제품 정보
+head: []
+description: HTTP 요청을 나타내는 인터페이스.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/request/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/request/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, MetaInfo, Render } from "~/components";
+
+더 보기[`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request/Request)인터페이스는 HTTP 요청을 나타내며 일부입니다.[페치 API](/workers/runtime-apis/fetch/).
+
+## 이름 \*
+
+당신이 직면 할 가장 일반적인 방법`Request`객체는 들어오는 요청의 속성입니다:
+
+```js null {2}
+export default {
+	async fetch(request, env, ctx) {
+		return new Response('Hello World!');
+	},
+};
+```
+
+건설을 원할 수도 있습니다.`Request`요청 객체를 수정해야 할 때 자신, 들어오기 때문에`request`당신이 받는 매개 변수[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch/)불균형.
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+        const url = "https://example.com";
+        const modifiedRequest = new Request(url, request);
+		//· ...
+	},
+};
+```
+
+더 보기[`fetch() handler`](/workers/runtime-apis/handlers/fetch/)관련 기사`Request`생성기. 더 보기[`RequestInit`](#options)·[`RequestInitCfProperties`](#the-cf-property-requestinitcfproperties)아래 정의 된 유형은 유효 매개 변수를 설명합니다.[`fetch() handler`](/workers/runtime-apis/handlers/fetch/).
+
+***
+
+## 회사연혁
+
+```js
+let request = new Request(input, options)
+```
+
+### 매개 변수
+
+- `input`문자열 | 요청
+
+  - URL을 포함하는 문자열, 또는 기존`Request`객체.
+
+- `options`옵션 선택
+
+  - 설정이 포함된 옵션 객체는 다음과 같습니다.`Request`.
+
+#### `options`
+
+요청에 적용 할 수있는 속성을 포함하는 객체.
+
+- `cache` `undefined | 'no-store' | 'no-cache'`옵션 정보
+
+  - 표준 HTTP`cache`헤더. 한국어`cache: 'no-store'`·`cache: 'no-cache'`지원됩니다.
+    다른 캐시 헤더는`TypeError`이름 \*`Unsupported cache mode: <attempted-cache-mode>`.
+
+- `cf`RequestInitCfProperties 옵션
+
+  - Cloudflare-특수 속성에 설정할 수 있습니다`Request`Cloudflare의 글로벌 네트워크가 요청을 처리하는 방법을 제어합니다.
+
+- `method` <Type text="string" /> <MetaInfo text="optional" />
+
+  - HTTP 요청 방법. 기본값은`GET`. Workers에서, 모두[HTTP 요청 방법](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods)지원, 제외[`CONNECT`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods/CONNECT).
+
+- `headers`선택 사항
+
+  - ·[`Headers`기타 제품](https://developer.mozilla.org/en-US/docs/Web/API/Headers).
+
+- `body`string | ReadableStream | FormData | URLSearchParams 옵션
+
+  - 요청 몸, 어떤 경우.
+  - GET 또는 HEAD 메소드를 사용하는 요청은 신체를 가질 수 없습니다.
+
+- `redirect` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 사용하는 리디렉션 모드:`follow`, `error`, 또는`manual`. 새로운 기본`Request`객체는`follow`. 참고, 그러나, 그 수신`Request`의 모든 호텔`FetchEvent`리디렉션 모드`manual`.
+
+- `signal`AbortSignal 옵션
+  - 제공된 경우, 요청은 해당 사항에 할당할 수 있습니다.`AbortController`.
+
+#### 더 보기`cf`호텔 ()`RequestInitCfProperties`)
+
+설정할 수 있는 Cloudflare-specific 속성을 포함하는 객체`Request`객체. 예를 들면:
+
+```js
+//이 요청에 대한 ScrapeShield를 비활성화합니다.
+fetch(event.request, { cf: { scrapeShield: false } })
+```
+
+잘못된 또는 잘못된 키에서`cf`객체는 침묵적으로 무시됩니다. TypeScript를 사용 하 여 생성 유형 실행[`wrangler types`](/workers/languages/typescript/#generate-types)자주 묻는 질문`cf`객체.
+
+- `apps` <Type text="boolean" /> <MetaInfo text="optional" />
+
+  - 이름 \*[모델 번호: Cloudflare 앱 다운로드](https://www.cloudflare.com/apps/)이 요청을 사용할 수 있습니다. 기본 설정`true`.
+
+- `cacheEverything` <Type text="boolean" /> <MetaInfo text="optional" />
+
+  - 모든 콘텐츠를 정적 및 캐시로 치료[파일 형식](/cache/concepts/default-cache-behavior#default-cached-file-extensions)Cloudflare 기본 캐시된 내용을 넘어. 웹 서버에서 캐시 헤더를 존중합니다. 페이지 규칙 설정과 동일[**캐시 레벨**(대)**캐시 모든 것**)](/rules/page-rules/reference/settings/). 기본값`false`·
+    이 옵션은 적용`GET`·`HEAD`요청 방법 만.
+
+- `cacheKey` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 요청의 캐시 키는 두 요청이 캐싱 목적으로 동일하면 결정됩니다. 요청이 이전 요청으로 동일한 캐시 키를 가지고 있다면 Cloudflare는 둘 다 동일한 캐시 응답을 제공 할 수 있습니다.
+
+- `cacheTags`Array\<string> 옵션
+
+  - 이 옵션 추가[**캐시태그**](/cache/how-to/purge-cache/purge-by-tags/)원래 서버의 응답에 헤더. 이 태그에 의해 제공된 캐시된 콘텐츠의 퍼지를 허용한다. 이 작업을 수행[**카테고리**](/cache/how-to/purge-cache/purge-by-tags/#purge-using-cache-tags)이름 \*
+
+- `cacheTtl` <Type text="number" /> <MetaInfo text="optional" />
+
+  - 이 옵션은 Cloudflare를 강제로 이 요청에 대한 응답을 캐시합니다. 어떤 헤더가 응답에서 볼 수 없습니다. 이 두 페이지 규칙을 설정과 동일:[**가장자리 캐시 TTL**](/cache/how-to/edge-browser-cache-ttl/)·[**캐시 레벨**(대)**캐시 모든 것**)](/rules/page-rules/reference/settings/). 가치는 0 또는 긍정적인 수이어야 합니다. 가치의`0`캐시 자산이 즉시 만료된다는 것을 나타냅니다. 이 옵션은 적용`GET`·`HEAD`요청 방법 만.
+
+- `cacheTtlByStatus` `{ [key: string]: number }`옵션 정보
+
+  - 이 옵션은 버전의`cacheTtl`응답의 상태 코드를 기반으로 TTL을 선택하는 기능. 이 요청에 대한 응답이 일치하는 상태 코드가 있는 경우, Cloudflare는 발명된 시간 및 오버라이드 캐시 구조가 근원에 의해 보내집니다. 예를 들면:`{ "200-299": 86400, "404": 1, "500-599": 0 }`. 가치는 0과 부정적인 정수를 포함하여 어떤 정수든지 일 수 있습니다. 가치의`0`캐시 자산이 즉시 만료된다는 것을 나타냅니다. 모든 부정적인 값은 Cloudflare를 전혀 캐시하지 않습니다. 이 옵션은 적용`GET`·`HEAD`요청 방법 만.
+
+- `image`개체 | 선택 null
+
+  - 이름 \*[이미지 Resizing](/images/transform-images/)이 요청을 위해. 가능한 값은 설명되어 있습니다.[Workers를 통해 이미지 변환](/images/transform-images/transform-via-workers/)문서.
+
+- `polish` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 설치하기[담당자: Ms.](https://blog.cloudflare.com/introducing-polish-automatic-image-optimizati/)모드. 가능한 값은`lossy`, `lossless`또는`off`.
+
+- `resolveOverride` <Type text="string" /> <MetaInfo text="optional" />
+
+  - DNS 조회를 overriding하여 대체 Origin 서버에 대한 요청을 지시합니다. 가치의`resolveOverride`URL에 명시된 hostname을 사용하는 대신 Origin IP 주소를 삭제할 때 사용할 수 있는 변경된 hostname을 지정합니다. 더 보기`Host`요청 헤더는 여전히 URL에 어떤 일치합니다. 그래서,`resolveOverride`URL보다 다른 서버로 전송할 수 있습니다 /`Host`헤더 지정. 그러나,`resolveOverride`URL 호스트와 호스트가 지정한 호스트 모두에 대해서만 효력이 발생합니다.`resolveOverride`당신의 지역 안에 있습니다. 다른 영역 / 도메인에서 호스트를 지정하면 옵션은 보안상의 이유로 무시됩니다. 지역 밖에서 호스트에 요청을 지시해야 하는 경우 (보통 유지`Host`영역 내의 헤더 포인팅), 먼저 외부 호스트에 지점을 내의 CNAME 레코드를 생성하고, 다음 설정`resolveOverride`CNAME 레코드에 포인트. 주의, 보안상의 이유로, 설정할 수 없습니다`Host`요청이 실제로 해당 호스트에 전송되지 않는 한 영역 밖에 호스트를 지정하는 헤더.
+
+- `scrapeShield` <Type text="boolean" /> <MetaInfo text="optional" />
+
+  - 이름 \*[스크랩Shield](https://blog.cloudflare.com/introducing-scrapeshield-discover-defend-dete/)이 요청을 사용할 수 있습니다, 그렇지 않으면이 영역에 구성. 기본 설정`true`.
+
+- `webp` <Type text="boolean" /> <MetaInfo text="optional" />
+
+  - 사용 가능[웹페이지](https://blog.cloudflare.com/a-very-webp-new-year-from-cloudflare/)이미지 형식[담당자: Ms.](/images/polish/).
+
+***
+
+## 제품 정보
+
+들어오는 모든 속성`Request`object (당신이 받는 요청은[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch/)) 읽기 전용입니다. 들어오는 요청의 속성을 수정하려면 새로운 생성`Request`객체와 그에 수정할 옵션 전달[회사연혁](#constructor).
+
+- `body`ReadableStream 읽기 전용
+
+  - 본문내용 바로가기
+
+- `bodyUsed`Boolean 읽기 전용
+
+  - 몸이 아직 응답에서 사용되었는지 선언합니다.
+
+- `cf`IncomingRequestCfProperties 읽기 전용
+
+  - Cloudflare의 글로벌 네트워크에 의해 제공되는 들어오는 요청에 대한 속성을 포함하는 개체.
+  - 이 속성은 read-only (현재에서 생성되지 않는`Request`). 값을 수정하려면 새로운 값에 전달하십시오.[`cf`키의`init`옵션 인수](/workers/runtime-apis/request/#the-cf-property-requestinitcfproperties)새로운 창조`Request`객체.
+
+- `headers`헤더 읽기 전용
+
+  - ·[`Headers`기타 제품](https://developer.mozilla.org/en-US/docs/Web/API/Headers).
+
+  - 브라우저와 비교해, Cloudflare Workers는 당신이 보낼 수 있는 어떤 헤더에 아주 몇몇 제한을 부과합니다. 예를 들어 브라우저는 설정할 수 없습니다.`Cookie`브라우저가 쿠키 자체를 취급할 책임이 있기 때문에 헤더. Workers는, 그러나, 쿠키의 특별한 이해가 없고, 대우합니다`Cookie`다른 헤더와 같은 헤더.
+
+  :::카트로션
+
+  응답이 리디렉션되고 리디렉션 모드가 설정되면`follow`(아래 참조), 다음 모든 헤더는 목적지가 다른 호스트 이름 또는 도메인인지라도 리디렉션 대상에 전달됩니다. 이것은 민감한 우두머리를 포함합니다`Cookie`, `Authorization`, 또는 어떤 신청 특정한 우두머리. 당신이 원하는 행동이 아니라면 리디렉션 모드를 설정해야합니다.`manual`자신의 리디렉션 정책을 구현합니다. 리디렉션 모드 기본값을 참고하세요.`manual`노동자의 클라이언트에서 시작된 요청을 위해, 이렇게 이 경고는 단지에 적용합니다`fetch()`원래 요청을 프록시하지 않는 Worker에 의해 만들어진 es.
+  주요 특징
+
+- `method`문자열 읽기 전용
+
+  - 요청의 방법을 포함, 예를 들어,`GET`, `POST`등
+
+- `redirect`문자열 읽기 전용
+
+  - 사용하는 리디렉션 모드:`follow`, `error`, 또는`manual`·`fetch`메서드는 리디렉션 모드가 설정된 경우 자동으로 리디렉션됩니다.`follow`. 설정하면`manual`·`3xx`리디렉션은 콜러 as-is로 리디렉션됩니다. 새로운 기본`Request`객체는`follow`. 참고, 그러나, 그 수신`Request`의 모든 호텔`FetchEvent`리디렉션 모드`manual`.
+
+- `signal`AbortSignal 읽기 전용
+  - 더 보기`AbortSignal`이 요청에 대응합니다. 당신이 사용하는 경우[`enable_request_signal`](/workers/configuration/compatibility-flags/#enable-requestsignal-for-incoming-requests)호환성 깃발, 당신은 신호에 사건 듣는 사람을 붙일 수 있습니다. 이 작업을 수행하거나 작업자의 직업 종료 전에 로그에 쓰기 할 수 있습니다.
+    예를 들어, 아래 작업자를 실행하면 클라이언트에서 요청을 할당하면 로그가 기록됩니다.
+    <Render file="request-signal-example" product="workers" />
+
+- `url`문자열 읽기 전용
+
+  - 요청의 URL을 포함합니다.
+
+### `IncomingRequestCfProperties`
+
+표준의 속성 이외에[`Request`](https://developer.mozilla.org/en-US/docs/Web/API/Request)객체,`request.cf`inbound 객체`Request`Cloudflare의 글로벌 네트워크에 의해 제공되는 요청에 대한 정보가 포함되어 있습니다.
+
+모든 계획은 다음과 같습니다:
+
+- `asn`이름 \*
+
+  - 수신 요청의 ASN, 예를 들어,`395747`.
+
+- `asOrganization`이름 \*
+
+  - 수신 요청의 ASN를 소유하는 조직, 예를 들어,`Google Cloud`.
+
+- `botManagement`오브젝트 | null
+
+  - Cloudflare Bot 관리를 사용할 때만 세트. 뒤에 오는 재산을 가진 목표:`score`, `verifiedBot`, `staticResource`, `ja3Hash`, `ja4`·`detectionIds`. 참고[Bot 관리 변수](/bots/reference/bot-management-variables/)더 많은 정보.
+
+- `clientAcceptEncoding`문자열 | null
+
+  - Cloudflare가 값을 대체하면`Accept-Encoding`헤더, 원래 값은 저장됩니다`clientAcceptEncoding`속성, 예를 들면,`"gzip, deflate, br"`.
+
+- `colo`이름 \*
+
+  - 3인승[`IATA`](https://en.wikipedia.org/wiki/IATA_airport_code)요청이 명중되는 데이터 센터의 공항 코드, 예를 들어,`"DFW"`.
+
+- `country`문자열 | null
+
+  - 수신 요청의 국가. 요청에 두 개의 터미널 국가 코드. 이 값은 다음과 같습니다.`CF-IPCountry`헤더, 예를 들어,`"US"`.
+
+- `isEUCountry`문자열 | null
+
+  - 들어오는 요청의 국가가 EU에 있다면, 이것은 반환됩니다`"1"`. 그렇지 않으면, 이 재산은 omitted 또는입니다`false`.
+
+- `httpProtocol`이름 \*
+
+  - HTTP 프로토콜, 예를 들어,`"HTTP/2"`.
+
+- `hostMetadata`객체 | 정의
+
+  - 수신 요청이 사용자 정의 hostname metadata와 영역에서있을 때 만 팝업됩니다. Cloudflare 플랫폼 문서에 대한 자세한 내용은[사용자 정의 호스트 이름 metadata](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/), 그리고 어떻게 노출에`hostMetadata`이름 \*
+
+- `requestPriority`문자열 | null
+
+  - 요청 객체의 브라우저 응답 사전 처리 정보, 예를 들어,`"weight=192;exclusive=0;group=3;group-weight=127"`.
+
+- `tlsCipher`이름 \*
+
+  - Cloudflare의 연결에 대한 예시,`"AEAD-AES128-GCM-SHA256"`.
+
+- `tlsClientAuth`오브젝트 | null
+
+  - Cloudflare 접근 또는 API Shield (mTLS)를 사용할 때만 세트. 뒤에 오는 재산을 가진 목표:`certFingerprintSHA1`, `certFingerprintSHA256`, `certIssuerDN`, `certIssuerDNLegacy`, `certIssuerDNRFC2253`, `certIssuerSKI`, `certIssuerSerial`, `certNotAfter`, `certNotBefore`, `certPresented`, `certRevoked`, `certSKI`, `certSerial`, `certSubjectDN`, `certSubjectDNLegacy`, `certSubjectDNRFC2253`, `certVerified`.
+
+- `tlsClientCiphersSha1`이름 \*
+
+  - SHA-1 hash (Base64-encoded)는 클라이언트가 TLS Handhake 동안 보내진, 큰 친구 형식으로 인코딩. 예를 들어,`"GXSPDLP4G3X+prK73a4wBuOaHRc="`.
+
+- `tlsClientExtensionsSha1`이름 \*
+
+  - TLS 클라이언트 확장의 SHA-1 해시 (Base64-encoded)는 핸디케이에서 전송, 큰 엔디 형식에 인코딩. 예를 들어,`"OWFiM2I5ZDc0YWI0YWYzZmFkMGU0ZjhlYjhiYmVkMjgxNTU5YTU2Mg=="`.
+
+- `tlsClientExtensionsSha1Le`이름 \*
+
+  - TLS 클라이언트 확장의 SHA-1 해시 (Base64-encoded)는 handhake에서 전송, 작은 엔디 형식에 인코딩. 예를 들어,`"7zIpdDU5pvFPPBI2/PCzqbaXnRA="`.
+
+- `tlsClientHelloLength`이름 \*
+
+  - 클라이언트의 길이 hello 메시지를 보낸[카테고리](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/). 예를 들면,`"508"`. 구체적으로, 클라이언트 hello의 bytestring의 길이.
+
+- `tlsClientRandom`이름 \*
+
+  - 클라이언트가 제공하는 32 바이트 임의 값[카테고리](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/). 참고[RFC 8446년](https://datatracker.ietf.org/doc/html/rfc8446#section-4.1.2)더 많은 정보.
+
+- `tlsVersion`이름 \*
+
+  - Cloudflare에 연결의 TLS 버전, 예를 들면,`TLSv1.3`.
+
+- `city`문자열 | null
+
+  - 들어오는 요청의 도시, 예를 들어,`"Austin"`.
+
+- `continent`문자열 | null
+
+  - 수신 요청의 제한, 예를 들어,`"NA"`.
+
+- `latitude`문자열 | null
+
+  - 수신 요청의 위도, 예를 들어,`"30.27130"`.
+
+- `longitude`문자열 | null
+
+  - 수신 요청의 경도, 예를 들어,`"-97.74260"`.
+
+- `postalCode`문자열 | null
+
+  - 수신 요청의 우편 번호, 예를 들어,`"78701"`.
+
+- `metroCode`문자열 | null
+
+  - 수신 요청의 메트로 코드 (DMA), 예를 들어,`"635"`.
+
+- `region`문자열 | null
+
+  - 알려진 경우,[자료: ISO 3166-2](https://en.wikipedia.org/wiki/ISO_3166-2)들어오는 요청의 IP 주소와 관련된 첫 번째 수준 영역에 대한 이름, 예를 들어,`"Texas"`.
+
+- `regionCode`문자열 | null
+
+  - 알려진 경우,[자료: ISO 3166-2](https://en.wikipedia.org/wiki/ISO_3166-2)들어오는 요청의 IP 주소와 관련된 첫 번째 수준 영역에 대한 코드, 예를 들어,`"TX"`.
+
+- `timezone`이름 \*
+
+  - 수신 요청의 시간대, 예를 들어,`"America/Chicago"`.
+
+:::카트로션
+
+더 보기`request.cf`객체는 Cloudflare Workers dashboard 또는 놀이터 미리보기 편집기에서 사용할 수 없습니다.
+
+:::
+
+***
+
+## 제품 설명
+
+### Instance 방법
+
+이 방법은 인스턴스에서만 사용할 수 있습니다.`Request`객체 또는 프로토 타입.
+
+- `clone()`: 요청
+
+  - 복사본을 만듭니다.`Request`객체.
+
+- `arrayBuffer()`: 프로\<miseArrayBuffer>
+
+  - 해결의 약속을 반환[`ArrayBuffer`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/ArrayBuffer)요청 몸의 표현.
+
+- `formData()`: Pro\<구성자료>
+
+  - 해결 약속을 반환[`FormData`](https://developer.mozilla.org/en-US/docs/Web/API/FormData)요청 몸의 표현.
+
+- `json()`: Pro\<miseObject>
+
+  - 요청 몸의 JSON 표현을 해결하는 약속을 반환합니다.
+
+- `text()`: 프로\<misestring>
+
+  - 요청 본문의 문자열 (텍스트) 표현을 해결하는 약속을 반환합니다.
+
+***
+
+## 더 보기`Request`계정 만들기
+
+Worker는 수신된 HTTP 요청에 의해 호출됩니다.[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch)당신의 노동자에게 불립니다. 더 보기`Request`context가 시작될 때`fetch()`핸들러가 호출되고 비동기 작업 (같은 subrequest를 사용하여[`fetch() API`](/workers/runtime-apis/fetch/))는 밖에 달릴 수 있습니다`Request`메시지:
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+        //자주 묻는 질문
+		return new Response('Hello World!');
+	},
+};
+```
+
+### fetch 이벤트에 약속을 전달할 때`.respondWith()`
+
+응답을 fetch 이벤트에 전달하는 경우`.respondWith()`방법, 요청 컨텍스트는 응답 약속 전에 실행되는 비동기 작업 중에 활성화됩니다. 동기화 핸들러에 이벤트를 전달할 수 있습니다. 예를 들어:
+
+```js
+addEventListener("fetch", event => {
+  event.respondWith(eventHandler(event))
+})
+
+//자주 묻는 질문
+
+async function eventHandler(event){
+  //자주 묻는 질문
+  return new Response("Hello, Workers!")
+}
+```
+
+### inactive 액세스 시도 할 때 오류`Request`계정 만들기
+
+API를 사용하는 모든 시도`fetch()`또는 액세스`Request`스크립트 시작 중에 컨텍스트는 예외를 던집니다:
+
+```js
+const promise = fetch("https://example.com/") // Error
+async function eventHandler(event){..}
+```
+
+이 코드 스 니펫은 스크립트 시작 도중 던지고,`"fetch"`이벤트 청취자는 등록하지 않습니다.
+
+***
+
+### 설정하기`Content-Length`기타 제품
+
+더 보기`Content-Length`헤더는 모든 데이터 소스를 기반으로 런타임에 의해 자동으로 설정됩니다.`Request`이름 \* 사용자 코드에 의해 수동으로 설정`Headers`무시됩니다. 에 있다`Content-Length`지정된 특정 값으로 헤더,`body`이름 \*`Request`한국어`FixedLengthStream`또는 고정 길이 값은 문자열 또는`TypedArray`.
+
+·`FixedLengthStream`정체성`TransformStream`그것은 단지 고정 된 바이트 수를 허용한다.
+
+```js
+  const { writable, readable } = new FixedLengthStream(11);
+
+  const enc = new TextEncoder();
+  const writer = writable.getWriter();
+  writer.write(enc.encode("hello world"));
+  writer.end();
+
+  const req = new Request('https://example.org', { method: 'POST', body: readable });
+```
+
+다른 유형의 사용`ReadableStream`요청의 몸은 Chunked-Encoding에서 사용 됩니다.
+
+***
+
+## 기타
+
+Workers 구현`Request`인터페이스는 웹 표준에 몇 가지 확장을 포함합니다.`Request`API. 이러한 차이는 의도적이고 Workers 런타임에 따라 추가 기능을 제공합니다.
+
+:::note\[TypeScript 사용자]
+Workers 유형 정의 (에서`@cloudflare/workers-types`또는 생성[`wrangler types`](/workers/wrangler/commands/#types)) 정의`Request`Workers-specific 속성을 포함하는 유형`cf`. 이 유형은 표준과 직접 호환되지 않습니다`Request`유형에서`lib.dom.d.ts`. Workers 유형과 표준 웹 유형 둘 다를 사용하는 부호로 일하는 경우에, 당신은 유형 assertions를 사용하거나 새로운 창조할 필요가 있을지도 모릅니다`Request`객체.
+주요 특징
+
+### 더 보기`cf`이름 \*
+
+Workers 추가`cf`호텔 위치`Request`수신 요청에 대한 Cloudflare-specific metadata를 포함하는 객체. 이 속성은 웹 표준의 일부가 아니며 Workers 런타임에서만 사용할 수 있습니다. 더 알아보기[`IncomingRequestCfProperties`](#incomingrequestcfproperties)상세 정보
+
+### 더 보기`headers`이름 \*
+
+더 보기`headers`속성은 Workers-specific 반환[`Headers`](/workers/runtime-apis/headers/)같은 추가 방법을 포함 하는 개체`getAll()`제품 정보`Set-Cookie`머리. 더 알아보기[관련 문서](/workers/runtime-apis/headers/#differences)Workers`Headers`구현은 웹 표준과 다릅니다.
+
+### 공급 능력
+
+내 계정`Request`물체는[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch/)불균형. 들어오는 요청의 속성을 수정하려면 새로운 것을 작성해야 합니다.`Request`객체.
+
+***
+
+## 관련 자료
+
+- [예제: 요청 속성 수정](/workers/examples/modify-request-property/)
+- [예제: 접근`cf`기타 제품](/workers/examples/accessing-the-cloudflare-object/)
+- [참고 :`Response`](/workers/runtime-apis/response/)
+- Worker 코드를 작성[ES 모듈 구문](/workers/reference/migrate-to-module-workers/)최적화된 경험을 위해.

@@ -1,0 +1,227 @@
+---
+pcx_content_type: how-to
+title: 회사소개
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, APIRequest } from "~/components";
+
+<Render file="warp/device-profiles-intro" product="cloudflare-one" />
+
+## 새 프로필 만들기
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**팀 & 자원** > **제품정보** > **회사소개** > **일반 프로필**.
+    2. 제품정보**새 프로필 만들기**. 이것은 사본을 만들 것입니다**기본 정보**이름 \*
+    3. 프로필에 대한 이름 입력.
+    4. 이 프로파일을 사용할 수있는 장치를 정의하는 규칙을 만듭니다. 더 알아보기[이름 \*](#selectors), [회사 소개](/cloudflare-one/traffic-policies/network-policies/#comparison-operators)·[제품정보](/cloudflare-one/traffic-policies/network-policies/#value).
+    5. 설정하기[WARP 설정](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#device-settings)이 장치를 위해.
+
+    :::참조
+
+    이 시간에,**분할 터널**·**지역 도메인 Fallback**프로파일을 저장 한 후만 수정할 수 있습니다.
+    주요 특징
+
+    6. 제품정보**공지사항**.
+
+    프로필이 나타납니다**Profile 설정**이름 \* 원하는 목록에 프로필을 기재할 수 있습니다.[우선순위](#order-of-precedence).
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    이름 \*`POST`요청하기[장치 API](/api/resources/zero_trust/subresources/devices/subresources/policies/subresources/custom/methods/create/):
+
+    <APIRequest
+      path="/accounts/{account_id}/devices/policy"
+      method="POST"
+      json={{
+  	allow_mode_switch: false,
+  	allow_updates: false,
+  	allowed_to_leave: false,
+  	auto_connect: 600,
+  	captive_portal: 180,
+  	description:
+  		"Example device profile recommended in the implementation documentation. For details, refer to https://developers.cloudflare.com/learning-paths/replace-vpn/configure-device-agent/device-profiles/",
+  	disable_auto_fallback: true,
+  	enabled: true,
+  	exclude_office_ips: false,
+  	match:
+  		'identity.email in {"jdoe@example.com"} or any(identity.groups.name[*] in {"developers" "admin"}) and os.name == "windows"',
+  	name: "Example device profile",
+  	precedence: 101,
+  	service_mode_v2: {
+  		mode: "warp",
+  	},
+  	support_url: "https://support.example.com",
+  	switch_locked: true,
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+       - `Zero Trust Write`
+
+    2. 새 프로필 만들기[`cloudflare_zero_trust_device_custom_profile`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_device_custom_profile)자료:
+
+       ```tf
+       resource "cloudflare_zero_trust_device_custom_profile" "example" {
+       	account_id            = var.cloudflare_account_id
+       	name                  = "Example device profile"
+       	description           = "Example device profile recommended in the implementation documentation. For details, refer to https://developers.cloudflare.com/learning-paths/replace-vpn/configure-device-agent/device-profiles/"
+       	allow_mode_switch     = false
+       	allow_updates         = false
+       	allowed_to_leave      = false
+       	auto_connect          = 600
+       	captive_portal        = 180
+       	disable_auto_fallback = true
+       	enabled               = true
+       	exclude_office_ips    = false
+       	precedence            = 101
+       	service_mode_v2       = {mode = "warp"}
+       	support_url           = "https://support.example.com"
+       	switch_locked         = true
+       	tunnel_protocol       = "wireguard"
+
+       	match = trimspace(replace(<<-EOT
+       		identity.email in {"jdoe@example.com"}
+       		or any(identity.groups.name[*] in {"developers" "admin"})
+       		and os.name == "windows"
+       	EOT
+       	, "\n", " "))
+       }
+       ```
+  </TabItem>
+</Tabs>
+
+## 프로필 설정
+
+<Render file="warp/edit-profile-settings" product="cloudflare-one" />
+
+## Verify 장치 프로파일
+
+### 대시보드를 통해
+
+특정 장치에 대한 마지막 활성 장치 프로파일을 확인하려면:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보**.
+2. 장치의 밑에, 당신의 장치를 찾아내십시오.
+3. 아래 장치 프로필을 검토**Last active 장치 프로파일**.
+
+사용자의 장치에 대한 마지막 활성 장치 프로파일을 확인하려면:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **이름 \***.
+2. 이름 \***사용자 이름**, 사용자가 조사하고 싶습니다.
+3. 제품정보**제품정보**사용자가 사용하는 모든 장치를 볼 수 있습니다.
+4. 해당 기기에 대한 마지막 활성 장치 프로파일을 조사하고 확인하려는 장치를 찾습니다.**회사소개**열.
+
+대안으로, 당신은 사용할 수 있습니다[DEX 원격 캡처](/cloudflare-one/insights/dex/remote-captures/)WARP 진단 로그 수집. 장치 프로필 UUID가 표시됩니다.[검색 결과](/cloudflare-one/insights/dex/remote-captures/#warp-diagnostics-analyzer-beta)이름 \*`Profile ID`.
+
+### CLI를 통해
+
+장치 프로파일 및 프로파일 설정이 현재 장치에서 확인하려면 터미널을 열고 실행하십시오.
+
+```sh
+warp-cli settings
+```
+
+장치 프로파일 UUID는`Profile ID`이름 \*
+
+## 이름 \*
+
+다음과 같은 선택자, 또는 기준에 대해 일치하기 위해 장치 프로파일을 구성할 수 있습니다. Identity-based selectors는 사용자의 경우에만 유효합니다[장치 등록](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/)ID 공급자 (IdP)에 로그인하십시오.
+
+### 사용자 이메일
+
+사용자의 이메일에 근거를 둔 장치 단면도를 적용하십시오.
+
+<Render file="gateway/selectors/user-email" product="cloudflare-one" params={{ UIname: "User email" }} />
+
+### 사용자 그룹 이메일
+
+디바이스 프로파일 적용[IdP 그룹](/cloudflare-one/traffic-policies/identity-selectors/#idp-groups-in-gateway)사용자가 IdP에 회원으로 구성되는 이메일 주소.
+
+<Render file="gateway/selectors/user-group-email" product="cloudflare-one" params={{ UIname: "User group emails" }} />
+
+### 사용자 그룹 ID
+
+디바이스 프로파일 적용[IdP 그룹](/cloudflare-one/traffic-policies/identity-selectors/#idp-groups-in-gateway)사용자가 IdP에 회원으로 구성되는 ID.
+
+<Render file="gateway/selectors/user-group-ids" product="cloudflare-one" params={{ UIname: "User group IDs" }} />
+
+### 사용자 그룹 이름
+
+디바이스 프로파일 적용[IdP 그룹](/cloudflare-one/traffic-policies/identity-selectors/#idp-groups-in-gateway)사용자가 IdP에 회원으로 구성되는 이름.
+
+<Render file="gateway/selectors/user-group-names" product="cloudflare-one" params={{ UIname: "User group names" }} />
+
+### 운영 체계
+
+장치의 운영 체제에 따라 장치 프로파일을 적용합니다.
+
+| UI 이름 | API 예제                             |
+| ----- | ---------------------------------- |
+| 운영 체계 | `os.name in {\"windows\" \"mac\"}` |
+
+### 운영 시스템 버전
+
+디바이스 프로파일 적용[OS 버전](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/os-version/#determine-the-os-version)장치의.
+
+| UI 이름     | API 예제                    |
+| --------- | ------------------------- |
+| 운영 시스템 버전 | `os.version == \"1.2.0\"` |
+
+<Render file="warp/os-version-semver" product="cloudflare-one" />
+
+### 관리 네트워크
+
+디바이스 프로파일 적용[관리 네트워크](/cloudflare-one/team-and-resources/devices/warp/configure-warp/managed-networks/)그 장치는 연결됩니다.
+
+| UI 이름   | API 예제                         |
+| ------- | ------------------------------ |
+| 관리 네트워크 | `network == \"Austin office\"` |
+
+### SAML 속성
+
+속성 이름과 값에 근거한 장치 프로파일을 적용하십시오.[샘플](/cloudflare-one/traffic-policies/identity-selectors/#generic-saml-idp).
+
+<Render file="gateway/selectors/saml-attributes" product="cloudflare-one" />
+
+### 서비스 토큰
+
+디바이스 프로파일 적용[서비스 토큰](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/#check-for-service-token)장치 등록에 사용됩니다.
+
+| UI 이름  | API 예제                                                                    |
+| ------ | ------------------------------------------------------------------------- |
+| 서비스 토큰 | `identity.service_token_uuid == \"f174e90a-fafe-4643-bbbc-4a0ed4fc8415\"` |
+
+## 비교 연산자
+
+비교 연산자는 장치 프로파일이 selector와 일치하는 방법을 결정합니다.
+
+| 회사연혁  | 이름 \*            |
+| ----- | ---------------- |
+| 이름 \* | 정의된 값과 동일        |
+| 내 계정  | 정의된 값의 적어도 하나 일치 |
+
+## Logical 연산자
+
+표현의 여러 조건을 평가하려면 논리 연산자를 선택하십시오.
+
+| 회사연혁  | 이름 \*         |
+| ----- | ------------- |
+| 이름 \* | 표현의 모든 조건과 일치 |
+| 또는    | 표현의 조건과 일치    |
+
+## 우선순위
+
+<Render file="warp/device-profile-order-of-precedence" product="cloudflare-one" />

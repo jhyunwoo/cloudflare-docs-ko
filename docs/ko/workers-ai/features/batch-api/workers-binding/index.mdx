@@ -1,0 +1,126 @@
+---
+pcx_content_type: how-to
+title: Workers 바인딩
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/features/batch-api/workers-binding/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/batch-api/workers-binding/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	PackageManagers,
+	TypeScriptExample,
+	WranglerConfig,
+	CURL,
+} from "~/components";
+
+배치 API와 상호 작용하는 Workers 바인딩을 사용할 수 있습니다.
+
+## Batch 요청 보내기
+
+JSON payload를 구성하여 초기 일괄 처리 inference 요청을 보냅니다.`queueRequest: true`속성 (그 제어 큐어링 행동).
+
+:::주\[주]
+
+총 페이로드가 10MB 미만임을 보장합니다.
+
+:::
+
+```ts {26} title="src/index.ts"
+export interface Env {
+	AI: Ai;
+}
+export default {
+	async fetch(request, env): Promise<Response> {
+		const embeddings = await env.AI.run(
+			"@cf/baai/bge-m3",
+			{
+				requests: [
+					{
+						query: "This is a story about Cloudflare",
+						contexts: [
+							{
+								text: "This is a story about an orange cloud",
+							},
+							{
+								text: "This is a story about a llama",
+							},
+							{
+								text: "This is a story about a hugging emoji",
+							},
+						],
+					},
+				],
+			},
+			{ queueRequest: true },
+		);
+
+		return Response.json(embeddings);
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+```json output {4}
+{
+	"status": "queued",
+	"model": "@cf/baai/bge-m3",
+	"request_id": "000-000-000"
+}
+```
+
+다음과 같은 값을 가진 응답을 얻을 것이다:
+
+- **`status`**: 귀하의 요청이 누락된다는 것을 나타냅니다.
+- **`request_id`**: 일괄 요청의 고유 식별자.
+- **`model`**: 배치 inference에 사용되는 모델.
+
+이들의`request_id`당신이 필요로 할 때 중요한[투표 배치 상태](#poll-batch-status).
+
+### 오염 배치 상태
+
+배치 요청이 누락되면 사용`request_id`그 상태에 대한 투표. 처리 중 API는 상태를 반환합니다.`queued`또는`running`요청은 여전히 큐 또는 처리되는 것을 나타냅니다.
+
+```typescript title=src/index.ts
+export interface Env {
+	AI: Ai;
+}
+
+export default {
+	async fetch(request, env): Promise<Response> {
+		const status = await env.AI.run("@cf/baai/bge-m3", {
+			request_id: "000-000-000",
+		});
+
+		return Response.json(status);
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+```json output
+{
+	"responses": [
+		{
+			"id": 0,
+			"result": {
+				"response": [
+					{ "id": 0, "score": 0.73974609375 },
+					{ "id": 1, "score": 0.642578125 },
+					{ "id": 2, "score": 0.6220703125 }
+				]
+			},
+			"success": true,
+			"external_reference": null
+		}
+	],
+	"usage": { "prompt_tokens": 12, "completion_tokens": 0, "total_tokens": 12 }
+}
+```
+
+inference가 완료되면 API는 최종 HTTP 상태 코드를 반환합니다.`200`응답의 배열과 함께. 각 응답 객체는 개별 입력 프롬프트에 대응합니다.`id`그 지도는 원본 요청에 있는 신속한 색인에.

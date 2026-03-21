@@ -1,0 +1,269 @@
+---
+pcx_content_type: reference
+title: 비율 제한 모수
+sidebar:
+  order: 18
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/rate-limiting-rules/parameters/'
+translation_source_md: 'https://developers.cloudflare.com/waf/rate-limiting-rules/parameters/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type } from "~/components";
+
+규칙 매개변수를 제한하는 유효한 비율은 뒤에 오는 단면도에서 설명됩니다.
+
+현재 규칙 구성 제한에 대한 자세한 내용은 참조[구성 제한](#configuration-restrictions).
+
+## 모수 참고 자료
+
+### 수신 요청 일치
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`expression`(루 필드)
+
+요청을 일치하기 위해 제한 규칙의 기준을 무시합니다.
+
+### 또한 캐시된 자산에 제한하는 비율 적용
+
+- 자료 유형:<Type text="Boolean" />
+- API의 필드 이름:`requests_to_origin`(선택, Cloudflare 대시보드 옵션의 반대 의미)
+
+이 매개 변수가 비활성화되면 (또는 경우`requests_to_origin`API 필드 설정`true`), 근원에 가는 다만 요구만 (그, 캐시되지 않는 요구)는 요구 비율을 결정할 때 고려될 것입니다.
+
+일부 경우에, 당신은 비활성화 할 수 없습니다**또한 캐시된 자산에 제한하는 비율 적용**설정 제한으로 인해 매개 변수. 더 알아보기[구성 제한](#configuration-restrictions)상세 정보
+
+### 동일한 특성으로
+
+- 자료 유형:<Type text="Array<String>" />
+- API의 필드 이름:`characteristics`
+
+Cloudflare가 규칙에 대한 요청 속도를 추적하는 매개 변수의 설정.
+
+뒤에 오는 특성의 1개 이상 사용:
+
+| Dashboard 가치                  | API 값                                                                                         | 지원하다                                                                                                                                                                                                      |
+| ----------------------------- | --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N/A (단일 포함)                   | `cf.colo.id`(필수)                                                                              | [표현을 사용하지 마십시오](#do-not-use-cfcoloid-as-a-field-in-expressions)                                                                                                                                           |
+| IP 정보                         | `ip.src`                                                                                      | [관련 기사**NAT 지원 IP**](#incompatible-characteristics)                                                                                                                                                       |
+| NAT 지원 IP                     | `cf.unique_visitor_id`                                                                        | [관련 기사**IP 정보**](#incompatible-characteristics)                                                                                                                                                           |
+| **헤더 값**(인터 헤더 이름)            | `http.request.headers["<header_name>"]`                                                       | [API에서 Lowercased 헤더 이름을 사용하십시오.](#use-a-lowercased-header-name-for-api-users)·[Missing field versus 빈 값](#missing-field-versus-empty-value)                                                              |
+| **쿠키 값**(쿠키 이름)               | `http.request.cookies["<cookie_name>"]`                                                       | [권장 구성](#recommended-configurations-when-using-cookie-value-of)·[Missing field versus 빈 값](#missing-field-versus-empty-value)                                                                             |
+| **Query 값**(인터 매개변수 이름)       | `http.request.uri.args["<query_param_name>"]`                                                 | [Missing field versus 빈 값](#missing-field-versus-empty-value)                                                                                                                                             |
+| **이름 \***                     | `http.host`                                                                                   |                                                                                                                                                                                                           |
+| **오시는 길**                     | `http.request.uri.path`                                                                       |                                                                                                                                                                                                           |
+| **사이트맵**                      | `ip.src.asnum`                                                                                |                                                                                                                                                                                                           |
+| **이름 \***                     | `ip.src.country`                                                                              |                                                                                                                                                                                                           |
+| **JA3 지문**                    | `cf.bot_management.ja3_hash`                                                                  |                                                                                                                                                                                                           |
+| **한국어**                       | `cf.bot_management.ja4`                                                                       |                                                                                                                                                                                                           |
+| **JSON 문자열 값**(입력)            | `lookup_json_string(http.request.body.raw, "<key>")`                                          | [Missing field versus 빈 값](#missing-field-versus-empty-value)·[`lookup_json_string()`기능 참고 자료](/ruleset-engine/rules-language/functions/#lookup_json_string)                                              |
+| **JSON 정수 값**(입력)             | `lookup_json_integer(http.request.body.raw, "<key>")`                                         | [Missing field versus 빈 값](#missing-field-versus-empty-value)·[`lookup_json_integer()`기능 참고 자료](/ruleset-engine/rules-language/functions/#lookup_json_integer)                                            |
+| **양식 입력 값**(분야명)              | `http.request.body.form["<input_field_name>"]`                                                | [Missing field versus 빈 값](#missing-field-versus-empty-value)                                                                                                                                             |
+| **JWT 청구**( 토큰 구성 ID, 클레임 이름) | `lookup_json_string( http.request.jwt.claims["<token_configuration_id>"][0], "<claim_name>")` | [JWT에 대한 요구 사항](#requirements-for-using-claims-inside-a-json-web-token-jwt), [누락 된 필드 versus 빈 값](#missing-field-versus-empty-value)·[JWT 검증 참고 자료](/api-shield/security/jwt-validation/transform-rules/) |
+| **이름 \***                     | `http.request.body.raw`                                                                       |                                                                                                                                                                                                           |
+| **몸 크기**(선택 연산자, 입력 크기)       | `http.request.body.size`                                                                      |                                                                                                                                                                                                           |
+| **제품 정보**(입력)                 | 사용자 정의 표현을 입력합니다. 같은 기능을 사용할 수 있습니다.`substring()`또는`lower()`, 또는 더 복잡한 표현을 입력합니다.             | [제품정보](/ruleset-engine/rules-language/functions/)                                                                                                                                                         |
+
+유효한 특성은 Cloudflare 계획에 달려 있습니다. 더 알아보기[적용분야](/waf/rate-limiting-rules/#availability)더 많은 정보.
+
+:::카트로션
+이러한 특성에 대한 중요한 세부 사항, 참조[가격 제한 특성에 대한 메모](#notes-about-rate-limiting-characteristics).
+:::
+
+### 주문 카운터
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`counting_expression`(선택)
+
+Cloudflare 대시보드에서만 사용 가능**사용자 정의 계산 표현**.
+
+요청률을 결정하기 위해 사용 된 기준을 무시합니다. 기본값으로, 카운트 표현은 규칙 일치하는 표현과 동일합니다 (에서 정의 됨)**수신 요청 일치**). 이 기본값은 빈 문자열로 이 필드를 설정할 때 적용됩니다 (`""`).
+
+계산 표현은 포함될 수 있습니다[HTTP 응답 필드](/ruleset-engine/rules-language/fields/reference/?field-category=Response). 카운트 표현의 응답 필드가있을 때, 카운트는 응답이 전송 된 후 발생합니다.
+
+일부 경우 구성 제한으로 인해 계산식에서 HTTP 응답 필드를 포함 할 수 없습니다. 더 알아보기[구성 제한](#configuration-restrictions)상세 정보
+
+:::노트\[법정식을 확장하지 않는다]
+
+사용자 정의 계산 표현을 설정하면 규칙 일치하는 표현을 자동으로 확장하지 않습니다. 따라서 계산 표현식에서 일치하는 표현식을 포함 할 수 있습니다.
+
+예를 들어, 클라이언트가 5 개 이상의 요청을 전송하는 비율을 수행 할 수 있습니다.`/api/`결과적으로`403`Origin 서버의 HTTP 상태 코드. 이 경우, 일치하는 표현은`starts_with(http.request.uri.path, "/api/")`계산 표현은`http.response.code eq 403 and starts_with(http.request.uri.path, "/api/")`. 계산식이 일치하는 표현을 포함하지 않았다면 (즉, 당신은 계산식을 설정 한 경우`http.response.code eq 403`), 어떤 응답을 가진`403`URL의 상태 코드는 카운터를 증가시킬 것입니다.
+주요 특징
+
+### 비율 초과시
+
+- API의 필드 이름:*사이트맵*(선택된 선택권에 따라 요구되는 다른 API 분야)
+
+제한 비율은 일 수 있습니다:
+
+- **자주 묻는 질문**: 주어진 기간 동안 들어오는 요청의 수를 기준으로 제한 비율을 수행합니다. 복잡한 비율을 제한할 때만 계산 방법은 사용할 수 없습니다.
+- **회사연혁**: 수행률 제한[회사 소개](/waf/rate-limiting-rules/request-rate/#complexity-based-rate-limiting)또는 주어진 기간 동안 처리 요청의 비용. Advanced Rate Limiting으로 Enterprise 고객에게만 사용할 수 있습니다.
+
+### 비율 초과시 > 제품정보
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`requests_per_period`
+
+규칙을 트리거 할 시간 동안 요청의 수. 요청 기반 비율 제한을 적용합니다.
+
+### 비율 초과시 > 기간 :
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`period`
+
+요청률을 평가할 때 (초) 고려할 시간의 기간. 사용 가능한 값[Cloudflare 플랜에 따라 다름](/waf/rate-limiting-rules/#availability).
+
+사용 가능한 API 값은:`10`, `60`(1 분),`120`(2 분),`300`(시간),`600`(10 분), 또는`3600`(1 시간).
+
+### 비율 초과시 > 기간별 점수
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`score_per_period`
+
+기간 당 최대 점수. 이 값이 초과되면 규칙 동작이 실행됩니다. 관련 기사[복잡한 비율 제한](/waf/rate-limiting-rules/request-rate/#complexity-based-rate-limiting).
+
+### 비율 초과시 > 응답 헤더 이름
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`score_response_header_name`
+
+응답의 HTTP 헤더의 이름, 원래 서버로 설정, 현재의 요청에 대한 점수. 관련 기사[복잡한 비율 제한](/waf/rate-limiting-rules/request-rate/#complexity-based-rate-limiting).
+
+### 다음 작업을 수행
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`action`(루 필드)
+
+규칙에 지정된 비율이 도달 할 때 수행 행동.
+
+API의 다음 값 중 하나를 사용:`block`, `js_challenge`(Non-Interactive Challenge),`managed_challenge`(수익 도전),`challenge`(Interactive Challenge) 또는`log`.
+
+선택하면*제품정보*행동은 다음과 같은 매개 변수를 사용하여 사용자 정의 응답을 정의 할 수 있습니다.
+
+- [응답 유형으로](#with-response-type-for-block-action)
+- [응답 부호로](#with-response-code-for-block-action)
+- [응답 몸](#response-body-for-block-action)
+
+#### 응답 유형 (for*제품정보*활동)
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`response` > `content_type`(선택)
+
+제한율로 인해 요청을 차단할 때 사용자 지정 응답의 내용 유형을 무시합니다. 설정할 때만 사용 가능[관련 기사](#then-take-action)으로*제품정보*.
+
+유효한 API 가치:`application/json`, `text/html`, `text/xml`, 또는`text/plain`.
+
+#### 응답 부호로 (for*제품정보*활동)
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`response` > `status_code`(선택)
+
+HTTP 상태 코드가 제한 비율로 인해 요청을 차단할 때 방문자에 반환됩니다. 설정할 때만 사용 가능[관련 기사](#then-take-action)으로*제품정보*.
+
+당신은 사이의 값을 입력해야합니다.`400`·`499`. 기본 값은`429` (`Too many requests`).
+
+#### 응답 몸 (for*제품정보*활동)
+
+- 자료 유형:<Type text="String" />
+- API의 필드 이름:`response` > `content`(선택)
+
+요청이 제한되어 있는 경우 반환된 HTTP 응답의 몸을 무시합니다. 설정할 때만 사용 가능[관련 기사](#then-take-action)으로*제품정보*.
+
+최대 필드 크기는 30 KB입니다.
+
+### 내구시간
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`mitigation_timeout`
+
+속도가 도달되면 제한 규칙은 이 필드 (초)에서 정의 된 시간 동안 더 요청하는 규칙 동작을 적용합니다.
+
+대시보드에서 사용 가능한 값 중 하나를 선택하십시오.[Cloudflare 플랜에 따라 다름](/waf/rate-limiting-rules/#availability). 유효한 API 값은:`0`, `10`, `60`(1 분),`120`(2 분),`300`(시간),`600`(10 분),`3600`(1 시간), 또는`86400`(1 일).
+
+무료, Pro 및 비즈니스 계획의 고객은 사용할 때 지속 시간을 선택할 수 없습니다.[도전 과제](/cloudflare-challenges/challenge-types/challenge-pages/#actions)- 그들의 비율 제한 규칙은 항상 이러한 행동에 대한 요청 throttling을 수행합니다. 요청 throttling, 당신은 기간을 정의하지 않습니다. 방문자가 도전을 통과 할 때, 해당[요청 카운터](/waf/rate-limiting-rules/request-rate/)0으로 설정한다. 규칙 특성에 대한 동일한 값으로 방문자가 충분한 요청을 통해 속도 제한 규칙을 다시 트리거합니다. 그들은 새로운 도전을 받게됩니다.
+
+기업 고객은 항상 도전 작업 중 하나를 사용할 때 지속 시간 (또는 완화 시간)을 구성 할 수 있습니다.
+
+:::note\[API 사용자용 노트]
+
+- 무료, Pro 또는 Business 플랜에 있는 경우 API를 사용해야 합니다.`mitigation_timeout`가치에`0`(zero) 작업을 사용할 때`managed_challenge`, `js_challenge`, 또는`challenge`.
+- 기업 고객은 사용할 수 있습니다`mitigation_timeout`가치 더 중대한 또는 동등한 것`0`(zero), 값 제한 작업에 관계없이 그들은 선택.
+  주요 특징
+
+### 다음 행동으로
+
+- 자료 유형:<Type text="Integer" />
+- API의 필드 이름:`mitigation_timeout`
+
+선택한 동작의 정확한 동작을 무시합니다.
+
+:::참조
+
+Enterprise 고객만 사용할 수 있습니다.*제품정보*활동.
+
+다른 사용자는 도전 행동을 사용하여 throttle 요청을 할 수 있으며, 시간 동안 작업을 수행 할 수 있습니다. 더 알아보기[내구시간](#for-duration)상세 정보
+
+:::
+
+행동 행동은 다음과 같다:
+
+- **선택된 기간 동안 작업 수행**: 선택된 기간 동안 수신된 모든 요청에 구성된 작업을 적용한다. API를 통해 이 동작을 구성하려면 설정`mitigation_timeout`0보다 큰 값으로. 더 알아보기[내구시간](#for-duration)더 많은 정보.
+
+  ![차트는 전체 완화 기간 동안의 행동을 적용하기 위해 구성된 비율 제한 규칙의 작용을 표시합니다.](~/assets/images/waf/rate-limiting-rules/behavior-apply-action-for-duration.png)
+
+- **최대 구성 비율을 통해 스로틀 요청**: 다른 요청을 허용하는 설정된 제한에 대한 수신 요청을 수신 할 수있는 선택된 조치를 적용합니다. API를 통해 이 동작을 구성하려면 설정`mitigation_timeout`으로`0`(제로).
+
+  ![설정된 제한의 속도 제한의 동작을 표시하는 차트](~/assets/images/waf/rate-limiting-rules/behavior-throttle.png)
+
+## 가격 제한 특성에 대한 메모
+
+### NAT 지원 IP 케이스 사용
+
+제품 정보**NAT 지원 IP**NAT의 요청과 같은 상황을 처리하기 위해 동일한 IP 주소를 공유합니다. Cloudflare는 다양한 개인 정보 보호 정책 기술을 사용하여 세션 쿠키를 사용할 수 있습니다. 더 알아보기[Cloudflare 쿠키](/fundamentals/reference/policies-compliances/cloudflare-cookies/)상세 정보
+
+### Incompatible 특성
+
+모두 사용할 수 없습니다.**NAT 지원 IP**·**IP 정보**동일한 비율 제한 규칙의 특성으로.
+
+### 이용안내`cf.colo.id`본문 바로가기
+
+당신은 사용할 수 없습니다`cf.colo.id`(data center ID) 규칙 표현의 필드로. 또한,`cf.colo.id`값은 경고없이 변경할 수 있습니다. 이 비율 제한 특성에 대한 자세한 내용은 참조[요금 계산](/waf/rate-limiting-rules/request-rate/).
+
+### Lowercased 헤더 이름을 사용하십시오 (API 사용자 용)
+
+당신이 사용하는 경우**헤더 값**API 요청의 특성 (포함`http.request.headers["<header_name>"]`), 당신은 Cloudflare가 Cloudflare 글로벌 네트워크에 우두머리 이름을 정상화하기 때문에 더 낮은 케이스에 있는 우두머리 이름을 입력해야 합니다.
+
+### Missing field versus 빈 값
+
+당신이 사용하는 경우**헤더 값**, **쿠키 값**, **Query 값**, **JSON 문자열 값**, `lookup_json_integer(...)`, 또는**양식 입력 값**특성과 특정 헤더/cookie/parameter/JSON 키/형 필드 이름은 요청에 존재하지 않습니다, 제한 규칙은 여전히 계산 표현에 따라 요청에 적용 할 수 있습니다.
+
+그런 요청을 필터링하지 않는 경우 특정 사항이 있습니다.[요청 카운터](/waf/rate-limiting-rules/request-rate/)필드가 존재하지 않는 요청을 위해 필드가 빈 값으로 존재하는 요청 카운터에서 다릅니다.
+
+예를 들어 특정 HTTP 헤더가 특정 비율 제한 규칙의 맥락에서 존재하는 유일한 요청을 고려하기 위해, 규칙 계산 표현을 조정하여 다음과 같은 무언가를 포함합니다:
+
+`and len(http.request.headers["<header_name>"]) > 0`
+
+이름 \*`<header_name>`같은 헤더 이름은 값 제한 특성으로 사용됩니다.
+
+### 쿠키 값을 사용할 때 권장 구성
+
+이용안내**쿠키 값**규칙을 제한하는 비율로, 이 권고를 따르십시오:
+
+- 이름 \*[주문 규칙](/waf/custom-rules/)쿠키에 대한 1 개 이상의 가치를 가진 요청을 차단합니다.
+- 어떤 까다로운 서버 운영을 수행하기 전에 원래의 쿠키값을 검증합니다.
+
+### JSON Web Token (JWT) 내부 청구에 대한 요구 사항
+
+JSON Web Token (JWT) 내부 청구를 사용하려면 먼저 설정해야합니다.[토큰 검증 구성](/api-shield/security/jwt-validation/api/)API Shield에.
+
+## 구성 제한
+
+- 규칙 필터 표현이 정의된 경우**수신 요청 일치**매개 변수, 포함[주문 목록](/waf/tools/lists/custom-lists/), 당신은 활성화해야합니다**또한 캐시된 자산에 제한하는 비율 적용**모수.
+
+- 규칙 필터 표현은 포함 할 수 없습니다[HTTP 응답 필드](/ruleset-engine/rules-language/fields/reference/?field-category=Response).
+
+- 정의된 규칙**주문 카운터**모수는, 둘 다 포함할 수 없습니다[HTTP 응답 필드](/ruleset-engine/rules-language/fields/reference/?field-category=Response)·[주문 목록](/waf/tools/lists/custom-lists/). 당신이 주문 명부를 사용하는 경우에, 당신은 활성화해야 합니다**또한 캐시된 자산에 제한하는 비율 적용**모수.
+
+- 제한 규칙을 만들 때[계정 수준에서](/waf/account/rate-limiting-rulesets/), 규칙 배포 표현 (범위 정의) 포함 할 수 없습니다[HTTP 응답 필드](/ruleset-engine/rules-language/fields/reference/?field-category=Response)또는[주문 목록](/waf/tools/lists/custom-lists/).

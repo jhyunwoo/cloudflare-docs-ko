@@ -1,0 +1,69 @@
+---
+title: Enable 탄력 있는
+pcx_content_type: how-to
+sidebar:
+  order: 59
+head:
+  - tag: title
+    content: 탄력 있는 Logpush 사용
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/elastic/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/elastic/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components"
+
+Cloudflare를 즉시 가시성 및 통찰력에 대한 탄성으로 밀어. Elastic과의 통합을 활성화하는 것은 대시보드로 사전 정의된 대시보드를 사용하여 Cloudflare Observability 및 보안 데이터를 쉽게 볼 수 있습니다.
+
+Cloudflare Logpush 통합은 데이터를 수집하기 위해 세 가지 다른 모드에서 사용할 수 있습니다 :
+
+- **HTTP 엔드포인트 모드**- Cloudflare 푸시는 당신의 탄력 있는 대리인에 의해 호스팅되는 HTTP 엔드포인트에 기록합니다.
+- **AWS S3 투표 모드**- Cloudflare는 S3에 자료를 쓰고, 탄력 있는 대리인은 S3 물통을 그것의 내용을 목록으로 만들고 새로운 파일을 읽습니다.
+- **AWS S3 SQS 모드**- Cloudflare는 S3에 자료를 쓰고, S3는 SQS에 새로운 목표 통보를, 탄력 있는 대리인은 SQS에서 통보를 받고, 그 후에 S3 목표를 읽습니다. 다수 대리인은 이 형태에서 사용될 수 있습니다.
+
+:::주\[주]
+
+Elastic은 AWS S3 SQS 모드를 추천합니다.
+
+:::
+
+## Cloudflare에서 가능한 Logpush 작업
+
+사용하는 방법을 결정하고 Cloudflare 대시보드 또는 API를 통해 적절한 Logpush 작업을 구성합니다.
+
+Elastic은 기본 JSON 형식을 지원합니다.
+
+짧은 기간 저장을 위한 물체 저장에 로그를 밀어주고 탄력 있는 (추천)로 소화하기 전에 버퍼링은, 로그를 밀어주는 Logpush 일을 구성하는 지시를 따릅니다[사이트맵](/logs/logpush/logpush-job/enable-destinations/aws-s3/), [Google 클라우드 스토리지](/logs/logpush/logpush-job/enable-destinations/google-cloud-storage/), 또는[Azure Blob 스토리지](/logs/logpush/logpush-job/enable-destinations/azure/).
+
+이용하기[HTTP 엔드포인트 모드](/logs/logpush/logpush-job/enable-destinations/http/), API를 사용하여 Elastic Agent에 의해 백업된 HTTP 엔드포인트에 로그를 밀어.
+
+추가 보안을 위해 양쪽에 동일한 사용자 정의 헤더를 추가합니다.
+
+예를 들어, 헤더와 특정 데이터 세트의 값과 함께 작업을 만드는 동안:
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  name: "<PUBLIC_DOMAIN>",
+  destination_conf: "https://<PUBLIC_DOMAIN>:<PUBLIC_PORT>?header_<SECRET_HEADER>=<SECRET_VALUE>",
+  dataset: "http_requests",
+  output_options: {
+    field_names: ["RayID", "EdgeStartTimestamp"],
+    timestamp_format: "rfc3339"
+  }
+}}
+/>
+
+## Elastic의 통합 활성화
+
+Logpush 작업이 구성되면 Elastics 지침을 따르십시오.[통합 설정](https://docs.elastic.co/integrations/cloudflare_logpush)Elastic 앱에서.
+
+## 보기 대시보드s
+
+로그인[탄력 있는 계정](https://www.elastic.co/)미리 만들어진 대시보드s를 전망하고 경고를 구성하십시오.

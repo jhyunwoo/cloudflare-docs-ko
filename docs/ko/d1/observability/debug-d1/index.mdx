@@ -1,0 +1,119 @@
+---
+title: 디버그 D1
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/observability/debug-d1/'
+translation_source_md: 'https://developers.cloudflare.com/d1/observability/debug-d1/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example } from "~/components";
+
+D1는 데이터베이스를 쿼리 할 때 예외 및 로그 오류를 캡처 할 수 있습니다. D1를 디버깅하려면, 같은 도구를 사용할 수 있습니다.[디버깅 Workers](/workers/observability/).
+
+D1의[`stmt.`](/d1/worker-api/prepared-statements/)·[`db.`](/d1/worker-api/d1-database/)자주 묻는 질문[오류 객체](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error)오류가 발생했을 때. 예외를 캡처하려면 로그인`e.message`가치.
+
+예를 들어, 아래 코드는 잘못된 키워드로 쿼리가 있습니다.`INSERTZ`대신에`INSERT`:
+
+```js
+try {
+    //이것은 의도적 인 말입니다.
+    await db.exec("INSERTZ INTO my_table (name, employees) VALUES ()");
+} catch (e: any) {
+    console.error({
+        message: e.message
+    });
+}
+```
+
+위의 코드는 다음과 같은 오류 메시지를 던졌습니다.
+
+```json
+{
+	"message": "D1_EXEC_ERROR: Error in line 1: INSERTZ INTO my_table (name, employees) VALUES (): sql error: near \"INSERTZ\": syntax error in INSERTZ INTO my_table (name, employees) VALUES () at offset 0"
+}
+```
+
+:::참조
+시작하기[`wrangler` 3.1.1](https://github.com/cloudflare/workers-sdk/releases/tag/wrangler%403.1.1), D1 JavaScript 오류 사용[이름 \*](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Error/cause)상세한 오류 메시지.
+
+이전 버전의 사용시 이러한 오류를 검사하기 위해`wrangler`로그인`error?.cause?.message`.
+:::
+
+## 오류 목록
+
+D1는 다음과 같은 오류 일정을 반환합니다. 확장 (detailed) 오류 메시지 :
+
+| 오류 메시지               | 이름 \*                                                                      | 자주 묻는 질문                    |
+| -------------------- | -------------------------------------------------------------------------- | --------------------------- |
+| `D1_ERROR`           | 특정 D1 오류의 접두사.                                                             | 아래의 "D1 ERRORs 목록"을 참조하십시오. |
+| `D1_EXEC_ERROR`      | 줄 x의 Exec 오류: y 오류.                                                        |                             |
+| `D1_TYPE_ERROR`      | 열과 값 사이의 유형에 잡힌 경우 반환됩니다. 일반적인 원인은 공급`undefined`대신 변수 (unsupported)`null`. | 값과 열 일치의 유형을 보장합니다.         |
+| `D1_COLUMN_NOTFOUND` | 찾을 수 없습니다.                                                                 | 데이터베이스에 존재하는 열을 선택합니다.      |
+
+다음과 같은 테이블 목록의 특정 인스턴스`D1_ERROR`.
+
+<Example title="D1 ERROR의 목록">
+  :::노트\[리트리 운영]
+  일부 D1 오류가 작동을 복원하여 해결 될 수 있지만 쿼리가 idempotent (다시 여러 번 실행할 때 동일한 결과를 제공합니다).
+
+  실패한 가동을 retrying하기 전에:
+
+  - idempotent (예를 들면, read-only 가동, 또는 같은 쿼리`CREATE TABLE IF NOT EXISTS`).
+  - 계정 만들기[Application-level 체크 구현](/d1/best-practices/retry-queries/)작업이 회복 될 수 있는지 확인하려면 안전하고 필요한 경우만 복원하십시오.
+    주요 특징
+
+  | `D1_ERROR`제품정보                                                                                                 | 이름 \*                                                                         | 자주 묻는 질문                                                                   |
+  | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+  | `No SQL statements detected.`                                                                                  | 입력 쿼리는 SQL 문이 포함되지 않습니다.                                                      | App action: 쿼리는 적어도 하나의 유효 SQL 문이 포함되어 있습니다.                               |
+  | `Your account has exceeded D1's maximum account storage limit, please contact Cloudflare to raise your limit.` | 계정의 모든 D1 데이터베이스의 전체 저장은 초과했습니다[계정 저장 제한](/d1/platform/limits/).              | 앱 액션: 사용되지 않은 데이터베이스 삭제, 또는 유료 플랜으로 계정을 업그레이드.                             |
+  | `Exceeded maximum DB size.`                                                                                    | D1 데이터베이스를 초과했습니다.[저장 한계](/d1/platform/limits/).                              | App action: 데이터베이스에서 데이터를 삭제하거나 데이터를 여러 데이터베이스로 shard.                     |
+  | `D1 DB reset because its code was updated.`                                                                    | Cloudflare는 D1 (또는 밑에 튼튼한 목표)를 위한 부호를 새롭게 하고, D1 데이타베이스를 포함하는 튼튼한 목표는 재시작합니다. | 가동을 재시동합니다.                                                                |
+  | `Internal error while starting up D1 DB storage caused object to be reset.`                                    | D1 데이터베이스를 포함하는 튼튼한 목표는 시작에 실패합니다.                                            | 가동을 재시동합니다.                                                                |
+  | `Network connection lost.`                                                                                     | 네트워크 오류.                                                                      | 가동을 재기합니다. 위에 "Retry operation"주의를 참조하십시오.                                 |
+  | `Internal error in D1 DB storage caused object to be reset.`                                                   | 오류가 시작하려면 D1 데이터베이스가 발생했습니다.                                                  | 가동을 재시동합니다.                                                                |
+  | `Cannot resolve D1 DB due to transient issue on remote node.`                                                  | 쿼리는 D1 데이터베이스를 포함하는 튼튼한 목표에 도달 할 수 없습니다.                                      | 가동을 재기합니다. 위에 "Retry operation"주의를 참조하십시오.                                 |
+  | `Can't read from request stream because client disconnected.`                                                  | 쿼리 요청이 작성되었습니다 (예 : SQL 쿼리 업로드), 그러나 쿼리가 완전히 실행 된 동안 연결이 닫혔습니다.               | App action: 가동을 재기하고, 연결이 열립니다.                                            |
+  | `D1 DB storage operation exceeded timeout which caused object to be reset.`                                    | 쿼리는 많은 양의 정보를 작성하려고 (예 : GBs), 그리고 너무 오래 복용.                                  | 앱 액션: 쿼리를 최적화 (그래서 각 쿼리가 더 적은 시간이 걸립니다), 시간을 초과하여 몇 가지 요청을 보내거나 쿼리를 shard. |
+  | `D1 DB is overloaded. Requests queued for too long.`                                                           | D1 데이터베이스에 대한 요청은 너무 길고, 너무 많은 요청이 있기 때문에 또는 누락 된 요청이 너무 오래 걸릴 수 있습니다.        | 앱 액션: 쿼리를 최적화 (그래서 각 쿼리가 더 적은 시간이 걸립니다), 시간을 초과하여 몇 가지 요청을 보내거나 쿼리를 shard. |
+  | `D1 DB is overloaded. Too many requests queued.`                                                               | D1 데이터베이스에 대한 요청은 너무 오래, 너무 많은 요청이 있기 때문에, 또는 누락 된 요청은 너무 오래 걸릴 수 있습니다.       | 앱 액션: 쿼리를 최적화 (그래서 각 쿼리가 더 적은 시간이 걸립니다), 시간을 초과하여 몇 가지 요청을 보내거나 쿼리를 shard. |
+  | `D1 DB's isolate exceeded its memory limit and was reset.`                                                     | 쿼리는 메모리에 너무 많은로드, D1 데이터베이스를 충돌.                                              | 앱 액션: 쿼리를 최적화 (그래서 각 쿼리가 더 적은 시간이 걸립니다), 시간을 초과하여 몇 가지 요청을 보내거나 쿼리를 shard. |
+  | `D1 DB exceeded its CPU time limit and was reset.`                                                             | 쿼리는 많은 CPU 시간을 복용 (예 : 9 GB 테이블 이상 스캔, 또는 큰 수입 / 수출 시도).                      | 앱 액션: 쿼리를 더 작은 shards로 분할합니다.                                              |
+</Example>
+
+## 자동 retries
+
+D1는 읽기 전용 쿼리를 감지하고 두 개의 레트리를 자동으로 시도하여 복원 가능한 오류로 실패의 경우 쿼리를 실행합니다.
+
+D1는 리트리 시도가 데이터베이스 쓰기를 일으키지 않다는 것을 보증합니다, 측 효력에서 자동적인 retries 안전을 만들기, 읽기 전용 탐지를 통해 수정 미끄러짐을 일으키는 경우에 조차. D1는 각 질의 실행 후에 수정을 위해 이것을 달성하고, 어떤 쓰기가 retry 시도 때문에 일어났는 경우에, 조회는 뒤 구르고 있습니다.
+
+:::참조
+읽기 전용 쿼리 만 (다음 SQLite 키워드 만 포함 된 쿼리 :`SELECT`, `EXPLAIN`, `WITH`)는 retried. 자주 묻는 질문[SQLite 키워드](https://sqlite.org/lang_keywords.html)그것은 데이터베이스 쓰기로 이동하지 않습니다.
+주요 특징
+
+## 로그아웃
+
+작업자에서 라이브 로그의 스트림보기[`wrangler tail`](/workers/observability/logs/real-time-logs#view-logs-using-wrangler-tail)또는 통해[Cloudflare 대시보드](/workers/observability/logs/real-time-logs#view-logs-from-the-dashboard).
+
+## 문제 보고
+
+- 버그 또는 요청 기능을 보고하려면[Cloudflare 커뮤니티 포럼](https://community.cloudflare.com/c/developers/d1/85).
+- 피드백을 제공하기 위해, 이동[모델 번호: D1 Discord 채널](https://discord.com/invite/cloudflaredev).
+- Wrangler에 문제가 있는 경우, 보고서 문제[Wrangler GitHub 저장소](https://github.com/cloudflare/workers-sdk/issues/new/choose).
+
+다음과 같은 버그 보고서를 포함해야 합니다:
+
+- 데이터베이스의 ID. 제품 정보`wrangler d1 list`ID에 데이터베이스 이름과 일치합니다.
+- 문제가 발생할 때 쿼리 (또는 쿼리) ran. 개인 식별 정보를 보장 (PII).
+- 쿼리를 만드는 노동자 코드, 어떤 호출을 포함`bind()`사용 방법[모델 번호: Workers 바인딩 API](/d1/worker-api/).
+- 전체 오류 텍스트, 내용 포함[`error.cause.message`](#handle-errors).
+
+## 관련 자료
+
+- 지원하다[Workers를 디버깅하는 방법](/workers/observability/).
+- 자주 묻는 질문[접속 로그](/workers/observability/logs/)당신의 노동자 및 D1에서 생성하는.
+- 제품 정보[`wrangler dev`](/workers/wrangler/commands/#dev)직장인과 D1를 로컬로 실행하고[배포하기 전에 debug 문제](/workers/development-testing/).

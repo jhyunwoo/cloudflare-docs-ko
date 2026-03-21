@@ -1,0 +1,54 @@
+---
+title: 양식 표현
+pcx_content_type: concept
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 본문 바로가기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/form-expressions/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/form-expressions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components";
+
+규칙은 Cloudflare 규칙 언어 사용으로 작성됩니다 - 도메인 별 언어 (DSL)는 mimic Wireshark semantics에 적용됩니다. 더 많은 정보를 원하시면, 참조[언어 선택](/ruleset-engine/rules-language/)문서.
+
+간단한 케이스로 시작하려면 소스 IP와 일치하는 방법 아래 검토하십시오.
+
+```txt
+ip.src == 192.0.2.0
+```
+
+Expressions는 논리 연산자를 통해 여러 항목에 가입하여 더 복잡 할 수 있습니다.
+
+```txt
+ip.src == 192.0.2.1 && (tcp.flags.push || tcp.flags.reset)
+```
+
+## 회사연혁
+
+Cloudflare Network Firewall (이전 Magic Firewall)을 사용하여 건너뛰거나 차단할 수 있습니다.<GlossaryTooltip term="data packet">제품정보</GlossaryTooltip>소스 또는 목적지 IP, 소스 또는 목적지 포트, 프로토콜, 패킷 길이 또는<GlossaryTooltip term="bit field matching">비트 필드 일치</GlossaryTooltip>.
+
+## 제한 사항
+
+Wirefilter 비교 지원 CIDR 표기, 하지만 내부 세트. 예를 들면:
+
+```txt
+ip.src == 192.0.2.0/24  # bad
+ip.src in { 192.0.2.0/24 }  # good
+```
+
+Expressions는 많은 참여 또는 배열된 항목이 표현될 때 쉽게 접근할 수 있는 복잡성 한계가 있습니다. 다음은 예입니다:
+
+```txt
+(tcp.dstport == 1000 || tcp.dstport == 1001) && (tcp.dstport == 1002 || tcp.dstport == 1003) && (tcp.dstport == 1004 || tcp.dstport == 1005) && (tcp.dstport == 1006 || tcp.dstport == 1007) && (tcp.dstport == 1008 || tcp.dstport == 1009) && (tcp.dstport == 1010 || tcp.dstport == 1011) && (tcp.dstport == 1012 || tcp.dstport == 1013) && (tcp.dstport == 1014 || tcp.dstport == 1015) && (tcp.dstport == 1016 || tcp.dstport == 1017)
+```
+
+제한이 도달되면 응답은`400`상태 코드 및 오류 메시지`ruleset exceeds complexity constraints`. 여러 규칙으로 표현을 분할하고 다시 시도하십시오.

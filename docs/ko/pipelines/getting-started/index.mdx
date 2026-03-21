@@ -1,0 +1,315 @@
+---
+pcx_content_type: get-started
+title: 시작하기
+head: []
+sidebar:
+  order: 2
+description: 첫 번째 파이프라인을 사용하여 스트리밍 데이터를 생성하고 Apache Iceberg 테이블으로 R2 Data Catalog로 작성하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pipelines/getting-started/'
+translation_source_md: 'https://developers.cloudflare.com/pipelines/getting-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Steps,
+	Tabs,
+	TabItem,
+	DashButton,
+	Details,
+	LinkCard,
+} from "~/components";
+
+이 가이드는 당신을 통해 지시합니다:
+
+- 구매하기[API 토큰](/r2/api/tokens/)귀하의 데이터 카탈로그를 인증하는 파이프라인에 필요한.
+- 간단한 전자 상거래 스키마와 함께 첫 번째 파이프라인 만들기[아파치 Iceberg](https://iceberg.apache.org/)R2 데이터 카탈로그에 의해 관리되는 테이블.
+- HTTP 엔드포인트를 통해 샘플 전자 상거래 데이터를 전송.
+- 당신의 물통에 있는 유효한 자료는 R2 SQL로 그것을 쿼리합니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. API 토큰 생성
+
+파이프 라인은 R2 데이터 카탈로그에 인증해야 합니다.[R2 API 토큰](/r2/api/tokens/)카탈로그 및 R2 권한이 있습니다.
+
+<Steps>
+  1. Cloudflare 대시보드에서, 갑니다**R2 객체 저장**사이트 맵
+     <DashButton url="/?to=/:account/r2/overview" />
+
+  2. 제품정보**API 토큰 관리**.
+
+  3. 제품정보**계정 API 토큰 만들기**.
+
+  4. API 토큰을 이름을 부여합니다.
+
+  5. 이름 \***제출**, 선택**관리자 읽기 및 쓰기**이름 \*
+
+  6. 제품정보**계정 만들기 API 토큰 토큰**.
+
+  7. 이름 \***토큰 값**.
+</Steps>
+
+:::참조
+이 토큰은 R2 SQL을 사용하여 데이터를 쿼리 할 수있는 QXR2XQ SQL을 포함합니다.
+주요 특징
+
+## 2. 첫 번째 파이프라인 만들기
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    첫째, 전자 상거래 데이터 구조를 정의하는 스키마 파일을 만듭니다.
+
+    **이름 \*`schema.json`:**
+
+    ```json
+    {
+    	"fields": [
+    		{
+    			"name": "user_id",
+    			"type": "string",
+    			"required": true
+    		},
+    		{
+    			"name": "event_type",
+    			"type": "string",
+    			"required": true
+    		},
+    		{
+    			"name": "product_id",
+    			"type": "string",
+    			"required": false
+    		},
+    		{
+    			"name": "amount",
+    			"type": "float64",
+    			"required": false
+    		}
+    	]
+    }
+    ```
+
+    QXQX0037XQ Data Catalog로 작성한 파이프라인을 만들기 위한 대화형 설정 사용:
+
+    ```bash
+    npx wrangler pipelines setup
+    ```
+
+    :::참조
+    설정 명령을 자동으로 생성합니다.[R2 물통](/r2/buckets/)지원하다[R2 데이터 카탈로그](/r2/data-catalog/)그들이 이미 존재하지 않는 경우, 그래서 당신은 그 전에 만들 필요가 없습니다.
+    주요 특징
+
+    프롬프트를 따르십시오:
+
+    1. **Pipeline 이름**: 입력`ecommerce`
+
+    2. **스트림 구성**:
+       - HTTP 엔드포인트 활성화:`yes`
+       - 인증:`no`(간단한)
+       - 사용자 정의 CORS 기원을 구성:`no`
+       - Schema 정의:`Load from file`
+       - Schema 파일 경로:`schema.json`(또는 파일 경로)
+
+    3. **싱크 구성**:
+       - 목적지 유형:`Data Catalog (Iceberg)`
+       - 설정 모드:`Simple (recommended defaults)`
+       - R2 물통 이름:`pipelines-tutorial`(이 존재하지 않는 경우 자동 생성)
+       - 테이블 이름:`ecommerce`
+       - 카탈로그 API 토큰: 단계 1에서 토큰을 입력하십시오.
+
+    4. **이름 \***: 요약 확인 및 선택`Create resources`
+
+    5. **SQL 변환**: 선택`Simple ingestion (SELECT * FROM stream)`
+
+    :::참조
+    설정 중 실수를 만드는 경우 (무효한 이름이나 잘못된 자격 증명과 같은), 전체 설정 프로세스를 재시작하기 위해 필요한 것보다 오히려 재시행을 초래합니다.
+    주요 특징
+
+    <Details header="고급 모드 옵션">
+      자주 묻는 질문**지원하다**대신에**지원하다**싱크 윤곽 도중, 당신은 뒤에 오는 추가 선택권을 주문을 받아서 만들 수 있습니다:
+
+      - **지원하다**: 출력 파일 형식 (예 : Parquet)
+      - **압축**: 압축 알고리즘(예: zstd)
+      - **롤링 정책**: 파일 크기 임계 값 (최소 5 MB) 및 시간 간격 (최소 10 초) 새로운 파일을 만들기위한
+      - **회사 소개**: 자동 압착 발생 또는 수동으로 R2 자격 증명을 입력
+      - **이름공간**: Data Catalog 네임스페이스(기본값)`default`)
+    </Details>
+
+    설정 완료 후, 명령은 Wrangler 파일에 대한 구성 스니펫을 출력하고 샘플 데이터와 작업자 바인딩 예제, HTTP 엔드포인트의 컬 명령을 출력합니다. HTTP 엔드포인트 URL과`pipelines`다음 단계에 사용하기위한 구성.
+
+    파이프라인 이름을 미리 설정할 수 있습니다.`--name`플래그:
+
+    ```bash
+    npx wrangler pipelines setup --name ecommerce
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 갑니다**R2 객체 저장**.
+         <DashButton url="/?to=/:account/r2/overview" />
+
+      2. 제품정보**버킷 만들기**그리고 물통 이름을 입력하십시오:`pipelines-tutorial`.
+
+      3. 제품정보**버킷 만들기**.
+
+      4. 버킷 선택, 전환**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 그리고 선택**이름 \***.
+
+      5. 일단 활성화되면, 참고**카탈로그 URI**·**창고 이름**.
+
+      6. 오시는 길**파이프 라인** > **파이프 라인**.
+
+         <DashButton url="/?to=/:account/pipelines/overview" />
+
+      7. 제품정보**Pipeline 만들기**.
+
+      8. **스트림에 연결**:
+         - 파이프 이름:`ecommerce`
+         - 데이터 전송을위한 HTTP 엔드포인트 활성화 : Enabled
+         - HTTP 인증: Disabled (과태)
+         - 제품정보**이름 \***
+
+      9. **입력 Schema를 정의**:
+         - 제품정보**JSON 편집기**
+         - 스키마에 복사 :
+           ```json
+           {
+           	"fields": [
+           		{
+           			"name": "user_id",
+           			"type": "string",
+           			"required": true
+           		},
+           		{
+           			"name": "event_type",
+           			"type": "string",
+           			"required": true
+           		},
+           		{
+           			"name": "product_id",
+           			"type": "string",
+           			"required": false
+           		},
+           		{
+           			"name": "amount",
+           			"type": "float64",
+           			"required": false
+           		}
+           	]
+           }
+           ```
+         - 제품정보**이름 \***
+
+      10. **싱크의 정의**:
+          - R2 물통을 선택하십시오:`pipelines-tutorial`
+          - 저장 유형:**R2 데이터 카탈로그**
+          - 이름 공간:`default`
+          - 테이블 이름:`ecommerce`
+          - **고급 설정**: 변경**최대 시간 간격**으로`10 seconds`
+          - 제품정보**이름 \***
+
+      11. **회사 소개**:
+          - 사용 방법**자동으로 싱크에 대한 계정 API 토큰을 만듭니다.**
+          - 이름 \***카탈로그 토큰**단계 1
+          - 제품정보**이름 \***
+
+      12. **파이프 정의**:
+          - 기본 SQL 쿼리를 남겨:
+            ```sql
+            INSERT INTO ecommerce_sink SELECT * FROM ecommerce_stream;
+            ```
+          - 제품정보**Pipeline 만들기**
+
+      13. 파이프라인 생성 후에, 주**스트림 ID**다음 단계.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 3. 표본 자료를 보내십시오
+
+파이프라인의 HTTP 엔드포인트에 전자 상거래 이벤트를 전송:
+
+```bash
+curl -X POST https://{stream-id}.ingest.cloudflare.com \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "user_id": "user_12345",
+      "event_type": "purchase",
+      "product_id": "widget-001",
+      "amount": 29.99
+    },
+    {
+      "user_id": "user_67890",
+      "event_type": "view_product",
+      "product_id": "widget-002"
+    },
+    {
+      "user_id": "user_12345",
+      "event_type": "add_to_cart",
+      "product_id": "widget-003",
+      "amount": 15.50
+    }
+  ]'
+```
+
+기타 제품`{stream-id}`파이프라인 설정에서 실제 스트림 엔드 포인트.
+
+## 4. 당신의 물통에 있는 유효한 자료
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**R2 객체 저장**사이트 맵
+
+  2. 당신의 물통을 선정하십시오:`pipelines-tutorial`.
+
+  3. 당신은 당신의 파이프라인에 의해 생성 된 Iceberg 메타 데이터 파일 및 데이터 파일을 볼 수 있습니다. 당신은 당신의 물통에 있는 어떤 파일을 보고 있지 않는 경우에, 몇 분을 기다리고 다시 시도하십시오.
+
+  4. 데이터는 메타데이터 추적 테이블 버전과 Apache Iceberg 형식으로 구성됩니다.
+</Steps>
+
+## 5. R2 SQL을 사용하여 데이터를 쿼리
+
+R2 SQL을 사용하여 환경을 설정:
+
+```bash
+export WRANGLER_R2_SQL_AUTH_TOKEN=YOUR_API_TOKEN
+```
+
+또는 생성`.env`파일 :
+
+```txt
+WRANGLER_R2_SQL_AUTH_TOKEN=YOUR_API_TOKEN
+```
+
+이름 \*`YOUR_API_TOKEN`단계 1에서 만든 토큰입니다. 환경 변수 설정에 대한 자세한 내용은 참조[Wrangler 시스템 환경 변수](/workers/wrangler/system-environment-variables/).
+
+데이터를 쿼리:
+
+```bash
+npx wrangler r2 sql query "YOUR_WAREHOUSE_NAME" "
+SELECT
+    user_id,
+    event_type,
+    product_id,
+    amount
+FROM default.ecommerce
+WHERE event_type = 'purchase'
+LIMIT 10"
+```
+
+기타 제품`YOUR_WAREHOUSE_NAME`파이프라인 설정 중의 창고 이름과 함께. Cloudflare 대시보드에서 찾을 수 있습니다.**R2 객체 저장**> 당신의 물통 >**계정 설정** > **R2 데이터 카탈로그**.
+
+Apache Iceberg를 지원하는 모든 엔진과 이 테이블을 쿼리할 수 있습니다. 다른 엔진을 R2 데이터 카탈로그에 연결하는 것에 대해 자세히 알아 보려면, 참조[Iceberg 엔진에 연결](/r2/data-catalog/config-examples/).
+
+## 더 알아보기
+
+<LinkCard title="사이트 맵" href="/pipelines/streams/" description="Data ingestion에 대한 설정 스트림에 대해 알아보세요." />
+
+<LinkCard title="파이프 라인" href="/pipelines/pipelines/" description="SQL 변환 및 파이프라인 구성을 이해합니다." />
+
+<LinkCard title="관련 상품" href="/pipelines/sinks/" description="데이터 목적지 및 출력 형식 구성." />

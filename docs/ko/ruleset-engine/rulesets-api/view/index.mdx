@@ -1,0 +1,294 @@
+---
+title: 목록 및 볼 규칙
+pcx_content_type: reference
+description: API 작업을 목록으로 설명하고 계정 또는 영역 수준에서 규칙의 세부 사항을 볼 수 있습니다.
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/view/'
+translation_source_md: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/view/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+다음 섹션에서 설명 된 API 작업을 사용하여 계정 또는 영역 수준에서 규칙의 세부 사항을 확인하고 볼 수 있습니다.
+
+- [자주 묻는 질문](#list-existing-rulesets)
+- [특정 규칙 보기](#view-a-specific-ruleset)
+- [모든 버전의 규칙 목록](#list-all-versions-of-a-ruleset)
+- [규칙의 특정 버전보기](#view-a-specific-version-of-a-ruleset)
+- [특정 태그와 관리 된 규칙의 목록 규칙](#list-rules-in-a-managed-ruleset-with-a-specific-tag)
+
+## 자주 묻는 질문
+
+계정 수준 또는 영역 수준에서 기존 규칙 목록을 반환합니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙](/api/resources/rulesets/methods/list/)<br />
+  `GET /accounts/{account_id}/rulesets`
+- [영역 규칙](/api/resources/rulesets/methods/list/)<br />
+  `GET /zones/{zone_id}/rulesets`
+
+결과는 주어진 수준 (계좌 또는 지역)에 모든 단계에 걸쳐 규칙을 포함합니다. 더 보기`phase`각 결과 요소의 필드는[단계별](/ruleset-engine/about/phases/)그 규칙은 정의된다.
+
+또한, 영역 수준에서 규칙 목록은 지정된 영역으로 배포 할 수 있습니다 계정 레벨 규칙을 포함합니다.
+
+:::참조
+모든 영역 레벨 단계는 이 API 메소드에 의해 반환된 목록에서 제시되는 경우에도 모든 유형의 규칙을 지원합니다. 각 CloudflareXQ 제품에 대한 문서 확인은 해당 제품의 지원 단계에서 허용됩니다.
+주요 특징
+
+결과는 규칙에 규칙의 목록을 포함하지 않습니다. 더 알아보기[규칙의 특정 버전보기](#view-a-specific-version-of-a-ruleset)규칙 목록을 얻는 방법을 배우기 위해.
+
+### 이름 \*
+
+<APIRequest path="/zones/{zone_id}/rulesets" method="GET" />
+
+```json output
+{
+	"result": [
+		{
+			"id": "<PHASE_RULESET_ID>",
+			"name": "Zone-level phase entry point",
+			"description": "",
+			"kind": "zone",
+			"version": "5",
+			"last_updated": "2025-03-18T18:30:08.122758Z",
+			"phase": "http_request_firewall_managed"
+		}
+	],
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 특정 규칙 보기
+
+지정된 규칙 ID와 규칙의 가장 최근 버전의 속성을 반환합니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 받기](/api/resources/rulesets/methods/get/)<br />
+  `GET /accounts/{account_id}/rulesets/{ruleset_id}`
+- [계정 입력 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)<br />
+  `GET /accounts/{account_id}/rulesets/phases/{phase_name}/entrypoint`
+- [지역 규칙 받기](/api/resources/rulesets/methods/get/)<br />
+  `GET /zones/{zone_id}/rulesets/{ruleset_id}`
+- [지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)<br />
+  `GET /zones/{zone_id}/rulesets/phases/{phase_name}/entrypoint`
+
+:::참조
+만 사용할 수 있습니다[지역 규칙 받기](/api/resources/rulesets/methods/get/)Zone-level 단계 항목 포인트 규칙에 대한 운영 (위험점)`kind`설정`zone`).
+:::
+
+API는 반환`404 Not Found`이러한 조건 하에서 HTTP 상태 코드:
+
+- 규칙을 찾을 수 없습니다.
+- 지정된 규칙이 관리되지 않을 때 호출 계정은 실행할 수 있습니다.
+
+### 이름 \*
+
+<APIRequest path="/zones/{zone_id}/rulesets/{ruleset_id}" method="GET" />
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point",
+		"description": "Executes a managed ruleset.",
+		"kind": "zone",
+		"version": "3",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2025-03-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2025-03-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 모든 버전의 규칙 목록
+
+규칙의 모든 버전의 목록을 반환합니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 버전](/api/resources/rulesets/subresources/versions/methods/list/)<br />
+  `GET /accounts/{account_id}/rulesets/{ruleset_id}/versions`
+- [계정 항목 포인트 규칙 버전](/api/resources/rulesets/subresources/phases/subresources/versions/methods/list/)<br />
+  `GET /accounts/{account_id}/rulesets/phases/{phase_name}/entrypoint/versions`
+- [영역 규칙 버전](/api/resources/rulesets/subresources/versions/methods/list/)<br />
+  `GET /zones/{zone_id}/rulesets/{ruleset_id}/versions`
+- [지역 항목 포인트 규칙 버전](/api/resources/rulesets/subresources/phases/subresources/versions/methods/list/)<br />
+  `GET /zones/{zone_id}/rulesets/phases/{phase_name}/entrypoint/versions`
+
+결과는 각 버전의 규칙 속성을 포함하지만 규칙 목록을 포함하지 않습니다. 더 알아보기[규칙의 특정 버전보기](#view-a-specific-version-of-a-ruleset)이 정보를 얻기에 대한 지침.
+
+지정된 단계 항목 포인트 규칙이 존재하지 않는 경우, 이 API 방법은 빈 배열을 반환`result`이름 \*
+
+### 이름 \*
+
+<APIRequest path="/zones/{zone_id}/rulesets/{ruleset_id}/versions" method="GET" />
+
+```json output
+{
+	"result": [
+		{
+			"id": "<RULESET_ID>",
+			"name": "Zone Ruleset 1",
+			"description": "",
+			"kind": "zone",
+			"version": "1",
+			"last_updated": "2023-02-17T11:15:13.128705Z",
+			"phase": "http_request_firewall_managed"
+		},
+		{
+			"id": "<RULESET_ID>",
+			"name": "Zone Ruleset 1",
+			"description": "",
+			"kind": "zone",
+			"version": "2",
+			"last_updated": "2023-02-17T11:24:06.869326Z",
+			"phase": "http_request_firewall_managed"
+		}
+	],
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 규칙의 특정 버전보기
+
+규칙의 특정 버전의 구성을 반환합니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 버전 받기](/api/resources/rulesets/subresources/versions/methods/get/)<br />
+  `GET /account/{account_id}/rulesets/{ruleset_id}/versions/{version_number}`
+- [계정 항목 포인트 규칙 버전 받기](/api/resources/rulesets/subresources/phases/subresources/versions/methods/get/)<br />
+  `GET /accounts/{account_id}/rulesets/phases/{phase_name}/entrypoint/versions/{version_number}`
+- [지역 규칙 버전 받기](/api/resources/rulesets/subresources/versions/methods/get/)<br />
+  `GET /zones/{zone_id}/rulesets/{ruleset_id}/versions/{version_number}`
+- [지역 항목 포인트 규칙 버전 받기](/api/resources/rulesets/subresources/phases/subresources/versions/methods/get/)<br />
+  `GET /zones/{zone_id}/rulesets/phases/{phase_name}/entrypoint/versions/{version_number}`
+
+지정된 단계 항목 포인트 규칙이 존재하지 않는 경우, 이 API 방법은 반환`404 Not Found`HTTP 상태 코드.
+
+### 이름 \*
+
+<APIRequest path="/zones/{zone_id}/rulesets/{ruleset_id}/versions/{ruleset_version}" method="GET" />
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point",
+		"description": "Executes a managed ruleset.",
+		"kind": "zone",
+		"version": "<RULESET_VERSION>",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2025-03-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2025-03-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+:::참조
+관리 규칙의 특정 버전을 볼 때, 결과에 나열된 각 규칙은 하나 이상의 관련 카테고리 / 태그를 가질 수 있으며 표현이 포함되지 않습니다.
+주요 특징
+
+## 특정 태그와 관리 된 규칙의 목록 규칙
+
+특정 태그로 관리되는 모든 규칙의 목록을 반환합니다.
+
+- 계정 규칙 목록의 규칙 태그<br />
+  `GET /accounts/{account_id}/rulesets/{ruleset_id}/versions/{version_number}/by_tag/{tag_name}`
+
+### 이름 \*
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/{ruleset_id}/versions/{ruleset_version}/by_tag/{rule_tag}"
+  method="GET"
+  parameters={{
+  	ruleset_version: "2",
+  	rule_tag: "wordpress",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<MANAGED_RULESET_ID>",
+		"name": "Cloudflare Managed Ruleset",
+		"description": "Managed ruleset created by Cloudflare",
+		"kind": "managed",
+		"version": "2",
+		"rules": [
+			{
+				"id": "<RULE_ID_1>",
+				"version": "2",
+				"action": "log",
+				"categories": [
+					"cve-2014-5265",
+					"cve-2014-5266",
+					"cve-2014-5267",
+					"dos",
+					"drupal",
+					"wordpress"
+				],
+				"description": "Drupal, WordPress - DoS - XMLRPC - CVE:CVE-2014-5265, CVE:CVE-2014-5266, CVE:CVE-2014-5267",
+				"last_updated": "2025-03-19T16:54:32.942986Z",
+				"ref": "<RULE_REF_1>",
+				"enabled": true
+			},
+			{
+				"id": "<RULE_ID_2>",
+				"version": "2",
+				"action": "block",
+				"categories": ["broken-access-control", "cve-2018-12895", "wordpress"],
+				"description": "WordPress - Broken Access Control - CVE:CVE-2018-12895",
+				"last_updated": "2025-03-19T16:54:32.942986Z",
+				"ref": "<RULE_REF_2>",
+				"enabled": true
+			}
+			// (...)
+		],
+		"last_updated": "2025-03-19T16:54:32.942986Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```

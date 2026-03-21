@@ -1,0 +1,112 @@
+---
+summary: >-
+  Control cache programmatically. Use this template to optimize performance and
+  implement custom caching strategies.
+tags:
+  - Caching
+products:
+  - snippets
+pcx_content_type: example
+title: 사용자 정의 캐시
+description: '저장, 검색, 캐시에서 자산을 제거 programmatically. 이 템플릿을 사용하여 성능을 최적화하고 맞춤 캐싱 전략을 구현합니다.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/custom-cache/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/custom-cache/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+//초 (과태: 30 일)에 있는 구성할 수 있는 캐시 내구를 정의하십시오
+const CACHE_DURATION_SECONDS = 30 * 24 * 60 * 60;
+
+//캐시 키에 포함 하는 요청의 부분을 정의
+const USE_PATH = true; //캐시 키의 경로 포함
+const USE_QUERY_STRING = true; //캐시 키에 쿼리 문자열 포함
+const INCLUDE_HEADERS = ["User-Agent"]; //Headers는 캐시 키에 포함
+
+export default {
+	async fetch(request, env, ctx) {
+		//사용자 p참고 자료QS를 기반으로 사용자 정의 캐시 키를 생성
+		const cacheKey = createCacheKey(request);
+		console.log(`Retrieving cache for: ${cacheKey.url}.`);
+
+		//기본 캐시 API 접근
+		const cache = caches.default;
+
+		//캐시 된 응답을 검색하려면
+		let response = await cache.match(cacheKey);
+
+		if (!response) {
+			//캐시 놓기: 근원에서 자산을 묶기
+			console.log(`Cache miss for: ${cacheKey.url}. Fetching from origin...`);
+			response = await fetch(request);
+
+			//캐싱에 대한 원산지 응답을 포장
+			response = new Response(response.body, response);
+
+			//Cache-Control 헤더를 설정하여 TTL 정의
+			response.headers.set(
+				"Cache-Control",
+				`s-maxage=${CACHE_DURATION_SECONDS}`,
+			);
+			response.headers.set("x-snippets-cache", "stored");
+
+			//캐시의 응답 저장
+			await cache.put(cacheKey, response.clone());
+		} else {
+			//캐시 히트 : 캐시 된 응답을 반환
+			console.log(`Cache hit for: ${cacheKey.url}.`);
+			response = new Response(response.body, response);
+			response.headers.set("x-snippets-cache", "hit");
+
+			//선택적으로 캐시가 나이에 따라 만료되면 확인
+			const ageHeader = response.headers.get("Age");
+			if (ageHeader && parseInt(ageHeader, 10) > CACHE_DURATION_SECONDS) {
+				console.log(
+					`Cache expired for: ${cacheKey.url}. Deleting cached response...`,
+				);
+				await cache.delete(cacheKey);
+				response.headers.set("x-snippets-cache", "deleted");
+			}
+		}
+
+		//고객에 대한 응답을 반환
+		return response;
+	},
+};
+
+/** 이름
+* 요청 속성에 따라 사용자 정의 캐시 키 생성 기능
+* @param {Request} 요청 - 수신 요청 객체
+* @returns {Request} - URL을 기반으로 유효한 캐시 키*/
+function createCacheKey(request) {
+	const url = new URL(request.url); //요청의 기본 URL 사용
+	const cacheKey = new URL(url.origin); //시작 (scheme + hostname)
+
+	//선택적으로 경로 포함
+	if (USE_PATH) {
+		cacheKey.pathname = url.pathname;
+	}
+
+	//선택적으로 쿼리 문자열을 포함
+	if (USE_QUERY_STRING) {
+		cacheKey.search = url.search;
+	}
+
+	//선택적으로 특정한 우두머리를 포함합니다
+	if (INCLUDE_HEADERS.length > 0) {
+		const headerParts = INCLUDE_HEADERS.map(
+			(header) => `${header}=${request.headers.get(header) || ""}`,
+		).join("&");
+		cacheKey.searchParams.append("headers", headerParts);
+	}
+
+	//캐시 키로 구성 URL을 반환
+	return new Request(cacheKey.toString(), {
+		method: "GET",
+	});
+}
+```

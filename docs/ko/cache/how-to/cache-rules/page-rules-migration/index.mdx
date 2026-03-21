@@ -1,0 +1,69 @@
+---
+title: Page Rules에서 마이그레이션
+pcx_content_type: reference
+sidebar:
+  order: 9
+head:
+  - tag: title
+    content: Page Rules에서 마이그레이션
+
+---
+
+import { TabItem, Tabs } from "~/components"
+
+Page Rules에서 마이그레이션하는 경우, Page Rules와 Cache Rules 사이에는 동작 차이가 있습니다.
+
+새 Cache Rule을 만들고 **Eligible for cache**를 선택하면 Cache Everything 기능이 기본으로 활성화됩니다. Page Rules에서는 Cache Everything 옵션을 명시적으로 켜야 했습니다.
+
+Page Rules에서 사용하던 것과 동일한 동작(Cache Everything을 켜지 않는 동작)을 유지하려면, 추가 규칙을 만들기 전에 아래 두 규칙을 이 순서대로 생성해야 합니다.
+
+여러 개의 일치하는 캐시 규칙은 결합되어 같은 요청에 적용될 수 있습니다. 규칙 1이 일치한 뒤에도 Cloudflare는 다른 캐시 규칙을 계속 평가해 추가 일치를 확인합니다. 자세한 내용은 [순서와 우선순위](/cache/how-to/cache-rules/order/)를 참고하세요.
+
+## 규칙 1
+
+<Tabs> <TabItem label="Dashboard">
+
+1. 예를 들어 `bypass everything`과 같은 규칙 이름을 입력합니다.
+2. **When incoming requests match**에서 **All incoming requests**를 선택합니다.
+3. **Then** 아래 **Cache eligibility** 섹션에서 [Bypass cache](/cache/how-to/cache-rules/settings/#bypass-cache)를 선택합니다.
+
+</TabItem> <TabItem label="visual guide">
+
+![캐시 우회 규칙 만들기](~/assets/images/cache/first-rule.png)
+
+</TabItem> </Tabs>
+
+## 규칙 2
+
+<Tabs> <TabItem label="Dashboard">
+
+1. 예를 들어 `cache all default cacheable extensions`와 같은 규칙 이름을 입력합니다.
+2. **When incoming requests match**에서 **Custom filter expression**을 선택합니다.
+3. 다음 규칙을 정의합니다.
+   * **Field**: `File extension`
+   * **Operator**: `is in`
+   * **Value**: `7z, avi, avif, apk, bin, bmp, bz2, class, css, csv, doc, docx, dmg, ejs, eot, eps, exe, flac, gif, gz, ico, iso, jar, jpg, jpeg, js, mid, midi, mkv, mp3, mp4, ogg, otf, pdf, pict, pls, png, ppt, pptx, ps, rar, svg, svgz, swf, tar, tif, tiff, ttf, webm, webp, woff, woff2, xls, xlsx, zip, zst`
+
+원한다면 **Edit expression**을 선택하고 다음 표현식을 붙여넣을 수 있습니다.
+
+```txt
+(http.request.uri.path.extension in {"7z" "avi" "avif" "apk" "bin" "bmp" "bz2" "class" "css" "csv" "doc" "docx" "dmg" "ejs" "eot" "eps" "exe" "flac" "gif" "gz" "ico" "iso" "jar" "jpg" "jpeg" "js" "mid" "midi" "mkv" "mp3" "mp4" "ogg" "otf" "pdf" "pict" "pls" "png" "ppt" "pptx" "ps" "rar" "svg" "svgz" "swf" "tar" "tif" "tiff" "ttf" "webm" "webp" "woff" "woff2" "xls" "xlsx" "zip" "zst"})
+```
+
+4. **Then** 아래 **Cache eligibility** 섹션에서 [**Eligible for cache**](/cache/how-to/cache-rules/settings/#eligible-for-cache-settings)를 선택합니다.
+
+</TabItem> <TabItem label="visual guide">
+
+![캐시 가능 규칙 만들기](~/assets/images/cache/second-rule.png)
+
+</TabItem> </Tabs>
+
+:::note[참고]
+
+
+규칙은 지정된 순서대로 만들어야 합니다. 먼저 `bypass everything` 규칙을 만들고, 그다음 `cache all default cacheable file extensions` 규칙을 만들어야 합니다.
+
+![규칙 순서](~/assets/images/cache/rule-order.png)
+
+
+:::

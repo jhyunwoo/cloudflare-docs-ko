@@ -1,0 +1,125 @@
+---
+title: WAF 공격 점수
+pcx_content_type: concept
+sidebar:
+  order: 2
+  label: 공격 점수
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/detections/attack-score/'
+translation_source_md: 'https://developers.cloudflare.com/waf/detections/attack-score/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Type } from "~/components";
+
+공격 점수[교통 감지](/waf/concepts/#detection-versus-mitigation)알려진 공격과 악의적 인 페이로드의 변화를 식별하는 데 도움이됩니다. 이 감지는 보완[WAF 관리 규칙](/waf/managed-rules/).
+
+WAF의 관리 규정은 악의적 인 페이로드를 더 잘 감지하기 위해 지속적으로 업데이트되는 규칙을 포함합니다. 그들은 설치 된 공격 벡터의 특정 패턴을 대상으로하고 거짓 긍정적 인의 매우 낮은 비율이 있습니다. 그러나, 관리 규칙은 원래 서명의 변형에 따라 공격에 최적화되지 않습니다, 예를 들어, fuzzing 기술에 의해.
+
+공격 점수를 사용하면 이러한 공격 변형과 악의적 인 페이로드를 식별 할 수 있습니다. 기계 학습 알고리즘을 사용하여 각 요청을 분류하여 1에서 99까지의 공격 점수를 할당하여 요청이 악화된다는 것을 의미합니다. 이름 \*[Bot 관리](/bots/plans/bm-subscription/), 당신은 WAF 관리 규칙에 있는 규칙의 무엇이든에 정확한 일치하지 않는 잠재적으로 악의적인 소통량을 식별하는 이 점수를 사용할 수 있습니다.
+
+보호를 극대화하려면 Cloudflare는 관리 규칙과 공격 점수를 모두 사용하는 것이 좋습니다.
+
+:::참조
+가득 차있는 특징은 기업 고객에게 유효합니다. 비즈니스 계획은 단일 필드 (WAF 공격 점수 클래스)에만 액세스 할 수 있습니다.
+주요 특징
+
+## 사용 가능한 점수
+
+Cloudflare WAF는 다음과 같은 공격 점수 필드를 제공합니다:
+
+| 제품정보                                                                        | 이름 \*                                                                                           | 자주 묻는 질문 |
+| --------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------- |
+| WAF 공격 점수<br /> [`cf.waf.score`][1] <br /> <Type text="Number" />           | 1-99의 글로벌 점수는 각 WAF 공격 벡터를 단일 점수로 결합합니다.                                                        | 회사 소개    |
+| WAF SQLi 공격 점수<br /> [`cf.waf.score.sqli`][2] <br /> <Type text="Number" /> | 1-99 등급의 점수[SQL 주입][6]\(SQLi) 공격 벡터.                                                            | 회사 소개    |
+| WAF XSS 공격 점수<br /> [`cf.waf.score.xss`][3] <br /> <Type text="Number" />   | 1-99 등급의 점수[크로스 사이트 스크립트][7]\(XSS) 공격 벡터.                                                       | 회사 소개    |
+| WAF RCE 공격 점수<br /> [`cf.waf.score.rce`][4] <br /> <Type text="Number" />   | 명령 주입을 분류하는 1-99의 점수[원격 코드 실행][8]\(RCE) 공격 벡터.                                                  | 회사 소개    |
+| WAF 공격 점수 클래스<br /> [`cf.waf.score.class`][5] <br /> <Type text="String" /> | WAF 공격 점수를 기반으로 현재 요청의 공격 점수 클래스.<br />가능한 값:`attack`, `likely_attack`, `likely_clean`·`clean`. | 사업 이상    |
+
+[1]: /ruleset-engine/rules-language/fields/reference/cf.waf.score/
+
+[2]: /ruleset-engine/rules-language/fields/reference/cf.waf.score.sqli/
+
+[3]: /ruleset-engine/rules-language/fields/reference/cf.waf.score.xss/
+
+[4]: /ruleset-engine/rules-language/fields/reference/cf.waf.score.rce/
+
+[5]: /ruleset-engine/rules-language/fields/reference/cf.waf.score.class/
+
+[6]: https://www.cloudflare.com/learning/security/threats/sql-injection/
+
+[7]: https://www.cloudflare.com/learning/security/threats/cross-site-scripting/
+
+[8]: https://www.cloudflare.com/learning/security/what-is-remote-code-execution/
+
+이 필드를 사용할 수 있습니다.[주문 규칙](/waf/custom-rules/)·[비율 제한 규칙](/waf/rate-limiting-rules/). 데이터 유형의 공격 점수 필드`Number`다르다`1`·`99`다음과 같은 의미 :
+
+- 점수의`1`요청이 거의 확실히 악화된다는 것을 나타냅니다.
+- 점수의`99`요청이 깨끗하다는 것을 나타냅니다.
+
+특별한 점수`100`요청이 Cloudflare WAF 공격 점수 분류 시스템에 도달한다는 것을 나타냅니다. 그러나 시스템은 요청을 점수로 결정하지 않습니다.
+
+내 계정[다운로드](/logs/logpush/), 당신은 또한 특별한 점수를 얻을 수 있습니다`0`, 이는 요청이 공격 점수가 계산되는 단계에 도달하지 않았다는 것을 의미 (예를 들어, 요청은 이전 규칙 또는 다른 보호 시스템에 의해 이미 투약되었습니다). 값`0`Cloudflare 대시보드에 표시되지 않습니다.
+
+글로벌 WAF 공격 점수는 개별 공격 점수 (예를 들어 SQLi Attack Score 및 XSS Attack Score)에서 수학적으로 파생됩니다. 그러나 글로벌 점수는 개별 점수의 합이 아닙니다. 낮은 글로벌 점수는 일반적으로 낮은 개별 점수로 중간을 나타냅니다. 높은 글로벌 점수는 높은 개별 점수를 제안합니다.
+
+WAF 공격 점수 클래스 필드는 계산된 요청 공격 점수에 따라 다음과 같은 값 중 하나를 가질 수 있습니다.
+
+| Dashboard 상표 | 필드 값            | 이름 \*              |
+| ------------ | --------------- | ------------------ |
+| *관련 기사*      | `attack`        | 사이 공격 점수`1`·`20`.  |
+| *자주 묻는 질문*   | `likely_attack` | 사이 공격 점수`21`·`50`. |
+| *자주 묻는 질문*   | `likely_clean`  | 사이 공격 점수`51`·`80`. |
+| *제품정보*       | `clean`         | 사이 공격 점수`81`·`99`. |
+
+특별 공격 점수 요청`100`WAF 공격 점수 클래스를 보여줍니다*기타 제품*Cloudflare 대시보드에서 규칙 표현에 이 클래스 값을 사용할 수 없습니다.
+
+공격 점수는 자동으로 감지 및 디코드 Base64, JavaScript (Unicode Escape sequences), URL 인코딩된 콘텐츠는 어디에서나 요청: URL, 헤더 및 신체.
+
+## 규칙 권고
+
+Cloudflare는 아래 모든 값에 대한 WAF 공격 점수를 기반으로 트래픽을 단독으로 차단하는 것이 좋습니다.`50`, 이후*자주 묻는 질문*범위 (간점)`21`·`50`) 거짓 긍정적 인 경향이있다. 이 점수를 기반으로 트래픽을 차단하려면 다음 중 하나를 수행하십시오.
+
+- 더 엄격한 WAF 공격 점수 값을 표현합니다. 예를 들어, 아래의 WAF 공격 점수로 트래픽 차단`20`또는 아래`15`(당신은 정확한 임계값을 조정할 필요가 있을 수 있습니다).
+
+- 더 높은 WAF 공격 점수 임계값을 결합하여 들어오는 트래픽을 차단할 수 있습니다. 예를 들어, 표현의 특정 URI 경로에 대한 체크를 포함하거나 봇 점수를 귀하의 기준의 일부로 사용합니다.
+
+***
+
+## WAF 공격 점수를 사용하여 시작
+
+### 1. 사용자 정의 규칙 만들기
+
+당신은 기업 고객인 경우에,[사용자 정의 규칙 만들기](/waf/custom-rules/create-dashboard/)그 블록 요청**WAF 공격 점수**20세 미만(초기 임계값) 예를 들면:
+
+| 제품정보      | 회사연혁          | 제품정보 |
+| --------- | ------------- | ---- |
+| WAF 공격 점수 | 더 적은 또는 동등한 것 | `20` |
+
+- 동등한 규칙 표식:`cf.waf.score le 20`
+- 활동 :*제품정보*
+
+비즈니스 고객은 사용자 정의 규칙을 작성해야합니다.**WAF 공격 점수 클래스**대신 필드. 예를 들어, 이 필드를 사용하여 점수 클래스의 수신 요청을 차단합니다.*관련 기사*:
+
+| 제품정보          | 회사연혁  | 제품정보     |
+| ------------- | ----- | -------- |
+| WAF 공격 점수 클래스 | 이름 \* | `Attack` |
+
+- 동등한 규칙 표식:`cf.waf.score.class eq "attack"`
+- 활동 :*제품정보*
+
+### 2. 모니터 도메인 트래픽
+
+당신이 만든 규칙을 모니터링, 특히 첫 번째 몇 일에서, 당신은 당신의 트래픽에 적합한 임계값 (또는 클래스)에 입력해야합니다. 필요한 경우 규칙을 업데이트하십시오.
+
+### 3. 규칙 동작 업데이트
+
+Enterprise 고객이라면 규칙을 작성했습니다.*로그인*행동, 더 심한 것에 규칙 행동을 변경, 같은*관리 도전*또는*제품정보*.
+
+***
+
+## 추가 알림
+
+WAF 공격 점수는 다릅니다.[봇 점수](/bots/concepts/bot-score/). WAF 공격 점수는 WAF 관리 규칙이 붙지 않는 공격의 변화를 식별하지만 봇 점수는 봇을 식별합니다.

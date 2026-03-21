@@ -1,0 +1,100 @@
+---
+title: Python Workflows SDK
+pcx_content_type: navigation
+sidebar:
+  order: 5
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/python/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/python/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+워크 플로우 엔트리 포인트는 Python를 사용하여 선언 할 수 있습니다. 이를 달성하기 위해, 당신은 수출할 수 있습니다`WorkflowEntrypoint`Cloudflare Workers 플랫폼에서 실행됩니다.
+더 알아보기[Python Workers](/workers/languages/python)PythonXQ에 대한 자세한 내용은 Workers 실행 시간.
+
+:::caution\[Python Workflows는 beta, 뿐 아니라 underlying 플랫폼에서 입니다.]
+\#python-workers 채널에 가입[Cloudflare 개발자 Discord](https://discord.cloudflare.com/)그리고 당신이 다음을보고 싶은 것을 알려주세요.
+주요 특징
+
+## 시작하기
+
+Python 워크플로우의 주요 항목점은[`WorkflowEntrypoint`](/workflows/build/workers-api/#workflowentrypoint)수업. 작업 흐름 논리는 내부에 있어야 합니다.[`run`](/workflows/build/workers-api/#run)핸들러.
+
+```python
+from workers import WorkflowEntrypoint
+
+class MyWorkflow(WorkflowEntrypoint):
+    async def run(self, event, step):
+        #여기에
+```
+
+예를 들어, Workflow는 다음과 같이 정의될 수 있습니다.
+
+```python
+from workers import Response, WorkflowEntrypoint, WorkerEntrypoint
+
+class PythonWorkflowStarter(WorkflowEntrypoint):
+    async def run(self, event, step):
+
+        @step.do('step1')
+        async def step_1():
+            #기타 제품
+            print('executing step1')
+
+        @step.do('step2')
+        async def step_2():
+            #기타 제품
+            print('executing step2')
+
+        await step_1()
+        await step_2()
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        await self.env.MY_WORKFLOW.create()
+        return Response("Hello world!")
+```
+
+모두 추가해야 합니다.`python_workflows`·`python_workers`compatibility flags를 Wrangler 설정 파일에 입력하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "hello-python",
+  	"main": "src/entry.py",
+  	"compatibility_flags": [
+  		"python_workers",
+  		"python_workflows"
+  	],
+  	"compatibility_date": "$today",
+  	"workflows": [
+  		{
+  			"name": "workflows-demo",
+  			"binding": "MY_WORKFLOW",
+  			"class_name": "PythonWorkflowStarter"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+Python를 실행하려면 로컬 작업 흐름, 사용[Wrangler](/workers/wrangler/)Cloudflare Workers를 위한 클립:
+
+```bash
+npx wrangler@latest dev
+```
+
+Python Cloudflare에 워크 플로우, 실행[`wrangler deploy`](/workers/wrangler/commands/#deploy):
+
+```bash
+npx wrangler@latest deploy
+```
+
+\#python-workers 채널에 가입[Cloudflare 개발자 Discord](https://discord.cloudflare.com/)그리고 당신이 다음을보고 싶은 것을 알려주세요.

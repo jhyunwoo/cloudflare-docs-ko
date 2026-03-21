@@ -1,0 +1,282 @@
+---
+title: AI로 분석 데이터
+pcx_content_type: tutorial
+sidebar:
+  order: 2
+description: CSV 파일을 업로드하고 Claude와 분석 코드를 생성하고 시각화를 반환합니다.
+reviewed: 2025-10-15T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/tutorials/analyze-data-with-ai/'
+translation_source_md: >-
+  https://developers.cloudflare.com/sandbox/tutorials/analyze-data-with-ai/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+CSV 업로드를 허용하는 AI 전원 데이터 분석 시스템을 구축하고, Claude를 사용하여 Python 분석 코드를 생성하고 샌드 박스에서 실행하고 시각화를 반환합니다.
+
+**자주 묻는 질문**: 25분
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+당신은 또한 필요로 할 것입니다:
+
+- 이름 \*[Anthropic API 키](https://console.anthropic.com/)Claude 소개
+- [기타 제품](https://www.docker.com/)현지에서
+
+## 1. 프로젝트 만들기
+
+새로운 Sandbox SDK 프로젝트 만들기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"analyze-data --template=cloudflare/sandbox-sdk/examples/minimal"} />
+
+```sh
+cd analyze-data
+```
+
+## 2. 의존성 설치
+
+<PackageManagers pkg="@anthropic-ai/sdk" />
+
+## 3. 분석 핸들러 구축
+
+기타 제품`src/index.ts`:
+
+```typescript
+import { getSandbox, proxyToSandbox, type Sandbox } from "@cloudflare/sandbox";
+import Anthropic from "@anthropic-ai/sdk";
+
+export { Sandbox } from "@cloudflare/sandbox";
+
+interface Env {
+	Sandbox: DurableObjectNamespace<Sandbox>;
+	ANTHROPIC_API_KEY: string;
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		const proxyResponse = await proxyToSandbox(request, env);
+		if (proxyResponse) return proxyResponse;
+
+		if (request.method !== "POST") {
+			return Response.json(
+				{ error: "POST CSV file and question" },
+				{ status: 405 },
+			);
+		}
+
+		try {
+			const formData = await request.formData();
+			const csvFile = formData.get("file") as File;
+			const question = formData.get("question") as string;
+
+			if (!csvFile || !question) {
+				return Response.json(
+					{ error: "Missing file or question" },
+					{ status: 400 },
+				);
+			}
+
+			//CSV를 sandbox에 업로드
+			const sandbox = getSandbox(env.Sandbox, `analysis-${Date.now()}`);
+			const csvPath = "/workspace/data.csv";
+			await sandbox.writeFile(csvPath, await csvFile.text());
+
+			//Analyze CSV 구조
+			const structure = await sandbox.exec(
+				`python3 -c "import pandas as pd; df = pd.read_csv('${csvPath}'); print(f'Rows: {len(df)}'); print(f'Columns: {list(df.columns)[:5]}')"`,
+			);
+
+			if (!structure.success) {
+				return Response.json(
+					{ error: "Failed to read CSV", details: structure.stderr },
+					{ status: 400 },
+				);
+			}
+
+			//Claude와 분석 코드 생성
+			const code = await generateAnalysisCode(
+				env.ANTHROPIC_API_KEY,
+				csvPath,
+				question,
+				structure.stdout,
+			);
+
+			//분석 코드를 작성하고 실행
+			await sandbox.writeFile("/workspace/analyze.py", code);
+			const result = await sandbox.exec("python /workspace/analyze.py");
+
+			if (!result.success) {
+				return Response.json(
+					{ error: "Analysis failed", details: result.stderr },
+					{ status: 500 },
+				);
+			}
+
+			//제품 선택
+			let chart = null;
+			try {
+				const chartFile = await sandbox.readFile("/workspace/chart.png");
+				const buffer = new Uint8Array(chartFile.content);
+				chart = `data:image/png;base64,${btoa(String.fromCharCode(...buffer))}`;
+			} catch {
+				//생성 된 차트
+			}
+
+			await sandbox.destroy();
+
+			return Response.json({
+				success: true,
+				output: result.stdout,
+				chart,
+				code,
+			});
+		} catch (error: any) {
+			return Response.json({ error: error.message }, { status: 500 });
+		}
+	},
+};
+
+async function generateAnalysisCode(
+	apiKey: string,
+	csvPath: string,
+	question: string,
+	csvStructure: string,
+): Promise<string> {
+	const anthropic = new Anthropic({ apiKey });
+
+	const response = await anthropic.messages.create({
+		model: "claude-sonnet-4-5",
+		max_tokens: 2048,
+		messages: [
+			{
+				role: "user",
+				content: `CSV at ${csvPath}:
+${csvStructure}
+
+Question: "${question}"
+
+Generate Python code that:
+- Reads CSV with pandas
+- Answers the question
+- Saves charts to /workspace/chart.png if helpful
+- Prints findings to stdout
+
+Use pandas, numpy, matplotlib.`,
+			},
+		],
+		tools: [
+			{
+				name: "generate_python_code",
+				description: "Generate Python code for data analysis",
+				input_schema: {
+					type: "object",
+					properties: {
+						code: { type: "string", description: "Complete Python code" },
+					},
+					required: ["code"],
+				},
+			},
+		],
+	});
+
+	for (const block of response.content) {
+		if (block.type === "tool_use" && block.name === "generate_python_code") {
+			return (block.input as { code: string }).code;
+		}
+	}
+
+	throw new Error("Failed to generate code");
+}
+```
+
+## 4. 로컬 환경 변수 설정
+
+이름 \*`.dev.vars`로컬 개발을위한 프로젝트 루트의 파일 :
+
+```sh
+echo "ANTHROPIC_API_KEY=your_api_key_here" > .dev.vars
+```
+
+기타 제품`your_api_key_here`실제 API 키와 함께[Anthropic 콘솔](https://console.anthropic.com/).
+
+:::참조
+더 보기`.dev.vars`파일은 자동으로 gitignored 및 로컬 개발 중에 사용`npm run dev`.
+:::
+
+## 5. 로컬 테스트
+
+샘플 CSV를 다운로드:
+
+```sh
+#테스트 CSV 만들기
+echo "year,rating,title
+2020,8.5,Movie A
+2021,7.2,Movie B
+2022,9.1,Movie C" > test.csv
+```
+
+dev 서버 시작:
+
+```sh
+npm run dev
+```
+
+컬을 가진 시험:
+
+```sh
+curl -X POST http://localhost:8787 \
+  -F "file=@test.csv" \
+  -F "question=What is the average rating by year?"
+```
+
+응답:
+
+```json
+{
+	"success": true,
+	"output": "Average ratings by year:\n2020: 8.5\n2021: 7.2\n2022: 9.1",
+	"chart": "data:image/png;base64,...",
+	"code": "import pandas as pd\nimport matplotlib.pyplot as plt\n..."
+}
+```
+
+## 6. 배포
+
+작업자를 배포:
+
+```sh
+npx wrangler deploy
+```
+
+그런 다음 Anthropic API 키를 생산 비밀로 설정하십시오.
+
+```sh
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+API 키 붙여넣기[Anthropic 콘솔](https://console.anthropic.com/)신속한 경우.
+
+:::카트로션
+컨테이너 조달을 위한 첫 번째 배포 후 2-3 분을 기다립니다.
+주요 특징
+
+## 당신이 내장 된
+
+AI 데이터 분석 시스템:
+
+- CSV 파일을 sandboxes로 업로드
+- Claude의 도구를 사용하여 분석 코드를 생성
+- Python를 pandas 및 matplotlib로 실행
+- 텍스트 출력 및 시각화
+
+## 다음 단계
+
+- [코드 Interpreter API](/sandbox/api/interpreter/)- 내장 코드 해석기 사용
+- [파일 작업](/sandbox/guides/manage-files/)- 고급 파일 처리
+- [출력 전력](/sandbox/guides/streaming-output/)- 실시간 진행 업데이트

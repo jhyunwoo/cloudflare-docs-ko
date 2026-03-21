@@ -1,0 +1,295 @@
+---
+title: 제한 및 모범 사례
+pcx_content_type: concept
+tags:
+  - SQL
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2-sql/reference/limitations-best-practices/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2-sql/reference/limitations-best-practices/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::참조
+R2 SQL은 오픈 베타입니다. 제한 및 모범 사례는 시간이 지남에 따라 변경됩니다.
+주요 특징
+
+R2 SQL는 쿼리를 위해 디자인됩니다**분류되지 않음**R2 데이터 카탈로그에서 Apache Iceberg 테이블. 이 문서는 R2 SQL의 지원 기능, 제한 및 모범 사례를 설명합니다.
+
+## 빠른 참고
+
+| 제품 정보     | 지원되는  | 지원하다                        |
+| :-------- | :---- | :-------------------------- |
+| 기본 선택     | 이름 \* | 열, \*                       |
+| 관련 기능     | 이름 \* | COUNT(\*), SUM, AVG, 분, MAX |
+| 단일 테이블에서  | 이름 \* | 참고, 지원되지 않은 별칭              |
+| WHERE 항목  | 이름 \* | 필터, 비교, 평등, 기타              |
+| 이름 \*     | 이름 \* | 테이블 없음                      |
+| 배열 필터링    | 이름 \* | 배열 유형 지원 없음                 |
+| JSON 필터링  | 이름 \* | 배열된 객체 쿼리 없음                |
+| 간단한 LIMIT | 이름 \* | 1-10,000 범위, 질 지원 없음        |
+| 주문하기      | 이름 \* | 란에 의하여 그룹으로 열쇠 또는 분할하십시오    |
+| 그룹 BY     | 이름 \* | 지원되는                        |
+| 채용 정보     | 이름 \* | 지원되는                        |
+
+## 지원된 SQL 항목
+
+R2 SQL 지원:`DESCRIBE`, `SHOW`, `SELECT`, `FROM`, `WHERE`, `GROUP BY`, `HAVING`, `ORDER BY`·`LIMIT`. 새로운 기능은 미래에 출시 될 것이며, 최신 페이지에 눈을 유지.
+
+***
+
+## SELECT 항목
+
+### 지원되는 특징
+
+- **개인 열**: `SELECT column1, column2`
+- **모든 열**: `SELECT *`
+
+### 제한 사항
+
+- **JSON 필드 쿼리 없음**: JSON 객체에서 개별 필드를 쿼리할 수 없습니다.
+- **제한 집계 기능**: 아래의 Aggregation Functions 섹션을 참고해 주세요.
+- **합성 자료 없음**: 합성 열을 만들 수 없습니다`SELECT 1 AS what, "hello" AS greeting`
+- **사이트 맵**: `SELECT field AS another_name`(일반 열과 집계 모두에 적용)
+
+### 이름 \*
+
+```sql
+-- Valid
+SELECT timestamp, user_id, status FROM my_table;
+SELECT * FROM my_table;
+
+-- Invalid
+SELECT user_id AS uid, timestamp AS ts FROM my_table;
+SELECT COUNT(*) FROM events FROM FROM my_table;
+SELECT json_field.property FROM my_table;
+SELECT 1 AS synthetic_column FROM my_table;
+```
+
+***
+
+## 관련 기능
+
+### 지원되는 특징
+
+- **계정(\*)**: 총 행 수**이름 \***: 만`*`지원되는
+- **SUM(컬럼)**: 총 수치 값
+- **AVG(column)**: 수치 값의 평균 계산
+- **MIN (column)**: 최소값 찾기
+- **MAX (column)**: 최대값 찾기
+- **그룹으로**: 모든 집계 작업`GROUP BY`
+
+### 제한 사항
+
+- **없음 aliases**: `AS`지원되지 않는 키워드 ()`SELECT COUNT(*) AS total`실패)
+- **COUNT(\*)만**: `COUNT(column_name)`또는`COUNT(DISTINCT column)`지원되지 않음
+
+### 이름 \*
+
+```sql
+-- Valid
+SELECT department, COUNT(*) FROM sales GROUP BY department;
+SELECT region, AVG(amount) FROM sales GROUP BY region;
+SELECT category, MIN(price), MAX(price) FROM products GROUP BY category;
+SELECT SUM(quantity) FROM sales GROUP BY department ORDER BY SUM(amount) DESC;
+
+-- Invalid
+SELECT COUNT(*) AS total FROM sales GROUP BY department; -- No aliases
+SELECT COUNT(department) FROM sales; -- Must use COUNT(*)
+SELECT COUNT(DISTINCT region) FROM sales; -- No DISTINCT support
+```
+
+***
+
+## 그룹 으로 Clause
+
+### 지원되는 특징
+
+- **단일 열 그룹화**: `GROUP BY column`
+- **여러 열 그룹화**: `GROUP BY column1, column2`
+- **WHERE로**: 그룹화하기 전에 필터
+- **LIMIT와 함께**: 제한 그룹 결과
+
+### 제한 사항
+
+- **표현 없음**: 그룹 BY에서 표현식을 사용할 수 없습니다 (예 :`GROUP BY YEAR(date)`)
+
+### 이름 \*
+
+```sql
+SELECT region, COUNT(*) FROM sales GROUP BY region;
+SELECT dept, category, COUNT(*) FROM sales GROUP BY dept, category;
+SELECT region, COUNT(*) FROM sales WHERE status = 'completed' GROUP BY region;
+SELECT dept, COUNT(*) FROM sales GROUP BY dept ORDER BY COUNT(*) DESC LIMIT 10;
+SELECT is_active, SUM(amount) FROM sales GROUP BY is_active;
+SELECT dept, SUM(amount) FROM sales GROUP BY dept ORDER BY SUM(amount) DESC;
+```
+
+***
+
+## HAVING 항목
+
+### 지원되는 특징
+
+- **계정으로(\*)**: 필터 그룹
+- **비교 연산자**: `>`, `>=`, `=`, `<`, `<=`, `!=`, `BETWEEN`, `AND`, `IS NOT NULL`
+- **그룹으로**: 그룹과 함께 사용해야합니다.
+
+### 이름 \*
+
+```sql
+SELECT region, COUNT(*) FROM sales GROUP BY region HAVING COUNT(*) > 1000;
+SELECT dept, SUM(amount) FROM sales GROUP BY dept HAVING SUM(amount) > 100000; -- HAVING with SUM
+SELECT region, COUNT(*) FROM sales GROUP BY region HAVING COUNT(*) > 100 AND COUNT(*) < 1000;
+```
+
+***
+
+## 이용안내
+
+### 지원되는 특징
+
+- **단일 테이블 쿼리**: `SELECT * FROM table_name`
+
+### 제한 사항
+
+- **다수 테이블 없음**: 항목에서 여러 테이블을 지정할 수 없습니다
+- **자주 묻는 질문**: `SELECT ... FROM (SELECT ...)`지원되지 않음
+- **로그인**: INNER, LEFT, RIGHT 또는 FULL JOINs 없음
+- **SQL 기능 없음**: 같은 기능을 사용할 수 없습니다`read_parquet()`
+- **합성 테이블 없음**: 값에서 테이블을 만들 수 없습니다
+- **스키마 진화**: Schema는 변경할 수 없습니다 (ALTER TABLE, 마이그레이션 없음)
+- **Immutable 데이터 세트**: UPDATE 또는 DELETE 운영 불가
+- **완전히 정의 된 스키마**: Dynamic 또는 Union-type 필드는 지원되지 않습니다.
+- **테이블 별칭 없음**: `SELECT * FROM table_name AS alias`
+
+### 이름 \*
+
+```sql
+--Valid
+SELECT * FROM http_requests;
+
+--Invalid
+SELECT * FROM table1, table2;
+SELECT * FROM table1 JOIN table2 ON table1.id = table2.id;
+SELECT * FROM (SELECT * FROM events WHERE status = 200);
+```
+
+***
+
+## WHERE 항목
+
+### 지원되는 특징
+
+- **간단한 유형 필터링**: 지원`string`, `boolean`, `number`RFC3339로 표현되는 유형 및 타임스탬프
+- **Boolean 논리**: 지원`AND`, `OR`, `NOT`채용 정보
+- **비교 연산자**: `>`, `>=`, `=`, `<`, `<=`, `!=`
+- **그룹화**: `WHERE col_a="hello" AND (col_b>5 OR col_c != 3)`
+- **패턴 일치:** `WHERE col_a LIKE ‘hello w%’`(사전 매칭 전용)
+- **NULL 취급:** `WHERE col_a IS NOT NULL` (`IS`/`IS NOT`)
+
+### 제한 사항
+
+- **열에 열 비교 없음**: 사용할 수 없습니다`WHERE col_a = col_b`
+- **필터링 없음**: 배열 유형 (array\[number], array\[string], array\[boolean])에 필터링할 수 없습니다.
+- **JSON/object 필터링 없음**: 배열 객체 또는 JSON 내부 필드에 필터링 할 수 없습니다
+- **SQL 기능 없음**: WHERE 항목에서 함수 호출 없음
+- **arithmetic 연산자 없음**: 사용할 수 없습니다`+`, `-`, `*`, `/`관련 제품
+
+### 이름 \*
+
+```sql
+--Valid
+SELECT * FROM events WHERE timestamp BETWEEN '2024-01-01' AND '2024-01-02';
+SELECT * FROM logs WHERE status = 200 AND user_type = 'premium';
+SELECT * FROM requests WHERE (method = 'GET' OR method = 'POST') AND response_time < 1000;
+
+--Invalid
+SELECT * FROM logs WHERE tags[0] = 'error'; -- Array filtering
+SELECT * FROM requests WHERE metadata.user_id = '123'; -- JSON field filtering
+SELECT * FROM events WHERE col_a = col_b; -- Column comparison
+SELECT * FROM logs WHERE response_time + latency > 5000; -- Arithmetic
+```
+
+***
+
+## 자주 묻는 질문
+
+### 지원되는 특징
+
+- **ASC 소개**: 주문 완료
+- **사이트맵**: Descending 순서 (기본, 전체 파티션 키에)
+- **파티션 키**: 파티션 키 컬럼의 순서
+- **그룹으로**: 모든 집계 열에 의해 주문할 수 있습니다.
+
+### 제한 사항
+
+- **지원되지 않는 Non-partition 열쇠**: `ORDER BY`파티션 키 이외의 열은 지원되지 않습니다 (집합 제외)
+
+### 이름 \*
+
+```sql
+-- Valid
+SELECT * FROM table_name WHERE ... ORDER BY partitionKey;
+SELECT * FROM table_name WHERE ... ORDER BY partitionKey DESC;
+SELECT dept, COUNT(*) FROM table_name GROUP BY dept ORDER BY COUNT(*) DESC;
+
+-- Invalid
+SELECT * FROM table_name GROUP BY dept ORDER BY nonPartitionKey DESC --ORDER BY a non-grouped column
+```
+
+***
+
+## LIMIT 항목
+
+### 지원되는 특징
+
+- **간단한 제한**: `LIMIT number`
+- **주요 특징**: 최소 1, 최대 10,000
+
+### 제한 사항
+
+- **질 없음**: `LIMIT offset, count`지원되지 않음
+- **SQL 기능 없음**: 제한을 결정하는 기능을 사용할 수 없습니다.
+- **arithmetic 없음**: 같은 표현을 사용할 수 없습니다.`LIMIT 10 * 50`
+
+### 이름 \*
+
+```sql
+-- Valid
+SELECT * FROM events LIMIT 100
+SELECT * FROM logs WHERE ... LIMIT 10000
+
+-- Invalid
+SELECT * FROM events LIMIT 100, 50; -- Pagination
+SELECT * FROM logs LIMIT COUNT(*); / 2 -- Functions
+SELECT * FROM events LIMIT 10 * 10; -- Arithmetic
+```
+
+***
+
+## 지원되지 않은 SQL Clauses
+
+다음 SQL 항목은**지원되지 않음**:
+
+- `UNION`/`INTERSECT`/`EXCEPT`
+- `WITH`(공용 테이블 표현)
+- `WINDOW`제품정보
+- `INSERT`/`UPDATE`/`DELETE`
+- `CREATE`/`ALTER`/`DROP`
+
+***
+
+## 최고의 연습
+
+1. 항상 효율적인 쿼리를 보장하기 위해 WHERE 항목에 시간 필터가 포함되어 있습니다.
+2. 대신 특정 열 선택 사용`SELECT *`더 나은 성능을 위해 가능한 경우.
+3. 해당 필드에 필터가 필요한 경우 배열된 JSON 객체를 피하기 위해 데이터를 Flatten합니다.
+4. 제품 정보`COUNT(*)`독점 - 피`COUNT(column_name)`또는`COUNT(DISTINCT column)`.
+5. R2 데이터 카탈로그에서 압축을 사용하여 스캔해야 할 데이터 파일의 수를 줄일 수 있습니다.
+
+***

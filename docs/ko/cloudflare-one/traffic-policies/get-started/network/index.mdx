@@ -1,0 +1,81 @@
+---
+title: 네트워크 필터링
+pcx_content_type: how-to
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 네트워크 필터링 설정
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/get-started/network/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/get-started/network/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render, Tabs, TabItem } from "~/components";
+
+Secure Web Gateway는 웹 사이트 및 비-HTTP 애플리케이션 사용자가 액세스 할 수있는 제어 할 네트워크 수준에서 정책을 적용 할 수 있습니다. 이것은 웹 브라우징이 아닌 트래픽을 제어 할 때 유용합니다. 예를 들어 원격 데스크톱 연결을 차단하거나 조직의 파일 전송 도구를 제한합니다.
+
+네트워크 정책은 개별 TCP 및 UDP 패킷을 검사합니다 (모든 인터넷 트래픽을 수행하는 저수준 데이터 단위), 즉 트래픽을 필터링 할 수 있음[DNS 보호](/cloudflare-one/traffic-policies/get-started/dns/)·[HTTP: HTTP](/cloudflare-one/traffic-policies/get-started/http/)정책은 도달 할 수 없습니다. DNS 정책은 도메인 조회 만 볼 수 있으며 HTTP 정책은 웹 요청 만 볼 수 있습니다. 네트워크 정책은 더 심하고 SSH (레모드 터미널 액세스), RDP (레모드 데스크톱) 및 비표준 포트에서 실행되는 사용자 정의 응용 프로그램과 같은 프로토콜을 잡을 수 있습니다.
+
+:::참조
+네트워크 트래픽을 필터링하고 조직에 대한 자세한 가이드를 보려면, 참조[인터넷 트래픽 및 SaaS 앱 보안](/learning-paths/secure-internet-traffic/concepts/)구현 가이드.
+주요 특징
+
+## 1. Gateway에 연결
+
+### 연결 장치
+
+노트북 또는 전화와 같은 장치에서 네트워크 트래픽을 필터링하려면:
+
+1. [WARP 클라이언트 설치](/cloudflare-one/team-and-resources/devices/warp/deployment/)당신의 장치에.
+2. WARP 클라이언트 설정에서 조직의 로그인<GlossaryTooltip term="team name">모델 번호: Cloudflare 1개의 인스턴스</GlossaryTooltip>.
+3. (선택) 표시하려면[사용자 정의 블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/)사용자가 막을 때,[Cloudflare 루트 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/)당신의 장치에. 인증서가 없다면, 차단된 사용자는 비공식 페이지 대신 일반적인 브라우저 연결 오류를 볼 수 있습니다.
+4. [Gateway 프록시 활성화](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy)TCP를 위해. Gateway proxy는 Cloudflare를 통해 기기의 트래픽을 경로를 지정하는 것입니다. 그래서 네트워크 정책이 활성화되지 않고 그것을 검사 할 수 있습니다. 귀하의 정책은 효과가 없습니다. 선택적으로, UDP 프록시도 포트 443에 QUIC 트래픽 (HTTP / 3 연결에 의해 사용되는 새로운 프로토콜)을 검사 할 수 있습니다.
+
+### 개인 네트워크
+
+개인 네트워크에서 트래픽을 필터링하기 위해 (외부 기업 네트워크는 공공 인터넷에 노출되지 않음), 참조[모델 번호: Cloudflare 터널 가이드](/cloudflare-one/networks/connectors/cloudflare-tunnel/).
+
+## 2. 장치 연결 검증
+
+연결성을 검증하면 장치에서 트래픽이 실제로 Cloudflare를 통해 흐르는 것을 보장합니다.
+
+장치를 확인하려면 Cloudflare에 연결됩니다 1개:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **교통 설정**.
+2. 이름 \***교통 활동**, 모든 네트워크 로그에 대한 활동 로그를 활성화. 이것은 네트워크 수준 트래픽을 기록하기 위해 Cloudflare를 말한다 그래서 당신은 로그에 표시된 장치를 확인할 수 있습니다.
+3. WARP-enabled 장치에서 브라우저를 열고 웹 사이트를 방문하십시오. 이것은 로그에 나타나는 트래픽을 생성합니다.
+4. 자주 묻는 질문**근원 IP**당신의 장치를 위해 (주방 주소 Cloudflare는 당신의 연결을 위해 보십시오):
+
+<Tabs>
+  <TabItem label="버전 2026.2+">
+    1) Cloudflare를 여십시오 1개의 클라이언트.
+    2) 오시는 길**이름 \***.
+    3) 이름 \***클라이언트 공용영역 IP**. 이것은 네트워크 로그의 소스 IP로 나타낼 동일한 주소입니다.
+  </TabItem>
+
+  <TabItem label="버전 2026.1 및 이전">
+    1. WARP 클라이언트를 엽니다.
+    2. 오시는 길**계정 설정**(Gear 아이콘)**모델: P참고 자료s** > **주요사업**.
+    3. 이름 \***공공 IP**. 이것은 네트워크 로그의 소스 IP로 나타낼 동일한 주소입니다.
+  </TabItem>
+</Tabs>
+
+5. Cloudflare에서 하나, 이동**관련 기사** > **로그인** > **네트워크 로그**. 네트워크 정책을 구축하기 전에 소스 IP에서 네트워크 로그를 확인할 수 있습니다.
+
+몇 분 후에 로그가 나타나지 않는 경우, 두 가지를 확인합니다.[Gateway 프록시가 켜집니다.](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy). 둘째, 장치는 WARP 클라이언트 연결 상태를 검사해서 당신의 Zero Trust 조직에서 등록된다는 것을 확인합니다.
+
+## 3. 첫 번째 네트워크 정책 만들기
+
+네트워크 정책에는 두 개의 부분이 있습니다. 트래픽이 행동하는 것을 선택하는 성냥꾼 (예를 들어, 모든 패킷은 포트 22, SSH에 대한 기본 포트) 및 그것을 결정하는 행동 (예를 들어, 연결을 차단).
+
+<Render file="gateway/get-started/create-network-policy" product="cloudflare-one" />
+
+## 4. 옵션 추가 정책
+
+우리의 명부에 Refer[일반 네트워크 정책](/cloudflare-one/traffic-policies/network-policies/common-policies)창조할 수 있는 정책 일반적인 추가는 특정 IP 범위에 트래픽 차단, 비표준 포트에 대한 액세스를 제한 (HTTP 및 443 HTTPS에 대한 80과 같은 잘 알려진 하나보다 포트), 및 프로토콜 감지를 사용하여 포트 번호가 혼자서 트래픽 패턴을 기반으로 비트 토런트와 같은 응용 프로그램을 식별합니다.

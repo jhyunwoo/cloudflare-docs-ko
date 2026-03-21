@@ -1,0 +1,63 @@
+---
+pcx_content_type: concept
+title: Cloudflare를 통과하는 트래픽 흐름
+sidebar:
+  order: 3
+---
+
+인터넷 트래픽은 어디에 호스팅되어 있든 온라인 리소스를 요청하는 사람, 서비스, 에이전트로 이루어져 있습니다. 리소스는 인터넷 누구나 접근할 수 있는 웹사이트나 애플리케이션처럼 공개적으로 제공될 수도 있고, 직원과 파트너만 접근해야 하는 내부 앱이나 네트워크처럼 비공개로 제공될 수도 있습니다.
+
+공개 리소스와 비공개 리소스 모두 Cloudflare 네트워크에 연결하여, 적절한 대상만 자신이 접근해야 할 리소스에 고성능으로 접근하도록 만들 수 있습니다.
+
+예를 들어 직접 들어오는 트래픽은 해커나 [DDoS 공격](https://www.cloudflare.com/learning/ddos/ddos-attack-tools/how-to-ddos/) 같은 악의적 출처에서 올 수 있으므로 항상 원하지 않을 수 있습니다. 또한 요청이 발생한 위치에 따라 트래픽이 [가장 효율적이고 빠른 경로](/argo-smart-routing/)로 라우팅되도록 보장하고 싶을 수도 있습니다.
+
+## Cloudflare 네트워크
+
+[Cloudflare의 글로벌 네트워크](https://www.cloudflare.com/network/)와 [애니캐스트](https://www.cloudflare.com/learning/dns/what-is-anycast-dns/) IP 주소 지정이 결합되어, 요청은 가능한 한 출발지에 가까운 Cloudflare 서버에서 처리됩니다.
+
+트래픽을 보호하고 효율적으로 이동하게 하려면, 보호하려는 애플리케이션, 서비스, 서버 앞단에 Cloudflare가 오도록 구성해야 합니다. 리소스를 Cloudflare 네트워크 뒤에 배치하는 방식은 트래픽 종류와 제어 방식에 따라 달라집니다.
+
+:::note
+Cloudflare는 제한되는 `CONNECT`, `TRACE`, `PURGE`를 제외한 모든 HTTP 메서드를 지원합니다. 제한된 메서드를 사용하는 요청은 Cloudflare 네트워크를 통해 프록시되지 않습니다. 다른 Cloudflare 제품은 HTTP 메서드에 대해 서로 다른 제한을 적용할 수 있으며, 동작은 서비스에 따라 달라질 수 있습니다.
+:::
+
+## 온램프 및 오프램프 트래픽
+
+Cloudflare 네트워크로 들어오는 트래픽을 "온램프(on-ramping)"라고 하고, Cloudflare 네트워크를 나가는 트래픽을 "오프램프(off-ramping)"라고 합니다. 이를 ingress/egress 또는 네트워크를 통한 "트래픽 라우팅"이라고 알고 있을 수도 있습니다.
+
+### Cloudflare로 온램프되는 트래픽
+
+트래픽을 Cloudflare로 온램프하면 Cloudflare가 해당 트래픽을 처리하고, 보호하며, 성능을 향상시킬 수 있습니다.
+
+Cloudflare로 트래픽을 온램프하는 한 가지 예는 공개 웹사이트가 도메인의 기본 권한 [DNS 공급자](/fundamentals/concepts/how-cloudflare-works/#dns-공급자로서의-cloudflare)로 Cloudflare를 사용하도록 업데이트하는 것입니다.
+
+하지만 인터넷에 직접 공개되지 않은 비공개 애플리케이션을 보호해야 할 수도 있습니다. 이 경우 다음과 같이 할 수 있습니다.
+
+* [보안 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/)을 사용해 비공개 애플리케이션을 Cloudflare에 연결하고, 사용자 측에서는 [디바이스 에이전트](/cloudflare-one/team-and-resources/devices/warp/)를 사용해 연결합니다.
+* 이미 사설 회사 네트워크에 연결된 사용자의 경우 전체 네트워크를 보안 터널로 Cloudflare에 연결하면, 사용자 디바이스의 모든 요청이 해당 터널을 통해 비공개 애플리케이션에 접근할 수 있습니다.
+
+이러한 옵션을 사용하면 사용자 디바이스의 어떤 요청이든 보안 비공개 터널을 통해 내부 비공개 애플리케이션에 접근할 수 있습니다.
+
+Cloudflare로 트래픽을 온램프하는 데 사용할 수 있는 제품은 아래 목록을 참고하세요.
+
+* [애니캐스트 라우팅](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/)은 애니캐스트 IP 주소 지정을 사용해 가장 가까운 Cloudflare 데이터 센터로 트래픽을 라우팅합니다. 선택적 라우팅은 대량 트래픽, 네트워크 혼잡, [DDoS 공격](https://www.cloudflare.com/learning/ddos/what-is-a-ddos-attack/) 상황에서도 애니캐스트 네트워크의 복원력을 높여 줍니다.
+* [DNS 기반](/fundamentals/concepts/how-cloudflare-works/#dns-공급자로서의-cloudflare) 트래픽은 [Cloudflare CDN](/fundamentals/concepts/how-cloudflare-works/)에 온보딩된 도메인을 해석합니다. Cloudflare DNS는 웹사이트의 원본 서버 대신 Cloudflare 글로벌 서버 네트워크로 트래픽을 보냅니다.
+* [Cloudflare Tunnel](/cloudflare-one/networks/connectors/cloudflare-tunnel/)은 공개 라우팅 가능한 IP 주소 없이 리소스를 Cloudflare에 연결하여, 원본이 Cloudflare를 통해 트래픽을 제공하면서도 Cloudflare를 우회하는 공격에 노출되지 않도록 합니다.
+* [Magic Transit](/magic-transit/about/)은 네트워크를 대상으로 한 IP 패킷을 수락하고 처리한 뒤 원본 인프라로 전달함으로써 온프레미스, 클라우드 호스팅, 하이브리드 네트워크에 DDoS 보호와 트래픽 가속 등을 제공합니다.
+* [Cloudflare WARP 클라이언트](/cloudflare-one/team-and-resources/devices/warp/)는 기업 디바이스의 트래픽을 Cloudflare 글로벌 네트워크로 안전하고 비공개로 전송하는 동시에, 기업 애플리케이션에 연결하기 전에 디바이스 상태를 확인하는 고급 Zero Trust 정책도 적용합니다.
+
+### Cloudflare에서 오프램프되는 트래픽
+
+트래픽이 Cloudflare 네트워크를 특정 방식으로 떠나야 한다면, 오프램프 방식을 관리할 수 있습니다.
+
+예를 들어 사용자 트래픽 데이터가 국가 밖으로 나가면 안 되는 [지역 법규](/data-localization/regional-services/)를 준수해야 한다면, 같은 지리적 영역의 서버에서 오프램프 및 온램프 트래픽을 구성할 수 있습니다.
+
+또는 사용자 경험을 유지하기 위해 특정 국가에서 오프램프되도록 강제하고 싶을 수도 있습니다. 예를 들어 인도에 자주 출장 가는 직원이 있다면, 오프램프 트래픽이 항상 인도에서 오는 것처럼 보이도록 구성하여 방문하는 웹사이트에서 언어와 기본 설정이 유지되게 할 수 있습니다.
+
+성능 향상을 위해 [캐싱](/cache/)을 활용할 수도 있습니다. 오프램프 트래픽이 지구 반대편 서버로 가는 대신 Cloudflare가 해당 콘텐츠를 사용자 가까이에 로컬 캐시하여 전체 요청 시간을 줄일 수 있습니다.
+
+Cloudflare에서 트래픽을 오프램프하는 데 사용할 수 있는 제품은 아래 목록을 참고하세요.
+
+* [Argo Smart Routing](/argo-smart-routing/)은 실시간 네트워크 문제를 감지하고 혼잡을 피해 가장 효율적인 네트워크 경로로 웹 트래픽을 라우팅합니다.
+* [Cache](/cache/)는 캐시된 콘텐츠를 활용해 원본 서버로 오프램프하지 않고 Cloudflare 글로벌 네트워크에서 직접 제공하도록 합니다.
+* [Regional services](/data-localization/regional-services/)는 HTTPS 트래픽을 복호화하고 처리할 데이터 센터 하위 집합을 선택할 수 있게 하며, 지역 규정 준수가 필요하거나 데이터를 지역 내에서 통제하고 싶은 고객에게 도움이 됩니다.

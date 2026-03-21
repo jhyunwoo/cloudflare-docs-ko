@@ -1,0 +1,226 @@
+---
+title: 목표 수명주기
+pcx_content_type: how-to
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/object-lifecycles/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/object-lifecycles/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Object Lifecycles는 버킷에 업로드된 개체의 보존 기간을 결정하고 객체가 표준 스토리지에서 Infrequent Access Storage로 전환해야 할 때 지정할 수 있습니다.
+
+Lifecycle 구성은 일생 동안 객체에 적용하기 위해 행동을 정의하는 Lifecycle 규칙의 수집입니다.
+
+예를 들어, 90 일 후에 객체 수명주기 규칙을 삭제하거나 30 일 후에 Infrequent Access Storage로 전환 개체를 설정할 수 있습니다.
+
+## 채용 정보
+
+- Objects는 일반적으로 24 시간 이내에 물통에서 제거됩니다.`x-amz-expiration`가치.
+- Lifecycle 구성이 적용되면 개체를 삭제, 새로 업로드 된 개체`x-amz-expiration`값은 새로운 규칙에 따라 만료를 반영하지만 기존 객체는 지연을 경험할 수 있습니다. 대부분의 개체는 24 시간 이내에 전환되지만 물통의 개체 수에 따라 더 오래 걸릴 수 있습니다. 객체가 마이그레이션되는 동안 이전 구성에서 오래된 적용 규칙을 볼 수 있습니다.
+- 객체는 삭제 된 한 번 더 이상 청구되지 않습니다.
+- 버킷은 기본 수명주기 규칙을 사용하여 시작 후 7 일 만 업로드합니다.
+- 객체가 Standard Storage에서 Infrequent Access Storage로 전환되면[클래스 A 작업](/r2/pricing/#class-a-operations)로그인
+- 규칙 충돌을 지정하고 저장 클래스 전환을 지정하고 24 시간 내에 전환을 만료하면 만료됩니다 (또는 삭제) 수명주기 전환은 저장 클래스를 전환하는 데 우선이 걸립니다.
+
+## 당신의 물통을 위한 Lifecycle 규칙을 구성하십시오
+
+객체 수명주기 규칙을 만들 때, 당신은 적용 할 것 같은 접두사를 지정할 수 있습니다.
+
+- object lifecycles는 현재 1000개의 규칙을 최대 가지고 있습니다.
+- 객체 수명주기 관리는 버킷 레벨 액션이며 API 토큰이 필요합니다.[`Workers R2 Storage Write`](/r2/api/tokens/#permission-groups)권한 그룹.
+
+### 대시보드
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 목록에서 물통을 찾습니다.
+3. 버킷 페이지에서 선택**계정 설정**.
+4. 이름 \***Object Lifecycle 규칙**, 선택**규칙 추가**.
+5. 새로운 규칙에 대한 필드를 채우십시오.
+6. 당신이 할 때, 선택**비밀번호**.
+
+### Wrangler
+
+1. 설치하기[`npm`](https://docs.npmjs.com/getting-started).
+2. 설치하기[Wrangler, 개발자 플랫폼 CLI](/workers/wrangler/install-and-update/).
+3. Wrangler에 로그인[`wrangler login`이름 \*](/workers/wrangler/commands/#login).
+4. 당신의 물통에 생명주기 규칙을 추가하십시오[`r2 bucket lifecycle add`이름 \*](/workers/wrangler/commands/#r2-bucket-lifecycle-add).
+
+```sh
+npx wrangler r2 bucket lifecycle add <BUCKET_NAME> [OPTIONS]
+```
+
+대안으로 JSON 파일에서 물통의 전체 수명주기 구성을 설정할 수 있습니다.[`r2 bucket lifecycle set`이름 \*](/workers/wrangler/commands/#r2-bucket-lifecycle-set).
+
+```sh
+npx wrangler r2 bucket lifecycle set <BUCKET_NAME> --file <FILE_PATH>
+```
+
+JSON 파일은 요청 본문의 형식에 있어야합니다.[오브젝트 라이프사이클 구성 API](/api/resources/r2/subresources/buckets/subresources/lifecycle/methods/update/).
+
+### 사이트맵
+
+아래는 다른 잠재적 인 사용 사례에 대한 규칙의 다른 세트와 함께 Lifecycle 구성 (생명주기 규칙 수집)의 예입니다.
+
+```js title="Configure the S3 client to interact with R2"
+const client = new S3({
+	endpoint: "https://<account_id>.r2.cloudflarestorage.com",
+	credentials: {
+		accessKeyId: "<access_key_id>",
+		secretAccessKey: "<access_key_secret>",
+	},
+	region: "auto",
+});
+```
+
+```javascript title="Set the lifecycle configuration for a bucket"
+await client
+	.putBucketLifecycleConfiguration({
+		Bucket: "testBucket",
+		LifecycleConfiguration: {
+			Rules: [
+				//예: 특정 날짜에 개체를 삭제
+				//2019 문서 삭제 2024
+				{
+					ID: "Delete 2019 Documents",
+					Status: "Enabled",
+					Filter: {
+						Prefix: "2019/",
+					},
+					Expiration: {
+						Date: new Date("2024-01-01"),
+					},
+				},
+				//예: 연령별 Infrequent Access Storage로 전환 대상
+				//30 일 이상에서 Infrequent Access Storage
+				{
+					ID: "Transition Objects To Infrequent Access",
+					Status: "Enabled",
+					Transitions: [
+						{
+							Days: 30,
+							StorageClass: "STANDARD_IA",
+						},
+					],
+				},
+				//예제: 연령별 개체 삭제
+				//90일 이상 로그 삭제
+				{
+					ID: "Delete Old Logs",
+					Status: "Enabled",
+					Filter: {
+						Prefix: "logs/",
+					},
+					Expiration: {
+						Days: 90,
+					},
+				},
+				//예: 일주일 후에 모든 불완전한 multipart 업로드를 abort
+				{
+					ID: "Abort Incomplete Multipart Uploads",
+					Status: "Enabled",
+					AbortIncompleteMultipartUpload: {
+						DaysAfterInitiation: 7,
+					},
+				},
+				//예: abort 사용자 multipart 하루 후 업로드
+				{
+					ID: "Abort User Incomplete Multipart Uploads",
+					Status: "Enabled",
+					Filter: {
+						Prefix: "useruploads/",
+					},
+					AbortIncompleteMultipartUpload: {
+						//접두사와 일치하는 업로드의 경우, 이 규칙은 우선적으로 걸릴 것입니다
+						//그 이전의 만료로 인해 위의 하나 이상.
+						DaysAfterInitiation: 1,
+					},
+				},
+			],
+		},
+	})
+	.promise();
+```
+
+## 당신의 물통을 위한 Lifecycle 규칙을 얻으십시오
+
+### Wrangler
+
+당신의 물통과 관련된 수명주기 규칙의 목록을 얻으려면, 실행[`r2 bucket lifecycle list`이름 \*](/workers/wrangler/commands/#r2-bucket-lifecycle-list).
+
+```sh
+npx wrangler r2 bucket lifecycle list <BUCKET_NAME>
+```
+
+### 사이트맵
+
+```js
+import S3 from "aws-sdk/clients/s3.js";
+
+//R2로 대화할 수 있는 S3 클라이언트를 구성하십시오.
+const client = new S3({
+	endpoint: "https://<account_id>.r2.cloudflarestorage.com",
+	credentials: {
+		accessKeyId: "<access_key_id>",
+		secretAccessKey: "<access_key_secret>",
+	},
+	region: "auto",
+});
+
+//버킷의 수명주기 구성 받기
+console.log(
+	await client
+		.getBucketLifecycleConfiguration({
+			Bucket: "bucketName",
+		})
+		.promise(),
+);
+```
+
+## 당신의 물통에서 Lifecycle 규칙을 삭제하십시오
+
+### 대시보드
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 목록에서 물통을 찾습니다.
+3. 버킷 페이지에서 선택**계정 설정**.
+4. 이름 \***Object Lifecycle 규칙**, 삭제하려는 규칙을 선택하십시오.
+5. 당신이 할 때, 선택**규칙 삭제(s)**.
+
+### Wrangler
+
+버킷에서 특정 수명주기 규칙을 제거하려면, 실행[`r2 bucket lifecycle remove`이름 \*](/workers/wrangler/commands/#r2-bucket-lifecycle-remove).
+
+```sh
+npx wrangler r2 bucket lifecycle remove <BUCKET_NAME> --id <RULE_ID>
+```
+
+### 사이트맵
+
+```js
+import S3 from "aws-sdk/clients/s3.js";
+
+//R2XQ로 대화할 수 있는 S3 클라이언트를 구성하십시오.
+const client = new S3({
+	endpoint: "https://<account_id>.r2.cloudflarestorage.com",
+	credentials: {
+		accessKeyId: "<access_key_id>",
+		secretAccessKey: "<access_key_secret>",
+	},
+	region: "auto",
+});
+
+//버킷의 수명주기 구성 삭제
+await client
+	.deleteBucketLifecycle({
+		Bucket: "bucketName",
+	})
+	.promise();
+```

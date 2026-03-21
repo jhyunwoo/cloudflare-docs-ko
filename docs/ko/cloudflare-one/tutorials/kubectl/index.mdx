@@ -1,0 +1,161 @@
+---
+reviewed: 2022-07-19T00:00:00.000Z
+category: Zero Trust
+difficulty: Advanced
+pcx_content_type: tutorial
+title: Cloudflare를 통해 연결 kubectl을 사용하여 액세스
+description: >-
+  kubectl을 사용하여 Cloudflare의 네트워크에 연결. 당신의 기계를 위한 Zero Trust 정책을 창조하십시오. 당신의 기계와
+  Cloudflared의 네트워크 사이에서 outbound-only 연결을 창조하십시오.
+tags:
+  - Kubernetes
+  - TCP
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/tutorials/kubectl/'
+translation_source_md: 'https://developers.cloudflare.com/cloudflare-one/tutorials/kubectl/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+기계에 연결할 수 있습니다.`kubectl`Cloudflare의 Zero Trust 플랫폼을 사용하여.
+
+**이 walkthrough는 방법을 포함합니다:**
+
+- Cloudflare에 대한 정책 구축
+- kubectl을 사용하여 Cloudflare의 네트워크에 기계를 연결합니다
+- 클라이언트 기계에서 연결
+
+**시작하기 전에**
+
+- [Cloudflare에 웹 사이트를 추가](/fundamentals/manage-domains/add-site/)
+
+**완료 시간:**
+
+30 분
+
+***
+
+## 액세스 정책 만들기
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**액세스 제어** > **이름 \***.
+2. 제품정보**앱 추가**.
+3. 제품정보**셀프 호스팅**.
+4. 액세스 신청의 이름을 입력합니다.
+5. 제품정보**공공 hostname 추가**subdomain을 입력합니다. 응용 프로그램이 사용자에게 사용할 수있는 호스트 이름이 될 것입니다.
+6. [새로운 정책 만들기](/cloudflare-one/access-controls/policies/policy-management/)응용 프로그램에 도달 할 수있는 제어 또는 기존 정책을 선택하십시오.
+7. 자주 묻는 질문[자체 호스팅 응용 프로그램 생성 단계](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)앱을 게시합니다.
+
+## 설치하기`cloudflared`
+
+사이트맵 터널은 이 기계와 Cloudflare의 네트워크 사이의 보안, 아웃바운드 전용 연결을 만듭니다. 아웃바운드 전용 모델로, 이 기계에 직접 액세스를 방지하고 진입의 외부 노출 지점을 잠글 수 있습니다. 그리고 그와 함께, 열려있는 방화벽 포트.
+
+사이트맵 터널은 Cloudflare에서 경량 데몬을 통해 가능합니다.`cloudflared`. 다운로드 및 설치`cloudflared`DigitalOcean 기계에 다음 지침에 따라[다운로드](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)사이트 맵
+
+## 이름 \*`cloudflared`
+
+Cloudflare 계정으로 Cloudflared를 인증하려면 다음 명령을 실행하십시오.
+
+```sh
+cloudflared tunnel login
+```
+
+`cloudflared`브라우저 창을 열고 Cloudflare 계정에 로그인하십시오. 브라우저가 없거나 브라우저 창이 실행되지 않는 기계에서 작업하는 경우 명령줄 출력에서 URL을 복사하고 브라우저에서 URL을 방문하십시오.
+
+목록에서 제시된 모든 호스트명을 선택하십시오. Cloudflare는 귀하의 계정에 따라 인증서를 발급합니다. 터널을 이용할 수 있는 특정 호스트명을 선택할 필요가 없습니다.
+
+## 터널 만들기
+
+다음 아래 명령어로 터널을 만듭니다.
+
+```sh
+cloudflared tunnel create <NAME>
+```
+
+구독하기`<NAME>`터널의 이름으로. 이 이름은 어떤 값일 수 있습니다. 단일 터널은 SSH 및 HTTP와 같은 연결 유형의 혼합을 포함하여 여러 호스트 이름에 대한 트래픽을 제공합니다.
+
+명령은 터널의 ID를 출력하고 관련된 자격 증명 파일을 생성합니다. 언제든지 다음 명령으로 계정의 터널을 나열 할 수 있습니다.
+
+```sh
+cloudflared tunnel list
+```
+
+## 터널 구성
+
+지금 할 수 있습니다[터널 구성](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/create-local-tunnel/#4-create-a-configuration-file)교통을 제공합니다.
+
+이름 \*`YAML`파일 형식`cloudflared`도달 할 수 있습니다. 기본적으로,`cloudflared`같은 폴더에 파일을 찾습니다.`cloudflared`설치되었습니다.
+
+```sh
+vim ~/.cloudflared/config.yml
+```
+
+다음, 터널을 구성, 위의 터널의 ID로 아래 예제 ID를 교체. 또한 Cloudflare Access로 구성된 응용 프로그램의 호스트 이름과 호스트 이름을 대체합니다.
+
+```yaml
+tunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+credentials-file: /root/.cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json
+
+ingress:
+  - hostname: azure.widgetcorp.tech
+    service: tcp://kubernetes.docker.internal:6443
+    originRequest:
+      proxyType: socks
+  - service: http_status:404
+  #Catch-all 규칙, 트래픽이 어떤 일치하지 않는 경우 404로 응답
+  #이전 규칙
+```
+
+## 터널로
+
+이제 이 터널에 트래픽을 전달할 DNS 레코드를 만들 수 있습니다. 다중 DNS 레코드는 단일 터널에 포인트를 지정할 수 있으며, 호스트 이름과 정의된 설정된 서비스에 트래픽을 보낼 수 있습니다.[ingress 규칙](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/#file-structure-for-public-hostnames).
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/)그리고 이동**DNS 기록**귀하의 도메인에 대한 페이지.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 제품정보**추가 기록**. 선택`CNAME`기록 유형으로. 제품 정보**이름 \***&#xD130;널을 만들려면 호스트명을 선택하십시오. 액세스 정책의 호스트 이름과 일치해야합니다.
+
+3. 제품 정보**제품정보**, 당신의 갱도의 ID를 뒤에 입력하십시오`.cfargotunnel.com`. 예를 들면:
+
+```txt
+  6ff42ae2-765d-4adf-8112-31c55c1551ef.cfargotunnel.com
+```
+
+4. 제품정보**제품 정보**.
+
+## 터널을 실행
+
+Cloudflare에 대상 서비스를 연결하는 터널을 실행할 수 있습니다. 터널을 실행하려면 다음 명령을 사용하십시오.`<NAME>`당신의 갱도를 위해 창조된 이름으로.
+
+```sh
+cloudflared tunnel run <NAME>
+```
+
+우리는 당신이 실행하는 것이 좋습니다`cloudflared` [서비스](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/as-a-service/)시작을 시작으로 설정된다.
+
+## 클라이언트 기계에서 연결
+
+이제 클라이언트 기계에서 연결할 수 있습니다.`cloudflared`.
+
+이 예제는 macOS 노트북을 사용합니다. macOS에서 설치할 수 있습니다.`cloudflared`Homebrew를 사용하여 다음 명령으로.
+
+```sh
+brew install cloudflared
+```
+
+다음 명령을 실행하여 장치에서 Cloudflare에 연결을 만듭니다. 어떤 유효한 항구든지 지정될 수 있습니다.
+
+```sh
+cloudflared access tcp --hostname azure.widgetcorp.tech --url 127.0.0.1:1234
+```
+
+이 서비스 실행으로, 당신은 실행할 수 있습니다`kubectl`명령 및`cloudflared`브라우저 창을 시작하고 SSO 공급자와 인증하는 사용자를 프롬프트합니다. 일단 정해진,`cloudflared`명령에 지정된 로컬 URL에서 클라이언트 시스템에 연결을 노출합니다.
+
+`kubeconfig`이 시간에 프록시 명령 구성을 지원하지 않습니다. 커뮤니티가 그렇게 할 계획을 제출했지만. interim에서 사용자는 클러스터의 API 서버가 시간을 절약 할 수 있습니다.
+
+```sh
+alias kubeone="env HTTPS_PROXY=socks5://127.0.0.1:1234 kubectl"
+```

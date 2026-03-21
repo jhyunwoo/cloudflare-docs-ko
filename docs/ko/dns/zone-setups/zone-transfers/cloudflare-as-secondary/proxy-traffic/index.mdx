@@ -1,0 +1,77 @@
+---
+pcx_content_type: how-to
+title: 트래픽 프록시
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Secondary DNS override로 트래픽 프록시
+---
+
+import { TabItem, Tabs, APIRequest, DashButton } from "~/components";
+
+secondary zone에서 [들어오는 zone transfer](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/setup/)를 설정하면, 기본적으로 전송된 DNS 레코드에는 프록시를 활성화할 수 없습니다.
+
+Secondary DNS override를 사용하면 Cloudflare를 secondary DNS 제공자로 사용하면서도 Cloudflare 프록시의 [성능 및 보안 이점](/fundamentals/concepts/how-cloudflare-works/#cloudflare-as-a-reverse-proxy)을 얻을 수 있습니다. 또한 zone apex의 A 및 AAAA 레코드를 CNAME 레코드로 재정의할 수 있습니다.
+
+:::note
+
+프록시할 수 있는 레코드는 A, AAAA, CNAME 레코드뿐입니다.
+
+:::
+
+## 사전 요구 사항
+
+Secondary DNS override를 설정하기 전에 다음 사항을 확인하세요.
+
+- [secondary DNS zone을 설정](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/setup/)했고, DNS 레코드가 올바르게 전송되는 것을 확인했습니다.
+- [DNSSEC with Secondary DNS](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings/) 옵션을 **Unsigned** 또는 **Live Signing**으로 설정했습니다. [Pre-signed](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/dnssec-for-secondary/#pre-signed-dnssec-설정하기)로 설정되어 있으면 Cloudflare는 모든 DNS 레코드를 프록시되지 않은 상태(DNS only)로 처리합니다.
+- 등록기관에서 Cloudflare가 제공한 네임서버만 남기고 나머지 네임서버는 제거했습니다(강력 권장).
+
+  :::caution
+
+  Secondary DNS override를 사용하면서 등록기관에 다른 네임서버도 남겨 두면 DNS 응답이 DNS 제공자마다 달라지며, 이는 [공식 표준](https://www.iana.org/help/nameserver-requirements)에 어긋납니다.
+
+  :::
+
+## Secondary DNS override 설정
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **Secondary DNS override**를 활성화합니다.
+3. [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지에서 특정 A, AAAA, CNAME 레코드에 대해 회색 구름 아이콘을 선택해 **Proxy status**를 **Proxied**로 바꿉니다.
+
+</TabItem> <TabItem label="API">
+
+1. zone에서 Secondary DNS override를 활성화하려면 다음 PATCH 요청을 사용합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dns_settings"
+	method="PATCH"
+	json={{
+		"secondary_overrides": true,
+	}}
+/>
+
+2. 특정 A, AAAA, CNAME 레코드에 대해서는 `proxied` 값을 `true`로 지정해 [POST](/api/resources/dns/subresources/records/methods/create/) 요청을 보냅니다.
+   - 프록시하려는 전송 레코드와 동일한 이름을 가진 레코드를 추가해야 합니다. Cloudflare는 이름과 프록시 상태만 확인하므로 레코드 내용은 중요하지 않습니다.
+
+</TabItem> </Tabs>
+
+## 프록시된 A 및 AAAA 레코드
+
+Secondary DNS 레코드를 프록시(오렌지 구름)한 후에는, primary DNS 제공자에서 전송된 같은 호스트명 아래의 추가 레코드도 자동으로 프록시됩니다. 이 동작은 해당 도메인 아래의 모든 A 및 AAAA 레코드에 적용됩니다.
+
+## Zone apex의 CNAME 레코드
+
+zone apex에 CNAME 레코드를 추가할 수도 있습니다([CNAME Flattening](/dns/cname-flattening/)을 통해 지원). 이 레코드는 프록시할 수도 있고 DNS Only 상태로 둘 수도 있습니다.
+
+apex에 CNAME 레코드를 만들면 zone apex의 기존 A 또는 AAAA 레코드는 비활성화됩니다. 비활성화된 레코드는 **View Inactive Records**를 클릭하여 볼 수 있습니다. 루트의 A 또는 AAAA 레코드를 다시 활성화하려면 CNAME 레코드를 제거하세요.
+
+## 레코드가 프록시되는지 확인
+
+할당된 Secondary DNS 네임서버에 대해 DNS를 질의하여 Cloudflare가 반환하는 DNS 응답을 확인하세요. Cloudflare에 의해 프록시된 레코드는 [Cloudflare IP](https://www.cloudflare.com/ips/)를 반환합니다.

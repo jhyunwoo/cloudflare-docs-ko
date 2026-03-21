@@ -1,0 +1,173 @@
+---
+title: 비디오 또는 오디오 다운로드
+pcx_content_type: how-to
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/viewing-videos/download-videos/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/viewing-videos/download-videos/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+비디오를 스트림에 업로드하면 HLS / DASH를 사용하여 스트림 할 수 있습니다. 그러나 특정 사용 케이스의 경우 MP4 또는 M4A 파일을 다운로드 할 수 있습니다.
+오프라인 보기와 같은 경우 MP4 파일을 다운로드 할 수 있습니다. 여기서, AI summarization과 같은 다운스트림 작업을 위해 오디오 만 추출하고 싶다면 M4A 파일을 다운로드 할 수 있습니다.
+
+## 다운로드 MP4 파일을 생성
+
+:::참조
+더 보기`/downloads`MP4 다운로드를 만들기 위해 endpoint 기본값.
+주요 특징
+
+아래 단계를 따르십시오.
+
+1. POST 요청을 작성하여 MP4 지원`/downloads`또는`/downloads/default`끝점.
+2. 응답에 의해 제공된 MP4 URL을 endpoint에 저장하십시오. 이 MP4 URL은 MP4가 다음 단계에 준비되어 있을 때 기능됩니다.
+3. 오시는 길`/downloads`끝점 까지`status`필드 설정`ready`MP4를 사용할 때 알려줍니다. 이제 단계 2에서 MP4 URL을 사용할 수 있습니다.
+
+한 번 업로드 된 비디오를 다운로드 할 수 있습니다. HTTP 요청을 할 수 있습니다.`/downloads`또는`/downloads/default`끝점.
+
+비디오를 볼 준비가되면 알림[webhooks 사용](/stream/manage-video-library/using-webhooks/#notifications).
+
+## 다운로드 M4A 파일 생성
+
+MP4 다운로드를 생성하는 것과 유사한 단계를 따르는 영상 기초에 M4A 지원을 가능하게 하기 위하여는, 그러나 대신에 POST 요구를 보내십시오`/downloads/audio`끝점.
+
+## 이름 \*
+
+다운로드 API 응답은 비디오, 다운로드 URL 및 다운로드 파일의 처리 상태에 대한 다운로드 유형이 포함되어 있습니다.
+
+별도의 요청은 다운로드 가능한 MP4 및 M4A 파일을 생성해야 합니다. 예를 들면:
+
+```bash title="Request MP4"
+curl -X POST \
+-H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/downloads
+```
+
+```json title="Response MP4"
+{
+	"result": {
+    "default": {
+			"status": "inprogress",
+			"url": "https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/default.mp4",
+			"percentComplete": 75.0
+		}
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+그리고 M4A 파일을 위해:
+
+```json title="Request M4A"
+curl -X POST \
+-H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/downloads/audio
+```
+
+```json title="Response M4A"
+{
+	"result": {
+    "audio": {
+			"status": "inprogress",
+			"url": "https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/audio.m4a",
+			"percentComplete": 75.0
+		}
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 다운로드 링크
+
+모든 다운로드를 볼 수 있습니다.`GET`다운로드 API에 HTTP 요청.
+
+```bash title="Request"
+curl -X GET \
+-H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/downloads
+```
+
+```json title="Response"
+{
+	"result": {
+    "audio": {
+			"status": "ready",
+			"url": "https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/audio.m4a",
+			"percentComplete": 100.0
+		}
+		"default": {
+			"status": "ready",
+			"url": "https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/default.mp4",
+			"percentComplete": 100.0
+		}
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 사용자 정의 다운로드 파일 이름
+
+다운로드 가능한 파일의 이름을 지정할 수 있습니다.`filename`URL의 끝에 쿼리 문자열 매개 변수.
+
+아래 예제에서, 추가`?filename=MY_VIDEO.mp4`URL로 파일 이름을 변경합니다.`MY_VIDEO.mp4`.
+
+`https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/default.mp4?filename=MY_VIDEO.mp4`
+
+더 보기`filename`긴 120 문자의 최대이며 구성 가능`abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_`이름 \* 확장 (.mp4)은 자동으로 부과됩니다.
+
+## 다운로드
+
+생성 된 MP4 다운로드 파일은 다운로드 API 응답의 링크를 통해 검색 할 수 있습니다.
+
+```sh
+curl -L https://customer-<CODE>.cloudflarestream.com/<VIDEO_UID>/downloads/default.mp4 > download.mp4
+```
+
+## 보안 동영상 다운로드
+
+비디오가 공개되면 MP4도 공개적으로 액세스 할 수 있습니다. 동영상이 개인이라면, MP4가 공개적으로 접근할 수 없습니다. MP4에 대한 개인 비디오에 액세스하려면 서명 된 URL을 생성 할 수 있습니다.`downloadable`설정하기`true`.
+
+다운로드 링크는 이미 서명 한 URL을 필요로하는 비디오를 위해 작동하지 않습니다`downloadable`플래그는 토큰에 존재하지 않습니다.
+
+동영상에 서명된 URL을 사용하는 방법에 대한 자세한 내용은 참조[Stream 설정](/stream/viewing-videos/securing-your-stream/).
+
+**토큰 탑재**
+
+```json null {6}
+{
+    "sub": <VIDEO_UID>,
+    "kid": <KEY_ID>,
+    "exp": 1537460365,
+    "nbf": 1537453165,
+    "downloadable": true,
+    "accessRules": [
+      {
+        "type": "ip.geoip.country",
+        "action": "allow",
+        "country": [
+          "GB"
+        ]
+      },
+      {
+        "type": "any",
+        "action": "block"
+      }
+    ]
+  }
+```
+
+## MP4 다운로드 빌링
+
+MP4 다운로드는 비디오의 스트리밍과 같은 방법으로 청구됩니다. 비디오의 지속 시간이 비디오의 MP4를 다운로드 할 때마다 청구됩니다. 예를 들어, 한 달에 100 번 다운로드 된 10 분 비디오가 있다면 다운로드는 1000 분으로 계산됩니다.
+
+당신은 MP4s를 활성화 할 때 저장에 대한 추가 비용이 발생하지 않습니다.

@@ -1,0 +1,143 @@
+---
+pcx_content_type: configuration
+title: 뚱 베어
+head: []
+description: Worker 내부 HTTP 요청을 통해 비동기적으로 fetching 리소스를 위한 인터페이스.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/fetch/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/fetch/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+더 보기[페치 API](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API)Worker 내부 HTTP 요청을 통해 비동기적으로 fetching 리소스에 대한 인터페이스를 제공합니다.
+
+:::참조
+
+Asynchronous 작업과 같은`fetch`실행해야 한다.[회사 소개](/workers/runtime-apis/handlers/). 전화하려고 하는 경우`fetch()`내 계정[글로벌 범위](https://developer.mozilla.org/en-US/docs/Glossary/Global_scope), 당신의 노동자는 과실을 던질 것입니다. 더 알아보기[자주 묻는 질문](/workers/runtime-apis/request/#the-request-context).
+
+:::
+
+:::caution\[작업자]
+
+작업자에 작업자`fetch`요청은 가능[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)또는 활성화[`global_fetch_strictly_public`호환성 깃발](/workers/configuration/compatibility-flags/#global-fetch-strictly-public).
+
+:::
+
+## 옵션 정보
+
+<Tabs>
+  <TabItem label="모듈 Worker" icon="seti:javascript">
+    ```js null {3-7}
+    export default {
+    	async scheduled(controller, env, ctx) {
+    		return await fetch("https://example.com", {
+    			headers: {
+    				"X-Source": "Cloudflare-Workers",
+    			},
+    		});
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="서비스 노동자" icon="seti:javascript">
+    :::카트로션\[서비스 Workers는 deprecated]
+
+    서비스 Workers는, 아직도 지원됩니다. 자주 묻는 질문[단위 Workers](/workers/reference/migrate-to-module-workers/)대신. 새로운 기능은 서비스 WorkersXQ를 위해 지원되지 않을지도 모릅니다.
+
+    :::
+
+    ```js null {8}
+    addEventListener("fetch", (event) => {
+    	//참고 : fetch를 사용할 수 없습니다.
+    	event.respondWith(eventHandler(event));
+    });
+
+    async function eventHandler(event) {
+    	//fetch는 `event.respondWith()`가 Promise를 기다리기 때문에 여기에서 기다리고 있습니다.
+    	const resp = await fetch(event.request);
+    	return resp;
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python 작업자" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def scheduled(self, controller, env, ctx):
+      			return await fetch("https://example.com", headers={"X-Source": "Cloudflare-Workers"})
+    ```
+  </TabItem>
+</Tabs>
+
+- <code>fetch(resource, 옵션 선택)</code>: 약속`<Response>`
+- Fetch는 응답에 대한 약속을 반환합니다.
+
+### 매개 변수
+
+- [`resource`](https://developer.mozilla.org/en-US/docs/Web/API/fetch#resource)요청 | 문자열 | URL
+
+- `options`옵션 정보
+  - `cache` `undefined | 'no-store' | 'no-cache'`옵션 정보
+    - 표준 HTTP`cache`헤더. 한국어`cache: 'no-store'`·`cache: 'no-cache'`지원됩니다.
+      다른 것`cache`header가 결과적으로`TypeError`이름 \*`Unsupported cache mode: <attempted-cache-mode>`·
+      &#x20;이 모든 요청에 대해`Pragma: no-cache`·`Cache-Control: no-cache`원래에 헤더.
+      &#x20;한국어`no-store`, Cloudflare에 의해 호스팅되지 않은 기원에 대한 요청은 Cloudflare의 캐시의 사용을 우회합니다.
+      &#x20;한국어`no-cache`, Cloudflare에 의해 호스팅되지 않은 기원에 대한 요청은 유효하지 않습니다
+      resonding의 앞에 근원.
+  - 요청의 내용과 행동을 정의하는 객체.
+
+***
+
+## 이름 \*`Accept-Encoding`header는 취급됩니다
+
+자주 묻는 질문`fetch()`API, 서버가 지원되는 것을 선호하는 압축 형태를 지정할 수 있습니다 (서버가 지원하는 경우)[`Accept-Encoding`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Accept-Encoding)헤더.
+
+Workers는 gzip과 brotli 압축 알고리즘을 모두 지원합니다. 일반적으로 지정할 필요가 없습니다.`Accept-Encoding`또는`Content-Encoding`Workers의 헤더 Runtime 생산 환경 - brotli 또는 gzip 압축은 클라이언트와 기원 서버의 기능에 따라 클라이언트에 데이터를 반환 할 때 원래의 fetching 할 때 자동으로 요청됩니다.
+
+기원에서 brotli 요청을 지원하려면 활성화해야합니다.[`brotli_content_encoding`](/workers/configuration/compatibility-flags/#brotli-content-encoding-support)당신의 노동자에 있는 겸용성 깃발. 곧, 이 호환성 깃발은 곧 겸용성 날짜를 과거에 모든 WorkersXQ를 위해 기본적으로 활성화될 것입니다.
+
+### Passthrough 행동
+
+Accept-Encoding 헤더가 유용할 수 있는 하나의 시나리오는 서버에서 클라이언트로 압축된 데이터를 전달하는 데 유용합니다. Accept-Encoding을 사용하면 작업자가 서버에서 압축된 데이터 스트림을 직접 수신할 수 있습니다. 클라이언트로 돌아가기 전에 압축 응답의 몸을 읽지 못하고 계속하십시오`Content-Encoding`header intact, 그것은 decompressed 없이 "pass through"이고 그 후에 다시 recompressed. Workers를 사용하거나 압축 된 미디어 자산을 태칭 할 때 도움이 될 수 있습니다. 원래 서버가 사용 된 동일한 압축이 작업자가 반환하는 응답에 사용됩니다.
+
+콘텐츠 인코딩의 변경 외에도 recompression은 클라이언트가 지원되지 않는 인코딩을 사용할 때도 필요합니다. 예를 들어, Worker가 인코딩으로 brotli 또는 gzip을 요청할 때 클라이언트는 gzip을 지원하며, 서버가 서버로 brotli-encoded 데이터를 반환하면 다시 압축이 필요할 것입니다. (그리고 자동으로 적용됩니다). 이 행동은 또한 다를 수 있음[압축 규칙](/rules/compression-rules/)압축이 서버 측에 다른 유형에 적용되어야 하는 것을 구성하기 위하여 사용될 수 있는 ,.
+
+```typescript
+export default {
+	async fetch(request) {
+		//brotli 또는 gzip 압축을 받아들이십시오
+		const headers = new Headers({
+			"Accept-Encoding": "br, gzip",
+		});
+		let response = await fetch("https://developers.cloudflare.com", {
+			method: "GET",
+			headers,
+		});
+
+		//원래 응답 몸이 반환되고 Content-Encoding 헤더는
+		//보존 된 동일한 인코딩 된 데이터는 다시 압축해야합니다.
+		return new Response(response.body, {
+			status: response.status,
+			statusText: response.statusText,
+			headers: response.headers,
+		});
+	},
+};
+```
+
+## 관련 자료
+
+- [예제: 사용`fetch`다른 사이트에 응답](/workers/examples/respond-with-another-site/)
+- [예: Fetch HTML](/workers/examples/fetch-html/)
+- [예제: Fetch JSON](/workers/examples/fetch-json/)
+- [예제: Fetch를 사용하여 캐시](/workers/examples/cache-using-fetch/)
+- Worker 코드를 작성[ES 모듈 구문](/workers/reference/migrate-to-module-workers/)최적화된 경험을 위해.
+- [오류 526](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-526/#error-526-in-the-workers-context)
+- [부분 설정에서 Fetch API](/workers/platform/known-issues/#fetch-api-in-cname-setup)

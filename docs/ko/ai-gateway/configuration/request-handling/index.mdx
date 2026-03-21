@@ -1,0 +1,218 @@
+---
+pcx_content_type: configuration
+title: 자주 묻는 질문
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/configuration/request-handling/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/configuration/request-handling/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Aside } from "~/components";
+
+:::주최\[조정]
+
+이 페이지에 설명된 요청 처리 기능은 여전히 작동하지만,[동적인 Routing](/ai-gateway/features/dynamic-routing/)이제는 Timeouts, retries 및 fallbacks를 포함하여 고급 요청 처리를 달성하는 선호한 방법입니다. Dynamic Routing은 복잡한 라우팅 시나리오를 관리하기위한 시각적 인터페이스와 더 강력하고 유연한 접근 방식을 제공합니다.
+
+:::
+
+AI 게이트웨이는 AI 상호 작용을 효과적으로 관리하고 애플리케이션이 반응적이고 신뢰할 수 있는 유지를 보장할 수 있는 서비스 제공을 위한 다양한 전략을 지원합니다.
+
+## 시간표
+
+요청 timeout은 공급자가 응답하기 위해 너무 오래 걸리는 경우 fallbacks 또는 retry를 트리거 할 수 있습니다.
+
+이 timeouts 도움:
+
+- 사용자 경험을 향상, 응답을 위해 너무 오래 대기에서 사용자를 방지
+- 불응답한 공급자를 검출하고 fallback 선택권을 방아쇠로 처리해서, Proactively 손잡이 과실
+
+Timeouts 요청은 Universal Endpoint 또는 직접 모든 공급자에 설정할 수 있습니다.
+
+### 이름 \*
+
+타임아웃은 밀리 초에 설정됩니다. 또한, 타임아웃은 응답의 첫 번째 부분이 돌아옵니다. 응답의 첫 번째 부분이 지정된 시간 내에 반환됩니다. 응답을 스트리밍 할 때 - 게이트웨이는 응답을 기다립니다.
+
+### 제품 설명
+
+#### 범용 엔드포인트
+
+설정하면[범용 엔드포인트](/ai-gateway/usage/universal/), 요청 타임 아웃은 요청에 대한 타임 아웃 지속 시간을 지정하고 fallback을 트리거합니다.
+
+Universal Endpoint의 경우, timeout 값을 설정하여 설정`requestTimeout`공급자 별의 재산`config`객체. 각 공급자에는 다른이 있을 수 있습니다`requestTimeout`과립상 주문화를 위한 가치.
+
+```bash title="Provider-level config" {11-13} collapse={15-48}
+curl 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}' \
+	--header 'Content-Type: application/json' \
+	--data '[
+    {
+        "provider": "workers-ai",
+        "endpoint": "@cf/meta/llama-3.1-8b-instruct",
+        "headers": {
+            "Authorization": "Bearer {cloudflare_token}",
+            "Content-Type": "application/json"
+        },
+        "config": {
+            "requestTimeout": 1000
+        },
+        "query": {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a friendly assistant"
+                },
+                {
+                    "role": "user",
+                    "content": "What is Cloudflare?"
+                }
+            ]
+        }
+    },
+    {
+        "provider": "workers-ai",
+        "endpoint": "@cf/meta/llama-3.1-8b-instruct-fast",
+        "headers": {
+            "Authorization": "Bearer {cloudflare_token}",
+            "Content-Type": "application/json"
+        },
+        "query": {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a friendly assistant"
+                },
+                {
+                    "role": "user",
+                    "content": "What is Cloudflare?"
+                }
+            ]
+        },
+				"config": {
+            "requestTimeout": 3000
+        },
+    }
+]'
+```
+
+#### 회사 소개
+
+설정하면[회사 소개](/ai-gateway/usage/providers/)요청, 요청 타임 아웃은 요청시 타임 아웃 기간을 지정하고 - 초과하면 - 오류를 반환합니다.
+
+공급자 별 endpoint를 위해, timeout 값을 추가하여 구성하십시오`cf-aig-request-timeout`헤더.
+
+```bash title="Provider-specific endpoint example" {4}
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/workers-ai/@cf/meta/llama-3.1-8b-instruct \
+ --header 'Authorization: Bearer {cf_api_token}' \
+ --header 'Content-Type: application/json' \
+ --header 'cf-aig-request-timeout: 5000'
+ --data '{"prompt": "What is Cloudflare?"}'
+```
+
+***
+
+## 자주 묻는 질문
+
+AI Gateway는 최대 5개의 리트리 시도와 더불어 실패한 요청에 대한 자동 리트리를 지원합니다.
+
+이 기능은 응용 프로그램의 탄력성을 향상시키고 수동 개입없이 임시 문제에서 복구 할 수 있습니다.
+
+Timeouts 요청은 Universal Endpoint 또는 직접 모든 공급자에 설정할 수 있습니다.
+
+### 이름 \*
+
+요청 저장소, 당신은 세 가지 속성의 조합을 조정할 수 있습니다:
+
+- 시도 수 (최대 5 tries)
+- 복원하기 전에 얼마나 오래 (밀리 초에서 최대 5 초)
+- 백오프 방법 (일정한, 선형, 또는 exponential)
+
+최종 재량 시도에서 게이트웨이가 요청이 완료 될 때까지 기다립니다.
+
+### 제품 설명
+
+#### 범용 엔드포인트
+
+설정하면[범용 엔드포인트](/ai-gateway/usage/universal/), 요청 리트리는 자동으로 구성 된 fallbacks를 트리거하기 전에 최대 5 배의 요청에 실패합니다.
+
+Universal Endpoint의 경우, 공급자 별의 다음 속성으로 복원 설정을 구성`config`:
+
+```json
+config:{
+	maxAttempts?: number;
+	retryDelay?: number;
+	backoff?: "constant" | "linear" | "exponential";
+}
+```
+
+으로[요청 timeout](/ai-gateway/configuration/request-handling/#universal-endpoint), 각 공급자는 과립상 주문화를 위한 다른 retry 조정이 있을 수 있습니다.
+
+```bash title="Provider-level config" {11-15} collapse={16-55}
+curl 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}' \
+	--header 'Content-Type: application/json' \
+	--data '[
+    {
+        "provider": "workers-ai",
+        "endpoint": "@cf/meta/llama-3.1-8b-instruct",
+        "headers": {
+            "Authorization": "Bearer {cloudflare_token}",
+            "Content-Type": "application/json"
+        },
+        "config": {
+            "maxAttempts": 2,
+						"retryDelay": 1000,
+						"backoff": "constant"
+        },
+        "query": {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a friendly assistant"
+                },
+                {
+                    "role": "user",
+                    "content": "What is Cloudflare?"
+                }
+            ]
+        }
+    },
+    {
+        "provider": "workers-ai",
+        "endpoint": "@cf/meta/llama-3.1-8b-instruct-fast",
+        "headers": {
+            "Authorization": "Bearer {cloudflare_token}",
+            "Content-Type": "application/json"
+        },
+        "query": {
+            "messages": [
+                {
+                    "role": "system",
+                    "content": "You are a friendly assistant"
+                },
+                {
+                    "role": "user",
+                    "content": "What is Cloudflare?"
+                }
+            ]
+        },
+				"config": {
+            "maxAttempts": 4,
+						"retryDelay": 1000,
+						"backoff": "exponential"
+        },
+    }
+]'
+```
+
+#### 회사 소개
+
+설정하면[회사 소개](/ai-gateway/usage/universal/)요청, 요청 리트리는 5 번까지 자동으로 리트리가 실패합니다. 최종 재량 시도에서 게이트웨이가 요청이 완료 될 때까지 기다립니다.
+
+공급자 별 엔드포인트의 경우, 다른 헤더 값을 추가하여 재스트 설정 구성:
+
+- `cf-aig-max-attempts`(번호)
+- `cf-aig-retry-delay`(번호)
+- `cf-aig-backoff`("constant" | "linear" | "exponential)

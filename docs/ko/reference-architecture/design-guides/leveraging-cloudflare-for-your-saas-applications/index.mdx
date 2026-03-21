@@ -1,0 +1,157 @@
+---
+title: SaaS 애플리케이션을 위한 Cloudflare 활용
+pcx_content_type: design-guide
+products:
+  - cloudflare-for-saas
+  - tunnel
+  - load-balancing
+  - data-localization
+sidebar:
+  order: 1
+  label: SaaS 애플리케이션을 위한 Cloudflare 활용
+reviewed: 2024-12-19T00:00:00.000Z
+description: >-
+  이 문서는 참고 자료를 제공하고 플랫폼에 대한 Cloudflare를 사용하는지도를 제공합니다. SaaS 애플리케이션 소유자, 엔지니어, 또는
+  엔지니어를 위해 설계되어 응용 프로그램을 확장하고 안전하게 만드는 방법을 배울 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/leveraging-cloudflare-for-your-saas-applications/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/leveraging-cloudflare-for-your-saas-applications/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+SaaS 응용 프로그램을 구축 할 때, 각 고객 계정 (또는 tenant)의 독특한 호스트 이름을 생성하는 것이 일반적입니다. 예를 들어`app.customer.com`. 이 응용 프로그램 호스트 이름에 대한 모든 통신이 SSL / TLS를 사용하여 수행되도록하는 것이 중요합니다. 따라서 인증서는 귀하의 응용 프로그램에 고객의 호스트 이름에 대해 작성해야합니다. 인증서 관리는 어렵고, 종종 신청 건축가 및 개발자는 사용할 것[멀티 도메인 인증서](https://www.cloudflare.com/learning/ssl/types-of-ssl-certificates/)(MDC), 그래서 그들은 단지 하나의 인증서를 구입하고 추가 할 수 있습니다 수백 도메인 목록. 그러나 응용 프로그램이 수천과 수백만의 고객을 도달 할 때도 잘 스케일하지 않습니다.
+
+또한, 귀하의 응용 프로그램의 고객은 응용 프로그램에 직접 호스팅되는 주요 웹 사이트 도메인을 가질 수 있습니다. 예를 들어,`www.customer.com`실제로 SaaS 애플리케이션에서 콘텐츠를 직접 제공합니다.
+
+많은 SaaS 애플리케이션에는 Cloudflare와 같은 캐싱 및 보안 솔루션이 있으며, 응용 프로그램의 전면 및 이러한 호스트 이름을 내장해야합니다. 이것은 종종 "Zone"모델을 사용하여 수행됩니다. Cloudflare 내부 또는 AWS Cloudfront과 같은 다른 공급 업체 인 "Zone"이 생성됩니다.`app.customer.com`. 즉, 각 새로운 고객이 내장되어 있기 때문에 새로운 "Zone"이 생성되어야합니다. 이는 고객이 10 개 및 수백 개에서 관리 할 수 있지만 수천 개와 수백만 명의 관리가 될 때 이러한 영역의 관리는 어렵습니다.
+
+플랫폼에 대한 Cloudflare는 하나의 "Zone"에서 많은 호스트 이름과 도메인을 관리함으로써 대부분의 가장자리 제공 업체의이 전통적인 모델을 넘어 확장합니다. 지금 관리할 수 있습니다`www.customer1.com`·`www.customer2.net`, 그리고 수백만 더 많은 hostnames, 동일한 윤곽을 통해서 또한 필요로 하는 특징을 customizing.
+
+이 문서는 참고 자료를 제공하고 플랫폼에 대한 Cloudflare를 사용하는지도를 제공합니다. 문서는 세 가지 주요 섹션으로 나뉩니다.
+
+- SaaS 모델의 개요와 플랫폼에 대한 일반적인 도전 Cloudflare는 해결
+- SSL 인증서 발급 SaaS 모델
+- 고객의 각 경험을 맞춤화
+
+### 이 문서는 누구입니까?
+
+이 참고 자료 아키텍처는 SaaS 애플리케이션 소유자, 엔지니어, 또는 Cloudflare를 통해 응용 프로그램을 확장하고 안전하게 만드는 방법을 배우는 건축가를 위해 설계되었습니다.
+
+Cloudflare의 더 강한 기본 이해를 구축하려면 다음 리소스를 권장합니다.
+
+- Cloudflare는 무엇입니까? |[웹 사이트](https://www.cloudflare.com/what-is-cloudflare/)(5 분 읽기) 또는[동영상](https://www.youtube.com/watch?v=XHvmX3FhTwU)(2 분)
+- [Cloudflare 통치자 엔진](/ruleset-engine/)- 우리는 통치 기관과의 통합을 논의 할 것입니다. 그것의 특징을 가진 Familiarity는 도움이 될 것입니다.
+- [Cloudflare Workers](/workers/)- 우리는 또한 Cloudflare Workers, 우리의 serverless 신청 플랫폼과 통합을 토론할 것입니다. 이 플랫폼과의 기본 친화는 도움이 될 것입니다.
+
+이 참고 자료 건축술을 읽는 사람들은 배울 것입니다:
+
+- Cloudflare의 고유한 제안은 SaaS 신청을 위한 중요한 도전을 해결할 수 있습니다
+- 당신의 끝 고객의 각각을 위한 Cloudflare 경험을 주문을 받아서 만드는 방법
+- Workers를 통해 클라이언트의 각을 위한 serverless 신청을 통합하는 공구
+
+## 왜 Cloudflare 플랫폼?
+
+### SaaS 모델
+
+Software as a Service (SaaS)는 클라우드 컴퓨팅 시대의 핵심 혁신입니다. 사내 관리 레거시 엔터프라이즈 소프트웨어 - 회계, HR 및 CRM과 같은 - IT 인력의 헌신적 인 관심은 엔터프라이즈의 각 응용 프로그램에 대한 플랫폼 (Whether 전용 하드웨어, VMs 또는 클라우드 인스턴스)를 수립합니다. SaaS 모델은 Shopify 및 Salesforce와 같은 제공 업체를 허용하여 자신의 플랫폼을 대신 고객에게 확장 할 수 있습니다. 이제 고객은 하드웨어를 제공하거나 다른 인프라 문제를 고려하지 않습니다. 대신, 그들은 항상 최신, 보안 및 사용할 수있는 SaaS 플랫폼에 액세스 할 수 있습니다.
+
+### 제3자 호스트명 도전
+
+많은 SaaS 애플리케이션을 위해 클라이언트의 자신의 도메인에서 서비스를 제공하는 것이 중요합니다. 그들의 도메인은 브랜드, 보안 및 조직에 중요; 그리고 많은 클라이언트는 적절 한 투자`.com`그들의 사업을 대표합니다. 브랜드에 연결된 도메인을 가진 많은 고객은 공급자의 도메인에 응용 프로그램을 배포하는 것에 대해 다시 밀어 줄 것입니다.
+
+이것은 특히 전자 상거래 솔루션과 같은 고객 기반 애플리케이션에 대한 사실입니다. 당신은 이것에 노출하고 싶습니다`shop.example.com`, 아니`example.shop.com`. SaaS 애플리케이션에 트래픽을 확보하기 위해 공급자("shop")는 고객의 인증서를 필요로 합니다.`example.com`.
+
+![그림 1 : SaaS 플랫폼을 통해 전자 상거래 흐름.](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure1.svg "Figure 1: eCommerce flow through a SaaS platform.")
+
+SaaS 솔루션에 대한 도전입니다. 인증서 발급은 단단히 제어됩니다.[DCV 검증 과정](/ssl/edge-certificates/changing-dcv-method/dcv-flow/). 도메인 소유자는 모든 인증서를 승인해야하며, 검증의 전통적인 방법은 도메인 소유자에 의해 구동되고 인증서를 제공합니다.
+
+![그림 2 : 인증서는 레거시 플랫폼에서 자동으로 갱신 할 수 없습니다. 그들은 수동 행동없이 만료 및 휴식 트래픽.](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure2.svg "Figure 2: Certificates cannot be automatically renewed on legacy platforms. They will expire and break traffic without manual action.")
+
+이것은 dilemma를 포즈 : SaaS 모델은 명확한 장점을 제공하지만 자체의 새로운 도전을 소개합니다. 새로운 솔루션은 공급자와 최종 고객이 모두 SaaS 모델을 최대한 활용할 수 있도록 합니다.
+
+## 플랫폼에 대한 Cloudflare를 통해 SSL 인증서 발급
+
+### 인터넷에 어떤 hostname에 대한 인증서 관리
+
+SaaS를 위한 Cloudflare는 SaaS 공급자를 위한 이 일반적인 도전에 유일한 해결책을 제공합니다. Cloudflare의 위치가 낮은 수준으로, 세계적인 네트워크로 레버리지로, 우리는 또한 SaaS 플랫폼에 몇몇 다른 이익을 제공하면서 최종 클라이언트를 위한 증명서 발급을 투명하게 관리해서 좋습니다.
+
+### 안전하고 강력한 검증 모드
+
+Cloudflare는 SaaS 시나리오에서 Domain Control Validation (DCV) 프로세스를 관리하는 독특한 능력을 가지고 있습니다. 전통적인 모델에서 인증서 발급자는 도메인 소유자에게 요청[특정 토큰](/ssl/edge-certificates/changing-dcv-method/dcv-flow/#dcv-tokens)(DNS TXT 레코드 또는 작은 텍스트 파일) 그들이 그 도메인에 대한 허가를 검증하기 위해 자신의 기원에. 이것은 최근의 보안 개선과 더 일반적 인 인증서 갱신에서 반복적으로 수행해야합니다.
+
+![그림 3: DCV 과정.](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure3.svg "Figure 3: The DCV process.")
+
+Cloudflare의 네트워크는 클라이언트와 SaaS 공급자 사이에서 쉽게 앉을 수 있기 때문에, Cloudflare에 SaaS 공급자를 점하는 어떤 도메인을 대신하여 올바른 DCV 토큰으로 자동 응답 할 수 있습니다.
+
+![그림 4 : Cloudflare-enabled 플랫폼에서 자동으로 갱신되는 인증서.](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure4.svg "Figure 4: Certificates automatically renew on Cloudflare-enabled platforms.")
+
+모든 인증서 갱신에서 복잡한 프로세스를 반복적으로 수행하는 대신 클라이언트는 한 번만 훨씬 간단한 프로세스를 수행합니다.
+
+# 고객 Cloudflare 경험을 사용자 정의
+
+## 플랫폼에 대한 Cloudflare의 기능 관리
+
+플랫폼 용 Cloudflare는 SSL 인증서 관리보다 훨씬 더 많은 것을 제공합니다. 우리는 당신이 당신의 클라이언트의 각을 위해 가늠자에 안전과 성과 기능을, 통제하는 붙박이 특징을, 줍니다. Cloudflare의 안전 특징과 같은[DDoS 공격](/ddos-protection/), [모델 번호: WAF](/waf/), [Bot 관리](/bots/)·[비율 제한](/waf/rate-limiting-rules/)플랫폼에 클라이언트에 완벽하게 확장됩니다. 안전 자세는 안에서 주문을 받아서 만들어질 수 있습니다[관리 규칙](/waf/managed-rules/)개인 고객을 위해, 좋은 트래픽을 면제하거나 보안을 강화하십시오. 에 의해[- 연혁](/cloudflare-for-platforms/cloudflare-for-saas/performance/)측,[캐시](/cache/), [Argo 스마트 여정](/argo-smart-routing/), HTTP/2 기능[초기 힌트](/cloudflare-for-platforms/cloudflare-for-saas/performance/early-hints-for-saas/)고객의 모든 것에 대한 scalable 및 customizable 행동을 제공합니다. 사용자 정의 캐시 규칙은 모든 고객에게 높은 타격율을 구동 할 수 있습니다.
+
+우리의 규칙 보다는 더 융통성이 있는 경우에, 수천 수백만의 고객에게 개인적인 행동을 주기 위하여,[메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)완전한 per-client 융통성을 허용합니다. 태그 설정`WAF: On`또는`Performance: Premium`각 고객을 위해, 당신은 그들의 안전 및 성과 특징 세트를 주문을 받아서 만들 수 있습니다. 우리는 같은 특징을 건축했습니다[SaaS를 위한 WAF](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/)이 메타 데이터를 직접 인터페이스; 뿐만 아니라 우리의 Workers 서버 환경 내에서 API 사용자 정의 코드 내에서 사용.
+
+## 플랫폼에 대한 Workers와 확장 가능한 서버리스 응용
+
+메타데이터보다 더 많은 사용자 정의가 제공되거나 고객이 작성하거나 자신의 응용 코드를 생성하는 서비스를 실행하는 경우,[플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms/)각 고객을 위한 완벽한 serverless 애플리케이션을 배포할 수 있습니다.
+
+우리는 몇 가지 주요 기능을 제공합니다.[Dispatch 작업자](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/), 이는 당신에게 무한 한 유연성을 제공 하는 것은 고객 응용 프로그램 루트에. 예를 들어, 보안 검사를 실행할 수 있으며, 사용자의 ID를 알리는 HTTP 헤더를 디코딩하고, 이 사용자의 요청에 적합한 서버리스 응용 프로그램을로드합니다.[아웃바운드 Workers](/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/)고객의 응용 프로그램에 액세스 할 수있는 인터넷 리소스에 대한 추가 가시성과 제어를 제공, 분산 된 배포에 익숙한 보안 모델을 제공.
+
+우리는 또한 기능을 제공합니다[관련 상품](/cloudflare-for-platforms/workers-for-platforms/configuration/observability/), [제품 설명](/terraform/), 및 생산 등급 플랫폼 배포에 필요한 많은 다른 도구. 이것들은 다른 곳에서 상세합니다.[참고 자료 건축술](/reference-architecture/)그리고 그 가이드에 설명 된 더 많은 표준 모델에 대 한 플랫폼 케이스에 대 한 동일한 방법을 기능.
+
+## 사용 사례
+
+Cloudflare 플랫폼에 대한 Cloudflare가 SSL, 성능 및 보안을 최종 고객에게 원활히 확장 할 수 있는 세 가지 일반적인 사용 사례를 검토합시다.
+
+### 플랫폼의 규모에 SSL 발급
+
+이 일반적인 디자인에서 Cloudflare는 SSL 인증서를 발급하고 성능 및 보안 기능을 제공합니다. 우리는 당신의 클라이언트의 각각을 위한 특징을 주문을 받아서 만들지 않을 것입니다, 그러나 플랫폼을 사용하는 모두를 위한 일반적인 기능을 제공할 것입니다.
+
+1. Cloudflare는 SSL 인증서를 검증하고 배포함으로써 고객의 플랫폼에 트래픽을 확보합니다.
+2. 이 디자인에서, 당신은 동일한 L7 윤곽을 이용할 것입니다 - 즉, 당신의 교통에 행동하는 특징의 전부, 당신의 클라이언트의 각각을 위해 SSL 후에 달립니다.
+3. 그냥 설정[SaaS를 위한 Cloudflare](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)지역 및[사용자 정의 hostname](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/create-custom-hostnames/)각 클라이언트 hostname을 위해. 시스템은 플랫폼에 각 클라이언트의 트래픽을 포인트로 쉽게 흐름을 통과하고 인증서를 주문합니다.
+   1. 이 프로세스를 통해 항상 기본 설정을 사용할 수 있지만 SSL 사용자 정의도 가능합니다.
+   2. Origin 트래픽 라우팅은 SaaS 프로세스의 SSL을 통해 처리됩니다. 우리의 기본 구성은 대부분의 요구를 위해 안전합니다.
+      - 높은 안전한 사용 사례를 위해, 당신은 사용할 수 있습니다[Authenticated 근원 잡아당기기](/ssl/origin-configuration/authenticated-origin-pull/), [전용 CDN Egress IPs](/smart-shield/configuration/dedicated-egress-ips/), 또는 진보된 디자인[연락처](/cloudflare-one/networks/connectors/cloudflare-tunnel/).
+
+![그림 5](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure5.svg)
+
+### 당신의 플랫폼 고객을 위한 특징 주문화
+
+여기에, 우리는 단지 각 클라이언트에 대한 인증서를 제공하지 않습니다 - 우리는 그들 각각의 사용자 정의 구성을 제공합니다. 예를 들어, 기본 계층은 필수 WAF, 고급 계층은 Bot 관리를 가져옵니다. 당신은 또한 모든 고객에 걸쳐 일반적인 기능을 실행할 수 있습니다.
+
+1. SSL 트래픽을 확보하는 외에도 각 고객을 추가 할 때 추가 필드를 사용합니다 ([메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)) 올바른 기능 세트를 태그합니다.
+2. Cloudflare 특징은 각 클라이언트를 위해 주문을 받아서 만들기 위하여 메타데이터를 읽었습니다.[WAF 특징은 중요한 안전 주문화입니다](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/). 안전의 다른 수준, 또는 주문을 받아서 만들어진 WAF 규칙을 제공하십시오.
+3. [성과 측에,](/cloudflare-for-platforms/cloudflare-for-saas/performance/)Argo Smart Routing, Cache 및 Early Hints를 추가하여 선택된 고객을 위한 성능 수준을 높일 수 있습니다.
+
+![그림 6](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure6.svg)
+
+### 고객을위한 Serverless 애플리케이션 플랫폼
+
+가장 진보된 디자인에서는, 우리는 당신의 고객의 각각을 위한 우리의 Workers 런타임에 있는 가득 차있는 serverless 신청을 주문을 받아서 만듭니다. Simple Workers는 사용자 정의 기능을 유사한 작업을 수행합니다. 진보된 Workers는 Cloudflare 네트워크에 당신의 전체 플랫폼을 달릴 수 있습니다.
+
+1. 사용자 정의 Cloudflare 기능을 배포하는 대신, 각 고객은 사용자 정의 코드를 포함하는 자신의 "User Worker" JavaScript serverless 응용 프로그램을 가지고.
+2. Dispatch Workers를 통해 제어를 유지, 어떤 코드를 실행, 아웃 바운드 Workers, 이는 고객 코드의 액세스를 제한.
+3. D1, Workers KV, 및 Queues와 같은 고급 개발자 플랫폼 기능을 사용하여 Cloudflare.
+
+![그림 7](~/assets/images/reference-architecture/leveraging-cloudflare-for-your-saas-applications/figure7.svg)
+
+## 제품정보
+
+SaaS를 위한 Cloudflare로, 당신은 쉽게 성장하는 플랫폼 사업으로 오는 일반적인 문제를 해결할 수 있을 것입니다. SSL 인증서 발급에서 보안을 통해 사용자 정의 서버리스 응용 프로그램에 Cloudflare for SaaS를 사용하면 전체 플랫폼을 수백만 규모로 확장 할 수 있습니다.
+
+다음 링크에서 여기에 논의 된 모든 기능에 대한 자세한 내용을 찾을 수 있습니다 :
+
+- [플랫폼을위한 Cloudflare](/cloudflare-for-platforms/)
+- [주문 metadata](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)
+- [플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms/)

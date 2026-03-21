@@ -1,0 +1,216 @@
+---
+title: 4 – 성능 향상
+pcx_content_type: tutorial
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: 성능 및 신뢰성 향상
+description: Cloudflare Load Balancing 제품으로 Terraform을 사용하는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/tutorial/use-load-balancing/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/tutorial/use-load-balancing/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 튜토리얼에서, 당신은 몇 가지 기본 둥근 강도에 대한 두 번째 기원을 추가하고, 다음 사용[Cloudflare 부하 균형](/load-balancing/)필요한 트래픽을 실패하는 제품. "geo Steering"의 사용을 통해로드 밸런싱 구성을 강화하고 최종 사용자에게 지리적으로 가까운 Origin 서버에서 결과를 제공합니다.
+
+## 자주 묻는 질문
+
+- 한국어[튜토리얼 1](/terraform/tutorial/initialize-terraform/), [자습서 2](/terraform/tutorial/track-history/)·[튜토리얼 3](/terraform/tutorial/configure-https-settings/)
+- [적재 Balancing](/load-balancing/get-started/enable-load-balancing/)Cloudflare 계정에서 활성화
+
+<Render file="v5-code-snippets" product="terraform" />
+
+## 1. www에 대한 또 다른 DNS 레코드 추가
+
+새로운 지점을 만들고 DNS 레코드를 추가
+아시아 서버의 경우:
+
+```bash
+git checkout -b step4-configure-load-balancing
+```
+
+아시아에 위치한 두 번째 웹 서버에 DNS 레코드를 추가합니다. 예를 들면 목적,
+이 서버의 IP 주소는`198.51.100.15`. 두 번째 DNS 레코드를 추가
+이름 \*`main.tf`:
+
+```hcl
+# Asia origin server
+resource "cloudflare_dns_record" "www_asia" {
+  zone_id = var.zone_id
+  name    = "www"
+  content = "198.51.100.15"
+  type    = "A"
+  ttl     = 300
+  proxied = true
+  comment = "Asia origin server"
+}
+```
+
+:::참조
+그 이름이 있는 동안`resource`동일한 유형의 Terraform 자원이 독특하게 지명되어야하기 때문에 다른, DNS 이름, 또는 당신의 고객이 그들의 브라우저에 유형이, 동일하:`www`.
+:::
+
+기본 round-robin 동작을 볼 이 변경을 적용하십시오:
+
+```bash
+terraform plan
+terraform apply
+```
+
+기본 로드 배포를 테스트:
+
+```bash
+#둘 다 근원을 보기 위하여 몇몇 요구를 만드십시오
+for i in {1..4}; do
+  curl https://www.example.com
+  sleep 1
+done
+```
+
+예상된 산출:
+
+```bash output
+Hello, this is 203.0.113.10!
+Hello, this is 203.0.113.10!
+Hello, this is 198.51.100.15!
+Hello, this is 203.0.113.10!
+```
+
+두 소스 서버간에 무작위 배포를 볼 수 있습니다. 이 기본 DNS 기반 로드 밸런싱은 제한이 없습니다 - 건강 체크, 지리적 스티어링 및 예측할 수없는 배포 패턴. 다른 geographies 또는 자동 실패에 있는 근원 같이 진보된 시나리오를 위해, 당신은 사용하고 싶을 것입니다[Cloudflare의 짐 균형을 잡는](/load-balancing/).
+
+## 2. Cloudflare의 짐 균형을 잡는 제품을 사용하는 스위치
+
+설명 된대로[Load Balancing 튜토리얼](/learning-paths/load-balancing/concepts/), 당신은 세 가지 작업을 완료해야합니다 :
+
+1. 당신의 근원 서버에 대하여 건강 검사를 실행하는 감시자를 창조하십시오.
+2. Load Balanced 트래픽을 수신하는 하나 이상의 Origin 서버의 풀을 만듭니다.
+3. 외부 호스트 이름과 함께 로드밸런서 만들기 — 예를 들어,`www.example.com`— 그리고 하나 이상의 풀.
+
+우리는 URL의 각 기원에 GET 요청을 만드는 기본 건강 검사를 생성하여 원산지를 모니터링 할 수 있습니다. 5 초 이내에 200 상태 코드 (OK)를 반환하면 건강하게 간주됩니다. 이렇게 세 번 연속하지 못하면 건강하게 간주됩니다. 이 건강 검사는 몇몇 지구에서 분 당 한 번 실행되고 당신은 어떤 실패든지 검출되는 사건에 있는 이메일 통보를 구성할 수 있습니다.
+
+이 예에서 풀은 호출됩니다.`www-origins`두 가지 기원으로 추가 :
+
+- `www-us` (`203.0.113.10`)
+- `www-asia` (`198.51.100.15`)
+
+지금, 어떤 종류의 건너뛰기[지오 라우팅](/load-balancing/understand-basics/traffic-steering/steering-policies/geo-steering/).
+
+로드밸런서를 만들 때 (LB), 그것은[기존의 DNS 레코드를 같은 이름으로 교체](/load-balancing/load-balancers/dns-records/). 예를 들어, 만들면`www.example.com`밑에 짐 밸런서, 그것은 2를 supersede 할 것입니다`www`이전에 정의된 DNS 레코드. DNS 레코드를 남겨두는 이점은 일시적으로 로드 밸런싱을 비활성화하면이 호스트 이름에 연결이 가능합니다.
+
+위를 달성하기 위해, load balancing configuration을 추가`main.tf`:
+
+```hcl
+# Health check monitor
+resource "cloudflare_load_balancer_monitor" "health_check" {
+  account_id     = var.account_id
+  expected_body = "alive"
+  expected_codes = "2xx"
+  method         = "GET"
+  timeout        = 5
+  path           = "/health"
+  interval       = 60
+  retries        = 2
+  description    = "Health check for www origins"
+  type           = "https"
+
+  header = {
+    Host = ["${var.domain}"]
+  }
+}
+
+# Origin pool
+resource "cloudflare_load_balancer_pool" "www_pool" {
+  account_id = var.account_id
+  name       = "www-origins"
+  monitor    = cloudflare_load_balancer_monitor.health_check.id
+
+  origins = [{
+    name    = "www-us"
+    address = "203.0.113.10"
+    enabled = true
+  }, {
+    name    = "www-asia"
+    address = "198.51.100.15"
+    enabled = true
+  }]
+
+  description     = "Primary www server pool"
+  enabled         = true
+  minimum_origins = 1
+  notification_email = "<YOUR_EMAIL>"
+  check_regions   = ["WEU", "EEU", "WNAM", "ENAM", "SEAS", "NEAS"]
+}
+
+# Load balancer
+resource "cloudflare_load_balancer" "www_lb" {
+  zone_id       = var.zone_id
+  name          = "www.${var.domain}"
+  default_pools = [cloudflare_load_balancer_pool.www_pool.id]
+  fallback_pool = cloudflare_load_balancer_pool.www_pool.id
+  description   = "Load balancer for www.${var.domain}"
+  proxied       = true
+}
+```
+
+:::참조
+로드밸런서는 기존의 DNS 레코드를 동일한 이름(www)로 자동 교체합니다.
+주요 특징
+
+미리보기 및 변경 적용:
+
+```bash
+terraform plan
+terraform apply
+```
+
+개량한 짐 균형을 시험하십시오:
+
+```bash
+#건강 감시를 가진 시험 짐 배급
+for i in {1..6}; do
+  echo "Request $i:"
+  curl -s https://www.example.com
+  sleep 2
+done
+```
+
+예상된 산출:
+
+```bash output
+Request 1:
+Hello, this is 198.51.100.15!
+Request 2:
+Hello, this is 203.0.113.10!
+Request 3:
+Hello, this is 198.51.100.15!
+Request 4:
+Hello, this is 203.0.113.10!
+Request 5:
+Hello, this is 203.0.113.10!
+Request 6:
+Hello, this is 198.51.100.15!
+```
+
+이제 건강 모니터링 및 자동 장애의 추가 혜택으로 예측 가능한 부하 배포를 볼 수 있습니다.
+
+합병 및 검증:
+
+```bash
+git add main.tf
+git commit -m "Step 4 - Create load balancer (LB) monitor, LB pool, and LB"
+git push
+```
+
+설정 확인은 Cloudflare 대시보드를 검사하여 작동**교통안내** > **적재 Balancing**. 당신은 당신의 감시자, 수영장, 및 건강 상태 지시자를 가진 짐 밸런서를 보십시오.
+당신의 짐 밸런서는 지금 있을 것입니다:
+
+- 분산 트래픽은 근원 사이에서 지능적으로
+- unhealthy 서버의 주위에 자동적으로 노선
+- 실시간 건강 모니터링

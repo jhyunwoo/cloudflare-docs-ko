@@ -1,0 +1,243 @@
+---
+pcx_content_type: reference
+title: 감사 로그 - 버전 2
+sidebar:
+  order: 6
+  label: 감사 로그 - v2
+---
+
+import { DashButton, APIRequest } from "~/components";
+
+Cloudflare 감사 로그는 계정 기반입니다. 사용자가 시작한 모든 작업은 Cloudflare API와 대시보드 전반에서 자동으로 기록됩니다. 구성 업데이트, 백그라운드 프로세스, 내부 정책 적용과 같이 Cloudflare 시스템이 자동으로 수행한 작업을 반영하기 위해 시스템이 시작한 로그도 함께 캡처됩니다.
+
+사용자가 시작한 작업이 추가 자동 동작을 유발하면, 이에 대응하는 시스템 시작 로그가 생성됩니다. 경우에 따라 사용자 시작 로그에는 무엇이 변경되었는지에 대한 더 많은 맥락을 제공하는 추가 보강 정보가 포함되어, 작업의 전체 수명 주기에 대해 더 깊은 가시성을 제공합니다.
+
+작업이 발생하면 Cloudflare의 감사 로깅 파이프라인을 통해 스트리밍되어 저장됩니다. 이를 통해 모든 제품 전반의 활동에 대해 일관된 가시성을 보장합니다.
+
+사용자 시작 작업이 자동으로 로깅되는 방식에 대한 더 자세한 정보는 [Cloudflare Blog](https://blog.cloudflare.com/introducing-automatic-audit-logs/)를 참고하세요.
+
+:::note
+Audit Logs v1에서 Audit Logs v2로의 전환 계획은 추후 공지될 예정입니다.
+:::
+
+## 주요 기능
+
+Audit Logs (version 2)는 Cloudflare 제품 전반의 작업을 추적하고 기록하기 위한 통합되고 표준화된 시스템을 제공합니다. 이 시스템은 Cloudflare 환경 내의 사용자 시작 활동과 시스템 시작 활동에 대한 포괄적인 인사이트를 제공하여 투명성과 책임성을 향상합니다.
+
+- **표준화된 로깅**: 감사 로그는 모든 Cloudflare 서비스에서 일관된 형식으로 자동 생성되어, 균일성을 보장하고 불일치를 제거합니다.
+- **확장된 제품 범위**: Audit Logs는 Cloudflare 제품의 약 95%를 포괄하며, `/accounts`, `/zones`, `/user`, `/memberships` API와 같은 주요 엔드포인트의 작업을 캡처합니다.
+- **세분화된 필터링**: 형식이 통일된 로그를 통해 작업, 행위자, 메서드, 리소스 기준의 정밀한 필터링이 가능해 효율적인 조사를 지원합니다.
+- **향상된 맥락과 투명성**: 각 로그 항목에는 사용된 인증 방식, 작업이 수행된 인터페이스(API 또는 dashboard), 향상된 추적성을 위한 Cloudflare Ray ID 매핑 등 상세한 맥락이 포함됩니다.
+- **포괄적인 활동 캡처**: Audit Logs는 지원되는 모든 제품에서 생성, 업데이트, 삭제 작업을 기록합니다. 민감한 읽기 작업에 대한 `GET` 요청의 선택적 로깅은 향후 릴리스에서 제공될 예정입니다.
+
+## 보존 기간
+
+- 감사 로그는 삭제되기 전까지 18개월 동안 보존됩니다. 별도의 추가 설정은 필요하지 않습니다.
+
+- Audit Logs v2 UI에서는 성능상의 이유로 최근 90일 데이터로 쿼리가 제한됩니다. 전체 18개월 데이터를 확인하려면 API 또는 [Logpush](/logs/logpush/)를 사용하세요.
+
+- Enterprise 고객은 [Logpush](/logs/logpush/)를 사용해 감사 로그를 18개월보다 더 오래 저장할 수 있습니다.
+
+:::note
+Beta 기간의 로그 약 30일치(대략 2026년 2월 8일까지 거슬러 올라감)는 GA 시점에 제공됩니다. 이 Beta 로그는 대략 2026년 4월 9일에 만료됩니다. GA 이후 생성된 로그는 전체 18개월 동안 보존됩니다. 더 오래된 로그는 Audit Logs v1에서 계속 확인할 수 있습니다.
+:::
+
+## Audit Logs에 액세스
+
+API 또는 Cloudflare dashboard를 사용해 감사 로그를 조회할 수 있습니다.
+
+### API
+
+Audit Logs는 Cloudflare API를 통해 제공됩니다. 감사 로그를 조회하려면 다음 엔드포인트를 사용하세요.
+
+```bash
+https://api.cloudflare.com/client/v4/accounts/{account_id}/logs/audit
+```
+
+아래는 특정 기간의 감사 로그를 조회하는 예시 요청과 그에 대응하는 응답입니다. URL의 예시 값을 실제 값으로 바꾸세요.
+
+- `account_id`: Cloudflare 계정 식별자입니다.
+- `Since` (required): yyyy-mm-dd 형식의 감사 로그 조회 시작 날짜입니다.
+- `Before` (required) : yyyy-mm-dd 형식의 감사 로그 조회 종료 날짜입니다.
+
+```bash
+GET https://api.cloudflare.com/client/v4/accounts/1234567890abcdef/logs/audit?since=2025-03-01T00:00:00Z&before=2025-03-26T23:59:59Z
+```
+
+```json title="Example response"
+{
+	"result": [
+		{
+			"action": "zone.settings.change",
+			"actor": {
+				"email": "user@example.com",
+				"id": "0987654321abcdef"
+			},
+			"ip": "192.0.2.1",
+			"method": "PUT",
+			"interface": "dashboard",
+			"resources": [
+				{
+					"resource_id": "zone123",
+					"resource_type": "zone"
+				}
+			],
+			"timestamp": "2025-03-15T14:25:37Z"
+		}
+		// Additional log entries
+	],
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+더 자세한 내용은 [API documentation](<https://developers.cloudflare.com/api/resources/accounts/subresources/logs/subresources/audit/methods/list/#(params)%20default%20%3E%20(param)%20since%20%3E%20(schema)>)를 참고하세요.
+
+### Dashboard
+
+Cloudflare dashboard에서 감사 로그에 액세스하려면 다음을 따르세요.
+
+Cloudflare dashboard에서 **Audit Logs** 페이지로 이동합니다.
+
+<DashButton url="/?to=/:account/audit-log" />
+
+:::note
+기본적으로 Audit Logs v2가 표시됩니다. 필요에 따라 Audit Logs v2와 v1 사이를 전환할 수 있습니다.
+:::
+
+## Logpush 작업
+
+:::note
+이미 Audit Logs v1용 Logpush 작업을 설정해 둔 고객은 [Audit Logs v2](/logs/logpush/logpush-job/datasets/account/audit_logs_v2/) (dataset)에 대해 별도의 Logpush 작업을 구성해야 합니다. Logpush Audit Logs v1이 더 이상 사용되지 않고 중단되는 시점은 추후 공지할 예정입니다.
+:::
+
+Logpush 작업을 생성하려면 다음을 따르세요.
+
+1. Cloudflare dashboard에서 **Logpush** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/logs" />
+
+2. **Create a Logpush job**을 선택합니다.
+3. **Select a destination**에서 원하는 대상을 선택하고 대상 세부 정보를 추가합니다.
+4. datasets 섹션에서 [Audit Logs v2 dataset](/logs/logpush/logpush-job/datasets/account/audit_logs_v2/)을 선택합니다. Audit Logs v2는 계정 기반 dataset입니다.
+5. Logpush 작업 구성을 마쳤으면 **Submit**을 선택합니다.
+
+## 감사 로그 구조
+
+Cloudflare의 감사 로그는 작업의 출처와 해당 작업이 발생한 맥락을 모두 캡처하여 환경 전반의 활동을 상세하게 보여줍니다. 이러한 로그는 누가 작업을 시작했는지(사용자 또는 시스템), 그리고 그 활동이 특정 계정 내부에서 발생했는지 아니면 동일한 사용자 프로필 아래 여러 계정에 걸쳐 발생했는지에 따라 분류됩니다. 이 구조를 통해 유연한 필터링, 조사, 규정 준수 모니터링이 가능합니다.
+
+### 시작 유형
+
+감사 로그는 사용자 또는 시스템에 의해 시작될 수 있습니다. 어떤 유형의 행위자가 관련되었는지 이해하면 작업의 출처와 의도를 파악하는 데 도움이 됩니다.
+
+#### 사용자 시작 감사 로그
+
+Cloudflare 인터페이스(dashboard 또는 API)를 통해 사용자가 직접 수행한 작업을 추적합니다. 이러한 로그는 누가 작업을 수행했는지, 언제 발생했는지, 어떤 리소스가 영향을 받았는지를 캡처합니다. 사용자 시작 작업은 다음 세 가지 행위자에 의해 수행될 수 있습니다.
+
+- `actor_type="user"`: 개별 사용자가 작업을 수행했습니다.
+- `actor_type="Cloudflare_admin"`: Cloudflare가 작업을 수행했습니다.
+- `actor_type="account"`: 계정 API 토큰을 사용해 작업을 수행했습니다. 자세한 내용은 [Account API tokens](/fundamentals/api/get-started/account-owned-tokens/) 문서를 참고하세요.
+
+#### 시스템 시작 감사 로그
+
+사용자의 직접적인 입력 없이 Cloudflare 시스템이 자동으로 수행한 변경 사항을 기록합니다. 이러한 로그는 내부 프로세스, 자동화된 작업, 보안 이벤트에 대한 가시성을 제공합니다. 일부 항목에는 추적성을 위해 연관된 사용자 맥락이 포함될 수 있습니다(`actor_type="system"`).
+
+### 활동 범위
+
+#### 계정 활동 로그
+
+하나의 Cloudflare 계정으로 범위가 한정된 이벤트를 포함합니다. 이러한 로그는 `account ID`로 필터링할 수 있으며, 해당 계정 내부의 작업만 반영합니다. 선택적으로 `resource_scope` 필드를 사용해 이벤트를 더 좁혀 필터링할 수 있으며, 이 필드는 리소스가 사용자, 계정 또는 영역에 연관되는지를 지정합니다(`resource_scope ="user"`, `resource_scope ="accounts"`, 또는 `resource_scope ="zones"`).
+
+#### 사용자 프로필 활동 로그
+
+여러 계정에 걸쳐 사용자의 로그인(email)과 연관된 작업을 반영합니다. 이러한 로그는 계정 간 추적을 가능하게 하며 `user ID` 또는 `email`로 필터링할 수 있습니다. 활동이 발생한 시점에 사용자가 액세스할 수 있었던 모든 계정에서 이 로그를 볼 수 있습니다. 사용자 프로필 활동 로그는 `resource_scope ="user"`를 사용해 필터링할 수 있습니다.
+
+`GET /memberships` 엔드포인트는 계정 간 액세스를 지원합니다. memberships를 조회하려면 `resource_scope=memberships` 매개변수를 사용하세요.
+
+## Audit Logs 쿼리 예시
+
+다음 예시를 사용해 사용자 계정의 감사 로그 목록을 가져올 수 있습니다.
+
+<APIRequest method="GET" path="/accounts/{account_id}/logs/audit" />
+
+```json title="Example response"
+{
+	"errors": [
+		{
+			"message": "message"
+		}
+	],
+	"result": [
+		{
+			"account": {
+				"id": "4bb334f7c94c4a29a045f03944f072e5",
+				"name": "Example Account"
+			},
+			"action": {
+				"description": "Add Member",
+				"result": "success",
+				"time": "2024-04-26T17:31:07Z",
+				"type": "create"
+			},
+			"actor": {
+				"id": "f6b5de0326bb5182b8a4840ee01ec774",
+				"context": "dash",
+				"email": "alice@example.com",
+				"ip_address": "198.41.129.166",
+				"token_id": "token_id",
+				"token_name": "token_name",
+				"type": "user"
+			},
+			"raw": {
+				"cf_ray_id": "8e9b1c60ef9e1c9a",
+				"method": "POST",
+				"status_code": 200,
+				"uri": "/accounts/4bb334f7c94c4a29a045f03944f072e5/members",
+				"user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15"
+			},
+			"resource": {
+				"id": "id",
+				"product": "members",
+				"request": {},
+				"response": {},
+				"scope": {},
+				"type": "type"
+			},
+			"zone": {
+				"id": "id",
+				"name": "example.com"
+			}
+		}
+	],
+	"result_info": {
+		"count": "1",
+		"cursor": "ASqdKd7dKgxh-aZ8bm0mZos1BtW4BdEqifCzNkEeGRzi_5SN_-362Y8sF-C1TRn60_6rd3z2dIajf9EAPyQ_NmIeAMkacmaJPXipqvP7PLU4t72wyqBeJfjmjdE="
+	},
+	"success": true
+}
+```
+
+## 공통 용어 및 정의
+
+### 행위자
+
+행위자는 누가 작업을 수행했는지를 나타냅니다. 여기에는 사용자 ID, 이메일 주소, IP 주소, 행위자 유형(`user`, `account`, `Cloudflare_admin`, 또는 `system`)과 같은 식별 속성이 포함됩니다. 또한 API 또는 dashboard(`dash`)처럼 작업을 시작하는 데 사용된 맥락도 포함됩니다.
+
+### 작업
+
+action 필드는 이벤트의 성격과 해당 이벤트가 성공했는지를 캡처합니다. 여기에는 상위 수준 유형(예: `view`, `create`, `update`, `delete`), 구체적인 설명(예: `SSO_LOGIN`), 작업이 발생한 시각의 타임스탬프, 결과(`success` 또는 `failure`)가 포함됩니다.
+
+모든 `GET` 요청은 Audit Logs에서 `view` 작업으로 캡처됩니다.
+
+### 계정
+
+이 필드는 작업이 실행된 Cloudflare 계정을 가리킵니다. 여기에는 고객 환경과 활동을 연관 짓는 데 도움이 되도록 고유한 account ID와 사람이 읽을 수 있는 account name이 포함됩니다.
+
+### 리소스
+
+resource는 작업의 영향을 받은 객체를 식별합니다. 여기에는 리소스 유형, 고유한 resource ID, 범위(`user`, `account`, 또는 `zone`), 그리고 선택적으로 변경과 관련된 제품이 포함됩니다.
+
+### 감사 로그 ID
+
+이는 로그 레코드 자체의 고유 식별자입니다. 조사 중 중복 제거, 상관 분석, 또는 특정 작업 참조에 사용할 수 있습니다.

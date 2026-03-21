@@ -1,0 +1,124 @@
+---
+pcx_content_type: concept
+title: 로그 검색
+sidebar:
+  order: 2
+---
+
+import { TabItem, Tabs, Render, DashButton } from "~/components";
+
+Log Explorer를 사용하면 Cloudflare 대시보드 또는 API 안에서 직접 Cloudflare 로그를 저장하고 탐색할 수 있으므로, 로그를 타사 서비스로 전달하지 않고도 로그 가시성을 확보할 수 있습니다. 로그는 R2 객체 스토리지 플랫폼을 사용하는 Cloudflare의 글로벌 네트워크에 저장되며, 대시보드 또는 SQL API를 통해 쿼리할 수 있습니다.
+
+## Log Explorer를 사용해야 하는 경우
+
+<Render file="log-explorer-use-cases" product="rules" />
+
+<Render file="trace-use-cases" product="rules" params={{ addLink: true }} />
+
+핵심 차이점은 Log Explorer는 실제 트래픽을 보여주고, Trace는 시뮬레이션된 "가상 시나리오"를 보여준다는 점입니다.
+
+## Log Explorer 사용
+
+Cloudflare 대시보드 또는 API를 통해 로그를 필터링하고 볼 수 있습니다.
+
+1. Cloudflare 대시보드에서 **Log Explorer** > **Log Search** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/log-explorer/log-search" />
+
+2. 사용할 **Dataset**을 선택하고 **Columns**에서 데이터세트 필드를 선택합니다. 영역 범위(zone scoped)의 데이터세트를 선택한 경우 사용할 영역을 선택합니다.
+3. **Limit**를 입력합니다. limit는 반환할 최대 결과 수이며, 예를 들어 50입니다.
+4. 쿼리할 **Time period**를 선택합니다. 예를 들어 이전 12시간입니다.
+5. **Add filter**를 선택해 쿼리를 생성합니다. **Field**, **Operator**, **Value**를 선택한 다음 **Apply**를 선택합니다.
+6. 쿼리 미리보기가 표시됩니다. 쿼리를 변경하려면 **Custom SQL**을 선택합니다.
+7. 완료되면 **Run query**를 선택합니다. 결과는 아래 **Query results** 섹션에 표시됩니다.
+
+예를 들어 특정 [Ray ID](/fundamentals/reference/cloudflare-ray-id/)를 가진 HTTP 요청을 찾으려면 **Custom SQL**로 이동하여 다음 SQL 쿼리를 입력하세요.
+
+```sql
+SELECT
+	clientRequestScheme,
+	clientRequestHost,
+	clientRequestMethod,
+	edgeResponseStatus,
+	clientRequestUserAgent
+FROM http_requests
+WHERE RayID = '806c30a3cec56817'
+LIMIT 1
+```
+
+또 다른 예로, 특정 시간 범위에서 선택한 열을 사용해 Cloudflare Access 요청을 찾으려면 다음 SQL 쿼리를 사용할 수 있습니다.
+
+```sql
+SELECT
+	CreatedAt,
+	AppDomain,
+	AppUUID,
+	Action,
+	Allowed,
+	Country,
+	RayID,
+	Email,
+	IPAddress,
+	UserUID
+FROM access_requests
+WHERE Date >= '2025-02-06' AND Date <= '2025-02-06' AND CreatedAt >= '2025-02-06T12:28:39Z' AND CreatedAt <= '2025-02-06T12:58:39Z'
+```
+
+### 헤더와 쿠키
+
+요청 헤더, 응답 헤더, 쿠키를 쿼리하려면 먼저 [Custom fields](/logs/logpush/logpush-job/custom-fields/)를 사용해 이 필드들에 대한 로깅을 활성화해야 합니다. 사용자 지정 필드 목록은 API 또는 대시보드에서 구성할 수 있으며, Logpush 작업 자체를 수정할 필요는 없습니다.
+
+아래 예시는 날짜, 타임스탬프, 클라이언트 국가, 사용자 지정 요청 헤더로 HTTP 요청을 쿼리하는 방법을 보여줍니다. 쿼리할 계획이 있는 특정 헤더나 쿠키는 미리 로깅하도록 설정하세요.
+
+```bash
+SELECT clientip, clientrequesthost, clientrequestmethod, edgeendtimestamp, edgestarttimestamp, rayid, clientcountry, requestheaders
+FROM http_requests
+WHERE Date >= '2025-07-17'
+  AND Date <= '2025-07-17'
+  AND edgeendtimestamp >= '2025-07-17T07:54:19Z'
+  AND edgeendtimestamp <= '2025-07-18T07:54:19Z'
+  AND clientcountry = 'us'
+  AND requestheaders."x-test-header" like '%654AM%';
+```
+
+### 쿼리 저장
+
+쿼리에 필요한 필드를 모두 선택한 뒤 **Save query**를 선택해 저장할 수 있습니다. 나중에 식별하기 쉽도록 이름과 설명을 입력하세요. 저장된 쿼리와 최근 쿼리를 보려면 **Queries**를 선택하세요. 쿼리는 새 쿼리를 삽입하거나 기존 쿼리를 삭제할 수 있는 사이드 패널에 표시됩니다.
+
+## Security Analytics와의 통합
+
+[Security Analytics 대시보드](/waf/analytics/security-analytics/#logs)에서 Log Explorer 대시보드로 직접 접근할 수도 있습니다. 이 경우 Security Analytics에서 적용한 필터가 Log Explorer의 쿼리로 자동 전달됩니다.
+
+## 쿼리 최적화
+
+Log Explorer가 지원하는 모든 테이블에는 `date`라는 특수 열이 포함되어 있습니다. 이 열은 쿼리에 응답하기 위해 스캔해야 하는 데이터 양을 줄여 더 빠른 쿼리 응답 시간을 제공합니다. `date` 값은 `YYYY-MM-DD` 형식이어야 합니다. 예를 들어 2023년 10월 12일에 발생한 로그를 쿼리하려면 `WHERE` 절에 다음을 추가합니다: `date = '2023-10-12'`. 이 열은 `<`, `>`, `=` 표준 연산자를 지원합니다.
+
+1. [Cloudflare 대시보드](https://dash.cloudflare.com/login)에 로그인하고 계정을 선택합니다.
+2. **Log Explorer** > **Log Search** > **Custom SQL**로 이동합니다.
+3. 다음 SQL 쿼리를 입력합니다.
+
+```sql
+SELECT
+	clientip,
+	clientrequesthost,
+	clientrequestmethod,
+	clientrequesturi,
+	edgeendtimestamp,
+	edgeresponsestatus,
+	originresponsestatus,
+	edgestarttimestamp,
+	rayid,
+	clientcountry,
+	clientrequestpath,
+	date
+FROM
+	http_requests
+WHERE
+	date = '2023-10-12' LIMIT 500
+```
+
+### 추가 쿼리 최적화 팁
+
+- 쿼리 시간 범위를 좁히세요. 더 작은 시간 창에 집중하면 처리되는 데이터 양이 줄어듭니다. 이렇게 하면 과도한 데이터 쿼리를 피하고 응답 시간을 단축할 수 있습니다.
+- `ORDER BY` 및 `LIMIT` 절은 생략하세요. 이러한 절은 특히 큰 데이터세트를 다룰 때 쿼리를 느리게 만들 수 있습니다. 많은 레코드를 반환하는 쿼리의 경우, 더 넓은 시간 범위에서 최신 `N`개 레코드로 제한하기보다 시간 범위를 줄이세요.
+- 필요한 열만 선택하세요. 예를 들어 `SELECT *` 대신 필요한 특정 열 목록을 사용하세요. 첫 단계로 `SELECT RayId`를 사용한 뒤, 추가 열을 가져오기 위해 Ray ID로 필터링하는 쿼리를 이어서 실행할 수도 있습니다. 또한 `SELECT COUNT(*)`를 사용해 전체 데이터세트를 가져오지 않고도 일치하는 레코드가 있는 시간 범위를 탐색할 수 있습니다.

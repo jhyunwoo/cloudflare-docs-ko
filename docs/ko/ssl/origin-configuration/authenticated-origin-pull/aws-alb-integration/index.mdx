@@ -1,0 +1,107 @@
+---
+pcx_content_type: integration-guide
+title: AWS 통합
+sidebar:
+  order: 3
+head: []
+description: AWS Application Load Balancer와 함께 Cloudflare Authenticated Origin
+  Pulls를 설정하는 방법을 알아보세요.
+---
+
+import { Render, APIRequest } from "~/components";
+
+이 가이드는 [mutual TLS verify](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/mutual-authentication.html)를 사용해 AWS Application Load Balancer에 안전하게 연결할 수 있도록 [per-hostname](/ssl/origin-configuration/authenticated-origin-pull/set-up/per-hostname/) authenticated origin pulls를 설정하는 방법을 안내합니다.
+
+## Before you begin
+
+- AWS 계정과 [EC2](https://docs.aws.amazon.com/ec2/?icmpid=docs_homepage_featuredsvcs) 구성이 이미 완료되어 있어야 합니다.
+- 이 튜토리얼은 커스텀 인증서를 생성하기 위해 command-line interface(CLI)를 사용하고, Cloudflare Authenticated Origin Pulls를 구성하기 위해 [API calls](/fundamentals/api/get-started/)를 사용합니다.
+- AWS 설정 방법에 대한 최신 문서는 [AWS documentation](https://docs.aws.amazon.com/)를 참고하세요.
+
+## 1. Generate a custom certificate
+
+<Render file="custom-cert-openssl-commands" product="ssl" />
+
+## 2. Configure AWS Application Load Balancer
+
+1. `rootca.cert`를 [S3 bucket](https://docs.aws.amazon.com/AmazonS3/latest/userguide/UsingBucket.html)에 업로드합니다.
+2. EC2 콘솔에서 인증서를 업로드한 **S3 URI**를 지정해 [trust store](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/mutual-authentication.html#create-trust-store)를 생성합니다.
+3. EC2 인스턴스를 생성하고 HTTPD 데몬을 설치합니다. 필요에 맞는 [instance type](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/instance-types.html)을 선택하세요. [AWS Free Tier](https://aws.amazon.com/free/) 대상이 되는 최소 인스턴스를 사용할 수도 있습니다. 이 튜토리얼은 t2.micro와 [Amazon Linux 2023](https://docs.aws.amazon.com/linux/al2023/ug/what-is-amazon-linux.html)을 사용한 예시를 기준으로 작성되었습니다.
+
+```bash
+sudo yum install -y httpd
+sudo systemctl start httpd
+```
+
+4. Application Load Balancer용 [target group](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-application-load-balancer.html#configure-target-group)을 생성합니다.
+   - target type으로 **Instances**를 선택합니다.
+   - 포트는 `HTTP/80`을 지정합니다.
+5. target group 구성을 마친 뒤 해당 target group이 [healthy](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/target-group-health-checks.html) 상태인지 확인합니다.
+6. [load balancer와 listener를 구성](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/create-application-load-balancer.html#configure-load-balancer)합니다.
+   - **Internet-facing** 스킴을 선택합니다.
+   - **mTLS** 옵션을 사용할 수 있도록 listener 포트를 `443`으로 변경하고, 앞 단계에서 만든 target group을 선택합니다.
+   - **Default SSL/TLS server certificate**에서 **Import certificate** > **Import to ACM**을 선택하고 인증서 개인 키와 본문을 추가합니다.
+   - **Client certificate handling**에서는 **Verify with trust store**를 선택합니다.
+7. 설정을 저장합니다.
+8. (선택 사항) 다음 명령을 실행해 Application Load Balancer가 클라이언트 인증서를 요청하는지 확인합니다.
+
+```bash
+openssl s_client -verify 5 -connect <your-application-load-balancer>:443 -quiet -state
+```
+
+아직 Cloudflare에 인증서를 업로드하지 않았기 때문에 연결은 실패해야 합니다(예: `read:errno=54`).
+
+`curl --verbose`를 실행해 SSL/TLS 핸드셰이크에 `Request CERT (13)`가 포함되는지도 확인할 수 있습니다.
+
+```bash
+curl --verbose https://<your-application-load-balancer>
+...
+* TLSv1.2 (IN), TLS handshake, Request CERT (13):
+...
+```
+
+## 3. Configure Cloudflare
+
+1. [1단계](#1-generate-a-custom-certificate)에서 생성한 인증서를 Cloudflare에 [업로드](/ssl/edge-certificates/custom-certificates/uploading/#upload-a-custom-certificate)합니다. 루트 CA가 아니라 leaf certificate를 사용해야 합니다.
+
+<Render file="aop-per-hostname-upload-cert" product="ssl" />
+
+2. 해당 인증서를 사용해야 하는 hostname과 [연결](/api/resources/origin_tls_client_auth/subresources/hostnames/methods/update/)합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/origin_tls_client_auth/hostnames"
+	method="PUT"
+	json={{
+		config: [
+			{
+				enabled: true,
+				cert_id: "<CERT_ID>",
+				hostname: "<YOUR_HOSTNAME>",
+			},
+		],
+	}}
+/>
+
+3. zone에서 [Authenticated Origin Pulls 기능을 활성화](/ssl/origin-configuration/authenticated-origin-pull/set-up/per-hostname/#3-enable-authenticated-origin-pulls-for-the-hostname)합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/settings/{setting_id}"
+	method="PATCH"
+	json={{
+		value: "on",
+	}}
+	parameters={{
+		setting_id: "tls_client_auth",
+	}}
+/>
+
+:::note
+
+[encryption mode](/ssl/origin-configuration/ssl-modes/)가 **Full** 이상으로 설정되어 있는지 확인하세요. 특정 hostname에만 이 설정을 적용하고 싶다면 [Configuration Rules](/rules/configuration-rules/settings/#ssl)를 사용하세요.
+:::
+
+---
+
+## Roll back the Cloudflare configuration
+
+<Render file="aop-rollback-hostname-setup" product="ssl" />

@@ -1,0 +1,55 @@
+---
+summary: >-
+  Set up an A/B test by controlling what page is served based on cookies. This
+  version supports passing the request through to test and control on the
+  origin.
+pcx_content_type: configuration
+title: Middleware를 가진 A/B 테스트
+sidebar:
+  order: 1001
+description: A / B 테스트를 설정하여 페이지가 쿠키를 기반으로하는 것을 제어하십시오. 이 버전은 소스에서 테스트 및 제어를 통해 요청을 전달합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/examples/ab-testing/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/examples/ab-testing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+const cookieName = "ab-test-cookie";
+const newHomepagePathName = "/test";
+
+const abTest = async (context) => {
+	const url = new URL(context.request.url);
+	//홈페이지
+	if (url.pathname === "/") {
+		//쿠키 ab-test-cookie=new가 요청을 변경하면 /test로 이동합니다.
+		//쿠키 설정이 없다면 트래픽의 x %를 통과하고 "현재"또는 "새로운"에 쿠키 값을 설정하십시오.
+
+		let cookie = request.headers.get("cookie");
+		//쿠키 설정?
+		if (cookie && cookie.includes(`${cookieName}=new`)) {
+			///test에 요청을 전달
+			url.pathname = newHomepagePathName;
+			return context.env.ASSETS.fetch(url);
+		} else {
+			const percentage = Math.floor(Math.random() * 100);
+			let version = "current"; //기본 버전
+			//트래픽의 50%를 위한 경로명과 버전명 변경
+			if (percentage < 50) {
+				url.pathname = newHomepagePathName;
+				version = "new";
+			}
+			//ASSETS에서 정적 파일을 얻을, 쿠키를 첨부
+			const asset = await context.env.ASSETS.fetch(url);
+			let response = new Response(asset.body, asset);
+			response.headers.append("Set-Cookie", `${cookieName}=${version}; path=/`);
+			return response;
+		}
+	}
+	return context.next();
+};
+
+export const onRequest = [abTest];
+```

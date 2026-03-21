@@ -1,0 +1,109 @@
+---
+title: HTTP 콘텐츠에 요금 부과하기
+pcx_content_type: how-to
+sidebar:
+  order: 1
+description: Cloudflare Worker proxy를 사용해 x402 결제로 HTTP endpoints를 게이트합니다.
+---
+
+x402-proxy 템플릿은 어떤 HTTP backend 앞에도 둘 수 있는 Cloudflare Worker입니다. 요청이 보호된 route에 도달하면 proxy는 결제 지침이 담긴 402 응답을 반환합니다. 클라이언트가 결제하면, proxy가 결제를 검증하고 요청을 origin으로 전달합니다.
+
+x402-proxy 템플릿을 Cloudflare account에 배포하세요.
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/x402-proxy-template)
+
+## 사전 준비
+
+- [Cloudflare account](https://dash.cloudflare.com/sign-up)
+- 게이트할 HTTP backend
+- 결제를 받을 wallet address
+
+## Configuration
+
+`wrangler.jsonc`에서 보호할 routes를 정의합니다.
+
+```json
+{
+	"vars": {
+		"PAY_TO": "0xYourWalletAddress",
+		"NETWORK": "base-sepolia",
+		"PROTECTED_PATTERNS": [
+			{
+				"pattern": "/api/premium/*",
+				"price": "$0.10",
+				"description": "Premium API access"
+			}
+		]
+	}
+}
+```
+
+:::note
+`base-sepolia`는 테스트 네트워크입니다. 프로덕션에서는 `base`로 변경하세요.
+:::
+
+## Bot Management를 사용한 선택적 게이팅
+
+[Bot Management](/bots/)를 사용하면, 사이트는 사람에게 무료로 열어 두면서 crawler에게만 과금할 수 있습니다.
+
+```json
+{
+	"pattern": "/content/*",
+	"price": "$0.10",
+	"description": "Content access",
+	"bot_score_threshold": 30,
+	"except_detection_ids": [117479730]
+}
+```
+
+bot score가 `bot_score_threshold`보다 낮은 요청은 paywall로 보냅니다. `except_detection_ids`를 사용하면 특정 crawler를 [detection ID](/ai-crawl-control/reference/bots/)로 allowlist할 수 있습니다.
+
+## 배포
+
+템플릿을 clone하고, `wrangler.jsonc`를 수정한 다음, 배포하세요.
+
+```sh
+git clone https://github.com/cloudflare/templates
+cd templates/x402-proxy-template
+npm install
+npx wrangler deploy
+```
+
+전체 configuration options와 Bot Management 예시는 [template README](https://github.com/cloudflare/templates/tree/main/x402-proxy-template)를 참고하세요.
+
+## 사용자 지정 Worker endpoints
+
+더 많은 제어가 필요하다면 Hono를 사용해 Worker에 x402 middleware를 직접 추가할 수 있습니다.
+
+```ts
+import { Hono } from "hono";
+import { paymentMiddleware } from "x402-hono";
+
+const app = new Hono<{ Bindings: Env }>();
+
+app.use(
+	paymentMiddleware(
+		"0xYourWalletAddress" as `0x${string}`,
+		{
+			"/premium": {
+				price: "$0.10",
+				network: "base-sepolia",
+				config: { description: "Premium content" },
+			},
+		},
+		{ url: "https://x402.org/facilitator" },
+	),
+);
+
+app.get("/premium", (c) => c.json({ message: "Thanks for paying!" }));
+
+export default app;
+```
+
+전체 구현 예시는 [x402 Workers example](https://github.com/cloudflare/agents/tree/main/examples/x402)를 참고하세요.
+
+## 관련 링크
+
+- [Pay Per Crawl](/ai-crawl-control/features/pay-per-crawl/) — 사용자 지정 코드 없이 쓰는 native Cloudflare 수익화
+- [Charge for MCP tools](/agents/x402/charge-for-mcp-tools/) — 요청 단위 대신 tool call 단위 과금
+- [x402.org](https://x402.org) — 프로토콜 명세

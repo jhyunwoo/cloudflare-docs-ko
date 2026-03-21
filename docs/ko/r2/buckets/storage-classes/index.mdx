@@ -1,0 +1,95 @@
+---
+title: 저장 교실
+pcx_content_type: how-to
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/storage-classes/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/storage-classes/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Badge, Tabs, TabItem } from "~/components"
+
+스토리지 클래스는 저장 비용과 액세스 데이터의 비용 사이에 거래 할 수 있습니다. R2에 저장되는 각 목표에는 관련 저장 종류가 있습니다.
+
+모든 저장 클래스는 다음과 같은 특성을 공유:
+
+- Workers API, S3 API 및 공중 물통과 호환이 되는.
+- 연간 내구성의 99.999999999% (9s).
+- 최소 객체 크기가 없습니다.
+
+## 사용 가능한 저장 교실
+
+| 저장 종류          | 공급 능력 | Data retrieval 수수료 (처리) | Egress 수수료 (인터넷으로 데이터 전송) |
+| -------------- | ----- | ----------------------- | ------------------------- |
+| 제품 정보          | 이름 \* | 이름 \*                   | 이름 \*                     |
+| Infrequent 액세스 | 30 일  | 이름 \*                   | 이름 \*                     |
+
+스토리지 클래스 영향 가격에 대한 자세한 내용은, 참조[가격 책정](/r2/pricing/).
+
+### 표준 저장
+
+표준 저장은 자주 접근되는 자료를 위해 디자인됩니다. 이것은 다른 지정하지 않는 한 새로운 R2 물통을 위한 기본 저장 종류입니다.
+
+#### 사용 사례
+
+- 웹 사이트 및 응용 데이터
+- 미디어 콘텐츠 (예 : 이미지, 비디오)
+- 분석 및 처리를위한 대용량 데이터 세트
+- AI 교육 자료
+- 자주 액세스 된 데이터를 포함하는 다른 작업 부하
+
+### Infrequent Access 스토리지
+
+Infrequent Access Storage는 자주 액세스하는 데이터에 이상적입니다. 이 저장 종류는 표준 저장과 비교된 더 낮은 저장 비용을 제안합니다, 그러나 포함합니다[관련 상품](/r2/pricing/#data-retrieval)30 일[공급 능력](/r2/pricing/#minimum-storage-duration)제품 설명
+
+:::참조
+Infrequent Access Storage에 저장되는 개체의 경우, 객체가 삭제되었거나 이동하거나 지정된 기간 전에 교체되는 경우에도 최소한의 저장 기간에 대한 개체를 청구합니다.
+주요 특징
+
+#### 사용 사례
+
+- 장기 데이터 아카이브 (예를 들어, 로그 및 역사적 기록은 준수에 필요한)
+- 데이터 백업 및 재난 복구
+- 긴 꼬리 사용자 생성된 내용
+
+## 버킷의 기본 저장 클래스 설정
+
+버킷의 기본 저장 클래스를 설정하면 버킷에 업로드 된 모든 객체는 별도로 지정되지 않는 한 선택된 저장 클래스를 할당합니다. 기본 저장 클래스는 대시보드의 버킷 생성 후 변경 될 수 있습니다.
+
+R2 버킷을 만드는 방법에 대해 자세히 알아 보려면, 참조[새 버킷 만들기](/r2/buckets/create-buckets/).
+
+## 개체에 저장 클래스 설정
+
+### 개체 업로드시 저장 클래스를 지정
+
+새로운 개체에 저장 클래스를 지정하는 방법에 대해 자세히 알아 보려면, 참조[Workers API를](/r2/api/workers/)·[사이트맵](/r2/api/s3/)문서.
+
+### Infrequent Access Storage에 객체 수명주기 규칙을 사용하십시오.
+
+:::참조
+객체가 Infrequent Access에 저장되면 Lifecycle 정책을 사용하여 Standard Access로 전환 할 수 없습니다.
+주요 특징
+
+Standard Storage에서 Infrequent Access Storage로 객체를 전환하는 방법에 대해 자세히 알아보십시오.[목표 수명주기](/r2/buckets/object-lifecycles/).
+
+## 개체의 저장 클래스 변경
+
+R2에서 이미 저장되는 객체의 저장 클래스를 변경할 수 있습니다.[`CopyObject`사이트맵](https://docs.aws.amazon.com/AmazonS3/latest/API/API_CopyObject.html).
+
+사용 방법`x-amz-storage-class`사이에 변화하는 헤더`STANDARD`·`STANDARD_IA`.
+
+객체를 전환하는 예`STANDARD`으로`STANDARD_IA`이름 \*`aws cli`아래와 같습니다:
+
+```sh
+aws s3api copy-object \
+  --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com \
+  --bucket bucket-name \
+  --key path/to/object.txt \
+  --copy-source /bucket-name/path/to/object.txt \
+  --storage-class STANDARD_IA
+```
+
+- 더 알아보기[aws 클립](/r2/examples/aws/aws-cli/)더 많은 정보를 사용`aws CLI`.
+- 더 알아보기[object-level 작업](/r2/api/s3/api/#object-level-operations)R2-compatible S3 API와 객체 수준의 API 작업의 전체 목록입니다.

@@ -1,0 +1,74 @@
+---
+title: 문제 해결 DLP
+pcx_content_type: troubleshooting
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/troubleshoot-dlp/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/troubleshoot-dlp/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Data Loss Prevention (DLP)와 일반적인 문제를 해결하는이 가이드를 사용합니다.
+
+## DLP 정책은 트리거 또는 블록 콘텐츠를하지 않습니다
+
+DLP 검사 또는 차단 내용이 가장 일반적인 문제입니다. 설정하면[DLP 정책](/cloudflare-one/data-loss-prevention/dlp-policies/)그러나 트래픽을 검사하거나 차단하는 데 실패, 원인은 거의 항상 트래픽이 해독되지 않는다. DLP를 사용하여 HTTPS 요청의 내용을 스캔하려면, 당신은 켜야[TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/).
+
+TLS 해독을 켜기:
+
+<Render file="gateway/enable-tls-decryption" product="cloudflare-one" />
+
+TLS 해독을 켜면 DLP 정책을 작성하여 HTTPS 요청의 내용을 검사할 수 있습니다. 예를 들면:
+
+| 옵션 정보   | 회사연혁 | 제품정보      | 로그인   | - 연혁 |
+| ------- | ---- | --------- | ----- | ---- |
+| 이름 \*   | 내 계정 | `box.com` | 이름 \* | 제품정보 |
+| DLP 프로필 | 내 계정 | *신용카드 번호* |       |      |
+
+## DLP 검사 트리거 거짓 긍정적 또는 블록 합법적 인 사이트
+
+DLP 정책이 비즈니스 크리티컬 애플리케이션에 대한 액세스를 차단하는 경우 (Zoho, Google, 또는 내부 도메인과 같은) 또는 높은 숫자의 거짓 긍정적 인 생성, 당신의 DLP 정책은 너무 넓습니다. 같은 프로필**Credentials 및 비밀**강력하지만 제대로 적용되지 않는 경우 지나치게 공격 할 수 있습니다.
+
+### 문제 설정
+
+모든 트래픽에 민감한 프로필을 적용하는 것은 불필요한 블록입니다. 예를 들면:
+
+| 옵션 정보   | 회사연혁 | 제품정보               | - 연혁 |
+| ------- | ---- | ------------------ | ---- |
+| DLP 프로필 | 내 계정 | *Credentials 및 비밀* | 제품정보 |
+
+### 관련 상품
+
+더 자세한 정보를 확인하세요. catch-all 블록 대신, 높은 리스크 목적지 또는 사용자 그룹을 대상으로 한 과립 정책을 만듭니다.
+
+이 정책은 특정 사용자 그룹에 대한 파일 연결 웹 사이트로 금융 데이터의 업로드 만 차단하여 다른 사이트에 거짓 긍정적 인 위험을 줄입니다.
+
+| 옵션 정보     | 회사연혁 | 제품정보                            | 로그인   | - 연혁 |
+| --------- | ---- | ------------------------------- | ----- | ---- |
+| 지역 영역     | 내 계정 | `dropbox.com`, `wetransfer.com` | 이름 \* | 제품정보 |
+| DLP 프로필   | 내 계정 | *금융정보*                          | 이름 \* |      |
+| 사용자 그룹 이름 | 내 계정 | `Finance Team`                  |       |      |
+
+신뢰할 수 있는 애플리케이션과 일치하는 정책을 만들 수도 있습니다.[**스캔하지 마십시오**이름 \*](/cloudflare-one/traffic-policies/http-policies/#do-not-scan).
+
+## DLP 검출은 일관성
+
+DLP가 일반 텍스트에 민감한 데이터를 감지하지만 이미지 또는 특정 응용 프로그램 내에서는 다음 문제에 대한 확인 :
+
+- **OCR은 켜집니다**: 이미지 내의 텍스트를 스캔하기 위해 DLP (신용 카드의 그림과 같은), 당신은 켜야해야합니다[광학 문자 인식 (OCR)](/cloudflare-one/data-loss-prevention/dlp-profiles/advanced-settings/#optical-character-recognition-ocr)해당 DLP 프로파일에서.
+- **Application-specific 행동**: WhatsApp 웹과 같은 일부 응용 프로그램, 프로토콜 또는 암호화 방법 (WebSockets와 같은) 게이트웨이는 완전히 HTTP 정책을 검사 할 수 없습니다.
+- **지원된 파일 유형**: 내용이 있어야 합니다.[지원된 파일 유형](/cloudflare-one/data-loss-prevention/#supported-file-types)DLP 검사
+
+## DLP 옵션이 누락되거나 사용자 정의 프로파일을 만들 수 없습니다
+
+사용할 수 없는 경우*DLP 프로필*HTTP 정책을 작성하거나 사용자 정의 DLP 프로파일을 만들기에서 차단 할 때, 그것은 일반적으로 두 가지 중 하나를 의미 :
+
+1. 잘못된 계획. 이 기능은 Zero Trust Enterprise 플랜이 필요합니다. 계정이 이 제목을 가지고 있다고 믿으면 계정 팀에 가입 세부 정보를 확인해야합니다.
+2. 권한. DLP 설정을 구성하려면 필수 관리 권한이 없습니다. Cloudflare 계정 관리자 확인.

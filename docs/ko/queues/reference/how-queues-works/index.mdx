@@ -1,0 +1,237 @@
+---
+title: Queues 이름 *
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/reference/how-queues-works/'
+translation_source_md: 'https://developers.cloudflare.com/queues/reference/how-queues-works/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Cloudflare Queues는 비동기 처리를 위한 큐 메시지를 허용하는 유연한 메시징 큐입니다. Message queues는 전자 상거래 사이트에 대한 체크 아웃 및 주문 처리 서비스와 같은 응용 프로그램의 디코딩 구성 요소에 적합합니다. Decoupled 서비스는 복잡한 배포를 동기화하지 않고 고객을 만족시키는 기능을 제공 할 수 있도록, 배포 및 구현에 대한 이유가 더 쉽습니다. Queues는 또한 다운스트림 서비스와 API에 배치 및 버퍼 통화를 허용한다.
+
+QueuesXQ와 이해하는 4개의 중요한 개념이 있습니다:
+
+1. [모델 번호: Queues](#what-is-a-queue)
+2. [회사 소개](#producers)
+3. [회사 소개](#consumers)
+4. [이름 \*](#messages)
+
+## 자주 묻는 질문
+
+queue는 버퍼 또는 목록으로 메시지가 작성되어 소비자 노동자가 같은 큐에서 메시지를 끌어낼 수 있습니다.
+
+Queues는 믿을 수 있고, 큐에 쓴 메시지는 쓰기 성공 한 번 잃지 않아야 합니다. 마찬가지로 메시지는 쿼리에서 삭제되지 않습니다.[회사 소개](#consumers)메시지를 성공적으로 소모했습니다.
+
+Queues는 메시지가 게시되는 것과 같은 순서에 소비자에게 전달된다는 것을 보증하지 않습니다.
+
+개발자는 여러 큐를 만들 수 있습니다. 여러 큐를 만들 수 있습니다:
+
+- 별도의 다른 사용 케이스 및 처리 요구 사항 : 예를 들어, 로깅 큐 vs. 암호 재설정 큐.
+- 여러 큐를 사용하여 전체 처리량 (초당 평균)을 수평으로 확장합니다.
+- queue에 연결된 각 소비자를 위한 다른 배치 전략을 형성하십시오.
+
+대부분의 응용 프로그램을 위해, 큐 당 단일 생산자 노동자, 그 큐에서 단일 소비자 노동자 consuming 메시지와 함께, 당신은 논리적으로 당신의 큐의 각각에 대한 처리를 분리 할 수 있습니다.
+
+## 회사 소개
+
+A 프로듀서는 큐에 메시지를 게시하거나 생산하는 클라이언트의 용어입니다. 생산자는[관련 제품](/workers/runtime-apis/bindings/)queue to the Worker and Writing message to the queue by call that 바인딩.
+
+예를 들어, 우리가 이름을 붙은 큐를 바인딩하는 경우`my-first-queue`관련 제품`MY_FIRST_QUEUE`, 메시지는 호출하여 큐에 쓸 수 있습니다`send()`바인딩에:
+
+```ts
+interface Env {
+  readonly MY_FIRST_QUEUE: Queue;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    const message = {
+      url: req.url,
+      method: req.method,
+      headers: Object.fromEntries(req.headers),
+    };
+
+    await env.MY_FIRST_QUEUE.send(message); //전송이 어떤 이유로 실패하면 예외를 던질 것입니다.
+    return new Response("Sent!");
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+:::참조
+
+당신은 또한 사용할 수 있습니다[`context.waitUntil()`](/workers/runtime-apis/context/#waituntil)응답 차단 없이 메시지를 보낼 수 있습니다.
+
+그 때문에`waitUntil()`비 차단, 어떤 오류에서 제기`send()`또는`sendBatch()`queue의 방법은 무시됩니다.
+
+:::
+
+큐는 여러 프로듀서 Workers를 가질 수 있습니다. 예를 들어, 여러 프로듀서 Workers 쓰기 이벤트를 가지고 있거나 사용자로부터 HTTP 요청을 수신하는 것을 기반으로 공유 큐에 로그인할 수 있습니다. 단일 큐에 쓸 수있는 제작자 WorkersXQ의 총 수에 제한이 없습니다.
+
+또한 다중 큐는 단일 노동자에 바인딩 할 수 있습니다. 즉, 단일 노동자는 코드를 정의하는 논리를 기반으로 (또는 여러)에 쓰기 할 수 있음을 결정할 수 있습니다.
+
+### 내용 유형
+
+queue에 게시 된 메시지는 소비자와 어떤 상호작용이 필요한지에 따라 다른 형식으로 출판 될 수 있습니다. 기본 내용 유형은`json`, 어떤 객체가 전달 될 수 있음을 의미`JSON.stringify()`접수합니다.
+
+콘텐츠 유형을 명시적으로 설정하거나 대체 콘텐츠 유형을 지정하려면, 패스를`contentType`옵션에`send()`큐의 방법:
+
+```ts
+interface Env {
+  readonly MY_FIRST_QUEUE: Queue;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    const message = {
+      url: req.url,
+      method: req.method,
+      headers: Object.fromEntries(req.headers),
+    };
+    try {
+      await env.MY_FIRST_QUEUE.send(message, { contentType: "json" }); //"json"은 기본적으로
+      return new Response("Sent!");
+    } catch (e) {
+      //잘못된 콘텐츠 유형으로 인해 실패한 경우
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      return Response.json({ error: msg }, { status: 500 });
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+queue를 쓸 때 간단한 문자열만 허용`{ contentType: "text" }`대신:
+
+```ts
+interface Env {
+  readonly MY_FIRST_QUEUE: Queue;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    try {
+      //이 예외를 던질 것입니다 (error) 당신은 큐에 비 문자열을 전달하는 경우,
+      //기본 JavaScript 객체 또는 ArrayBuffer와 같은.
+      await env.MY_FIRST_QUEUE.send("hello there", { contentType: "text" }); //명시적으로 설정된 'text'
+      return new Response("Sent!");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      return Response.json({ error: msg }, { status: 500 });
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+더 보기[`QueuesContentType`](/queues/configuration/javascript-apis/#queuescontenttype)API 문서는 각 형식이 큐에 serialized하는 방법을 설명합니다.
+
+## 회사 소개
+
+Queues는 소비자의 2가지 유형을 지원합니다:
+
+1. ·[소비자 노동자](/queues/configuration/configure-queues/), 이는 푸시 기반: 노동자는 메시지가 전달할 때 호출됩니다.
+2. ·[HTTP 풀 소비자](/queues/configuration/pull-consumers/), 이는 Pull-based: 소비자는 HTTP에 queue endpoint를 호출하고 그 후에 메시지를 인정합니다.
+
+큐는 하나의 유형의 소비자를 구성 할 수 있습니다.
+
+### 소비자 근로자 만들기
+
+소비자는 고객에 대한 용어입니다.*관련 제품*큐의 메시지. 가장 기본적인 형태에서 소비자는 창조에 의해 정의됩니다`queue`노동자의 핸들러:
+
+```ts
+interface Env {
+  //여기에 바인딩을 추가, 예를 들어 KV 네임스페이스, R2 버킷, D1 데이터베이스
+}
+
+export default {
+  async queue(batch, env, ctx): Promise<void> {
+    //일괄 처리에 메시지와 뭔가를
+    //i.e. R2 스토리지, D1 데이터베이스 또는 POST를 외부 API로 작성
+    for (const msg of batch.messages) {
+      //각 메시지
+      console.log(msg.body);
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+당신은 그 소비자가 큐에 연결`wrangler queues consumer <queue-name> <worker-script-name>`또는 정의`[[queues.consumers]]`당신의 선택[Wrangler 구성 파일](/workers/wrangler/configuration/)수동:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "<your-queue-name>",
+  				"max_batch_size": 100, //옵션 정보
+  				"max_batch_timeout": 30 //옵션 정보
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+중요하게, 각queue는 1개의 활동적인 소비자만 있을 수 있습니다. 이것은 Cloudflare Queues를 허용하여 적어도 한 번 배달을 달성하고 그 이상의 중복 메시지의 위험을 최소화합니다.
+
+:::노트\[최고의 연습]
+
+queue 당 단일 소비자 구성. 이 둘 다 논리적으로 당신의 queues를 분리하고, 1개의 큐에서 메시지 처리에 있는 그 과실 (failures)는 당신의 다른 큐에 영향을 미치지 않습니다.
+
+:::
+
+뿐만 아니라, 여러 큐와 동일한 소비자를 사용할 수 있습니다. 소비자 노동자를 정의하는 큐 핸들러는 큐에 의해 호출됩니다.
+
+- 더 보기`MessageBatch`그것은 당신에 게 전달`queue`핸들러에는`queue`queue의 이름을 가진 재산은 배치에서 읽었습니다.
+- 이것은 당신이 쓸 필요가 있는 코드의 양을 감소시킬 수 있고, 당신의 큐의 이름에 근거를 둔 메시지를 처리할 수 있습니다.
+
+예를 들어, 여러 큐에서 메시지를 소비하는 소비자는 다음과 같습니다.
+
+```ts
+interface Env {
+  //연결 추가
+}
+
+export default {
+  async queue(batch, env, ctx): Promise<void> {
+    //MessageBatch에는 `queue` 속성이 있습니다.
+    switch (batch.queue) {
+      case "log-queue":
+        //R2에 배치를 쓰기
+        break;
+      case "debug-queue":
+        //콘솔에 메시지를 작성하거나 다른 큐에
+        break;
+      case "email-reset":
+        //외부 API를 통해 암호 재설정 이메일을 트리거
+        break;
+      default:
+        //명시적으로 언급하지 않은 메시지 처리 (로그를 쓰기, DLQ로 밀어)
+        break;
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+### 소비자 제거
+
+프로젝트에서 큐를 제거하려면 실행`wrangler queues consumer remove <queue-name> <script-name>`아래에서 원하는 큐를 제거`[[queues.consumers]]`Wrangler 파일에서.
+
+### 고객 지원
+
+큐는 큐에서 당겨지는 HTTP 기반 소비자를 가질 수 있습니다.
+
+이 소비자는 인터넷을 통해 통신 할 수있는 HTTP-speaking 서비스가 될 수 있습니다. 자주 묻는 질문[회사 소개](/queues/configuration/pull-consumers/)queue에 대한 풀 기반 소비자를 구성하는 방법을 배우기 위해.
+
+## 이름 \*
+
+메시지는 생성하고 큐에서 소비하는 객체입니다.
+
+JSON serializable 객체는 큐에 게시 될 수 있습니다. 대부분의 개발자를 위해, 이것은 간단한 문자열 또는 JSON 객체를 의미합니다. 명시적으로 할 수 있습니다.[내용 유형 설정](#content-types)메시지 보내기
+
+메시지를 보낼 수 있습니다[소비자에게 배달될 때 일괄 처리](/queues/configuration/batching-retries/). 기본적으로, 일괄 처리 내에서 메시지는 모든 또는 아무것도 제거 할 때. 일괄 처리의 마지막 메시지가 처리 될 실패하면 전체 일괄 처리가 재생됩니다. 당신은 또한 선택할 수 있습니다[명시적으로 인정](/queues/configuration/batching-retries/)메시지가 성공적으로 처리되고/또는 개별 메시지가 검색됩니다.

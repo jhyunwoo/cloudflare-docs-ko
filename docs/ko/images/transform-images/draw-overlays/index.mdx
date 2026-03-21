@@ -1,0 +1,165 @@
+---
+pcx_content_type: reference
+title: Draw overlays 및 워터 마크
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/images/transform-images/draw-overlays/'
+translation_source_md: >-
+  https://developers.cloudflare.com/images/transform-images/draw-overlays/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+투명성 및 혼합 효과와 함께 크기가 큰 이미지 위에 추가 이미지를 그릴 수 있습니다. 워터마크, 로고, 서명, vignettes 및 이미지 크기를 변경하는 다른 효과를 추가할 수 있습니다.
+
+이 기능은 오직[Workers](/images/transform-images/transform-via-workers/). overlay 이미지를 그리기 위하여, 선택권에 그림 명령의 배열을 추가하십시오`fetch()`이름 \* 그림 옵션은 배열`options.cf.image.draw`, 다음과 같은 예에서:
+
+```js
+fetch(imageURL, {
+	cf: {
+		image: {
+			width: 800,
+			height: 600,
+			draw: [
+				{
+					url: "https://example.com/branding/logo.png", // draw this image
+					bottom: 5, //밑바닥 가장자리에서 5개의 화소
+					right: 5, //오른쪽 가장자리에서 5 픽셀
+					fit: "contain", //그것을 100x50 지역 안에 적합하
+					width: 100,
+					height: 50,
+					opacity: 0.8, //20% 투명
+				},
+			],
+		},
+	},
+});
+```
+
+## Draw 옵션
+
+더 보기`draw`재산은 배열입니다. 오버레이는 배열에 나타나는 순서에서 그려집니다 (마지막 배열 입장은 최고 층입니다). 각 항목에`draw`배열은 다음과 같은 속성을 가질 수있는 객체입니다 :
+
+- `url`
+  - 그림에 사용할 이미지 파일의 절대 URL. 그것은 지원된 파일 형식의 무엇이든 일 수 있습니다. 그림 워터 마크 또는 비 직사각형 오버레이를 위해 CloudflareXQ는 PNG 또는 WebP 이미지를 사용하는 것이 좋습니다.
+
+- `width`·`height`
+  - 오버레이 이미지의 최대 크기, 픽셀. 정수가 있어야 합니다.
+
+- `fit`·`gravity`
+  - 감정 해석`width`·`height`. 것과 같[주요 이미지](/images/transform-images/transform-via-workers/#fetch-options).
+
+- `opacity`
+  - 부동점 번호`0`(투명한) 및`1`(opaque). 예를 들어,`opacity: 0.5`오버레이 반투명.
+
+- `repeat`
+  - 설정하기`true`, 오버레이 이미지 전체 영역을 커버 타일 될 것입니다. 이것은 주식 사진 같이 Watermarks를 위해 유용합니다.
+  - 설정하기`"x"`, 오버레이 이미지는 수평으로 타일을 붙일 것입니다 (라인을 형성하십시오).
+  - 설정하기`"y"`, 오버레이 이미지는 수직으로 타일을 붙일 것입니다 (라인을 형성하십시오).
+
+- `top`, `left`, `bottom`, `right`
+  - 주어진 가장자리에 관계되는 오버레이 이미지의 위치. 각 속성은 픽셀의 오프셋입니다.`0`가장자리에 정확히 정렬합니다. 예를 들어,`left: 10`이미지의 왼쪽 가장자리에서 오버레이 10 픽셀의 위치가 왼쪽에 그려집니다.`bottom: 0`배경 이미지의 하단과 오버레이의 하단을 정렬합니다.
+
+    모두 설정`left`·`right`또는 둘 다`top`·`bottom`오류입니다.
+
+    위치가 지정되지 않은 경우 이미지가 중심될 것입니다.
+
+- `background`
+  - 오버레이 이미지를 추가하는 배경 색상. 같은 것과[주요 이미지](/images/transform-images/transform-via-workers/#fetch-options).
+
+- `rotate`
+  - 과감한 이미지를 회전시키는 정도의 수. 같은 것과[주요 이미지](/images/transform-images/transform-via-workers/#fetch-options).
+
+## 이미지 바인딩을 사용하여 끌기
+
+시간 :[Images와 상호 작용](/images/transform-images/bindings/), Images API 지원`.draw()`방법.
+
+overlaid 이미지의 허용된 옵션은`opacity`, `repeat`, `top`, `left`, `bottom`·`right`.
+
+```js
+//그림과 워터 마크
+const img = await fetch("https://example.com/image.png");
+const watermark = await fetch("https://example.com/watermark.png");
+
+const response = (
+	await env.IMAGES.input(img.body)
+		.transform({ width: 1024 })
+		.draw(watermark.body, { opacity: 0.25, repeat: true })
+		.output({ format: "image/avif" })
+).response();
+
+return response;
+```
+
+신청하기[이름 \*](/images/transform-images/transform-via-workers/)overlaid 이미지에, 당신은 아이를 통과할 수 있습니다`.transform()`내부 기능`.draw()`이름 \*
+
+아래 예제에서 워터 마크가 조작됩니다.`rotate`·`width`기본 이미지에 그려지기 전에`opacity`·`rotate`옵션.
+
+```js
+//그림과 워터 마크
+const response = (
+	await env.IMAGES.input(img.body)
+		.transform({ width: 1024 })
+		.draw(watermark.body, { opacity: 0.25, repeat: true })
+		.output({ format: "image/avif" })
+).response();
+```
+
+## 이름 \*
+
+### 재고 사진 Watermark
+
+```js
+image: {
+  draw: [
+    {
+      url: 'https://example.com/watermark.png',
+      repeat: true, //전체 이미지
+      opacity: 0.2, //그리고 subtly 혼합
+    },
+  ],
+}
+```
+
+### 주요특징
+
+```js
+image: {
+  draw: [
+    {
+      url: 'https://example.com/by-me.png', // Predefined logo/signature
+      bottom: 5, //아래쪽 오른쪽 모서리에 위치
+      right: 5,
+    },
+  ],
+}
+```
+
+### 핵심기술
+
+```js
+image: {
+  draw: [
+    {
+      url: 'https://example.com/play-button.png',
+      //Center 위치는 기본값입니다.
+    },
+  ],
+}
+```
+
+### 지원하다
+
+다수 가동은 1개의 이미지에서 결합될 수 있습니다:
+
+```js
+image: {
+  draw: [
+    { url: 'https://example.com/watermark.png', repeat: true, opacity: 0.2 },
+    { url: 'https://example.com/play-button.png' },
+    { url: 'https://example.com/by-me.png', bottom: 5, right: 5 },
+  ],
+}
+```

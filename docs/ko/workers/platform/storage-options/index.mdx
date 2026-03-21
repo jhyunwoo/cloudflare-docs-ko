@@ -1,0 +1,209 @@
+---
+title: 데이터 또는 저장 제품 선택
+pcx_content_type: concept
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 데이터 또는 저장 제품을 선택.
+description: Cloudflare의 개발자 플랫폼에서 사용할 수있는 스토리지 및 데이터베이스 옵션.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/platform/storage-options/'
+translation_source_md: 'https://developers.cloudflare.com/workers/platform/storage-options/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Details } from "~/components";
+
+이 가이드는 Cloudflare WorkersXQ의 일부로 사용할 수있는 저장 및 데이터베이스 제품, 권장된 사용 케이스 및 모범 사례를 포함하여.
+
+## 제품 선택
+
+다음과 같은 테이블지도 우리의 저장 및 데이터베이스 제품 일반적인 산업 용어 및 권장 사용 사례:
+
+<Render file="storage-products-table" product="workers" />
+
+응용 프로그램은 여러 저장 및 데이터베이스 제품에 구축 할 수 있습니다. 예를 들어, Workers KVXQ를 사용하여 세션 데이터; 큰 파일 저장, 미디어 자산 및 사용자 업로드 파일에 대한 R2XQ; 호스팅 된 Postgres 또는 MySQL 데이터베이스에 연결하는 QXQXQXQ.
+
+:::note\[Pages 기능]
+
+저장 선택권은 또한 Cloudflare PagesQ로 건설된 당신의 정면 신청에 의해 사용될 수 있습니다. Pages 응용 프로그램에 대한 사용 가능한 스토리지 옵션에 대한 자세한 내용은 참조[모델 번호: Pages 기능 바인딩 문서](/pages/functions/bindings/).
+
+:::
+
+## SQL 데이터베이스 옵션
+
+Workers로 응용 프로그램을 구축 할 때 SQL 기반 데이터베이스에 대한 세 가지 옵션이 있습니다.
+
+- **모델 번호: Hyperdrive**기존의 Postgres 또는 MySQL 데이터베이스가 있는 경우, 큰 (1TB, 100TB 이상) 단일 데이터베이스가 필요하며, 기존 데이터베이스 도구를 사용하려는 경우. Hyperdrive를 데이터베이스 플랫폼에 연결할 수 있습니다.[플래닛](https://planetscale.com/)또는[이름 \*](https://neon.tech/).
+- **모델 번호: D1**경량의 서버가 없는 애플리케이션을 위해 read-heavy는 D1의 글로벌 사용자를 보유하고 있습니다.[관련 기사](/d1/best-practices/read-replication/), 그리고 당신은 전통적인 RDBMS를 관리하고 유지할 필요가 없습니다.
+- **모델 번호: Durable Objects**표준 서버리스 워크로드에 대한, per-user 또는 per-customer SQL 상태, 및 구축 분산 시스템 (D1 및 Queues는 Durable ObjectsQ)에 내장 된 튼튼한 개체의[엄격한 serializability](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/)요청 및 저장 작업의 글로벌 주문이 가능합니다.
+
+### 세션 저장
+
+자주 묻는 질문[Workers KV](/kv/)세션 데이터 저장, 자격 증명 (API 키) 및/또는 구성 데이터. 이것은 일반적으로 높은 비율 (RPS 이상의 수천)에 읽고, 일반적으로 수정되지 않습니다 (KV의 1 쓰기 RPS 독특한 키 제한 당), 그리고 즉시 일관되게 할 필요가 없습니다.
+
+KV[내부 캐시](/kv/concepts/how-kv-works/), 그리고 반복은 이 “뜨거운” 열쇠에 전형적으로 10ms 범위에 500μs에 있는 latencies를 볼 것입니다.
+
+인증 프레임워크[오픈Auth](https://openauth.js.org/docs/storage/cloudflare/)Workers KV를 Cloudflare에 배치할 때 세션 저장으로 사용[Cloudflare 오시는 길](/cloudflare-one/access-controls/policies/)KV를 사용하여 안전하게 저장하고 사용자 자격 증명을 배포할 수 있으므로 사용자가 가능한 한 가까이에 유효하며 전반적인 대기 시간을 줄일 수 있습니다.
+
+## 제품 overviews
+
+### Workers KV
+
+QXQX0560XQQ KV는 Cloudflare 글로벌 네트워크에서 캐시하는 결국 일관된 키 가치 자료 상점입니다.
+
+필요한 프로젝트에 이상적입니다.
+
+- 읽기 및 / 또는 반복의 높은 볼륨은 동일한 키로 읽습니다.
+- Low-latency 글로벌 읽기 (뜨거운 키 10ms 이내)
+- Per-object time-to-live (TTL).
+- Distributed 구성 및 / 또는 세션 저장.
+
+get startedXQ에 QXQXQXQ:
+
+- 자주 묻는 질문[KV는 작동합니다](/kv/concepts/how-kv-works/).
+- 이름 \*[KV 네임스페이스](/kv/concepts/kv-namespaces/).
+- 자주 묻는 질문[KV 런타임 API](/kv/api/).
+- KV에 대해 알아보기[제한 사항](/kv/platform/limits/).
+
+### 모델 번호: R2
+
+R2는 개발자가 일반적인 클라우드 스토리지 서비스와 관련된 egress 수수료없이 많은 양의 압축되지 않은 데이터를 저장하는 S3-compatible blob 스토리지입니다.
+
+필요한 프로젝트에 이상적입니다.
+
+- infrequently accessed 파일에 저장.
+- 큰 물체 저장 (예를 들면, 기가 바이트 또는 물체 당 더 많은 것).
+- 물체 당 강한 견실함.
+- 웹 사이트 자산 저장 (refer to website)[캐싱 가이드](/r2/buckets/public-buckets/#caching))
+
+get startedXQ에 QXQXQXQ:
+
+- 자세히보기[자주 묻는 질문](/r2/get-started/).
+- R2에 대해 알아보기[제한 사항](/r2/platform/limits/).
+- 자주 묻는 질문[R2 Workers API](/r2/api/workers/workers-api-reference/).
+
+### Durable Objects
+
+Durable Objects는 글로벌 고유성과 거래 저장 API를 통해 Workers 플랫폼에 대한 낮은 수준의 일관성과 일관된 스토리지를 제공합니다.
+
+- Global Uniqueness는 한 번에 실행되는 주어진 ID를 가진 튼튼한 목표 클래스의 단일 인스턴스가 될 것이라고 보증합니다. 튼튼한 개체 ID에 대한 요청은 Workers 런타임을 Cloudflare 데이터 센터로 전달하여 튼튼한 개체를 소유합니다.
+
+- Transactional storage API는 견고한 오브젝트에 강력하고 일관된 키가치 저장을 제공합니다. 각 개체는 해당 개체와 관련된 키를 읽고 수정할 수 있습니다. 튼튼한 개체의 실행은 단일 스레드이지만 여러 요청 이벤트는 여전히 객체에 도착하는 방법에서 아웃 주문 처리 될 수 있습니다.
+
+필요한 프로젝트에 이상적입니다.
+
+- 실시간 협업 (채팅 애플리케이션 또는 게임 서버와 같은).
+- 일관된 저장.
+- 데이터 현지화
+
+get startedXQ에 QXQXQXQ:
+
+- 자세히보기[introductory 블로그 게시물](https://blog.cloudflare.com/introducing-workers-durable-objects/).
+- 자주 묻는 질문[Durable Objects 문서](/durable-objects/).
+- 시작하기[모델 번호: Durable Objects](/durable-objects/get-started/).
+- Durable Objects에 대해 알아보기[제한 사항](/durable-objects/platform/limits/).
+
+### 모델 번호: D1
+
+[D1](/d1/)Cloudflare의 네이티브 서버리스 데이터베이스입니다. D1를 사용하면 데이터 가져 오기 또는 테이블을 정의하고 작업자 또는 API를 통해 쿼리를 작성하여 데이터베이스를 만들 수 있습니다.
+
+D1는 다음을 위해 이상적입니다:
+
+- Persistent, 사용자 데이터, 계정 데이터 및 기타 구조 데이터 세트에 대한 관계 저장.
+- data ad-hoc (using SQL)을 통해 쿼리하는 데 필요한 케이스.
+- 읽음의 높은 비율을 가진 작업대 (대부분 웹 신청).
+
+get started에 QXQXQXQXQ:
+
+- ...에서[비밀번호](/d1)
+- 자주 묻는 질문[자주 묻는 질문](/d1/get-started/)첫 번째 D1 데이터베이스를 제공.
+- 자주 묻는 질문[D1 Workers 바인딩 API](/d1/worker-api/).
+
+:::참조
+작업 데이터 크기가 10 GB를 초과하는 경우 (D1 데이터베이스의 최대 크기), 데이터베이스를 여러 가지로 분할 고려, 작은 D1 데이터베이스.
+주요 특징
+
+### 모델 번호: Queues
+
+Cloudflare Queues는 개발자가 보장된 납품을 가진 메시지를 보내고 받는 것을 허용합니다. 그것은 통합[Cloudflare Workers](/workers)그리고 한 번 배달, 메시지 일괄 처리, egress 대역폭에 대 한 충전 하지 않습니다.
+
+Queues는 다음을 위해 이상적입니다:
+
+- 자주 묻는 질문
+- Worker에서 Worker(inter-Service Communication)로 데이터를 전송합니다.
+- 제3자 API를 포함한 업스트림 시스템에 쓰기 전에 또는 배치 데이터[CloudflareR2](/queues/examples/send-errors-to-r2/).
+
+get started에 QXQXQXQXQ:
+
+- [첫 번째 큐를 설정](/queues/get-started/).
+- 더 알아보기[Queues가 작동하는 방법](/queues/reference/how-queues-works/).
+
+### 모델 번호: Hyperdrive
+
+Hyperdrive는 MySQL 및 Postgres 데이터베이스로 만들 수 있는 쿼리를 가속화하는 서비스로서 전 세계의 데이터에 액세스할 수 있도록 빠르고, 사용자의 위치 결정.
+
+Hyperdrive는 다음을 허용합니다:
+
+- 연결 오버 헤드없이 Workers에서 기존 데이터베이스에 연결하십시오.
+- Cloudflare의 글로벌 네트워크에 걸쳐 캐시 빈번한 쿼리는 높은 트래픽 콘텐츠에 대한 응답 시간을 줄일 수 있습니다.
+- 연결 풀을 가진 당신의 근원 데이타베이스에 짐을 감소시키십시오.
+
+get started에 QXQXQXQXQ:
+
+- [연결 Hyperdrive](/hyperdrive/get-started/)당신의 기존 데이터베이스에.
+- 더 알아보기[Hyperdrive가 데이터베이스 쿼리를 가속화하는 방법](/hyperdrive/concepts/how-hyperdrive-works/).
+
+## 파이프 라인
+
+Pipelines는 모든 인프라를 관리하지 않고 실시간 데이터의 높은 볼륨을 섭취 할 수있는 스트리밍 ingestion 서비스입니다.
+
+Pipelines는 다음을 허용합니다:
+
+- 매우 높은 처리량의 데이터 (초 또는 더 많은 기록의 수천)
+- 오브젝트 저장에 직접 데이터를 쓰고, 쿼리 할 준비가
+- (Future) ingestion 동안 변형 및 집계 데이터
+
+파이프라인을 가진 get started에:
+
+- [Pipeline 만들기](/pipelines/getting-started/)그것은 R2에 배치하고 쓰기 기록을 할 수 있습니다.
+
+### Analytics 엔진
+
+분석 엔진은 Cloudflare의 시간 시리즈 및 메트릭스 데이터베이스이며 내장 API를 사용하여 스케일에서 무제한 식별 분석을 작성하여 Workers에서 데이터 포인트를 작성하고 SQL을 직접 사용하여 데이터를 쿼리합니다.
+
+Analytics Engine을 사용하면 다음을 수행할 수 있습니다:
+
+- 고객에 대한 사용자 정의 분석
+- 사용 기반 청구 시스템 구축
+- per-customer 또는 per-user 기초에 당신의 서비스의 건강을 이해하십시오
+- 이벤트를 통해 성능이나 압도적 인 외부 분석 시스템에 영향을받지 않고 코드 경로로 자주 호출하는 계측
+
+Cloudflare는 D1와 R2XQXQ와 같은 제품을 위한 제품 및 제품 per-product 미터를 저장하기 위하여 분석 엔진을 내부적으로 이용합니다.
+
+분석 엔진과 get started에:
+
+- 자주 묻는 질문[분석 엔진과 get started](/analytics/analytics-engine/get-started/)
+- 이름 \*[Analytics Engine에 시간 시리즈 데이터의 예](/analytics/analytics-engine/recipes/usage-based-billing-for-your-saas-product/)
+- 이름 \*[SQL API를](/analytics/analytics-engine/sql-api/)Analytics Engine datasets에서 데이터 읽기
+
+### 모델 번호: Vectorize
+
+Vectorize는 Cloudflare QXWorkersXQ와 함께 풀 스택, AI 전원 응용 프로그램을 구축 할 수있는 글로벌 분산 벡터 데이터베이스입니다[모델 번호: Workers AI](/workers-ai/).
+
+Vectorize는 다음을 허용합니다:
+
+- semantic 검색 및 분류 작업을 위해 벡터 embeddings model (Bring Your Own embeddingding)에서 embeddings를 저장하십시오.
+- 벡터 검색을 사용하여 큰 언어 모델 (LLM) 쿼리에 컨텍스트를 추가합니다.[Retrieval 증강 발생](/workers-ai/guides/tutorials/build-a-retrieval-augmented-generation-ai/)(RAG) 워크플로우.
+- [벡터 메타데이터에 필터](/vectorize/reference/metadata-filtering/)검색 공간을 줄이고 더 많은 관련 결과를 반환합니다.
+
+get started에 QXQXQXQXQ:
+
+- [첫 번째 벡터 데이터베이스 만들기](/vectorize/get-started/intro/).
+- 지원하다[Workers AI와 Vectorize](/vectorize/get-started/embeddings/)생성, 저장 및 쿼리 텍스트 embeddings.
+- 더 알아보기[벡터 데이터베이스 작업 방법](/vectorize/reference/what-is-a-vector-database/).
+
+<Render file="durable-objects-vs-d1" product="durable-objects" />

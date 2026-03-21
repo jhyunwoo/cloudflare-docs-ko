@@ -1,0 +1,170 @@
+---
+pcx_content_type: reference
+title: Access 인증 로그
+tags:
+  - Logging
+sidebar:
+  order: 2
+head: []
+description: Access 인증 로그를 사용하여 인증 이벤트 및 보호 URI 경로 및 인프라 대상에 대한 요청을 검토합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/insights/logs/audit-logs/'
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/insights/logs/audit-logs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, TabItem, Tabs, APIRequest } from "~/components";
+
+사이트맵 Access는 두 가지 유형의 감사 로그를 생성합니다.
+
+- **[인증 감사 로그](/cloudflare-one/insights/logs/audit-logs/#authentication-logs)**&#xC778;증 이벤트의 기록을 유지합니다.
+- **[Per-request 감사 로그](/cloudflare-one/insights/logs/audit-logs/#per-request-logs)**&#x55;RI 경로 및 인프라 대상을 보호하는 기록 요청.
+
+## 인증 로그
+
+사이트맵 액세스는 사용자 또는 서비스 시도가 응용 프로그램에 로그인 할 때마다 인증 이벤트를 기록합니다. 시도가 성공하거나 그렇지 않다.
+
+[Identity 기반 인증](#identity-based-authentication)사용자 이메일, IdP 그룹, SAML 그룹 또는 OIDC 청구에 대응하는 로그인 시도를 나타냅니다.
+
+[비 ID 인증](#non-identity-authentication)IP 주소, 장치 자세, 국가, 유효한 증명서, 또는 서비스 토큰과 같은 비 ID 정책을 일치시키는 로그인 시도를 나타냅니다.
+
+:::참조
+인증 로그는 자체 호스팅 또는 SaaS 애플리케이션 세션에서 사용자의 작업을 캡처하지 않습니다.
+주요 특징
+
+### Identity 기반 인증
+
+#### Access 인증 로그 보기
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    ID 기반 인증 이벤트에 대한 로그보기:
+
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**관련 기사** > **로그인** > **Access 인증 로그**.
+    2. 로그인 방법, 사용자의 IP 주소 등과 같은 세부 정보를 볼 수 있습니다.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    더 보기[Access 인증 로그](/api/resources/zero_trust/subresources/access/subresources/logs/subresources/access_requests/methods/list/)API 엔드포인트는 계정의 감사 로그 이벤트를 내보내기 위해 사용자 정의 URL을 제공합니다.
+
+    <APIRequest
+      path="/accounts/{account_id}/access/logs/access_requests"
+      method="GET"
+      parameters={{
+  	account_id: "$ACCOUNT_ID",
+  	limit: 25,
+  	direction: "desc",
+  	since: "2020-07-01T05:20:00Z",
+  	until: "2020-10-01T05:20:00Z",
+  }}
+    />
+
+    ```json title="Response"
+    {
+    	"success": true,
+    	"errors": [],
+    	"messages": [],
+    	"result": [
+    		{
+    			"user_email": "michelle@example.com",
+    			"ip_address": "198.41.129.166",
+    			"app_uid": "df7e2w5f-02b7-4d9d-af26-8d1988fca630",
+    			"app_domain": "test.example.com/admin",
+    			"action": "login",
+    			"connection": "saml",
+    			"allowed": false,
+    			"created_at": "2014-01-01T05:20:00.12345Z",
+    			"ray_id": "187d944c61940c77"
+    		}
+    	]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+#### 분야의 설명
+
+Identity 기반 인증 로그에는 다음과 같은 필드가 포함되어 있습니다.
+
+##### 기본 정보
+
+| 제품정보        | 이름 \*                                                                   |
+| ----------- | ----------------------------------------------------------------------- |
+| **앱 다운로드**  | 액세스 신청의 이름.                                                             |
+| **사용자 이메일** | 인증된 사용자의 이메일 주소.                                                        |
+| **사용자 ID**  | 정통 사용자의 UUID.                                                           |
+| **IP 주소**   | 인증 사용자의 IP 주소.                                                          |
+| **앱 UID**   | 액세스 응용 프로그램의 UUID.                                                      |
+| **앱 도메인**   | 액세스 응용 프로그램의 URL.                                                       |
+| **앱 유형**    | 액세스 응용 프로그램의 유형 지정: 자체 호스팅, 브라우저 SSH, 브라우저 VNC, 브라우저 RDP, SaaS, 또는 인프라. |
+| **행사일정**    | 로그인 시도와 같은 인증 이벤트의 유형.                                                  |
+| **관련 링크**   | IdP는 인증에 사용됩니다.                                                         |
+| **지원하다**    | 인증 이벤트의 결과.                                                             |
+| **주문 시간**   | 인증 이벤트의 타임스탬프.                                                          |
+| **레이 ID**   | Cloudflare를 통해 모든 요청에 대한 고유 식별자.                                        |
+| **이름 \***   | 사용자의 IP 주소와 관련된 국가.                                                     |
+
+##### 인프라
+
+사이트맵 액세스는 사용자가 인증 할 때 다음 정보를 기록합니다.[인프라](/cloudflare-one/access-controls/applications/non-http/infrastructure-apps/):
+
+| 제품정보        | 이름 \*                                                                                                                                                                       |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **이름 \***   | 인프라 대상의 호스트 이름.                                                                                                                                                             |
+| **대상 ID**   | 인프라 대상의 UUID.                                                                                                                                                               |
+| **SSH 사용자** | UNIX 사용자 등`root`, 인프라 대상에 접속할 때 지정된 인증된 사용자.                                                                                                                                |
+| **SSH 로그**  | SSH는 사용자가 대상에 ran 명령한다. Requires 구성[SSH 암호화 키](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#ssh-command-logs)세션이 시작되기 전에. |
+
+### 비 ID 인증
+
+non-identity 인증 이벤트에 대한 로그를 검색하려면, 사용[GraphQL 분석 API](/analytics/graphql-api/tutorials/querying-access-login-events/). 이 로그는 Zero Trust에서 사용할 수 없습니다.
+
+## Per-request 로그
+
+액세스를 통해 인증받은 사용자는 세션 기간 동안 허가 된 URL 경로에 액세스해야합니다. Cloudflare는 이러한 요청을 감사하는 몇 가지 방법을 제공합니다.
+
+### Cloudflare 로그 사용
+
+기업 고객은 Cloudflare 대시보드에 대한 요청에 대한 자세한 로그에 액세스해야합니다. 기업 고객은 Cloudflare 대시보드 또는 API에서 형성될 수 있는 Cloudflare의 Logpush 서비스에 접근이 있습니다. Cloudflare HTTP 및 인프라 로깅에 대한 자세한 내용은 참조[Cloudflare 로그](/logs/).
+
+팀의 구성원이 Access 뒤에 HTTP 리소스에 도달하도록 인증되면 Cloudflare는 SSO 정체성을 포함하는 사용자를위한 토큰을 생성합니다. 토큰은<GlossaryTooltip term="JSON web token">JSON 웹 토큰 (JWT)</GlossaryTooltip>. Cloudflare는 RSA 서명을 SHA-256, 또는 RS256, 비대칭 알고리즘을 사용하여 서명을 수행합니다. Cloudflare는 또한 대중적인 열쇠를 유효한 만듭니다, 그래서 당신은 그들의 정체성, 뿐 아니라 유효하게 할 수 있습니다.
+
+사용자가 주어진 URL을 요청할 때, 해당 토큰의 사용자 정체성을 요청 헤더로 부과합니다. 즉, 요청이 네트워크를 통해 전달됩니다. 귀하의 팀은 선호하는 타사 보안 정보 및 이벤트 관리 (SIEM) 소프트웨어 또는 저장 대상에서이 로그를 수집 할 수 있습니다.[Cloudflare 통나무](/cloudflare-one/insights/logs/logpush/). Access user identity 필드를 사용할 때 로그는 아래의 로그와 유사하게 시스템로 내보내집니다.
+
+```json
+{
+   "ClientIP": "198.51.100.206",
+   "ClientRequestHost": "jira.widgetcorp.tech",
+   "ClientRequestMethod": "GET",
+   "ClientRequestURI": "/secure/Dashboard/jspa",
+   "ClientRequestUserAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.87 Safari/537.36",
+   "EdgeEndTimestamp": "2019-11-10T09:51:07Z",
+   "EdgeResponseBytes": 4600,
+   "EdgeResponseStatus": 200,
+   "EdgeStartTimestamp": "2019-11-10T09:51:07Z",
+   "RayID": "5y1250bcjd621y99",
+   "RequestHeaders":{"cf-access-user":"srhea"}
+},
+{
+   "ClientIP": "198.51.100.206",
+   "ClientRequestHost": "jira.widgetcorp.tech",
+   "ClientRequestMethod": "GET",
+   "ClientRequestURI": "/browse/EXP-12",
+   "ClientRequestUserAgent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.87 Safari/537.36",
+   "EdgeEndTimestamp": "2019-11-10T09:51:27Z",
+   "EdgeResponseBytes": 4570,
+   "EdgeResponseStatus": 200,
+   "EdgeStartTimestamp": "2019-11-10T09:51:27Z",
+   "RayID": "yzrCqUhRd6DVz72a",
+   "RequestHeaders":{"cf-access-user":"srhea"}
+}
+```
+
+### 사용 방법`cf-access-user`제품정보
+
+Cloudflare Enterprise 로깅에서 사용할 수있는 HTTP 요청 필드 외에도 액세스 뒤에 응용 프로그램에 요청이 포함됩니다.`cf-access-user`사용자 정체 문자열을 포함하는 필드. 이것은 사용자 행동을 감사하기위한 또 다른 도구를 제공합니다. 추가하기`cf-access-user`HTTP 요청 로그에 필드, 당신은 사용자 지정 필드로 추가해야합니다. 더 알아보기[회사 소개](/logs/logpush/logpush-job/custom-fields/)자주 묻는 질문
+
+액세스는 모든 상호 작용을 로그하지 않습니다. 예를 들어, per-request 감사 로그는 특정 사용자가 방문한 것을 나타냅니다.`domain.com/admin`그리고 그때`domain.com/admin/panel`, 하지만 로그는 사용자의 상호 작용을 식별할 수 있습니다.

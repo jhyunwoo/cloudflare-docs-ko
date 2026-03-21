@@ -1,0 +1,118 @@
+---
+reviewed: 2025-04-12T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: 주문 도메인 Pages 포인트
+products:
+  - pages
+  - origin-rules
+description: 이 튜토리얼은 Pages 배포에 대한 소스 규칙과 DNS 레코드를 구성하는 방법을 지시합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/point-to-pages-with-custom-domain/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/point-to-pages-with-custom-domain/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example, DashButton, Steps } from "~/components";
+
+이 튜토리얼은 Pages 배포에 대한 소스 규칙과 DNS 레코드를 구성하는 방법을 지시합니다.
+
+절차는 다음과 같은 예 값을 사용합니다.
+
+|                             |                                |
+| --------------------------: | ------------------------------ |
+|    웹 사이트 방문자가 액세스 할 수있는 URL | `mycustomerexample.com/blog/*` |
+|                      영역 도메인 | `mycustomerexample.com`        |
+|     Cloudflare Pages 하위 도메인 | `myblog.pages.dev`             |
+| Cloudflare Pages 사용자 정의 도메인 | `blogmirror.example.com`       |
+
+PagesXQ 사용자 정의 도메인을 구성할 때, 당신은 생산에서 사용할 계획이 아닌 사용자 정의 도메인을 사용 (`blogmirror.example.com`이 예).
+
+## 1. Pages 프로젝트에서 사용자 정의 도메인 구성
+
+Pages 배포에 사용자 정의 도메인을 추가하려면:
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+     <DashButton url="/?to=/:account/workers-and-pages" />
+
+  2. Pages 프로젝트를 선택하십시오.
+
+  3. 오시는 길**주문 영역**.
+
+  4. 제품정보**사용자 정의 도메인 설정**.
+
+  5. 이름 \*`blogmirror.example.com`선택하기**계속하기**.
+</Steps>
+
+Pages 배포에 사용자 정의 도메인을 추가 할 때, Cloudflare는 자동으로 생성`CNAME`사용자 정의 도메인의 DNS 레코드.
+
+## 2. 호스트 헤더 및 override DNS 레코드를 다시 작성하는 기원 규칙을 만듭니다.
+
+내 계정`mycustomerexample.com`영역은 다음과 같은 구성을 가진 근원 규칙을 만듭니다:
+
+<Example>
+  **자주 묻는 질문**
+
+  | 제품정보   | 회사연혁  | 제품정보      |
+  | ------ | ----- | --------- |
+  | URI 경로 | 와일드카드 | `/blog/*` |
+
+  Expression Editor를 사용하면 다음과 같은 표현식을 입력합니다.
+
+  ```txt
+  (http.request.uri.path wildcard "/blog/*")
+  ```
+
+  **세트 근원 모수**
+
+  - 후에 가치**호스트 헤더** > **자주 묻는 질문**: `blogmirror.example.com`
+  - 후에 가치**DNS 기록** > **관련 기사**: `blogmirror.example.com`
+</Example>
+
+## 3. (선택) URL rewrite를 구성하십시오
+
+웹 사이트 방문자가 액세스하는 URL에서`/blog`. 그러나 Pages 배포에는 초기 URL 세그먼트가 없습니다.
+
+URL을 사용하여 제거`/blog`URL 경로의 세그먼트.
+
+<Steps>
+  1. 오시는 길**이름 \*** > **제품정보**.
+
+  2. 제품정보**규칙 만들기** > **URL Rewrite 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+  4. 내 계정**자주 묻는 질문**, 선택**Wildcard 패턴**.
+
+  5. 다음 값을 입력하십시오.**URL 요청**:
+
+     ```txt
+     https://<YOUR_HOSTNAME>/blog/*
+     ```
+
+     현재 예시에서 값은`https://mycustomerexample.com/blog/*`.
+
+  6. 내 계정**그런 다음 경로 및 / 또는 쿼리를 다시 작성**, 아래의 값을 입력**오시는 길**:
+
+     | 대상 경로           | 자주 묻는 질문      |
+     | --------------- | ------------- |
+     | \[`/`] `blog/*` | \[`/`] `${1}` |
+
+  7. 제품정보**계정 만들기**.
+</Steps>
+
+:::참조
+Cloudflare는 대시보드에 있는 규칙 템플렛을 제공합니다**Object Storage Bucket에 대한 경로 작성**URL rewrite 규칙을 구성하고 적응할 수 있습니다.
+주요 특징
+
+## 더 많은 리소스
+
+- [튜토리얼: URI 경로 변경 및 호스트 헤더](/rules/origin-rules/tutorials/change-uri-path-and-host-header/)
+- [Cloudflare Pages: 주문 영역](/pages/configuration/custom-domains/)
+- [DNS 레코드](/dns/manage-dns-records/)

@@ -1,0 +1,179 @@
+---
+pcx_content_type: navigation
+title: 정적 자산
+sidebar:
+  order: 11
+head: []
+description: Cloudflare QXWorkersXQ에 배치된 풀스택 애플리케이션을 만듭니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/static-assets/'
+translation_source_md: 'https://developers.cloudflare.com/workers/static-assets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Aside,
+	Badge,
+	Card,
+	CardGrid,
+	Details,
+	Description,
+	InlineBadge,
+	Icon,
+	Render,
+	TabItem,
+	Tabs,
+	Feature,
+	LinkButton,
+	LinkCard,
+	Stream,
+	Flex,
+	WranglerConfig,
+	Steps,
+	PackageManagers,
+} from "~/components";
+
+작업자의 일부로 정적 자산 (HTML, CSS, 이미지 및 기타 파일)을 업로드 할 수 있으며 Cloudflare는 캐싱을 처리하고 웹 브라우저에 봉사 할 것입니다.
+
+**CLI에서 시작**- API Worker를 가진 React SPA를 비계하고, 사용하십시오[Cloudflare Vite 플러그인](/workers/vite-plugin/).
+
+<PackageManagers type="create" pkg="cloudflare@latest" args="my-react-app --framework=react" />
+
+***
+
+**또는 그냥 Cloudflare에 배포**
+
+[![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/deploy-to-workers\&repository=https://github.com/cloudflare/templates/tree/main/vite-react-template)
+
+Workers에서 지원되는 프레임워크에 대해 자세히 알아보세요.
+
+<LinkCard title="지원된 기구" href="/workers/framework-guides/" description="Workers에서 프레임 워크 가이드를 시작하십시오." />
+
+### 어떻게 작동합니까?
+
+프로젝트를 배포할 때 Cloudflare는 작업자 코드와 단일 작업의 정적 자산을 모두 배포합니다. 이 배포는 Cloudflare의 네트워크를 통해 실행되는 단단히 통합 된 "단위"로 작동하며 정적 파일 호스팅, 사용자 정의 논리 및 글로벌 캐싱을 결합합니다.
+
+더 보기**비밀번호**사용자 정의[Wrangler 구성 파일](/workers/wrangler/configuration/#assets)이 디자인에 중앙 입니다. 배포 중 Wrangler는 이 디렉토리에서 Cloudflare의 인프라로 파일을 자동으로 업로드합니다. 배포되면, 이러한 자산에 대한 요청은 사용자에게 가장 가까운 위치를 효율적으로 처리됩니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "name": "my-spa",
+    "main": "src/index.js",
+    "compatibility_date": "$today",
+    "assets": {
+      "directory": "./dist",
+      "binding": "ASSETS"
+    }
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+사용중인 경우[모델 번호: Cloudflare Vite 플러그인](/workers/vite-plugin/), 지정할 필요가 없습니다`assets.directory`. Vite 플러그인을 사용하여 정적 자산을 사용하는 방법에 대한 자세한 내용은 참조[플러그인 문서](/workers/vite-plugin/reference/static-assets/).
+:::
+
+추가하기[**자산 바인딩**](/workers/static-assets/binding/#binding), 당신은 당신의 노동자 부호 내의 직접 fetch 그리고 봉사 자산 할 수 있습니다.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js {13}
+    //프로젝트
+
+    export default {
+    	async fetch(request, env) {
+    		const url = new URL(request.url);
+
+    		if (url.pathname.startsWith("/api/")) {
+    			return new Response(JSON.stringify({ name: "Cloudflare" }), {
+    				headers: { "Content-Type": "application/json" },
+    			});
+    		}
+
+    		return env.ASSETS.fetch(request);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, Response
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		#정적 자산의 예
+    		url = urlparse(request.url)
+    		if url.path.startswith("/api/):
+    			return Response.json({"name": "Cloudflare"})
+
+    		return await self.env.ASSETS.fetch(request)
+    ```
+  </TabItem>
+</Tabs>
+
+### 관련 기사
+
+기본적으로 요청된 URL이 정적 자산 디렉토리에 파일을 일치하면 파일이 제공되지 않습니다. 매칭 자산이 발견되지 않으면 Worker 스크립트가 존재합니다. 요청은 Worker에서 처리됩니다. Worker는 응답을 반환하거나 정적 자산을 사용하여 다시 방어 할 수 있습니다.[자산 바인딩](/workers/static-assets/binding/)(예 :)`env.ASSETS.fetch(request)`). Worker 스크립트가 없는 경우,`404 Not Found`응답은 반환됩니다.
+
+정적 자산과 일치하지 않는 요청에 대한 기본 행동은 설정하여 변경 될 수 있습니다.[`not_found_handling`아래 옵션`assets`](/workers/wrangler/configuration/#assets)Wrangler 설정 파일에서:
+
+- [`not_found_handling = "single-page-application"`](/workers/static-assets/routing/single-page-application/): 당신의 응용 프로그램을 설정하여`200 OK`응답과`index.html`정적 자산과 일치하지 않는 요청. 단일 페이지 응용 프로그램이있는 경우 이것을 사용하십시오. selective routing을 사용하여 이것을 페어링하는 것이 좋습니다.`run_worker_first`제품 정보[진보된 routing 통제](/workers/static-assets/routing/single-page-application/#advanced-routing-control).
+- [`not_found_handling = "404-page"`](/workers/static-assets/routing/static-site-generation/#custom-404-pages): 당신의 응용 프로그램을 설정하여`404 Not Found`가장 가까운 응답`404.html`정적 자산과 일치하지 않는 요청.
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "assets": {
+      "directory": "./dist",
+      "not_found_handling": "single-page-application"
+    }
+  }
+  ```
+</WranglerConfig>
+
+Worker 코드를 원하면 자산을 제공하기 전에 실행할 수 있습니다.`run_worker_first`옵션. 설정할 수 있습니다.`true`모든 요청에 대한 Worker 스크립트를 호출하거나 selective Worker-script-first routing에 대한 경로 패턴의 배열로 구성하십시오.
+
+**특정 경로에 Worker 스크립트를 호출:**
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-spa-worker",
+  	"compatibility_date": "$today",
+  	"main": "./src/index.ts",
+  	"assets": {
+  		"directory": "./dist/",
+  		"not_found_handling": "single-page-application",
+  		"binding": "ASSETS",
+  		"run_worker_first": ["/api/*", "!/api/docs/*"]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+더 고급 패턴을 위해, 참조[Spa shell with 부츠 스트랩 데이터](/workers/examples/spa-shell/)HTMLRewriter를 사용하여 HTML 스트림에 prefetched API 데이터를 주사합니다.
+
+<LinkCard title="옵션 선택" href="/workers/static-assets/routing/" description="routing 행동을 사용자 정의 할 수있는 방법에 대해 자세히 알아보십시오." />
+
+### 충돌 행위
+
+Cloudflare는 그것의 네트워크를 통하여 정체되는 자산을 위한 자동적인 캐싱을 제공하고, 전세계 사용자에게 빠른 납품을 지키. 정적 자산이 요청되면 향후 요청을 위해 자동으로 캐시됩니다.
+
+- **첫번째 요구:**&#xC790;산이 첫번째로 요구될 때, 가장 가까운 QXQX0831XQQ 위치에 저장과 캐시에서 fetched.
+
+- **자주 묻는 질문:**&#xB3D9;일한 자산에 대한 요청이 캐시되지 않는 데이터 센터에 도달하면 Cloudflare의[tiered 캐싱 체계](/cache/how-to/tiered-cache/)저장소로 돌아가기보다 가까운 캐시에서 검색 할 수 있습니다. 이 캐시 히트 비율을 개선하고 대기 시간을 줄이고 불필요한 기원을 감소시킵니다.
+
+## 더 알아보기
+
+<LinkCard title="Vite + React SPA 자습서" href="/workers/vite-plugin/tutorial/" description="정적 자산 및 API 경로로 전체 스택 단일 페이지 응용 프로그램을 구축하고 배포하는 방법을 알아보십시오." />
+
+## 더 알아보기
+
+<LinkCard title="지원된 기구" href="/workers/framework-guides/" description="Workers에서 프레임 워크 가이드를 시작하십시오." />
+
+<LinkCard title="청구 및 제한" href="/workers/static-assets/billing-and-limitations/" description="청구, 현재 제한 및 문제 해결 방법에 대해 자세히 알아보십시오." />

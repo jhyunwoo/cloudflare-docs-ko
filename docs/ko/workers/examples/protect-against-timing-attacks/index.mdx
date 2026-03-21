@@ -1,0 +1,170 @@
+---
+summary: >-
+  Protect against timing attacks by safely comparing values using
+  `timingSafeEqual`.
+tags:
+  - Security
+  - WebCrypto
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 타이밍안전
+sidebar:
+  order: 1001
+description: '`timingSafeEqual`를 사용하여 안전하게 계산하여 타이밍 공격에 대해 보호합니다.'
+reviewed: 2023-08-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/examples/protect-against-timing-attacks/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/protect-against-timing-attacks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 빠르게 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/protect-against-timing-attacks)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare Workers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+더 보기[`crypto.subtle.timingSafeEqual`](/workers/runtime-apis/web-crypto/#timingsafeequal)함수는 일정한 알고리즘을 사용하여 두 값을 비교합니다. 촬영 시간은 값의 내용과 독립적입니다.
+
+문자열이 equality 연산자를 사용하여 비교할 때 (`==`또는`===`), 비교는 첫번째 잘못한 특성에 끝낼 것입니다. 이름 \*`timingSafeEqual`, 공격자는 타이밍을 사용할 수 없습니다. 어느 점에서 두 개의 문자열이 차이점이 있습니다.
+
+더 보기`timingSafeEqual`함수는 2 걸립니다`ArrayBuffer`또는`TypedArray`비교 값. 이 버퍼는 동등한 길이이어야하며, 그렇지 않으면 예외가 던집니다.
+이 함수는 매개변수의 길이에 관하여 일정한 시간이고 또한 주변 부호를 위한 일정한 시간을 보장하지 않습니다.
+비밀의 취급은 타이밍 사이드 채널을 소개하지 않도록주의해야합니다.
+
+:::카트로션
+입력 및 비밀이 다른 길이가 있을 때 일찍 반환하지 마십시오. 초기 반환은 응답 타이밍을 통해 비밀의 길이를 누출합니다. 대신, 항상 아래의 예에서 보이는 것과 같은 일정한 비교를 수행합니다. 길이가 다를 때, 그 결과에 대한 사용자 입력을 비교하고 여전히 실패를 확인하지만 동시에 동일한 금액을 걸립니다.
+주요 특징
+
+두 문자열을 비교하기 위해, 당신은 사용해야합니다[`TextEncoder`](/workers/runtime-apis/encoding/#textencoder)API.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Environment {
+    	MY_SECRET_VALUE?: string;
+    }
+
+    export default {
+    	async fetch(req: Request, env: Environment) {
+    		if (!env.MY_SECRET_VALUE) {
+    			return new Response("Missing secret binding", { status: 500 });
+    		}
+
+    		const authToken = req.headers.get("Authorization") || "";
+
+    		const encoder = new TextEncoder();
+
+    		const userValue = encoder.encode(authToken);
+    		const secretValue = encoder.encode(env.MY_SECRET_VALUE);
+
+    		//길이가 다를 때 일찍 반환하지 마십시오. 비밀의 누출
+    		//타이밍을 통해 길이. 대신, 항상 일정한 시간을 수행
+    		//비교: 길이 일치가 직접 비교할 때; 그렇지 않으면
+    		//자체에 대한 사용자 입력 비교 (always true) 및 negate.
+    		const lengthsMatch = userValue.byteLength === secretValue.byteLength;
+    		const isEqual = lengthsMatch
+    			? crypto.subtle.timingSafeEqual(userValue, secretValue)
+    			: !crypto.subtle.timingSafeEqual(userValue, userValue);
+
+    		if (!isEqual) {
+    			return new Response("Unauthorized", { status: 401 });
+    		}
+
+    		return new Response("Welcome!");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response
+    from js import TextEncoder, crypto
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            auth_token = request.headers["Authorization"] or ""
+            secret = self.env.MY_SECRET_VALUE
+
+            if secret is None:
+                return Response("Missing secret binding", status=500)
+
+            encoder = TextEncoder.new()
+            user_value = encoder.encode(auth_token)
+            secret_value = encoder.encode(secret)
+
+            #길이가 다를 때 일찍 반환하지 마십시오. 비밀의 누출
+            #타이밍을 통해 길이. 항상 일정한 비교를 수행합니다.
+            if user_value.byteLength == secret_value.byteLength:
+                is_equal = crypto.subtle.timingSafeEqual(user_value, secret_value)
+            else:
+                is_equal = not crypto.subtle.timingSafeEqual(user_value, user_value)
+
+            if not is_equal:
+                return Response("Unauthorized", status=401)
+
+            return Response("Welcome!")
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    interface Environment {
+      Bindings: {
+        MY_SECRET_VALUE?: string;
+      }
+    }
+
+    const app = new Hono<Environment>();
+
+    //타이밍 안전 비교를 통한 인증 처리
+    app.use('*', async (c, next) => {
+      const secret = c.env.MY_SECRET_VALUE;
+
+      if (!secret) {
+        return c.text("Missing secret binding", 500);
+      }
+
+      const authToken = c.req.header("Authorization") || "";
+
+      const encoder = new TextEncoder();
+
+      const userValue = encoder.encode(authToken);
+      const secretValue = encoder.encode(secret);
+
+      //길이가 다를 때 일찍 반환하지 마십시오. 비밀의 누출
+      //타이밍을 통해 길이. 대신, 항상 일정한 시간을 수행
+      //비교: 길이 일치가 직접 비교할 때; 그렇지 않으면
+      //자체에 대한 사용자 입력 비교 (always true) 및 negate.
+      const lengthsMatch = userValue.byteLength === secretValue.byteLength;
+      const isEqual = lengthsMatch
+        ? crypto.subtle.timingSafeEqual(userValue, secretValue)
+        : !crypto.subtle.timingSafeEqual(userValue, userValue);
+
+      if (!isEqual) {
+        return c.text("Unauthorized", 401);
+      }
+
+      //auth 토큰이 유효한 경우
+      await next();
+    });
+
+    //보호된 노선
+    app.get('*', (c) => {
+      return c.text("Welcome!");
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

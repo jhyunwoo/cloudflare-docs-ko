@@ -1,0 +1,93 @@
+---
+pcx_content_type: configuration
+title: 가격 책정
+sidebar:
+  order: 13
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/pricing/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/pricing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, Plan } from "~/components"
+
+<Plan type="workers-all" />
+
+Browser Rendering을 사용하는 두 가지 방법이 있습니다. 사용 방법에 따라, 여기에 청구 작업은 다음과 같습니다:
+
+- [**REST API를**](/browser-rendering/rest-api/): 브라우저 시간만 청구
+- [**Workers 회사 소개**](/browser-rendering/workers-bindings/): 브라우저 시간 및 동시 브라우저 모두에 대한 책임
+
+브라우저 시간은 모두에서 공유됩니다 (REST API 및 Workers 바인딩).
+
+|                        | Workers 무료 | Workers 계정 만들기                                                                            |
+| ---------------------- | ---------- | ----------------------------------------------------------------------------------------- |
+| 브라우저 시간                | 1일 10분     | 달 당 10 시간, 그 후에 추가 시간 당 $0.09                                                             |
+| 동시 브라우저 (Workers 바인딩만) | 3 브라우저     | 10 브라우저 ([매월 평균](#how-is-the-number-of-concurrent-browsers-calculated)), 추가 브라우저 당 $ 2.00 |
+
+## Workers의 예 지불 가격
+
+<br />
+
+#### 예: REST API 가격
+
+Workers 유료 사용자는 한 달 동안 50 시간 동안 REST API를 사용합니다. 한 달에 예상된 비용은 다음과 같습니다.
+
+브라우저 시간:
+<br />50 시간 - 10 시간 (플랜 포함) = 40 시간
+<br />시간 당 40 시간 × $0.09 = $ 3.60
+
+#### 예: Workers 가격 책정
+
+Workers 유료 플랜 사용자는 매월 50 시간 동안 Workers Bindings 방법을 사용하고 첫 15 일 동안 10 동시 브라우저를 사용하고 지난 15 일 동안 20 동시 브라우저를 사용하여 매월 예상 비용은 다음과 같습니다.
+
+브라우저 시간:
+<br />50 시간 - 10 시간 (플랜 포함) = 40 시간
+<br />시간 당 40 시간 × $0.09 = $ 3.60
+
+동시 브라우저:
+<br />(10 브라우저 × 15 일) + (20 브라우저 × 15 일) = 450 매월 사용되는 총 브라우저
+<br />한 달에 사용 된 450 브라우저 ÷ 30 일 = 15 브라우저 (월 평균)
+<br />브라우저 (월평균) − 10 (계획 포함) = 5 브라우저
+<br />5 브라우저 × 브라우저당 $2.00 = $10.00
+
+브라우저 시간 및 동시 브라우저의 경우:
+<br />$3.60 + $10.00 = $13.60
+
+## 가격 FAQ
+
+### 브라우저 렌더링 비용을 어떻게 평가합니까?
+
+두 가지 방법으로 브라우저 렌더링 사용을 모니터링 할 수 있습니다:
+
+- Cloudflare QX대시보드에서 브라우저 렌더링 사용을 모니터링하려면**브라우저 렌더링**사이트 맵
+
+  <DashButton url="/?to=/:account/workers/browser-rendering" />
+
+- 더 보기`X-Browser-Ms-Used`모든 REST API 응답에서 리턴되는 헤더는 요청(밀리 초)에 사용되는 브라우저 시간을 보고합니다. .asResponse() 메소드를 사용하여 이 헤더에 액세스할 수 있습니다.
+
+  ```ts
+  const contentRes = await client.browserRendering.content.create({
+   account_id: 'account_id',
+  }).asResponse();
+
+  const browserMsUsed = parseInt(contentRes.headers.get('X-Browser-Ms-Used') || '');
+  ```
+
+사용량에 따라 비용을 추정하기 위해 위의 테이블을 사용할 수 있습니다.
+
+### API 호출을 실패, 그 시간 아웃과 같은, 청구 가능한 브라우저 시간에 추가?
+
+이름 \* 브라우저 렌더링 REST API에 대한 요청이 실패하면`waitForTimeout`오류, 브라우저 세션이 청구되지 않습니다.
+
+### 동시 브라우저 수는 어떻게 계산됩니까?
+
+Cloudflare는 당신의 매일 최고봉 사용법의 매달 평균으로 동시 브라우저를 산출합니다. 다른 말에서 우리는 concurrent 브라우저의 피크 번호를 매일 기록하고 그 값은 달에 달합니다. 이 접근법은 전형적인 트래픽을 반영하고 브라우저 concurrency의 간단한 스파이크에 대해 부적절하게 청구되지 않습니다.
+
+### 계산 시간은 어떻게됩니까?
+
+매일의 끝에서 Cloudflare는 초에 그 날을 위한 당신의 브라우저 사용법의 전부 합계합니다. 각 청구 사이클의 끝에서, 우리는 가장 가까운 시간에 둥근 브라우저 시간의 매달 총을 찾기 위해 매일 총의 모든 것을 추가합니다. 즉, 1,800 초 (30 분) 이상은 가장 가까운 시간까지 둥글고 1,799 초 이하는 가장 가까운 시간에 둥글게 됩니다.
+
+예를 들어, 하루에 브라우저 시간의 1 분만 사용한다면 그 날은 1 분으로 계산합니다. 30 일 개월 동안 매일하는 경우 총 30 분이됩니다. 청구를 위해, 우리는 1개의 브라우저 시간까지 둥근.

@@ -1,0 +1,174 @@
+---
+title: Pulumi ESC와 비밀 관리
+pcx_content_type: tutorial
+reviewed: 2024-09-03T00:00:00.000Z
+sidebar:
+  order: 2
+description: >-
+  Pulumi ESC (Environments, Secrets 및 Configuration)은 안전하고 강력한 비밀 관리 솔루션입니다.
+  튜토리얼은 Wrangler와 함께 개발하는 방법을 통해 걷습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pulumi/tutorial/manage-secrets/'
+translation_source_md: 'https://developers.cloudflare.com/pulumi/tutorial/manage-secrets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 튜토리얼에서는 보안 및 강력한 비밀 관리 솔루션 인 Pulumi ESC (Environments, Secrets 및 Configuration)을 사용하여 단계별 지침을 받게됩니다.
+
+튜토리얼은 Wrangler와 함께 개발하는 방법을 통해 걷습니다.
+
+특정하게, 당신은 당신의 관리 방법을 배울 것입니다`CLOUDFLARE_API_TOKEN`Cloudflare 계정에 로그인하여 ESC-stored 비밀을 Workers로 전달하고 프로그래밍적으로로드하십시오.`.dev.vars`파일.
+
+:::참조
+
+Pulumi Cloud 및 Cloudflare 모두 무료 계층 제공 자격을 갖춘 리소스를 제공 할 것입니다.
+
+:::
+
+## 시작하기 전에
+
+당신은 있다:
+
+- Cloudflare 계정.[Cloudflare 계정 가입](https://www.cloudflare.com/sign-up).
+- Pulumi Cloud 계정.[Pulumi Cloud 가입](https://app.pulumi.com/signup).
+- 더 보기[펄프](https://www.pulumi.com/docs/install/esc/)설치.
+- Wrangler 프로젝트. 하나 만들기 위해, 따르십시오[새로운 Worker 프로젝트 단계 만들기](/workers/get-started/guide/#1-create-a-new-worker-project).
+
+## 1. 새로운 환경 설정
+
+·[Pulumi ESC 환경](https://www.pulumi.com/docs/esc/environments/), 또는 환경, 애플리케이션 및 인프라에 대한 구성 및 비밀을 포함하는 YAML 파일입니다. 이들은 포탄 명령을 포함하여 몇몇 방법에 접근될 수 있습니다. 모든 ESC 환경은 Pulumi Cloud 계정에 의존합니다.
+
+### a. Pulumi Cloud에 로그인
+
+Pulumi ESC CLI를 사용하여 Pulumi Cloud 계정으로 로그인하십시오.
+
+```sh
+esc login
+```
+
+```sh output
+Logged in to pulumi.com as  ....
+```
+
+### b. 새로운 환경 만들기
+
+:::참조
+환경 이름은 Pulumi 조직 내에서 독특해야하며 알파벳 문자, 하이픈, 밑줄 및 기간만 포함할 수 있습니다.
+주요 특징
+
+```sh
+ESC_ENV=wrangler/my-dev-environment
+esc env init $ESC_ENV
+```
+
+```sh output
+Environment created.
+```
+
+## 2. Cloudflare로 로그인
+
+이제 Pulumi ESC 환경이 만들어졌으며 다양한 방법으로 소비 할 수 있습니다. 예를 들어, Cloudflare 계정에 로그인하여 쉘에 있는 자격 증명을 미리 정의할 필요가 없습니다.
+
+### · 당신의 자격
+
+외부와 안전하게 저장`CLOUDFLARE_API_TOKEN`, 당신은 접근을 통제하고 토큰 가치를 자전할 수 있습니다. 우리는 실행`wrangler`non-interactive 형태에서, 필요한:
+
+- 당신의 Cloudflare[계정 ID](/fundamentals/account/find-account-and-zone-ids/)
+- 유효한 Cloudflare API[계정 관리](/fundamentals/api/get-started/create-token/)
+
+파기방법`123abc`해당 값으로:
+
+```sh
+esc env set $ESC_ENV environmentVariables.CLOUDFLARE_ACCOUNT_ID 123abc
+esc env set $ESC_ENV environmentVariables.CLOUDFLARE_API_TOKEN  123abc --secret
+```
+
+:::참조
+API 토큰은 선언됩니다.`secret`. 환경이 저장되면, Pulumi는 그것의 가치를 암호화하고 ciphertext로 대체할 것입니다.
+주요 특징
+
+### b. 로그아웃
+
+현재 Cloudflare 계정에 로그인하지 않습니다.
+
+```sh
+npx wrangler logout
+```
+
+```sh output
+Not logged in, exiting...
+```
+
+### c. 로그인
+
+Wrangler에 ESC 저장된 Cloudflare credentials를 통과하십시오.
+
+```sh
+esc run ${ESC_ENV} npx wrangler whoami
+```
+
+```sh output
+Getting User settings...
+👋 You are logged in with an API Token.
+```
+
+당신이 사용할 때`esc run`명령, 그것은 환경을 열고 지정된 환경 변수를 임시 환경에 설정합니다. 그 후, 그것은 그 변수의 맥락에서 사용`wrangler`명령. 실행할 때 특히 유용합니다.`wrangler`CI/CD 환경에서 명령하지만 파이프라인에서 credentials를 직접 저장하는 것을 원합니다.
+
+## 3. Worker 비밀 추가
+
+Pulumi ESC는 비밀을 중앙화하고, Wrangler는 이를 Workers 및 다른 Cloudflare 리소스에 전달하는 데 사용할 수 있습니다. 이 목적을 위해 `wrangler secret put` 명령을 사용합니다.
+
+### · 비밀번호
+
+```sh
+esc env set ${ESC_ENV} environementVariables.TOP_SECRET "aliens are real" --secret
+```
+
+### b. 당신의 노동자에게 비밀을 전달하십시오
+
+```sh
+esc run -i ${ESC_ENV} -- sh -c 'echo "$TOP_SECRET" | npx wrangler secret put TOP_SECRET'
+```
+
+외부 비밀 관리 솔루션을 사용하여 일반적으로 사용되는 노동자 비밀은 관련 Workers에 의해 액세스 한 단일 공유 환경에서 저장 될 수 있습니다. 쉘 명령을 사용할 수 있습니다.`esc`스크립트를 통합하고 배포 파이프라인에 통합하거나`make`명령. 제품 정보`esc [command] --help`CLI에서 사용할 수있는 다양한 명령에 대한 자세한 내용은.
+
+## 4. 짐`.dev.vars`
+
+이 단계에서는 환경을 구성하여`.dev.vars`파일 programmatically.
+
+:::참조
+더 보기`.dev.vars`파일은 실행할 때 사용되는 비밀을 정의하기 위해 Wrangler 프로젝트의 루트에 있습니다.`wrangler dev`. 자세한 내용은 참조[지역 개발과 비밀](/workers/configuration/secrets/#local-development-with-secrets).
+:::
+
+모든 것을 저장하는 전용 ESC 환경`.dev.vars`비밀, 당신은 사용할 수 있습니다`dotenv`수출 깃발.
+
+### a. 환경 만들기
+
+```sh
+E=wrangler/my-devvars
+esc env init $E
+```
+
+```sh output
+Environment created.
+```
+
+### b. 비밀 추가
+
+```sh
+esc env set $E environmentVariables.TOP_SECRET  "the moon is made of cheese" --secret
+```
+
+### c. 생성`.dev.vars`이름 \*
+
+```sh
+esc env open ${E} --format dotenv > .dev.vars
+```
+
+이름 \*`.dev.vars`파일은 종종 비밀을 포함 할 수 있습니다, 그들은 소스 제어에 최선을 다해야한다. 이 비밀을 외부로 유지하면 손실없이 새로운 개발 환경에로드 할 수 있습니다.
+
+## 다음 단계
+
+Wrangler 명령에 대한 비밀을로드하는 Pulumi ESC 환경을 구성하여 Wrangler 개발 중에 보안을 강화했습니다. 외부 비밀은 이제 Workers에서 재사용 할 수 있습니다.[Pulumi ESC 기능 및 통합에 대해 자세히 알아보기](https://www.pulumi.com/docs/esc/)또는 따라[Pulumi와 노동자 배포](/pulumi/tutorial/hello-world/)자습서.

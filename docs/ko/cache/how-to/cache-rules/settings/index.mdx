@@ -1,0 +1,410 @@
+---
+title: 사용 가능한 설정
+pcx_content_type: reference
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: Cache Rules 설정
+---
+
+import { Details } from "~/components";
+
+캐시 규칙을 만들 때 구성할 수 있는 설정은 다음과 같습니다.
+
+## 필드
+
+**Expression Builder**에서 Cache Rule 일치 표현식에 사용할 수 있는 필드는 다음과 같습니다.
+
+- URI Full - `http.request.full_uri`
+- URI - `http.request.uri`
+- URI Path - `http.request.uri.path`
+- URI Query String - `http.request.uri.query`
+- Cookie - `http.cookie`
+- Hostname - `http.host`
+- Referer - `http.referer`
+- SSL/HTTPS - `ssl`
+- User Agent - `http.user_agent`
+- X-Forwarded-For - `http.x_forwarded_for`
+- Request Headers - `http.request.headers`
+- Cookie value of - `http.request.cookies`
+- File extension - `http.request.uri.path.extension`
+
+[Edit expression](/ruleset-engine/rules-language/expressions/edit-expressions/#expression-editor) 옵션을 선택하면 [사용 가능한 필드](/ruleset-engine/rules-language/fields/reference/)를 자유롭게 입력할 수 있습니다.
+
+:::note
+
+[Single file purge](/cache/how-to/purge-cache/purge-by-single-file/)는 여기 나열된 필드 외에 `ip.*` 필드 같은 다른 [fields](/ruleset-engine/rules-language/fields/reference/)를 추가하면 호환되지 않습니다.
+
+:::
+
+## 연산자
+
+Cache Rule 표현식에 사용할 수 있는 연산자는 다음과 같습니다.
+
+- wildcard
+- strict wildcard
+- equals
+- does not equal
+- contains
+- does not contain
+- matches regex
+- does not match regex
+- starts with
+- ends with
+- does not start with
+- does not end with
+- is in
+- is not in
+
+:::note
+
+모든 선택 필드에서 모든 연산자를 사용할 수 있는 것은 아닙니다.
+:::
+
+## 캐시 가능 여부
+
+**Cache eligibility**에서는 일치하는 요청을 캐시하지 않으려면 **Bypass cache**를, Cloudflare가 캐시를 시도하도록 하려면 **Eligible for cache**를 선택할 수 있습니다.
+
+### Bypass cache
+
+캐시 규칙을 만들 때 일치하는 수신 요청을 캐시하지 않으려면 **Bypass cache**를 선택할 수 있습니다. 더 짧은 기간 동안 캐시를 우회하려면 [Development Mode](/cache/reference/development-mode/)를 사용할 수도 있습니다.
+
+:::note
+Bypass 설정이 적용된 Custom Cache Rules를 사용할 때 응답 헤더는 명시적으로 bypass를 표시하는 대신 [DYNAMIC](/cache/concepts/cache-responses/#dynamic)을 반환할 수 있습니다. 이는 오리진 응답이 다른 면에서 캐시 가능하더라도 규칙이 해당 콘텐츠를 캐시 불가로 만들기 때문입니다.
+:::
+
+### 캐시 가능 설정
+
+**Eligible for cache**를 선택하면 아래에 설명된 구성 설정을 변경할 수 있습니다.
+
+:::note
+
+캐시 규칙, 이미지 변환, 영역 버전 관리를 동시에 사용하면 일부 설정이 올바르게 적용되지 않을 수 있습니다.
+:::
+
+#### Edge TTL
+
+Edge Cache TTL은 자산이 Cloudflare 캐시에서 신선하거나 제공 가능한 상태로 유지되는 최대 캐시 시간(Time-to-live, TTL)을 의미합니다. 이 설정에는 세 가지 주요 옵션이 있습니다.
+
+- **Use cache control-header if present, bypass cache if not**: 응답에 cache-control 헤더가 있으면 그 지시를 따르고, 없으면 캐시를 건너뜁니다.
+- **Use cache-control header if present, use default Cloudflare caching behavior if not**: 응답에 cache-control 헤더가 있으면 그 지시를 따르고, 없으면 [기본 edge TTL 설정](/cache/how-to/configure-cache-status-code/#edge-ttl)에 따라 캐시합니다.
+- **Ignore cache-control header and use this TTL**: 응답의 cache-control 헤더를 완전히 무시하고, 대신 드롭다운에서 지정한 기간 동안 응답을 캐시합니다.
+
+또한 특정 상태 코드와 일치하는 콘텐츠를 Cloudflare 글로벌 네트워크에서 얼마나 오래 캐시할지도 선택할 수 있습니다. **Status Code TTL** 섹션에서는 오리진 서버 응답의 하나 이상의 상태 코드에 대해 TTL 기간을 정의할 수 있습니다. 이 설정은 _Single code_ 상태 코드, _Greater than or equal_ 또는 _Less than or equal_ 상태 코드, 혹은 _Range_ 상태 코드 범위에 적용할 수 있습니다. 상태 코드 TTL은 응답의 cache-control 헤더를 무시하고 캐시 규칙에 지정된 TTL을 우선 적용한다는 점에서 **Ignore cache-control header and use this TTL**과 유사합니다. 자세한 내용은 [Status code TTL](/cache/how-to/configure-cache-status-code/)을 참고하세요.
+
+<Details header="API 정보">
+
+API 구성 객체 이름: `"edge_ttl"`.
+
+| API 값 | 구성 |
+| --- | --- |
+| `respect_origin` | cache-control 헤더가 있으면 이를 사용하고, 없으면 기본 [Cloudflare 캐시 동작](/cache/concepts/default-cache-behavior/)을 사용합니다. |
+| `override_origin` | cache-control 헤더를 무시하고 이 TTL을 사용합니다. |
+| `bypass_by_default` | cache control-header가 있으면 이를 사용하고, 없으면 캐시를 우회합니다. |
+|  |  |
+
+```json title="API 구성 예시"
+"action_parameters": {
+    "cache": true,
+    "edge_ttl": {
+        "status_code_ttl": [
+            {
+                "status_code_range": {
+                    "to": 299
+                },
+                "value": 86400
+            },
+            {
+                "status_code_range": {
+                    "from": 300,
+                    "to": 499
+                },
+                "value": 0  // no-cache
+            },
+            {
+                "status_code_range": {
+                    "from": 500
+                },
+                "value": -1  // no-store
+            }
+        ],
+        "mode": "respect_origin"
+    }
+}
+
+
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Browser TTL
+
+Browser TTL은 자산이 브라우저 캐시에서 제공 가능한 상태로 간주되는 최대 TTL을 의미합니다.
+
+**Bypass cache**, **Respect origin**, **Override origin** 중 원하는 동작을 선택하세요. 브라우저 TTL 값을 재정의하려면 클라이언트 브라우저에 캐시된 리소스가 얼마 동안 유효할지를 드롭다운 메뉴에서 정의합니다. 자세한 내용은 [Browser Cache TTL](/cache/how-to/edge-browser-cache-ttl/#browser-cache-ttl)을 참고하세요.
+
+<Details header="API 정보">
+
+API 구성 객체 이름: `"browser_ttl"`.
+
+`"mode"` 속성의 API 값: `"respect_origin"`, `"override_origin"`, `"bypass_by_default"`. <br/>
+
+`"default"` 속성의 API 값(정수): 사용 가능한 값은 요금제에 따라 다릅니다. [Browser Cache TTL](/cache/how-to/edge-browser-cache-ttl/#browser-cache-ttl)을 참고하세요.
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "browser_ttl" : {
+    "mode": "override_origin",
+    "default": 1000
+  }
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Cache Key
+
+캐시 키는 Cloudflare가 리소스를 캐시에 저장하는 방식을 결정할 때 사용하는 기준을 의미합니다. Cache Key를 사용자 지정하면 특정 캐시 항목을 여러 요청 사이에서 어떻게 재사용할지, 또는 최종 사용자 기준으로 더 세밀하게 캐시 항목을 어떻게 분리할지 결정할 수 있습니다.
+
+[custom Cache Key](/cache/how-to/cache-keys/)를 정의하는 요청 구성 요소를 지정하면서 다음 옵션을 사용자 지정할 수 있습니다.
+
+- [Cache deception armor](/cache/cache-security/cache-deception-armor/), [Cache by device type](/automatic-platform-optimization/reference/cache-device-type/), [Sort query string](/cache/how-to/cache-keys/#query-string)을 켜거나 끌 수 있습니다.
+
+Enterprise 고객은 custom Cache Key에 대해 다음 추가 옵션을 사용할 수 있습니다.
+
+- **Query string** 섹션에서 **All query string parameters**, **All query string parameters except** 및 예외 항목, **No query parameters except** 및 포함할 파라미터, 또는 **Ignore query string**(종량제 고객도 가능)을 선택할 수 있습니다.
+- **Headers** 섹션에서는 헤더 이름과 값을 지정할 수 있습니다. 사용자 지정 헤더는 값이 선택 사항이지만, 다음 제한 헤더는 1개에서 3개까지 특정 값을 포함해야 합니다.
+
+  - `accept`
+  - `accept-charset`
+  - `accept-encoding`
+  - `accept-datetime`
+  - `accept-language`
+  - `referer`
+  - `user-agent`
+
+  값을 포함하지 않고 헤더 존재 여부만 확인하려면 **Check presence of** 옵션을 사용하세요. **Include origin header** 사용 여부도 선택할 수 있습니다.
+
+- **Cookie** 섹션에서는 쿠키 이름과 값을 포함하고, 다른 쿠키의 존재 여부를 확인할 수 있습니다.
+- **Host** 섹션에서는 **Use original host**와 **Resolved host**를 선택할 수 있습니다. **User** 섹션에서는 **Device type**, **Country**, **Language**를 선택할 수 있습니다. **Resolved host**를 사용하면 Cache Key에 오리진 IP를 확인하는 데 사용된 호스트명이 들어가며, 이는 [resolve override](/rules/origin-rules/features/#dns-record) 기능 사용 여부에 따라 달라질 수 있습니다.
+
+:::note
+[URL normalization](/rules/normalization/)이 활성화되어 있으면 [Normalize URLs to origin](/rules/normalization/manage/)도 함께 활성화하는 것을 권장합니다. 특히 사용자 지정 Cache Keys를 설정하거나 cache by device type을 사용하는 경우 캐시 키가 변경되므로 더 중요합니다. 이렇게 하면 Cache Key의 URL과 오리진으로 전송되는 URL이 일치해 캐시 오염을 방지하고 일관된 동작을 보장할 수 있습니다.
+:::
+
+<Details header="API 정보">
+
+API 구성 객체 이름: `"cache_key"`.
+
+API 값: `"ignore_query_strings_order"`, `"cache_deception_armor"`, `"cache_by_device_type"`, `"custom_key"` (`"header"`, `"cookie"`, `"host"`, `"query_string"`, `"user"`).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "cache_key": {
+    "ignore_query_strings_order": true,
+    "cache_deception_armor": true,
+    "custom_key": {
+      "query_string": {
+        "include": [
+          "*"
+        ]
+      },
+      "header": {
+        "include": [
+          "header1"
+        ],
+        "check_presence": [
+          "header_1"
+        ],
+        "contains": {
+          "accept-encoding": ["br", "zstd"]
+        }
+      },
+      "cookie": {
+        "include": [
+          "cookieName1"
+        ],
+        "check_presence": [
+          "cookie_1"
+        ]
+      },
+      "user": {
+        "device_type": true,
+        "geo": true,
+        "lang": true
+      },
+      "host": {
+        "resolved": false
+      }
+    }
+  }
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Cache Reserve 적격성
+
+Cache Reserve 적격성을 사용하면 어떤 웹사이트 리소스를 영구 캐시인 [Cache Reserve](/cache/advanced-configuration/cache-reserve/) 대상으로 만들지 지정할 수 있습니다. 요청이 규칙과 일치하고 [적격성 기준](/cache/advanced-configuration/cache-reserve/#cache-reserve-asset-eligibility)도 충족하면 Cloudflare는 해당 리소스를 cache reserve에 기록합니다. 이 기능을 사용하려면 추가 Cache Reserve 요금제가 필요합니다.
+
+이 규칙은 크기를 기준으로 웹사이트 리소스의 Cache Reserve 적격성을 지정하는 데에도 사용할 수 있습니다. 예를 들어 적격한 자산 중 100MB 이상만 지정하면 Cloudflare는 100MB 이상인 적격 자산을 찾아 Cache Reserve 대상으로 삼고 해당 자산만 영구 저장합니다.
+
+:::note
+
+이 구성을 사용하더라도 Cloudflare는 여전히 요금제 기반 [cacheable file limits](/cache/concepts/default-cache-behavior/#customization-options-and-limits)를 적용합니다.
+:::
+
+<Details header="API 정보">
+
+API 구성 객체 이름: `"cache_reserve"`.
+
+Cache Reserve 활성화용 API 속성 이름: `"eligible"` (boolean).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true
+  "cache_reserve": {
+    "eligible": true,
+    "minimum_file_size": 100000
+  }
+}
+```
+
+:::note
+`minimum_file_size`를 생략하고 `eligible`이 true이면 Cloudflare는 기본값으로 0바이트를 사용합니다.
+:::
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### 포트에서 캐싱(Enterprise 전용)
+
+Cloudflare는 기본적으로 80, 443 같은 여러 [network ports](/fundamentals/reference/network-ports/#network-ports-compatible-with-cloudflares-proxy)를 지원합니다. 일부 포트는 전통적으로 관리자 포트로 사용되기 때문에 지원되더라도 캐싱이 비활성화되어 있으며, 캐시에 들어가면 안 되는 민감한 정보를 관리하는 용도로 쓰입니다. 이런 관리자 포트에서 캐싱을 활성화하려는 Enterprise 고객은 원하는 포트를 입력해 해당 포트에서 캐시하도록 설정할 수 있습니다.
+
+:::note
+
+Cloudflare는 기본적으로 많은 포트를 지원하며, 이들 포트는 별도 규칙 없이도 캐시됩니다. Cloudflare가 지원하지만 캐싱은 비활성화된 포트에 대해서만 이 규칙을 사용하세요.
+:::
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"additional_cacheable_ports"` (정수 배열).
+
+```json title="API 구성 예시"
+"action_parameters": {
+    "cache": true
+    "additional_cacheable_ports": [8443, 8080]
+  }
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Proxy Read Timeout(Enterprise 전용)
+
+오리진 서버에 대한 두 번의 연속 읽기 작업 사이의 타임아웃 값을 정의합니다. 기본값은 [Connection limits](/fundamentals/reference/connection-limits/) 표에서 확인할 수 있습니다. 오리진 서버의 타임아웃 때문에 [`HTTP 524`](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-524/) 오류를 줄이려는 경우 아래 API 엔드포인트를 사용해 이 타임아웃 값을 늘려 보세요.
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"read_timeout"` (정수).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "read_timeout": 900
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### 재검증 중 오래된 콘텐츠 제공
+
+Cloudflare가 오리진 서버에서 최신 콘텐츠를 가져오는 동안 오래된 콘텐츠를 제공할지 여부를 정의합니다. 오래된 콘텐츠 제공이 비활성화되면 Cloudflare는 오리진에서 최신 콘텐츠를 가져오는 동안 오래된 콘텐츠를 제공하지 않습니다.
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"serve_stale"` > `"disable_stale_while_updating"` (boolean).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "serve_stale": {
+    "disable_stale_while_updating": true
+  }
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### 강한 ETag 준수
+
+Cloudflare 캐시와 오리진 서버 사이의 byte-for-byte 동일성 검사를 켜거나 끕니다. 활성화하면 Cloudflare는 [strong ETag](/cache/reference/etag-headers/#strong-etags) 헤더 검증을 사용해 Cloudflare 캐시의 리소스와 오리진 서버의 리소스가 byte-for-byte로 동일한지 확인합니다. 비활성화하면 Cloudflare는 ETag 헤더를 [weak ETag](/cache/reference/etag-headers/#weak-etags) 헤더로 변환합니다.
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"respect_strong_etags"` (boolean).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "respect_strong_etags": true
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Origin error page pass-through
+
+오리진 서버가 보낸 오류 HTTP 상태 코드에서 생성된 Cloudflare 오류 페이지를 켜거나 끕니다. 활성화하면 오리진이 발행한 오류 페이지를 사용할 수 있습니다.
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"origin_error_page_passthru"` (boolean).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true,
+  "origin_error_page_passthru": true
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>
+
+#### Origin Cache Control(Enterprise 전용)
+
+이 옵션이 활성화되면 Cloudflare는 [RFC 7234](https://datatracker.ietf.org/doc/html/rfc7234)를 엄격하게 따르도록 동작합니다. Enterprise 고객은 Cloudflare가 이 동작을 따를지 선택할 수 있습니다. Free, Pro, Business 고객은 이 옵션이 기본 활성화되어 있으며 비활성화할 수 없습니다.
+
+<Details header="API 정보">
+
+API 구성 속성 이름: `"origin_cache_control"` (boolean).
+
+```json title="API 구성 예시"
+"action_parameters": {
+  "cache": true
+  "origin_cache_control": true
+}
+```
+
+[Create a cache rule via API](/cache/how-to/cache-rules/create-api/#example-requests)에서 전체 API 예시를 확인할 수 있습니다.
+
+</Details>

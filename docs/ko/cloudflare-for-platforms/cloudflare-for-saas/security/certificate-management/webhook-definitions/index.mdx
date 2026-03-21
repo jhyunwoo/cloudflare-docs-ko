@@ -1,0 +1,529 @@
+---
+title: Webhook 정의
+pcx_content_type: reference
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/webhook-definitions/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/webhook-definitions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { AvailableNotifications, Render } from "~/components"
+
+당신은[웹훅 알림 생성](/notifications/get-started/configure-webhooks/)제품 정보**SaaS 사용자 정의 호스트 이름에 대한 SSL**, 특정 이벤트에 대한 응답을 자동화 할 수 있습니다 (종료 발행, 유효성 검사 등).
+
+뒤에 오는 단면도 세부사항 자료 Cloudflare는 webhook 목적지에 보냅니다.
+
+## 인증서 검증
+
+인증서 기관이 도메인에 인증서를 발급하기 전에 요청자는 해당 도메인에 대한 제어를 증명해야합니다. 이 프로세스는[도메인 관리 검증 (DCV)](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/).
+
+### 검증 성공
+
+Cloudflare는 인증서가 상태에서 이동할 때이 경고를 보냅니다`pending_validation`으로`pending_issuance`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.validation.succeeded",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_issuance",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 유효성 검사
+
+Cloudflare는 이 경고를 매번 보냅니다 증명서는 안으로 남아 있습니다`pending_validation`기간 중[DCV 화물](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/).
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.validation.failed",
+      "created_at": "2018-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_validation",
+      "cname": "_ca3-64ce913ebfe74edeb2e8813e3928e359.app.example2.com",
+      "cname_target": "dcv.digicert.com",
+      "validation_errors": [
+        {
+          "message": "blog.example.com reported as potential risk: google_safe_browsing"
+        }
+      ],
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+***
+
+## 인증서 발급
+
+유효한 일단, 증명서는 당신의 선택과 함께 Cloudflare에 의해 발행됩니다[인증 기관](/ssl/reference/certificate-authorities/).
+
+### Issuance 성공
+
+Cloudflare는 인증서가 상태에서 이동할 때이 경고를 보냅니다`pending_validation`또는`pending_issuance`으로`pending_deployment`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.issuance.succeeded",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_deployment",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 발급 실패
+
+Cloudflare는 이 경고를 각번 보냅니다 증명서는의 상태에 남아 있습니다`pending_issuance`기간 중[DCV 화물](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/).
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.issuance.failed",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_issuance",
+      "cname": "_ca3-64ce913ebfe74edeb2e8813e3928e359.app.example2.com",
+      "cname_target": "dcv.digicert.com",
+      "validation_errors": [
+        {
+          "message": "caa_error: blog.example.com"
+        }
+      ],
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+***
+
+## 회사연혁
+
+일단 발행되면, 인증서는 Cloudflare의 글로벌 가장자리 네트워크에 배포됩니다.
+
+### 배포 성공
+
+Cloudflare는 인증서가 상태에서 이동할 때 이 경고를 보냅니다`pending_deployment`으로`active`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.deployment.succeeded",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "active",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 배포 실패
+
+Cloudflare는 이 경고를 각번 보냅니다 증명서는의 상태에 남아 있습니다`pending_deployment`기간 중[DCV 화물](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/).
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.deployment.failed",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_deployment",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+***
+
+## 증명서 deletion
+
+### Deletion 성공
+
+Cloudflare는 인증서가 상태에서 이동할 때이 경고를 보냅니다`pending_deletion`으로`deleted`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.deletion.succeeded",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "deleted"
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 삭제 실패
+
+Cloudflare는 이 경고를 각번 보냅니다 증명서는의 상태에 남아 있습니다`pending_deletion`기간 중[DCV 화물](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/).
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.deletion.failed",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_deletion"
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+***
+
+## 인증서 갱신
+
+발행되면, 인증서는 시간에 따라 유효합니다.[인증 기관](/ssl/reference/certificate-validity-periods/).
+
+인증서를 갱신하기 위해 수행해야하는 작업은 당신의 것에 달려 있습니다.[인증 방법](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/renew-certificates/).
+
+### 업데이트
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.renewal.upcoming_certificate_expiration_notification",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "status": "active",
+      "hosts": ["blog.example.com"],
+      "issuer": "DigiCertInc",
+      "serial_number": "1001172778337169491",
+      "signature": "ECDSAWithSHA256",
+      "uploaded_on": "2021-11-17T04:33:54.561747Z",
+      "expires_on": "2022-11-21T12:00:00Z",
+      "custom_csr_id": "7b163417-1d2b-4c84-a38a-2fb7a0cd7752",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 새로운 성공
+
+Cloudflare는 인증서가 상태에서 이동할 때이 경고를 보냅니다`active`으로`pending_deployment`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.renewal.succeeded",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_deployment",
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+### 새로운 실패
+
+Cloudflare는 인증서가 상태에서 이동할 때이 경고를 보냅니다`active`으로`pending_issuance`.
+
+```json
+{
+  "metadata": {
+    "event": {
+      "id": "<<WEBHOOK_ID>",
+      "type": "ssl.custom_hostname_certificate.renewal.failed",
+      "created_at": "2022-02-09T00:03:28.385080Z"
+    },
+    "account": {
+      "id": "<<ACCOUNT_ID>"
+    },
+    "zone": {
+      "id": "<<ZONE_ID>"
+    }
+  },
+  "data": {
+    "id": "<<CUSTOM_HOSTNAME_ID>",
+    "hostname": "blog.com",
+    "ssl": {
+      "id": "<<CERTIFICATE_ID>",
+      "type": "dv",
+      "method": "cname",
+      "status": "pending_issuance",
+      "cname": "_ca3-64ce913ebfe74edeb2e8813e3928e359.app.example2.com",
+      "cname_target": "dcv.digicert.com",
+      "validation_errors": [
+        {
+          "message": "caa_error: blog.example.com"
+        }
+      ],
+      "settings": {
+        "min_tls_version": "1.2",
+        "http2": "on"
+      }
+    },
+    "custom_metadata": {
+      "key1": "value1",
+      "key2": "value2"
+    },
+    "custom_origin_server": "0001.blog.com"
+  }
+}
+```
+
+## 문제 해결
+
+Occasionally, 당신은 대응하지 않는 webhook 알림을 볼 수 있습니다`<<CUSTOM_HOSTNAME_ID>>`·`hostname`가치.
+
+이 행동은 각 사용자 정의 hostname은 하나의 인증서를 첨부 할 수 있기 때문입니다. 이전에 첨부된 인증서는 여전히 웹훅 이벤트를 방출하지만 관련 호스트 이름과 ID 값을 포함하지 않습니다.
+
+## 제품정보
+
+사용자 정의 호스트 이름 인증서의 변경 사항에 대한 알림을받을 수 있습니다.
+
+<AvailableNotifications product="SSL/TLS" notificationFilter="SSL for SaaS Custom Hostnames Alert" />
+
+<Render file="get-started" product="notifications" />

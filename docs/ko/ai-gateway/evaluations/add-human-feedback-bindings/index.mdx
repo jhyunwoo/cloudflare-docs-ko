@@ -1,0 +1,75 @@
+---
+pcx_content_type: how-to
+title: Worker Bindings를 사용하여 인간의 피드백 추가
+sidebar:
+  order: 4
+  hidden: true
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/evaluations/add-human-feedback-bindings/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/evaluations/add-human-feedback-bindings/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 Worker 바인딩을 사용하여 AI Gateway 평가를 제공하는 방법을 설명합니다.
+
+## 1. AI 평가 실행
+
+AI Gateway를 통해 AI 모델로 신속한 전송
+
+```javascript
+const resp = await env.AI.run(
+	"@cf/meta/llama-3.1-8b-instruct",
+	{
+		prompt: "tell me a joke",
+	},
+	{
+		gateway: {
+			id: "my-gateway",
+		},
+	},
+);
+
+const myLogId = env.AI.aiGatewayLogId;
+```
+
+사용자는 AI 응답을 평가하거나 상호 작용합니다. 이 상호 작용은 AI Gateway로 돌아가는 피드백을 알려줍니다.
+
+## 2. 인간적인 의견을 보내십시오
+
+사용 방법[`patchLog()`](/ai-gateway/integrations/worker-binding-methods/#31-patchlog-send-feedback)AI 평가에 대한 피드백을 제공하는 방법.
+
+```javascript
+await env.AI.gateway("my-gateway").patchLog(myLogId, {
+	feedback: 1, //모든 필드는 선택 사항입니다. 사용 케이스에 맞는 값 설정
+	score: 100,
+	metadata: {
+		user: "123", //추가 context를 제공하기 위해 선택된 metadata
+	},
+});
+```
+
+## 피드백 매개 변수 설명
+
+- `feedback`: 중`-1`부정적인 또는`1`긍정적으로,`0`평가되지 않습니다.
+- `score`: 0과 100 사이의 숫자.
+- `metadata`: 추가 컨텍스트 정보가 포함된 객체.
+
+### patchLog: 피드백 보내기
+
+더 보기`patchLog`메소드는 특정 로그 ID에 대한 피드백, 점수 및 메타 데이터를 보낼 수 있습니다. 모든 객체 속성은 선택 사항이므로 매개 변수의 조합을 포함 할 수 있습니다.
+
+```javascript
+gateway.patchLog("my-log-id", {
+	feedback: 1,
+	score: 100,
+	metadata: {
+		user: "123",
+	},
+});
+```
+
+반환:`Promise<void>`(필수)`await`요청.)

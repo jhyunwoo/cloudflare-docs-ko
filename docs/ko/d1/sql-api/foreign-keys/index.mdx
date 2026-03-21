@@ -1,0 +1,119 @@
+---
+title: 외국 키 정의
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/sql-api/foreign-keys/'
+translation_source_md: 'https://developers.cloudflare.com/d1/sql-api/foreign-keys/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+D1는 데이터베이스에 테이블을 가로지르는 외국인 키 제약을 지원합니다.
+
+외국인 키 제약은 테이블 전체에 관계를 시행 할 수 있습니다. 예를 들어, 외국 키를 사용하여 엄격한 바인딩을 만들 수 있습니다.`user_id`로그인`users`테이블과`user_id`한국어`orders`테이블은 존재하지 않는 사용자에 대해 주문할 수 없습니다.
+
+외국 열쇠 constraints는 또한 다른 테이블에 있는 참고 자료 줄이 삭제하는 줄에서 당신을 막을 수 있습니다. 예를 들어, 행을 삭제`users`테이블에서 행 할 때`orders`표 참조.
+
+기본적으로 D1는 외국 키 제약이 모든 쿼리 및 마이그레이션 내에서 유효합니다. 이것은 당신이 설정할 때 관찰 할 행동과 동일합니다`PRAGMA foreign_keys = on`모든 거래에 대한 SQLite.
+
+## Defer 외국 키 제약
+
+실행할 때[이름 \*](/d1/worker-api/), [회사연혁](/d1/reference/migrations/)또는[데이터 가져오기](/d1/best-practices/import-export-data/)D1 데이터베이스에 대해 테이블 생성 또는 스키마에 변경하는 동안 외국 키 검증을 비활성화 할 필요가있는 상황에서 발생할 수 있습니다.
+
+D1의 외국 중요한 실시는 SQLite의와 동등합니다`PRAGMA foreign_keys = on`로그아웃 D1는 임의 거래 내부의 모든 쿼리를 실행하기 때문에 사용자 쿼리 또는 마이그레이션 중에이 변경할 수 없습니다.
+
+대신, D1를 호출 할 수 있습니다`PRAGMA defer_foreign_keys = on`또는`off`, 당신은 일시적으로 외국 키 제약을 위반 할 수 (현재 거래의 끝까지).
+
+전화 번호`PRAGMA defer_foreign_keys = off`현재 거래 밖에서 외국의 주요 집행을 비활성화하지 않습니다. 거래의 끝에서 뛰어난 외국 키 위반을 해결하지 않은 경우, 그것은 실패합니다`FOREIGN KEY constraint failed`오류.
+
+외국 키 집행을 방어하기 위해, set`PRAGMA defer_foreign_keys = on`거래의 시작, 또는 앞서 변화는 제약을 위반 할 것:
+
+```sql
+-- Defer foreign key enforcement in this transaction.
+PRAGMA defer_foreign_keys = on
+
+-- Run your CREATE TABLE or ALTER TABLE / COLUMN statements
+ALTER TABLE users ...
+
+-- This is implicit if not set by the end of the transaction.
+PRAGMA defer_foreign_keys = off
+```
+
+명시적으로 설정할 수 있습니다.`PRAGMA defer_foreign_keys = off`당신이 걸출한 외국 열쇠 constraints를 해결한 후에 즉시. 여전히 뛰어난 외국 키 제약이 있다면, 당신은 받게됩니다`FOREIGN KEY constraint failed`오류 및 위반을 해결해야합니다.
+
+## 외국 키 관계를 정의
+
+외국 핵심 관계는 테이블을 통해 만들 때 정의될 수 있습니다`CREATE TABLE`또는 기존 테이블에 열을 추가 할 때`ALTER TABLE`이름 \*
+
+이 예제를 두 개의 테이블이있는 전자 상거래 웹 사이트를 기반으로 설명합니다.
+
+- ·`users`사용자 계정에 대한 일반적인 속성을 정의하는 표는 고유 한`user_id`식별자.
+- 이름 \*`orders`표 그 지도 순서 뒤로`user_id`사용자 테이블에서.
+
+이 매핑은 정의된다`FOREIGN KEY`그 것을 보장하는:
+
+- 행을 삭제할 수 없습니다.`users`외국 키 제약을 위반 할 테이블. 이것은 당신이 다시지도 할 수있는 유효한 사용자가없는 주문으로 끝날 수 없다는 것을 의미합니다.
+- `orders`항상 유효성을 정의`user_id`, 잘못된 것을 나타내는 주문의 위험을 감수 (또는 비 유창한) 사용자.
+
+```sql
+CREATE TABLE users (
+    user_id INTEGER PRIMARY KEY,
+    email_address TEXT,
+    name TEXT,
+    metadata TEXT
+)
+
+CREATE TABLE orders (
+    order_id INTEGER PRIMARY KEY,
+    status INTEGER,
+    item_desc TEXT,
+    shipped_date INTEGER,
+    user_who_ordered INTEGER,
+    FOREIGN KEY(user_who_ordered) REFERENCES users(user_id)
+)
+```
+
+여러 외국 키 관계를 per-table 정의 할 수 있으며, 외국 키 정의는 전체 데이터베이스 스키마 내에서 참고 자료 여러 테이블을 정의 할 수 있습니다.
+
+## 외국 키 작업
+
+정의 할 수 있습니다.*기타*외국 키 정의의 일부로 제한 또는 propagate는 부모 행으로 변경됩니다 (`REFERENCES table(column)`). 회사연혁*기타*응용 프로그램에 대한 외국 키 제약을 사용하여 쉽게 이유에 대한, 그리고 관련된 데이터를 청소하거나 섬에 데이터를 방지하는 데 도움이.
+
+정의 할 때 설정할 수있는 다섯 가지 작업이 있습니다.`ON UPDATE`및/또는`ON DELETE`외국 키 관계의 일부로 항목. 다른 행동을 정의할 수도 있습니다.`ON UPDATE`·`ON DELETE`당신의 필요조건에 따라서.
+
+- `CASCADE`- 부모 키를 삭제하거나 삭제하는 것은 그것과 관련된 모든 아이 키 (rows)를 삭제합니다.
+- `RESTRICT`- 부모 키가 업데이트되거나 삭제될 수 없습니다.*이름 \**&#xC544;이 열쇠는 그것을 나타납니다. 기본 외국 키 집행과는 달리, 관계`RESTRICT`적용된 반환 오류 즉시, 그리고 거래의 끝에서.
+- `SET DEFAULT`- 외국 키 정의에 의해 언급 된 어린이 열 (s) 설정`DEFAULT`schema에 정의된 값. 없음`DEFAULT`아이 열에 설정, 당신은이 작업을 사용할 수 없습니다.
+- `SET NULL`- SQL에 외국 키 정의에 의해 언급 된 어린이 열 (s) 설정`NULL`.
+- `NO ACTION`- 동작하지 마십시오.
+
+:::caution\[CASCADE 사용]
+
+그러나`CASCADE`일부 경우에 원하는 행동이 될 수 있습니다, 테이블의 아이 행을 삭제할 수 있습니다 undesirable 효과 및/또는 결과에 대한 무인한 부작용을 사용자에게.
+주요 특징
+
+다음 예제에서 사용자를 삭제`users`테이블은 모든 관련 행을 삭제합니다.`scores`정의 된대로 테이블`ON DELETE CASCADE`. 모든 관련 행을 삭제`scores`당신은 당신이 완전히 삭제 된 모든 사용자에 대한 점수를 유지하려는 경우 테이블. 이것은 그 의미*이름 \**&#xC0AC;용자는 더 이상 볼 수 없거나 여전히 유효한 점수를 참조 할 수 있습니다.
+
+```sql
+CREATE TABLE users (
+    user_id INTEGER PRIMARY KEY,
+    email_address TEXT,
+)
+
+CREATE TABLE scores (
+    score_id INTEGER PRIMARY KEY,
+    game TEXT,
+    score INTEGER,
+    player_id INTEGER,
+    FOREIGN KEY(player_id) REFERENCES users(user_id) ON DELETE CASCADE
+)
+```
+
+## 다음 단계
+
+- SQLite 읽기[`FOREIGN KEY`](https://www.sqlite.org/foreignkeys.html)문서.
+- 자주 묻는 질문[D1 Workers를 사용하십시오 바인딩 API](/d1/worker-api/)노동자 안에.
+- 자주 묻는 질문[데이터베이스 마이그레이션 작업](/d1/reference/migrations/)D1로.

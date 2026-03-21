@@ -1,0 +1,124 @@
+---
+pcx_content_type: concept
+title: '모델 번호: 참고 자료'
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/multi-cloud-networking/reference/'
+translation_source_md: 'https://developers.cloudflare.com/multi-cloud-networking/reference/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Orchestrates VPN 연결이 클라우드 네트워크에 대한 자세한 내용은 이 페이지를 참조하십시오.
+
+## 클라우드 On-ramps
+
+### 사이트맵
+
+![Cloudflare가 AWS로 변환하는 방법을 보여주는 다이어그램](~/assets/images/multi-cloud-networking/reference/aws.png)
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+Cloudflare One Multi-Cloud Networking (이전 Magic Cloud Networking) (베타)를 사용하여 AWS 계정에 램핑을 자동으로 생성합니다. Cloudflare는 다음 구성 변경 사항에 주의해야 합니다.
+
+- Cloudflare는 새로운 고객 관리 접두사 명부를 창조할 것입니다**Cloudflare WAN 및 Cloudflare 가장자리**당신의 선택[Cloudflare WAN 주소 공간](/multi-cloud-networking/cloud-on-ramps/#cloudflare-wan-address-space)접두사 및 IPv4 주소는 Cloudflare의 글로벌 네트워크 서버 (후자는 Cloudflare L7 처리 특징을 사용하는 경우에 필요합니다). 네트워크 보안 그룹 (NSGs)의 규칙을 만들려면 Cloudflare WAN (이전 매직 WAN)과 연결해야합니다. (이전 항목 목록은 AWS 계정의 NSGs에 대한 규칙 - 보안 그룹 할당에 대한 각 카운트 약 15 \~ 25 항목이 포함됩니다.)
+- Cloudflare는 가상 프라이빗 게이트웨이를 만들고 가상 프라이빗 클라우드(VPC)에 부착합니다. 기존 Virtual Private Gateway가 이미 VPC에 부착되면, On-ramp 생성이 실패합니다.
+- Cloudflare는 VPC의 모든 경로 테이블에 가상 프라이빗 게이트웨이에서 프로그레이션을 가능하게합니다. 이것은 당신의 각 접두사에 대한 경로에서 발생합니다.[Cloudflare WAN 주소 공간](/multi-cloud-networking/cloud-on-ramps/#cloudflare-wan-address-space)게이트웨이를 대상으로 합니다.
+- Cloudflare는 VPC의 각 IPv4 CIDR(Classless Inter-Domain Routing) 블록에 대해 Cloudflare WAN에 경로를 추가합니다.
+
+### Azure 클라우드
+
+![Cloudflare가 Azure로 변환하는 방법을 보여주는 다이어그램](~/assets/images/multi-cloud-networking/reference/azure.png)
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+Multi-Cloud Networking (beta)를 사용하여 Azure 계정으로 on-ramps를 자동으로 생성합니다. Cloudflare는 다음 구성 변경 사항에 주의해야 합니다.
+
+- Cloudflare는 가상 네트워크 (VNet)에서 가상 네트워크 게이트웨이를 만들 것입니다. Azure의 Virtual Network Gateways는 하위넷을 요구합니다.`GatewaySubnet`. Cloudflare는 만들 것입니다`GatewaySubnet`이미 VNet에 존재하지 않는 경우. VNet에 남아있는 충분한 사용되지 않은 주소 공간이 있다면`/27`서브넷`GatewaySubnet`, 또는 만약`GatewaySubnet`존재하지만 가상 네트워크 게이트웨이를 왼쪽으로 충분한 주소 공간이 없습니다, on-ramp 생성 실패합니다.
+- Cloudflare는 VNet에 있는 모든 노선 테이블에 출입구 노선 전파를 가능하게 할 것입니다. 이것은 당신의 각 접두사에 대한 경로에서 발생합니다.[Cloudflare WAN 주소 공간](/multi-cloud-networking/cloud-on-ramps/#cloudflare-wan-address-space)관문에 지적. VNet이 다른 가상 네트워크 게이트웨이를 가지고 있다면, 그들의 경로는 경로 테이블에 propagate됩니다. On-ramp를 삭제하면, 경로 전파가 비활성화되지 않습니다.
+- 기본적으로, Azure의 네트워크 보안 그룹은 아웃바운드 / 인바운드 트래픽에 대한 규칙을 허용`VirtualNetwork`Virtual Network Gateway 주소 공간이 포함 된 서비스 태그 (그리고 따라서 Cloudflare WAN 주소 공간). VNet의 모든 리소스를 원하는 경우 Cloudflare WAN에서 액세스 할 수 있으며 네트워크 보안 그룹 (NSGs)에 적합한 Deny 규칙을 추가합니다.
+- Cloudflare는 VNet에 있는 각 IPv4 주소 범위를 위한 Cloudflare WAN에 있는 노선을 추가할 것입니다.
+
+### 사이트맵
+
+![어떻게 Cloudflare가 GCP에 on-ramps를 만듭니다](~/assets/images/multi-cloud-networking/reference/gcp.png)
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+Multi-Cloud Networking (beta)를 사용하여 Google Cloud Platform (GCP) 계정으로 on-ramps를 자동으로 생성합니다. 다음 구성 변경 사항에 대한 인식이 있어야 합니다. Cloudflare는 다음과 같습니다.
+
+- Cloudflare는 GCP에서 공중 인터넷 routable IP 주소를 예약할 것입니다.
+- Cloudflare는 지정한 지역에 VPN Gateway와 2개의 VPN Tunnels를 만들 것입니다.
+- Cloudflare는 당신의 각 접두사를 위한 노선을 창조할 것입니다[Cloudflare WAN 주소 공간](/multi-cloud-networking/cloud-on-ramps/#cloudflare-wan-address-space)VPN 터널에 대한 VPC 지적 내.
+- Cloudflare는 VPC의 모든 서브넷 CIDR prefix에 대해 Cloudflare WAN에 경로를 추가합니다. 여기에는 VPC 내의 모든 리전이 포함됩니다. VPN Gateway가 있는 리전이 아닌 다른 리전으로 향하는 트래픽에는 GCP의 [Inter-region 가격](https://cloud.google.com/vpc/network-pricing#inter-region-data-transfer)이 적용됩니다.
+- VPN 터널을 통해 VM 인스턴스에서 전송된 트래픽은 여전히 VPC 방화벽 규칙에 따라 달라질 수 있습니다.[더 많은 구성](https://cloud.google.com/network-connectivity/docs/vpn/how-to/configuring-firewall-rules#firewall_rules).
+
+## 관련 자료
+
+Multi-Cloud Networking (beta)는 클라우드 환경에서 다음과 같은 리소스 유형을 발견합니다. 이 리소스는 클라우드 네트워크 토폴로지 및 연결의 종합적인 전망을 구축하는 데 사용됩니다.
+
+### 사이트맵
+
+- AWS 고객 Gateway
+- AWS EC2 관리 접두사 목록
+- AWS EC2 전환 게이트웨이
+- AWS EC2 Transit Gateway 접두사 목록
+- AWS EC2 전환 게이트웨이 VPC 첨부파일
+- AWS Egress 전용 인터넷 게이트웨이
+- AWS 인터넷 게이트웨이
+- AWS 인스턴스
+- AWS 네트워크 인터페이스
+- AWS 노선표
+- AWS 노선표 협회
+- AWS 보안 그룹
+- AWS 서브넷
+- AWS의 VPC
+- AWS VPC IPv4 CIDR 블록 협회
+- AWS VPC 보안 그룹 Egress 규칙
+- AWS VPC 보안 그룹 진입 규칙
+- AWS VPN 연결
+- AWS VPN 연결 경로
+- AWS VPN 게이트웨이
+
+### Azure 클라우드
+
+- Azure Application 보안 그룹
+- Azure 로드밸런서
+- Azure Load Balancer 백엔드 주소 풀
+- Azure Load Balancer NAT 풀
+- Azure Load Balancer NAT 규칙
+- Azure Load Balancer 규칙
+- Azure 로컬 네트워크 게이트웨이
+- Azure 네트워크 인터페이스
+- Azure Network 인터페이스 애플리케이션 보안 그룹 협회
+- Azure Network 인터페이스 백엔드 주소 풀 협회
+- Azure Network 인터페이스 보안 그룹 협회
+- Azure 네트워크 보안 그룹
+- Azure 공개 IP
+- Azure 루트
+- Azure 노선 테이블
+- Azure 서브넷
+- Azure 서브넷 루트 테이블 협회
+- Azure 가상 머신
+- Azure 가상 머신 게이트웨이 연결
+- Azure 가상 네트워크
+- Azure 가상 네트워크 게이트웨이
+- Azure 가상 네트워크 게이트웨이 연결
+
+### 사이트맵
+
+- Google Compute 주소
+- Google Compute Forwarding 규칙
+- Google Compute 글로벌 주소
+- Google Compute HA VPN 게이트웨이
+- Google Compute 연동 첨부 파일
+- Google Compute 네트워크
+- Google Compute Network 방화벽 정책
+- Google Compute Network 방화벽 정책 규칙
+- Google Compute 루트
+- Google Compute 라우터
+- Google 컴퓨터 Subnetwork
+- Google Compute VPN 게이트웨이
+- Google Compute VPN 터널

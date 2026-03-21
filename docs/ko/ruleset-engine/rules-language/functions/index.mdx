@@ -1,0 +1,802 @@
+---
+title: 제품정보
+pcx_content_type: reference
+sidebar:
+  order: 7
+head:
+  - tag: title
+    content: 기능 참고 자료
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rules-language/functions/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/rules-language/functions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, MetaInfo } from "~/components";
+
+Cloudflare 규칙 언어는 표현의 조작 및 검증 값에 대한 기능을 제공합니다:
+
+- [Transformation 기능](#transformation-functions)HTTP 요청에서 추출된 값을 조작합니다.
+- 더 보기[HMAC 검증 기능](#hmac-validation)HMAC 토큰의 유효성을 테스트합니다. 유효한 HMAC 토큰의 존재에 따라 대상 요청을 작성할 수 있습니다.
+
+## Transformation 기능
+
+규칙 언어는 HTTP 요청에서 추출 된 값을 변환하는 여러 기능을 지원합니다. 변형 기능의 일반적인 사용 사례는 기본으로 인해, 문자열 평가는 case-sensitive입니다.
+
+예를 들어,`lower()`함수는 string에서 Lowercase로 모든 위문자를 변환합니다.
+
+아래 표현에서,`lower()`기능 변형`http.host`값은 대상 값과 일치하므로`"www.cloudflare.com"`:
+
+```sql
+lower(http.host) == "www.cloudflare.com"
+```
+
+인자 타입으로 배열을 하지 않는 변형 함수는`[*]`인덱스 표기 더 알아보기[기타 제품](/ruleset-engine/rules-language/values/#arrays)더 많은 정보.
+
+규칙 언어는 이러한 변환 기능을 지원합니다:
+
+### `any`
+
+{/* prettier-ignore */}
+
+<code>모든(<Type text="Array<Boolean>" />)</code>: <Type text="Boolean" />
+
+기타 제품`true`인수의 비교 연산자가 반환될 때`true`제품 정보*이름 \**&#xC778;수 배열의 값입니다. 기타 제품`false`다른 것.
+
+예:
+
+```txt
+any(url_decode(http.request.body.form.values[*])[*] contains "an xss attack")
+```
+
+### `all`
+
+{/* prettier-ignore */}
+
+<code>모든(<Type text="Array<Boolean>" />)</code>: <Type text="Boolean" />
+
+기타 제품`true`인수의 비교 연산자가 반환될 때`true`제품 정보*모든 것*인수 배열의 값. 기타 제품`false`다른 것.
+
+예:
+
+```
+all(http.request.headers["content-type"][*] == "application/json")
+```
+
+### `encode_base64`
+
+{/* prettier-ignore */}
+
+<code>encode base64(입력)<Type text="String | Bytes" />\[, 플래그<Type text="String" />])</code>: <Type text="String" />
+
+로그인`input`string 또는 Base64 형식으로 바이트 배열.
+
+더 보기`flags`모수는 선택적입니다. 단일 문자열로 하나 이상의 플래그를 제공 할 수 있습니다. 유효한 깃발은 뒤에 있습니다:
+
+- `u`: URL-safe Base64 인코딩 사용 (사용`-`·`_`대신에`+`·`/`).
+- `p`: 패딩 추가 (부스)`=`출력 길이를 일부 시스템에 따라 4의 여러 가지를 만들 수 있습니다.
+
+기본적으로 출력은 패딩 없이 표준 Base64 인코딩을 사용합니다.
+
+예제:
+
+```txt
+encode_base64("hello world")          will return "aGVsbG8gd29ybGQ"
+encode_base64("hello world", "p")     will return "aGVsbG8gd29ybGQ="
+encode_base64("hello world", "u")     will return "aGVsbG8gd29ybGQ"
+encode_base64("hello world", "up")    will return "aGVsbG8gd29ybGQ="
+```
+
+결합 할 수 있습니다.`encode_base64()`서명된 요청 헤더를 만드는 다른 기능으로:
+
+```txt
+encode_base64(sha256(concat(to_string(ip.src), http.host, "my-secret")))
+```
+
+:::참조
+만 사용할 수 있습니다`encode_base64()`기능에[request/response 헤더 변형 규칙](/rules/transform/).
+:::
+
+### `cidr`
+
+{/* prettier-ignore */}
+
+<code>cidr(주소)<Type text="IP address" />, ipv4 network bits의<Type text="Integer" />, ipv6 network bits의<Type text="Integer" />)</code>: <Type text="IP address" />
+
+IP 주소 (IPv4 또는 IPv6)에 해당되는 네트워크 주소를 반환하여 제공된 IPv4 및 IPv6 네트워크 비트 (응용된 netmasks를 결정합니다)를 부여합니다.
+
+더 보기`address`매개 변수는 필드, 즉, 리터 문자열이 될 수 없습니다.
+
+더 보기`ipv4_network_bits`값은 1과 32 사이이며,`ipv6_network_bits`값은 1과 128 사이이어야 합니다.
+
+예제:
+
+- 이름 \*`ip.src`이름 \*`113.10.0.2`, `cidr(ip.src, 24, 24)`공지사항`113.10.0.0`.
+- 이름 \*`ip.src`이름 \*`2001:0000:130F:0000:0000:09C0:876A:130B`, `cidr(ip.src, 24, 24)`공지사항`2001:0000:0000:0000:0000:0000:0000:0000`.
+
+:::참조
+만 사용할 수 있습니다`cidr()`기능에[주문 규칙](/waf/custom-rules/)·[비율 제한 규칙](/waf/rate-limiting-rules/).
+:::
+
+### `cidr6`
+
+{/* prettier-ignore */}
+
+<code>cidr6(주소)<Type text="IP address" />, ipv6 network bits의<Type text="Integer" />)</code>: <Type text="IP address" />
+
+제공된 네트워크 비트를 주어진 IPv6 주소에 해당하는 IPv6 네트워크 주소를 반환합니다 (netmask를 결정하는). 첫 번째 매개 변수에 IPv4 주소를 제공하면 변경되지 않습니다.
+
+더 보기`address`매개 변수는 필드, 즉, 리터 문자열이 될 수 없습니다.
+
+더 보기`ipv6_network_bits`값은 1과 128 사이이어야 합니다.
+
+이 기능은 다음과 같습니다:`cidr(<address>, 32, <ipv6_network_bits>)`.
+
+예제:
+
+- 이름 \*`ip.src`이름 \*`2001:0000:130F:0000:0000:09C0:876A:130B`, `cidr6(ip.src, 24)`공지사항`2001:0000:0000:0000:0000:0000:0000:0000`.
+- 이름 \*`ip.src`이름 \*`113.10.0.2`, `cidr6(ip.src, 24)`공지사항`113.10.0.2`(변경).
+
+:::참조
+만 사용할 수 있습니다`cidr6()`기능에[주문 규칙](/waf/custom-rules/)·[비율 제한 규칙](/waf/rate-limiting-rules/).
+:::
+
+### `concat`
+
+{/* prettier-ignore */}
+
+<code>모델()<Type text="String | Bytes | Array" />)</code>: <Type text="String | Array" />
+
+값의 comma-separated 목록을 가져옵니다. 인수값을 단일 문자열 또는 배열로 구성합니다.
+
+반환 유형은 입력 인자의 유형에 달려 있습니다. 예를 들어, concatenate 배열이 있다면, 함수는 배열을 반환합니다.
+
+예를 들어,`concat("String1", " ", "String", "2")`공지사항`"String1 String2"`.
+
+### `decode_base64`
+
+{/* prettier-ignore */}
+
+<code>decode base64(출처)<Type text="String" />)</code>: <Type text="String" />
+
+Base64 인코딩된 문자열을 디코딩합니다.`source`.
+
+`source`필드가 있어야, 즉, 리터 문자열이 될 수 없습니다.
+
+예를 들어, 다음 HTTP 요청 헤더와 함께:`client_id: MTIzYWJj`, `(any(decode_base64(http.request.headers["client_id"][*])[*] eq "123abc"))`반환하기`true`.
+
+:::참조
+만 사용할 수 있습니다`decode_base64()`기능에[Transform 규칙](/rules/transform/), [주문 규칙](/waf/custom-rules/)·[비율 제한 규칙](/waf/rate-limiting-rules/).
+:::
+
+### `ends_with`
+
+{/* prettier-ignore */}
+
+<code>end with(출처)<Type text="String" />, 하위 문자열<Type text="String" />)</code>: <Type text="Boolean" />
+
+기타 제품`true`소스가 주어진 하위 문자열로 끝납니다. 기타 제품`false`다른 것. 소스는 리터 값이 될 수 없습니다 (like)`"foo"`).
+
+예를 들어,`http.request.uri.path`이름 \*`"/welcome.html"`, 다음`ends_with(http.request.uri.path, ".html")`공지사항`true`.
+
+### `join`
+
+{/* prettier-ignore */}
+
+<code>참여(items)<Type text="Array<String>" />, 분리기<Type text="String" />)</code>: <Type text="String" />
+
+문자열의 concatenation인 문자열을 반환합니다.`items`이름 \*`separator`각 품목 사이.
+
+인수가 nil인 경우, 반환 값은 nil입니다.<br />만약에`items`배열은 비어, 반환 값은 빈 문자열입니다.<br />만약에`items`배열은 단 하나 품목을 포함하고, 그 후에 concatenation 생기지 않으며 (단 하나) 품목은 것과 같이 돌려질 것입니다.
+
+이 기능은 반대의[`split()`](#split)기능.
+
+예:
+
+```txt
+# Joins all HTTP request header names into a single string, with names separated by commas
+join(http.request.headers.names, ",")
+```
+
+:::참조
+더 보기`join()`함수는에서만 유효합니다[Transform 규칙](/rules/transform/), [주문 규칙](/waf/custom-rules/)·[사용자 정의 오류 규칙](/rules/custom-errors/#custom-error-rules).
+:::
+
+### `has_key`
+
+{/* prettier-ignore */}
+
+<code>has key(지도:<Type text="Map<T>" />, 열쇠:<Type text="String" />)</code>: <Type text="Boolean" />
+
+반환 true 경우`key`두 번째 인수로 지정된 리터 또는 동적 문자열이 될 수 있으며, 기존의 키입니다.`map`false를 반환합니다.
+
+값의 데이터 유형`map`(정보)`T`)는 어떤 유형든지 일 수 있습니다.
+
+인수가 nil인 경우, 반환 값은 nil입니다.
+
+예제:
+
+```txt
+# Check if an HTTP request header exists:
+has_key(http.request.headers, "x-my-header")
+
+# Check if a request header exists based on the name of the first query argument:
+has_key(http.request.headers, lower(http.request.uri.args.names[0]))
+```
+
+### `has_value`
+
+{/* prettier-ignore */}
+
+<code>has value(컬렉션:<Type text="Map<T> | Array<T>" />, 가치:<Type text="T" />)</code>: <Type text="Boolean" />
+
+반환 true 경우`value`두 번째 인수로 지정된 리터 또는 동적 값이 될 수 있습니다.`collection`false를 반환합니다.
+
+값의 데이터 유형`collection`(정보)`T`) 제공된 데이터 유형과 일치해야 합니다.`value`. 또한,`T`primitive 데이터 유형이어야한다, 즉, 그것은 하나이어야한다`Boolean`, `Integer`, `String`, `Bytes`, 또는`IP address`.
+
+인수가 nil인 경우, 반환 값은 nil입니다.
+
+예제:
+
+```txt
+# Check if there is an HTTP request header with the exact name 'X-My-Header'
+has_value(http.request.headers.names, "X-My-Header")
+
+# Check if there is a request header with the exact name provided as the first query argument:
+has_value(http.request.headers.names, http.request.uri.args.names[0])
+```
+
+### `len`
+
+{/* prettier-ignore */}
+
+<code>한국어 (ko)<Type text="String | Bytes | Array" />)</code>: <Type text="Integer" />
+
+문자열 또는 바이트 값의 바이트 길이를 반환하거나 배열의 요소 수.
+
+예를 들어, 값의 경우`http.host`이름 \*`"example.com"`, 다음`len(http.host)`공지사항`11`.
+
+### `lookup_json_integer`
+
+{/* prettier-ignore */}
+
+<code>lookup json integer(필드)<Type text="String" />, 열쇠<Type text="String | Integer" />, 열쇠<Type text="String | Integer" /> <MetaInfo text="optional" />, ...)</code>: <Type text="Integer" />
+
+공급된 정수 값 반환`key`내 계정`field`.
+
+더 보기`field`유효한 JSON 문서의 문자열 표현이 있어야 합니다.
+
+더 보기`key`JSON 배열의 0기반 위치 번호, 또는 이 두 가지 옵션의 조합 (추가 함수 매개 변수), JSON 문서의 hierarchy에 따라 특정 정수 값을 얻을 수 있습니다.<br />
+
+참고 : 이 기능은 일반 정수에서만 작동합니다. 예를 들어, 0 소수의 부품과 부동 번호가 작동하지 않습니다.`42.0`.
+
+예제:
+
+- 다음 JSON 객체를 호출합니다.`http.request.body.raw`유형:<br />
+  `{ "record_id": "aed53a", "version": 2 }`<br />다음 것`lookup_json_integer(http.request.body.raw, "version")`공지사항`2`.
+
+- 다음과 같은 배열 객체를 제공합니다:<br />
+  `{ "product": { "id": 356 } }`<br />다음 것`lookup_json_integer(http.request.body.raw, "product", "id")`공지사항`356`.
+
+- 루트 레벨에서 다음 JSON 배열을 제공합니다:<br />
+  `["first_item", -234]`<br />다음 것`lookup_json_integer(http.request.body.raw, 1)`공지사항`-234`.
+
+- JSON 객체 속성에 다음과 같은 배열을 부여:<br />
+  `{ "network_ids": [123, 456] }`<br />다음 것`lookup_json_integer(http.request.body.raw, "network_ids", 0)`공지사항`123`.
+
+- JSON 객체의 다음과 같은 루트 레벨 배열을 제공합니다:<br />
+  `[{ "product_id": 123 }, { "product_id": 456 }]`<br />다음 것`lookup_json_integer(http.request.body.raw, 1, "product_id")`공지사항`456`.
+
+### `lookup_json_string`
+
+{/* prettier-ignore */}
+
+<code>lookup json string(필드)<Type text="String" />, 열쇠<Type text="String | Integer" />, 열쇠<Type text="String | Integer" /> <MetaInfo text="optional" />, ...)</code>: <Type text="String" />
+
+공급된 문자열 값 반환`key`내 계정`field`.
+
+더 보기`field`유효한 JSON 문서의 문자열 표현이 있어야 합니다.
+
+더 보기`key`JSON 배열의 0기반 위치 번호, 또는 이 두 가지 옵션의 조합 (추가 함수 매개 변수), JSON 문서의 hierarchy에 따라 특정 값을 얻을 수 있습니다.
+
+예제:
+
+- 다음 JSON 객체를 호출합니다.`http.request.body.raw`유형:<br />
+  `{ "company": "cloudflare", "product": "rulesets" }`<br />다음 것`lookup_json_string(http.request.body.raw, "company") == "cloudflare"`공지사항`true`.
+
+- 다음과 같은 배열 객체를 제공합니다:<br />
+  `{ "network": { "name": "cloudflare" } }`<br />다음 것`lookup_json_string(http.request.body.raw, "network", "name") == "cloudflare"`공지사항`true`.
+
+- 루트 레벨에서 다음 JSON 배열을 제공합니다:<br />
+  `["other_company", "cloudflare"]`<br />다음 것`lookup_json_string(http.request.body.raw, 1) == "cloudflare"`공지사항`true`.
+
+- JSON 객체 속성에 다음과 같은 배열을 부여:<br />
+  `{ "networks": ["other_company", "cloudflare"] }`<br />다음 것`lookup_json_string(http.request.body.raw, "networks", 1) == "cloudflare"`공지사항`true`.
+
+- JSON 객체의 다음과 같은 루트 레벨 배열을 제공합니다:<br />
+  `[{ "network": "other_company" }, { "network": "cloudflare" }]`<br />다음 것`lookup_json_string(http.request.body.raw, 1, "network") == "cloudflare"`공지사항`true`.
+
+### `lower`
+
+{/* prettier-ignore */}
+
+<code>낮은 (<Type text="String" />)</code>: <Type text="String" />
+
+문자열 필드를 Lowercase로 변환합니다. uppercase ASCII 바이트만 변환됩니다. 다른 모든 바이트는 unaffected.
+
+예를 들어,`http.host`이름 \*`"WWW.cloudflare.com"`, 다음`lower(http.host) == "www.cloudflare.com"`공지사항`true`.
+
+### `regex_replace`
+
+{/* prettier-ignore */}
+
+<code>regex replace(출처)<Type text="String" />, 정규 expression<Type text="String" />, 보충<Type text="String" />)</code>: <Type text="String" />
+
+정규 표현식에 의해 일치 소스 문자열의 일부를 대체, 결과 반환. 교체 문자열은 참고 자료s를 정규식 캡처 그룹에 포함 할 수 있습니다 (예를 들어,`${1}`·`${2}`), 8개까지 보충 참고 자료s.
+
+예제:
+
+- 문학 일치는 대체합니다:<br />
+  `regex_replace("/foo/bar", "/bar$", "/baz") == "/foo/baz"`
+
+- 일치가 없다면 입력 문자열이 변경되지 않습니다.<br />
+  `regex_replace("/x", "^/y$", "/mumble") == "/x"`
+
+- 일치는 기본적으로 case-sensitive:<br />
+  `regex_replace("/foo", "^/FOO$", "/x") == "/foo"`
+
+- 여러 경기가 있을 때, 1개의 교체가 발생합니다.<br />
+  `regex_replace("/a/a", "/a", "/b") == "/b/a"`
+
+- 탈출`$`교체 문자열에서 prefixing 다른`$`:<br />
+  `regex_replace("/b", "^/b$", "/b$$") == "/b$"`
+
+- 캡처 그룹과 교체:<br />
+  `regex_replace("/foo/a/path", "^/foo/([^/]*)/(.*)$", "/bar/${2}/${1}") == "/bar/path/a/"`
+
+괄호에서 정규 표현의 일부를 입력하여 캡처 그룹을 만듭니다. 그런 다음 참고 자료를 사용하여 캡처 그룹`${<NUMBER>}`교체 문자열에서, 어디`<NUMBER>`캡처 그룹의 수입니다.
+
+만 사용할 수 있습니다`regex_replace()`함수는 한 번의 표현으로 배열할 수 없습니다.[`wildcard_replace()`](/ruleset-engine/rules-language/functions/#wildcard_replace)기능.
+
+:::참조
+현재,`regex_replace()`함수는 rewrite expressions에서만 사용할 수 있습니다.[Transform 규칙](/rules/transform/)대상 URL 표현[동적 URL 리디렉션](/rules/url-forwarding/single-redirects/).
+:::
+
+### `remove_bytes`
+
+{/* prettier-ignore */}
+
+<code>remove bytes(파일)<Type text="Bytes" />)</code>: <Type text="Bytes" />
+
+주어진 바이트 제거의 모든 발생과 새로운 바이트 배열을 반환합니다.
+
+예를 들어,`http.host`이름 \*`"www.cloudflare.com"`, 다음`remove_bytes(http.host, "\x2e\x77")`공지사항`"cloudflarecom"`.
+
+### `remove_query_args`
+
+{/* prettier-ignore */}
+
+<code>remove query args(필드)<Type text="String" />, 쿼리 param1<Type text="String" />, 쿼리 param2<Type text="String" />, ...)</code>: <Type text="String" />
+
+URI 쿼리 문자열에서 하나 이상의 쿼리 문자열 매개 변수를 제거합니다. 지정된 매개 변수없이 문자열을 반환합니다.
+
+더 보기`field`다음 중 하나가 있어야 합니다:
+
+- `http.request.uri.query`
+- `raw.http.request.uri.query`
+
+더 보기`field`같은 리터 값이 될 수 없습니다.`"search=foo&order=asc"`.
+
+더 보기`remove_query_args()`함수는 모든 지정된 매개변수를 제거할 것입니다 (as`query_param1`, `query_param2`, etc.), 같은 모수의 반복한 발생을 포함하여.
+
+unaffected 쿼리 매개변수의 순서는 보존될 것입니다.
+
+예제:
+
+```txt
+// If http.request.uri.query is "order=asc&country=GB":
+
+remove_query_args(http.request.uri.query, "country")  will return "order=asc"
+remove_query_args(http.request.uri.query, "order")    will return "country=GB"
+remove_query_args(http.request.uri.query, "search")   will return "order=asc&country=GB" (unchanged)
+
+// If http.request.uri.query is "category=Foo&order=desc&category=Bar":
+
+remove_query_args(http.request.uri.query, "order")    will return "category=Foo&category=Bar"
+remove_query_args(http.request.uri.query, "category") will return "order=desc"
+```
+
+:::참조
+만 사용할 수 있습니다`remove_query_args()`기능에[Transform 규칙의 표현을 재 작성](/rules/transform/).
+:::
+
+### `sha256`
+
+{/* prettier-ignore */}
+
+<code>sha256 (입력<Type text="String | Bytes" />)</code>: <Type text="Bytes" />
+
+SHA-256 암호화 해시를 컴퓨팅`input`문자열 또는 바이트 배열. 32 바이트 해시 값을 반환합니다.
+
+이 함수를 사용하여 서명된 요청 헤더를 생성하고, 요청 무결성을 검증하거나 규칙 표현에서 안전한 토큰을 직접 만들 수 있습니다.
+
+예제:
+
+```txt
+sha256("my-token")
+```
+
+위의 예는 32 바이트 해시를 반환합니다. 원산지는 인증 요청을 유효하게 할 수 있습니다.
+
+결합 할 수 있습니다.`sha256()`이름 \*[`encode_base64()`](#encode_base64)Base64 인코딩된 서명을 만들려면:
+
+```txt
+encode_base64(sha256("my-token"))
+```
+
+요청 속성에서 서명된 헤더 값을 생성하려면:
+
+```txt
+encode_base64(sha256(concat(to_string(ip.src), to_string(http.request.timestamp.sec), "my-secret-key")))
+```
+
+:::주\[주]
+
+더 보기`sha256()`함수는 Enterprise add-on으로 사용할 수 있으며 특정 항목이 필요합니다. 계정을 만들려면 팀에 문의하십시오.
+
+만 사용할 수 있습니다`sha256()`rewrite 표현의 기능[Transform 규칙](/rules/transform/).
+
+:::
+
+### `split`
+
+{/* prettier-ignore */}
+
+<code>분할 (input)<Type text="String" />, 분리기<Type text="String" />, 제한<Type text="Integer" />)</code>: <Type text="Array<String>" />
+
+분할`input`문자열의 배열에 의해 문자열의 초기 문자열을 끊기 각 발생의`separator`문자열. 반환된 배열은 대부분에 포함될 것입니다`limit`요소 수.
+
+당신이 제공하는 경우`limit`분할 문자열에서 하위 문자열의 실제 숫자보다 낮은 값, 반환된 배열의 마지막 요소는 문자열의 나머지 부분을 포함.
+
+더 보기`separator`비empty 리터럴 문자열이어야 합니다.
+
+더 보기`limit`필수이며 1과 128 사이 리터 정수이어야합니다.
+
+이름 \*`input`nil, 반환 값은 nil입니다.
+
+이 기능은 반대의[`join()`](#join)기능.
+
+예제:
+
+```txt
+# Split a comma-separated list of categories obtained from an HTTP request header.
+
+# A) Consider the following HTTP request header:
+x-categories: groceries,electronics,diy,auto
+
+split(http.request.headers["x-categories"][0], ",", 64)  will return ["groceries", "electronics", "diy", "auto"]
+split(http.request.headers["x-categories"][0], ",", 3)   will return ["groceries", "electronics", "diy,auto"]
+
+# B) Consider the following HTTP request header:
+x-categories: groceries,,electronics
+
+split(http.request.headers["x-categories"][0], ",", 64)  will return ["groceries", "", "electronics"]
+```
+
+:::참조
+더 보기`split()`함수는에서만 유효합니다[응답 헤더 변형 규칙](/rules/transform/response-header-modification/)·[사용자 정의 오류 규칙](/rules/custom-errors/#custom-error-rules).
+:::
+
+### `starts_with`
+
+{/* prettier-ignore */}
+
+<code>start with(출처)<Type text="String" />, 하위 문자열<Type text="String" />)</code>: <Type text="Boolean" />
+
+기타 제품`true`소스가 주어진 하위 문자열로 시작합니다. 기타 제품`false`다른 것. 소스는 리터 값이 될 수 없습니다 (like)`"foo"`).
+
+예를 들어,`http.request.uri.path`이름 \*`"/blog/first-post"`, 다음`starts_with(http.request.uri.path, "/blog")`공지사항`true`.
+
+### `substring`
+
+{/* prettier-ignore */}
+
+<code>substring(필드)<Type text="String | Bytes" />, 시작<Type text="Integer" />, 끝<Type text="Integer" /> <MetaInfo text="optional" />)</code>: <Type text="String" />
+
+반환 부분의`field`값 (문자 또는 바이트의 값)[제품정보](/ruleset-engine/rules-language/fields/reference/)) 에서`start`(하지만 제외) 바이트 인덱스`end`byte 인덱스. 첫번째 바이트에서`field`관련 상품`0`. 당신은 선택을 제공하지 않는 경우에`end`index, 함수는 문자열의 일부를 반환`start`문자열의 끝에 색인.
+
+더 보기`start`·`end`indexes는 시작 대신 문자열의 끝에 문자를 액세스 할 수있는 부정적인 정수 값이 될 수 있습니다.
+
+예제:
+
+```txt
+// If http.request.body.raw is "asdfghjk":
+
+substring(http.request.body.raw, 2, 5)   will return "dfg"
+substring(http.request.body.raw, 2)      will return "dfghjk"
+substring(http.request.body.raw, -2)     will return "jk"
+substring(http.request.body.raw, 0, -2)  will return "asdfgh"
+```
+
+### `to_string`
+
+{/* prettier-ignore */}
+
+<code>파일 형식<Type text="Integer | Boolean | IP address" />)</code>: <Type text="String" />
+
+Integer, Boolean, 또는 IP 주소 값의 문자열 표현을 반환합니다.
+
+예제:
+
+```txt
+// If cf.bot_management.score is 5:
+to_string(cf.bot_management.score)   will return "5"
+
+// If ssl is true:
+to_string(ssl)                       will return "true"
+```
+
+:::참조
+만 사용할 수 있습니다`to_string()`rewrite 표현의 기능[Transform 규칙](/rules/transform/)대상 URL 표현[동적 URL 리디렉션](/rules/url-forwarding/single-redirects/).
+:::
+
+### `upper`
+
+{/* prettier-ignore */}
+
+<code>상단(<Type text="String" />)</code>: <Type text="String" />
+
+문자열 필드를 uppercase로 변환합니다. Lowcase ASCII 바이트만 변환됩니다. 다른 모든 바이트는 unaffected.
+
+예를 들어,`http.host`이름 \*`"www.cloudflare.com"`, 다음`upper(http.host)`공지사항`"WWW.CLOUDFLARE.COM"`.
+
+### `url_decode`
+
+{/* prettier-ignore */}
+
+<code>url decode(출처)<Type text="String" />, 옵션<Type text="String" /> <MetaInfo text="optional" />)</code>: <Type text="String" />
+
+정의된 URL 형식 문자열을 디코딩합니다.`source`, 다음과 같이:
+
+- `%20`·`+`공간 문자에 디코딩 (decode)` `).
+
+- `%E4%BD`디딜로`ä½`.
+
+더 보기`source`필드가 있어야, 즉, 리터 문자열이 될 수 없습니다.
+
+더 보기`options`모수는 선택적입니다. 견적에 감싸인 단일 문자열로 어떤 옵션을 제공해야 합니다.`"r"`또는`"ur"`. 유효한 선택권은 뒤에 있습니다:
+
+- `r`: Applies 반복 디코딩. 예를 들어,`%2520`공간 문자에 두 번 (recursively)을 디코딩합니다 (` `).
+- `u`: 유니코드 % 디코딩 활성화 결과는 UTF-8에서 인코딩됩니다. 예를 들어,`"%u2601"`클라우드 이모티콘 (Cloud emoji)에 디코딩됩니다.`☁️`) UTF-8에서 인코딩 (`"\xe2\x98\x81"`, 3 바이트의 크기로).
+
+예제:
+
+```txt
+url_decode("John%20Doe")   will return "John Doe"
+url_decode("John+Doe")     will return "John Doe"
+url_decode("%2520")        will return "%20"
+url_decode("%2520", "r")   will return " "
+
+// Using url_decode() with the any() function:
+any(url_decode(http.request.body.form.values[*])[*] contains "an xss attack")
+
+// Using the u option to match a specific alphabet
+url_decode(http.request.uri.path) matches "(?u)\p{Hangul}+"
+```
+
+### `uuidv4`
+
+{/* prettier-ignore */}
+
+<code>uuidv4 (출처)<Type text="Bytes" />)</code>: <Type text="String" />
+
+랜덤 UUIDv4 (Universally Unique Identifier, version 4) 를 생성하여 주어진 인수를 기반으로 합니다. 임의 바이트의 배열을 얻기 위해, 사용[`cf.random_seed`](/ruleset-engine/rules-language/fields/reference/cf.random_seed/)이름 \*
+
+예를 들어,`uuidv4(cf.random_seed)`UUIDv4와 유사한 반환`49887398-6bcf-485f-8899-f15dbef4d1d5`.
+
+:::참조
+만 사용할 수 있습니다`uuidv4()`기능에[Transform 규칙의 표현을 재 작성](/rules/transform/).
+:::
+
+### `wildcard_replace`
+
+{/* prettier-ignore */}
+
+<code>wildcard replace(출처)<Type text="Bytes" />, 와일드카드 패턴<Type text="Bytes" />, 보충<Type text="Bytes" />, 깃발<Type text="Bytes" /> <MetaInfo text="optional" />)</code>: <Type text="String" />
+
+대체하기`source`문자열, 0 이상의 리터럴에 의해 일치`*`wildcard metacharacters, 교체 문자열, 결과 반환. 교체 문자열은 참고 자료s를 와일드 카드 캡처 그룹에 포함 할 수 있습니다 (예를 들어,`${1}`·`${2}`), 8개까지 보충 참고 자료s.
+
+아무 경기도 없는 경우에, 기능은 돌려보낼 것입니다`source`견적 요청
+
+더 보기`source`매개 변수는 필드이어야한다 (리터 문자열이 될 수 없습니다). 또한, 전체`source`값은 일치해야 합니다.`wildcard_pattern`매개 변수 (그것은 필드 값의 일부만 일치 할 수 없습니다).
+
+리터럴을 입력하려면`*`문자에서`wildcard_pattern`매개 변수, 당신은 그것을 사용하여 탈출해야합니다`\*`. 또한, 당신은 또한 탈출해야합니다`\`이름 \*`\\`. 두 개의 unescaped`*`행의 문자 (`**`) 이 매개 변수는 잘못된 것으로 간주되며 사용할 수 없습니다. 문자를 escaping 수행해야하는 경우, 당신이 사용하는 것이 좋습니다[원시 문자열 구문](/ruleset-engine/rules-language/values/#raw-string-syntax)제품정보`wildcard_pattern`모수.
+
+리터럴을 입력하려면`$`문자에서`replacement`매개 변수, 당신은 그것을 사용하여 탈출해야합니다`$$`.
+
+case-sensitive wildcard matching을 수행하려면, 설정`flags`매개 변수`"s"`.
+
+이 함수는 게으른 일치를 사용, 즉, 그것은 각각 일치하는 것을 삼습니다`*`가장 짧은 가능한 문자열을 가진 metacharacter.
+
+만 사용할 수 있습니다`wildcard_replace()`함수는 한 번의 표현으로 배열할 수 없습니다.[`regex_replace()`](/ruleset-engine/rules-language/functions/#regex_replace)기능.
+
+예제:
+
+- 전체 URI가 있다면`https://apps.example.com/calendar/admin?expand=true`,<br />
+  `wildcard_replace(http.request.full_uri, "https://*.example.com/*/*", "https://example.com/${1}/${2}/${3}")`공지사항`https://example.com/apps/calendar/admin?expand=true`
+
+- 전체 URI가 있다면`https://example.com/applications/app1`,<br />
+  `wildcard_replace(http.request.full_uri, "/applications/*", "/apps/${1}")`공지사항`https://example.com/applications/app1`(변경되지 않은 값, 전체 URI 값에 대한 일치가 없기 때문에; 당신은 사용해야합니다`http.request.uri.path`URI 경로 일치하는 필드).
+
+- URI 경로가 있다면`/calendar`,<br />
+  `wildcard_replace(http.request.uri.path, "/*", "/apps/${1}")`공지사항`/apps/calendar`.
+
+- URI 경로가 있다면`/Apps/calendar`,<br />
+  `wildcard_replace(http.request.uri.path, "/apps/*", "/${1}")`공지사항`/calendar`(기본값으로 구분된 일치).
+
+- URI 경로가 있다면`/Apps/calendar`,<br />
+  `wildcard_replace(http.request.uri.path, "/apps/*", "/${1}", "s")`공지사항`/Apps/calendar`(unchanged value)는 케이스 과민한 일치가 없기 때문에.
+
+- URI 경로가 있다면`/apps/calendar/login`,<br />
+  `wildcard_replace(http.request.uri.path, "/apps/*/login", "/${1}/login")`공지사항`/calendar/login`.
+
+와일드 카드 매칭의 더 많은 예제를 위해, 참조[Wildcard 일치](/ruleset-engine/rules-language/operators/#wildcard-matching).
+
+:::참조
+현재, 당신은 단지 사용할 수 있습니다`wildcard_replace()`rewrite 표현의 기능[URL 재 작성](/rules/transform/url-rewrite/)대상 URL 표현[동적 URL 리디렉션](/rules/url-forwarding/single-redirects/).
+:::
+
+## Cloudflare 네트워크 방화벽 기능
+
+### `bit_slice`
+
+{/* prettier-ignore */}
+
+<code>bit slice(프로토콜)<Type text="String" />, 오프셋 start<Type text="Number" />, 오프셋 end<Type text="Number" />)</code>: <Type text="Number" />
+
+이 기능은 비트의 주어진 조각에 일치를 찾습니다.
+
+오프셋은 주어진 프로토콜 헤더에 시작합니다. 예를 들어, UDP 패킷의 페이로드의 첫 번째 비트에 일치하려면 설정해야합니다.`offset_start`으로`64`.
+
+이것은 주로 사용을 위해 예정됩니다`ip`, `udp`·`tcp`.
+
+조각 (`offset_end` – `offset_start`) 더 이상 32 비트가 될 수 없습니다, 하지만 다중 통화는 논리 표현을 사용하여 함께 결합 될 수 있습니다.
+
+더 보기`bit_slice`오프셋은 2,040 비트를 초과 할 수 없습니다.
+
+## HMAC 검증
+
+:::참조
+HMAC 검증 기능에 대한 액세스는 Cloudflare Pro, Business 또는 Enterprise 플랜이 필요합니다.
+주요 특징
+
+### 제품정보
+
+해시 기반 메시지 인증 코드 (HMAC) 토큰을 사용하여 규칙 표현을 검증 할 수 있습니다.`is_timed_hmac_valid_v0()`이 서명이 있는 기능:
+
+```java
+is_timed_hmac_valid_v0(
+  <String literal as Key>,
+  <String field as MessageMAC>,
+  <Integer literal as ttl>,
+  <Integer as currentTimeStamp>,
+  <Optional Integer literal as lengthOfSeparator, default: 0>,
+  <Optional String literal as flags>
+) -> <Bool as result>
+```
+
+더 보기`is_timed_hmac_valid_v0()`기능에는 이 모수 정의가 있습니다:
+
+- `Key` <Type text="String literal" />
+  - HMAC를 검증하는 비밀 암호화 키를 지정합니다.
+
+- `MessageMAC` <Type text="String" />
+  - 이 HMAC 요소의 concatenation을 포함합니다:`message`, `separator`, `timestamp`, `mac`. 정의 및 예를 들어, 참조[메시지MAC](#messagemac).
+
+- `ttl` <Type text="Integer literal" />
+  - HMAC 토큰에 대한 시간에 대한 실시간 모니터링, 초에서 표현. 토큰이 유효하다는 것을 결정합니다.
+
+- `currentTimeStamp` <Type text="Integer" />
+  - CloudflareXQ가 요청을 받았을 때 UNIX 타임스탬프를 나타냅니다. 패스워드`http.request.timestamp.sec`이 인수에 대한 대략적인 가치로 필드.
+
+- `lengthOfSeparator` <Type text="Integer literal" /> <MetaInfo text="optional" />
+  - 길이 지정`separator`사이에`timestamp`그리고`message`내 계정`MessageMAC`. 바이트에서 표현, 기본 값의`0`.
+
+- `flags` <Type text="String literal" /> <MetaInfo text="optional" />
+  - 이 옵션 인수를 설정하면`'s'`, 기능은 Base64 인코딩의 값을 기대합니다`mac`내 계정`MessageMAC`URL-safe 문자 집합을 사용하지 않는 인수.
+
+  - 당신이 할 때**아니다.**&#xAC12; 설정`flags`으로`'s'`, 당신은 URL이 Base64 값을 인코딩해야`mac`내 계정`MessageMAC`인수.
+
+### 제품 정보
+
+더 보기`is_timed_hmac_valid_v0()`기능 사용*이름 \**&#xBA54;시지 인증 코드 (MAC) 생성`message`그리고`timestamp`MessageMAC의 지역. 생성 된 MAC이 일치 할 때`mac`MessageMAC 및 토큰의 지역은 만료되지 않았습니다. HMAC는 유효하며 함수는 반환합니다.`true`.
+
+예를 들어, 다음과 같은 표현 일치 요청`downloads.example.com`유효한 HMAC 토큰을 포함하지 않는:
+
+```java
+http.host == "downloads.example.com"
+and not is_timed_hmac_valid_v0("mysecretkey", http.request.uri, 100000, http.request.timestamp.sec, 8)
+```
+
+HMAC 검증을 사용하는 규칙의 예를 들어, 참조[토큰 인증 구성](/waf/custom-rules/use-cases/configure-token-authentication/)WAF 문서에서.
+
+### 메시지MAC
+
+유효한 MessageMAC는 다음과 같은 정규 표현식을 만족시킵니다:
+
+```txt
+(.+)(.*)(\d{10})-(.{43,})
+```
+
+그리고 이러한 모체-delimited 표현으로 구성됩니다:
+
+| 패스워드       | 이름 \*                                                                                                                                                                                      | 이름 \*                                              |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------- |
+| `(.+)`     | 더 보기`message`유효성 검사                                                                                                                                                                        | `/download/cat.jpg`                                |
+| `(.*)`     | 더 보기`separator`메시지와 timestamp 사이, 일반적으로 매개 변수 이름.                                                                                                                                          | `&verify=`                                         |
+| `(\d{10})` | 10자리 UNIX`timestamp`MAC이 발행되었을 때, 초로 표현.                                                                                                                                                   | `1484063137`                                       |
+| `(.{43,})` | Base64 인코딩된 버전`mac`. 값을 설정하지 않을 때`urlSafe`HMAC 검증 함수의 인수`'s'`, 당신은 URL 인코딩해야 Base64 값에 대한`mac`. Base64 MAC 인코딩이 URL-safe인 경우`mac`값은 43 바이트를 포함합니다. 그렇지 않으면 값은 URL 인코딩 때문에 44 바이트 이상이어야합니다. | `IaLGSmELTvlhfd0ItdN6PhhHTFhzx73EX8uy%2FcSDiIU%3D` |
+
+MessageMAC 생성에 대한 자세한 내용은, 참조[HMAC 토큰 생성](/waf/custom-rules/use-cases/configure-token-authentication/#hmac-token-generation).
+
+## HMAC 검증 예제
+
+:::참조
+
+선택할 때`flags`관련 기사`is_timed_hmac_valid_v0()`, 당신은 URL 인코딩해야 Base64 값에 대한`mac`내 계정`MessageMAC`인수.
+
+더 많은 정보를 원하시면, 참조[HMAC 검증: 개요](#overview).
+
+:::
+
+### 한 분야의 MessageMAC
+
+MessageMAC가 단일 필드 내에서 완전히 포함되는 경우, 이 예 URI 경로:
+
+```txt
+/download/cat.jpg?verify=1484063787-IaLGSmELTvlhfd0ItdN6PhhHTFhzx73EX8uy%2FcSDiIU%3D
+```
+
+MessageMAC의 요소에 URI지도를 주의하십시오:
+
+| 제품정보        | 제품정보                                               |
+| ----------- | -------------------------------------------------- |
+| `message`   | `/download/cat.jpg`                                |
+| `separator` | `?verify=`(길이에)`8`)                                |
+| `timestamp` | `1484063787`                                       |
+| `mac`       | `IaLGSmELTvlhfd0ItdN6PhhHTFhzx73EX8uy%2FcSDiIU%3D` |
+
+MessageMAC가 단일 필드 안에 완전히 포함될 때`http.request.uri`, 필드 이름을 전달`MessageMAC`HMAC 검증 함수의 인수:
+
+```java
+is_timed_hmac_valid_v0(
+  "mysecretkey",
+  http.request.uri,
+  100000,
+  http.request.timestamp.sec,
+  8
+)
+```
+
+### Concatenated MessageMAC 인수
+
+MessageMAC를 1개 이상의 필드로 구성하려면[`concat()`](#concat)기능.
+
+이 예제는 값의 구성`MessageMAC`URI와 두 헤더 필드를 concatenating로 인수:
+
+```java
+is_timed_hmac_valid_v0(
+  "mysecretkey",
+  concat(
+    http.request.uri,
+    http.request.headers["timestamp"][0],
+    "-",
+    http.request.headers["mac"][0]),
+  100000,
+  http.request.timestamp.sec,
+  0
+)
+```

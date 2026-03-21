@@ -1,0 +1,479 @@
+---
+title: 연산자 및 그룹 기호
+description: 'Cloudflare의 규칙 언어의 비교, 논리 연산자 및 그룹 기호에 대해 알아보기. 우선순위와 구조 표현 방법.'
+pcx_content_type: reference
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 규칙 연산자 및 그룹 기호
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rules-language/operators/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/rules-language/operators/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components";
+
+Cloudflare 규칙 언어는 비교와 논리 연산자를 지원합니다:
+
+- [비교 연산자](#comparison-operators)표현식에서 정의된 값은 실제 HTTP 요청값을 반환해야 합니다.`true`.
+- [Logical 연산자](#logical-operators)합성 표현식을 형성하고 표현하는 방법을 결정하기 위해 선행의 순서를 사용합니다.
+
+[그룹 기호](#grouping-symbols)표현을 구성할 수 있도록, 우선순위, 둥지 표현을 실시합니다.
+
+## 비교 연산자
+
+비교 연산자 반환`true`HTTP 요청의 값이 표현에 정의된 값과 일치할 때.
+
+이것은 비교 연산자를 사용하는 일반적인 패턴입니다:
+
+```txt
+<field> <comparison_operator> <value>
+```
+
+규칙 언어는 이러한 비교 연산자를 지원합니다:
+
+{/* prettier-ignore */}
+
+<div style="width: 100%; overflow-x: auto;">
+  <table style="width:100%">
+    <thead>
+      <tr>
+        <th>이름 \*</th>
+        <th colSpan="2" style={{ textAlign: 'center' }}>운영자 표기</th>
+        <th colSpan="3" style={{ textAlign: 'center' }}>지원된 자료 유형</th>
+
+        <th />
+      </tr>
+
+      <tr>
+        <td />
+
+        <th>한국어</th>
+        <th>사이트맵</th>
+        <th>스트레이트<sup>1</sup></th>
+        <th>IP 정보</th>
+        <th>이름 \*</th>
+        <th>예 (대담에서 운영)</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr>
+        <td>본부</td>
+        <td><code>사이트맵</code></td>
+        <td><code>==</code></td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+
+        <td>
+          <code>웹 사이트<strong>사이트맵</strong>"/articles/2008/"</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>이름 \*</td>
+        <td><code>이름 \*</code></td>
+        <td><code>!=</code></td>
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+
+        <td>
+          <code>사이트맵<strong>이름 \*</strong> 203.0.113.0</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>더 적은 보다는</td>
+        <td><code>사이트맵</code></td>
+        <td><code>\<</code></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+
+        <td>
+          <code>카테고리<strong>사이트맵</strong> 10</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>더 적은 보다는<br />또는 동등</td>
+        <td><code>뚱 베어</code></td>
+        <td><code>\<=</code></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+
+        <td>
+          <code>카테고리<strong>뚱 베어</strong> 20</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>더 큰</td>
+        <td><code>사이트맵</code></td>
+        <td><code>></code></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+
+        <td>
+          <code>카테고리<strong>사이트맵</strong> 25</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>더 큰<br />또는 동등</td>
+        <td><code>뚱 베어</code></td>
+        <td><code>>=</code></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>✅</td>
+
+        <td>
+          <code>카테고리<strong>뚱 베어</strong> 60</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>제품정보</td>
+        <td><code>지원하다</code></td>
+
+        <td />
+
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+
+        <td>
+          <code>웹 사이트<strong>지원하다</strong>"/입술/"</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td><a href="#wildcard-matching">와일드카드</a><br />(케이스 민감성)</td>
+        <td><code>와일드카드</code></td>
+
+        <td />
+
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+
+        <td>
+          <code>웹 사이트<strong>와일드카드</strong>"/입술/\*"</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td><a href="#wildcard-matching">Strict 와일드 카드</a><br />(케이스 감지)</td>
+        <td><code>엄격한 wildcard</code></td>
+
+        <td />
+
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+
+        <td>
+          <code>웹 사이트<strong>엄격한 wildcard</strong>"/AdminTeam/\*"</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td><a href="#regular-expression-matching">이름 \*<br />구독하기</a><sup>2</sup></td>
+        <td><code>이름 \*</code></td>
+        <td><code>\~</code></td>
+        <td>✅</td>
+        <td>❌</td>
+        <td>❌</td>
+
+        <td>
+          <code>웹 사이트<strong>이름 \*</strong>"^/articles/200\[7-8]/$"</code>
+        </td>
+      </tr>
+
+      <tr>
+        <td>값 설정 / 목록<sup>3</sup></td>
+        <td><code>내 계정</code></td>
+
+        <td />
+
+        <td>✅</td>
+        <td>✅</td>
+        <td>✅</td>
+
+        <td>
+          <code>사이트맵<strong>내 계정</strong> {"{ 203.0.113.0 203.0.113.1 }"}</code><br />
+          <code>사이트맵<strong>내 계정</strong>$\<지역></code>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+{/* prettier-ignore */}
+
+<sup>1</sup>모든 문자열 연산자는 if-insensitive와 같은 case-insensitive을 명시하지 않는 한 case-sensitive입니다.`wildcard`회사 소개<br />
+<sup>2</sup>오시는 길`matches`운영자는 Cloudflare 사업 또는 기업 계획을 요구합니다.<br />
+<sup>3</sup>현재 모든 Cloudflare 제품 지원 목록이 없습니다. 더 많은 정보를 원하시면, 참조[Inline 목록](/ruleset-engine/rules-language/values/#inline-lists)·[이름 \*](/waf/tools/lists/).
+
+:::카트로션
+영어 표기를 이용한 비교 연산자(예:`eq`, `lt`·`gt`)는 Lowercase에서 쓰여야 합니다.
+주요 특징
+
+### Cloudflare 대시보드의 추가 연산자
+
+Cloudflare 대시보드는 정확한 분야 및 규칙의 유형에 따라서 뒤에 오는 추가 통신수를 보여줄지도 모릅니다:
+
+- *시작하기*(응답)[`starts_with()`](/ruleset-engine/rules-language/functions/#starts_with)기능): 반환`true`문자열이 주어진 하위 문자열로 시작합니다.`false`다른 것.
+
+- *끝으로*(응답)[`ends_with()`](/ruleset-engine/rules-language/functions/#ends_with)기능): 반환`true`문자열이 주어진 하위 문자열로 종료되면,`false`다른 것.
+
+- *이름 \**(응답하기`<FIELD> in $<LIST_NAME>`): 반환`true`필드 값이 지정된 경우[이름 \*](/waf/tools/lists/)·`false`다른 것. 더 많은 정보를 원하시면, 참조[표현의 목록 사용](/waf/tools/lists/use-in-expressions/).
+
+- *목록은 없습니다.*(응답하기`not <FIELD> in $<LIST_NAME>`): 반환`true`필드 값이 지정되지 않은 경우[이름 \*](/waf/tools/lists/)·`false`다른 것. 더 많은 정보를 원하시면, 참조[표현의 목록 사용](/waf/tools/lists/use-in-expressions/).
+
+:::참조
+
+자신의 사용자 정의 표현을 쓸 때, 당신은 사용해야합니다`starts_with()`·`ends_with()`함수 호출, 연산자가 아닌. 예를 들면:
+
+```txt
+# Valid function call
+ends_with(http.request.uri.path, ".html")
+
+# Invalid use of ends_with function
+http.request.uri.path ends_with ".html"
+```
+
+:::
+
+### 문자열 값 비교
+
+규칙 표현의 문자열 비교는 case-sensitive입니다. 표정에 있는 문자열 수도화의 변화에 대해, 당신은 사용할 수 있습니다[`lower()`](/ruleset-engine/rules-language/functions/#lower)함수는 아래와 같이 lowcased 문자열로 결과를 비교합니다.
+
+```txt
+lower(http.request.uri.path) contains "/wp-login.php"
+```
+
+[Wildcard 일치](#wildcard-matching)고객지원`wildcard`·`strict wildcard`연산자 및[정규 표현식 일치](#regular-expression-matching)고객지원`matches`회사 소개
+
+### Wildcard 일치
+
+더 보기`wildcard`연산자는 필드 값과 0 이상의 리터 문자열을 포함하는 케이스에 민감한 일치를 수행합니다.`*`metacharacters. 각 각`*`metacharacter는 0개 이상 문자를 나타냅니다. 더 보기`strict wildcard`연산자는 비슷한 경기를 수행하지만, case-sensitive입니다.
+
+사용시`wildcard`/`strict wildcard`연산자, 전체 필드 값은 와일드 카드와 리터 문자열을 일치해야합니다 ( 연산자 후 리터럴).
+
+```txt title="Example A"
+# The following expression:
+http.request.full_uri wildcard "http*://example.com/a/*"
+
+# Would match the following URIs:
+# - https://example.com/a/           (the '*' matches zero characters)
+# - http://example.com/a/
+# - https://example.com/a/page.html
+# - https://example.com/a/sub/folder/?name=value
+
+# Would NOT match the following URIs:
+# - https://example.com/ab/
+# - https://example.com/b/page.html
+# - https://sub.example.com/a/
+```
+
+<Details header="예제 B">
+  ```txt
+  # The following expression:
+  http.request.full_uri wildcard "*.example.com/*/page.html"
+
+  # Would match the following URIs:
+  # - http://sub.example.com/folder/page.html
+  # - https://admin.example.com/team/page.html
+  # - https://admin.example.com/team/subteam/page.html
+
+  # Would NOT match the following URIs:
+  # - https://example.com/ab/page.html                   ('*.example.com' matches only subdomains)
+  # - https://sub.example.com/folder2/page.html?s=value  (http.request.full_uri includes the query string and its full value does not match)
+  # - https://sub.example.com/a/                         ('page.html' is missing)
+  ```
+
+  스릴 (Slashes)`/`) Wildcard 경기에서 특별한 의미가 없습니다. 이 예에서 두 번째`*`표현의 metacharacter`http.request.full_uri wildcard "*.example.com/*/page.html"`이름 \*`folder`, `team`·`team/subteam`.
+</Details>
+
+<Details header="예제 C">
+  ```txt
+  # The following expression:
+  http.request.full_uri wildcard "*.example.com/*" or http.request.full_uri wildcard "http*://example.com/*"
+
+  # Would match the following URIs:
+  # - https://example.com/folder/list.htm
+  # - https://admin.example.com/folder/team/app1/
+  # - https://admin.example.com/folder/team/app1/?s=foobar
+  ```
+</Details>
+
+관련 알고리즘`wildcard`연산자는 case-insensitive입니다. case-sensitive wildcard matching을 수행하려면, 사용`strict wildcard`회사 소개
+
+리터럴을 입력하려면`*`wildcards와 리터 문자열의 문자를 사용하여 탈출해야합니다`\*`. 또한, 당신은 또한 탈출해야합니다`\`이름 \*`\\`. 두 개의 unescaped`*`행의 문자 (`**`) 와일드 카드 리터럴 문자열에서 유효하지 않고 사용할 수 없습니다. 문자를 escaping 수행해야하는 경우, 당신이 사용하는 것이 좋습니다[원시 문자열 구문](/ruleset-engine/rules-language/values/#raw-string-syntax)wildcards로 리터 문자열을 지정합니다.
+
+:::노트\[Wildcard 일치하는 versus regex 일치]
+더 보기`wildcard`/`strict wildcard`연산자는 항상 전체 필드 값 (왼쪽 오페라)를 고려할 때 일치가 있는지 결정합니다. 더 보기`matches`연산자는 부분값과 일치할 수 있습니다.
+주요 특징
+
+### 정규 표현식 일치
+
+Business and Enterprise 플랜의 고객에 대한 액세스`matches`회사 소개 Rust 정규 표현식 엔진을 사용하여 정규 표현식 일치가 수행됩니다.
+
+정규 표현식을 사용하는 경우 같은 도구를 사용하여 테스트 할 수 있습니다.[정규 표현 101](https://regex101.com/?flavor=rust\&regex=)또는[모델 번호: Rustexp](https://rustexp.lpil.uk/).
+
+일반 표현에 대한 자세한 내용은 참조[문자열 값과 일반 표현](/ruleset-engine/rules-language/values/#string-values-and-regular-expressions).
+
+## Logical 연산자
+
+논리 연산자는 두 개 이상의 표현을 단일 화합물 표현으로 결합합니다. 화합물 표현은이 일반적인 구문을 가지고 있습니다 :
+
+```txt
+<expression> <logical_operator> <expression>
+```
+
+### 지원 논리 연산자
+
+각 논리 연산자는[우선순위](#order-of-precedence). 선행의 순서 (포함[그룹 기호](#grouping-symbols))는 Cloudflare가 표현식에서 논리 연산자를 평가하는 명령을 결정합니다. 더 보기`not`연산자는 우선순위에서 순위.
+
+{/* prettier-ignore */}
+
+<div style={{ width: "100%" }}>
+  <table style={{ width: "100%" }}>
+    <thead>
+      <tr>
+        <th>이름 \*</th>
+        <th>한국어<br />이름 \*</th>
+        <th>사이트맵<br />이름 \*</th>
+        <th>이름 \*</th>
+        <th>우선순위</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      <tr>
+        <td>비밀번호</td>
+        <td><code>아니다.</code></td>
+        <td><code>!</code></td>
+
+        <td>
+          <code><strong>아니다.</strong>( http.host eq "www)<span>​</span>.cloudflare는<span>​</span>.com 및 ip.src에{"{203.0.113.0/24}"} )</code>
+        </td>
+
+        <td>1</td>
+      </tr>
+
+      <tr>
+        <td>로그인 및</td>
+        <td><code>·</code></td>
+        <td><code>&&</code></td>
+
+        <td>
+          <code>http.host eq "www.<span>​</span>.cloudflare는<span>​</span>사이트 맵<strong>·</strong>ip.src에{"{203.0.113.0/24}"}</code>
+        </td>
+
+        <td>2</td>
+      </tr>
+
+      <tr>
+        <td>논리 XOR<br />(외선)</td>
+        <td><code>사이트맵</code></td>
+        <td><code>^^</code></td>
+
+        <td>
+          <code>http.host eq "www.<span>​</span>.cloudflare는<span>​</span>사이트 맵<strong>사이트맵</strong>ip.src에{"{203.0.113.0/24}"}</code>
+        </td>
+
+        <td>3</td>
+      </tr>
+
+      <tr>
+        <td>로그인 또는</td>
+        <td><code>또는</code></td>
+        <td><code>||</code></td>
+
+        <td>
+          <code>http.host eq "www.<span>​</span>.cloudflare는<span>​</span>사이트 맵<strong>또는</strong>203.0.113.0/24에 있는 ip.src</code>
+        </td>
+
+        <td>4</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+:::카트로션
+영어 표기법(예: 영어 표기법)`not`, `and`·`or`)는 Lowercase에서 쓰여야 합니다.
+주요 특징
+
+### 우선순위
+
+화합물 표현을 작성할 때 논리 연산자의 선구자로 인식하는 것이 중요합니다.
+
+예를 들어, 다음과 같은 일반적인 표현을 고려합니다.`and`·`or`통신수:
+
+```java
+Expression1 and Expression2 or Expression3
+```
+
+이 연산자가 선행의 순서가 없었다면 두 해석이 정확하지 않을 것입니다 :
+
+1. Expression 1 및 Expression 2가 모두 true일 때 일치합니다.**또는**Expression 3이 true일 때.
+2. Expression 1이 true일 때 일&#xCE58;**·**&#x45;xpression 2 또는 Expression 3은 사실입니다.
+
+논리 이후`and`연산자는 논리에 대한 precedence`or`·`and`연산자는 먼저 평가해야합니다. 해석 1은 정확합니다.
+
+논리 연산자와 함께 작동 할 때 주위를 피하기 위해 그룹 기호를 사용하여 평가의 순서가 명시되어 있습니다.
+
+## 그룹 기호
+
+규칙 언어는 보호자를 지원합니다 (`(`,`)`) 그룹 기호로. 그룹 기호는 표현을 구성 할 수 있습니다, 우선순위, 둥지 표현.
+
+한국어[Expression 편집기](/ruleset-engine/rules-language/expressions/edit-expressions/#expression-editor)그리고[모델 번호: Cloudflare](/api/)그룹 기호 지원. 더 보기[Expression 빌더](/ruleset-engine/rules-language/expressions/edit-expressions/#expression-builder)아니다.
+
+### 그룹 표현
+
+함께 평가해야 할 명시적 그룹 표현을 사용. 이 예제에서, 모체는 표현의 평가를 변경하지 않습니다, 그러나 그들은 논리 연산자를 먼저 평가하기 위해 자주 호출.
+
+```java
+(Expression1 and Expression2) or Expression3
+```
+
+그룹 기호는 이렇게 명시되어 있기 때문에 화합물 표현을 쓸 때 오류를 만들 가능성이 적습니다.
+
+### 힘 전진
+
+그룹 기호는 화합물 표현의 그룹화 된 요소에 대한 선행을 시행하는 강력한 도구입니다. 이 예에서 모체는 논리를 강제합니다.`or`논리 전에 평가되는 연산자`and`:
+
+```java
+Expression1 and (Expression2 or Expression3)
+```
+
+보호자 없이, 논리`and`연산자는 precedence를 취할 것입니다.
+
+### 둥지 표현
+
+도메인에 대한 액세스를 차단하도록 설계된 규칙에 대한이 예와 같은 매우 정확하고 정교한 표현을 만들기 위해 다른 그룹 내에서 모체로 그룹화 할 수 있습니다 :
+
+```sql
+(
+ (http.host eq "api.example.com" and http.request.uri.path eq "/api/v2/auth") or
+ (http.host matches "^(www|store|blog)\.example\.com" and http.request.uri.path contains "wp-login.php") or
+ ip.src.country in {"CN" "TH" "US" "ID" "KR" "MY" "IT" "SG" "GB"} or ip.src.asnum in {12345 54321 11111}
+) and not ip.src in {11.22.33.0/24}
+```
+
+논리 연산자의 precedence를 평가 할 때, 인용문에 의해 delimited 문자열 내부의 괄호는 다음과 같은 정규 표현식과 같은 무시됩니다, 위의 예에서 그려:
+
+```sql
+"^(www|store|blog)\.example\.com"
+```

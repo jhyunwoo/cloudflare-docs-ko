@@ -1,0 +1,260 @@
+---
+pcx_content_type: how-to
+title: 안전 및 사용자 정의 항목 감지
+tags:
+  - AI
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/unsafe-topics/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/unsafe-topics/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Tabs,
+	TabItem,
+	Details,
+	Steps,
+	DashButton,
+	GlossaryTooltip,
+} from "~/components";
+
+AI Security for Apps (이전 Firewall for AI)는 안전한 또는 원치 않는 주제에 LLM 프롬프트 터치를 감지 할 수 있습니다. 주제 탐지의 2개의 층이 있습니다:
+
+- [기본 unsafe 주제](#default-unsafe-topics)- 폭력 범죄와 같은 유해한 콘텐츠를 감지하는 안전 범주의 내장 세트 및 성적 내용.
+- [사용자 정의](#custom-topics)- "competitors"또는 "financial Advisor"와 같은 조직의 특정 정책과 일치하도록 정의 된 주제.
+
+## 기본 unsafe 주제
+
+AI Security for Apps가 활성화되면 기본적으로 안전하지 않은 항목 범주를 설정하고 두 필드를 포괄합니다.
+
+- **사이트맵 Unsafe 항목 감지** ([`cf.llm.prompt.unsafe_topic_detected`][1]) — `true`안전한 항목이 발견되면.
+- **사이트맵 Unsafe 항목 범주** ([`cf.llm.prompt.unsafe_topic_categories`][2]) — 특정 범주의 배열을 감지.
+
+[1]: /ruleset-engine/rules-language/fields/reference/cf.llm.prompt.unsafe_topic_detected/
+
+[2]: /ruleset-engine/rules-language/fields/reference/cf.llm.prompt.unsafe_topic_categories/
+
+<Details header="기본 unsafe 항목 범주">
+  | (주)   | 이름 \*         |
+  | ----- | ------------- |
+  | `S1`  | 폭력 범죄         |
+  | `S2`  | 비폭력 범죄        |
+  | `S3`  | 성별 관련 범죄      |
+  | `S4`  | 아동 성 악용       |
+  | `S5`  | 관련 기사         |
+  | `S6`  | 특화된 조언        |
+  | `S7`  | 제품 정보         |
+  | `S8`  | 지적 재산         |
+  | `S9`  | 무기            |
+  | `S10` | 이름 \*         |
+  | `S11` | 살충제 및 자체 harm |
+  | `S12` | Sexual 내용     |
+  | `S13` | 관련 기사         |
+  | `S14` | 비밀번호          |
+</Details>
+
+### 예제 규칙 — default unsafe 화제
+
+#### 안전한 콘텐츠로 바로 가기
+
+- **수신 요청 일치**:
+
+  | 제품정보              | 회사연혁  | 제품정보 |
+  | ----------------- | ----- | ---- |
+  | 사이트맵 Unsafe 항목 감지 | 이름 \* | 한국어  |
+
+  편집자를 사용할 때 표현:<br />
+  `(cf.llm.prompt.unsafe_topic_detected)`
+
+- **- 연혁**: *제품정보*
+
+#### 블록 만 특정 안전 범주
+
+- **수신 요청 일치**:
+
+  | 제품정보              | 회사연혁 | 제품정보                             |
+  | ----------------- | ---- | -------------------------------- |
+  | 사이트맵 Unsafe 항목 범주 | 로그인  | `S1: Violent Crimes` `S10: Hate` |
+
+  편집자를 사용할 때 표현:<br />
+  `(any(cf.llm.prompt.unsafe_topic_categories[*] in {"S1" "S10"}))`
+
+- **- 연혁**: *제품정보*
+
+***
+
+## 사용자 정의
+
+사용자 정의 항목 감지는 자신의 주제와 AI 보안을 정의 할 수 있습니다 에 대한 애플 리케이션은 그들에 대해 각 프롬프트를 점수합니다. 다음 점수를 사용할 수 있습니다.[주문 규칙](/waf/custom-rules/)또는[비율 제한 규칙](/waf/rate-limiting-rules/)블록, 도전, 또는 로그 매칭 요청.
+
+이 기능은<GlossaryTooltip term="zero-shot classification model">Zero-shot 분류 모델</GlossaryTooltip>runtime에서 신속한 평가. 모델 교육이 필요하지 않습니다.
+
+### 사용자 정의 주제 작업
+
+1. 대시보드 또는 API를 통해 최대 20개의 맞춤형 주제 목록을 정의합니다. 각 주제는 다음과 같습니다.
+   - 레이블 - 규칙 표현 및 분석에서 사용
+   - 주제 문자열 — descriptive text the model use to classify 프롬프트
+2. 요청이 도착하면`cf-llm`labeled endpoint, 모델은 모든 정의된 항목 문자열에 대한 신속한 평가를 평가하고 각에 대한 relevance 점수를 반환합니다.
+3. 점수가 작성되었습니다.[`cf.llm.prompt.custom_topic_categories`](/waf/detections/ai-security-for-apps/fields/)지도 분야, 상표에 의해 열쇠가 되는. 레이블을 사용 - 항목 문자열이 아닙니다 - 규칙 표현 및 분석.
+
+점수는 앱 점수에 대한 다른 AI 보안과 동일한 협약을 따르고, 낮은 값은 더 높은 relevance를 나타냅니다 (`1`= 매우 관련,`99`= 관련 없음).
+
+### 사용자 정의 주제 정의
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. 이름 \***AI 보안 앱**, 찾기**회사 소개**섹션 및 선택**자주 묻는 질문**.
+
+      3. 제공하는 주제를 추가:
+         - **이름 \***: 규칙 표현에 사용되는 짧은 식별자 (예를 들어,`competitors`).
+         - **이름 \***: descriptive 영어 텍스트 문자열 분류에 대한 모델 사용 (예를 들어,`asking about Acme Corp products and pricing`).
+
+      4. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    사용자 정의 주제 목록을 업데이트`PUT`요구 사항:
+
+    ```bash
+    curl "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/firewall-for-ai/custom_topics" \
+    --request PUT \
+    --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+    --json '{
+      "topics": [
+        { "label": "competitors", "topic": "competitor products and services" },
+        { "label": "finance", "topic": "financial advice and investment recommendations" },
+        { "label": "hr-internal", "topic": "internal HR policies and employee matters" }
+      ]
+    }'
+    ```
+
+    :::카트로션
+    이 요청은 전체 주제 목록을 대체합니다. — 유지하려는 모든 주제를 포함, 그냥 새로운 주제.
+    주요 특징
+
+    현재 주제를 검색하려면`GET`요구 사항:
+
+    ```bash
+    curl "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/firewall-for-ai/custom_topics" \
+    --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+    ```
+  </TabItem>
+</Tabs>
+
+### 옵션 정보
+
+| 제품 설명      | 지원하다                            |
+| ---------- | ------------------------------- |
+| 최대 주제 수    | 20                              |
+| Topic 끈 길이 | 2-50 인쇄 가능한 ASCII 문자            |
+| 상표 길이      | 2\~20자                          |
+| 상표 체재      | Lowercase 편지, 번호, 및 하이픈 (`-`) 만 |
+
+### 예제 규칙 - 사용자 정의 주제
+
+#### Block은 경쟁사와 매우 관련이 있습니다.
+
+- **수신 요청 일치**:
+
+  편집기의 다음 표현을 입력하십시오:<br />
+  `(cf.llm.prompt.custom_topic_categories["competitors"] lt 30)`
+
+- **- 연혁**: *제품정보*
+
+#### 금융 조언과 관련된 로그 프롬프트
+
+- **수신 요청 일치**:
+
+  편집기의 다음 표현을 입력하십시오:<br />
+  `(cf.llm.prompt.custom_topic_categories["finance"] lt 40)`
+
+- **- 연혁**: *로그인*
+
+#### 다른 검출과 사용자 정의 주제를 결합
+
+예제 표현:<br />
+`(cf.llm.prompt.custom_topic_categories["competitors"] lt 30 or cf.llm.prompt.pii_detected)`
+
+:::카트로션
+참고 자료가 정의되지 않은 라벨을 참고 자료한다면, 맵 조회가 반환됩니다.`nil`. 비교`nil`거의 항상`false`— 예를 들어,`cf.llm.prompt.custom_topic_categories["missing"] >= 0`견적 요청`false`. 당신의 규칙 표정에 있는 상표가 정확하게 당신의 주문 화제 명부에서 정의한 상표를 일치하십시오.
+주요 특징
+
+***
+
+## 사용자 정의 주제 정의를 정의하기위한 모범 사례
+
+사용자 정의 항목 감지의 품질은 주제 문자열을 작성하는 방법에 따라 달라집니다. underlying 모형은 입니다<GlossaryTooltip term="zero-shot classification model">0 샷 클래스터</GlossaryTooltip>— 그것은 당신의 화제 문자열에 대한 신속한의 semantic 의미를 비교합니다.
+
+### 특정하고 vague 주제를 피하십시오
+
+너무 많은 프롬프트 (high false positives)와 거의 넓은 주제 일치. Overly 좁은 주제는 관련된 신속한 (high false 부정적인)를 놓습니다.
+
+| 품질 관리  | 상단 문자열                                              | 이름 \*                                          |
+| ------ | --------------------------------------------------- | ---------------------------------------------- |
+| 이름 \*  | `Acme Corp products and pricing`                    | 특정 경쟁 업체 이름 - 회사의 제안을 논의하는 프롬프트를 잡습니다.         |
+| 이름 \*  | `securities trading and investment recommendations` | 두 개념의 잘 정의된 교차로를 대상으로 합니다.                     |
+| 카테고리   | `Acme Corp pricing page URL`                        | 그래서 특정한 그 만 가까이에 언급은 높게 점수를 것이다.               |
+| Too 넓은 | `technology`                                        | 거의 모든 기술적인 신속한 일치할 것입니다.                       |
+| Too 넓은 | `bad things`                                        | Semantically vague - 모델은 당신이 나쁜 것을 고려할 수 없습니다. |
+
+### 단일 키워드 대신 descriptive 구문 사용
+
+관련 항목`finance`보다 적게 효과적인`securities trading and investment recommendations`. 더 descriptive 구문은 모형 더 나은 신호를 주고 거짓 긍정적인 것을 막습니다.
+
+### semantically overlapping 주제를 피하십시오
+
+거의 같은 것을 의미하는 주제를 정의하는 경우 — 예를 들어,`financial advice`·`investment guidance`— 둘 다 동일한 프롬프트에 유사하게 점수를, 검출 가치를 추가하지 않고 당신의 20-topic 예산의 2개를 소모합니다. 단일 주제로 overlapping 개념을 통합합니다.
+
+### intent에 대해 생각하고 그냥 키워드가 아닙니다.
+
+모델은 semantic 분류, 키워드 일치하지 않습니다. 주제 문자열`Acme Corp products and pricing`경쟁사의 제안을 언급하지 않는 경우도 논의하는 요청을 감지합니다.*"당신의 가격은 주요 대안과 비교합니까?"*&#xC544;직도 점수를 높게 할 수 있습니다.
+
+이것은 또한 사용자가 무엇을하고있는지 캡처하는 행동 중심의 동서 구문으로 주제를 구문해야한다는 것을 의미합니다. intent를 붙잡는 묘사는 두드러지게 더 신중하 — 특히 국경 또는 주변 텍스트에.
+
+예를 들어, 두 개의 매우 다른 프롬프트에 대한 이러한 두 개의 주제 문자열을 비교:
+
+| 상단 문자열                        | "나는 세금 공제에 대한 기사를 읽는다"    | "10 년 동안 은퇴 할 수있는 주식은 무엇입니까?" |
+| ----------------------------- | ------------------------- | ----------------------------- |
+| `financial advice`            | 중간 relevance (false 긍정적인) | 높은 relevance                  |
+| `asking for financial advice` | relevance 없음 (정확한)        | 높은 relevance                  |
+
+noun-phrase 버전`financial advice`)는 즉시 주제를 언급하기 때문에 수동 텍스트에 false 긍정적을 반환합니다. 동사-phrase 버전 (`asking for financial advice`) 제대로 수동 언급을 무시하고 사용자가 적극적으로 조언을 추구 할 때만 일치합니다.
+
+**추천된 phrasing 작풍:**
+
+| (주)          | 이름 \*                               |
+| ------------ | ----------------------------------- |
+| Noun 구문      | `investment advice`                 |
+| Verb 구문 (추천) | `asking for investment advice`      |
+| 자주 묻는 질문     | `a user seeking financial guidance` |
+
+대부분의 사용 사례의 경우, 3-6 단어 동사 구문은 정밀도와 범위 사이의 최고의 거래 오프입니다.
+
+### 시험과 iterate
+
+주제 정의 후, 테스트 프롬프트를 보내고 점수를 검토하십시오.[보안 Analytics](/waf/analytics/security-analytics/). 탐지 행동을 조정하는 2가지 방법이 있습니다:
+
+- **주제 문자열을 조정합니다.**&#xC8FC;제가 너무 넓게 일치하면 주제 문자열을 더 구체화합니다. 당신이 잡을 것으로 예상되는 요청이 아닌 경우, broaden or rephrase the topic string.
+- **규칙의 점수 임계 값을 조정합니다.**&#xB354; 낮은 임계값 (예를 들면,`lt 20`)는 엄격 하 고 단지 높은 관련 요구에 일치. 더 높은 임계값 (예를 들면,`lt 50`)는 더 허용하고 관련 요구에 더 넓은 범위를 붙잡습니다. 자주 묻는 질문(FAQ)
+
+### 사용자 정의
+
+| 이름 \*           | 상단 문자열                                                            | 사용 사례                           |
+| --------------- | ----------------------------------------------------------------- | ------------------------------- |
+| `competitors`   | `asking about Acme Corp products and pricing`                     | 특정 라이벌의 제안에 대해 Chatbot을 방지하십시오. |
+| `legal-advice`  | `asking for legal counsel or regulatory compliance guidance`      | 블록은 당신의 AI에서 법적 조언을 solicit     |
+| `student-data`  | `requesting student personal information or academic records`     | EdTech — 개별 학생 데이터의 토론 방지       |
+| `exec-internal` | `discussing internal executive decisions or leadership changes`   | 민감한 내부 문제의 논의                   |
+| `crypto-advice` | `asking for cryptocurrency trading or investment recommendations` | FinTech — 암호화 투자 팁을 찾는 블록 프롬프트  |

@@ -1,0 +1,120 @@
+---
+pcx_content_type: get-started
+title: 사용자 측 인증서
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, APIRequest } from "~/components";
+
+고급 보안 기능[HTTPS 교통 검사](/cloudflare-one/traffic-policies/http-policies/tls-decryption/), [데이터 손실 방지](/cloudflare-one/data-loss-prevention/), [안티 바이러스 스캐닝](/cloudflare-one/traffic-policies/http-policies/antivirus-scanning/), [접근성 준수](/cloudflare-one/access-controls/applications/non-http/infrastructure-apps/)·[브라우저 고립](/cloudflare-one/remote-browser-isolation/)사용자가 설치하고 자신의 장치에 루트 인증서를 신뢰해야합니다. Cloudflare (기본 옵션)에 의해 제공된 인증서를 설치할 수 있거나 자체 사용자 정의 인증서를 생성하고 Cloudflare에 업로드 할 수 있습니다.
+
+사이트맵[독특한 루트 CA 생성](#generate-a-cloudflare-root-certificate)각 계정의 경우 Cloudflare 글로벌 네트워크를 통해 배포합니다. Alternatively, Enterprise 사용자는 업로드 및 배포할 수 있습니다.[주문 증명서](/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/).
+
+:::caution\[기본 인증서는 2025-02-02]에 만료됨
+기본 Cloudflare 인증서는 16:05 UTC에서 2025-02-02-02에 만료됩니다.
+
+이 변경 사항이 최종 사용자 장치에 미치는 영향을 검토하고 브라우저 문제를 해결하는 방법[문제 해결](/cloudflare-one/faq/troubleshooting/#as-of-february-2-2025-my-end-user-devices-browser-is-returning-a-your-connection-is-not-private-warning).
+:::
+
+## 인증서 상태
+
+Zero Trust는 인증서가 배포 상태에 따라 검사에서 사용할 준비가되어 있는지 나타냅니다.
+
+| 배포 상태   | 이름 \*                                                                       |
+| ------- | --------------------------------------------------------------------------- |
+| 관련 기사   | 인증서는 Cloudflare에 의해 생성되었지만 글로벌 네트워크를 통해 배포되지 않습니다.                          |
+| 관련 기사   | 인증서는 활성화되거나 비활성화됩니다.                                                        |
+| 이용안내    | 인증서는 Cloudflare 글로벌 네트워크를 통해 배포되며 켜져야 합니다. WARP 클라이언트는 사용자의 장치에 인증서를 설치합니다. |
+| 사용 및 사용 | 인증서가 켜집니다. Gateway는 검사 인증서를 사용합니다.                                          |
+
+## Cloudflare 루트 인증서 생성
+
+Zero Trust 조직의 새로운 Cloudflare 루트 인증서를 생성하려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정**.
+    2. 제품정보**인증서**.
+    3. 제품정보**인증현황**.
+    4. 인증서가 만료되기 전에 시간의 기간을 선택하십시오. Cloudflare는 5 년 후에 만료를 추천합니다. 대안으로, 선택*제품 정보*그리고 일에 있는 주문 총계를 입력하십시오.
+    5. 제품정보**인증현황**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    이름 \*`POST`요청하기[Zero Trust 인증서 생성](/api/resources/zero_trust/subresources/gateway/subresources/certificates/methods/create/)끝점.
+
+    <APIRequest path="/accounts/{account_id}/gateway/certificates" method="POST" />
+
+    API는 새 인증서의 ID 및 내용에 응답합니다.
+  </TabItem>
+</Tabs>
+
+인증서는 인증서 목록에서 나타납니다.**관련 기사**. 생성 된 인증서를 다운로드하려면 다음을 선택하십시오.**다운로드 .pem**및/또는**다운로드 .crt**. 당신의 증명서를 배치하고 검사를 위해 그것을 켜기 위하여, 당신은 필요로 합니다[인증서 활성화](#activate-a-root-certificate).
+
+각 Zero Trust 계정은 하루에 세 번의 새로운 루트 인증서를 생성 할 수 있습니다.
+
+## 루트 인증서 활성화
+
+:::참조
+2024-10-17 이전에 기본 Cloudflare 인증서를 사용하여 Zero Trust 계정은 redeploy에 필요하며 새로 생성 된 인증서를 활성화해야합니다. Zero Trust 계정 또는 2024-10-17 이후 생성 된 기본 인증서를 사용할 수 있습니다.
+주요 특징
+
+인증서가 생성되거나 Zero Trust에 업로드되면 활성화해야합니다. Cloudflare 네트워크를 통해 인증서를 배포하고 상태를 설정**이용안내**. 당신은 한 번에 유효한 10까지 증명서가 있을 수 있습니다.
+
+루트 인증서를 활성화하려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정**.
+    2. 제품정보**인증서**.
+    3. 활성화하려는 인증서를 선택하십시오.
+    4. 제품정보**이름 \***.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    이름 \*`POST`요청하기[Zero Trust 인증서 활성화](/api/resources/zero_trust/subresources/gateway/subresources/certificates/methods/activate/)끝점.
+
+    <APIRequest path="/accounts/{account_id}/gateway/certificates/{certificate_id}/activate" method="POST" />
+  </TabItem>
+</Tabs>
+
+인증서의 상태는 변경됩니다.**관련 기사**배포 중. 인증서의 상태가되면**이용안내**, 당신은 당신의 사용자의 장치에 그것을 설치할 수 있습니다[WARP로](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/)또는[수동으로](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/).
+
+인증서를 배포하고 설치하면 검사에서 사용할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정**.
+    2. 제품정보**인증서**.
+    3. 당신이 켜고 싶은 인증서를 선택하십시오.
+    4. 내 계정**기본 정보**, 선택**인증 및 인증**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    이름 \*`PUT`요청하기[Zero Trust 계정 구성 업데이트](/api/resources/zero_trust/subresources/gateway/subresources/configurations/methods/update/)끝점. 예를 들면:
+
+    <APIRequest
+      path="/accounts/{account_id}/gateway/configuration"
+      method="PUT"
+      json={{
+  	settings: {
+  		certificate: {
+  			id: "{certificate_id}",
+  			in_use: true,
+  		},
+  	},
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+여러 인증서를 설정할 수 있습니다.**이용안내**, 그러나 당신은 한 번에 검사에 있는 사용을 위한 증명서만 돌 수 있습니다. 인증서 설정**제품정보**다른 사용 인증서를 설정할 수 있습니다.**이용안내**단지 검사를 위해 사용되기 위하여 그(것)들을 다시 켜기까지 방지하십시오.

@@ -1,0 +1,71 @@
+---
+pcx_content_type: how-to
+title: SCIM 프로비저닝
+
+---
+
+Cloudflare는 System for Cross-domain Identity Management (SCIM) 프로토콜을 사용하여 사용자를 Cloudflare dashboard에 대량 프로비저닝할 수 있도록 지원합니다. 이를 통해 외부 identity provider (IdP)를 Cloudflare에 연결하여 사용자 권한을 빠르게 온보딩하고 관리할 수 있습니다. 현재 SCIM 프로비저닝은 Okta와 Microsoft Entra에 통합되어 있습니다.
+
+:::note
+이 섹션은 Cloudflare dashboard용 SCIM 프로비저닝을 다룹니다. Cloudflare Zero Trust용 SCIM을 프로비저닝해야 한다면 [Zero Trust SCIM provisioning](/cloudflare-one/team-and-resources/users/scim/)을 참고하세요.
+:::
+
+## 목표
+
+SCIM 프로비저닝이 활성화되면 다음이 가능합니다.
+
+- Cloudflare 계정은 identity provider로부터 사용자 그룹 프로비저닝을 받을 수 있습니다.
+- 각 사용자 그룹의 멤버에는 하나 이상의 [policies](/fundamentals/manage-members/policies/)를 할당할 수 있습니다. 각 policy는 해당 그룹의 모든 멤버에 적용되는 하나 이상의 [roles](https://developers.cloudflare.com/fundamentals/manage-members/roles/)를 정의합니다.
+- 멤버는 여러 사용자 그룹에 속할 수 있으며, 각 그룹에는 서로 다른 policies를 구성할 수도 있습니다.
+- SCIM을 통해 프로비저닝된 policies는 [traditional setup](/fundamentals/manage-members/manage/#edit-member-permissions)을 통해 구성된 policies와 함께 공존할 수 있습니다.
+
+## 예상 동작
+
+SCIM을 사용하는 사용자 수명 주기 관리에 대한 예상 동작은 다음과 같습니다.
+
+| Expected Cloudflare dash behavior | Identity provider action  |
+| --------------------------------- | ------------------------- |
+| 사용자가 계정 멤버로 추가됨 | 사용자를 SCIM 애플리케이션에 할당합니다. 대시보드 사용 경험이 깨지지 않도록 `Minimal Account Access` 역할이 할당됩니다. |
+| 사용자가 계정 멤버에서 제거됨 | 사용자를 SCIM 애플리케이션에서 할당 해제합니다. |
+| 사용자에게 역할 추가 | IdP에서 사용자를 SCIM을 통해 푸시되는 그룹에 추가합니다. 이 사용자는 SCIM 애플리케이션에도 할당되어 있어야 하며 계정 멤버로 존재해야 합니다. |
+| 사용자에게서 역할 제거 | IdP에서 사용자를 해당 그룹에서 제거합니다. |
+| 사용자를 계정에는 유지하되 권한은 없음 | 사용자를 모든 역할 그룹에서 제거하되 SCIM 애플리케이션에는 계속 할당된 상태로 둡니다. 이 사용자는 `Minimal Account Access` 역할만 가진 계정 멤버로 남습니다. |
+
+## 제한 사항
+
+- 사용자가 Enterprise 계정의 유일한 Super Administrator인 경우 해당 사용자는 디프로비저닝되지 않습니다.
+- SCIM 그룹을 잘못 구성하면 모든 계정 Super Administrator를 의도치 않게 제거할 수 있습니다. 자세한 내용은 [SCIM troubleshooting](/fundamentals/account/account-security/scim-setup/troubleshooting/)을 참고하세요.
+- SCIM 그룹 이름은 예약된 접두사 `CF`로 시작할 수 없습니다.
+
+## 사전 요구 사항
+
+- Cloudflare dashboard SCIM 프로비저닝은 Okta 또는 Microsoft Entra를 사용하는 Enterprise 고객만 사용할 수 있습니다.
+- 초기 설정을 위해서는 Super Administrator여야 합니다.
+- identity provider에서 애플리케이션과 그룹을 생성할 수 있어야 합니다.
+
+---
+## 필요한 데이터 수집
+
+시작하려면 Cloudflare에서 몇 가지 데이터를 수집해 두고, 이후 단계에서 사용할 수 있도록 따로 보관해야 합니다.
+
+### Account ID 가져오기
+
+Account ID는 dashboard 또는 API를 통해 확인할 수 있습니다. 자세한 내용은 [Find account and zone IDs](/fundamentals/account/find-account-and-zone-ids/)를 참고하세요.
+
+### API 토큰 생성
+
+1. 다음 권한으로 [Create an API token](/fundamentals/api/get-started/create-token/)을 수행합니다.
+
+   | Type    | Item              | Permission |
+   | ------- | ----------------- | ---------- |
+   | Account | SCIM Provisioning | Edit       |
+
+   :::note
+
+   SCIM Provisioning에는 Account API tokens 사용을 권장합니다. User owned API tokens도 지원되지만, 사용자의 policies가 SCIM 통합에서 제거되거나 [API access](/fundamentals/api/how-to/control-api-access/)가 예기치 않게 비활성화되는 경우 SCIM 연결이 깨질 수 있습니다. 자세한 내용은 [Account API tokens](/fundamentals/api/get-started/account-owned-tokens/)를 참고하세요.
+   :::
+
+2. 해당하는 경우 **Account Resources**에서 드롭다운 메뉴를 사용해 포함하거나 제외할 특정 계정을 선택합니다.
+3. **Continue to summary**를 선택합니다.
+4. 권한을 확인한 뒤 **Create Token**을 선택합니다.
+5. 토큰 값을 복사합니다.

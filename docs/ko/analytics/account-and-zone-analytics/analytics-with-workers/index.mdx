@@ -1,0 +1,43 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/360007553512-Cloudflare-analytics-with-Workers
+title: Workers와 함께 사용하는 Cloudflare 분석
+
+---
+
+Workers가 수행한 요청을 [Cloudflare Workers](/workers/) 기준으로 Cloudflare 분석이 어떻게 추적하는지 알아보세요.
+
+## 하위 요청(subrequest)이란 무엇인가
+
+아무 작업도 하지 않는 Worker(no-op Worker, 즉 원래 클라이언트 요청을 원본으로 전달하고 응답을 프록시해 트래픽만 중계하는 Worker)가 특정 라우트에서 실행 중인 경우, 원본으로 가는 요청은 초기의 클라이언트-엣지 요청과는 별도의 `subrequest`로 계산됩니다. 따라서 Worker가 정적 응답을 반환하고 원본에 전혀 도달하지 않는 경우가 아니라면, eyeball → edge 요청과 edge → origin 요청은 Analytics의 요청 수 또는 대역폭 집계에서 각각 별도로 계산됩니다. 하위 요청은 Cloudflare **Analytics** 앱의 **Requests** 또는 **Bandwidth** 그래프에는 포함되지 않습니다.
+
+***
+
+## 영역 분석
+
+대시보드에서 zone analytics의 수치는 방문자 트래픽을 반영합니다. 즉, zone analytics(대시보드의 Analytics 탭 아래)에 표시되는 요청 수는 클라이언트에 제공된 요청 수입니다.
+
+마찬가지로 대역폭은 클라이언트로 전송된 대역폭을 기준으로 계산되며, 상태 코드 역시 클라이언트에게 반환된 상태 코드를 반영합니다. 따라서 하위 요청이 500을 받았더라도 최종 응답을 200으로 반환했다면 상태 코드 분포에는 200으로 표시됩니다.
+
+***
+
+## Worker 분석
+
+하위 요청 트래픽(원본 측 트래픽)의 분포를 보려면 Cloudflare **Analytics** 앱에서 **Workers** 탭을 선택하면 됩니다. **Workers** 탭의 Service Workers 패널 아래에는 수량 기준 **Subrequests** 분포, **Bandwidth**, **Status Codes**가 표시됩니다. 이를 통해 원본의 오류(예: 500 급증)를 파악하고 디버그할 수 있으며, 캐시 적중률을 식별해 원본으로 향하는 트래픽을 이해하는 데 도움을 받을 수 있습니다.
+
+***
+
+## FAQ
+
+**왜 Workers에 대한 분석이 보이지 않나요?**
+
+* 현재 Workers를 사용하지 않는 경우(어떤 라우트나 필터에도 Workers가 배포되어 있지 않은 경우) 표시할 정보가 없습니다.
+* Worker가 원본에 `fetch()`를 호출하지 않고 클라이언트에 정적 응답만 반환하는 경우, 하위 요청이 없으므로 모든 트래픽이 zone Analytics에 표시됩니다.
+
+**이것이 과금에 영향을 주나요?**
+
+아니요. [Workers 과금](/workers/platform/pricing/)은 Worker를 통과하는 요청을 기준으로 합니다.
+
+**왜 캐시 적중률이 이렇게 높게 보이나요?**
+
+Worker가 제공한 요청은 항상 캐시된 것으로 표시됩니다. 하위 요청에 대한 정확한 캐시 적중률은 **Analytics** 앱의 **Workers** 분석 탭 아래 **Subrequests** 그래프를 참고하세요.

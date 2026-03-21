@@ -1,0 +1,153 @@
+---
+pcx_content_type: configuration
+title: 사례 완화 규칙
+tags:
+  - AI
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/example-rules/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/example-rules/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 사용자가 폭력 또는 악화 콘텐츠에 대해 묻을 때 사용자의 오류를 반환
+
+고객 지원 chatbot은 폭력 범죄 또는 폭력 연설에 대한 신속한 참여가 안됩니다. 이름 \*[주문 규칙](/waf/custom-rules/create-dashboard/)요청을 차단하고 JSON 응답을 반환하여 애플리케이션을 파싱하고 사용자에게 표시 할 수 있습니다.
+
+- **수신 요청 일치**:
+
+  | 제품정보              | 회사연혁 | 제품정보                             |
+  | ----------------- | ---- | -------------------------------- |
+  | 사이트맵 Unsafe 항목 범주 | 로그인  | `S1: Violent Crimes` `S10: Hate` |
+
+  편집자를 사용할 때 표현:<br />
+  `(any(cf.llm.prompt.unsafe_topic_categories[*] in {"S1" "S10"}))`
+
+- **- 연혁**: *제품정보*
+
+- **응답 유형으로**: 사용자 정의 JSON
+
+- **응답 몸**:
+  ```txt
+  { "error": "content_policy", "message": "Your message could not be processed because it touches on a topic outside this assistant's scope. Please rephrase your question." }
+  ```
+
+귀하의 응용 프로그램은 비-200 응답을 확인하고 표시 할 수 있습니다`message`사용자에 필드, 원시 블록 페이지를 보여주는 대신 경험 대화를 유지.
+
+## Block 신속한 주입은 국가의 자동화 된 소스에서 시도
+
+이 규칙은 Apps의 AI Security를 결합합니다.[사출 점수](/waf/detections/ai-security-for-apps/prompt-injection/)이름 \*[Bot 관리](/bots/get-started/)요청의 국가는 자동화 된 소스에서 높은 수준의 공격에 초점을 맞추고 있습니다. 이 계층화 된 접근은 단일 신호를 혼자 사용하는 것에 비해 거짓 긍정을 크게 감소시킵니다.
+
+- **수신 요청 일치**:
+
+  편집기의 다음 표현을 입력하십시오:<br />
+  `(cf.llm.prompt.injection_score lt 25 and cf.bot_management.score lt 10 and ip.geoip.country ne "US")`
+
+- **- 연혁**: *제품정보*
+
+규칙은 동시에 요청한다 :
+
+1. 마찬가지로 신속한 주사 시도 (25 이하 득점).
+2. 자동화된 툴링에서 실제 브라우저가 아닌 (10점 이하).
+3. 미국에서 Originating — 사용자가 어디에 있는지 일치하기 위해 국가 코드를 조정합니다.
+
+어떤 단 하나 신호든지 그것의 자신의에 거짓 긍정적인 생성할지도 모릅니다. 함께 자동화 된 신속한 주사 공격과 관련된 패턴을 강력하게 식별합니다.
+
+## 내부 네트워크에서만 금융 PII 허용
+
+금융 서비스 응용 프로그램은 합법적으로 내부 에이전트에서 신용 카드 및 은행 계좌 번호를 처리하지만 외부 사용자에서 PII 유형을 차단해야합니다. 이 규칙은 요청의 사용[자율 시스템 번호 (ASN)](/ruleset-engine/rules-language/fields/reference/ip.src.asnum/)대중 교통에서 내부 트래픽을 구별합니다.
+
+- **수신 요청 일치**:
+
+  편집기의 다음 표현을 입력하십시오:<br />
+  `(any(cf.llm.prompt.pii_categories[*] in {"CREDIT_CARD" "US_BANK_NUMBER" "IBAN_CODE"}) and ip.src.asnum ne 13335)`
+
+  기타 제품`13335`조직의 ASN로.
+
+- **- 연혁**: *제품정보*
+
+- **응답 유형으로**: 사용자 정의 JSON
+
+- **응답 몸**:
+  ```txt
+  { "error": "pii_blocked", "message": "Financial account information cannot be submitted from external networks. If you are an internal agent, connect to the corporate network and try again." }
+  ```
+
+기업 네트워크의 내부 에이전트 (ASN에 의해 식별 됨)는 외부 사용자가 차단되는 동안 자신의 워크플로우의 일부로 금융 PII를 AI 조수로 제출할 수 있습니다. 당신은 이것과 결합하여 더 정제 할 수 있었습니다[오시는 길](/cloudflare-one/access-controls/policies/)서비스 토큰 또는[사이트맵](/ssl/client-certificates/)더 강한 ID 검증을 위해.
+
+## 당신의 신청에 있는 손잡이 구획 응답
+
+WAF 규칙이 요청을 차단할 때 Cloudflare는 최종 사용자가 아닌 응용 프로그램에 블록 응답을 다시 보냅니다. 귀하의 응용 프로그램은 그 응답을 처리하고 표시하는 것을 결정해야합니다. 오류 처리없이 사용자는 HTML 오류 페이지 또는 깨진 UI를 볼 수 있습니다.
+
+두 가지가 있습니다.
+
+### 가을 메시지 설정
+
+응용 프로그램 디스플레이가 비교육적인 응답을 받을 때마다 친절한 기본 메시지 정의. 디폴트 Cloudflare 블록 페이지를 포함하여 블록 규칙이 구성되는 방법에 관계없이이 작업은 JSON 기반 채팅 UI를 방해 할 HTML을 반환합니다.
+
+```js
+//사용자 친화적 인 fallback 메시지를 정의합니다. 이것은 사용자가 볼 수있는 것
+//언제든지 요청이 차단되거나 예기치 않은 일이 발생합니다.
+const FALLBACK = "Sorry, I can't process that request. Please try rephrasing.";
+
+const resp = await fetch("/api/chat", {
+	method: "POST",
+	headers: { "Content-Type": "application/json" },
+	body: JSON.stringify({ prompt: userMessage }),
+});
+
+//응답이 2xx가 아닌 경우, 파스를 시도하는 대신 낙진을 보여줍니다
+//몸. 이 안전은 기본 Cloudflare 블록 페이지를 취급합니다.
+//HTML) 당신의 UI를 끊지 않고.
+if (!resp.ok) {
+	await resp.text(); //몸을 소모하므로 연결이 해제됩니다.
+	showError(FALLBACK);
+	return;
+}
+
+const data = await resp.json();
+showMessage(data.message);
+```
+
+### WAF에서 사용자 정의 오류 메시지 표시
+
+더 많은 컨트롤을 위해 블록 규칙을 구성하십시오.[사용자 정의 JSON 응답](/waf/custom-rules/create-dashboard/#configure-a-custom-response-for-blocked-requests)— 예를 들어,`{ "message": "That question is outside this assistant's scope." }`. 당신의 신청은 그 후에 응답을 파고 유효할 때 주문 메시지를 표시할 수 있습니다, 그것이 아닙니다 때 과태로 떨어지는.
+
+```js
+const FALLBACK = "Sorry, I can't process that request. Please try rephrasing.";
+
+const resp = await fetch("/api/chat", {
+	method: "POST",
+	headers: { "Content-Type": "application/json" },
+	body: JSON.stringify({ prompt: userMessage }),
+});
+
+if (!resp.ok) {
+	//응답이 사용자 지정을 포함 하는 경우 결정 하는 콘텐츠 유형 확인
+	//WAF 규칙에서 JSON 오류, 또는 다른 것 (기본값과 같습니다)
+	//Cloudflare HTML 블록 페이지 또는 DDoS / Bot 관리 도전).
+	const ct = (resp.headers.get("content-type") || "").toLowerCase();
+
+	if (ct.includes("application/json")) {
+		//WAF는 사용자 정의 JSON 응답을 반환합니다. 그것을 파고 쇼
+		//규칙에 설정된 메시지. 기본으로 돌아가기
+		//필드가 누락되거나 빈.
+		const data = await resp.json();
+		showError(data.message || FALLBACK);
+	} else {
+		//응답은 JSON이 아닙니다. - 대부분의 경우 기본 Cloudflare HTML
+		//블록 페이지. 몸을 꺼내 친절한 fallback을 보여줍니다.
+		await resp.text();
+		showError(FALLBACK);
+	}
+	return;
+}
+
+const data = await resp.json();
+showMessage(data.message);
+```

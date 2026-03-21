@@ -1,0 +1,42 @@
+---
+pcx_content_type: concept
+title: Oblivious DNS over HTTPS
+slug: 1.1.1.1/encryption/oblivious-dns-over-https
+sidebar:
+  order: 6
+  label: Oblivious DoH
+description: HTTP 요청 내용과 요청자 IP 주소를 분리해 프라이버시를 강화하는 Oblivious DNS over HTTPS(ODoH)를 1.1.1.1이 지원하는 방식을 알아보세요.
+---
+
+[블로그 공지](https://blog.cloudflare.com/oblivious-dns/)에서 설명했듯이 Cloudflare 1.1.1.1은 2020년 말부터 Oblivious DNS over HTTPS(ODoH)를 지원하고 있습니다.
+
+:::caution
+ODoH는 [RFC 9230](https://www.rfc-editor.org/rfc/rfc9230.html)에서 정의되어 있습니다. 이 RFC는 실험적이며 IETF의 승인을 받은 상태가 아닙니다.
+:::
+
+## ODoH 작동 방식
+
+ODoH는 HTTP 요청(및 응답) 내용과 요청자의 IP 주소를 분리해 프라이버시를 강화합니다. 이를 위해 클라이언트와 업스트림 DNS 리졸버 사이에 프록시와 타깃을 추가합니다.
+
+- 프록시는 DNS 메시지를 볼 수 없으므로 클라이언트가 보낸 질의나 타깃이 반환한 응답을 식별하거나 읽어 들이거나 수정할 수 없습니다.
+
+- 타깃은 암호화된 질의와 프록시의 IP 주소만 확인할 수 있으며, 클라이언트의 IP 주소에는 접근할 수 없습니다.
+
+- 지정된 타깃만 질의를 복호화하고 암호화된 응답을 만들어 반환할 수 있습니다.
+
+따라서 프록시와 타깃이 공모하지 않는 한 단일 주체가 DNS 메시지와 클라이언트 IP 주소를 동시에 확보할 수 없습니다. 프록시와 타깃을 어떤 조합으로 사용할지에 대한 결정권도 전적으로 클라이언트에 있습니다.
+
+클라이언트는 타깃의 공개키를 사용해 Hybrid Public Key Encryption(HPKE) 방식으로 질의를 암호화합니다. 타깃 공개키는 DNS상의 HTTPS 리소스 레코드에 번들로 제공되며 DNSSEC으로 보호됩니다.
+
+## Cloudflare와 타사 제품
+
+Cloudflare 1.1.1.1은 `odoh.cloudflare-dns.com` 타깃을 제공해 ODoH를 지원합니다.
+
+ODoH 질의를 전송하려면 [dnscrypt-proxy](https://github.com/DNSCrypt/dnscrypt-proxy)와 같은 오픈소스 클라이언트를 활용할 수 있습니다.
+
+또한 [iCloud Private Relay](https://support.apple.com/102602)는 ODoH를 기반으로 구축되었으며 [Cloudflare와 파트너십](https://blog.cloudflare.com/icloud-private-relay/)을 맺고 있습니다.
+
+## 관련 자료
+
+- [HPKE: Standardizing public-key encryption](https://blog.cloudflare.com/hybrid-public-key-encryption/) 블로그 글
+- [Privacy Gateway](/privacy-gateway/)

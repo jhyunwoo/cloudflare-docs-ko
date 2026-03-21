@@ -1,0 +1,118 @@
+---
+title: 이벤트 알림
+pcx_content_type: how-to
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/event-notifications/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/event-notifications/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이벤트 알림 메시지 보내기[이름 \*](/queues/)R2 버킷의 데이터가 변경 될 때. 이러한 메시지를 소모할 수 있습니다.[소비자 노동자](/queues/reference/how-queues-works/#create-a-consumer-worker)또는[HTTP를 통한](/queues/configuration/pull-consumers/)Cloudflare WorkersXQ의 외부에서.
+
+## 이벤트 알림 시작
+
+### 자주 묻는 질문
+
+시작하기 전에, 당신은 필요합니다:
+
+- 기존 R2 버킷. 이미 기존 R2 버킷을 가지고 있지 않은 경우, 참조[버킷 만들기](/r2/buckets/create-buckets/).
+- 현재 큐. 이미 큐가없는 경우, 참조[queue 만들기](/queues/get-started/#2-create-a-queue).
+- ·[소비자 노동자](/queues/reference/how-queues-works/#create-a-consumer-worker)또는[HTTP 풀](/queues/configuration/pull-consumers/)당신의 Queue에 활성화.
+
+### Dashboard를 통해 이벤트 알림 활성화
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 이벤트 알림 규칙을 추가하고 싶습니다.
+3. 전환하기**계정 설정**탭, 다음으로 스크롤**이벤트 알림**카드.
+4. 제품정보**알림 추가**알림 및 알림을 받고 싶습니다.[행사 유형](/r2/buckets/event-notifications/#event-types)그것은 그들을 방아쇠합니다.
+5. 제품정보**알림 추가**.
+
+### Wrangler를 통해 이벤트 알림 활성화
+
+#### 설치 Wrangler
+
+시작하기[`npm`](https://docs.npmjs.com/getting-started)·[Wrangler, 개발자 플랫폼 CLI 설치](/workers/wrangler/install-and-update/).
+
+#### R2 버킷에 이벤트 알림 활성화
+
+Wrangler에 로그인[`wrangler login`이름 \*](/workers/wrangler/commands/#login). 그런 다음[이벤트 알림 규칙](/r2/buckets/event-notifications/#event-notification-rules)당신의 물통에[`r2 bucket notification create`이름 \*](/workers/wrangler/commands/#r2-bucket-notification-create).
+
+```sh
+npx wrangler r2 bucket notification create <BUCKET_NAME> --event-type <EVENT_TYPE> --queue <QUEUE_NAME>
+```
+
+필터링을 추가하려면`prefix`또는`suffix`이용안내`--prefix`또는`--suffix`플래그, 각각.
+
+```sh
+#prefix를 사용하여 필터
+$ npx wrangler r2 bucket notification create <BUCKET_NAME> --event-type <EVENT_TYPE> --queue <QUEUE_NAME> --prefix "<PREFIX_VALUE>"
+
+#필터 사용 suffix
+$ npx wrangler r2 bucket notification create <BUCKET_NAME> --event-type <EVENT_TYPE> --queue <QUEUE_NAME> --suffix "<SUFFIX_VALUE>"
+
+#접두사 및 suffix를 사용하여 필터. 둘 다 조건은 거르기를 위해 사용될 것입니다
+$ npx wrangler r2 bucket notification create <BUCKET_NAME> --event-type <EVENT_TYPE> --queue <QUEUE_NAME> --prefix "<PREFIX_VALUE>" --suffix "<SUFFIX_VALUE>"
+```
+
+더 완벽한 단계별 예제를 위해, 참조[이벤트 알림 R2에서 업로드 이벤트 로그 및 저장](/r2/tutorials/upload-logs-event-notifications/)예.
+
+## 이벤트 알림 규칙
+
+이벤트 알림 규칙[이벤트 유형](/r2/buckets/event-notifications/#event-types)트리거 알림 및 선택적으로 객체를 기반으로 필터링 활성화`prefix`·`suffix`. R2 물통 당 100개의 사건 통보 규칙까지 있을 수 있습니다.
+
+## 이벤트 유형
+
+| 이벤트 유형          | 이름 \*                                   | Trigger 작업                                                                           |
+| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------ |
+| `object-create` | 새로운 개체가 생성되거나 기존 객체가 overwritten 때 트리거. | <ul><li>`PutObject`</li><li>`CopyObject`</li><li>`CompleteMultipartUpload`</li></ul> |
+| `object-delete` | 객체가 물통에서 명시적으로 제거 될 때 트리거.              | <ul><li>`DeleteObject`</li><li>`LifecycleDeletion`</li></ul>                         |
+
+## 메시지 형식
+
+Queue 소비자는 알림을받습니다.[이름 \*](/queues/configuration/javascript-apis/#message). 다음은 소비자 노동자가받을 메시지의 본문의 예입니다 :
+
+```json
+{
+	"account": "3f4b7e3dcab231cbfdaa90a6a28bd548",
+	"action": "CopyObject",
+	"bucket": "my-bucket",
+	"object": {
+		"key": "my-new-object",
+		"size": 65536,
+		"eTag": "c846ff7a18f28c2e262116d6e8719ef0"
+	},
+	"eventTime": "2024-05-24T19:36:44.379Z",
+	"copySource": {
+		"bucket": "my-bucket",
+		"object": "my-original-object"
+	}
+}
+```
+
+### 제품 정보
+
+| 회사 정보               | 제품정보   | 이름 \*                                                                                                        |
+| ------------------- | ------ | ------------------------------------------------------------------------------------------------------------ |
+| `account`           | 스트레이트  | Cloudflare 계정 ID는 이벤트와 관련되어 있습니다.                                                                            |
+| `action`            | 스트레이트  | 이벤트 알림을 트리거 한 행동의 유형. 예제 작업은 다음과 같습니다 :`PutObject`, `CopyObject`, `CompleteMultipartUpload`, `DeleteObject`. |
+| `bucket`            | 스트레이트  | 이벤트가 발생한 버킷의 이름.                                                                                             |
+| `object`            | 계정 만들기 | 이벤트에 관련된 개체에 대한 세부 사항이 포함 된 둥지 대상.                                                                           |
+| `object.key`        | 스트레이트  | 버킷 내에서 객체의 키 (또는 이름).                                                                                        |
+| `object.size`       | 이름 \*  | 바이트의 객체의 크기. 참고 : object-delete 이벤트에 대해 제공하지 않습니다.                                                           |
+| `object.eTag`       | 스트레이트  | 객체의 엔티티티티 태그 (eTag). 참고 : object-delete 이벤트에 대해 제공하지 않습니다.                                                   |
+| `eventTime`         | 스트레이트  | 이벤트가 발생했을 때의 동작.                                                                                             |
+| `copySource`        | 계정 만들기 | copied 개체의 소스에 대한 세부 사항을 포함하는 둥지 대상. 참고 : 이벤트 트리거 대상`CopyObject`.                                            |
+| `copySource.bucket` | 스트레이트  | 소스 객체를 포함하는 물통.                                                                                              |
+| `copySource.object` | 스트레이트  | 소스 객체의 이름.                                                                                                   |
+
+## 지원하다
+
+- Queues[per-queue 메시지 처리량](/queues/platform/limits/)현재 초당 5,000 메시지입니다. 워크로드가 초당 5,000개 이상의 알림을 생산하는 경우 여러 큐에 걸쳐 분할 알림 규칙을 권장합니다.
+- prefix/suffix 없이 규칙은 물통에 있는 모든 목표에 적용합니다.
+- 동일한 이벤트에 대한 여러 알림을 트리거 할 수있는 과잉 또는 충돌 규칙은 허용되지 않습니다. 예를 들어, 당신이 가지고있는 경우`object-create`(주)`PutObject`동작) prefix 및 suffix없이 규칙, 다음 다른 추가`object-create`(주)`PutObject`action) prefix와 같은 규칙`images/`단일 업로드에 대한 하나의 알림을 트리거 할 수 있습니다.

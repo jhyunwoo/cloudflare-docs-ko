@@ -1,0 +1,74 @@
+---
+title: 예제 규칙
+pcx_content_type: configuration
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 지정된 콘텐츠 객체를 검사하는 방법
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/malicious-uploads/example-rules/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/malicious-uploads/example-rules/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 업로드된 콘텐츠 객체와 로그 요청
+
+이름 \*[주문 규칙](/waf/custom-rules/)예제는 적어도 하나의 업로드 된 콘텐츠 객체와 모든 요청을 로그:
+
+- **수신 요청 일치시:**
+
+  | 제품정보 | 회사연혁  | 제품정보 |
+  | ---- | ----- | ---- |
+  | 내용물  | 이름 \* | 한국어  |
+
+  Expression Editor를 사용하는 경우:<br />
+  `(cf.waf.content_scan.has_obj)`
+
+- **활동 :** *로그인*
+
+## 악명 높은 콘텐츠 객체로 URI 경로에 블록 요청
+
+이 사용자 정의 규칙 예 블록 요청 주소`/upload.php`그것은 적어도 하나의 업로드 된 콘텐츠 객체를 악의로 간주:
+
+- **수신 요청 일치시:**
+
+  | 제품정보      | 회사연혁  | 제품정보          |       |
+  | --------- | ----- | ------------- | ----- |
+  | 악성 콘텐츠 객체 | 이름 \* | 한국어           | 이름 \* |
+  | URI 경로    | 이름 \* | `/upload.php` |       |
+
+  Expression Editor를 사용하는 경우:<br />
+  `(cf.waf.content_scan.has_malicious_obj and http.request.uri.path eq "/upload.php")`
+
+- **활동 :** *제품정보*
+
+## 비 PDF 파일로 블록 요청
+
+이 사용자 정의 규칙 예 블록 요청 주소`/upload`PDF 파일이 아닌 업로드된 내용물:
+
+- **수신 요청 일치시:**<br />
+  `any(cf.waf.content_scan.obj_types[*] != "application/pdf") and http.request.uri.path eq "/upload"`
+- **활동 :** *제품정보*
+
+## 500 KB 이상의 업로드 파일과 블록 요청
+
+이 사용자 정의 규칙 예 블록 요청 주소`/upload`500 KB 이상의 업로드 콘텐츠 객체 (512,000 바이트) 크기:
+
+- **수신 요청 일치시:**<br />
+  `any(cf.waf.content_scan.obj_sizes[*] > 512000) and http.request.uri.path eq "/upload"`
+- **활동 :** *제품정보*
+
+## 콘텐츠 스캐닝 제한 (50 MB)에 업로드 된 파일과 블록 요청
+
+이 사용자 정의 규칙 예 블록 요청 업로드된 콘텐츠 개체 50 MB 크기 (현재 콘텐츠 스캔 제한):
+
+- **수신 요청 일치시:**<br />
+  `any(cf.waf.content_scan.obj_sizes[*] >= 52428800)`
+- **활동 :** *제품정보*
+
+이 예에서는 현재 50 MB 이상의 파일이 내부적으로 처리되는 경우 50 MB (52,428,800 바이트)의 크기를 가지고 있기 때문에 equality를 테스트해야합니다. 즉,`>`(대인 이상)[비교 연산자](/ruleset-engine/rules-language/operators/#comparison-operators)이 특정 규칙에 대해 작동하지 않을 것 — 당신은 사용해야`>=`대신에 (등등점).

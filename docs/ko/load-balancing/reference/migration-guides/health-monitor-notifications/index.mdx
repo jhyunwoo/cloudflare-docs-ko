@@ -1,0 +1,145 @@
+---
+pcx_content_type: configuration
+title: 헬스 모니터 알림
+sidebar:
+  order: 2
+
+---
+
+import { Details, APIRequest } from "~/components"
+
+Cloudflare는 Load Balancing [health monitors](/load-balancing/monitors/)에서 사용하는 알림을 Cloudflare의 중앙 집중형 [Notifications Service](/notifications/)로 마이그레이션하고 있습니다.
+
+## 무엇이 바뀌며, 왜 바뀌나요?
+
+Cloudflare의 계정 수준 [Notifications Service](/notifications/)는 이제 대부분의 Cloudflare 서비스에 대한 중앙 위치가 되었습니다. 이 변경은 일관성과 관리 간소화를 높여 주며, webhook 구성이나 여러 pool을 하나의 알림에 연결하는 것과 같은 더 다양한 알림 전달 옵션도 제공합니다. 또한 이 새 알림은 zone 수준이 아니라 account 수준에서 관리됩니다.
+
+알림 누락을 방지하려면 기존의 모든 Health Monitor 알림을 Cloudflare의 중앙 Notifications Service로 마이그레이션할 것을 강력히 권장합니다.
+
+## 마이그레이션 가이드
+
+이 가이드를 사용해 기존의 모든 health monitor 알림을 마이그레이션해야 합니다.
+
+<div id="step-1---find-existing-notifications"></div>
+
+### 1단계 - 기존 알림 찾기
+
+먼저 어떤 pool이 알림을 사용하고 있는지 확인해야 합니다. Cloudflare API를 사용해 모든 pool을 나열한 뒤 `notification_email` 파라미터를 확인하는 방식이 더 쉬운 경우가 많습니다.
+
+
+<Details header="코드 사용">
+
+[Cloudflare API](/api/resources/load_balancers/subresources/pools/methods/list/)를 사용해 모든 pool을 나열한 다음, 각 pool에 `notification_email` 파라미터 값이 있는지 확인하세요.
+
+```bash title="Request"
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/load_balancers/pools" \
+--header "Authorization: Bearer <API_TOKEN>" \
+| jq '[.result[] | select(.notification_email != "") | {name, notification_email}]'
+```
+
+```json title="Response"
+[
+    {
+        "name": "pool-1",
+        "notification_email": "user@example.com"
+    },
+    {
+        "name": "pool-2",
+        "notification_email": "user@example.com"
+    },
+    {
+        "name": "pool-3",
+        "notification_email": "user@example.com"
+    },
+    {
+        "name": "pool-4",
+        "notification_email": "user@example.com"
+    }
+]
+```
+
+
+</Details>
+
+
+<Details header="코드 없이">
+
+대시보드에서 기존 알림이 있는 pool을 찾으려면 다음 단계를 따르세요.
+
+1. [Cloudflare dashboard](https://dash.cloudflare.com)에 로그인한 다음 account와 domain을 선택합니다.
+2. **Load Balancing**으로 이동합니다.
+3. **Pools** 탭을 선택합니다.
+4. Pool에서 **Edit**를 선택합니다.
+5. **Health Check Notifications**의 값이 **On**으로 설정되어 있고 **Notification email address** 필드에 이메일 주소가 있는지 확인합니다.
+
+
+</Details>
+
+<div id="step-2---create-new-notifications"></div>
+
+### 2단계 - 새 알림 만들기
+
+이 단계에서는 기존의 모든 legacy 알림을 대체할 새 알림을 만들어야 합니다.
+
+
+<Details header="코드 사용">
+
+Cloudflare API를 사용하는 경우, 다음 파라미터를 지정하여 [기존 알림을 모두 다시 생성](/api/resources/alerting/subresources/policies/methods/create/)하세요.
+
+```json
+"alert_type": "load_balancing_health_alert",
+"filters": {
+    "pool_id": <<ARRAY_OF_INCLUDED_POOL_IDS>>,
+    "new_health": <<ARRAY_OF_STATUS_TRIGGERS>> ["Unhealthy", "Healthy"],
+    "event_source": <<ARRAY_OF_OBJECTS_WATCHED>> ["pool", "origin"]
+}
+```
+
+
+</Details>
+
+
+<Details header="코드 없이">
+
+[1단계](#step-1---find-existing-notifications)에서 찾은 pool에서 **Pool Notifications**를 확인하세요. **Create a Health Alert**를 클릭해 [알림 만들기](/notifications/get-started/#create-a-notification)를 시작합니다.
+
+
+</Details>
+
+<div id="step-3---remove-deprecated-notifications"></div>
+
+### 3단계 - 사용 중단된 알림 제거
+
+마이그레이션 과정의 마지막 단계로, 앞으로 더 이상 사용 중단 관련 이메일을 받지 않도록 legacy 알림에 있는 모든 이메일을 제거해야 합니다.
+
+대시보드에서도 이 단계를 수행할 수 있지만, Cloudflare는 편의를 위해 새 API endpoint를 사용하는 것을 권장합니다.
+
+
+<Details header="코드 사용">
+
+Cloudflare API를 사용하는 경우, 최근에 [`PATCH`](/api/resources/load_balancers/subresources/pools/methods/bulk_edit/) endpoint가 추가되어 여러 pool에서 이메일 알림을 한 번에 쉽게 제거할 수 있습니다.
+
+<APIRequest
+  path="/accounts/{account_id}/load_balancers/pools"
+  method="PATCH"
+  json={{
+    notification_email: ""
+  }}
+/>
+
+이 API 호출은 표준 pagination 쿼리 파라미터인 `limit/offset` 또는 `per_page/page`를 지원하므로, 기본적으로는 목록의 처음 25개 pool만 업데이트합니다. 모든 pool을 업데이트하려면 각 요청에서 여러 페이지를 순회하거나 더 많은 pool을 포함하도록 API 호출을 조정하는 것이 좋습니다.
+
+
+</Details>
+
+필요한 경우 대시보드를 사용해 legacy 알림을 제거할 수 있습니다.
+
+
+<Details header="코드 없이">
+
+[2단계](#step-2---create-new-notifications)에서 새 알림을 만든 뒤에는, 이전에 편집하던 pool로 돌아오게 됩니다. 사용 중단된 알림을 비활성화하려면 해당 필드에서 모든 알림 이메일 주소를 제거해야 합니다.
+
+
+</Details>
+
+이 단계(모든 pool에서 모든 notification email 제거)를 완료하지 않으면 마이그레이션이 완료된 것으로 간주되지 않으며, 이 사용 중단에 대한 추가 이메일을 계속 받게 됩니다.

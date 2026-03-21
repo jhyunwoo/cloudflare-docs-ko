@@ -1,0 +1,351 @@
+---
+pcx_content_type: how-to
+title: 워터마크 적용
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/edit-videos/applying-watermarks/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/edit-videos/applying-watermarks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Stream API를 사용하여 업로드한 동영상에 워터 마크를 추가할 수 있습니다.
+
+동영상에 워터 마크를 추가하려면 먼저 워터 마크 프로파일을 만듭니다. 워터마크 프로파일은 워터마크와 그 이미지의 위치와 함께 사용할 이미지에 대해 설명합니다. 워터마크 프로필이 있으면 동영상 업로드시 옵션으로 사용할 수 있습니다.
+
+## 빠른 시작
+
+Watermark 단면도에는 많은 customizable 선택권이 있습니다. 그러나, 기본 매개 변수는 일반적으로 대부분의 경우 작동합니다. 자세한 내용은 아래 "Profiles"를 참조하십시오.
+
+### 단계 1: 프로필 만들기
+
+```bash
+curl -X POST -H 'Authorization: Bearer <API_TOKEN>' \
+-F file=@/Users/rchen/cloudflare.png \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks
+```
+
+### 2 단계 : 업로드에서 프로파일 UID 지정
+
+```bash
+tus-upload --chunk-size 5242880 \
+--header Authentication 'Bearer <API_TOKEN>' \
+--metadata watermark <WATERMARK_UID> \
+/Users/rchen/cat.mp4 https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream
+```
+
+### 단계 3: 완료
+
+![상단에 Cloudflare 워터 마크가있는 비디오의 스크린 샷](~/assets/images/stream/cat.png)
+
+## 회사 소개
+
+생성, 목록, 삭제, 또는 프로필에 대한 정보를 얻을, 당신은 당신의 필요
+[Cloudflare API 토큰](https://www.cloudflare.com/a/account/my-account).
+
+### 옵션 매개 변수
+
+- `name`문자열 기본값:*빈 문자열*
+
+  - 프로필에 대한 짧은 설명. 예를 들어, "마케팅 비디오."
+
+- `opacity`부유물 과태: 1.0
+
+  - 워터 마크의 투명성. 0.0은 완전히 투명하며 1.0은 완전 불투명함을 의미합니다. 워터 마크가 이미 반투명이라면 1.0이 완전히 불투명하지 않을 것입니다.
+
+- `padding`부유물 과태: 0.05
+
+  - 인접한 가장자리 사이의 공백 공간 (위치에 의해 결정) 비디오와 워터 마크의. 0.0는 패딩하지 않으며 1.0은 전체 비디오 너비 또는 길이를 패딩합니다.
+
+  - 스트림은 워터 마크가 서로 다른 차원의 동영상에 대해 동일한 위치에있을 것입니다.
+
+- `scale`float 기본: 0.15
+
+  - 비디오의 전체 크기와 관련된 워터 마크의 크기. 이 모수는 수평한 수직 영상에 자동적으로 적응할 것입니다. 0.0는 스케일링을 의미하지 않습니다 (워터 마크 as-is의 크기를 사용), 1.0 전체 비디오를 채웁니다.
+
+  - 알고리즘은 워터 마크가 서로 다른 차원으로 비디오의 동일한 크기에 대해 볼 수 있는지 확인합니다.
+
+- `position`string (enum) 기본값: "upperRight"
+
+  - 워터마크의 위치. 유효한 위치는:`upperRight`, `upperLeft`, `lowerLeft`, `lowerRight`·`center`.
+
+    :::참조
+
+    주의사항`center`무시한다`padding`모수.
+    주요 특징
+
+## Watermark 프로필 만들기
+
+### Use Case 1: 로컬 이미지 파일을 직접 업로드
+
+이미지를 직접 업로드하려면 POST 요청을 보내주십시오.`multipart/form-data`content-type으로 파일을 지정하여`file`키. 다른 모든 분야는 선택적입니다.
+
+```bash
+curl -X POST -H "Authorization: Bearer <API_TOKEN>" \
+-F file=@{path-to-image-locally} \
+-F name='marketing videos' \
+-F opacity=1.0 \
+-F padding=0.05 \
+-F scale=0.15 \
+-F position=upperRight \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks
+```
+
+### 사용 사례 2: URL을 이미지로 전달
+
+업로드 URL을 지정하려면 POST 요청을 보내주십시오.`application/json`content-type으로 파일 위치를 지정합니다.`url`키. 다른 모든 분야는 선택적입니다.
+
+```bash
+curl -X POST -H "Authorization: Bearer <API_TOKEN>" \
+-H 'Content-Type: application/json' \
+-d '{
+  "url": "{url-to-image}",
+  "name": "marketing videos",
+  "opacity": 1.0,
+  "padding": 0.05,
+  "scale": 0.15,
+  "position": "upperRight"
+}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks
+```
+
+#### 워터마크 프로필 만들기에 대한 응답
+
+```json
+{
+  "result": {
+    "uid": "d6373709b7681caa6c48ef2d8c73690d",
+    "size": 11248,
+    "height": 240,
+    "width": 720,
+    "created": "2020-07-29T00:16:55.719265Z",
+    "downloadedFrom": null,
+    "name": "marketing videos",
+    "opacity": 1.0,
+    "padding": 0.05,
+    "scale": 0.15,
+    "position": "upperRight"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+`downloadedFrom`URL에서 다운로드를 통해 프로필이 생성 된 경우 팝업됩니다.
+
+## 동영상에 워터마크 프로파일 사용
+
+워터마크 프로필을 작성하면 워터마크 동영상 업로드 시간에 프로필을 사용할 수 있습니다.
+
+### 기본 업로드
+
+불행히도, 스트림은 현재 기본 업로드 시간에 워터 마크 프로파일을 지정하지 않습니다.
+
+### 동영상 업로드
+
+```bash
+curl -X POST -H "Authorization: Bearer <API_TOKEN>" \
+-H 'Content-Type: application/json' \
+-d '{
+  "url": "{url-to-video}",
+  "watermark": {
+    "uid": "<WATERMARK_UID>"
+  }
+}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/copy
+```
+
+#### 동영상 업로드에 대한 예제 응답 링크
+
+```json null {10,11,12,13,14,15,16,17,18,19,20,21,22}
+{
+  "result": {
+    "uid": "8d3a5b80e7437047a0fb2761e0f7a645",
+    "thumbnail": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.jpg",
+
+    "playback": {
+      "hls": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.m3u8",
+      "dash": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.mpd"
+    },
+    "watermark": {
+      "uid": "d6373709b7681caa6c48ef2d8c73690d",
+      "size": 11248,
+      "height": 240,
+      "width": 720,
+      "created": "2020-07-29T00:16:55.719265Z",
+      "downloadedFrom": null,
+      "name": "marketing videos",
+      "opacity": 1.0,
+      "padding": 0.05,
+      "scale": 0.15,
+      "position": "upperRight"
+    }
+
+}
+```
+
+### tus로 동영상 업로드
+
+```bash
+tus-upload --chunk-size 5242880 \
+--header Authentication 'Bearer <API_TOKEN>' \
+--metadata watermark <WATERMARK_UID> \
+<PATH_TO_VIDEO> https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream
+```
+
+### 직접 제작자 uploads
+
+생성 된 고유 한 한 URL로 업로드 된 비디오는 지정된 프로필과 워터 마크됩니다.
+
+```bash
+curl -X POST -H "Authorization: Bearer <API_TOKEN>" \
+-H 'Content-Type: application/json' \
+-d '{
+  "maxDurationSeconds": 3600,
+  "watermark": {
+    "uid": "<WATERMARK_UID>"
+  }
+}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/direct_upload
+```
+
+#### 직접 사용자 업로드에 대한 예 응답
+
+{/* <!-- videodelivery.net is correct domain. See STREAM-4364 --> */}
+
+```json
+{
+  "result": {
+    "uploadURL": "https://upload.videodelivery.net/c32d98dd671e4046a33183cd5b93682b",
+    "uid": "c32d98dd671e4046a33183cd5b93682b",
+    "watermark": {
+      "uid": "d6373709b7681caa6c48ef2d8c73690d",
+      "size": 11248,
+      "height": 240,
+      "width": 720,
+      "created": "2020-07-29T00:16:55.719265Z",
+      "downloadedFrom": null,
+      "name": "marketing videos",
+      "opacity": 1.0,
+      "padding": 0.05,
+      "scale": 0.15,
+      "position": "upperRight"
+    }
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+`watermark`일 수 있습니다`null`워터 마크가 지정되지 않은 경우.
+
+## Watermark 프로필을 가져옵니다
+
+당신이 만든 워터 마크 프로파일을 볼 수:
+
+```bash
+curl -H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks/<WATERMARK_UID>
+```
+
+### 워터 마크 프로파일을 얻는 예 응답
+
+```json
+{
+  "result": {
+    "uid": "d6373709b7681caa6c48ef2d8c73690d",
+    "size": 11248,
+    "height": 240,
+    "width": 720,
+    "created": "2020-07-29T00:16:55.719265Z",
+    "downloadedFrom": null,
+    "name": "marketing videos",
+    "opacity": 1.0,
+    "padding": 0.05,
+    "scale": 0.15,
+    "position": "center"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## Watermark 프로필 목록
+
+만든 워터 마크 프로파일을 나열하려면:
+
+```bash
+curl -H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks/
+```
+
+### 목록 Watermark 프로파일에 대한 예 응답
+
+```json
+{
+  "result": [
+    {
+      "uid": "9de16afa676d64faaa7c6c4d5047e637",
+      "size": 207710,
+      "height": 626,
+      "width": 1108,
+      "created": "2020-07-29T00:23:35.918472Z",
+      "downloadedFrom": null,
+      "name": "marketing videos",
+      "opacity": 1.0,
+      "padding": 0.05,
+      "scale": 0.15,
+      "position": "upperLeft"
+    },
+    {
+      "uid": "9c50cff5ab16c4aec0bcb03c44e28119",
+      "size": 207710,
+      "height": 626,
+      "width": 1108,
+      "created": "2020-07-29T00:16:46.735377Z",
+      "downloadedFrom": "https://company.com/logo.png",
+      "name": "internal training videos",
+      "opacity": 1.0,
+      "padding": 0.05,
+      "scale": 0.15,
+      "position": "center"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 워터마크 프로파일 삭제
+
+만든 워터 마크 프로파일을 삭제하려면:
+
+```bash
+curl -X DELETE -H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/watermarks/<WATERMARK_UID>
+```
+
+가동이 성공한 경우에, 그것은 성공 응답을 돌려보낼 것입니다:
+
+```json
+{
+  "result": "",
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 제한 사항
+
+- 워터 마크 프로파일이 생성되면 매개 변수를 변경할 수 없습니다. 워터 마크 프로파일을 편집하려면 삭제하고 새로운 것을 만드십시오.
+- 워터 마크가 비디오에 적용되면 다른 프로파일을 적용하기 위해 비디오를 다시로드하지 않고 워터 마크를 변경할 수 없습니다.
+- 워터 마크가 비디오에 적용되면 워터 마크 프로파일을 삭제하는 것은 비디오에서 워터 마크를 제거하지 않습니다.
+- 최대 파일 크기는 2MiB (2097152 바이트)이며 PNG 파일 만 지원됩니다.

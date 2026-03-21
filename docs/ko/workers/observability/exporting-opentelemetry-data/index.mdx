@@ -1,0 +1,133 @@
+---
+pcx_content_type: concept
+title: OpenTelemetry 데이터 내보내기
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Badge, DirectoryListing, WranglerConfig } from "~/components";
+
+Cloudflare Workers는 OpenTelemetry (OTel) - compliant telemetry 데이터를 사용할 수 있는 OTel 엔드포인트로 모든 목적지에 내보내기 지원하며 기존의 모니터링 및 관찰성 스택과 통합할 수 있습니다.
+
+### 지원된 telemetry 유형
+
+당신은 telemetry 자료의 뒤에 오는 유형을 수출할 수 있습니다:
+
+- **팟캐스트**- 작업자 및 연결 서비스를 통해 요청 흐름을 보여주는 추적
+- **로그인**- 신청 로그 포함`console.log()`출력 및 시스템 생성 로그
+
+**이름 \***: Worker metrics 및 custom metrics를 수출하는 것은 아직 지원되지 않습니다.
+
+### OpenTelemetry 대상
+
+아래는 일반적인 OTLP endpoint 형식의 인기있는 Observability 제공 업체입니다. 특정 세부 사항 및 인증 요구 사항에 대한 공급 업체의 문서를 참조하십시오.
+
+| 회사 소개                                                                                  | 연락처                                                          | 로그인 Endpoint                                                  |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------- |
+| [**허니콤**](/workers/observability/exporting-opentelemetry-data/honeycomb/)              | `https://api.honeycomb.io/v1/traces`                         | `https://api.honeycomb.io/v1/logs`                            |
+| [**Grafana 클라우드**](/workers/observability/exporting-opentelemetry-data/grafana-cloud/) | `https://otlp-gateway-{region}.grafana.net/otlp/v1/traces`   | `https://otlp-gateway-{region}.grafana.net/otlp/v1/logs`\[^1] |
+| [**리뷰 쓰기**](https://docs.firetiger.com/ingest/cloudflare-workers.html)                 | `https://ingest.cloud.firetiger.com/v1/traces`               | `https://ingest.cloud.firetiger.com/v1/logs`                  |
+| [**뚱 베어**](/workers/observability/exporting-opentelemetry-data/axiom/)                 | `https://api.axiom.co/v1/traces`                             | `https://api.axiom.co/v1/logs`                                |
+| [**회사 소개**](/workers/observability/exporting-opentelemetry-data/sentry/)               | `https://{HOST}/api/{PROJECT_ID}/integration/otlp/v1/traces` | `https://{HOST}/api/{PROJECT_ID}/integration/otlp/v1/logs`    |
+| [**데이터 독**](https://docs.datadoghq.com/opentelemetry/setup/otlp_ingest/)               | 곧 출시된 Datadog                                                | `https://otlp.{SITE}.datadoghq.com/v1/logs`                   |
+
+:::표\[본]
+대부분의 공급자는 인증 헤더를 요구합니다. 특정 인증 요구 사항에 대한 공급자의 문서에 대한 참조.
+주요 특징
+
+## OpenTelemetry 호환 대상 설정
+
+귀하의 목적지에 데이터를 전송하려면 Cloudflare dashboard에 목적지를 만들 필요가 있습니다.
+
+### 자주 묻는 질문
+
+![Observability Destinations dashboard는 Grafana 및 Honeycomb에 대한 구성 목적지를 보여주는 각각의 엔드포인트와 상태](~/assets/images/workers-observability/destinations.png)
+
+1. 계정의 머리[Workers 옵션 정보](https://dash.cloudflare.com/?to=/:account/workers-and-pages/observability/pipelines)dashboard의 단면도
+2. 자주 묻는 질문
+3. 목적지를 구성:
+   - **대상 이름**- 원고 이름 (예 : "Grafana-tracing", "Honeycomb-Logs")
+   - **여행 정보**- "Traces"또는 "Logs" 중에서 선택하십시오.
+   - **OTLP 엔드포인트**- 관찰 가능한 플랫폼이 OTLP 데이터를 수용하는 URL.
+   - **공급 업체**(선택 사항) - 모든 인증 헤더 또는 기타 공급자 필요 헤더
+4. 당신의 목적지를 저장
+
+![목적지 이름, 유형 선택, OTLP 엔드포인트 및 사용자 정의 헤더로 벌집을위한 구성을 보여주는 목적지 대화 상자](~/assets/images/workers-observability/destination-setup.png)
+
+## 당신의 노동자를 위한 OpenTelemetry 수출
+
+dashboard의 목적지를 설정한 후, Wrangler 구성을 업데이트하여 텔레메틱 데이터를 내보내기 위해 작업자를 구성합니다. 구성 파일로 구성된 대상 이름은 dashboard로 구성된 목적지와 동일해야합니다.
+
+<WranglerConfig>
+  ```json
+  {
+  	"observability": {
+  		"traces": {
+  			"enabled": true,
+  			"destinations": ["tracing-destination-name"],
+
+  			// traces sample rate of 5%
+  			"head_sampling_rate": 0.05,
+
+  			// (optional) set to false to only export traces to your
+  			// destination without persisting them in the Cloudflare dashboard
+  			"persist": false
+  		},
+  		"logs": {
+  			"enabled": true,
+  			"destinations": ["logs-destination-name"],
+  			// logs sample rate of 60%
+  			"head_sampling_rate": 0.6,
+
+  			// (optional) set to false to only export logs to your
+  			// destination without persisting them in the Cloudflare dashboard
+  			"persist": false
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::주최\[`persist`및 가격]
+기본적으로,`persist`이름 \*`true`로그와 추적을 의미하는 것은 둘 다 당신의 목적지에 수출되고 Cloudflare dashboard에서 저장됩니다. Dashboard 저장은 청구됩니다.[기타](/workers/observability/logs/workers-logs/#pricing). 세트`persist`으로`false`외부 대상의 데이터만 필요하면 됩니다.
+주요 특징
+
+Wrangler 구성 파일을 구성하면 새로운 구성에 대한 작업자를 확보하여 효과를 얻을 수 있습니다. 목적지에 도달하기 위해 몇 분 걸릴 수 있습니다.
+
+## 여행 일정
+
+목적지를 만들기 후에, 당신은 Cloudflare dashboard에 있는 그것의 건강 그리고 납품 상태를 감시할 수 있습니다. 각 목적지는 최근 데이터가 성공적으로 전달 된 방법을 보여주는 상태 표시 지표를 표시합니다.
+
+### 상태 표시
+
+| 주요연혁           | 이름 \*                           | 문제 해결                                                                    |
+| -------------- | ------------------------------- | ------------------------------------------------------------------------ |
+| **마지막: n 분 전** | 데이터는 최근 성공적으로 전달되었습니다.          |                                                                          |
+| **지원하다**       | 이 목적지에 데이터가 전달되지 않았습니다.         | •당신의 노동자가 교통을 receving 경우에 체크<br />• 검토 샘플링 비율 (낮은 비율은 데이터를 생성합니다)<br /> |
+| **오류 수정**      | 이 목적지에 데이터를 전달하는 동안 오류가 발생했습니다. | • OTLP 엔드포인트 URL을 검증한다.<br />• 인증 헤더 확인<br />                            |
+
+## 제한 및 가격
+
+OTel 데이터 내보내기**무료 와이파이**현재 Workers 유료 구독 또는 초기 베타 기간 중 더 높습니다. 그러나, 시&#xC791;**`March 1, 2026`**, tracing는 Workers Paid 계획 또는 계약에 당신의 사용법의 일부로 청구될 것입니다.
+
+다음과 같은 제한 및 가격:
+
+| 계획하기               | 팟캐스트               | 로그인                | 가격 책정           |
+| ------------------ | ------------------ | ------------------ | --------------- |
+| **Workers 무료**     | 이용안내               | 이용안내               | -               |
+| **Workers 계정 만들기** | 달 당 10백만개의 사건 포함되는 | 달 당 10백만개의 사건 포함되는 | $0.05 백만 추가 이벤트 |
+
+## Known 제한
+
+OpenTelemetry 데이터 수출은 현재 베타에 있습니다. 다음의 제한을 알고 있어야합니다 :
+
+- **미터 수출 아직 지원되지 않음**: OpenTelemetry을 통해 Worker 인프라 메트릭 및 사용자 정의 메트릭을 내보내는 것은 현재 사용할 수 없습니다. 우리는 앞으로 미터 지원을 추가하기 위해 적극적으로 노력하고 있습니다.
+- **일부 공급자의 OTLP 지원**: 일부 관측 가능한 공급자는 여전히 OTLP 엔드포인트 지원을 압연하고 있습니다. 자주 묻는 질문[OpenTelemetry 대상](#available-opentelemetry-destinations)현재 가용성을 위해 위 테이블.

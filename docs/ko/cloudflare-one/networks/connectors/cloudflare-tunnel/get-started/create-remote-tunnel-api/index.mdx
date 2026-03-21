@@ -1,0 +1,229 @@
+---
+title: 터널 만들기 (API)
+tags:
+  - REST API
+pcx_content_type: how-to
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+이 가이드를 따라 Cloudflare 터널을 API로 설정하십시오.
+
+<Render file="tunnel/connectivity-prechecks-note" product="cloudflare-one" />
+
+## API 토큰 만들기
+
+[API 토큰 만들기](/fundamentals/api/get-started/create-token/)다음과 같은 권한을 가진:
+
+| 제품정보  | 제품 정보         | 제출   |
+| ----- | ------------- | ---- |
+| 계좌정보  | Cloudflare 갱도 | 제품정보 |
+| 지역 명소 | DNS 보호        | 제품정보 |
+
+## 2. 터널 만들기
+
+더 보기`POST`요청하기[Cloudflare 갱도](/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/methods/create/)엔드포인트:
+
+<APIRequest
+  path="/accounts/{account_id}/cfd_tunnel"
+  method="POST"
+  json={{
+  name: "api-tunnel",
+  config_src: "cloudflare",
+}}
+/>
+
+```sh output
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "c1744f8b-faa1-48a4-9e5c-02ac921467fa",
+    "account_tag": "699d98642c564d2e855e9661899b7252",
+    "created_at": "2025-02-18T22:41:43.534395Z",
+    "deleted_at": null,
+    "name": "example-tunnel",
+    "connections": [],
+    "conns_active_at": null,
+    "conns_inactive_at": "2025-02-18T22:41:43.534395Z",
+    "tun_type": "cfd_tunnel",
+    "metadata": {},
+    "status": "inactive",
+    "remote_config": true,
+    "credentials_file": {
+      "AccountTag": "699d98642c564d2e855e9661899b7252",
+      "TunnelID": "c1744f8b-faa1-48a4-9e5c-02ac921467fa",
+      "TunnelName": "api-tunnel",
+      "TunnelSecret": "bTSquyUGwLQjYJn8cI8S1h6M6wUc2ajIeT7JotlxI7TqNqdKFhuQwX3O8irSnb=="
+    },
+    "token": "eyJhIjoiNWFiNGU5Z..."
+  }
+}
+```
+
+제출하기`id`·`token`출력에 표시된 값. 이 값을 구성하고 터널을 실행할 필요가 있습니다.
+
+다음 단계는 당신이 원하는지 여부에 따라 달라집니다[인터넷에 응용 프로그램을 게시](#3a-publish-an-application)또는[개인 네트워크 연결](#3b-connect-a-network).
+
+## 3a. 신청 게시
+
+터널을 통해 응용 프로그램을 게시하기 전에, 당신은해야합니다:
+
+- [Cloudflare에 웹 사이트를 추가](/fundamentals/manage-domains/add-site/).
+- [도메인 네임서버를 Cloudflare로 변경](/dns/zone-setups/full-setup/setup/).
+
+이 단계를 따라 응용 프로그램을 인터넷에 게시합니다. 개인 리소스를 연결하려는 경우, 건너뛰기[네트워크 연결](#3b-connect-a-network)이름 \*
+
+1. 더 보기[`PUT`이름 \*](/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/configurations/methods/update/)자주 묻는 질문[로컬 서비스 URL](/cloudflare-one/networks/connectors/cloudflare-tunnel/routing-to-tunnel/protocols/)대중적인 hostname. 예를 들어,
+
+   <APIRequest
+     path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}/configurations"
+     method="PUT"
+     json={{
+      		config: {
+      			ingress: [
+      				{
+      					hostname: "app.example.com",
+      					service: "http://localhost:8001",
+      					originRequest: {},
+      				},
+      				{
+      					service: "http_status:404",
+      				},
+      			],
+      		},
+      	}}
+   />
+
+   :::참조
+   Multi-level subdomain (subdomain의 1 개 이상의 레벨)을 추가하면,[hostname에 대한 고급 인증서를 주문](/cloudflare-one/faq/troubleshooting/#i-see-this-site-cant-provide-a-secure-connection).
+   :::
+
+   당신의 진입 규칙은 끝에서 catch-all 규칙을 포함해야합니다. 이 예제에서,`cloudflared`요청이 이전 호스트 이름과 일치하지 않을 때 404 상태 코드와 응답합니다.
+
+2. [DNS 레코드 만들기](/api/resources/dns/subresources/records/methods/create/)당신의 신청을 위해:
+
+   <APIRequest
+     path="/zones/{zone_id}/dns_records"
+     method="POST"
+     json={{
+      		type: "CNAME",
+      		proxied: true,
+      		name: "app.example.com",
+      		content: "c1744f8b-faa1-48a4-9e5c-02ac921467fa.cfargotunnel.com",
+      	}}
+   />
+
+   이 DNS 레코드는 Cloudflare 프록시를 허용`app.example.com`Cloudflare 터널로의 교통`<tunnel-id>.cfargotunnel.com`).
+
+이 응용 프로그램은 한 번 인터넷에서 공개적으로 사용할 수 있습니다[터널을 실행](#4-install-and-run-the-tunnel). 특정 사용자를 허용하거나 차단하기 위해,[액세스 신청서 작성](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
+
+## 3b. 네트워크 연결
+
+터널을 통해 개인 네트워크를 연결하기 위해,[터널 경로 추가](/api/resources/zero_trust/subresources/networks/subresources/routes/methods/create/):
+
+<APIRequest
+  path="/accounts/{account_id}/teamnet/routes"
+  method="POST"
+  json={{
+  network: "172.16.0.0/16",
+  tunnel_id: "c1744f8b-faa1-48a4-9e5c-02ac921467fa",
+  comment: "Example private network route",
+}}
+/>
+
+`cloudflared`이제이 목적지 IP로 트래픽을 경로를 수 있습니다. Zero Trust 정책을 구성하고 사용자로 연결하려면, 참조[개인 네트워크](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/).
+
+## 4. 설치 및 터널 실행
+
+설치하기`cloudflared`서버에서 터널을 실행`token`얻은 값[2. 터널 만들기](#2-create-a-tunnel). 터널 토큰을 사용하여 얻을 수 있습니다.[사이트맵 터널 토큰](/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/token/methods/get/)끝점.
+
+<Render file="tunnel/install-and-run-tunnel" product="cloudflare-one" />
+
+## 5. 터널 상태를 검증
+
+터널이 교통을 제공하는 경우 확인하려면:
+
+<APIRequest
+  path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}"
+  method="GET"
+  parameters={{
+  tunnel_id: "c1744f8b-faa1-48a4-9e5c-02ac921467fa",
+}}
+/>
+
+```sh output
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": "c1744f8b-faa1-48a4-9e5c-02ac921467fa",
+    "account_tag": "699d98642c564d2e855e9661899b7252",
+    "created_at": "2025-02-18T22:41:43.534395Z",
+    "deleted_at": null,
+    "name": "example-tunnel",
+    "connections": [
+      {
+        "colo_name": "bos01",
+        "uuid": "2xz99mfm-a59e-4924-gyh9-z9vafaw6k0i2",
+        "id": "2xz99mfm-a59e-4924-gyh9-z9vafaw6k0i2",
+        "is_pending_reconnect": false,
+        "origin_ip": "10.1.0.137",
+        "opened_at": "2025-02-19T19:11:12.101642Z",
+        "client_id": "4xh4eb3f-cz0j-2aso-hu6i-36207018771a",
+        "client_version": "2025.2.0"
+      },
+      {
+        "colo_name": "phl01",
+        "uuid": "axe2socu-2fb5-3akx-b860-898zyes3cs9q",
+        "id": "axe2socu-2fb5-3akx-b860-898zyes3cs9q",
+        "is_pending_reconnect": false,
+        "origin_ip": "10.1.0.137",
+        "opened_at": "2025-02-19T19:11:12.006297Z",
+        "client_id": "4xh4eb3f-cz0j-2aso-hu6i-36207018771a",
+        "client_version": "2025.2.0"
+      },
+      {
+        "colo_name": "phl01",
+        "uuid": "9b5y0wm9-ca7f-ibq6-8ff4-sm53xekfyym1",
+        "id": "9b5y0wm9-ca7f-ibq6-8ff4-sm53xekfyym1",
+        "is_pending_reconnect": false,
+        "origin_ip": "10.1.0.137",
+        "opened_at": "2025-02-19T19:11:12.004721Z",
+        "client_id": "4xh4eb3f-cz0j-2aso-hu6i-36207018771a",
+        "client_version": "2025.2.0"
+      },
+      {
+        "colo_name": "bos01",
+        "uuid": "g6cdeiz1-80f5-3akx-b18b-3y0ggktoxwkd",
+        "id": "g6cdeiz1-80f5-3akx-b18b-3y0ggktoxwkd",
+        "is_pending_reconnect": false,
+        "origin_ip": "10.1.0.137",
+        "opened_at": "2025-02-19T19:11:12.110765Z",
+        "client_id": "4xh4eb3f-cz0j-2aso-hu6i-36207018771a",
+        "client_version": "2025.2.0"
+      }
+    ],
+    "conns_active_at": "2025-02-19T19:11:12.004721Z",
+    "conns_inactive_at": null,
+    "tun_type": "cfd_tunnel",
+    "metadata": {},
+    "status": "healthy",
+    "remote_config": true
+  }
+}
+```
+
+건강한 갱도는 Cloudflare의 네트워크에 4개의 연결이 있을 것입니다.

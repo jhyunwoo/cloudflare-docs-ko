@@ -1,0 +1,189 @@
+---
+pcx_content_type: get-started
+title: 시작하기
+sidebar:
+  order: 4
+---
+
+import { Details, Render, APIRequest, DashButton } from "~/components";
+
+Spectrum은 모든 유료 플랜에서 사용할 수 있습니다. Pro와 Business는 일부 프로토콜만 지원하고, Enterprise는 모든 TCP 및 UDP 기반 트래픽을 지원합니다. 더 자세한 구성 내용은 [Configuration options](/spectrum/reference/configuration-options/)를 참고하세요.
+
+Spectrum 애플리케이션은 IP 주소, CNAME 레코드, 로드 밸런서 중 하나를 사용해 만들 수 있습니다. 어떤 방법을 사용하든 대시보드 또는 [API](/api/resources/spectrum/subresources/apps/methods/list/)를 통해 애플리케이션을 생성할 수 있습니다.
+
+Spectrum 요청 및 응답 본문의 일부 필드는 Enterprise 플랜이 필요합니다. 자세한 내용은 [Settings by plan](/spectrum/reference/settings-by-plan/) 페이지를 참고하세요.
+
+## IP 주소를 사용해 Spectrum 애플리케이션 만들기
+
+IP 주소를 사용해 Spectrum 애플리케이션을 만들면 Cloudflare는 일반적으로 Cloudflare IP 풀에서 임의의 IP를 애플리케이션에 할당합니다. 자체 IP 주소를 사용하려면 [BYOIP](/spectrum/about/byoip/)를 사용하거나 [Static IP](/spectrum/about/static-ip/)를 사용할 수 있습니다. 이 두 경우에는 대시보드로는 기능을 사용할 수 없으므로 API를 통해 Spectrum 애플리케이션을 생성해야 합니다. API를 사용할 때는 `origin_direct` 필드에 IP 주소를 입력합니다.
+
+<Details header="대시보드로 애플리케이션 추가">
+
+1. Cloudflare 대시보드에서 **Spectrum** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/spectrum" />
+
+2. **Create an Application**을 선택합니다. Spectrum을 처음 사용하는 경우 **Create an Application** 모달이 나타납니다.
+3. **Application Type**을 선택합니다.
+4. **Domain** 아래에 Spectrum을 사용할 도메인을 입력합니다.
+5. **Edge Port** 아래에 Cloudflare가 애플리케이션에 사용할 포트를 입력합니다.
+6. **Origin** 아래에 애플리케이션의 원본 IP와 포트를 입력합니다.
+7. 애플리케이션이 클라이언트 IP를 필요로 하고 [Proxy Protocol](https://www.haproxy.com/blog/haproxy/proxy-protocol/)을 지원한다면 **Proxy Protocols**를 활성화합니다. Proxy Protocol은 Cloudflare 같은 프록시가 클라이언트 IP를 원본 애플리케이션으로 전달하는 방법입니다.
+8. **Add**를 선택합니다.
+
+</Details>
+
+<Details header="API로 애플리케이션 추가">
+
+아래는 curl 예시와 API에 게시되는 관련 데이터입니다.
+
+**API 예시:**
+
+<APIRequest
+	path="/zones/{zone_id}/spectrum/apps"
+	method="POST"
+	json={{
+		protocol: "tcp/22",
+		dns: {
+			type: "CNAME",
+			name: "ssh.example.com",
+		},
+		origin_direct: ["tcp://192.0.2.1:22"],
+		proxy_protocol: "off",
+		ip_firewall: true,
+		tls: "full",
+		edge_ips: {
+			type: "dynamic",
+			connectivity: "all",
+		},
+		traffic_type: "direct",
+		argo_smart_routing: true,
+	}}
+/>
+
+**예시 데이터:**
+
+```json
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": {
+		"id": "ea95132c15732412d22c1476fa83f27a",
+		"protocol": "tcp/22",
+		"dns": {
+			"type": "CNAME",
+			"name": "ssh.example.com"
+		},
+		"origin_direct": ["tcp://192.0.2.1:22"],
+		"proxy_protocol": "off",
+		"ip_firewall": true,
+		"tls": "full",
+		"edge_ips": {
+			"type": "dynamic",
+			"connectivity": "all"
+		},
+		"traffic_type": "direct",
+		"argo_smart_routing": true,
+		"created_on": "2014-01-02T02:20:00Z",
+		"modified_on": "2014-01-02T02:20:00Z"
+	}
+}
+```
+
+</Details>
+
+## CNAME 레코드를 사용해 Spectrum 애플리케이션 만들기
+
+CNAME 레코드를 사용해 Spectrum 애플리케이션을 만들려면, 원본 호스트 이름을 가리키는 [CNAME record](https://www.cloudflare.com/learning/dns/dns-records/dns-cname-record/)를 Cloudflare에서 호스팅되는 zone에 생성해야 합니다. 이는 원본 호스트 이름으로 해석되기 위해 필요합니다. 자세한 내용은 [Create DNS records](/dns/manage-dns-records/how-to/create-dns-records/#create-dns-records)를 참고하세요. CNAME을 원본으로 사용할 때는 Cloudflare가 해당 zone에 대해 authoritative해야 합니다. API를 사용할 때는 `origin_dns` 필드에 CNAME 레코드를 입력합니다.
+
+<Details header="대시보드로 애플리케이션 추가">
+
+1. Cloudflare 대시보드에서 **Spectrum** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/spectrum" />
+
+2. **Create an Application**을 선택합니다. Spectrum을 처음 사용하는 경우 **Create an Application** 모달이 나타납니다.
+3. **Application Type**을 선택합니다.
+4. **Domain** 아래에 Spectrum을 사용할 도메인을 입력합니다.
+5. **Edge Port** 아래에 Cloudflare가 애플리케이션에 사용할 포트를 입력합니다.
+6. **Origin** 아래에 `CNAME` 레코드 이름을 입력합니다.
+7. **Add**를 선택합니다.
+
+</Details>
+
+<Details header="API로 애플리케이션 추가">
+
+아래는 curl 예시와 API에 게시되는 관련 데이터입니다.
+
+**API 예시:**
+
+<APIRequest
+	path="/zones/{zone_id}/spectrum/apps"
+	method="POST"
+	json={{
+		dns: {
+			type: "CNAME",
+			name: "spectrum-cname.example.com",
+		},
+		ip_firewall: false,
+		protocol: "tcp/22",
+		proxy_protocol: "off",
+		tls: "off",
+		origin_dns: {
+			name: "cname-to-origin.example.com",
+			ttl: 1200,
+		},
+		origin_port: 22,
+	}}
+/>
+
+**예시 데이터:**
+
+```json
+{
+	"dns": {
+		"type": "CNAME",
+		"name": "spectrum-cname.example.com"
+	},
+	"ip_firewall": false,
+	"protocol": "tcp/22",
+	"proxy_protocol": "off",
+	"tls": "off",
+	"origin_dns": {
+		"name": "cname-to-origin.example.com",
+		"ttl": 1200
+	},
+	"origin_port": 22
+}
+```
+
+</Details>
+
+## 로드 밸런서를 사용해 Spectrum 애플리케이션 만들기
+
+로드 밸런서를 사용해 Spectrum 애플리케이션을 만들려면 대시보드 또는 API를 통해 로드 밸런서를 생성해야 합니다. 자세한 내용은 [Load Balancing documentation](/load-balancing/additional-options/spectrum/#1-configure-your-load-balancer)을 참고하세요.
+
+:::note
+
+Spectrum 애플리케이션의 DNS 해석 문제를 방지하려면 현재 Load Balancing 호스트 이름과 동일한 Spectrum 호스트 이름을 사용하지 마세요.
+
+:::
+
+<Details header="대시보드로 애플리케이션 추가">
+
+<Render file="spectrum-with-load-balancer-dash" product="spectrum" />
+
+</Details>
+
+<Details header="API로 애플리케이션 추가">
+
+<Render file="spectrum-with-load-balancer-api" product="spectrum" />
+
+</Details>
+
+## 트래픽 보기
+
+이제 추가 구성 없이 Cloudflare를 통해 트래픽을 프록시할 수 있습니다. Cloudflare를 통해 트래픽을 흘리기 시작하면 대시보드의 **Spectrum**에서 최근 1분간의 트래픽을 볼 수 있습니다.
+
+의견이 있다면 [알려주세요](https://community.cloudflare.com/c/website-application-performance/spectrum/48).

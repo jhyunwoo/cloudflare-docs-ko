@@ -1,0 +1,171 @@
+---
+title: Enable 관리되는 통치자
+pcx_content_type: how-to
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/packet-filtering/enable-managed-rulesets/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/packet-filtering/enable-managed-rulesets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이름 \*[관리 규칙](/ruleset-engine/managed-rulesets/)Cloudflare에 의해 유지되는 미리 만들어진 방화벽 규칙을 빨리 배치할 수 있습니다. Cloudflare 네트워크 방화벽을 사용하여 관리되는 규칙이 활성화됩니다.
+
+관리 규칙을 활성화하는 외에도 사용자 정의 정책을 추가하고 활성화 할 수 있습니다. 더 알아보기[추가 정책](/cloudflare-one/traffic-policies/packet-filtering/add-policies/).
+
+:::참조
+Cloudflare Network Firewall을 사용하여 관리 된 규칙을 사용할 수 있기 전에 계정은 규칙을 활성화해야합니다. 접근을 요청하려면 계정 팀에 문의하십시오.
+주요 특징
+
+규칙을 활성화하거나 비활성화하려면 속성이 overridden이어야합니다. Overrides는 관리된 단계의 루트 규칙에서 구성됩니다 (관리 규칙이 활성화되는 최고 수준의 규칙). 이 루트 규칙은 하나의 규칙 만 포함 할 수 있지만, 단일 규칙은 다른 관리 규칙에 대한 여러 배의 배를 포함 할 수 있습니다.
+
+Cloudflare는 시작을 추천합니다`action`설정하기`log`차단하기 전에 충격을 평가하십시오.
+
+규칙을 활성화하기위한 여러 가지 옵션이 있습니다.
+
+- 개인 규칙을 선택하고 활성화하십시오.
+- 범주에 의해 활성화하여 여러 규칙을 활성화`magic-transit-phase`.
+- 전체 규칙을 사용.
+
+## 사이트맵
+
+### 1. 관리된 단계 관리한 종류 통치자를 창조하십시오
+
+관리 규칙을 만들려면 먼저 다음과 같은 요청을 빌드해야합니다.
+
+- `managed_ruleset_id`: 당신이 가능한 규칙을 포함하는 관리 된 단계 관리 된 종류의 규칙의 ID. 이 ID를 찾기 위해, 사용 가능한 관리 규칙 목록`GET /accounts/{account_id}/rulesets?kind=managed&phase=magic_transit_managed`.
+- `managed_rule_id`: 가능한 규칙의 ID.
+
+또한, 당신은 override를 원하는 속성이 필요합니다. 중복할 수 있는 속성은 다음과 같습니다:
+
+- `enabled`: 이 값은 설정할 수 있습니다.`true`또는`false`. 설정할 때`true`, 규칙은 패킷을 일치하고 행동이 overridden하지 않는 경우 규칙의 기본 동작을 적용합니다. 설정할 때`false`, 규칙은 비활성화하고 어떤 패킷과 일치하지 않습니다.
+- `action`: 값은 설정할 수 있습니다.`log`그래서 규칙은 규칙의 기본 동작을 적용 대신 로그를 생성합니다.
+
+더 보기`enabled`·`action`규칙의 속성은 관리 된 단계 관리 된 종류 규칙에 설정되어 있습니다. 관리 단계의 모든 규칙은 현재 기본적으로 비활성화됩니다.
+
+아래의 예에는 Managed Phase Managed Kind Ruleet의 요청이 포함되어 있습니다.
+
+```bash title="Example request - Create a Managed phase Managed Kind ruleset"
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "execute ruleset",
+  "description": "Ruleset containing execute rules",
+  "kind": "root",
+  "phase": "magic_transit_managed",
+  "rules": [
+    {
+      "expression": "true",
+      "action": "execute",
+      "description": "Enable one rule ",
+      "action_parameters": {
+        "id": "<MANAGED_RULESET_ID>",
+        "version": "latest",
+        "overrides": {
+          "rules": [
+            {
+              "id": "<MANAGED_RULE_ID>",
+              "enabled": true,
+              "action": "log"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}'
+```
+
+### 2. 관리된 단계에 의하여 처리되는 종류 통치자를 깁으십시오
+
+루트 규칙은 하나의 규칙을 포함 할 수 있기 때문에 추가 관리 규칙을 활성화 할 때 기존 규칙 (새로운 규칙을 추가하는 것보다) PATCH해야합니다.
+
+이전 단계의 예에서 건물, 아래의 예는 범주를 활성화하여 여러 규칙 대신 하나의 규칙을 선택합니다. 범주에 설정 될 것 이다`log`규칙이 로그를 생성 할 수 있음을 의미하지만 패킷을 받아 들일 수 없습니다.
+
+```bash title="Example request - Patch a Managed phase Managed kind ruleset"
+curl --request PATCH \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/{root_kind_ruleset}/rules/{root_kind_rule} \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "expression": "true",
+  "action": "execute",
+  "action_parameters": {
+    "id": "<MANAGED_RULESET_ID>",
+    "version": "latest",
+    "overrides": {
+      "rules": [
+        {
+          "id": "<MANAGED_RULE_ID>",
+          "enabled": true
+        }
+      ],
+      "categories": [
+        {
+          "category": "simple",
+          "enabled": true,
+          "action": "log"
+        }
+      ]
+    }
+  }
+}'
+```
+
+### 3. 모든 규칙 사용
+
+완전한 규칙을 활성화하거나 모든 규칙을 활성화하려면 아래의 요청을 보내주십시오.
+
+```bash title="Example request to enable all rules"
+curl --request PATCH \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/{root_kind_ruleset}/rules/{root_kind_rule} \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "expression": "true",
+  "action": "execute",
+  "action_parameters": {
+    "id": "<MANAGED_RULESET_ID>",
+    "version": "latest",
+    "overrides": {
+      "enabled": true
+    }
+  }
+}'
+```
+
+### 4. 규칙 삭제
+
+규칙을 삭제하려면, 참조[규칙을 삭제](/ruleset-engine/rulesets-api/delete-rule/).
+
+## Cloudflare 하나 대시보드
+
+### 옵션 정보
+
+대시보드를 사용하여 관리 된 규칙을 사용할 수 있습니다.
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/)·**사업영역** > **방화벽 정책**.
+2. 제품정보**관련 규칙**. 이것은 대시보드가 모든 관리 규칙을 나열하는 곳입니다.
+3. 규칙을 활성화하려면**주요연혁**이름 \*
+
+### 편집 규칙
+
+규칙을 편집하려면:
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/)·**사업영역** > **방화벽 정책**.
+2. 제품정보**관련 규칙**. 이것은 대시보드가 모든 관리 규칙을 나열하는 곳입니다.
+3. 3 점 선택 >**제품정보**.
+4. 필요한 변경을 확인, 다음 선택**제품 정보**.
+
+### 규칙 보기
+
+규칙에 대한 기본 정보를 보려면:
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/)·**사업영역** > **방화벽 정책**.
+2. 제품정보**관련 규칙**. 이것은 대시보드가 모든 관리 규칙을 나열하는 곳입니다.
+3. 관리된 규칙을 찾아 3개의 점을 선정하십시오 >**- 연혁**.

@@ -1,0 +1,146 @@
+---
+pcx_content_type: concept
+title: 미터 및 분석
+sidebar:
+  order: 20
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/observability/metrics/'
+translation_source_md: 'https://developers.cloudflare.com/hyperdrive/observability/metrics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Hyperdrive는 쿼리 볼륨, 쿼리 대기 시간 및 각 Hyperdrive 구성에 대한 캐시 히트 비율을 검사 할 수있는 분석을 노출합니다.
+
+## 미터
+
+Hyperdrive는 현재 미터의 부분으로 수출합니다`hyperdriveQueriesAdaptiveGroups`GraphQL 데이터 세트:
+
+| 기본 정보     | GraphQL 필드 이름       | 이름 \*                                                                                                                                                                                    |
+| --------- | ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 이름 \*     | `count`             | 주어진 시간 기간에 Hyperdrive에 대하여 발행된 쿼리의 수.                                                                                                                                                    |
+| 캐시 상태     | `cacheStatus`       | 쿼리가 캐시되지 않았는지 여부. 중 하나 일 수 있습니다`disabled`, `hit`, `miss`, `uncacheable`, `multiplestatements`, `notaquery`, `oversizedquery`, `oversizedresult`, `parseerror`, `transaction`·`volatile`. |
+| Query 바이트 | `queryBytes`        | 쿼리의 크기, 바이트.                                                                                                                                                                             |
+| 결과 Bytes  | `resultBytes`       | 질문의 크기*이름 \**, 바이트.                                                                                                                                                                      |
+| 연결 지연     | `connectionLatency` | Hyperdrive에서 데이터베이스에 새로운 연결을 설정해야 할 시간 (밀리 초)는 Hyperdrive 연결 풀 (s)에서 측정 한대로 데이터베이스에.                                                                                                     |
+| Query 지연  | `queryLatency`      | 쿼리에 필요한 시간 (밀리 초) (결과를 수신) 귀하의 데이터베이스에서, 당신의 Hyperdrive 연결 풀에서 측정.                                                                                                                       |
+| 이벤트 상태    | `eventStatus`       | 쿼리가 성공적으로 응답 여부 (`complete`) 또는 실패 (`error`).                                                                                                                                            |
+
+더 보기`volatile`캐시 상태는 쿼리는 PostgreSQL 함수를 분류합니다.`STABLE`또는`VOLATILE`(예:`NOW()`, `RANDOM()`). 더 알아보기[Query 캐싱](/hyperdrive/concepts/query-caching/)기능에 대한 자세한 내용은 cacheability에 영향을 미칩니다.
+
+미터는 지난 31 일 동안 (그리고 유지됩니다) 수 있습니다.
+
+## 대시보드의 메트릭 보기
+
+Hyperdrive에 대한 데이터베이스 분석은 Cloudflare 대시보드에서 사용할 수 있습니다. HyperdriveXQ 윤곽을 위한 현재와 역사적인 미터를 전망하기 위하여:
+
+1. Cloudflare 대시보드에서, 가십시오**모델 번호: Hyperdrive**사이트 맵
+
+   <DashButton url="/?to=/:account/workers/hyperdrive" />
+
+2. 기존 Hyperdrive 구성을 선택하십시오.
+
+3. 선택하기**미터**탭.
+
+쿼리에 시간 창을 선택 할 수 있습니다. 이 기본값은 마지막 24시간입니다.
+
+## GraphQL API를 통해 쿼리
+
+Hyperdrive 구성에 대한 프로그래밍 쿼리 분석[GraphQL 분석 API](/analytics/graphql-api/). 이 API는 Cloudflare QX대시보드와 동일한 datasets를 쿼리하고 GraphQL를 지원합니다[관련 상품](/analytics/graphql-api/features/discovery/introspection/).
+
+Hyperdrive의 GraphQL 데이터 세트는 요구합니다`accountTag`Cloudflare 계정 ID를 가진 여과기. Hyperdrive는 노출합니다`hyperdriveQueriesAdaptiveGroups`데이터셋.
+
+## GraphQL 쿼리 쓰기
+
+Hyperdrive 메터를 탐험하는 방법의 예.
+
+### 캐시 상태에 의해 Hyperdrive config를 통해 처리되는 쿼리의 수를 얻으십시오
+
+```graphql graphql-api-explorer
+query HyperdriveQueries(
+	$accountTag: string!
+	$configId: string!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			hyperdriveQueriesAdaptiveGroups(
+				limit: 10000
+				filter: {
+					configId: $configId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				count
+				dimensions {
+					cacheStatus
+				}
+			}
+		}
+	}
+}
+```
+
+### Hyperdrive config를 통해 처리되는 쿼리에 대한 평균 쿼리 및 연결 대기 시간을 얻고 오류로 인해 실패한 쿼리를 제외
+
+```graphql graphql-api-explorer
+query AverageHyperdriveLatencies(
+	$accountTag: string!
+	$configId: string!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			hyperdriveQueriesAdaptiveGroups(
+				limit: 10000
+				filter: {
+					configId: $configId
+					eventStatus: "complete"
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				avg {
+					connectionLatency
+					queryLatency
+				}
+			}
+		}
+	}
+}
+```
+
+### Hyperdrive config를 통해 쿼리 및 결과 바이트의 총 금액을 얻을
+
+```graphql graphql-api-explorer
+query HyperdriveQueryAndResultBytesForSuccessfulQueries(
+	$accountTag: string!
+	$configId: string!
+	$datetimeStart: Date!
+	$datetimeEnd: Date!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			hyperdriveQueriesAdaptiveGroups(
+				limit: 10000
+				filter: {
+					configId: $configId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				sum {
+					queryBytes
+					resultBytes
+				}
+			}
+		}
+	}
+}
+```

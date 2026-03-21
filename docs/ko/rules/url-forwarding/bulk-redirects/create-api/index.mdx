@@ -1,0 +1,308 @@
+---
+pcx_content_type: how-to
+title: API를 통해 대량 Redirects 만들기
+sidebar:
+  order: 7
+  label: API를 통해 생성
+description: Cloudflare API를 사용하여 대량 Redirects를 만드는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/create-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Steps, APIRequest, Tabs, TabItem } from "~/components";
+
+API를 통해 대량 Redirects를 만들려면 다음을 수행해야합니다.
+
+<Steps>
+  1. API를 통해 대량 리디렉션 목록 만들기.
+  2. 아이템 추가 (URL 리디렉션) 단계 1에 생성 된 목록에.
+  3. API를 통해 대량 Redirect Rule을 작성하여 단계 1에서 생성된 목록을 활성화합니다.
+</Steps>
+
+<Render file="url-forwarding/requires-proxied-site" product="rules" params={{ forwardingRuleName: "Bulk Redirects" }} />
+
+## 1. API를 통해 대량 Redirect List 만들기
+
+사용 방법[자주 묻는 질문](/api/resources/rules/subresources/lists/methods/create/)새로운 대량 Redirect List를 만들려면 작업. 이름 \*`kind`\*필수`redirect`.
+
+<APIRequest
+  path="/accounts/{account_id}/rules/lists"
+  method="POST"
+  json={{
+  	name: "my_redirect_list",
+  	description: "My redirect list.",
+  	kind: "redirect",
+  }}
+/>
+
+```json output {3}
+{
+	"result": {
+		"id": "f848b6ccb07647749411f504d6f88794",
+		"name": "my_redirect_list",
+		"description": "My redirect list.",
+		"kind": "redirect",
+		"num_items": 0,
+		"num_referencing_filters": 0,
+		"created_on": "2021-10-28T09:11:42Z",
+		"modified_on": "2021-10-28T09:11:42Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+리스트 ID를 입력하세요 — 다음 단계에 있어야 합니다.
+
+목록 운영에 대한 자세한 내용은 참조[API 목록](/waf/tools/lists/lists-api/)문서.
+
+## 2. 목록에 항목 추가
+
+사용 방법[관련 상품](/api/resources/rules/subresources/lists/subresources/items/methods/create/)URL 리디렉션 아이템을 리스트에 추가하기 위한 작업. endpoint URL의 이전 단계에서 목록 ID를 입력하십시오.
+
+<APIRequest
+  path="/accounts/{account_id}/rules/lists/{list_id}/items"
+  method="POST"
+  parameters={{
+  	list_id: "f848b6ccb07647749411f504d6f88794",
+  }}
+  json={[
+  	{
+  		redirect: {
+  			source_url: "example.com/blog/",
+  			target_url: "https://example.com/blog/latest",
+  		},
+  	},
+  	{
+  		redirect: {
+  			source_url: "example.net/",
+  			target_url: "https://example.net/under-construction.html",
+  			status_code: 307,
+  		},
+  	},
+  ]}
+/>
+
+```json output
+{
+	"result": {
+		"operation_id": "92558f8b296d4dbe9d0419e0e53f6622"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+이것은 비동기 가동입니다. 응답은 포함될 것입니다`operation_id`작업이 성공적으로 완료되면 확인하는 데 사용할 것입니다[대량 가동 상태를 얻으십시오](/api/resources/rules/subresources/lists/subresources/bulk_operations/methods/get/)가동:
+
+<APIRequest
+  path="/accounts/{account_id}/rules/lists/bulk_operations/{operation_id}"
+  method="GET"
+  parameters={{
+  	operation_id: "92558f8b296d4dbe9d0419e0e53f6622",
+  }}
+/>
+
+작업이 성공적으로 완료되면 응답은 다음과 같습니다.
+
+```json title="Response"
+{
+	"result": {
+		"id": "92558f8b296d4dbe9d0419e0e53f6622",
+		"status": "completed",
+		"completed": "2021-10-28T09:15:42Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 3. API를 통해 대량 Redirect 규칙을 만드십시오
+
+Bulk Redirect Lists는 기본적으로 URL 리디렉션의 컨테이너이므로, 대량 리디렉션 규칙을 만들기 위해 목록에서 URL 리디렉션을 활성화해야 합니다.
+
+대량 Redirect 규칙을 추가하십시오.[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_redirect`계정 수준에서 단계. 더 알아보기[규칙 세트 API](/ruleset-engine/rulesets-api/)더 많은 정보를 원하시면[룰렛 만들기](/ruleset-engine/rulesets-api/create/)규칙에 대한 규칙의 목록을 공급.
+
+대량 Redirect 규칙은 있어야 합니다:
+
+- `action`설정하기`redirect`
+- 이름 \*`action_parameters`추가 설정과 객체 — 참조[대량 Redirects API JSON 객체](/rules/url-forwarding/bulk-redirects/reference/json-objects/#bulk-redirect-rule)상세 정보
+
+다음의 요청[계정 규칙 만들기](/api/resources/rulesets/methods/create/)작업은 단계 항목 포인트 규칙을 만듭니다.`http_request_redirect`계정 수준에서 단계, 단일 리디렉션 규칙을 정의합니다. 단계 항목 포인트 규칙을 생성하지 않은 경우이 작업을 사용`http_request_redirect`아직 단계.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "My redirect ruleset",
+  	kind: "root",
+  	phase: "http_request_redirect",
+  	rules: [
+  		{
+  			ref: "enable_my_redirect_list",
+  			expression: "http.request.full_uri in $my_redirect_list",
+  			description: "Bulk Redirect rule.",
+  			action: "redirect",
+  			action_parameters: {
+  				from_list: {
+  					name: "my_redirect_list",
+  					key: "http.request.full_uri",
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "528f4f03bf0da53a29907199625867be",
+		"name": "My redirect ruleset",
+		"kind": "root",
+		"version": "1",
+		"rules": [
+			{
+				"ref": "enable_my_redirect_list",
+				"id": "8da312df846b4258a05bcd454ea943be",
+				"version": "1",
+				"expression": "http.request.full_uri in $my_redirect_list",
+				"description": "Bulk Redirect rule.",
+				"action": "redirect",
+				"action_parameters": {
+					"from_list": {
+						"name": "my_redirect_list",
+						"key": "http.request.full_uri"
+					}
+				},
+				"last_updated": "2021-10-28T09:20:42Z"
+			}
+		],
+		"last_updated": "2021-10-28T09:20:42Z",
+		"phase": "http_request_redirect"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+<Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+
+이미 단계 항목 포인트 규칙이 있다면`http_request_redirect`단계, 사용[계정 규칙 업데이트](/api/resources/rulesets/methods/update/)대신 작업, 다음과 같은 예에서:
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+  	name: "My redirect ruleset",
+  	kind: "root",
+  	phase: "http_request_redirect",
+  	rules: [
+  		{
+  			ref: "eval_redirects_list_1",
+  			expression: "http.request.full_uri in $my_redirect_list_1",
+  			description: "Bulk Redirect rule 1",
+  			action: "redirect",
+  			action_parameters: {
+  				from_list: {
+  					name: "my_redirect_list_1",
+  					key: "http.request.full_uri",
+  				},
+  			},
+  		},
+  		{
+  			ref: "eval_redirects_list_2",
+  			expression: "http.request.full_uri in $my_redirect_list_2",
+  			description: "Bulk Redirect rule 2",
+  			action: "redirect",
+  			action_parameters: {
+  				from_list: {
+  					name: "my_redirect_list_2",
+  					key: "http.request.full_uri",
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "67013aa153df4e5fbda92f92bc979331",
+		"name": "default",
+		"description": "",
+		"kind": "root",
+		"version": "2",
+		"rules": [
+			{
+				"ref": "eval_redirects_list_1",
+				"id": "8be62ab2ef9a4a41af30c24ff8e73e41",
+				"version": "1",
+				"action": "redirect",
+				"action_parameters": {
+					"from_list": {
+						"name": "my_redirect_list_1",
+						"key": "http.request.full_uri"
+					}
+				},
+				"expression": "http.request.full_uri in $my_redirect_list_1",
+				"description": "Bulk Redirect rule 1",
+				"last_updated": "2021-12-03T15:38:51.658387Z",
+				"ref": "8be62ab2ef9a4a41af30c24ff8e73e41",
+				"enabled": true
+			},
+			{
+				"ref": "eval_redirects_list_2",
+				"id": "97e38797fb2b4b22a4919800f1318a5c",
+				"version": "1",
+				"action": "redirect",
+				"action_parameters": {
+					"from_list": {
+						"name": "my_redirect_list_2",
+						"key": "http.request.full_uri"
+					}
+				},
+				"expression": "http.request.full_uri in $my_redirect_list_2",
+				"description": "Bulk Redirect rule 2",
+				"last_updated": "2021-12-03T15:38:51.658387Z",
+				"ref": "97e38797fb2b4b22a4919800f1318a5c",
+				"enabled": true
+			}
+		],
+		"last_updated": "2021-12-03T15:38:51.658387Z",
+		"phase": "http_request_redirect"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+***
+
+## 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 Bulk Redirects 개체(lists, list items, Rule)을 관리해야 합니다.[이름 \*](/fundamentals/api/reference/permissions/):
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    - *계좌정보* > *대량 URL Redirects* > *제품정보*
+    - *계좌정보* > *계정 필터 목록* > *제품정보*
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    - 대량 URL Redirects 쓰기
+    - 계정 규칙 목록 쓰기
+  </TabItem>
+</Tabs>

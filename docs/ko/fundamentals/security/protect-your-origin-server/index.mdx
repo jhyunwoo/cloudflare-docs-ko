@@ -1,0 +1,75 @@
+---
+pcx_content_type: how-to
+title: 원본 서버 보호
+head:
+  - tag: title
+    content: 원본 서버 보호
+
+---
+
+import { GlossaryTooltip, Render } from "~/components"
+
+여러분의 [원본 서버](https://www.cloudflare.com/learning/cdn/glossary/origin-server)는 Cloudflare가 소유하지 않은 물리 또는 가상 머신으로, 애플리케이션 콘텐츠(데이터, 웹페이지 등)를 호스팅합니다.
+
+너무 많은 요청을 받으면 원본에 악영향을 줄 수 있습니다. 이런 요청은 방문자의 지연 시간을 늘리고, 특히 클라우드 기반 머신의 경우 더 높은 비용을 초래하며, 애플리케이션을 오프라인 상태로 만들 수도 있습니다.
+
+## 원본 연결 보호
+
+원본 연결을 보호하면 공격자가 원본 서버를 찾아내어 요청으로 과부하를 일으키는 것을 방지할 수 있습니다.
+
+* **DNS**:
+
+  1. **프록시 레코드**(가능한 경우): [프록시됨(주황색 구름) DNS 레코드](/dns/proxy-status/)를 설정해 원본 IP 주소를 숨기고 DDoS 보호를 제공합니다. 이 과정의 일부로 원본에서 요청이 차단되지 않도록 [Cloudflare IP 주소 허용](/fundamentals/concepts/cloudflare-ip-addresses/)도 해야 합니다.
+  2. **DNS 전용 레코드 검토**: 기존 **DNS-only** 레코드(`SPF`, `TXT` 등)를 점검해 원본 IP 정보가 포함되어 있지 않은지 확인합니다.
+  3. **메일 인프라 평가**: 가능하다면 보호하려는 웹 리소스와 동일한 서버에서 메일 서비스를 호스팅하지 마세요. 존재하지 않는 주소로 보낸 메일은 공격자에게 반송되며 메일 서버 IP가 노출될 수 있습니다.
+  4. **원본 IP 순환**: [온보딩](/dns/zone-setups/full-setup/setup/#verify-changes)이 완료되면 원본 IP를 교체하세요. DNS 레코드는 공개 영역에 있으므로, 과거 레코드에 Cloudflare 가입 이전의 IP 주소가 남아 있을 수 있습니다.
+
+### 애플리케이션 계층
+
+<Render file="limit-external-connections-application" product="learning-paths" />
+
+### 전송 계층
+
+<Render file="limit-external-connections-transport" product="learning-paths" />
+
+### 네트워크 계층
+
+<Render file="limit-external-connections-network" product="learning-paths" />
+
+<Render file="ent-only-network-security" product="learning-paths" />
+
+## 원본 상태 모니터링
+
+수동 모니터링을 위해 [알림 생성](/notifications/get-started/#create-a-notification)에서 **Origin Error Rate Alerts**를 설정하면 원본이 설정 가능한 임계값을 초과하는 5xx 코드를 반환할 때 알림을 받을 수 있고, **Passive Origin Monitoring**으로 Cloudflare가 몇 분간 원본에 도달하지 못하는 상황도 확인할 수 있습니다.
+
+보다 능동적인 모니터링을 원한다면 원본에 대해 [독립형 상태 확인](/health-checks/)을 설정하세요.
+
+:::note
+
+서버가 여러 대이고 원본 문제를 사전에 방지하고 싶다면 부가 서비스인 [로드 밸런싱 설정](/load-balancing/)을 고려하세요.
+
+:::
+
+### Zero Downtime Failover
+
+Cloudflare **DNS**에 다른 *A* 또는 *AAAA* 레코드가 있거나, Cloudflare **Load Balancer**가 동일한 풀 내에 다른 <GlossaryTooltip term="endpoint" link="/load-balancing/understand-basics/load-balancing-components/">엔드포인트</GlossaryTooltip>를 제공하는 경우 **Zero-Downtime Failover**는 로드 밸런싱 결정이 내려지기 전에도 원본으로의 요청을 자동으로 재시도합니다.
+
+<Render file="zero-downtime-failover-retry-on-error" product="fundamentals" /> <br />
+
+## 원본 트래픽 줄이기
+
+### 트래픽 차단
+
+자세한 내용은 [웹사이트 보호](/learning-paths/application-security/account-security/)를 참고하세요.
+
+### 캐싱 늘리기
+
+[캐시](/cache/)는 애플리케이션의 데이터(웹페이지 등)를 전 세계 Cloudflare 데이터 센터에 저장하여 원본 서버로 전송되는 요청 수를 줄입니다.
+
+### 트래픽 분산
+
+여러 서버에 트래픽을 무작위로 분산하려면 [여러 DNS 레코드 설정](/dns/manage-dns-records/how-to/round-robin-dns/)을 하세요.
+
+자동 장애 조치, 지능형 라우팅 등 더 세밀한 트래픽 분산 제어가 필요하다면 [부가 로드 밸런싱 서비스](/load-balancing/)를 설정하세요.
+
+특정 엔드포인트가 트래픽 급증으로 과부하되지 않도록 보호하려면 [대기실 설정](/waiting-room/)을 하세요.

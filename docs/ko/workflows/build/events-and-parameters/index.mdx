@@ -1,0 +1,236 @@
+---
+title: 이벤트 및 매개 변수
+pcx_content_type: concept
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/build/events-and-parameters/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workflows/build/events-and-parameters/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	MetaInfo,
+	Render,
+	Type,
+	WranglerConfig,
+	TypeScriptExample,
+} from "~/components";
+
+Workflow가 방아쇠를 때, 그것은 선택적인 사건을 받을 수 있습니다. 이 이벤트는 요청 세부 사항, 사용자 데이터가 데이터베이스 (D1 또는 KVXKV) 또는 Queue 소비자의 웹훅 또는 메시지와 같은 데이터를 포함 할 수 있습니다.
+
+이벤트는 작업 흐름의 강력한 부분입니다. 종종 데이터에 행동하기 위해 작업 흐름을 원합니다. 주어진 Workflow 인스턴스가 durably를 실행하기 때문에 이벤트는 immutable (not changing)이어야하는 데이터와 워크 플로우를 제공 할 수있는 유용한 방법이며 / 또는 그 시점에서 작업 흐름을 운영해야합니다.
+
+## Workflow에 데이터 전달
+
+3가지 방법으로 Workflow에 매개 변수를 전달할 수 있습니다.
+
+- 옵션 인수로`create`로그인[Workflow 바인딩](/workers/wrangler/commands/#trigger)Worker에서 Workflow를 트리거 할 때.
+- 오시는 길`--params`사용할 때 플래그`wrangler`작업 흐름을 트리거하려면 CLI.
+- 오시는 길`step.waitForEvent`API, 작업 흐름 인스턴스를 허용하여 이벤트 (및 옵션 데이터) 수신*실행 중*. 워크 플로우 인스턴스는 HTTP 또는 Workers API를 통해 외부 서비스에서 이벤트를 보낼 수 있습니다.
+
+JSON-serializable 객체를 매개변수로 전달할 수 있습니다.
+
+:::카트로션
+
+·`WorkflowEvent`그리고 그것의 관련`payload`재산은 효과적으로 입니다*관련 제품*: 이벤트의 변경은 워크 플로의 단계에 따라 지속되지 않습니다. 일반적으로 Workflow가 진행될 경우, Workflow가 실패로 인해 재시작해야 하는 경우를 포함합니다.
+
+저장 상태 durably 로 returning 그것 부터 당신의`step.do`콜백.
+
+:::
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(req: Request, env: Env) {
+  		let someEvent = { url: req.url, createdTimestamp: Date.now() };
+  		//Trigger 우리의 Workflow
+  		//`create` 메소드에 두 번째 매개 변수로 이벤트를 전달하십시오.
+  		//우리의 Workflow 바인딩에.
+  		let instance = await env.MY_WORKFLOW.create({
+  			id: crypto.randomUUID(),
+  			params: someEvent,
+  		});
+
+  		return Response.json({
+  			id: instance.id,
+  			details: await instance.status(),
+  		});
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+매개 변수를 통과`wrangler`명령행 인터페이스는 JSON 문자열을 두 번째 매개 변수로 전달합니다.`workflows trigger`sub-command:
+
+```sh
+npx wrangler@latest workflows trigger workflows-starter '{"some":"data"}'
+```
+
+```sh output
+🚀 Workflow instance "57c7913b-8e1d-4a78-a0dd-dce5a0b7aa30" has been queued successfully
+```
+
+### 행사 일정
+
+작업 흐름을 실행하면 이벤트(또는 이벤트)를 기다립니다.`step.waitForEvent`작업 흐름 내에서, 당신은 두 가지 방법으로 작업 흐름에 이벤트를 보낼 수 있습니다:
+
+1. 오시는 길[Workers API 바인딩](/workflows/build/workers-api/): 전화`instance.sendEvent`특정 작업 흐름 인스턴스에 이벤트를 보낼 수 있습니다.
+2. REST API (HTTP API)의 사용[이벤트 종료점](/api/resources/workflows/subresources/instances/subresources/events/methods/create/).
+
+이름 \*`waitForEvent`의 일부`WorkflowStep`API, Workflow 내에서 여러 번 호출할 수 있으며, 이벤트를 일시적으로 기다리는 제어 흐름을 사용합니다.
+
+전화 번호`waitForEvent`지정해야 합니다.`type`(최대 100자[^1]), 대응에 사용 되는`type`작업 흐름 인스턴스에 이벤트를 보낼 때.
+
+:::카트로션
+더 보기`waitForEvent`type 매개변수는 문자, 숫자만 지원합니다,`-`·`_`. 현재 포함`.`지원되지 않으며 결과가 없습니다.`workflow.invalid_event_type`오류.
+주요 특징
+
+예를 들어, 청구 webhook을 기다립니다:
+
+<TypeScriptExample>
+  ```ts
+  export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
+  	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+  		//작업 흐름의 다른 단계
+  		let stripeEvent = await step.waitForEvent<IncomingStripeWebhook>(
+  			"receive invoice paid webhook from Stripe",
+  			{ type: "stripe-webhook", timeout: "1 hour" },
+  		);
+  		//당신의 Workflow의 나머지
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+위의 예:
+
+- 이름 \*`waitForEvent`한국어`type`이름 \*`stripe-webhook`- 해당`sendEvent`호출은 이렇게`await instance.sendEvent({type: "stripe-webhook", payload: webhookPayload})`.
+- TypeScript를 사용하십시오[유형 모수](https://www.typescriptlang.org/docs/handbook/2/generics.html)반환 값 입력`step.waitForEvent`제품정보`IncomingStripeWebhook`.
+- 작업 흐름의 나머지와 계속.
+
+기본 시간표`waitForEvent`통화는 통과하여 변경 될 수있는 24 시간입니다.`{ timeout: WorkflowTimeoutDuration }`두 번째 인수로`waitForEvent`전화.
+
+<TypeScriptExample>
+  ```ts
+  let event = await step.waitForEvent(
+  		"wait for human approval",
+  		{ type: "approval-flow", timeout: "15 minutes" },
+  	);
+  ```
+</TypeScriptExample>
+
+1초와 365일 사이에 타임아웃을 지정할 수 있습니다.
+
+:::caution\[시간 동작]
+
+시간 :`waitForEvent`밖으로 시간, Workflow 오류를 던지고 인스턴스가 실패합니다. 이벤트가 수신되지 않은 경우에도 계속 작업 흐름을 원한다면, 포장`waitForEvent`try-catch 블록에 호출:
+
+<TypeScriptExample>
+  ```ts
+  try {
+  	const event = await step.waitForEvent("wait for approval", {
+  		type: "approval",
+  		timeout: "1 hour",
+  	});
+  	//주어진 사건을 취급하십시오
+  } catch (e) {
+  	//Timeout 발생 - 이벤트가 수신되지 않은 경우 핸들링
+  	console.log("No approval received, proceeding with default action");
+  }
+  ```
+</TypeScriptExample>
+
+:::
+
+### 작업 흐름을 실행하기 위한 이벤트 보내기
+
+작업 흐름 인스턴스를 사용하여 이벤트에 대기`waitForEvent`API는 이벤트를 보낼 수 있습니다.`instance.sendEvent`API:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(req: Request, env: Env) {
+  		const instanceId = new URL(req.url).searchParams.get("instanceId");
+  		const webhookPayload = await req.json<Payload>();
+
+  		let instance = await env.MY_WORKFLOW.get(instanceId);
+  		//`type`XQ와 함께 이벤트 유형을 정의
+  		//우리의 step.waitForEvent 호출
+  		await instance.sendEvent({
+  			type: "stripe-webhook",
+  			payload: webhookPayload,
+  		});
+
+  		return Response.json({
+  			status: await instance.status(),
+  		});
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+- 관련 기사[`waitForEvent`](#wait-for-events)이 가이드에서 예,`type`제품정보`waitForEvent`·`sendEvent`필드는 일치해야합니다.
+- 여러 이벤트를 Workflow에 보낼 수 있도록`waitForEvent`통화, 통화`sendEvent`관련 기사`type`속성 설정 (최대 100 문자[^1]).
+- 이벤트는 REST API(HTTP API)를 사용하여 전송할 수 있습니다.[이벤트 종료점](/api/resources/workflows/subresources/instances/subresources/events/methods/create/).
+
+:::노트\[이벤트 타이밍]
+
+Workflow 인스턴스에 이벤트를 보낼 수 있습니다.*이전 다음*그것은 대응에 도달`waitForEvent`호출, as long as a 인스턴스가 생성되었습니다. 작업 흐름이 도달하면 이벤트가 완충되고 전달됩니다.`waitForEvent`일치하는 단계`type`.
+
+:::
+
+## TypeScript와 유형 모수
+
+기본적으로,`WorkflowEvent`이름 \*`run`Workflow 정의의 방법은 다음과 같은 유형이 있습니다.`payload`(당신의 자료),`timestamp`·`instanceId`특성:
+
+```ts
+export type WorkflowEvent<T> = {
+	//Workflow 인스턴스가 트리거되었을 때 매개 변수로 전달된 데이터
+	payload: T;
+	//Workflow가 방아쇠되었다는 타임스탬프
+	timestamp: Date;
+	//현재 Workflow 인스턴스의 ID
+	instanceId: string;
+};
+```
+
+이 이벤트를 선택적으로 입력할 수 있습니다.[유형 모수](https://www.typescriptlang.org/docs/handbook/2/generics.html#working-with-generic-type-variables)이름 \*`WorkflowEvent`:
+
+```ts
+//당신의 Workflow 인스턴스를 준수하는 유형 정의
+//즉시에
+interface YourEventType {
+	userEmail: string;
+	createdTimestamp: number;
+	metadata?: Record<string, string>;
+}
+```
+
+당신은 당신의 패스를`YourEventType`으로`WorkflowEvent`유형 모수로,`event.payload`재산에는 지금 유형이 있습니다`YourEventType`작업 흐름 정의를 통해:
+
+```ts title="src/index.ts"
+//Workflow 정의 가져 오기
+import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent} from 'cloudflare:workers';
+
+export class MyWorkflow extends WorkflowEntrypoint {
+    //WorkflowEvent에 타입 파라미터로 입력을 전달합니다.
+    //'payload' 속성은 매개 변수의 유형이 있습니다.
+    async run(event: WorkflowEvent<YourEventType>, step: WorkflowStep) {
+        let state = await step.do("my first step", async () => {
+          //이벤트를 통해 속성에 액세스하십시오. 결제하기
+          let userEmail = event.payload.userEmail
+          let createdTimestamp = event.payload.createdTimestamp
+        })
+
+        await step.do("my second step", async () => { /*당신의 코드를 여기에*/ })
+    }
+}
+```
+
+<Render file="workflows-type-parameters" product="workflows" />
+
+[^1]: 일치 본:`^[a-zA-Z0-9_][a-zA-Z0-9-_]*$`

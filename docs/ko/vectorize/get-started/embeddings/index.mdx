@@ -1,0 +1,292 @@
+---
+title: Vectorize 및 Workers AI
+pcx_content_type: get-started
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/get-started/embeddings/'
+translation_source_md: 'https://developers.cloudflare.com/vectorize/get-started/embeddings/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+<Render file="vectorize-ga" product="vectorize" />
+
+Vectorize를 사용하면 생성 할 수 있습니다[벡터 embedding](/vectorize/reference/what-is-a-vector-database/)기계 학습 모델을 사용하여 모델에서 사용할 수 있습니다.[Workers AI](/workers-ai/).
+
+:::노트\[Vectorize?]
+
+Vectorize 또는 벡터 데이터베이스를 사용하여 처음 사용하는 경우, 시작[Vectorize 자주 묻는 질문](/vectorize/get-started/intro/).
+
+:::
+
+이 가이드는 당신을 통해 지시합니다:
+
+- Vectorize 인덱스 생성
+- 연결하기[Cloudflare 작업자](/workers/)당신의 색인에.
+- 사용 방법[모델 번호: Workers AI](/workers-ai/)벡터 embeddings 생성.
+- Vectorize를 사용하여 벡터 embeddings를 쿼리합니다.
+
+## 자주 묻는 질문
+
+계속하려면:
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages)이미 없다면.
+2. 설치하기[`npm`](https://docs.npmjs.com/getting-started).
+3. 설치하기[`Node.js`](https://nodejs.org/en/). Node version Manager를 사용하여[볼트](https://volta.sh/)또는[사이트맵](https://github.com/nvm-sh/nvm)허가 문제를 방지하고 Node.js 버전을 변경하십시오.[Wrangler](/workers/wrangler/install-and-update/)Node 버전이 필요합니다.`16.17.0`또는 나중에.
+
+## 1. 노동자 만들기
+
+Vectorize 인덱스의 클라이언트 애플리케이션 역할을 할 Worker 스크립트를 포함하는 새로운 프로젝트를 만들 것입니다.
+
+터미널을 열고 이름을 새 프로젝트 만들기`embeddings-tutorial`다음 명령을 실행하여:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"embeddings-tutorial"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새로운 것`embeddings-tutorial`디렉토리. 당신의 새로운`embeddings-tutorial`디렉토리는 다음과 같습니다:
+
+- ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)에 의해`src/index.ts`.
+- ·[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.`wrangler.jsonc`너의 것`embeddings-tutorial`Worker는 색인에 접근할 것입니다.
+
+:::참조
+
+Cloudflare Workers, 또는 연속 통합 (CI) 환경에서 프로젝트를 초기화하는 경우, 새로운 프로젝트가 비동기적으로 설정하여`CI=true`이름 \*[환경변수](/workers/configuration/environment-variables/)현재 위치`create cloudflare@latest`.
+
+예를 들면:`CI=true npm create cloudflare@latest embeddings-tutorial --type=simple --git --ts --deploy=false`기본 "Hello World" 프로젝트를 만들 준비가되어 있습니다.
+
+:::
+
+## 2. 인덱스 생성
+
+벡터 데이터베이스는 전통적인 SQL 또는 NoSQL 데이터베이스와 구별됩니다. 벡터 데이터베이스는 벡터 embeddings를 저장하도록 설계되었지만 원본 데이터 자체가 아닙니다.
+
+첫 번째 Vectorize 인덱스를 만들려면 Workers 프로젝트에서 만든 디렉토리로 변경하십시오.
+
+```sh
+cd embeddings-tutorial
+```
+
+<Render file="vectorize-legacy" product="vectorize" />
+
+인덱스를 만들려면`wrangler vectorize create`명령과 인덱스의 이름을 제공합니다. 좋은 색인 이름은:
+
+- 더 낮은 케이스 및 / 또는 숫자 ASCII 문자의 조합, 32 문자보다 짧은, 문자로 시작, 대신 공백 대신 dashes (-)를 사용.
+- 사용 사례 및 환경의 설명. 예를 들어, "production-doc-search" 또는 "dev-recommendation-engine".
+- 인덱스를 설명하는 데만 사용되며 코드에서 직접 referenced가 아닙니다.
+
+또한, 모두 정의`dimensions`벡터의 당신은 인덱스뿐만 아니라 거리에 저장됩니다`metric`인덱스를 만들 때 유사한 벡터를 결정하는 데 사용됩니다.**이 구성은 나중에 변경할 수 없습니다.**, 벡터 데이터베이스로 설정된 벡터 구성을 구성합니다.
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령, 그 보장`dimensions`설정하기`768`: 이 튜토리얼에서 사용되는 Workers AI 모델이 768 차원의 벡터 출력으로 사용됩니다.
+
+```sh
+npx wrangler vectorize create embeddings-index --dimensions=768 --metric=cosine
+```
+
+```sh output
+✅ Successfully created index 'embeddings-index'
+
+[[vectorize]]
+binding = "VECTORIZE" #env.VECTORIZE에 있는 당신의 노동자에서 유효한
+index_name = "embeddings-index"
+```
+
+이것은 새로운 벡터 데이터베이스를 만들고 출력합니다.[관련 제품](/workers/runtime-apis/bindings/)다음 단계에서 필요한 구성.
+
+## 3. 당신의 색인에 당신의 노동자를 바짝 죄십시오
+
+Vectorize 색인에 연결하기 위하여 노동자를 위한 바인딩을 창조해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)WorkersXQX0052XQQ WorkersXQXQXQXQXQXQXQXQXQXWorkersXQXQXQ와 같은 접근 자원에 당신의 WorkersXQXQXQXQXQ를 허용하십시오. Wrangler 파일을 업데이트하여 바인딩을 만듭니다.
+
+작업자에게 인덱스를 바인딩하려면 Wrangler 파일의 끝에 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vectorize": [
+  		{
+  			"binding": "VECTORIZE", //env.VECTORIZE에 있는 당신의 노동자에서 유효한
+  			"index_name": "embeddings-index"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+특정한:
+
+- value (string) 설정`<BINDING_NAME>`reference이 작업자의 데이터베이스에 사용됩니다. 이 튜토리얼에서 바인딩 이름을`VECTORIZE`.
+- 바인딩은 있어야 합니다[유효한 JavaScript 가변 이름](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#variables). 예를 들면,`binding = "MY_INDEX"`또는`binding = "PROD_SEARCH_INDEX"`둘 다 바인딩을 위한 유효한 이름일 것입니다.
+- 당신의 의무는 당신의 노동자에서 유효합니다`env.<BINDING_NAME>`Vectorize[클라이언트 API](/vectorize/reference/client-api/)Workers 신청 내의 사용을 위한 이 의무에 드러납니다.
+
+## 4. Workers AI를 설치하십시오
+
+embedding 예제를 배포하기 전에 Worker가 모델을 카탈로그를 사용하여[텍스트 embedding 모델](/workers-ai/models/#text-embeddings)내장.
+
+내 계정`embeddings-tutorial`디렉토리, 당신의 편집기에 Wrangler 파일을 열고 새로운 추가`[[ai]]`당신의 노동자에서 유효한 Workers AI의 모형을 만드는 바인딩:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vectorize": [
+  		{
+  			"binding": "VECTORIZE",
+  			"index_name": "embeddings-index"
+  		}
+  	],
+  	"ai": {
+  		"binding": "AI" //env에 당신의 노동자에서 유효한. 사이트맵
+  	}
+  }
+  ```
+</WranglerConfig>
+
+Workers AI 준비를 통해 작업자의 코드를 작성할 수 있습니다.
+
+## 5. 작업자의 코드를 작성
+
+작업자의 코드를 작성하려면, 당신의`embeddings-tutorial`노동자와 열려있는`src/index.ts`파일. 더 보기`index.ts`파일은 Vectorize 인덱스로 작업자의 상호 작용을 구성하는 곳입니다.
+
+자주 묻는 질문`index.ts`. 다음 코드를 붙여넣기 snippet 당신의`index.ts`파일. 에 의해`env`매개 변수, 교체`<BINDING_NAME>`이름 \*`VECTORIZE`:
+
+```typescript
+export interface Env {
+	VECTORIZE: Vectorize;
+	AI: Ai;
+}
+interface EmbeddingResponse {
+	shape: number[];
+	data: number[][];
+}
+
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		let path = new URL(request.url).pathname;
+		if (path.startsWith("/favicon")) {
+			return new Response("", { status: 404 });
+		}
+
+		//한 번 벡터 embeddings를 생성해야합니다 (또는 as
+		//데이터 변경), 모든 요청에 따라
+		if (path === "/insert") {
+			//실제 응용 프로그램에서 R2 또는
+			//SQL 데이터베이스 (D1와 동일) 및 Workers AIXQ에 전달
+			const stories = [
+				"This is a story about an orange cloud",
+				"This is a story about a llama",
+				"This is a story about a hugging emoji",
+			];
+			const modelResp: EmbeddingResponse = await env.AI.run(
+				"@cf/baai/bge-base-en-v1.5",
+				{
+					text: stories,
+				},
+			);
+
+			//형식 VectorizeXQ로 벡터 embeddings를 변환 할 수 있습니다.
+			//각 벡터는 ID, 값 (펄스) 및 옵션 메타 데이터가 필요합니다.
+			//실제 응용 프로그램에서 ID는 소스의 ID에 바인딩됩니다.
+			//문서.
+			let vectors: VectorizeVector[] = [];
+			let id = 1;
+			modelResp.data.forEach((vector) => {
+				vectors.push({ id: `${id}`, values: vector });
+				id++;
+			});
+
+			let inserted = await env.VECTORIZE.upsert(vectors);
+			return Response.json(inserted);
+		}
+
+		//귀하의 쿼리 : 벡터 ID와 일치하기 위해 이것을 기대합니다. 이 예에서 1
+		let userQuery = "orange cloud";
+		const queryVector: EmbeddingResponse = await env.AI.run(
+			"@cf/baai/bge-base-en-v1.5",
+			{
+				text: [userQuery],
+			},
+		);
+
+		let matches = await env.VECTORIZE.query(queryVector.data[0], {
+			topK: 1,
+		});
+		return Response.json({
+			//벡터 ID를 기대합니다. 1은 점수의 점수와 일치합니다.
+			//~0.89693683 ·
+			//이 튜토리얼은 코신 거리 메트릭을 사용합니다.
+			//더 유사합니다.
+			matches: matches,
+		});
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+## 6. 작업자를 배포
+
+전 세계 노동자를 배포하기 전에 Cloudflare 계정으로 로그인하십시오.
+
+```sh
+npx wrangler login
+```
+
+QXQX0073XQQ dashboard에 로그인하려면 웹 페이지로 이동합니다. 로그인한 후 Wrangler가 Cloudflare 계정에 변경할 수 있는 경우 요청됩니다. 스크롤 다운 및 선택**지원하다**계속.
+
+여기에서 Worker를 배포하여 인터넷에 접근할 수 있는 프로젝트를 만들 수 있습니다. 노동자를 배포하려면, 실행:
+
+```sh
+npx wrangler deploy
+```
+
+작업자 미리보기`https://embeddings-tutorial.<YOUR_SUBDOMAIN>.workers.dev`.
+
+## 7. 당신의 색인을 쿼리
+
+새로 만들어진 프로젝트에 대한 URL을 방문하여 벡터를 삽입하고 쿼리 할 수 있습니다.
+
+배포 작업자의 URL (예를 들어,`https://embeddings-tutorial.<YOUR_SUBDOMAIN>.workers.dev/`), 브라우저를 열고:
+
+1. 먼저 벡터를 삽입하여`/insert`.
+2. 인덱스 경로를 방문하여 인덱스를 쿼리하십시오 -`/`.
+
+다음 JSON을 반환해야 합니다:
+
+```json
+{
+	"matches": {
+		"count": 1,
+		"matches": [
+			{
+				"id": "1",
+				"score": 0.89693683
+			}
+		]
+	}
+}
+```
+
+이 예제를 다음과 같이 확장하십시오:
+
+- 더 많은 입력을 추가하고 벡터의 더 큰 세트를 생성.
+- URL에서 전달된 사용자 지정 쿼리 매개 변수를 수락, 예를 들면`URL.searchParams`.
+- 다른 새로운 인덱스 만들기[거리 미터](/vectorize/best-practices/create-indexes/#distance-metrics)당신의 점수가 입력에 응답하는 방법을 관찰.
+
+이 튜토리얼을 완료하면 성공적으로 Vectorize 인덱스를 생성했으며, Workers AI를 사용하여 벡터 embeddings를 생성하고 글로벌 프로젝트를 배포했습니다.
+
+## 다음 단계
+
+- 계정 만들기[인공지능 챗봇](/workers-ai/guides/tutorials/build-a-retrieval-augmented-generation-ai/)Workers AI 및 Vectorize를 사용하여.
+- 더 알아보기[벡터 데이터베이스 작업 방법](/vectorize/reference/what-is-a-vector-database/).
+- ...에서[이름 \*](/vectorize/reference/client-api/)Cloudflare QXQXQXQXQXQXQXWorkersXQ에서 QXQXQXQ API를 사용하는 방법에.

@@ -1,0 +1,401 @@
+---
+title: Expose 서비스
+pcx_content_type: how-to
+sidebar:
+  order: 4
+description: 웹 서비스에 대한 미리보기 URL 및 노출 포트 생성.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/expose-services/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/expose-services/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+:::note\[제품은 사용자 정의 도메인을 요구합니다]
+미리보기 URL은 생산중인 Wildcard DNS 라우팅과 사용자 정의 도메인을 요구합니다. 이름 \*[생산 Deployment](/sandbox/guides/production-deployment/)설정 지침.
+주요 특징
+
+이 가이드는 미리 URL을 통해 sandbox에서 인터넷으로 실행되는 서비스를 노출하는 방법을 보여줍니다.
+
+## 항구를 노출할 때
+
+당신이 필요로 할 때 Expose 항구:
+
+- **웹 응용 프로그램**- 미리보기 frontend 또는 backend 앱
+- **공유 데모**- 다른 응용 프로그램을 실행하는 데
+- **API 개발**- 외부 도구에서 endpoints 테스트
+- **Debug 서비스**- 문제 해결을위한 내부 서비스 접근
+- **dev 환경 구축**- 공유 가능한 개발 작업 공간 만들기
+
+## 기본 포트 노출
+
+일반적인 워크플로우는: start service → wait for ready → exposed port → handle request with`proxyToSandbox`.
+
+<TypeScriptExample>
+  ```
+  import { getSandbox, proxyToSandbox } from '@cloudflare/sandbox';
+
+  export { Sandbox } from '@cloudflare/sandbox';
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      // Proxy requests to exposed ports first
+      const proxyResponse = await proxyToSandbox(request, env);
+      if (proxyResponse) return proxyResponse;
+
+      // Extract hostname from request
+      const { hostname } = new URL(request.url);
+      const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+
+      // 1. Start a web server
+      await sandbox.startProcess('python -m http.server 8000');
+
+      // 2. Wait for service to start
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // 3. Expose the port
+      const exposed = await sandbox.exposePort(8000, { hostname });
+
+      // 4. Preview URL is now available (public by default)
+      console.log('Server accessible at:', exposed.url);
+      // Production: https://8000-abc123.yourdomain.com
+      // Local dev: http://localhost:8787/...
+
+      return Response.json({ url: exposed.url });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+:::카트로션
+**미리보기 URL은 기본적으로 공개됩니다.**&#x55;RL을 가진 사람은 당신의 서비스에 접근할 수 있습니다. 필요한 경우 인증 추가.
+주요 특징
+
+:::노트\[Local 개발 요건]
+사용 방법`wrangler dev`, 당신은 추가해야합니다`EXPOSE`각 포트에 대한 Dockerfile을 지시하면 노출할 수 있습니다. 이 없으면 "연결 거부 : 컨테이너 포트가 찾을 수 없습니다." 이름 \*[지역 개발](#local-development)설정 세부 사항에 대한 아래의 섹션.
+주요 특징
+
+:::caution\[Uppercase sandbox ID는 미리보기 URL과 작동하지 않습니다]
+미리보기 URL은 호스트 이름에서 sandbox ID를 추출합니다. 즉, 항상 더 낮은 케이스 (예 :`8000-myproject-123.yourdomain.com`). sandbox를 topcase ID로 만들면`"MyProject-123"`, URL 경로에`"myproject-123"`(다른 튼튼한 목표), 당신의 sandbox unachable 만들기.
+
+이 문제를 해결하려면`normalizeId: true`항구 노출을 위한 sandboxes를 창조할 때:
+
+```ts
+const sandbox = getSandbox(env.Sandbox, 'MyProject-123', { normalizeId: true });
+```
+
+생성 중에 ID를 낮추기 때문에 미리보기 URL 라우팅과 일치합니다. 이것 없이,`exposePort()`오류 발생.
+
+**좋은 연습**: 시작에서 더 낮은 케이스 ID 사용 (`'my-project-123'`).
+
+이름 \*[Sandbox 옵션](/sandbox/configuration/sandbox-options/#normalizeid)상세 정보
+주요 특징
+
+## 사용자 정의 토큰과 안정적인 URL
+
+생산 배포 또는 사용자가 URL을 공유 할 때 사용자 정의 토큰을 사용하여 컨테이너 재시작에 걸쳐 일관된 미리보기 URL을 유지합니다.
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  // Without custom token - URL changes on restart
+  const exposed = await sandbox.exposePort(8080, { hostname });
+  // https://8080-sandbox-id-random16chars12.yourdomain.com
+
+  // With custom token - URL stays the same across restarts
+  const stable = await sandbox.exposePort(8080, { 
+    hostname, 
+    token: 'api-v1' 
+  });
+  // https://8080-sandbox-id-api-v1.yourdomain.com
+  // Same URL after container restart ✓
+
+  return Response.json({
+    'Temporary URL (changes on restart)': exposed.url,
+    'Stable URL (consistent)': stable.url
+  });
+  ```
+</TypeScriptExample>
+
+**토큰 요구 사항:**
+
+- 1-16 문자 길이
+- Lowercase문자(a-z), 숫자(0-9), 하이픈(-), 밑줄( )만
+- 각 sandbox에서 고유해야합니다.
+
+**사용 사례:**
+
+- 안정적인 엔드포인트를 가진 생산 API
+- 외부 사용자와 데모 URL 공유
+- 예측 가능한 URL과 통합 테스트
+- 일관된 예시로 문서화
+
+## 당신의 노출 포트 이름
+
+여러 항구를 탐험 할 때, 조직을 유지하기 위해 이름을 사용합니다:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  // Start and expose API server with stable token
+  await sandbox.startProcess('node api.js', { env: { PORT: '8080' } });
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  const api = await sandbox.exposePort(8080, { 
+    hostname, 
+    name: 'api',
+    token: 'api-prod'
+  });
+
+  // Start and expose frontend with stable token
+  await sandbox.startProcess('npm run dev', { env: { PORT: '5173' } });
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  const frontend = await sandbox.exposePort(5173, { 
+    hostname, 
+    name: 'frontend',
+    token: 'web-app'
+  });
+
+  console.log('Services:');
+  console.log('- API:', api.url);
+  console.log('- Frontend:', frontend.url);
+  ```
+</TypeScriptExample>
+
+## 서비스 준비
+
+항상 서비스가 exposing 전에 준비되어 있습니다. 대부분의 경우 간단한 지연을 사용하십시오:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  // Start service
+  await sandbox.startProcess('npm run dev', { env: { PORT: '8080' } });
+
+  // Wait 2-3 seconds
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Now expose
+  await sandbox.exposePort(8080, { hostname });
+  ```
+</TypeScriptExample>
+
+중요한 서비스를 위해, 건강 endpoint를 poll:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  await sandbox.startProcess('node api-server.js', { env: { PORT: '8080' } });
+
+  // Wait for health check
+  for (let i = 0; i < 10; i++) {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const check = await sandbox.exec('curl -f http://localhost:8080/health || echo "not ready"');
+    if (check.stdout.includes('ok')) {
+      break;
+    }
+  }
+
+  await sandbox.exposePort(8080, { hostname });
+  ```
+</TypeScriptExample>
+
+## 다수 서비스
+
+가득 차있 토크 신청을 위한 다수 항구를 노출하십시오:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  // Start backend
+  await sandbox.startProcess('node api/server.js', {
+    env: { PORT: '8080' }
+  });
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Start frontend
+  await sandbox.startProcess('npm run dev', {
+    cwd: '/workspace/frontend',
+    env: { PORT: '5173', API_URL: 'http://localhost:8080' }
+  });
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  // Expose both
+  const api = await sandbox.exposePort(8080, { hostname, name: 'api' });
+  const frontend = await sandbox.exposePort(5173, { hostname, name: 'frontend' });
+
+  return Response.json({
+    api: api.url,
+    frontend: frontend.url
+  });
+  ```
+</TypeScriptExample>
+
+## 노출된 포트 관리
+
+### 현재 노출된 포트 목록
+
+<TypeScriptExample>
+  ```
+  const { ports, count } = await sandbox.getExposedPorts();
+
+  console.log(`${count} ports currently exposed:`);
+
+  for (const port of ports) {
+    console.log(`  Port ${port.port}: ${port.url}`);
+    if (port.name) {
+      console.log(`    Name: ${port.name}`);
+    }
+  }
+  ```
+</TypeScriptExample>
+
+### 저렴한 항구
+
+<TypeScriptExample>
+  ```
+  // Unexpose a single port
+  await sandbox.unexposePort(8000);
+
+  // Unexpose multiple ports
+  for (const port of [3000, 5173, 8080]) {
+    await sandbox.unexposePort(port);
+  }
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+- **자주 묻는 질문**- 시작 과정 후에 항구를 즉시 노출하지 마십시오
+- **이름 포트 사용**- 여러 항구를 탐험 할 때 추적하는 Easier
+- **더 알아보기**- 버려진 URL을 방지하기 위해 수행 할 수없는 포트
+- **인증 받기**- 미리보기 URL은 공개; 민감한 서비스를 보호
+
+## 지역 개발
+
+현지에서 개발할 때`wrangler dev`, 당신은 당신의 Dockerfile에 항구를 노출해야 합니다:
+
+```dockerfile title="Dockerfile"
+FROM docker.io/cloudflare/sandbox:0.3.3
+
+# Expose ports you plan to use
+EXPOSE 8000
+EXPOSE 8080
+EXPOSE 5173
+```
+
+(주)`wrangler.jsonc`Dockerfile을 사용하려면:
+
+```jsonc title="wrangler.jsonc"
+{
+  "containers": [
+    {
+      "class_name": "Sandbox",
+      "image": "./Dockerfile"
+    }
+  ]
+}
+```
+
+생산에서, 모든 항구는 유효하 통제되는 programmatically를 통해`exposePort()` / `unexposePort()`.
+
+## 문제 해결
+
+### 항구 3000는 예약됩니다
+
+포트 3000은 내부 분 서버에 의해 사용되며 노출 될 수 없습니다.
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  // ❌ This will fail
+  await sandbox.exposePort(3000, { hostname });  // Error: Port 3000 is reserved
+
+  // ✅ Use a different port
+  await sandbox.startProcess('node server.js', { env: { PORT: '8080' } });
+  await sandbox.exposePort(8080, { hostname });
+  ```
+</TypeScriptExample>
+
+### 항구는 준비되어 있지 않습니다
+
+exposing 하기 전에 시작 하는 서비스에 대 한 기대:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  await sandbox.startProcess('npm run dev');
+  await new Promise(resolve => setTimeout(resolve, 3000));
+  await sandbox.exposePort(8080, { hostname });
+  ```
+</TypeScriptExample>
+
+### 포트 이미 노출
+
+오류를 방지하기 전에 체크:
+
+<TypeScriptExample>
+  ```
+  // Extract hostname from request
+  const { hostname } = new URL(request.url);
+
+  const { ports } = await sandbox.getExposedPorts();
+  if (!ports.some(p => p.port === 8080)) {
+    await sandbox.exposePort(8080, { hostname });
+  }
+  ```
+</TypeScriptExample>
+
+### Uppercase 샌드박스 ID 오류
+
+**오류 수정**: `Preview URLs require lowercase sandbox IDs`
+
+**이름 \***: 상부 문자가있는 sandbox를 만들었습니다 (예 :`"MyProject-123"`) 그러나 미리 URL은 항상 routing에 있는 더 낮은 케이스를, mismatch 일으키는 원인이 됩니다.
+
+**제품정보**:
+
+<TypeScriptExample>
+  ```
+  // Create sandbox with normalization
+  const sandbox = getSandbox(env.Sandbox, 'MyProject-123', { normalizeId: true });
+  await sandbox.exposePort(8080, { hostname });
+  ```
+</TypeScriptExample>
+
+이것은 ID를 가진 튼튼한 목표를 창조합니다`"myproject-123"`, 미리보기 URL 라우팅 일치.
+
+이름 \*[Sandbox 옵션 - 정상화](/sandbox/configuration/sandbox-options/#normalizeid)상세 정보
+
+## 미리보기 URL 형식
+
+**제품정보**: `https://{port}-{sandbox-id}-{token}.yourdomain.com`
+
+- 자동 생성된 토큰:`https://8080-abc123-random16chars12.yourdomain.com`
+- 주문 토큰:`https://8080-abc123-my-api-v1.yourdomain.com`
+
+**지역 개발**: `http://localhost:8787/...`
+
+**이름 \***: 포트 3000은 내부 분 서버에 예약되어 노출될 수 없습니다.
+
+## 관련 자료
+
+- [항구 API reference](/sandbox/api/ports/)- 완전한 항구 노출 API
+- [배경 프로세스 가이드](/sandbox/guides/background-processes/)- 서비스 관리
+- [명령 가이드 실행](/sandbox/guides/execute-commands/)- 서비스 시작

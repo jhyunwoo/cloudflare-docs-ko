@@ -1,0 +1,151 @@
+---
+pcx_content_type: concept
+title: Botnet 위협 피드
+sidebar:
+  order: 15
+head:
+  - tag: title
+    content: DDoS Botnet Threat Feed 서비스 제공 업체
+learning_center:
+  title: DDoS 봇넷이란?
+  link: 'https://www.cloudflare.com/learning/ddos/what-is-a-ddos-botnet/'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ddos-protection/botnet-threat-feed/'
+translation_source_md: 'https://developers.cloudflare.com/ddos-protection/botnet-threat-feed/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps, APIRequest, DashButton } from "~/components"
+
+'Cloudflare' DDoS Botnet Threat Feed는 호스팅 제공 업체 및 인터넷 서비스 제공 업체 (ISPs)와 같은 서비스 제공 업체 (SP)에 대한 위협 인텔리전스 피드로서 HTTP DDoS 공격에 참여한 자신의 IP 주소에 대한 정보를 제공하는 'Cloudflare'의 글로벌 네트워크. 이 피드는 서비스 제공 업체가 남용을 중지하고 그들의 네트워크 내에서 시작 DDoS 공격을 줄일 것을 목표로.
+
+각 offense는 특정 IP 주소에서 HTTP 요청을 mitigated. 예를 들어, IP가 3,000의 offenses를 가지고 있다면, Cloudflare는 IP에서 3,000 HTTP 요청을 mitigated 것을 의미합니다.
+
+서비스 제공 업체는 자율 시스템 번호 (ASNs)와 관련된 IP 주소에 대한 정보를 얻을 수 있습니다. ASN과 함께 서비스 제공업체의 제휴는[피어링DB](https://www.peeringdb.com/)신뢰할 수 있고 세계적으로 인정받는 상호 연결 데이터베이스.
+
+피드의 정확성을 보장하기 위해, Cloudflare는 여러 HTTP DDoS 공격에 참여한 IP 주소를 포함하며 높은 수준의 규칙을 유발했습니다.
+
+## 사이트맵
+
+수천 개의 봇으로 구성된 단일 DDoS 공격은 서비스 제공 업체 당 하나의 단일 IP로 약간 참여할 수 있습니다. 서비스 제공 업체는 일반적으로 자신의 네트워크를 떠나 공격 트래픽의 작은 분수를 볼뿐만 아니라 악의적 인 활동에 영향을 미칠 수 있으며, 학대를 식별하려고합니다.
+
+HTTPS DDoS 공격의 경우, 서비스 제공 업체는 모든 가능성을 해독하거나 악의적 또는 합법적 인 트래픽인지 이해하지 않고 네트워크를 떠나는 암호화 된 페이로드를 볼 수 있습니다. 그러나 "Cloudflare"는 공격이 'Cloudflare'의 서비스를 사용하는 인터넷 속성을 대상으로하는 경우 전체 공격과 모든 소스를 볼 수 있습니다. 이 글로벌 뷰는 서비스 제공 업체가 남용자를 막을 수 있도록 도와줍니다.
+
+더 자세한 내용은 참조[DDoS 보호 기능](/ddos-protection/about/how-ddos-protection-works/).
+
+## 적용분야
+
+'Cloudflare\` DDoS Botnet Threat Feed는 서비스 제공 업체에게 무료로 제공됩니다. 더 많은 정보를 원하시면, 참조[이용 약관](https://www.cloudflare.com/en-gb/service-specific-terms-application-services/#ddos-botnet-threat-feed).
+
+***
+
+## 시작하기 전에
+
+확인 :
+
+- 당신은[Cloudflare 계정 생성](/fundamentals/account/).
+
+## 시작하기
+
+### 1. PeeringDB를 통해 ASN 인증
+
+<Steps>
+  1. 'Cloudflare 대시보드\`에서 계정 설정 페이지로 이동합니다.
+
+     <DashButton url="/?to=/:account/configurations" />
+  2. 제품정보**DDoS 위협 피드 ASNs**.
+  3. 위협 피드를 위해 구성된 ASNs 목록에서, 선택**ASN 추가**.
+  4. PeeringDB 인증 페이지로 리디렉션됩니다. 구성 페이지로 다시 리디렉션됩니다.
+</Steps>
+
+:::참조
+위협 피드에 여러 ASNs를 추가할 수 있습니다.
+주요 특징
+
+### 2. Cloudflare API 토큰 획득
+
+당신은['Cloudflare' API 토큰 획득](/fundamentals/api/get-started/create-token/)적어도 다음과 같은 계정 수준 권한:
+
+- *DDoS Botnet 피드* > *...에서*
+
+### 3. Botnet 위협 피드 API 호출
+
+Botnet 위협 피드 API endpoints 중 하나를 호출:
+
+- [전체 보고서](#get-full-report)
+- [자주 묻는 질문](#get-day-report)
+
+***
+
+## 사용 가능한 API 엔드포인트
+
+:::caution\[중요한 노트]
+
+- API URI 경로는 변경 예정`.../botnet_feed/...`으로`.../ddos_botnet_feed/...`미래에.
+- 결과에 IP 주소가없는 응답 (empty state)는 반환됩니다`HTTP 200`status code (success), 빈 리스트로`result`호텔 위치
+- 응답이 성공일 때이지만 결과는`0`또는`null`, 이것은 발견 된 범죄가 없다는 것을 의미합니다.
+  주요 특징
+
+API 엔드포인트를 호출하려면, Cloudflare API base URL에 작업 엔드포인트를 추가하십시오:
+
+```txt
+https://api.cloudflare.com/client/v4
+```
+
+### 전체 보고서
+
+주어진 ASN에 대한 botnet 추적 데이터베이스의 모든 데이터를 검색 (현재 데이터의 2 주 값).
+
+- HTTP 동사:`GET`
+- 가동 엔드포인트:`/accounts/{account_id}/botnet_feed/asn/{asn}/full_report`
+
+이용 약관`{asn}`계정과 제휴해야 합니다.
+
+<APIRequest path="/accounts/{account_id}/botnet_feed/asn/{asn_id}/full_report" method="GET" />
+
+```json output
+{
+  "result": [
+    {
+      "cidr": "127.0.0.1/32",
+      "date": "1970-01-01T00:00:00Z",
+      "offense_count": 10000
+    },
+    // ... other entries ...
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+### 자주 묻는 질문
+
+모든 데이터를 검색 botnet 추적 데이터베이스 주어진 날짜에 주어진 ASN에 대한. 이 작업은 현재 2 주 전보다 큰 날짜를 허용하지만,이 경우 빈 데이터 세트를 반환합니다 (현재 데이터베이스는 데이터의 2 주를 저장합니다).
+
+- HTTP 동사:`GET`
+- 가동 엔드포인트:`/accounts/{account_id}/botnet_feed/asn/{asn}/day_report?date={date}`
+
+이용 약관`{asn}`계정과 제휴해야 합니다.
+
+`{date}`ISO 8601 형식의 날짜가 있어야합니다.`YYYY-MM-DD`. 날짜가 지정되지 않은 경우, API는 하루 전에 데이터로 응답합니다.
+
+<APIRequest path="/accounts/{account_id}/botnet_feed/asn/{asn_id}/day_report" method="GET" />
+
+```json output
+{
+  "result": [
+    {
+      "cidr": "127.0.0.1/32",
+      "date": "2024-05-05T00:00:00Z",
+      "offense_count": 10000
+    },
+    // ... other entries ...
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```

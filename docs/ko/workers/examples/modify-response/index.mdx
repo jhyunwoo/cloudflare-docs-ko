@@ -1,0 +1,216 @@
+---
+summary: >-
+  Fetch and modify response properties which are immutable by creating a copy
+  first.
+tags:
+  - Middleware
+  - Headers
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 응답 수정
+sidebar:
+  order: 1001
+description: Fetch 및 수정 응답 속성은 복사본을 먼저 만들 수 있습니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/modify-response/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/modify-response/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/modify-response)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare QXWorkers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * @param {string} headerNameSrc 헤더에서 새로운 값을 얻을
+    * @param {string} headerNameDst 헤더는 src 값으로 설정*/
+    		const headerNameSrc = "foo"; //"Orig-Header"는
+    		const headerNameDst = "Last-Modified";
+
+    		/** 이름
+    * 응답 재산은 immutable 입니다. 변경하려면 새로운 구성
+    * 응답 및 Pass 수정된 상태 또는 statusText in the ResponseInit
+    * 객체. 응답 헤더는 헤더 `set` 방법을 통해 수정할 수 있습니다.*/
+    		const originalResponse = await fetch(request);
+
+    		//상태 및 상태표현을 변경하지만 몸과 헤더를 보존
+    		let response = new Response(originalResponse.body, {
+    			status: 500,
+    			statusText: "some message",
+    			headers: originalResponse.headers,
+    		});
+
+    		//foo prop을 추가하여 응답 몸 변경
+    		const originalBody = await originalResponse.json();
+    		const body = JSON.stringify({ foo: "bar", ...originalBody });
+    		response = new Response(body, response);
+
+    		//설정 방법을 사용하여 헤더를 추가
+    		response.headers.set("foo", "bar");
+
+    		//대상 헤더를 소스 헤더의 값으로 설정
+    		const src = response.headers.get(headerNameSrc);
+
+    		if (src != null) {
+    			response.headers.set(headerNameDst, src);
+    			console.log(
+    				`Response header "${headerNameDst}" was set to "${response.headers.get(
+    					headerNameDst,
+    				)}"`,
+    			);
+    		}
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * @param {string} headerNameSrc 헤더에서 새로운 값을 얻을
+    * @param {string} headerNameDst 헤더는 src 값으로 설정*/
+    		const headerNameSrc = "foo"; //"Orig-Header"는
+    		const headerNameDst = "Last-Modified";
+
+    		/** 이름
+    * 응답 재산은 immutable 입니다. 변경하려면 새로운 구성
+    * 응답 및 Pass 수정된 상태 또는 statusText in the ResponseInit
+    * 객체. 응답 헤더는 헤더 `set` 방법을 통해 수정할 수 있습니다.*/
+    		const originalResponse = await fetch(request);
+
+    		//상태 및 상태표현을 변경하지만 몸과 헤더를 보존
+    		let response = new Response(originalResponse.body, {
+    			status: 500,
+    			statusText: "some message",
+    			headers: originalResponse.headers,
+    		});
+
+    		//foo prop을 추가하여 응답 몸 변경
+    		const originalBody = await originalResponse.json();
+    		const body = JSON.stringify({ foo: "bar", ...originalBody });
+    		response = new Response(body, response);
+
+    		//설정 방법을 사용하여 헤더를 추가
+    		response.headers.set("foo", "bar");
+
+    		//대상 헤더를 소스 헤더의 값으로 설정
+    		const src = response.headers.get(headerNameSrc);
+
+    		if (src != null) {
+    			response.headers.set(headerNameDst, src);
+    			console.log(
+    				`Response header "${headerNameDst}" was set to "${response.headers.get(
+    					headerNameDst,
+    				)}"`,
+    			);
+    		}
+    		return response;
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+    import json
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            header_name_src = "foo" #Header에서 새로운 가치를 얻을
+            header_name_dst = "Last-Modified" #src의 값을 기반으로 설정하는 헤더
+
+            #응답 재산은 immutable 입니다. 변경하려면 새로운 응답을 구성하십시오.
+            original_response = await fetch(request)
+
+            #상태 및 상태표현을 변경하지만 몸과 헤더를 보존
+            response = Response(original_response.body, status=500, status_text="some message", headers=original_response.headers)
+
+            #foo prop을 추가하여 응답 몸 변경
+            new_body = await original_response.json()
+            new_body["foo"] = "bar"
+            response.replace_body(json.dumps(new_body))
+
+            #새로운 헤더 추가
+            response.headers["foo"] = "bar"
+
+            #대상 헤더를 소스 헤더의 값으로 설정
+            src = response.headers[header_name_src]
+
+            if src is not None:
+                response.headers[header_name_dst] = src
+                print(f'Response header {header_name_dst} was set to {response.headers[header_name_dst]}')
+
+            return response
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    const app = new Hono();
+
+    app.get('*', async (c) => {
+      /** 이름
+    * 헤더 구성*/
+      const headerNameSrc = "foo"; //Header에서 새로운 가치를 얻을
+      const headerNameDst = "Last-Modified"; //src의 값을 기반으로 설정하는 헤더
+
+      /** 이름
+    * 응답 재산은 immutable 입니다. Hono로, 우리는 응답을 수정할 수 있습니다
+    * 사용자 지정 응답 개체를 만들기에 의해.*/
+      const originalResponse = await fetch(c.req.raw);
+
+      //원래 응답에서 JSON 몸을 가져옵니다
+      const originalBody = await originalResponse.json();
+
+      //새로운 속성을 추가하여 몸을 수정
+      const modifiedBody = {
+        foo: "bar",
+        ...originalBody
+      };
+
+      //수정된 상태, 헤더 및 신체에 대한 새로운 사용자 정의 응답 생성
+      const response = new Response(JSON.stringify(modifiedBody), {
+        status: 500,
+        statusText: "some message",
+        headers: originalResponse.headers,
+      });
+
+      //설정 방법을 사용하여 헤더를 추가
+      response.headers.set("foo", "bar");
+
+      //대상 헤더를 소스 헤더의 값으로 설정
+      const src = response.headers.get(headerNameSrc);
+      if (src != null) {
+        response.headers.set(headerNameDst, src);
+        console.log(
+          `Response header "${headerNameDst}" was set to "${response.headers.get(headerNameDst)}"`
+        );
+      }
+
+      return response;
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

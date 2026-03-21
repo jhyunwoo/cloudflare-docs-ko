@@ -1,0 +1,95 @@
+---
+title: 변형 (AWS)
+pcx_content_type: example
+reviewed: 2023-05-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/terraform-aws/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/terraform-aws/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+이 예제는 Terraform을 사용하여 R2를 구성하는 방법을 보여줍니다[AWS 공급자](https://github.com/hashicorp/terraform-provider-aws).
+
+:::note\[AWS 공급자 사용]
+
+Cloudflare 공급자만 사용하는 경우,[옵션 정보](/r2/examples/terraform/).
+
+:::
+
+이름 \*[`terraform`](https://developer.hashicorp.com/terraform/downloads)설치:
+
+1. 이름 \*`main.tf`파일, 또는 기존 Terraform 구성 편집
+2. 엔드포인트 URL을 Populate`endpoints.s3`너와 함께[Cloudflare 계정 ID](/fundamentals/account/find-account-and-zone-ids/)
+3. 관련 기사`access_key`·`secret_key`관련 기사[R2 API 자격](/r2/api/tokens/).
+4. 견적 요청`skip_region_validation = true`, `skip_requesting_account_id = true`·`skip_credentials_validation = true`공급자 윤곽에서 놓입니다.
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source = "hashicorp/aws"
+      version = "~> 5"
+    }
+  }
+}
+
+provider "aws" {
+  region = "us-east-1"
+
+  access_key = <R2 Access Key>
+  secret_key = <R2 Secret Key>
+
+	# Required for R2.
+	# These options disable S3-specific validation on the client (Terraform) side.
+  skip_credentials_validation = true
+  skip_region_validation      = true
+  skip_requesting_account_id  = true
+
+  endpoints {
+    s3 = "https://<account id>.r2.cloudflarestorage.com"
+  }
+}
+
+resource "aws_s3_bucket" "default" {
+  bucket = "<org>-test"
+}
+
+resource "aws_s3_bucket_cors_configuration" "default" {
+  bucket   = aws_s3_bucket.default.id
+
+  cors_rule {
+    allowed_methods = ["GET"]
+    allowed_origins = ["*"]
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "default" {
+  bucket = aws_s3_bucket.default.id
+
+  rule {
+    id     = "expire-bucket"
+    status = "Enabled"
+    expiration {
+      days = 1
+    }
+  }
+
+  rule {
+    id     = "abort-multipart-upload"
+    status = "Enabled"
+    abort_incomplete_multipart_upload {
+      days_after_initiation = 1
+    }
+  }
+}
+```
+
+다음을 사용할 수 있습니다.`terraform plan`변화를 보고`terraform apply`변경 사항

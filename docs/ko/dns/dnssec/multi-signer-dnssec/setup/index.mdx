@@ -1,0 +1,173 @@
+---
+pcx_content_type: how-to
+title: Multi-signer DNSSEC 설정
+sidebar:
+  order: 5
+  label: Setup
+---
+
+import { Tabs, TabItem, APIRequest, DashButton } from "~/components";
+
+이 페이지는 [RFC 8901](https://www.rfc-editor.org/rfc/rfc8901.html)에 설명된 [모델 2](/dns/dnssec/multi-signer-dnssec/about/#model-2)를 사용해 Cloudflare에서 [multi-signer DNSSEC](/dns/dnssec/multi-signer-dnssec/about/)를 활성화하는 방법을 설명합니다.
+
+## 시작하기 전에
+
+다음 사항에 유의하세요.
+
+- 이 과정에서는 다른 DNS 공급자도 multi-signer DNSSEC를 지원해야 합니다.
+- 대시보드에서 일부 단계는 수행할 수 있지만, 현재 전체 과정은 API를 사용해야만 완료할 수 있습니다.
+- [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지에서 **DNSSEC**와 **Multi-signer DNSSEC**를 활성화하는 것은 [1. Cloudflare 영역 설정](#1-set-up-cloudflare-zone)의 첫 단계만 대체합니다. 설정을 완료하려면 이 튜토리얼의 나머지 단계도 따라야 합니다.
+
+## 1. Cloudflare 영역 설정
+
+### Cloudflare를 기본(primary, full setup)으로 사용하는 경우
+
+Cloudflare를 기본 DNS 공급자로 사용하여 Cloudflare에서 DNS 레코드를 관리하는 경우 다음을 수행하세요.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **Enable DNSSEC**를 선택하고 **Confirm**을 누릅니다.
+
+:::note
+이 튜토리얼에서는 등록기관에 DS 레코드를 나중에 [3단계](/dns/dnssec/multi-signer-dnssec/setup/#3-set-up-registrar)에서 업데이트합니다.
+:::
+
+3. 이어서 **Multi-signer DNSSEC**와 **Multi-provider DNS**도 활성화합니다.
+4. [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지로 이동하여 영역 apex에 다음 레코드를 생성합니다(즉 레코드 **Name** 필드에는 `@`를 사용해야 합니다).
+    - 외부 공급자의 zone signing key(ZSK)가 포함된 [DNSKEY 레코드](/dns/manage-dns-records/reference/dns-record-types/#ds-and-dnskey)
+    - 외부 공급자의 네임서버를 가리키는 [NS 레코드](/dns/manage-dns-records/reference/dns-record-types/#ns)
+
+</TabItem>
+<TabItem label="API">
+
+1. [Edit DNSSEC Status endpoint](/api/resources/dns/subresources/dnssec/methods/edit/)를 사용해 영역에 대해 DNSSEC를 활성화하고 multi-signer DNSSEC를 켭니다. 아래 예시처럼 `status`를 `active`, `dnssec_multi_signer`를 `true`로 설정합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+  	"status": "active",
+  	"dnssec_multi_signer": true,
+	}}
+/>
+
+2. 영역에 DNSKEY 레코드를 생성하여 외부 공급자의 ZSK를 Cloudflare에 추가합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+  "type": "DNSKEY",
+  "name": "<ZONE_NAME>",
+  "data": {
+    "flags": 256,
+    "protocol": 3,
+    "algorithm": 13,
+    "public_key": "<PUBLIC_KEY>"
+  },
+  "ttl": 3600
+}}
+/>
+
+3. 영역 apex에 외부 공급자의 네임서버를 NS 레코드로 추가합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+  "type": "NS",
+  "name": "<ZONE_NAME>",
+  "content": "<NS_DOMAIN>",
+  "ttl": 86400
+}}
+/>
+
+4. 이전 단계에서 추가한 네임서버를 사용하도록 아래 API 요청으로 설정을 활성화합니다.
+
+:::caution
+이 단계는 필수입니다. 이 설정을 켜지 않으면 Cloudflare는 영역 apex에 생성된 `NS` 레코드를 무시합니다. 즉 영역 apex에 대한 `NS` 질의 응답에는 Cloudflare 네임서버만 포함됩니다.
+:::
+
+<APIRequest
+	path="/zones/{zone_id}/dns_settings"
+	method="PATCH"
+	json={{
+		"multi_provider": true,
+	}}
+/>
+
+</TabItem>
+</Tabs>
+
+### Cloudflare를 보조(Secondary)로 사용하는 경우
+
+Cloudflare를 보조 DNS 공급자로 사용하는 경우 다음을 수행하세요.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **DNSSEC with Secondary DNS**에서 **Live signing**을 선택합니다.
+
+:::note
+이 튜토리얼에서는 등록기관에 DS 레코드를 나중에 [3단계](/dns/dnssec/multi-signer-dnssec/setup/#3-set-up-registrar)에서 업데이트합니다.
+:::
+
+3. 이어서 **Multi-signer DNSSEC**도 활성화합니다.
+4. 외부 공급자의 zone signing key(ZSK)를 기본 DNS 공급자 쪽 DNSKEY 레코드에 추가합니다. 이 레코드는 Cloudflare로 정상 전송되어야 합니다.
+5. 외부 공급자의 네임서버를 기본 DNS 공급자 쪽 영역 apex의 NS 레코드로 추가합니다. 이 레코드들도 Cloudflare로 정상 전송되어야 합니다.
+
+</TabItem>
+<TabItem label="API">
+
+1. [Edit DNSSEC Status endpoint](/api/resources/dns/subresources/dnssec/methods/edit/)를 사용해 영역에 대해 DNSSEC를 활성화하고 multi-signer DNSSEC를 켭니다. 아래 예시처럼 `status`를 `active`, `dnssec_multi_signer`를 `true`로 설정합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+  	"status": "active",
+  	"dnssec_multi_signer": true,
+	}}
+/>
+
+2. 외부 공급자의 ZSK를 기본 DNS 공급자의 DNSKEY 레코드에 추가합니다. 이 레코드는 Cloudflare로 정상 전송되어야 합니다.
+
+3. 외부 공급자의 네임서버를 기본 DNS 공급자의 영역 apex에 NS 레코드로 추가합니다. 이 레코드도 Cloudflare로 정상 전송되어야 합니다.
+
+</TabItem>
+</Tabs>
+
+## 2. 외부 공급자 설정
+
+1. API 또는 할당된 Cloudflare 네임서버 중 하나에 대한 질의를 사용해 Cloudflare의 ZSK를 가져옵니다.
+
+API 예시:
+
+```bash
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/dnssec/zsk" \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>"
+```
+
+명령줄 질의 예시:
+
+```sh
+$ dig <ZONE_NAME> dnskey @<CLOUDFLARE_NAMESERVER> +noall +answer | grep 256
+```
+
+2. 이전 단계에서 가져온 Cloudflare의 ZSK를 외부 공급자의 DNSKEY 레코드 세트에 추가합니다.
+3. 외부 공급자 쪽 NS 레코드 세트에 Cloudflare 네임서버를 추가합니다.
+
+## 3. 등록기관 설정
+
+1. 등록기관에 DS 레코드를 공급자별로 하나씩 추가합니다. Cloudflare DS 레코드는 [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지의 **DS Record** 아래에서 확인할 수 있습니다.
+
+2. 등록기관의 네임서버 설정을 업데이트하여, multi-signer DNSSEC 구성에 사용할 모든 공급자의 네임서버를 포함하도록 합니다.

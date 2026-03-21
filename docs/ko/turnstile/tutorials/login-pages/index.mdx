@@ -1,0 +1,150 @@
+---
+title: 당신의 형태를 보호하십시오
+pcx_content_type: tutorial
+reviewed: 2025-05-30T00:00:00.000Z
+difficulty: Beginner
+tags:
+  - JavaScript
+  - Node.js
+sidebar:
+  order: 2
+description: >-
+  이 튜토리얼은 로그인, 가입, 또는 연락처 양식과 같은 웹 양식을 보호하기 위해 Cloudflare Turnstile를 통합하여 당신을
+  안내합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/turnstile/tutorials/login-pages/'
+translation_source_md: 'https://developers.cloudflare.com/turnstile/tutorials/login-pages/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps, DashButton } from "~/components";
+
+이 튜토리얼은 로그인, 가입, 또는 연락처 양식과 같은 웹 양식을 보호하기 위해 Cloudflare Turnstile를 통합하여 당신을 안내합니다. 클라이언트 측에 Turnstile 위젯을 구현하고 서버 측에서 Siteverify API를 통해 Turnstile 토큰을 확인하십시오.
+
+## 시작하기 전에
+
+- Cloudflare 계정이 있어야 합니다.
+- 보호하려는 양식으로 웹 응용 프로그램을해야합니다.
+- Node.js 또는 Python와 같은 선택의 HTML과 서버 측 언어의 기본 지식이 있어야 합니다.
+
+## Turnstile 사이트키 및 비밀 키 받기
+
+{/* prettier-ignore */}
+
+<Steps>
+  1. Cloudflare 대시보드에서**사이트맵**사이트 맵
+
+     <DashButton url="/?to=/:account/turnstile" />
+  2. [새로운 Turnstile 위젯 만들기](/turnstile/get-started/).
+  3. 사이트키와 비밀 키를 복사하여 다음 단계에 사용합니다.
+</Steps>
+
+## Turnstile 위젯을 HTML 형태로 추가
+
+<Steps>
+  1. Turnstile 위젯을 양식에 추가하십시오.
+  2. 기타 제품`<YOUR-SITE-KEY>`Cloudflare에서 사이트키로.
+  3. 추가하기`data-callback`Turnstile 위젯 div에 속성. 이 JavaScript 기능은 도전이 성공할 때 호출됩니다.
+  4. 제출 버튼을 처음 사용 안 함
+</Steps>
+
+```html title="Example" {14-15,17}
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>Contact Form</title>
+		<script
+			src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+			async
+			defer
+		></script>
+		<script>
+			function enableSubmit() {
+				document.getElementById("submit-button").disabled = false;
+			}
+		</script>
+	</head>
+	<body>
+		<form id="contact-form" action="/submit" method="POST">
+			<input type="text" name="name" placeholder="Name" required />
+			<input type="email" name="email" placeholder="Email" required />
+			<textarea name="message" placeholder="Message" required></textarea>
+
+			<!--Turnstile 위젯-->
+			<div
+				class="cf-turnstile"
+				data-sitekey="<YOUR-SITE-KEY>"
+				data-callback="enableSubmit"
+			></div>
+
+			<button type="submit" id="submit-button" disabled>Submit</button>
+		</form>
+	</body>
+</html>
+```
+
+## 서버 측에서 Turnstile 토큰을 검증
+
+클라이언트 측에서 보낸 Turnstile 토큰을 확인할 필요가 있습니다. 아래는 Node.js의 예입니다.
+
+```js title="Node.js example"
+const express = require("express");
+const axios = require("axios");
+const bodyParser = require("body-parser");
+const app = express();
+
+app.use(bodyParser.urlencoded({ extended: true }));
+
+app.post("/submit", async (req, res) => {
+	const turnstileToken = req.body["cf-turnstile-response"];
+	const secretKey = "your-secret-key";
+
+	try {
+		const response = await axios.post(
+			"https://challenges.cloudflare.com/turnstile/v0/siteverify",
+			null,
+			{
+				params: {
+					secret: secretKey,
+					response: turnstileToken,
+				},
+			},
+		);
+
+		if (response.data.success) {
+			//토큰은 유효합니다, 양식 제출으로 진행
+			const name = req.body.name;
+			const email = req.body.email;
+			const message = req.body.message;
+			//귀하의 양식 처리 논리 여기에
+			res.send("Form submission successful");
+		} else {
+			res.status(400).send("Turnstile verification failed");
+		}
+	} catch (error) {
+		res.status(500).send("Error verifying Turnstile token");
+	}
+});
+
+app.listen(3000, () => {
+	console.log("Server is running on port 3000");
+});
+```
+
+## 중요한 고려사항
+
+Turnstile 토큰의 검증을 올바르게 처리하는 것이 중요합니다. 이 단면도는 마음에서 지키는 몇몇 중요한 점을 포함합니다.
+
+### 입력 후 토큰을 검증
+
+- 사용자가 양식을 작성한 후 Turnstile 토큰을 확인할 수 있도록**제출하기**.
+- 사용자의 데이터를 입력하기 전에 토큰을 확인하면 악성 배우는 유효 토큰을 얻기 후에 양식 제출을 조작하여 잠재적으로 보호 할 수 있습니다.
+
+### Proper 흐름 구현
+
+- 사용자가 양식을 제출할 때, 양식 데이터와 Turnstile 토큰을 서버에 보냅니다.
+- 서버 측에서 Turnstile 토큰을 먼저 확인합니다.
+- 검증 응답을 기반으로, 양식 데이터를 처리하는 것을 결정합니다.

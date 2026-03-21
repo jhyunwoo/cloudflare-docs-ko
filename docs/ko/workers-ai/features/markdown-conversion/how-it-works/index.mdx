@@ -1,0 +1,59 @@
+---
+title: 어떻게 작동합니까?
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/features/markdown-conversion/how-it-works/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/markdown-conversion/how-it-works/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 사전 처리
+
+Markdown으로 변환하기 전에 파일을 파싱 할 때, 변환하려고하는 파일의 유형에 따라 몇 가지 정리 작업이 있습니다.
+
+### 사이트맵
+
+HTML 파일을 감지 할 때 일련의 것들이 변환되기 전에 HTML 콘텐츠에 발생합니다.
+
+- 일부 요소는 무시, 포함`script`·`style`태그.
+- 메타 태그는 추출. 다음 것`title`, `description`, `og:title`, `og:description`·`og:image`.
+- [JSON-LD는](https://json-ld.org/)내용이 추출되면 존재합니다. 이것은 변환 된 markdown의 끝에 부과됩니다.
+- 상대적 링크 해결을 위해 사용하는 기본 URL은 추출`<base>`이름 \*<sup>1</sup>, 그것이 존재하는 경우, spec에 따라 (즉, 기본 URL의 첫 번째 인스턴스만 계산됩니다).
+- 만약에`cssSelector`옵션은:
+  - 현재, selector와 일치하는 유일한 요소는 추가 처리를 위해 지켜집니다;
+  - 누락된 다음 요소와 같은`<header>`, `<footer>`·`<head>`텍스트에서 제거됩니다.
+- 기본 URL이 이전에 얻은 경우, 나머지 HTML의 상대 링크는 완전히 자격이 된 URL로 해결됩니다.
+
+<sup>1</sup>호스트는 HTML 변환을 사용하여 요청에 따라 설정할 수 있습니다.
+옵션. 더 알아보기[관련 기사
+옵션 정보](/workers-ai/features/markdown-conversion/conversion-options/#html)제품 정보
+더 많은 정보.
+
+### 제품정보
+
+Images는 변환을 준비하기 위해 조금 더 많은 작업을 취합니다.
+
+첫 번째 단계로, 우리는 이미지를 입력하는 것을 감지합니다. SVG (Scalable Vector Graphics) 파일 인 경우 필요한 Workers AI 모델을 사용하여 래스터 형식으로 변환해야합니다. 이 경우 SVGs는 내부적으로 PNG로 변환됩니다.
+
+이후:
+
+- 우리는 이미지의 크기를 결정하려고합니다. 성공하면 이미지가 "too big"또는 아닙니다로 간주됩니다. 이미지는 1280px 이상의 너비가 더 크거나 높이가 720px보다 크면 "too big"입니다.
+- 이미지가 너무 커지면 그 치수에 맞게 크기를 조정하려고합니다. 실패를 재화하는 경우, 우리는 단순히 원본 이미지 데이터를 사용하려고
+- 이미지는 전송됩니다**객체 검출 모델**. 구체적으로, 우리는 사용합니다[`@cf/facebook/detr-resnet-50`](/workers-ai/models/detr-resnet-50/)Workers AI에서.
+- 어떤 개체가 이전 단계에서 감지 된 경우, 그들은 지시에 사용되는 신속한에 부과됩니다**이미지에 텍스트 모델**이미지를 설명하는 방법.
+- 선호하는 변환 언어가 요청의 변환 옵션에 지정되면, 이전 프롬프트는 원하는 언어로 콘텐츠를 출력하기 위해 모델에 대한 지침을 풍부하게합니다. 더 알아보기[변환 옵션](/workers-ai/features/markdown-conversion/conversion-options/#images)더 많은 정보.
+- 마지막 메시지는 이미지 데이터와 함께 전송됩니다.[`@cf/google/gemma-3-12b-it`](/workers-ai/models/gemma-3-12b-it/)모형, 또한 Workers AI에서.
+
+### PDF 파일
+
+- Metadata는 추출됩니다. 이것은 최종 결과에서 제거 할 수 있습니다. 더 알아보기[변환 옵션](/workers-ai/features/markdown-conversion/conversion-options/#pdf)더 많은 정보.
+- 각 페이지는 순서대로 파싱됩니다.
+- 우리는 얻려고`StructTree`PDF 파일에서 객체. 이 데이터 구조는 PDF 콘텐츠를 구성하는 태그 요소의 나무입니다.[ISO 14289 (PDF/UA)](https://www.iso.org/standard/64599.html).
+- 아무도 얻을 수없는 경우, 우리는 페이지의 텍스트를 추출*사이트맵*그리고 그것을 돌려.
+- 우리가 관리하는 경우`StructTree`, 우리는 노드를 가로 질러 내용의 semantic Markdown 표현을 구축합니다.

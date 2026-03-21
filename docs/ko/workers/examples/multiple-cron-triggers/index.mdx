@@ -1,0 +1,143 @@
+---
+summary: Set multiple Cron Triggers on three different schedules.
+tags:
+  - Middleware
+  - JavaScript
+  - TypeScript
+pcx_content_type: example
+title: 다수 Cron Triggers
+sidebar:
+  order: 1001
+description: 세 가지 다른 일정에 여러 Cron Triggers를 설정합니다.
+reviewed: 2021-08-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/multiple-cron-triggers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/multiple-cron-triggers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/multiple-cron-triggers)
+
+GitHub 계정의 저장소를 만들고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async scheduled(event, env, ctx) {
+    		//API 업데이트에 대한 코드 쓰기
+    		switch (event.cron) {
+    			case "*/3 * * * *":
+    				//3분마다
+    				await updateAPI();
+    				break;
+    			case "*/10 * * * *":
+    				//10분마다
+    				await updateAPI2();
+    				break;
+    			case "*/45 * * * *":
+    				//모든 포티 파이브 분
+    				await updateAPI3();
+    				break;
+    		}
+    		console.log("cron processed");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async scheduled(
+    		controller: ScheduledController,
+    		env: Env,
+    		ctx: ExecutionContext,
+    	) {
+    		//API 업데이트에 대한 코드 쓰기
+    		switch (controller.cron) {
+    			case "*/3 * * * *":
+    				//3분마다
+    				await updateAPI();
+    				break;
+    			case "*/10 * * * *":
+    				//10분마다
+    				await updateAPI2();
+    				break;
+    			case "*/45 * * * *":
+    				//모든 포티 파이브 분
+    				await updateAPI3();
+    				break;
+    		}
+    		console.log("cron processed");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    interface Env {}
+
+    //Hono 앱 만들기
+    const app = new Hono<{ Bindings: Env }>();
+
+    //일반 HTTP 요청에 대한 일반 경로
+    app.get("/", (c) => c.text("Multiple Cron Trigger Example"));
+
+    //앱 및 예약 기능 모두 내보내기
+    export default {
+    	//Hono 앱은 일반 HTTP 요청을 처리합니다.
+    	fetch: app.fetch,
+
+    	//예정된 함수는 Cron 방아쇠를 취급합니다
+    	async scheduled(
+    		controller: ScheduledController,
+    		env: Env,
+    		ctx: ExecutionContext,
+    	) {
+    		//cron 스케줄이 실행되는 확인
+    		switch (controller.cron) {
+    			case "*/3 * * * *":
+    				//3분마다
+    				await updateAPI();
+    				break;
+    			case "*/10 * * * *":
+    				//10분마다
+    				await updateAPI2();
+    				break;
+    			case "*/45 * * * *":
+    				//모든 포티 파이브 분
+    				await updateAPI3();
+    				break;
+    		}
+    		console.log("cron processed");
+    	},
+    };
+    ```
+  </TabItem>
+</Tabs>
+
+## Wrangler
+
+Cron Triggers 테스트의 권장 방법은 Wrangler를 사용합니다.
+
+Cron Triggers는 Wrangler를 사용하여 테스트 할 수 있습니다.`--test-scheduled`본문 바로가기[`wrangler dev`](/workers/wrangler/commands/#dev). 이것은 노출될 것입니다`/__scheduled`(주)`/cdn-cgi/handler/scheduled`Python Workers) 경로에 대한 HTTP 요청을 사용하여 테스트 할 수 있습니다. 다른 cron 패턴을 시뮬레이션하기 위해,`cron`질 모수는 안으로 통과될 수 있습니다.
+
+```sh
+npx wrangler dev --test-scheduled
+
+curl "http://localhost:8787/__scheduled?cron=*%2F3+*+*+*+*"
+
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*" #Python Workers
+```

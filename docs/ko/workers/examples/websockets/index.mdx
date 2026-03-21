@@ -1,0 +1,351 @@
+---
+summary: >-
+  Use the WebSockets API to communicate in real time with your Cloudflare
+  Workers.
+tags:
+  - WebSockets
+  - JavaScript
+  - Rust
+pcx_content_type: example
+title: WebSockets API 사용
+sidebar:
+  order: 10000
+description: WebSockets API를 사용하여 Cloudflare Workers로 실시간 통신할 수 있습니다.
+reviewed: 2021-04-13T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/websockets/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/websockets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+WebSockets는 Cloudflare QXWorkers Serverless 기능으로 실시간 통신할 수 있습니다. 이 가이드에서는 Cloudflare QXQXWorkersXQ, WorkersXWorkers기능에 WebSocket 서버를 작성하는 시점에서 WebSocket 서버의 기본을 배웁니다.
+
+WebSockets는 클라이언트와 Origin 서버 사이에 지속적으로 연결됩니다. WebSocket 연결 내부, 클라이언트 및 기원은 세션을 설치하지 않고 데이터를 다시 전달할 수 있습니다. WebSocket 연결에서 데이터를 빠르게 교환합니다. WebSockets는 종종 실시간 채팅 및 게임과 같은 응용 프로그램에 사용됩니다.
+
+:::참조
+
+WebSockets는 Workers 런타임 모델과 같은 메시지를 수신하고 전송하기위한 이벤트 기반 시스템을 사용합니다.
+
+:::
+
+:::참조
+
+대화방이나 게임 경기와 같은 여러 WebSocket 연결을 조정해야 하는 경우 단일 지점 조정에 메시지를 보낼 수 있는 클라이언트가 필요합니다. Durable ObjectsXQ는 Cloudflare WorkersXQX0206XQXQ를 위한 단 하나 점의 조정을 제공하고, 수시로 다수 클라이언트 및 연결에 지속 국가에 WebSockets와 평행한에서 사용됩니다. 이 경우, 참조[Durable Objects](/durable-objects/)get started에, 그리고 Durable ObjectsXQ를 사용하여 선호하는[웹소켓 API](/durable-objects/best-practices/websockets/).
+
+:::
+
+## WebSocket 서버 작성
+
+Cloudflare Workers의 WebSocket 서버는 클라이언트에서 실시간 메시지를 수신할 수 있습니다. 이 가이드는 WorkersXQ에서 WebSocket 서버를 설정하는 방법을 보여줍니다.
+
+클라이언트는 브라우저에서 WebSocket 요청을 만들 수 있습니다.`WebSocket`, 당신의 Workers 기능을 위한 URL에서 통과:
+
+```js
+//클라이언트 측 JavaScript에서, WebSockets를 사용하여 Workers 기능에 연결하십시오:
+const websocket = new WebSocket(
+	"wss://example-websocket.signalnerve.workers.dev",
+);
+```
+
+:::참조
+
+클라이언트의 WebSockets와 협력하는 것에 대한 자세한 내용은, 참조[WebSocket 클라이언트 작성](#write-a-websocket-client).
+
+:::
+
+들어오는 WebSocket 요청이 Workers 기능을 도달할 때, 그것은 포함합니다`Upgrade`header, 문자열 값 설정`websocket`. WebSocket을 즉석하기 전에 이 헤더를 확인:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    async function handleRequest(request) {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (!upgradeHeader || upgradeHeader !== 'websocket') {
+        return new Response('Expected Upgrade: websocket', { status: 426 });
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: HttpRequest, _env: Env, _ctx: Context) -> Result<worker::Response> {
+        let upgrade_header = match req.headers().get("Upgrade") {
+            Some(h) => h.to_str().unwrap(),
+            None => "",
+        };
+        if upgrade_header != "websocket" {
+            return worker::Response::error("Expected Upgrade: websocket", 426);
+        }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+자주 묻는 질문`Upgrade`헤더, 새로운 인스턴스를 만들 수 있습니다.`WebSocketPair`서버 및 클라이언트 WebSockets를 포함하는 ,. 이러한 WebSockets 중 하나는 Workers 기능에 의해 처리되어야하며 다른 사람은 일부로 반환해야합니다.`Response`이름 \*[`101`상태 코드](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Status/101), 요청을 나타내는 것은 엇바꾸기 의정서입니다:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    async function handleRequest(request) {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (!upgradeHeader || upgradeHeader !== 'websocket') {
+        return new Response('Expected Upgrade: websocket', { status: 426 });
+      }
+
+      const webSocketPair = new WebSocketPair();
+      const client = webSocketPair[0],
+        server = webSocketPair[1];
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: HttpRequest, _env: Env, _ctx: Context) -> Result<worker::Response> {
+        let upgrade_header = match req.headers().get("Upgrade") {
+            Some(h) => h.to_str().unwrap(),
+            None => "",
+        };
+        if upgrade_header != "websocket" {
+            return worker::Response::error("Expected Upgrade: websocket", 426);
+        }
+
+        let ws = WebSocketPair::new()?;
+        let client = ws.client;
+        let server = ws.server;
+        server.accept()?;
+
+        worker::Response::from_websocket(client)
+
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`WebSocketPair`constructor는 Object를 반환합니다.`0`·`1`키 각 보유`WebSocket`그 값으로 인스턴스. 이 쌍에서 두 개의 WebSockets를 잡아하는 것이 일반적입니다.[`Object.values`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_objects/Object/values)·[ES6 파괴](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Destructuring_assignment), 아래 예제에서 본 것처럼.
+
+자주 묻는 질문`client`당신의 노동자에 WebSocket, 전화`accept`에 의해`server`웹소켓. 이것은 Workers 런타임에 WebSocket 데이터에 대해 듣고 연결이 열리게됩니다.`client`웹소켓:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    async function handleRequest(request) {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (!upgradeHeader || upgradeHeader !== 'websocket') {
+        return new Response('Expected Upgrade: websocket', { status: 426 });
+      }
+
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      server.accept();
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: HttpRequest, _env: Env, _ctx: Context) -> Result<worker::Response> {
+        let upgrade_header = match req.headers().get("Upgrade") {
+            Some(h) => h.to_str().unwrap(),
+            None => "",
+        };
+        if upgrade_header != "websocket" {
+            return worker::Response::error("Expected Upgrade: websocket", 426);
+        }
+
+        let ws = WebSocketPair::new()?;
+        let client = ws.client;
+        let server = ws.server;
+        server.accept()?;
+
+        worker::Response::from_websocket(client)
+
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+WebSockets는 수를 방출[(주)](/workers/runtime-apis/websockets/#events)사용 가능`addEventListener`. 아래 예제 후크`message`이벤트 및 방출`console.log`데이터와 함께:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    async function handleRequest(request) {
+      const upgradeHeader = request.headers.get('Upgrade');
+      if (!upgradeHeader || upgradeHeader !== 'websocket') {
+        return new Response('Expected Upgrade: websocket', { status: 426 });
+      }
+
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      server.accept();
+      server.addEventListener('message', event => {
+        console.log(event.data);
+      });
+
+      return new Response(null, {
+        status: 101,
+        webSocket: client,
+      });
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use futures::StreamExt;
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: HttpRequest, _env: Env, _ctx: Context) -> Result<worker::Response> {
+        let upgrade_header = match req.headers().get("Upgrade") {
+            Some(h) => h.to_str().unwrap(),
+            None => "",
+        };
+        if upgrade_header != "websocket" {
+            return worker::Response::error("Expected Upgrade: websocket", 426);
+        }
+
+        let ws = WebSocketPair::new()?;
+        let client = ws.client;
+        let server = ws.server;
+        server.accept()?;
+
+        wasm_bindgen_futures::spawn_local(async move {
+            let mut event_stream = server.events().expect("could not open stream");
+            while let Some(event) = event_stream.next().await {
+                match event.expect("received error in websocket") {
+                    WebsocketEvent::Message(msg) => server.send(&msg.text()).unwrap(),
+                    WebsocketEvent::Close(event) => console_log!("{:?}", event),
+                }
+            }
+        });
+        worker::Response::from_websocket(client)
+
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono'
+    import { upgradeWebSocket } from 'hono/cloudflare-workers'
+
+    const app = new Hono()
+
+    app.get(
+      '*',
+      upgradeWebSocket((c) => {
+        return {
+          onMessage(event, ws) {
+            console.log('Received message from client:', event.data)
+            ws.send(`Echo: ${event.data}`)
+          },
+          onClose: () => {
+            console.log('WebSocket closed:', event)
+          },
+          onError: () => {
+            console.error('WebSocket error:', event)
+          },
+        }
+      })
+    )
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>
+
+### 클라이언트에서 WebSocket 서버에 연결
+
+Workers 기능과 통신하는 WebSocket 클라이언트는 두 단계 과정입니다: 첫째로, WebSocket 인스턴스를 창조하고, 그 후에 사건 청취자를 붙이십시오:
+
+```js
+const websocket = new WebSocket(
+	"wss://websocket-example.signalnerve.workers.dev",
+);
+websocket.addEventListener("message", (event) => {
+	console.log("Message received from server");
+	console.log(event.data);
+});
+```
+
+WebSocket 클라이언트는 서버로 다시 메시지를 보낼 수 있습니다[`send`](/workers/runtime-apis/websockets/#send)기능:
+
+```js
+websocket.send("MESSAGE");
+```
+
+WebSocket 상호 작용이 완료되면 클라이언트는 연결을 닫기[`close`](/workers/runtime-apis/websockets/#close):
+
+```js
+websocket.close();
+```
+
+이 연습의 예를 들어, 참조[`websocket-template`](https://github.com/cloudflare/websocket-template)웹소켓과 get started.
+
+## WebSocket 클라이언트 작성
+
+Cloudflare Workers는 지원합니다`new WebSocket(url)`생성기. Worker는 위에서 설명한 클라이언트 구현과 같은 방식으로 원격 서버에 WebSocket 연결을 설정할 수 있습니다.
+
+또한 Cloudflare는 WebSocket 연결을 설정하여 URL에 fetch 요청을 URL로 설정`Upgrade`헤더 세트.
+
+```js
+async function websocket(url) {
+	//`Upgrade: websocket` 헤더를 포함한 fetch 요청을 만드십시오.
+	//Workers Runtime는 자동적으로 다른 필요조건을 취급할 것입니다
+	//WebSocket 프로토콜의 Sec-WebSocket-Key 헤더와 같습니다.
+	let resp = await fetch(url, {
+		headers: {
+			Upgrade: "websocket",
+		},
+	});
+
+	//WebSocket Handhake가 성공적으로 완료되면
+	//응답에는 `webSocket` 재산이 있습니다.
+	let ws = resp.webSocket;
+	if (!ws) {
+		throw new Error("server didn't accept WebSocket");
+	}
+
+	//통화 허용() 소켓을 취급할 수 있음을 나타냅니다.
+	//JavaScript에서 클라이언트에게 돌려보내는 것과 같이.
+	ws.accept();
+
+	//이제 이전과 같은 메시지를 보낼 수 있습니다.
+	ws.send("hello");
+	ws.addEventListener("message", (msg) => {
+		console.log(msg.data);
+	});
+}
+```
+
+## WebSocket 압축
+
+Cloudflare Workers는 WebSocket 압축을 지원합니다. 더 알아보기[WebSocket 압축](/workers/configuration/compatibility-flags/#websocket-compression)더 많은 정보.

@@ -1,0 +1,191 @@
+---
+title: API를 사용하여 사용자 정의 규칙 만들기
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API 사용
+head:
+  - tag: title
+    content: API를 사용하여 WAF 사용자 정의 규칙 만들기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/account/custom-rulesets/create-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/account/custom-rulesets/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+:::참조
+이 기능은 유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+주요 특징
+
+계정 수준에서 사용자 정의 규칙을 배포하려면:
+
+1. 한 개 이상의 규칙을 가진 사용자 정의 규칙을 만듭니다. 대신, 기존의 사용자 정의 규칙을 식별하여 배포하려는[계정 규칙](/api/resources/rulesets/methods/list/)API 가동.
+2. 정의 규칙을 배포하여 실행됩니다. 사용자 정의 규칙을 배포하려면 규칙을 만듭니다.`execute`활동.
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 사용하여 사용자 정의 규칙과 함께 작동합니다.
+
+Terraform을 사용하는 경우, 참조[WAF Terraform을 사용하여 사용자 정의 규칙 구성](/terraform/additional-configurations/waf-custom-rules/#create-and-deploy-a-custom-ruleset).
+
+## 회사연혁
+
+사용자 정의 규칙을 배포하려면 이러한 일반적인 단계를 따르십시오.
+
+1. 사용자 정의 규칙 만들기`http_request_firewall_custom`하나 이상의 규칙을 가진 단계.
+2. 규칙을 배포[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_firewall_custom`단계.
+
+### 1. 사용자 정의 규칙 만들기
+
+다음 예제는 계정 수준에서 단일 규칙으로 사용자 정의 규칙을 만듭니다.`rules`배열.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	description: "",
+  	kind: "custom",
+  	name: "My custom ruleset",
+  	rules: [
+  		{
+  			description: "Challenge web traffic (not /api)",
+  			expression: 'not starts_with(http.request.uri.path, "/api/")',
+  			action: "managed_challenge",
+  		},
+  	],
+  	phase: "http_request_firewall_custom",
+  }}
+  roles="account"
+/>
+
+다음 단계에 대한 응답에 규칙 ID를 저장합니다.
+
+### 2. 사용자 정의 규칙 배포
+
+사용자 정의 규칙을 배포하려면 규칙을 추가하십시오.`"action": "execute"`이름 \*`http_request_firewall_custom`단계 항목 포인트 규칙.
+
+1. <Render file="rulesets/api-account/step1-get-entrypoint" product="waf" params={{ phaseName: "http_request_firewall_custom" }} />
+
+   <APIRequest
+     path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_request_firewall_custom",
+     }}
+     roles="account"
+   />
+
+   ```json output {4}
+   {
+   	"result": {
+   		"description": "Account-level phase entry point",
+   		"id": "<RULESET_ID>",
+   		"kind": "root",
+   		"last_updated": "2024-03-16T15:40:08.202335Z",
+   		"name": "root",
+   		"phase": "http_request_firewall_custom",
+   		"rules": [
+   			// ...
+   		],
+   		"version": "9"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+2. <Render
+     file="rulesets/api-account/step2-create-rule"
+     product="waf"
+     params={{
+     	deploymentItem: "custom ruleset",
+     }}
+   />
+
+   다음 요청은 ID로 사용자 정의 규칙을 실행하는 규칙을 만듭니다.`<CUSTOM_RULESET_ID>`계정의 모든 엔터프라이즈 영역에 대한:
+
+   <APIRequest
+     path="/accounts/{account_id}/rulesets/{ruleset_id}/rules"
+     method="POST"
+     json={{
+     	description: "Execute custom ruleset",
+     	expression: '(cf.zone.plan eq "ENT")',
+     	action: "execute",
+     	action_parameters: {
+     		id: "<CUSTOM_RULESET_ID>",
+     	},
+     	enabled: true,
+     }}
+     roles="account"
+   />
+
+   :::카트로션
+   계정 수준에서 엔터프라이즈 계획에 영역의 들어오는 트래픽에 맞춤 규칙 만 적용 할 수 있습니다. 이 요구 사항을 시행하려면 다음을 포함해야합니다.`cf.zone.plan eq "ENT"`본문내용 바로가기`execute`사용자 정의 규칙을 배포하는 규칙.
+   주요 특징
+
+3. <Render
+     file="rulesets/api-account/step3-create-ruleset"
+     product="waf"
+     params={{
+     	deploymentItem: "custom ruleset",
+     	scope: "all incoming requests of Enterprise zones in your account",
+     }}
+   />
+
+   <APIRequest
+     path="/accounts/{account_id}/rulesets"
+     method="POST"
+     json={{
+     	description: "",
+     	kind: "root",
+     	name: "Account-level phase entry point",
+     	rules: [
+     		{
+     			action: "execute",
+     			expression: '(cf.zone.plan eq "ENT")',
+     			action_parameters: {
+     				id: "<CUSTOM_RULESET_ID>",
+     			},
+     		},
+     	],
+     	phase: "http_request_firewall_custom",
+     }}
+     roles="account"
+   />
+
+## 다음 단계
+
+다른 작업을 사용하여[규칙 세트 API](/ruleset-engine/rulesets-api/)사용자 정의 규칙과 함께 작업하고 배포합니다. 다음 표에는 계정 수준에서 사용자 정의 규칙 작업을위한 일반적인 작업 목록이 있습니다.
+
+| 기타                   | 회사연혁                                                                                                                                                      |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 주문 규칙 목록 받기          | <p>사용 방법[계정 규칙][1]룰렛의 작동 및 검색`"kind": "custom"`·`"phase": "http_request_firewall_custom"`. 응답은 규칙 ID를 포함할 것입니다.</p><p>더 많은 정보를 원하시면, 참조[자주 묻는 질문][2].</p> |
+| 사용자 정의 규칙에 모든 규칙을 나열 | <p>사용 방법[계정 규칙 받기][3]정의 규칙 ID를 사용하여 구성 규칙 및 ID 목록을 얻을 수 있습니다.</p><p>더 많은 정보를 원하시면, 참조[특정 규칙 보기][4].</p>                                                   |
+| 사용자 정의 규칙 업데이트       | <p>사용 방법[계정 규칙 업데이트][5]가동. 사용자 정의 규칙 ID와 규칙 ID를 제공해야합니다.</p><p>더 많은 정보를 원하시면, 참조[규칙을 업데이트][6].</p>                                                        |
+| 사용자 정의 규칙 삭제         | <p>사용 방법[계정 규칙 삭제][7]가동. 사용자 정의 규칙 ID와 규칙 ID를 제공해야합니다.</p><p>더 많은 정보를 원하시면, 참조[규칙을 삭제][8].</p>                                                            |
+
+[1]: /api/resources/rulesets/methods/list/
+
+[2]: /ruleset-engine/rulesets-api/view/#list-existing-rulesets
+
+[3]: /api/resources/rulesets/methods/get/
+
+[4]: /ruleset-engine/rulesets-api/view/#view-a-specific-ruleset
+
+[5]: /api/resources/rulesets/subresources/rules/methods/edit/
+
+[6]: /ruleset-engine/rulesets-api/update-rule/
+
+[7]: /api/resources/rulesets/subresources/rules/methods/delete/
+
+[8]: /ruleset-engine/rulesets-api/delete-rule/
+
+## 더 많은 리소스
+
+API를 통해 영역 수준에서 사용자 정의 규칙을 만드는 지침은 참조[사용자 정의 규칙 (zone 수준)](/waf/custom-rules/custom-rulesets/).
+
+사용자 정의 규칙 작업에 대한 자세한 내용은 참조[주문 규칙 작업](/ruleset-engine/custom-rulesets/)Ruleset Engine 문서에서.

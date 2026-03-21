@@ -1,0 +1,163 @@
+---
+pcx_content_type: how-to
+title: 사용 Pages A/B 테스트를 위한 기능
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/how-to/use-worker-for-ab-testing-in-pages/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/how-to/use-worker-for-ab-testing-in-pages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이 가이드에서, 당신은 사용하는 방법을 배울 것이다[모델 번호: Pages 제품정보](/pages/functions/)Pages 프로젝트에 있는 A/B 테스트를 위해. A/B 테스트는 웹 페이지 또는 응용 프로그램의 두 개 이상의 버전을 비교할 때 적용되는 사용자 경험 연구 방법론입니다. A / B 테스트를 통해 웹 페이지의 두 개 이상의 버전을 사용자에게 제공하고 트래픽을 사이트로 나눕니다.
+
+## 제품정보
+
+A/B 테스트를 위한 응용 프로그램의 다른 버전 구성은 특정 사용 케이스에 독특합니다. 모든 개발자를 위해 A/B 테스트 설정은 몇 가지 도움이되는 원칙으로 단순화 될 수 있습니다.
+
+응용 프로그램 버전의 수에 따라 (이 가이드는 두 가지를 사용합니다), 당신은 실험 그룹으로 사용자를 할당 할 수 있습니다. 이 가이드의 실험 그룹은 기본 경로입니다.`/`시험 경로`/test`.
+
+사용자가 주어진 그룹에 남아 있는지 확인하려면 브라우저에서 쿠키를 설정하고 저장하고 설정한 쿠키 값에 따라 해당 경로가 제공됩니다.
+
+## Pages 기능 설정
+
+프로젝트에는 A/B 테스트를 위해 논리를 처리 할 수 있습니다.[Pages 제품정보](/pages/functions/). Pages 기능은 Pages 프로젝트 내에서 서버 로직을 처리 할 수 있습니다.
+
+시작하기:
+
+1. 로컬 기계에 Pages 프로젝트 디렉토리로 이동하십시오.
+2. 이름 \*`/functions`디렉토리. 애플리케이션 서버 로직은`/functions`디렉토리.
+
+## 미들웨어 논리 추가
+
+모델 번호: Pages 함수는 경로 핸들러의 앞에 실행되는 논리의 펑크를 재사용할 수 있는 유틸리티 함수를 가지고 있습니다. 이 호출[미들웨어](/pages/functions/middleware/). 이 가이드에 따라, 미들웨어는 귀하의 사이트에 도달하기 전에 Pages 프로젝트에 요청을 차단할 수 있습니다.
+
+내 계정`/functions`디렉토리, 생성`_middleware.js`파일.
+
+:::참조
+
+당신이 만들 때`_middleware.js`당신의 기초에 파일`/functions`폴더, Middleware는 프로젝트의 모든 경로에 대해 실행됩니다. 더 알아보기[Midware 여정](/pages/functions/middleware/).
+
+:::
+
+기능 naming 규칙에 따라,`_middleware.js`파일 내보내기 단일 async`onRequest`함수는`request`, `env`·`next`인수로.
+
+```js
+const abTest = async ({ request, next, env }) => {
+	/*도:
+1. 쿠키 확인에 관한 조건
+2. 백분율에 따라 쿠키 할당*/
+};
+
+export const onRequest = [abTest];
+```
+
+쿠키를 설정하려면`cookieName`변수와 값 할당. 그런 다음`newHomepagePathName`변수 및 할당`/test`:
+
+```js null {1,2}
+const cookieName = "ab-test-cookie";
+const newHomepagePathName = "/test";
+
+const abTest = async ({ request, next, env }) => {
+	/*도:
+1. 쿠키 확인에 관한 조건
+2. 백분율에 따라 쿠키 할당*/
+};
+
+export const onRequest = [abTest];
+```
+
+## 상태 논리 설정
+
+URL 경로를 기준으로, 쿠키 값이 동일하게 확인`new`. 값이 있는 경우`new`, 다음`newHomepagePathName`이용안내
+
+```js null {7,8,9,10,11,12,13,14,15,16,17,18,19}
+const cookieName = "ab-test-cookie";
+const newHomepagePathName = "/test";
+
+const abTest = async ({ request, next, env }) => {
+	/*도:
+1. 무작위로 생성된 백분율에 근거하여 쿠키 할당*/
+
+	const url = new URL(request.url);
+	if (url.pathname === "/") {
+		//쿠키 ab-test-cookie=new가 요청을 변경하면 /test로 이동합니다.
+		//쿠키 설정이 없다면 트래픽의 x %를 통과하고 "현재"또는 "새로운"에 쿠키 값을 설정하십시오.
+
+		let cookie = request.headers.get("cookie");
+		//쿠키 설정?
+		if (cookie && cookie.includes(`${cookieName}=new`)) {
+			///test로 가는 요청을 변경하십시오 (newHomepagePath에서 설정하십시오. 이름 변수)
+			url.pathname = newHomepagePathName;
+			return env.ASSETS.fetch(url);
+		}
+	}
+};
+
+export const onRequest = [abTest];
+```
+
+쿠키 값이 존재하지 않는 경우, 하나를 할당해야 합니다. 비율을 생성 (에서 0-99) 로 사용:`Math.floor(Math.random() * 100)`. 귀하의 기본 쿠키 버전은 값이 부여됩니다.`current`.
+
+생성된 숫자의 비율이 더 낮으면`50`, 당신은 쿠키 버전을 할당합니다`new`. 무작위로 생성된 비율에 기초를 두어, 당신은 쿠키를 설정하고 자산을 봉사할 것입니다. 상태 블록 후, 요청을 전달`next()`. 이것은 PagesXQ에 요구에 응할 것입니다. 이것은 사용자의 50 %에서 결과가됩니다.`/test`홈페이지
+
+더 보기`env.ASSETS.fetch()`함수는 사용자가 수정한 경로로 보낼 수 있도록 합니다.`url`모수.`env`환경 변수와 바인딩을 포함하는 객체입니다.`ASSETS`기능 및 Pages의 자산 서빙 자원 간의 통신을 허용하는 기본 기능 바인딩입니다.`fetch()`Pages 자산 보호 자원에 통화하고 자산을 반환합니다 (`/test`홈페이지) 귀하의 웹사이트 방문자에.
+
+:::노트\[Binding]
+
+Pages 프로젝트에서 동적 기능을 추가하는 작업자입니다. 바인딩은 당신의 기능 (Worker)가 외부 자원과 상호 작용하는 방법 입니다. 바인딩은 Workers 런타임이 코드를 제공합니다.
+
+:::
+
+```js null {20-36}
+const cookieName = "ab-test-cookie";
+const newHomepagePathName = "/test";
+
+const abTest = async (context) => {
+	const url = new URL(context.request.url);
+	//홈페이지
+	if (url.pathname === "/") {
+		//쿠키 ab-test-cookie=new가 요청을 변경하면 /test로 이동합니다.
+		//쿠키 설정이 없다면 트래픽의 x %를 통과하고 "현재"또는 "새로운"에 쿠키 값을 설정하십시오.
+
+		let cookie = request.headers.get("cookie");
+		//쿠키 설정?
+		if (cookie && cookie.includes(`${cookieName}=new`)) {
+			///test에 요청을 전달
+			url.pathname = newHomepagePathName;
+			return context.env.ASSETS.fetch(url);
+		} else {
+			const percentage = Math.floor(Math.random() * 100);
+			let version = "current"; //기본 버전
+			//트래픽의 50%를 위한 경로명과 버전명 변경
+			if (percentage < 50) {
+				url.pathname = newHomepagePathName;
+				version = "new";
+			}
+			//ASSETS에서 정적 파일을 얻을, 쿠키를 첨부
+			const asset = await context.env.ASSETS.fetch(url);
+			let response = new Response(asset.body, asset);
+			response.headers.append("Set-Cookie", `${cookieName}=${version}; path=/`);
+			return response;
+		}
+	}
+	return context.next();
+};
+
+export const onRequest = [abTest];
+```
+
+## Cloudflare Pages
+
+당신이 당신의 설정 한 후`functions/_middleware.js`프로젝트의 파일 Pages로 배포 할 준비가되어 있습니다. 프로젝트가 GitHub/GitLab에 변경됩니다.
+
+응용 프로그램을 배포 한 후, 당신의 미들웨어 기능을 검토:
+
+1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+2. Pages 프로젝트 선택 >**계정 설정** > **제품정보** > **제품 설명**.

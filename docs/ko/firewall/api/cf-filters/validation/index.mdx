@@ -1,0 +1,78 @@
+---
+pcx_content_type: reference
+title: Expression 검증
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/firewall/api/cf-filters/validation/'
+translation_source_md: 'https://developers.cloudflare.com/firewall/api/cf-filters/validation/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Filters API는 검증된 표현을 위한 엔드포인트를 지원합니다.
+
+## 이름 \*
+
+### 쿼리 문자열을 통해 validate expression
+
+```bash title="Request"
+curl "https://api.cloudflare.com/client/v4/filters/validate-expr?expression=ip.src==34" \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>"
+```
+
+```json title="Response"
+{
+  "result": null,
+  "success": false,
+  "errors": [
+    {
+      "message": "Filter parsing error:\n`ip.src==34`\n          ^^ couldn't parse address in network: invalid IP address syntax\n"
+    }
+  ],
+  "messages": null
+}
+```
+
+응답의 유효성 검사 오류를 참고하십시오. 이 예에서 오류는 잘못된 IP 주소 형식으로 인해:
+
+```txt
+Filter parsing error:
+`ip.src==34`
+          ^^ couldn't parse address in network: invalid IP address syntax
+```
+
+### JSON 객체를 통한 유효성 표현
+
+```bash title="Request"
+curl "https://api.cloudflare.com/client/v4/filters/validate-expr" \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data '{
+  "expression": "ip.src in {2400:cb00::/32 2405:8100::/2000 2c0f:f248::/32 2a06:98c0::/29}"
+}'
+```
+
+```json title="Response"
+{
+  "result": null,
+  "success": false,
+  "errors": [
+    {
+      "message": "Filter parsing error:\n`ip.src in {2400:cb00::/32 2405:8100::/2000 2c0f:f248::/32 2a06:98c0::/29}`\n                                        ^^^^ number too large to fit in target type while parsing with radix 10\n"
+    }
+  ],
+  "messages": null
+}
+```
+
+응답의 유효성 검사 오류를 참고하십시오. 이 예제에서 하위넷 마스크의 값,`/2000`, 유효한 IPv6 CIDR 가면은 아닙니다:
+
+```txt
+Filter parsing error:
+`ip.src in {2400:cb00::/32 2405:8100::/2000 2c0f:f248::/32 2a06:98c0::/29}`
+                                       ^^^^ number too large to fit in target type while parsing with radix 10
+```

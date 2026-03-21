@@ -1,0 +1,281 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 시작 - Workers 및 Wrangler
+description: CLI를 사용하여 첫 번째 Realtime Agent를 배포합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/agents/getting-started/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/agents/getting-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig, TypeScriptExample } from "~/components";
+
+:::카트로션
+이 가이드는 실험적, Realtime Agent가 통합될 것입니다[에이전트 SDK](/agents/)향후 출시
+주요 특징
+
+이 가이드는 첫 번째 Realtime Agents 프로젝트를 설정하고 배포합니다. 이용안내[Workers](/workers/), Realtime Agents SDK, Workers AI 바인딩 및 Cloudflare 글로벌 네트워크에서 최초의 AI 전원 응용 프로그램을 배포하는 대형 언어 모델 (LLM).
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker 프로젝트 만들기
+
+새로운 Worker 프로젝트를 만들 것입니다.`create-cloudflare`CLI (C3).[사이트맵](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare)Cloudflare에 새 응용 프로그램을 설정하고 배치하는 데 도움이되는 명령줄 도구입니다.
+
+새 프로젝트 만들기`hello-agent`으로 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"hello-agent"} />
+
+(주)`npm create cloudflare@latest`설치하기[`create-cloudflare`제품 설명](https://www.npmjs.com/package/create-cloudflare), 그리고 설치를 통해 당신을 지도하십시오. C3도 설치[Wrangler](/workers/wrangler/), Cloudflare 개발자 플랫폼 CLI.
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새로운 것`hello-agent`디렉토리. 당신의 새로운`hello-agent`디렉토리는 다음과 같습니다:
+
+- ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)에 의해`src/index.ts`.
+- ·[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.
+
+앱 디렉토리로 이동:
+
+```sh
+cd hello-agent
+```
+
+## 2. Realtime Agents SDK 설치
+
+```sh
+npm i @cloudflare/realtime-agents
+```
+
+## 3. Workers AI에 당신의 노동자를 연결하십시오
+
+당신은 Workers AI에 연결하기 위하여 노동자를 위한 AI 바인딩을 창조해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)Workers는 Workers AI, Cloudflare 개발자 플랫폼과 같은 리소스와 상호 작용할 수 있습니다.
+
+Workers AI를 작업자에게 바인딩하려면 WranglerQ 파일의 끝에 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+당신의 바인딩은 입니다[당신의 노동자 부호에서 유효한](/workers/reference/migrate-to-module-workers/#bindings-in-es-modules-format)에 의해[`env.AI`](/workers/runtime-apis/handlers/fetch/).
+
+## 4. 노동자를 구현
+
+업데이트`index.ts`파일 형식`hello-agent`다음 코드와 응용 프로그램 디렉토리:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DeepgramSTT, TextComponent, RealtimeKitTransport, ElevenLabsTTS, RealtimeAgent } from '@cloudflare/realtime-agents';
+
+  class MyTextProcessor extends TextComponent {
+  	env: Env;
+
+  	constructor(env: Env) {
+  		super();
+  		this.env = env;
+  	}
+
+  	async onTranscript(text: string, reply: (text: string) => void) {
+  		const { response } = await this.env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+  			prompt: text,
+  		});
+  		reply(response!);
+  	}
+  }
+
+  export class MyAgent extends RealtimeAgent<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+  	}
+
+  	async init(agentId: string, meetingId: string, authToken: string, workerUrl: string, accountId: string, apiToken: string) {
+  		//텍스트에 대한 응답 생성을위한 텍스트 프로세서를 구축
+  		const textProcessor = new MyTextProcessor(this.env);
+  		//RTK 미팅에 참여하기 위한 미팅 객체 구축
+  		const rtkTransport = new RealtimeKitTransport(meetingId, authToken);
+
+  		//오디오 회의에 걸릴 파이프라인을 건설, 그것을 사용하는 transcribe
+  		//Deepgram 및 ElevenLabs를 통해 생성 된 응답을 전달합니다.
+  		//회의에서 연설
+  		await this.initPipeline(
+  			[
+  				rtkTransport,
+  				new DeepgramSTT(this.env.DEEPGRAM_API_KEY),
+  				textProcessor,
+  				new ElevenLabsTTS(this.env.ELEVENLABS_API_KEY),
+  				rtkTransport,
+  			],
+  			agentId,
+  			workerUrl,
+  			accountId,
+  			apiToken,
+  		);
+
+  		const { meeting } = rtkTransport;
+
+  		//RTK 회의 객체는 우리에게 접근 할 수 있으므로 핸들러를 등록 할 수 있습니다.
+  		//participant와 같은 다양한 이벤트에 참여 / 사랑, 채팅, 기타.
+  		//이것은 선택적입니다
+  		meeting.participants.joined.on('participantJoined', (participant) => {
+  			textProcessor.speak(`Participant Joined ${participant.name}`);
+  		});
+  		meeting.participants.joined.on('participantLeft', (participant) => {
+  			textProcessor.speak(`Participant Left ${participant.name}`);
+  		});
+
+  		//모든 핸들러 등록 후 회의에 실제로 참여하십시오.
+  		await meeting.join();
+  	}
+
+  	async deinit() {
+  		//다른 정리 논리를 추가
+  		await this.deinitPipeline();
+  	}
+  }
+
+  export default {
+  	async fetch(request, env, _ctx): Promise<Response> {
+  		const url = new URL(request.url);
+  		const meetingId = url.searchParams.get('meetingId');
+  		if (!meetingId) {
+  			return new Response(null, { status: 400 });
+  		}
+
+  		const agentId = meetingId;
+  		const agent = env.MY_AGENT.idFromName(meetingId);
+  		const stub = env.MY_AGENT.get(agent);
+  		//fetch 메소드는 내부 파이프라인 논리를 처리하기 위해 구현됩니다.
+  		if (url.pathname.startsWith('/agentsInternal')) {
+  			return stub.fetch(request);
+  		}
+
+  		//당신의 논리는 여기 계속
+  		switch (url.pathname) {
+  			case '/init':
+  				//이것은 회의에 가입하기위한 authToken입니다, 그것은 통과 할 수 있습니다
+  				//쿼리 매개 변수뿐만 아니라 필요한 경우
+  				const authHeader = request.headers.get('Authorization');
+  				if (!authHeader) {
+  					return new Response(null, { status: 401 });
+  				}
+
+  				//`Bearer `
+  				await stub.init(agentId, meetingId, authHeader.split(' ')[1], url.host, env.ACCOUNT_ID, env.API_TOKEN);
+
+  				return new Response(null, { status: 200 });
+  			case '/deinit':
+  				await stub.deinit();
+  				return new Response(null, { status: 200 });
+  		}
+
+  		return new Response(null, { status: 404 });
+  	},
+  } satisfies ExportedHandler<Env>;
+
+  ```
+</TypeScriptExample>
+
+Realtime Agents SDK는 end-to-end 파이프라인을 만들 수 있는 여러 요소들을 제공합니다.
+
+- `RealtimeKitTransport`: RealtimeKit 회의를 대표합니다.
+
+- `DeepgramSTT`: 오디오 회의 및 Deepgram에 의해 구동되는 성적표 제공
+
+- `TextComponent`: 이 요소에 대한 구체적인 구현은 회의에서 생성 된 텍스트를 처리하고 응답을 전송하는 역할을 담당하는 사용자에 의해 제공되어야합니다. 우리는 그것을 구현했습니다`MyTextProcessor`한국어
+
+- `ElevenLabsTTS`: 오디오에 대한 생성 된 응답을 변환하여 회의에서 연설합니다.
+
+우리는 간단한 chatbot 같은 파이프라인을 만들기 위해 함께 이러한 모든 요소를 사용합니다. 사전 요구 사항으로, 우리는 회의에 참여하기 위해 승인 토큰과 함께 회의 ID를 요구해야, 이는 노동자 고용에서 전달되는. 또한, 우리의 클래스는 확장해야`RealtimeAgent`특정 내부 로직을 포함 하 여 우리의 파이프라인 백엔드와 상호 작용을 처리 하는
+
+내 계정`wrangler.jsonc`, 다음 필드를 추가하여 활성화[Node.js 호환성](https://developers.cloudflare.com/workers/runtime-apis/nodejs/)깃발과 우리의 튼튼한 목표를 창조하십시오:
+
+```json
+	"compatibility_flags": ["nodejs_compat"],
+	"migrations": [
+		{
+			"new_sqlite_classes": ["MyAgent"],
+			"tag": "v1",
+		},
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"class_name": "MyAgent",
+				"name": "MY_AGENT",
+			},
+		],
+	},
+```
+
+몇 가지 설정해야 합니다.[이름 \*](https://developers.cloudflare.com/workers/configuration/secrets/):
+
+- `ACCOUNT_ID`: Cloudflare 계정 ID
+- `API_TOKEN`: Cloudflare API 토큰`Admin`이름 \*`Realtime`
+- `ELEVENLABS_API_KEY`, `DEEPGRAM_API_KEY`: ElevenLabs & Deepgram API 키
+
+## 5. AI Worker 배포
+
+글로벌 AI Worker를 배포하기 전에 Cloudflare 계정으로 로그인하십시오.
+
+```sh
+npx wrangler login
+```
+
+QXQX0036XQ QXdashboard에 로그인하려면 웹 페이지로 이동합니다. 로그인한 후 Wrangler가 CloudflareQ 계정에 변경할 수 있는 경우 요청됩니다. 스크롤 다운 및 선택**지원하다**계속.
+
+마지막으로 Worker를 배포하여 인터넷에 접근할 수 있는 프로젝트를 만들 수 있습니다. 노동자를 배포하려면, 실행:
+
+```sh
+npx wrangler deploy
+```
+
+```sh output
+https://hello-agent.<YOUR_SUBDOMAIN>.workers.dev
+```
+
+## 6. RealtimeKit 토큰 생성
+
+마지막으로 worker를 호출하려면 RealtimeKit 토큰을 생성해야합니다.[dashboard](https://dash.realtime.cloudflare.com/dashboard):
+
+1. 오시는 길`Meetings`탭 및 클릭`Create Meeting`:
+
+![회의 탭](public/images/realtime-agents/create-meeting.png)
+
+2. 관련 기사`Join`회의 옆에 RealtimeKit 링크를 생성합니다. 이것은 포함`meetingId` (`bbbb2fac-953c-4239-9ba8-75ba912d76fc`)와`authToken`마지막 단계에서 통과되기 위하여:
+
+`https://demo.realtime.cloudflare.com/v2/meeting?id=bbbb2fac-953c-4239-9ba8-75ba912d76fc&authToken=ey...`
+
+![오시는 길](public/images/realtime-agents/join-meeting.png)
+
+3. 같은 반복`Join`에이전트에 추가하기 전에 회의에 가입
+
+마지막으로, the worker to make the agent join a meeting:
+
+```sh
+curl -X POST https://hello-agent.<YOUR_SUBDOMAIN>.workers.dev/init?meetingId=<REALTIME_KIT_MEETING_ID> -H "Authorization: Bearer <REALTIME_KIT_AUTH_TOKEN>"
+```
+
+## 관련 자료
+
+- [모델 번호: Cloudflare Discord의 개발자 커뮤니티](https://discord.cloudflare.com)- QXQX0040XQ Discord 서버에 가입하여 기능 요청, 보고서 버그 및 Cloudflare 팀과 직접 피드백을 공유하십시오.

@@ -1,0 +1,106 @@
+---
+pcx_content_type: how-to
+title: Serve 개인 이미지
+sidebar:
+  order: 23
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/manage-images/serve-images/serve-private-images/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/manage-images/serve-images/serve-private-images/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, DashButton } from "~/components";
+
+로그인 URL 토큰을 사용하여 개인 이미지를 제공 할 수 있습니다. 이미지가 서명한 URL을 필요로 할 때, 이미지는 항상 대중적인 접근을 허용하는 변종 세트를 위해 요구되지 않는 한 토큰 없이 접근될 수 없습니다.
+
+1. Cloudflare 대시보드에서, 가십시오**호스트 이미지**사이트 맵
+
+   <DashButton url="/?to=/:account/images/hosted" />
+
+2. 제품정보**주요 특징**.
+
+3. 키를 복사하고 토큰화된 URL을 생성하기 위해 사용합니다.
+
+:::참조
+
+개인 이미지는 현재 사용자 정의 경로를 지원하지 않습니다.
+
+:::
+
+## 백엔드에서 서명된 URL 생성
+
+로그인 URL이 생성된 서버 측으로 로그인 키를 보호합니다. 아래 예제는 Cloudflare Worker를 사용하지만 동일한 서명 논리는 어떤 백엔드 환경에서 구현 될 수 있습니다 (Node.js, Python, PHP, Go, 등).
+
+Worker는 정규 이미지 URL을 수락하고 1 일 후에 만료되는 서명한 URL을 반환합니다. 조정하기`EXPIRATION`다른 만료 기간을 설정하는 값.
+
+:::참조
+소스 코드에서 서명 키를 hardcode하지 마십시오. 저장 비밀 사용[`npx wrangler secret put`](/workers/wrangler/commands/#secret)그리고 그것을 통해 접근`env`모수. 더 많은 정보를 원하시면, 참조[계정 관리](/workers/configuration/secrets/).
+:::
+
+<TypeScriptExample>
+  ```ts
+  const EXPIRATION = 60 * 60 * 24; //1 일
+
+  const bufferToHex = (buffer: ArrayBuffer) =>
+  	[...new Uint8Array(buffer)]
+  		.map((x) => x.toString(16).padStart(2, "0"))
+  		.join("");
+
+  async function generateSignedUrl(
+  	url: URL,
+  	signingKey: string,
+  ): Promise<Response> {
+  	//`url`는 가득 차있는 imagedelivery.net URL입니다
+  	//예: https://imagedelivery.net/cheeW4oKsx5ljh8e8BoL2A/bc27a117-9509-446b-8c69-c81bfeac0a01/mobile
+
+  	const encoder = new TextEncoder();
+  	const secretKeyData = encoder.encode(signingKey);
+  	const key = await crypto.subtle.importKey(
+  		"raw",
+  		secretKeyData,
+  		{ name: "HMAC", hash: "SHA-256" },
+  		false,
+  		["sign"],
+  	);
+
+  	//URL에 만료 값을 첨부
+  	const expiry = Math.floor(Date.now() / 1000) + EXPIRATION;
+  	url.searchParams.set("exp", expiry);
+  	//`url`는 지금 같이 보입니다
+  	//모델 번호: https://imagedelivery.net/cheeW4oKsx5ljh8e8BoL2A/bc27a117-9509-446b-8c69-c81bfeac0a01/mobile?exp=1631289275
+
+  	const stringToSign = url.pathname + "?" + url.searchParams.toString();
+  	//e.g. /cheeW4oKsx5ljh8e8BoL2A/bc27a117-9509-446b-8c69-c81bfeac0a01/mobile?exp=1631289275
+
+  	//HMAC 서명 생성
+  	const mac = await crypto.subtle.sign(
+  		"HMAC",
+  		key,
+  		encoder.encode(stringToSign),
+  	);
+  	const sig = bufferToHex(new Uint8Array(mac).buffer);
+
+  	//URL에 서명을 첨부
+  	url.searchParams.set("sig", sig);
+
+  	return new Response(url);
+  }
+
+  export default {
+  	async fetch(request, env, ctx): Promise<Response> {
+  		const url = new URL(request.url);
+  		const imageDeliveryURL = new URL(
+  			url.pathname
+  				.slice(1)
+  				.replace("https:/imagedelivery.net", "https://imagedelivery.net"),
+  		);
+  		//IMAGES SIGNING KEY는 `npx wrangler secret put IMAGES_SIGNING_KEY`를 통해 설정됩니다.
+  		return generateSignedUrl(imageDeliveryURL, env.IMAGES_SIGNING_KEY);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>

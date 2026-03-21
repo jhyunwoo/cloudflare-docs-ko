@@ -1,0 +1,495 @@
+---
+pcx_content_type: reference
+title: 일반 정책
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 일반적인 DNS 정책
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/dns-policies/common-policies/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/dns-policies/common-policies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, APIRequest } from "~/components";
+
+다음 정책은 일반적으로 DNS 트래픽을 확보하는 데 사용됩니다.
+
+권장 정책의 기본 설정에 대한 참조[인터넷 트래픽 및 SaaS 앱 보안](/learning-paths/secure-internet-traffic/build-dns-policies/recommended-dns-policies/).
+
+더 알아보기[DNS 정책 페이지](/cloudflare-one/traffic-policies/dns-policies/)다른 selectors, 연산자 및 작업의 종합 목록.
+
+## 기업 도메인
+
+이 정책은 사용자가 공식 법인 도메인에 액세스 할 수 있습니다. 높은 정책 배포[우선순위](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence), 당신은 직원이 신뢰할 수있는 도메인에 액세스 할 수 있는지 확인 그들은 같은 블록 카테고리에서 떨어지면*새로 본 도메인*또는*로그인 페이지*.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁   | 제품정보      | - 연혁 | 이름 \* |
+    | ----- | ------ | --------- | ---- | ----- |
+    | 이름 \* | 계정 만들기 | *허용된 도메인* | 지원하다 | 1     |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Allow corporate domains",
+  	description: "Allow any internal corporate domains added to a list",
+  	precedence: 0,
+  	enabled: true,
+  	action: "allow",
+  	filters: ["dns"],
+  	traffic: "any(dns.domains[*] in $<LIST_UUID>)",
+  	identity: "",
+  }}
+    />
+
+    목록의 UUIDs를 얻으려면, 사용[목록 Zero Trust 목록](/api/resources/zero_trust/subresources/gateway/subresources/lists/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+## 블록 보안 위협
+
+제품정보[보안 범주](/cloudflare-one/traffic-policies/domain-categories/#security-categories)Cloudflare의 위협 인텔리전스를 기반으로 명령 및 제어, Botnet 및 Malware와 같은.
+
+<Render file="gateway/policies/dash-plus-api/dns/block-security-categories" product="cloudflare-one" />
+
+## 블록 콘텐츠 범주
+
+이 정책에 포함 된 범주는 항상 보안 위협이 아니지만 블록을 통해 조직이 노출되는 위험을 최소화 할 수 있습니다. 더 많은 정보를 원하시면, 참조[도메인 범주](/cloudflare-one/traffic-policies/domain-categories/).
+
+<Render file="gateway/policies/dash-plus-api/dns/block-content-categories" product="cloudflare-one" />
+
+## 범주의 동적 목록 블록
+
+범주 ID 목록을 추가 할 수 있습니다.[EDNS 헤더](https://datatracker.ietf.org/doc/html/rfc6891)OPT 코드를 사용하여 Gateway에 JSON 객체로 전송된 요청`65050`. 예를 들면:
+
+```json
+{
+	"categories": [2, 67, 125, 133]
+}
+```
+
+이름 \*[Context 카테고리](/cloudflare-one/traffic-policies/dns-policies/#request-context-categories)selector, EDNS로 전송된 카테고리 ID를 차단할 수 있습니다. 이 문서는 저작권법의 보호를 받습니다. 이 문서는 저작권법의 보호를 받습니다. 게이트웨이는 DNS 쿼리를 차단하기 위해이 선택기를 사용 할 때, 요청은 확장 된 DNS 오류 (EDE) 코드 15 - 일치 된 카테고리의 배열을 포함하는 필드와 함께 블록 오류를 반환합니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보      | 회사연혁  | 제품정보    | - 연혁 |
+    | ---------- | ----- | ------- | ---- |
+    | Context 범주 | 이름 \* | *이름 \** | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "All-DNS-Bock-Category-Matches-In-Request",
+  	description: "Block all category matches in the request EDNS context",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "dns.categories_in_request_context_matches",
+  	identity: "",
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="옵션 정보">
+    ```tf
+    resource "cloudflare_zero_trust_gateway_policy" "block_content_categories" {
+      account_id  = var.cloudflare_account_id
+      name        = "All-DNS-Bock-Category-Matches-In-Request"
+      description = "Block all category matches in the request EDNS context"
+      enabled     = true
+      action      = "block"
+      filters     = ["dns"]
+      traffic     = "dns.categories_in_request_context_matches"
+      identity    = ""
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## 블록 인증
+
+<Render file="gateway/policies/block-applications" product="cloudflare-one" />
+
+<Render file="gateway/policies/dash-plus-api/dns/block-applications" product="cloudflare-one" />
+
+## 금지된 국가 차단
+
+당신은 높은 위험으로 분류 된 국가에서 호스팅 된 웹 사이트를 차단하는 정책을 구현할 수 있습니다. 이러한 국가의 지정은 조직의 고객 또는 규정을 통해 발생할 수 있습니다.[제품정보](https://www.tradecompliance.pitt.edu/embargoed-and-sanctioned-countries), [한국어](https://orpa.princeton.edu/export-controls/sanctioned-countries)·[사이트맵](https://www.tradecompliance.pitt.edu/embargoed-and-sanctioned-countries).
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보        | 회사연혁 | 제품정보                                                                                                                          | - 연혁 |
+    | ------------ | ---- | ----------------------------------------------------------------------------------------------------------------------------- | ---- |
+    | 해결된 국가 IP 위치 | 내 계정 | *아프리카*, *벨라루스*, *콩고 (Kinshasa)*, *언어: English*, *이란*, *이라크*, *Korea, 대한민국*, *대한민국*, *러시아 연방*, *이름 \**, *시리아*, *주요 특징*, *모스크바* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block banned countries",
+  	description: "Block access to banned countries",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic:
+  		'any(dns.dst.geo.country[*] in {"AF" "BY" "CD" "CU" "IR" "IQ" "KP" "MM" "RU" "SD" "SY" "UA" "ZW"})',
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 블록 최상위 도메인
+
+회사 소개[자주 사용되는](https://www.spamhaus.org/statistics/tlds/)최고 수준의 도메인(TLD)은 보안 위험을 줄일 수 있으며, 특히 액세스할 수 있도록 얻은 신중한 장점이 없습니다. 마찬가지로 특정 국가 수준의 TLD에 대한 액세스를 제한하는 것은 규정 준수해야 할 수 있습니다.[사이트맵](https://www.tradecompliance.pitt.edu/embargoed-and-sanctioned-countries)또는[한국어](https://orpa.princeton.edu/export-controls/sanctioned-countries).
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁     | 제품정보                                                                  | 로그인 | - 연혁 |
+    | ----- | -------- | --------------------------------------------------------------------- | --- | ---- |
+    | 이름 \* | 경기 regex | `[.](cn\|ru)$`                                                        | 또는  | 제품정보 |
+    | 이름 \* | 경기 regex | `[.](rest\|hair\|top\|live\|cfd\|boats\|beauty\|mom\|skin\|okinawa)$` | 또는  |      |
+    | 이름 \* | 경기 regex | `[.](zip\|mobi)$`                                                     |     |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block top-level domains",
+  	description:
+  		"Block top-level domains that are frequently used for malicious practices",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic:
+  		'any(dns.domains[*] matches "[.](cn|ru)$") or any(dns.domains[*] matches "[.](rest|hair|top|live|cfd|boats|beauty|mom|skin|okinawa)$") or any(dns.domains[*] matches "[.](zip|mobi)$")',
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 블록 피싱 공격
+
+에 대한 보호[정교한 피싱 공격](https://blog.cloudflare.com/2022-07-sms-phishing-attacks/), 당신은 특정 조직을 타겟팅하는 phishing 도메인에 액세스하여 사용자를 방지 할 수 있습니다. 다음 정책은 조직 또는 인증 서비스와 관련된 특정 키워드를 차단합니다 (예 :*뚱 베어*, *2파*, *구름 많음*또는*뚱 베어*), 여전히 공식 법인 도메인에 액세스 할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁     | 제품정보                                        | 로그인   | - 연혁 |
+    | ----- | -------- | ------------------------------------------- | ----- | ---- |
+    | 이름 \* | 이름 \*    | *기업 도메인*                                    | 이름 \* | 제품정보 |
+    | 이름 \* | 경기 regex | `.*okta.*\|.*cloudflare.*\|.*mfa.*\|.sso.*` |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block phishing attacks",
+  	description:
+  		"Block attempts to phish specific domains targeting your organization",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic:
+  		'not(any(dns.domains[*] in $<LIST_UUID>)) and any(dns.domains[*] matches ".*okta.*\\|.*cloudflare.*\\|.*mfa.*\\|.sso.*")',
+  	identity: "",
+  }}
+    />
+
+    목록의 UUIDs를 얻으려면, 사용[목록 Zero Trust 목록](/api/resources/zero_trust/subresources/gateway/subresources/lists/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+## 블록 온라인 추적
+
+사용자 개인 정보 보호를 보호하려면 일부 조직이 같은 추적 도메인을 차단합니다.`dig.whatsapp.com`OS 수준에 내장 된 다른 추적 도메인. 이 정책은 사용자 정의 블록 목록을 만들기에 의해 구현됩니다. 더 알아보기[이 저장소](https://github.com/nextdns/native-tracking-domains/tree/28991a0d5b2ab6d35588a74af82162ea7caff420/domains)블럭리스트에 추가할 수 있는 광범위한 추적 도메인 목록입니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁   | 제품정보        | - 연혁 |
+    | ----- | ------ | ----------- | ---- |
+    | 이름 \* | 계정 만들기 | *Top 추적 영역* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block online tracking",
+  	description: "Block domains used for tracking at an OS level",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "any(dns.domains[*] in $<LIST_UUID>)",
+  	identity: "",
+  }}
+    />
+
+    목록의 UUIDs를 얻으려면, 사용[목록 Zero Trust 목록](/api/resources/zero_trust/subresources/gateway/subresources/lists/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+## 블록 악의 IP
+
+특정 IP 주소는 악성 또는 귀하의 조직에 위협을 느낀다. 이 정책은 일반적으로 사용자 정의 블럭리스트 또는 위협 인텔리전스 파트너 또는 지역 컴퓨터 비상 및 응답 팀 (CERTs)에 의해 제공되는 블록리스트를 사용하여 구현됩니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보  | 회사연혁   | 제품정보   | - 연혁 |
+    | ------ | ------ | ------ | ---- |
+    | 해결된 IP | 계정 만들기 | *사이트맵* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block malicious IPs",
+  	description:
+  		"Block specific IP addresses that are known to be malicious or pose a threat to your organization",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "any(dns.resolved_ips[*] in $<LIST_UUID>)",
+  	identity: "",
+  }}
+    />
+
+    목록의 UUIDs를 얻으려면, 사용[목록 Zero Trust 목록](/api/resources/zero_trust/subresources/gateway/subresources/lists/methods/list/)끝점.
+  </TabItem>
+</Tabs>
+
+## CIPA 필터 켜기
+
+CIPA (Children's Internet Protection Act) 필터는 미성년자에 대한 유해하거나 부적절한 주제의 광범위를 우회하는 하위 범주의 컬렉션입니다. 그것은의 일부로 사용됩니다[프로젝트 Cybersafe 학교](/fundamentals/reference/policies-compliances/cybersafe/)원치 않는 유해한 온라인 콘텐츠에 대한 액세스를 차단합니다. 이 정책을 작성하면 조직이 최소한이어야합니다.[CIPA 준수](https://www.fcc.gov/consumers/guides/childrens-internet-protection-act).
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁 | 제품정보      | - 연혁 |
+    | ----- | ---- | --------- | ---- |
+    | 제품 분류 | 내 계정 | *CIPA 필터* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Turn on CIPA filter",
+  	description:
+  		"Block access to unwanted or harmful online content for children",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "any(dns.content_category[*] in {182})",
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 잘못된 검색 결과
+
+SafeSearch는 명시적 또는 공격 콘텐츠를 필터링하는 데 도움이되는 검색 엔진의 기능입니다. Google, Bing, Yandex, YouTube 및 DuckDuckGo와 같은 검색 엔진에서 SafeSearch를 강제 할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁 | 제품정보    | - 연혁  |
+    | ----- | ---- | ------- | ----- |
+    | 제품 분류 | 내 계정 | *검색 엔진* | 안전 검색 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Hide explicit search results",
+  	description:
+  		"Force SafeSearch on search engines to filter explicit or offensive content",
+  	enabled: true,
+  	action: "safesearch",
+  	filters: ["dns"],
+  	traffic: "any(dns.content_category[*] in {145})",
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 사용자 ID
+
+<Render file="gateway/policies/check-user-identity" product="cloudflare-one" />
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보     | 회사연혁 | 제품정보          | 로그인   | - 연혁 |
+    | --------- | ---- | ------------- | ----- | ---- |
+    | 제품 설명     | 내 계정 | *회사연혁*        | 이름 \* | 제품정보 |
+    | 사용자 그룹 이름 | 내 계정 | `Contractors` |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Check user identity",
+  	description: "Filter traffic based on a user identity group name",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "any(app.ids[*] in {606})",
+  	identity: 'any(identity.groups.name[*] in {"Contractors"})',
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 특정 그룹에 대한 접근 제한
+
+특정 사용자 액세스를 허용하는 DNS 쿼리를 필터링합니다.
+
+다음 예제에는 두 개의 정책이 포함되어 있습니다. 첫 번째 정책은 지정된 그룹을 허용하지만 두 번째 정책은 다른 사용자를 차단합니다. 정책이 제대로 평가되도록, 블록 정책 위의 허용 정책을 배치. 더 많은 정보를 원하시면, 참조[우선순위](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence).
+
+### 1. 그룹 허용
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보     | 회사연혁 | 제품정보        | 로그인   | - 연혁 |
+    | --------- | ---- | ----------- | ----- | ---- |
+    | 제품 분류     | 내 계정 | *소셜 네트워크*   | 이름 \* | 지원하다 |
+    | 사용자 그룹 이름 | 내 계정 | `Marketing` |       |      |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Allow social media for Marketing",
+  	description:
+  		"Allow access to social media sites for users in the Marketing group",
+  	precedence: 1,
+  	enabled: true,
+  	action: "allow",
+  	filters: ["dns"],
+  	traffic: "any(dns.content_category[*] in {149})",
+  	identity: 'any(identity.groups.name[*] in {"Marketing"})',
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### 2. 다른 모든 사용자를 차단
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보 | 회사연혁 | 제품정보      | - 연혁 |
+    | ----- | ---- | --------- | ---- |
+    | 제품 분류 | 내 계정 | *소셜 네트워크* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block social media",
+  	description: "Block social media for all other users",
+  	precedence: 2,
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: "any(dns.content_category[*] in {149})",
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## IP 버전 제어
+
+Enterprise 사용자는 이러한 정책을 켤 수 있습니다.[egress 정책](/cloudflare-one/traffic-policies/egress-policies/)IP 버전이 Origin 서버에 egress에 사용됩니다.
+
+선택적으로, 당신은 특정한 위치를 위한 IP 버전을 통제하기 위하여 도메인 selector를 사용할 수 있습니다.
+
+:::참조
+선호하는 IP 버전을 통해 트래픽 경로를 보장하기 위해, 턴오프**Gateway 블록 동작 변경**.
+:::
+
+### 힘 IPv4
+
+힘 사용자는 IPv6 해결책을 차단해서 IPv4도 연결하기 위하여.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보       | 회사연혁  | 제품정보      | - 연혁 |
+    | ----------- | ----- | --------- | ---- |
+    | Query 기록 유형 | 이름 \* | *AAAA 소개* | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Force IPv4",
+  	description: "Force users to connect with IPv4 by blocking IPv6 resolution",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: 'dns.query_rtype == "AAAA"',
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+### 힘 IPv6
+
+IPv4 해상도를 차단하여 IPv6과 연결할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    | 옵션 정보       | 회사연혁  | 제품정보 | - 연혁 |
+    | ----------- | ----- | ---- | ---- |
+    | Query 기록 유형 | 이름 \* | *·*  | 제품정보 |
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Force IPv6",
+  	description: "Force users to connect with IPv6 by blocking IPv4 resolution",
+  	enabled: true,
+  	action: "block",
+  	filters: ["dns"],
+  	traffic: 'dns.query_rtype == "A"',
+  	identity: "",
+  }}
+    />
+  </TabItem>
+</Tabs>

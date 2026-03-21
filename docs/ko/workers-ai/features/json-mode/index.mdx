@@ -1,0 +1,134 @@
+---
+pcx_content_type: navigation
+title: JSON 모드
+tags:
+  - JSON
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/features/json-mode/'
+translation_source_md: 'https://developers.cloudflare.com/workers-ai/features/json-mode/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Code } from "~/components";
+
+export const jsonModeSchema = `{
+  response_format: {
+    title: "JSON Mode",
+    type: "object",
+    properties: {
+      type: {
+        type: "string",
+        enum: ["json_object", "json_schema"],
+      },
+      json_schema: {},
+    }
+  }
+}`;
+
+export const jsonModeRequestExample = `{
+  "messages": [
+    {
+      "role": "system",
+      "content": "Extract data about a country."
+    },
+    {
+      "role": "user",
+      "content": "Tell me about India."
+    }
+  ],
+  "response_format": {
+    "type": "json_schema",
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "capital": {
+          "type": "string"
+        },
+        "languages": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "name",
+        "capital",
+        "languages"
+      ]
+    }
+  }
+}`;
+
+export const jsonModeResponseExample = `{
+  "response": {
+    "name": "India",
+    "capital": "New Delhi",
+    "languages": [
+      "Hindi",
+      "English",
+      "Bengali",
+      "Telugu",
+      "Marathi",
+      "Tamil",
+      "Gujarati",
+      "Urdu",
+      "Kannada",
+      "Odia",
+      "Malayalam",
+      "Punjabi",
+      "Sanskrit"
+    ]
+  }
+}`;
+
+우리는 데이터베이스, 서비스 및 외부 시스템 프로그래밍과 상호 작용하는 텍스트 세대 AI 모델을 원할 때, 일반적으로 AI 에이전트를 호출하거나 구축 할 때, 우리는 자연 언어보다 구조화된 응답 형식이 있어야합니다.
+
+Workers AI는 JSON을 지원합니다 모드는 AI 모델과 상호 작용할 때 구조화된 출력 응답을 요청할 수 있습니다.
+
+## 사이트맵
+
+JSON 파일 모드는 OpenAI의 구현과 호환됩니다.`response_format`다음 규칙을 사용하여 요청 객체에 속성:
+
+<Code code={jsonModeSchema} lang="json" />
+
+이름 \*`json_schema`유효하다[JSON 슈마](https://json-schema.org/)공지사항
+
+## JSON 파일 모드 예
+
+JSON 형식을 사용할 때, 요청의 일부로 아래 예에서 스키마를 통과하면 LLM로 보내집니다.
+
+<Code code={jsonModeRequestExample} lang="json" />
+
+LLM은 schema를 따르고 아래와 같은 응답을 반환합니다.
+
+<Code code={jsonModeResponseExample} lang="json" />
+
+볼 수 있듯이, 모델은 JSON schema 정의를 요청하고 유효성 있는 JSON 객체로 응답합니다.
+
+## 지원된 모형
+
+이것은 이제 JSON 모드를 지원하는 모델의 목록입니다.
+
+- [@cf/meta/llama-3.1-8b-instruct-빠른](/workers-ai/models/llama-3.1-8b-instruct-fast/)
+- [@cf/meta/llama-3.1-70b 구조](/workers-ai/models/llama-3.1-70b-instruct/)
+- [@cf/meta/llama-3.3-70b-instruct-fp8-빠른](/workers-ai/models/llama-3.3-70b-instruct-fp8-fast/)
+- [@cf/meta/llama-3-8b 구조](/workers-ai/models/llama-3-8b-instruct/)
+- [@cf/meta/llama-3.1-8b 구조](/workers-ai/models/llama-3.1-8b-instruct/)
+- [@cf/meta/llama-3.2-11b-vision 구조](/workers-ai/models/llama-3.2-11b-vision-instruct/)
+- [@hf/nousresearch/hermes-2-pro-mistral-7b](/workers-ai/models/hermes-2-pro-mistral-7b/)
+- [@hf/thebloke/deepseek-coder-6.7b-instruct-awq](/workers-ai/models/deepseek-coder-6.7b-instruct-awq/)
+- [@cf/deepseek-ai/deepseek-r1-distill-qwen-32b](/workers-ai/models/deepseek-r1-distill-qwen-32b/)
+
+우리는이 목록을 계속 확장하고 새로운, 요청한 모델로 유지됩니다.
+
+Workers AI는 요청한 JSON Schema에 따라 모델이 반응한다는 것을 보증할 수 없습니다. JSON Schema의 작업과 적절성의 복잡성에 따라 모델은 극단적 인 상황에서 요청을 만족시킬 수 없습니다. 그 경우, 그 다음 오류`JSON Mode couldn't be met`반환하고 처리해야합니다.
+
+JSON 파일 모드는 현재 스트리밍을 지원하지 않습니다.

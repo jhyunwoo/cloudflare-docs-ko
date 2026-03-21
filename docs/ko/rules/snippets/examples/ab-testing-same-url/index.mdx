@@ -1,0 +1,60 @@
+---
+summary: Set up an A/B test by controlling what response is served based on cookies.
+tags:
+  - A/B testing
+  - Cookies
+  - URL rewrite
+products:
+  - snippets
+pcx_content_type: example
+title: A/B 테스트와 동일한-URL 직접 액세스
+description: A / B 테스트를 설정하여 응답이 쿠키를 기반으로 제공되는 것을 제어하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/ab-testing-same-url/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/ab-testing-same-url/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 버전은 요청에 대한 전달`/test/*`·`/control/*`URI는 임의의 할당을 우회하여 원래 서버로 이동합니다.
+
+```js
+const NAME = "myExampleABTest";
+
+export default {
+	async fetch(request) {
+		//원래 URL을 복제
+		const url = new URL(request.url);
+
+		//Enable Passthrough 제어 및 테스트 경로에 직접 액세스 할 수 있습니다.
+		if (url.pathname.startsWith("/control") || url.pathname.startsWith("/test"))
+			return fetch(request);
+
+		//이 requester를 그룹화하는 용어입니다.
+		const cookie = request.headers.get("cookie");
+
+		if (cookie && cookie.includes(`${NAME}=control`)) {
+			url.pathname = "/control" + url.pathname;
+		} else if (cookie && cookie.includes(`${NAME}=test`)) {
+			url.pathname = "/test" + url.pathname;
+		} else {
+			//쿠키가 없으면 새로운 클라이언트입니다. 그룹을 선택하고 쿠키를 설정합니다.
+			const group = Math.random() < 0.5 ? "test" : "control"; //50/50 분할
+			if (group === "control") {
+				url.pathname = "/control" + url.pathname;
+			} else {
+				url.pathname = "/test" + url.pathname;
+			}
+			//immutability를 피하는 재구성 응답
+			let response = await fetch(url);
+			response = new Response(response.body, response);
+			//Persistent A/B 세션을 활성화하기 위해 쿠키를 설정합니다.
+			response.headers.append("Set-Cookie", `${NAME}=${group}; path=/`);
+			return response;
+		}
+		return fetch(url);
+	},
+};
+```

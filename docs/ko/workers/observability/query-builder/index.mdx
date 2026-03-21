@@ -1,0 +1,220 @@
+---
+pcx_content_type: concept
+title: Query 빌더
+head: []
+description: 구조화된 쿼리를 작성하여 원격 측정 데이터를 시각화합니다.
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/query-builder/'
+translation_source_md: 'https://developers.cloudflare.com/workers/observability/query-builder/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	TabItem,
+	Tabs,
+	Render,
+	WranglerConfig,
+	YouTube,
+	Markdown,
+	DashButton,
+	Steps,
+} from "~/components";
+
+Query Builder는 구조화된 쿼리를 작성하여 원격 측정 데이터를 조사하고 시각화합니다. Query Builder는 Workers Observability dataset을 검색하여 현재 저장된 모든 로그를 포함합니다.[Workers 로그인](/workers/observability/logs/workers-logs/).
+
+Query Builder를 찾을 수 있습니다.**옵션 정보**Cloudflare dashboard의 페이지:
+
+<DashButton url="/?to=/:account/workers-and-pages/observability" />
+
+<YouTube id="nu4pTU8fR78" />
+
+## Enable Query 빌더
+
+Query Builder는 모든 개발자에게 사용할 수 있으며 활성화가 필요하지 않습니다. 쿼리는 모든 Workers를 검색 Cloudflare에 의해 저장되는 통나무. 아직 Workers 로그를 활성화하지 않은 경우 다음 설정을 추가하여 수행 할 수 있습니다.[노동자의 Wrangler 파일](/workers/observability/logs/workers-logs/#enable-workers-logs)그리고 당신의 노동자를 충성.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"observability": {
+  		"enabled": true,
+  		"logs": {
+  			"invocation_logs": true,
+  			"head_sampling_rate": 1 //옵션. 기본값 = 1.
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## Cloudflare dashboard
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 당신의 노동자를 선택하십시오.
+
+3. 제품정보**옵션 정보**왼쪽 손 탐색 패널에서 다음**제품정보**탭.
+
+4. 선택하기**제품정보**.
+
+5. 선택 사항: 필터, 그룹에 추가, 주문, 및 제한. 더 많은 정보를 원하시면,[자주 묻는 질문](/workers/observability/query-builder/#query-composition).
+
+6. 선택 사항: 적절한 시간 범위를 선택하십시오.
+
+7. 제품정보**지원하다**. 쿼리는 변경할 때마다 자동으로 실행됩니다.
+
+## Query 구성
+
+### 제품정보
+
+Query Builder는 다음과 같은 많은 시각화 연산자를 지원합니다.
+
+| 제품정보            | 이름 \*      | 이름 \*                        |
+| --------------- | ---------- | ---------------------------- |
+| **제품정보**        | ₢ 킹        | 쿼리 조건과 일치하는 행의 총 수           |
+| **조사 Distinct** | 모든 분야      | dataset의 독특한 값의 발생           |
+| **주요 특징**       | numeric 분야 | dataset의 분야에서 가장 작은 값        |
+| **최대.**         | numeric 분야 | dataset의 분야에서 가장 큰 가치        |
+| **한국어**         | numeric 분야 | dataset의 필드의 모든 값            |
+| **이름 \***       | numeric 분야 | dataset의 필드의 평균              |
+| **표준 편차**       | numeric 분야 | dataset에 있는 분야의 표준 편차        |
+| **모리셔스**        | numeric 분야 | dataset의 필드의 차이              |
+| **사이트맵**        | numeric 분야 | 데이터의 0.1 %가 떨어지는 아래 필드의 값    |
+| **사이트맵**        | numeric 분야 | 데이터의 1% 미만의 필드의 값이 떨어지는      |
+| **사이트맵**        | numeric 분야 | 데이터의 5% 미만의 필드의 값이 떨어지는      |
+| **사이트맵**        | numeric 분야 | 데이터의 10 % 미만의 필드의 값은 가을      |
+| **사이트맵**        | numeric 분야 | 데이터의 25 % 미만의 필드의 값은 가을      |
+| **미디어 (P50)**   | numeric 분야 | 데이터의 50 % 미만의 필드의 값은 가을      |
+| **사이트맵**        | numeric 분야 | 데이터의 75 % 미만의 필드의 값은 가을      |
+| **사이트맵**        | numeric 분야 | 데이터의 90 % 미만의 필드의 값은 가을      |
+| **사이트맵**        | numeric 분야 | 데이터의 95 % 미만의 필드의 값이 떨어지는    |
+| **사이트맵**        | numeric 분야 | 데이터의 99 % 미만의 필드의 값은 떨어집니다.  |
+| **사이트맵**        | numeric 분야 | 데이터의 99.9% 미만의 필드의 값은 떨어집니다. |
+
+단일 쿼리에서 여러 시각화를 추가할 수 있습니다. 각 시각화는 그래프를 렌더링합니다. 단일 요약 테이블은 또한 반환, 이는 원시 쿼리 결과를 보여줍니다.
+
+![여러 시각화로 Query Builder를 보여주는 예](~/assets/images/workers-observability/wobs_QB_visualization_122.png)
+
+모든 방법은 집계 기능입니다. 대부분의 방법은 로그 이벤트의 특정 필드에 작동.`Count`예외이며 필터 조건과 일치하는 로그 이벤트 수를 반환하는 집단 함수입니다.
+
+### 제품정보
+
+필터는 지정된 조건과 일치하는 열을 반환합니다. 필터에는 세 가지 구성 요소가 있습니다. 키, 연산자 및 값.
+
+키는 로그 이벤트에 어떤 필드입니다. 예를 들어, 선택할 수 있습니다.`$workers.cpuTimeMs`또는`$metadata.message`.
+
+연산자는 true 또는 false로 평가하는 논리적 조건입니다. 지원된 조건에 대한 아래 표 참조:
+
+| 데이터 유형 | 유효 조건 (운영자)                                                     |
+| ------ | --------------------------------------------------------------- |
+| 한국어    | 본부, 동일하지 않습니다, 그레이터, 그레이터 또는 동등, 덜, 덜 또는 동등, 존재, 존재하지 않습니다      |
+| 스트레이트  | 본부, 동일하지 않습니다, 포함, 포함하지 않습니다, Regex, Exists, 존재하지 않습니다, 와 함께 시작 |
+
+숫자 필드의 값은 정수입니다. 문자열 필드의 값은 문자열입니다.
+
+필터를 추가하려면:
+
+<Steps>
+  1. 제품정&#xBCF4;**+**&#xB0B4; 계정**제품정보**이름 \* 2. 선택**키 선택 ...**·
+     키 이름을 입력합니다. 예를 들어,`$workers.cpuTimeMs`. 3. 연산자 선택
+     작업자가 가장 적합하도록 변경합니다. 예를 들어,`Greater than`·
+     제품정보**선택 값...**&#xAC12;을 입력합니다. 예를 들어,`100`.
+</Steps>
+
+위의 필터로 쿼리를 실행할 때, 단지 로그 이벤트`$workers.cpuTimeMs > 100`반환됩니다.
+
+여러 필터를 추가하고 연산자와 결합하여 모든 필터를 일치하는 이벤트 만 반환됩니다.
+
+### 이름 \*
+
+Search는 지정된 텍스트를 포함하는 이벤트를 반환하는 텍스트 필터입니다. 검색은 빠른 필터링 메커니즘으로 도움이 될 수 있습니다, 또는 당신의 로그에 고유 한 IDifiable 값을 검색.
+
+### 그룹 By
+
+이름 \* 같은 값을 요약 행에 결합하여. 예를 들어, 쿼리가 추가되면`$workers.event.request.cf.country`그룹으로 필드에 의해, 다음 요약 테이블 국가 그룹.
+
+### 주문하기
+
+이름 \* 결과가 요약 표에서 분류되는 방법에 영향을 미칩니다. 이름 \*`asc`선택된 결과는 ascending 순서에서 분류됩니다 - 적어도에서 가장 큰. 이름 \*`desc`선택된 결과 중 가장 큰 순서로 정렬됩니다.
+
+### 지원하다
+
+제한은 반환된 결과의 수를 제한합니다. 설정할 때[주문하기](/workers/observability/query-builder/#order-by), 그것은 "top"또는 "first"N 결과를 반환하는 데 사용할 수 있습니다.
+
+### 시간 범위 선택
+
+시간 범위를 선택하면 매칭 이벤트를 찾고 싶은 시간 간격을 지정합니다. 보존 기간은 당신의 것에 달려 있습니다[계획 유형](/workers/observability/logs/workers-logs/#pricing).
+
+## 조회 결과
+
+쿼리에 대한 세 가지 전망이 있습니다 : 시각화, 직업 및 이벤트.
+
+### Visualizations 탭
+
+더 보기**사용자 정의**탭은 그래프와 쿼리에 대한 요약 테이블을 보여줍니다.
+
+![Visualization 개요](~/assets/images/workers-observability/wobs_visualizations_tab_122.png)
+
+### 직업 탭
+
+더 보기**회사 소개**탭은 모든 로그를 보여줍니다, invocation에 의해 그룹화, and order by timestamp. 쿼리 표준을 일치하는 것은 반환됩니다.
+
+![기업 개요](~/assets/images/workers-observability/wobs_invocation_logs_full_list_122.png)
+
+### 이벤트 탭
+
+더 보&#xAE30;**(주)**&#xD0ED;은 타임스탬프에 의해 주문된 모든 로그를 보여줍니다. 쿼리 기준을 일치하는 이벤트 만 반환됩니다. 이벤트 탭은 추가 필드를 추가 할 수 있습니다.
+
+![제품정보](~/assets/images/workers-observability/wobs_events_dropdown_122.png)
+
+## 자주 묻는 질문
+
+미래 조사에 재사용 될 수있는 쿼리를 저장하는 것이 좋습니다. 이름, 설명, 사용자 정의 태그로 쿼리를 저장할 수 있습니다.**Query 저장**. Queries는 계정 수준에서 저장되며 계정의 모든 사용자에게 접근 할 수 있습니다.
+
+Saved 쿼리는 관련 쿼리를 선택하여 다시 실행할 수 있습니다.**이름 \***&#xD0ED;. 쿼리를 편집하고 편집을 저장할 수 있습니다.
+
+쿼리는 사용자가 별할 수 있습니다. Starred 쿼리는 사용자에게 독특하며 계정에는 없습니다.
+
+## 자주 묻는 질문
+
+저장된 쿼리는 삭제 될 수 있습니다.**이름 \***&#xD0ED;. 쿼리를 삭제하면 쿼리는 계정에서 모든 사용자에 대해 삭제됩니다.
+
+1. Cloudflare dashboard에서, 가십시오**옵션 정보**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages/observability" />
+
+2. 선택하기**이름 \***&#xD0ED;.
+
+3. 오른쪽에, 추가 작업을 위해 세 가지 점을 선택합니다.
+
+4. 제품정보**Query 삭제**그리고 지시를 따르십시오.
+
+## 공유하기
+
+저장된 쿼리는 독특한 URL을 할당하고 계정의 사용자와 공유 할 수 있습니다.
+
+## 예제: 쿼리를 컴파일
+
+이 예에서는 5xx 오류로 대응하는 모든 경로를 찾을 수 있는 쿼리를 구성합니다. 첫째, 기본 쿼리를 만듭니다. 이 기본 쿼리에서 우리는 시각적으로
+이벤트 카운트. 필터를 추가할 수 있습니다.`$workers.event.response.status`500 이상입니다.
+그런 다음 우리 그룹`$workers.event.request.path`·`$workers.event.response.status`요청의 수를 식별하기 위해
+이 행동에 의해 영향을.
+
+![자주 묻는 질문](~/assets/images/workers-observability/wobs_QB_visualization_122.png)
+
+결과 표시 그`/agents/chat/default`경로는 404s와 500s를 경험하고있다. 이제이 경로와 조사에 대한 필터를 적용 할 수 있습니다.
+
+![추가 필드를 쿼리에 추가](~/assets/images/workers-observability/wobs_QB_visualization_filter_122.png)
+
+지금, 우리는 선정해서 조사해서 좋습니다**회사 소개**탭. 우리는이 오류의 두 개의 로그 호출 된 것을 볼 수 있습니다.
+
+![Query Builder에서 Invocations 탭을 검사](~/assets/images/workers-observability/wobs_invocation_logs_full_list_122.png)
+
+관련 로그를 볼 수 있는 단일 인클루시브를 확장하고, 디버그를 계속할 수 있습니다.
+
+![단일 Invocation에 대한 로그보기](~/assets/images/workers-observability/wobs_invocation_logs_122.png)

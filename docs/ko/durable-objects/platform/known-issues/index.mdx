@@ -1,0 +1,45 @@
+---
+pcx_content_type: concept
+title: 알려진 문제
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/platform/known-issues/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/platform/known-issues/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components";
+
+Durable Objects는 일반적으로 유효합니다. 그러나 알려진 문제가 있습니다.
+
+## 글로벌 독창성
+
+Global Uniqueness는 단일 인스턴스만 보장<GlossaryTooltip term="Durable Object class">튼튼한 목표 종류</GlossaryTooltip>한 번에 실행되는 주어진 ID로, 전 세계.
+
+Uniqueness는 새로운 이벤트 (HTTP 요청 받기와 같은)를 시작 하 고 스토리지에 액세스.
+
+이벤트가 수신되면, 이벤트가 실행하는 데 시간이 걸리고 내구성있는 스토리지에 액세스하지 않는 경우, 내구성 객체가 더 이상 전류가 될 수 없다는 것이 가능하며, 동일한 내구성 객체 ID의 다른 인스턴스는 다른 곳에서 생성되었습니다. 이벤트가 이 시점에서 저장되는 경우,[기타 제품](/durable-objects/observability/troubleshooting/). 만약 이벤트가 저장에 접근하지 않고 완료되면, 그것은 내구성 개체가 더 이상 전류가 없다는 것을 깨달을 수 없습니다.
+
+튼튼한 개체는 네트워크 파티션 또는 소프트웨어 업데이트의 이벤트에서 대체 될 수 있습니다 (클라이언트 개체의 클래스 코드의 업데이트 포함, 또는 Workers 시스템 자체의). 지원하다`wrangler tail`또는[Cloudflare 대시보드](https://dash.cloudflare.com/)로그는 소프트웨어 업데이트가 필요합니다.
+
+## Code 업데이트
+
+Workers 및 Durable ObjectsXQ의 코드 변경은 결국 일관된 방식으로 전 세계적으로 출시됩니다. 각 튼튼한 개체는 세계적으로 독특하기 때문에, 요청이 당신의 노동자의 최신 버전 (세계의 한 부분에서 실행)에 도착하는 상황은, 그 다음 시간의 짧은 기간 동안 코드의 이전 버전을 실행하는 독특한 튼튼한 개체에 호출 (일반적으로 분). 당신이 만들면[gradual 배치](/workers/configuration/versions-and-deployments/gradual-deployments/), 이 기간의 시간이 결정하는 방법에 의해 당신의 라이브 배포 구성하는 사용 more than one version.
+
+이 이유를 들어, Workers와 Durable ObjectsXQXQ는 코드 업데이트에 따라 API 변경을 보장하는 가장 좋은 연습입니다.
+
+## 개발 도구
+
+[`wrangler tail`](/workers/wrangler/commands/#tail)WebSockets로 업그레이드된 요청에서 로그는 WebSocket이 닫힐 때까지 지연됩니다.`wrangler tail`교통량이 많을 것이라고 예상되는 노동자에 연결되지 않아야합니다.
+
+Workers 편집기[Cloudflare 대시보드](https://dash.cloudflare.com/)당신은 대화로 편집하고 당신의 노동자 및 Durable Objects를 미리보기 할 수 있습니다. 편집기에서 Durable Objects는 작업자가 튼튼한 개체 클래스를 모두 수출하고 그것에 바인딩하는 경우 미리보기 요청에 의해 이야기 할 수 있습니다. 다른 WorkersXQXQXQXQXQXQXQXQXQ에 의해 수출되는 Durable ObjectsXQXQXQXQXQ는 편집기 시사에서 이야기될 수 없습니다.
+
+[`wrangler dev`](/workers/wrangler/commands/#dev)Strong Object Storage에 대한 액세스를 읽었지만, 쓰기는 메모리에 보관되며 지속적인 데이터에 영향을 미치지 않습니다. 그러나 지정할 경우`script_name`명시적으로[튼튼한 목표 바인딩](/workers/runtime-apis/bindings/), 다음 쓰기는 persistent 자료에 영향을 미칠 것입니다. Wrangler는 그 경우에 경고를 방출할 것입니다.
+
+## 현지 개발 경보
+
+현재 현지 개발 시 (using)`npx wrangler dev`), 튼튼한 목표[경보 방법](/durable-objects/api/alarms)코드가 로컬로 실행되는 동안 코드를 편집하는 경우 핫 리로드 후 실패 할 수 있습니다.
+
+이 문제를 피하기 위해, 튼튼한 개체 알람을 사용할 때, 닫기 및 재시작`wrangler dev`코드를 편집한 후 명령.

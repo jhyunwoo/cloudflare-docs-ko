@@ -1,0 +1,116 @@
+---
+pcx_content_type: how-to
+title: Honeycomb에 수출
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/honeycomb/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/honeycomb/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {WranglerConfig} from "~/components";
+
+Honeycomb는 당신이 이해하고 당신의 신청을 디버그하는 것을 돕는 높 광도 자료를 위해 건설된 관측성 플랫폼입니다. Cloudflare WorkersXQ 신청은 벌집에, 당신 할 수 있습니다:
+
+- 요청 흐름을 이해하고 성능 Bottlenecks을 식별하는 추적
+- Query 및 분석 로그와 무제한 차원의 모든 속성
+- WorkersXQXQ를 모니터하기 위해 사용자 지정 쿼리 및 dashboardXQ를 생성
+
+![POST 요청, fetch 작업, 튼튼한 객체 subrequest 및 queue send을 포함한 추적보기, 타임 라인에 표시된 타이밍 정보](~/assets/images/workers-observability/honeycomb-example.png)
+
+Cloudflare OpenTelemetry-compliant 추적 및 Honeycomb에 로그 내보내기위한 작업 응용 프로그램입니다.
+
+## 자주 묻는 질문
+
+시작하기 전에, 당신은 가지고:
+
+- 이름 \*[Honeycomb 계정](https://ui.honeycomb.io/signup)(무료 계층 가능)
+- 모니터링 할 작업자 배치
+
+## 단계 1: 당신의 Honeycomb API 열쇠를 얻으십시오
+
+1. 로그인[Honeycomb 계정](https://ui.honeycomb.io/)
+2. 상단의 프로필 아이콘을 클릭하여 계정 설정을 탐색하십시오.
+3. 제품정보**팀 설정**
+4. 왼쪽에서, 클릭**환경분야**기어 아이콘을 클릭
+5. 환경 찾기 (예:`production`, `test`) 또는 새로 만들기
+6. 이름 \***API 키**, 클릭**Ingest API 키 만들기**
+7. API 키 구성:
+   - **이름 \***: descriptive name (예를 들어,`cloudflare-workers-otel`)
+   - **제출**: 선택**서비스/datasets를 만들 수 있습니다**(OTLP 섭취 필요)
+8. 이름 \***이름 \***
+9. **주요 특징**: API 키를 즉시 복사하고 안전하게 보관하십시오 - 다시 볼 수 없습니다.
+
+API 키는 다음과 같습니다 :`hcaik_01hq...`
+
+## 단계 2: Cloudflare 목적지 구성
+
+이제 Honeycomb에 포인트 Cloudflare dashboardXQ에 목적지를 만들 것입니다.
+
+### 허니콤 OTLP 엔드포인트
+
+Honeycomb는 추적 및 로그에 대한 별도의 OTLP 엔드 포인트를 제공합니다.
+
+- **팟캐스트**: `https://api.honeycomb.io/v1/traces`
+- **로그인**: `https://api.honeycomb.io/v1/logs`
+
+### 추적 대상
+
+1. Cloudflare 계정으로 이동[모델 번호: Workers 옵션 정보](https://dash.cloudflare.com/?to=/:account/workers-and-pages/observability/pipelines)이름 \*
+2. 이름 \***자주 묻는 질문**
+3. 추적 대상을 구성:
+   - **대상 이름**: `honeycomb-traces`(또는 원고 이름)
+   - **여행 정보**: 선택**팟캐스트**
+   - **OTLP 엔드포인트**: `https://api.honeycomb.io/v1/traces`
+   - **공급 업체**: 인증 헤더 추가:
+     - 헤더 이름:`x-honeycomb-team`
+     - 헤더 값: 당신의 honeycomb API 키 (예:`hcaik_01hq...`)
+4. 이름 \***제품 정보**
+
+### 자주 묻는 질문
+
+로그의 프로세스를 반복:
+
+1. 이름 \***자주 묻는 질문**이름 \*
+2. 로그인 목적지 구성:
+   - **대상 이름**: `honeycomb-logs`(또는 원고 이름)
+   - **여행 정보**: 선택**로그인**
+   - **OTLP 엔드포인트**: `https://api.honeycomb.io/v1/logs`
+   - **공급 업체**: 인증 헤더 추가:
+     - 헤더 이름:`x-honeycomb-team`
+     - 헤더 값: 당신의 honeycomb API 키 (위와 동일)
+3. 이름 \***제품 정보**
+
+## 단계 3: 노동자를 구성
+
+QXQX0352XQQ dashboard에서 생성된 목적지로, 원격 측정 수출을 가능하게 하기 위하여 노동자의 윤곽을 새롭게 합니다.
+
+<WranglerConfig>
+  ```json
+  {
+    "observability": {
+      "traces": {
+        "enabled": true,
+        // Must match the destination name in the dashboard
+        "destinations": ["honeycomb-traces"]
+      },
+      "logs": {
+        "enabled": true,
+        // Must match the destination name in the dashboard
+        "destinations": ["honeycomb-logs"]
+      }
+    }
+  }
+  ```
+</WranglerConfig>
+
+구성을 업데이트 한 후, 효과에 대한 변경 사항에 대한 작업자를 배치하십시오.
+
+:::참조
+그것은 몇 분 후 배포 데이터에 표시 후 Honeycomb.
+주요 특징

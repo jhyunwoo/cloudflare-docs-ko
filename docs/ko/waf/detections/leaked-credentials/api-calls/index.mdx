@@ -1,0 +1,100 @@
+---
+title: Common API 호출
+pcx_content_type: configuration
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 일반적인 API 호출 | 누설 자격 탐지
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/detections/leaked-credentials/api-calls/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/leaked-credentials/api-calls/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+다음 예제는 Cloudflare API를 사용하여 일반적인 시나리오를 사용하여 누출 된 자격 탐지를 관리하고 구성합니다.
+
+Terraform을 사용하는 경우, 참조[Terraform 구성 예제](/waf/detections/leaked-credentials/terraform-examples/).
+
+## 일반 작업
+
+다음 API 예제는 누출된 자격 탐지를 활성화하고 비활성화하는 것과 같은 기본 작업을 다룹니다.
+
+### 누출 검출을 켜십시오
+
+누출 검출을 켜려면`POST`다음과 같은 요청 :
+
+<APIRequest path="/zones/{zone_id}/leaked-credential-checks" method="POST" json={{ enabled: true }} />
+
+### 누출 검출을 해제
+
+누출 검출을 해제하려면`POST`다음과 같은 요청 :
+
+<APIRequest path="/zones/{zone_id}/leaked-credential-checks" method="POST" json={{ enabled: false }} />
+
+### 누출 검출 상태 확인
+
+누출 검출의 현재 상태를 얻으려면, 사용`GET`다음과 같은 요청 :
+
+<APIRequest path="/zones/{zone_id}/leaked-credential-checks" method="GET" />
+
+```json output
+{
+	"result": {
+		"enabled": true
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 사용자 정의 검색 위치 작업
+
+다음 API 예제에서 작업 커버[사용자 정의 감지 위치](/waf/detections/leaked-credentials/#custom-detection-locations)누출 검출을 위해.
+
+### 사용자 정의 감지 위치 추가
+
+사용자 정의 감지 위치를 추가하려면, 사용`POST`다음과 같은 요청 :
+
+<APIRequest
+  path="/zones/{zone_id}/leaked-credential-checks/detections"
+  method="POST"
+  json={{
+  	username: 'lookup_json_string(http.request.body.raw, "user")',
+  	password: 'lookup_json_string(http.request.body.raw, "secret")',
+  }}
+/>
+
+### 기존의 사용자 정의 검색 위치
+
+기존의 사용자 정의 검색 위치를 얻으려면, 사용`GET`다음과 같은 요청 :
+
+<APIRequest path="/zones/{zone_id}/leaked-credential-checks/detections" method="GET" />
+
+```json output
+{
+	"result": [
+		{
+			"id": "<DETECTION_ID>",
+			"username": "lookup_json_string(http.request.body.raw, \"user\")",
+			"password": "lookup_json_string(http.request.body.raw, \"secret\")"
+		}
+		// (...)
+	],
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### 사용자 정의 감지 위치 삭제
+
+사용자 정의 감지 위치를 삭제하려면`DELETE`다음과 같은 요청 :
+
+<APIRequest path="/zones/{zone_id}/leaked-credential-checks/detections/{detection_id}" method="DELETE" />

@@ -1,0 +1,39 @@
+---
+pcx_content_type: concept
+title: Least Outstanding Requests
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: Least Outstanding Requests 스티어링 - 엔드포인트 수준 스티어링
+
+---
+
+**Least Outstanding Requests steering**을 사용하면 현재 미해결 요청 수가 가장 적은 엔드포인트로 트래픽을 라우팅할 수 있습니다.
+
+이 스티어링 정책은 엔드포인트 가중치와 각 엔드포인트의 진행 중 요청 수를 함께 고려하여 엔드포인트를 선택합니다. 대기 중인 요청이 많은 엔드포인트는 다른 엔드포인트에 비해 비례적으로 낮은 가중치를 갖습니다.
+
+Least Outstanding Requests steering은 동시 요청 급증으로 엔드포인트가 쉽게 과부하되는 경우에 가장 적합합니다. 이 방식은 [adaptive routing](/load-balancing/understand-basics/adaptive-routing/)과 [session affinity](/load-balancing/understand-basics/session-affinity/)를 지원합니다.
+
+## API로 구성하기
+
+```json title="Pools"
+{
+  "origin_steering": {
+    "policy": "least_outstanding_requests"
+  }
+}
+```
+
+풀 구성에 대한 자세한 내용은 [API documentation](/api/resources/load_balancers/subresources/pools/methods/update/)를 참조하세요.
+
+:::note
+
+Least Outstanding Requests steering은 로드 밸런서에서도 [전역 트래픽 스티어링 정책](/load-balancing/understand-basics/traffic-steering/steering-policies/least-outstanding-requests/)으로 구성할 수 있으며, 이 경우 로드 밸런서에 있는 풀의 미해결 요청 수와 `random_steering` 가중치를 고려합니다.
+:::
+
+## 제한 사항
+
+Least Outstanding Requests steering은 [DNS-only load balancers](/load-balancing/understand-basics/proxy-modes/#dns-only-load-balancing)의 일부인 풀에 대해 구성할 수 있지만, no-operation 형태로만 지원됩니다. DNS-only 로드 밸런서의 풀에 엔드포인트 스티어링 로직이 적용되면 모든 엔드포인트의 미해결 요청 수가 0으로 간주되므로, 트래픽은 엔드포인트 가중치만을 기준으로 제공됩니다.
+
+구성은 가능하지만 부분적으로만 지원되므로, Least Outstanding Requests steering을 사용하는 풀을 DNS-only 로드 밸런서와 연결하는 것은 권장되지 않습니다.

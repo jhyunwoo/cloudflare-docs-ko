@@ -1,0 +1,112 @@
+---
+title: 추천 코스
+pcx_content_type: example
+reviewed: 2022-06-02T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-go/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-go/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+이 예제는 버전 2을 사용합니다.[추천 코스](https://github.com/aws/aws-sdk-go-v2)패키지. R2XQ 구성 자격 증명을 즉시 전달해야 합니다.`S3`서비스 클라이언트:
+
+```go
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"log"
+)
+
+func main() {
+	var bucketName = "sdk-example"
+	// Provide your Cloudflare account ID
+	var accountId = "<ACCOUNT_ID>"
+	// Retrieve your S3 API credentials for your R2 bucket via API tokens
+	// (see: https://developers.cloudflare.com/r2/api/tokens)
+	var accessKeyId = "<ACCESS_KEY_ID>"
+	var accessKeySecret = "<SECRET_ACCESS_KEY>"
+
+	cfg, err := config.LoadDefaultConfig(context.TODO(),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(accessKeyId, accessKeySecret, "")),
+		config.WithRegion("auto"), // Required by SDK but not used by R2
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountId))
+	})
+
+	listObjectsOutput, err := client.ListObjectsV2(context.TODO(), &s3.ListObjectsV2Input{
+		Bucket: &bucketName,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, object := range listObjectsOutput.Contents {
+		obj, _ := json.MarshalIndent(object, "", "\t")
+		fmt.Println(string(obj))
+	}
+
+	//  {
+	//  	"ChecksumAlgorithm": null,
+	//  	"ETag": "\"eb2b891dc67b81755d2b726d9110af16\"",
+	//  	"Key": "ferriswasm.png",
+	//  	"LastModified": "2022-05-18T17:20:21.67Z",
+	//  	"Owner": null,
+	//  	"Size": 87671,
+	//  	"StorageClass": "STANDARD"
+	//  }
+
+	listBucketsOutput, err := client.ListBuckets(context.TODO(), &s3.ListBucketsInput{})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, object := range listBucketsOutput.Buckets {
+		obj, _ := json.MarshalIndent(object, "", "\t")
+		fmt.Println(string(obj))
+	}
+
+	// {
+	// 		"CreationDate": "2022-05-18T17:19:59.645Z",
+	// 		"Name": "sdk-example"
+	// }
+}
+```
+
+## 사전 서명된 URL 생성
+
+일시적으로 버킷에 공개 쓰기 액세스를 공유 할 수있는 사전 서명 된 링크도 생성 할 수 있습니다.
+
+```go
+presignClient := s3.NewPresignClient(client)
+
+	presignResult, err := presignClient.PresignPutObject(context.TODO(), &s3.PutObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String("example.txt"),
+	})
+
+	if err != nil {
+		panic("Couldn't get presigned URL for PutObject")
+	}
+
+	fmt.Printf("Presigned URL For object: %s\n", presignResult.URL)
+```

@@ -1,0 +1,113 @@
+---
+title: 경로 필터링
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/configuration/path-filtering/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-search/configuration/path-filtering/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Path filtering은 파일이나 URL이 포함되지 않고 패턴을 제외하여 인덱스를 제어할 수 있습니다. 특정 콘텐츠로 인덱스를 제한하거나 검색할 수없는 파일을 건너뛰기 위해이를 사용합니다.
+
+Path filtering은 모두[사이트 맵](/ai-search/configuration/data-source/website/)·[모델 번호: R2](/ai-search/configuration/data-source/r2/)데이터 소스.
+
+## 제품 설명
+
+AI Search 인스턴스를 만들거나 편집할 때 경로 필터를 구성할 수 있습니다. 대시보드에서, 열립니다**Path 필터**그리고 규칙을 제외하거나 추가하십시오. 언제든지 경로 필터를 업데이트 할 수 있습니다.**계정 설정**인스턴스의 페이지.
+
+REST API를 사용할 때, 지정`include_items`·`exclude_items`내 계정`source_params`당신의 윤곽의:
+
+| 제품 설명           | 제품정보       | 지원하다     | 이름 \*                  |
+| --------------- | ---------- | -------- | ---------------------- |
+| `include_items` | `string[]` | 최대 10 패턴 | 이 패턴의 적어도 하나의 일치 지수 항목 |
+| `exclude_items` | `string[]` | 최대 10 패턴 | 이 패턴에 일치하는 항목을 건너      |
+
+둘 다 모수는 선택적입니다. 지정되지 않은 경우, 데이터 소스의 모든 항목이 색인됩니다.
+
+## 필터링 동작
+
+### Wildcard 규칙
+
+규칙을 제외하면 규칙을 포함합니다. 필터링은 이 순서에서 적용됩니다:
+
+1. **자주 묻는 질문**: 아이템이 아닌 패턴을 일치하면 건너뛰고 있습니다.
+2. **자주 묻는 질문**: 패턴을 정의하고 항목은 그들과 일치하지 않는 경우, 그것은 건너 뛸 수 있습니다.
+3. **주요사업**: 항목은 인덱스로 진행합니다.
+
+| 채용정보                 | 채용 정보                                 |
+| -------------------- | ------------------------------------- |
+| 정의된 규칙 없음            | 모든 항목은 색인                             |
+| 한국어`exclude_items`정의 | 해당 일치 제외 패턴을 제외한 모든 항목은 색인            |
+| 한국어`include_items`정의 | 적어도 한 번 일치하는 품목은 본 색인됩니다              |
+| 둘 다 정의               | 제외 패턴은 먼저 체크, 다음 남아있는 항목은 패턴을 포함해야합니다 |
+
+### 패턴 문법
+
+패턴은 case-sensitive wildcard 구문을 사용한다.[마이크로매치](https://github.com/micromatch/micromatch):
+
+| 와일드카드 | 이름 \*                                      |
+| ----- | ------------------------------------------ |
+| `*`   | 경로 분리기를 제외하고 모든 문자 일치 ()`/`)               |
+| `**`  | 경로 분리기를 포함한 모든 문자 일치 (pass separators)`/`) |
+
+본은 포함할 수 있습니다:
+
+- 문자, 숫자, 그리고 밑줄 ()`a-z`, `A-Z`, `0-9`, `_`)
+- 하이픈 (Hyphens)`-`)와 점 (`.`)
+- Path 분리기 (`/`)
+- URL 문자 (`?`, `:`, `=`, `&`, `%`)
+- 와일드 카드 ( Wildcards)`*`, `**`)
+
+### 작업 상태 표시
+
+필터링 규칙에 의해 건너 항목은 작업 로그에 기록 된 이유:
+
+- 경기 제외 :`Skipped by rule: {pattern}`
+- 일치하지 않음:`Skipped by Include Rules`
+
+AI Search 인스턴스의 작업 탭에서 이러한 작업을 볼 수 있습니다. 필터가 예상대로 작동하도록 검사합니다.
+
+### 중요 노트
+
+- **케이스 감도:**&#xD328;턴 일치는 case-sensitive입니다.`/Blog/*`일치하지 않음`/blog/post.html`.
+- **가득 차있는 경로 일치:**&#xD328;턴은 전체 경로 또는 URL과 일치합니다. 제품 정보`**`부분 일치를 위한 처음에. 예를 들어,`docs/*`이름 \*`docs/file.pdf`그러나 아니`site/docs/file.pdf`, 동안`**/docs/*`모두 일치합니다.
+- **제품정보`*`횡단보도:**&#xC81C;품 정보`**`경로 분리기를 통해 일치합니다. 예를 들어,`docs/*`이름 \*`docs/file.pdf`그러나 아니`docs/sub/file.pdf`, 동안`docs/**`모두 일치합니다.
+- **Trailing 슬픔 사정:**&#x55;RL은 정상화 없이 일치합니다.`/blog/`일치하지 않음`/blog`.
+
+## 이름 \*
+
+### R2 데이터 소스
+
+| 사용 사례              | 제품 정보                                | 이름 \*                                  | 뚱 베어                                  |
+| ------------------ | ------------------------------------ | -------------------------------------- | ------------------------------------- |
+| docs의 PDF만 인덱스     | 포함 :`/docs/**/*.pdf`                 | `/docs/guide.pdf`, `/docs/api/ref.pdf` | `/docs/guide.md`, `/images/logo.png`  |
+| 온도 및 백업 파일 제외      | 제외 :`**/*.tmp`, `**/*.bak`           | `/docs/guide.md`                       | `/data/cache.tmp`, `/old.bak`         |
+| 온도 및 백업 폴더 제외      | 제외 :`/temp/**`, `/backup/**`         | `/docs/guide.md`                       | `/temp/file.txt`, `/backup/data.json` |
+| 인덱스 docs 하지만 초안 제외 | 포함 :`/docs/**`, 제외:`/docs/drafts/**` | `/docs/guide.md`                       | `/docs/drafts/wip.md`                 |
+
+### 웹 사이트 데이터 소스
+
+| 사용 사례              | 제품 정보                                    | 이름 \*                                                  | 뚱 베어                                               |
+| ------------------ | ---------------------------------------- | ------------------------------------------------------ | -------------------------------------------------- |
+| Index only 블로그 페이지 | 포함 :`**/blog/**`                         | `example.com/blog/post`, `example.com/en/blog/article` | `example.com/about`                                |
+| admin 페이지 제외       | 제외 :`**/admin/**`                        | `example.com/blog/post`                                | `example.com/admin/settings`                       |
+| 로그인 페이지를 제외        | 제외 :`**/login*`                          | `example.com/blog/post`                                | `example.com/login`, `example.com/auth/login-form` |
+| 인덱스 docs 하지만 초안 제외 | 포함 :`**/docs/**`, 제외:`**/docs/drafts/**` | `example.com/docs/guide`                               | `example.com/docs/drafts/wip`                      |
+
+### API 형식
+
+API를 사용할 때 패턴을 지정합니다.`source_params`:
+
+```json
+{
+	"source_params": {
+		"include_items": ["<PATTERN_1>", "<PATTERN_2>"],
+		"exclude_items": ["<PATTERN_1>", "<PATTERN_2>"]
+	}
+}
+```

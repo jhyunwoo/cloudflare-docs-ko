@@ -1,0 +1,240 @@
+---
+pcx_content_type: reference
+title: Workers Logpush의
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/observability/logging/logpush/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/observability/logging/logpush/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem } from "~/components";
+
+AI Gateway를 사용하면 외부 스토리지 위치에 안전하게 로그를 내보내기 할 수 있습니다.
+Workers Logpush를 켜고 꺼낼 수 있습니다.[Cloudflare 대시보드](https://dash.cloudflare.com)설정. 이 제품은 WorkersXQ Paid 계획에 유효합니다. 가격 정보, 참조[가격 책정](/ai-gateway/reference/pricing).
+
+이 가이드는 AI 게이트웨이의 Workers Logpush를 설정하는 방법을 설명하고 암호화를위한 RSA 키 쌍을 생성하고 로그를 한 번 수신합니다.
+
+게이트웨이당 최대 10백만개의 로그를 저장할 수 있습니다. 제한이 도달되면 새로운 로그가 저장되고 Workers Logpush를 통해 수출되지 않습니다. 저장 및 내보내기 로그를 계속하려면 이전 로그를 삭제해야합니다. 새로운 로그에 대한 공간을 확보하십시오. 모델 번호: Workers Logpush에는 로그당 4개 일자리와 최대 요청 크기가 있습니다.
+
+:::주\[주]
+
+WorkersXQ를 사용하여 로그 내보내기 Logpush, 당신은 게이트웨이에 로그인해야합니다.
+
+:::
+
+<Render file="limits-increase" product="ai-gateway" />
+
+## 로그가 암호화되는 방법
+
+우리는 하이브리드 암호화 모델 효율과 보안을 사용합니다. 처음에는 AES 키가 각 로그에 생성됩니다. 이 AES 키는 실제로 데이터의 대량을 암호화하고 큰 데이터셋을 효율적으로 처리하는 속도와 보안을 선택했습니다.
+
+이제 보안이 AES 키를 공유하기 위해 RSA 암호화를 사용합니다. 다음은 일어나는 일입니다. AES 키는 경량이지만 수신자에게 안전하게 전송해야합니다. 우리는 수신자의 RSA 공개 키와이 키를 암호화합니다. 이 단계는 RSA의 안전한 키 배포의 강도를 활용하고 해당 RSA 개인 키로만 누군가가 암호를 해독하고 AES 키를 사용합니다.
+
+암호화되면 AES 암호화 된 데이터와 RSA 암호화 된 AES 키가 함께 전송됩니다. 도착시 수신자의 시스템이 RSA 개인 키를 사용하여 AES 키를 해독합니다. AES 키로 이제 액세스 할 수 있으며, 주요 데이터 페이로드를 해독하는 것이 곧 시작됩니다.
+
+이 방법은 RSA의 보안 키 교환 기능을 사용하여 데이터 암호화를위한 AES의 효율성, 데이터 무결성, 기밀성을 보장하고 성능은 데이터 수명주기 전반에 걸쳐 모든 최적의 유지됩니다.
+
+## Workers 다운로드
+
+Workers AI Gateway를 위한 Logpush는, 이 단계를 따릅니다:
+
+## 1. 로컬로 RSA 키 쌍 생성
+
+키 쌍을 암호화하고 로그를 해독해야합니다. 이 스크립트는 RSA privateKey와 publicKey를 출력합니다. 개인 키 보안을 유지, 그것은 로그를 해독하기 위해 사용될 것입니다. 아래는 Node.js 및 OpenSSL을 사용하여 키를 생성하는 샘플 스크립트입니다.
+
+<Tabs syncKey="JSPlusSSL">
+  <TabItem label="모델 번호: JavaScript">
+    ```js title="JavaScript"
+    const crypto = require("crypto");
+
+    const { privateKey, publicKey } = crypto.generateKeyPairSync("rsa", {
+    	modulusLength: 4096,
+    	publicKeyEncoding: {
+    		type: "spki",
+    		format: "pem",
+    	},
+    	privateKeyEncoding: {
+    		type: "pkcs8",
+    		format: "pem",
+    	},
+    });
+
+    console.log(publicKey);
+    console.log(privateKey);
+    ```
+
+    아래 코드를 실행하여 스크립트를 실행하세요. 기타 제품`file name`JavaScriptXQ 파일의 이름으로.
+
+    ```bash
+    node {file name}
+    ```
+  </TabItem>
+
+  <TabItem label="열린SSL">
+    1. 개인 키를 생성:
+       다음 명령을 사용하여 RSA 개인 키를 생성하십시오.
+
+       ```bash
+       openssl genpkey -algorithm RSA -out private_key.pem -pkeyopt rsa_keygen_bits:4096
+       ```
+
+    2. 공개 키 생성 :
+       개인 키를 생성 한 후 해당 공공 키를 사용하여 추출 할 수 있습니다.
+
+       ```bash
+       openssl rsa -pubout -in private_key.pem -out public_key.pem
+       ```
+  </TabItem>
+</Tabs>
+
+## 2. Gateway 설정에 공공 키를 업로드
+
+키 쌍을 생성하면 AI Gateway 설정에 공개 키를 업로드합니다. 이 키는 로그를 암호화하는 데 사용됩니다. Workers Logpush를 활성화하려면 해당 게이트웨이에서 로그를 활성화해야합니다.
+
+## 3. Logpush 설정
+
+Logpush 설정, 참조[다운로드](/logs/logpush/)문서.
+
+## 4. 암호화된 로그 수신
+
+WorkersXQ를 구성하는 후에 Logpush, 로그는 업로드 된 공공 키를 사용하여 암호화됩니다. 데이터에 액세스하려면 개인 키를 사용하여 해독해야합니다. 로그는 선택한 객체 저장 공급자로 전송됩니다.
+
+## 5. 암호로 고쳐
+
+AI Gateway에서 암호화된 로그체와 메타데이터를 해독하려면 다음 Node.js 스크립트 또는 OpenSSL을 사용할 수 있습니다.
+
+<Tabs syncKey="JSPlusSSL">
+  <TabItem label="모델 번호: JavaScript">
+    AI Gateway에서 암호화 된 로그 바디 및 메타 데이터를 해독하려면 로그를 폴더에 다운로드하십시오.`my_log.log.gz`.
+
+    그런 다음 같은 폴더에 JavaScript 파일을 복사하고 상단 변수의 개인 키를 배치하십시오.
+
+    ```js title="JavaScript"
+    const privateKeyStr = `-----BEGIN RSA PRIVATE KEY-----
+    ....
+    -----END RSA PRIVATE KEY-----`;
+
+    const crypto = require("crypto");
+    const privateKey = crypto.createPrivateKey(privateKeyStr);
+
+    const fs = require("fs");
+    const zlib = require("zlib");
+    const readline = require("readline");
+
+    async function importAESGCMKey(keyBuffer) {
+    	try {
+    		//중요한 길이는 AES에 유효합니다
+    		if ([128, 192, 256].includes(256)) {
+    			return await crypto.webcrypto.subtle.importKey(
+    				"raw",
+    				keyBuffer,
+    				{
+    					name: "AES-GCM",
+    					length: 256,
+    				},
+    				true, //키가 추출 할 수 있는지 여부 (이 경우에 따라 나중에 수출을 허용)
+    				["encrypt", "decrypt"], //암호화 및 해독에 대한 사용
+    			);
+    		} else {
+    			throw new Error("Invalid AES key length. Must be 128, 12, or 256 bits.");
+    		}
+    	} catch (error) {
+    		console.error("Failed to import key:", error);
+    		throw error;
+    	}
+    }
+
+    async function decryptData(encryptedData, aesKey, iv) {
+    	const decryptedData = await crypto.subtle.decrypt(
+    		{ name: "AES-GCM", iv: iv },
+    		aesKey,
+    		encryptedData,
+    	);
+    	return new TextDecoder().decode(decryptedData);
+    }
+
+    async function decryptBase64(privateKey, data) {
+    	if (data.key === undefined) {
+    		return data;
+    	}
+
+    	const aesKeyBuf = crypto.privateDecrypt(
+    		{
+    			key: privateKey,
+    			oaepHash: "SHA256",
+    		},
+    		Buffer.from(data.key, "base64"),
+    	);
+    	const aesKey = await importAESGCMKey(aesKeyBuf);
+
+    	const decryptedData = await decryptData(
+    		Buffer.from(data.data, "base64"),
+    		aesKey,
+    		Buffer.from(data.iv, "base64"),
+    	);
+
+    	return decryptedData.toString();
+    }
+
+    async function run() {
+    	let lineReader = readline.createInterface({
+    		input: fs.createReadStream("my_log.log.gz").pipe(zlib.createGunzip()),
+    	});
+
+    	lineReader.on("line", async (line) => {
+    		line = JSON.parse(line);
+
+    		const { Metadata, RequestBody, ResponseBody, ...remaining } = line;
+
+    		console.log({
+    			...remaining,
+    			Metadata: await decryptBase64(privateKey, Metadata),
+    			RequestBody: await decryptBase64(privateKey, RequestBody),
+    			ResponseBody: await decryptBase64(privateKey, ResponseBody),
+    		});
+    		console.log("--");
+    	});
+    }
+
+    run();
+    ```
+
+    아래 코드를 실행하여 스크립트를 실행하세요. 기타 제품`file name`JavaScriptXQ 파일의 이름으로.
+
+    ```bash
+    node {file name}
+    ```
+
+    스크립트는 암호화된 로그 파일을 읽습니다`(my_log.log.gz)`, metadata, request body, and response body를 해독하고 해독 된 데이터를 인쇄합니다.
+    자주 묻는 질문`privateKey`단계 1에서 생성 된 실제 개인 RSA 키와 변수
+  </TabItem>
+
+  <TabItem label="열린SSL">
+    1. 개인 키를 사용하여 암호화 된 로그 파일을 해독합니다.
+
+    로그가 공개 키로 암호화 된 것을 분석 (예 :`public_key.pem`), 당신은 개인 키를 사용할 수 있습니다 (`private_key.pem`) 로그 파일을 해독합니다.
+
+    예를 들어, 암호화된 로그가 지정된 파일에 있는 경우`encrypted_logs.bin`, 당신은 이것 같이 해독할 수 있습니다:
+
+    ```bash
+    openssl rsautl -decrypt -inkey private_key.pem -in encrypted_logs.bin -out decrypted_logs.txt
+    ```
+
+    - `-decrypt`파일을 해독하려는 OpenSSL를 말합니다.
+    - `-inkey private_key.pem`로그를 해독하는 데 사용되는 개인 키를 지정합니다.
+    - `-in encrypted_logs.bin`암호화된 로그 파일입니다.
+    - `-out decrypted_logs.txt`암호화된 로그는 이 파일에 저장됩니다.
+
+    2. 해독된 로그 보기
+       해독되면 단순히 실행하여 로그를 볼 수 있습니다.
+
+    ```bash
+    cat decrypted_logs.txt
+    ```
+
+    이 명령은 터미널에 decrypted 로그를 출력합니다.
+  </TabItem>
+</Tabs>

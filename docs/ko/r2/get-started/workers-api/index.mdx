@@ -1,0 +1,179 @@
+---
+title: Workers API를
+pcx_content_type: get-started
+sidebar:
+  order: 1
+description: >-
+  R2XQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/get-started/workers-api/'
+translation_source_md: 'https://developers.cloudflare.com/r2/get-started/workers-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	PackageManagers,
+	WranglerConfig,
+	LinkCard,
+	Render,
+	Tabs,
+	TabItem,
+	Steps
+} from "~/components";
+
+[모델 번호: Workers](/workers/)당신은 가장자리에 코드를 실행합니다. 노동자에 R2 물통을 묶을 때, 당신은 직접 물건을 읽고 쓸 수 있습니다[모델 번호: Workers](/r2/api/workers/workers-api-usage/).
+
+## 1. 버킷 만들기
+
+<Render file="create-bucket-steps" product="r2" />
+
+## 2. R2 바인딩을 가진 노동자를 창조하십시오
+
+<Steps>
+  1. 새로운 노동자 프로젝트 만들기:
+
+     <PackageManagers type="create" pkg="cloudflare@latest" args={"r2-worker"} />
+
+     신속한 경우, 선택**이름 \* 세계 예**·**모델 번호: JavaScript**(또는 TypeScript) 템플릿으로.
+
+  2. 프로젝트 디렉토리로 이동:
+
+     ```sh
+     cd r2-worker
+     ```
+
+  3. R2 바인딩을 Wrangler 구성 파일에 추가하십시오. 기타 제품`my-bucket`당신의 물통 이름으로:
+
+     <WranglerConfig>
+       ```jsonc
+       {
+         "r2_buckets": [
+           {
+             "binding": "MY_BUCKET",
+             "bucket_name": "my-bucket"
+           }
+         ]
+       }
+       ```
+     </WranglerConfig>
+
+  4. (선택) TypeScriptXQ를 사용하는 경우, 재 생성 유형:
+
+     ```sh
+     npx wrangler types
+     ```
+</Steps>
+
+## 3. 읽기 및 쓰기 개체
+
+당신의 물통과 상호 작용하는 바인딩을 사용하십시오. URL 경로에 근거를 둔 객체를 저장하고 검색합니다:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript">
+    ```js title="src/index.js"
+    export default {
+    	async fetch(request, env) {
+    		//URL 경로에서 객체 키를 가져옵니다
+    		//예를 들면: /images/cat.png → image/cat.png
+    		const url = new URL(request.url);
+    		const key = url.pathname.slice(1);
+
+    		//PUT: R2에 있는 요구 몸을 저장하십시오
+    		if (request.method === "PUT") {
+    			await env.MY_BUCKET.put(key, request.body);
+    			return new Response(`Put ${key} successfully!`);
+    		}
+
+    		//GET: R2에서 객체를 검색
+    		const object = await env.MY_BUCKET.get(key);
+    		if (object === null) {
+    			return new Response("Object not found", { status: 404 });
+    		}
+    		return new Response(object.body);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript">
+    ```ts title="src/index.ts"
+    export default {
+    	async fetch(request, env): Promise<Response> {
+    		//URL 경로에서 객체 키를 가져옵니다
+    		//예를 들면: /images/cat.png → image/cat.png
+    		const url = new URL(request.url);
+    		const key = url.pathname.slice(1);
+
+    		//PUT: R2에 있는 요구 몸을 저장하십시오
+    		if (request.method === "PUT") {
+    			await env.MY_BUCKET.put(key, request.body);
+    			return new Response(`Put ${key} successfully!`);
+    		}
+
+    		//GET: R2에서 개체를 검색
+    		const object = await env.MY_BUCKET.get(key);
+    		if (object === null) {
+    			return new Response("Object not found", { status: 404 });
+    		}
+    		return new Response(object.body);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+## 4. 시험과 배치
+
+<Steps>
+  1. 당신의 노동자를 국부적으로 시험하십시오:
+
+     ```sh
+     npx wrangler dev
+     ```
+
+     :::노트\[로컬 개발]
+     기본적으로,`wrangler dev`로컬 R2 시뮬레이션을 사용합니다. 개발 중에 저장하는 개체는 기계에서만 존재합니다.`.wrangler/state`폴더와 당신의 생산 물통에 영향을 미치지 않습니다.
+
+     개발 중에 실제 R2 버킷에 연결하려면 추가`"remote": true`R2에 Wrangler 구성 파일에 바인딩. 더 알아보기[먼 바인딩](/workers/development-testing/#remote-bindings)더 많은 정보.
+     주요 특징
+
+  2. dev 서버가 실행되면, 저장 및 검색 객체를 테스트:
+
+     ```sh
+     #개체를 저장
+     curl -X PUT http://localhost:8787/my-file.txt -d 'Hello, R2!'
+
+     #개체를 검색
+     curl http://localhost:8787/my-file.txt
+     ```
+
+  3. 생산에 배포:
+
+     ```sh
+     npx wrangler deploy
+     ```
+
+  4. 배포 후, Wrangler는 작업자의 URL을 출력합니다 (예를 들어,`https://r2-worker.<YOUR_SUBDOMAIN>.workers.dev`). 저장과 retrieving 목표를 시험하십시오:
+
+     ```sh
+     #개체를 저장
+     curl -X PUT https://r2-worker.<YOUR_SUBDOMAIN>.workers.dev/my-file.txt -d 'Hello, R2!'
+
+     #개체를 검색
+     curl https://r2-worker.<YOUR_SUBDOMAIN>.workers.dev/my-file.txt
+     ```
+</Steps>
+
+더 알아보기[Workers R2 API 문서](/r2/api/workers/workers-api-usage/)완전한 API reference를 위해.
+
+## 다음 단계
+
+<LinkCard title="위탁된 URL" href="/r2/api/s3/presigned-urls/" description="개인 객체 접근을 위한 임시 URL 생성." />
+
+<LinkCard title="공공 버킷" href="/r2/buckets/public-buckets/" description="HTTP를 통해 직접 파일을 공개 버킷." />
+
+<LinkCard title="사이트맵" href="/r2/buckets/cors/" description="브라우저 기반 업로드에 대한 CORS 구성." />
+
+<LinkCard title="목표 수명주기" href="/r2/buckets/object-lifecycles/" description="구문을 자동으로 삭제하는 Lifecycle 규칙을 설정합니다." />

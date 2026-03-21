@@ -1,0 +1,62 @@
+---
+title: FAQ
+pcx_content_type: faq
+sidebar:
+  order: 16
+---
+
+## "Cache Level: Cache Everything"과 함께 "Edge Cache TTL" Page Rule을 여전히 만들어야 하나요?
+
+아니요. Edge Cache TTL Page Rule을 만들 필요는 없습니다. WordPress 플러그인이 설치되어 있으면 APO는 콘텐츠를 자동으로 30일 동안 캐시하고, 변경이 생기면 30초 안에 무효화합니다. 다만 APO가 이제 캐시 관련 Page Rule을 지원하므로, 기존 Page Rule이 APO가 제공하는 리소스에 영향을 주지 않는지 확인하세요.
+
+## Origin Cache Control이 APO를 덮어쓰나요?
+
+아니요. APO는 엣지 캐싱에 대해 Origin Cache Control을 무시하지만, 원래의 Origin Cache Control은 클라이언트에 그대로 제공합니다.
+
+## APO 사용 시 브라우저 캐시 제어 헤더가 사라지는 이유는 무엇인가요?
+
+**Browser Cache TTL**을 **Respect Existing Headers**로 설정한 경우 APO에서 브라우저 캐시 제어 헤더가 사라질 수 있습니다. 예를 들면 다음과 같습니다.
+
+```sh
+curl --silent --verbose --output /dev/null https://example.com/ --header 'Accept: text/html' 2>&1 | grep cache-control
+```
+
+```sh output
+< cache-control: max-age=86400, stale-while-revalidate=86400, stale-if-error=86400
+```
+
+## APO를 사용하면 stale-if-error 지시어가 여전히 필요한가요?
+
+아니요. `stale-if-error` 기능은 APO에 내장되어 있으므로 별도의 지시어가 필요하지 않습니다.
+
+## 게시물과 홈페이지의 캐시 상태를 확인할 때 응답 헤더에 `cf-cache-status: BYPASS`가 표시됩니다. APO가 작동하고 있나요?
+
+Chrome DevTools가 열려 있으면 Chrome은 기본적으로 `Cache-Control: no-cache`를 전송합니다. **Disable cache (while DevTools is open)** 설정을 해제하면 `cf-cache-status: HIT`와 `cf-apo-via: cache` 헤더가 반환되는 것을 확인할 수 있습니다.
+
+## cURL로 `cf-cache-status`를 확인하면 항상 `MISS`와 `DYNAMIC`이 반환됩니다. 브라우저에서는 `HIT`가 보이는데 다른 도구는 `DYNAMIC`을 반환합니다. 정상인가요?
+
+예, 정상 동작입니다. 요청에는 반드시 `accept: "text/html"`이 포함되어야 하기 때문입니다.
+
+## APO를 활성화하면 Google Fonts도 최적화되나요?
+
+예, APO를 활성화하면 Google Fonts도 최적화됩니다. 폰트 URL을 확인해 최적화 여부를 검증할 수 있습니다. 예를 들어 사이트가 로드되면 URL은 `https://fonts.gstatic.com/s/...`에서 `https://example.com/fonts.gstatic.com/s/...`로 바뀝니다. 프록시된 폰트의 경우 `cf-apo-via:proxy` 헤더가 반환됩니다.
+
+## APO에서 쿼리 문자열 캐싱을 사용자 지정할 수 있나요?
+
+쿼리 매개변수에 대한 자세한 내용은 [쿼리 매개변수와 캐시된 응답](/automatic-platform-optimization/reference/query-parameters/)을 참고하세요.
+
+## 폰트 URL이 변환되지 않는 이유는 무엇인가요?
+
+응답 헤더 `content-security-policy`가 존재하지만 아래에 설명된 값이 누락된 경우, APO는 폰트 URL 변환을 건너뜁니다.
+
+문제를 해결하려면 `content-security-policy` 헤더 값이 `style-src` 또는 `default-src` 지시어 중 하나에서 `unsafe-inline`을 허용해야 합니다. 예를 들어 `Content-Security-Policy: style-src unsafe-inline;`처럼 설정합니다.
+
+또한 해당 헤더는 `font-src` 또는 `default-src` 지시어 중 하나에서 `self`를 허용해야 합니다. 예를 들어 `Content-Security-Policy: font-src self;`처럼 설정합니다.
+
+## APO를 사용할 때 zone 로그에 Worker subrequest가 보이는 이유는 무엇인가요?
+
+APO는 콘텐츠 전송을 최적화하기 위해 내부적으로 Cloudflare Workers를 사용하며, 그 결과 Worker subrequest가 발생합니다. 이러한 subrequest는 zone 로그에 표시될 수 있습니다(예: Logpush를 통해 확인 가능).
+
+## APO 플러그인에서 "This plugin hasn’t been tested with the latest 3 major releases of WordPress. It may no longer be maintained or supported and may have compatibility issues when used with more recent versions of WordPress."라는 메시지가 보이는 이유는 무엇인가요?
+
+성숙한 플러그인은 WordPress의 "테스트되지 않음" 경고가 표시될 정도로 오랜 기간 업데이트가 없을 수 있으며, 이는 드문 일이 아닙니다. 이 경고는 알림 목적일 뿐 플러그인이 더 이상 동작하지 않는다는 뜻은 아닙니다. 여전히 유지 관리되고 있습니다.

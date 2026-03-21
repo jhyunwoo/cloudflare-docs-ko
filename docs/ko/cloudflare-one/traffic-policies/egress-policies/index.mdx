@@ -1,0 +1,180 @@
+---
+pcx_content_type: configuration
+title: Egress 정책
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/egress-policies/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/egress-policies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Badge,
+	Tabs,
+	TabItem,
+	Details,
+	GlossaryTooltip,
+	APIRequest,
+} from "~/components";
+
+:::참조
+Enterprise 플랜에서만 사용할 수 있습니다.
+주요 특징
+
+사용자가 Cloudflare 게이트웨이를 통해 인터넷에 연결하면 기본적으로 트래픽이 모든 Cloudflare WARP 사용자를 통해 공유되는 소스 IP 주소를 할당됩니다. Enterprise 사용자는 구매할 수 있습니다.[전용 egress IP](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/)조직의 egress 트래픽이 독특하고 정적 IP로 할당되도록합니다. 이 소스 IP는 귀하의 계정에 전념하고 업스트림 서비스에 수당 내에서 사용할 수 있습니다.
+
+Egress 정책은 ID, IP 주소 및 지리적 위치와 같은 속성을 기반으로하는 전용 egress IP를 사용할 수 있습니다. egress 정책과 일치하지 않는 트래픽은 대부분의 실행 전용 egress IP를 사용하여 기본적으로 표시됩니다.
+
+Cloudflare는 WARP egress IP 범위를 간행하지 않습니다. WARP egress IPs는 문서화되지 않습니다[Cloudflare의 IP 범위](https://cloudflare.com/ips). 전용 WARP egress IP를 얻기 위하여는, 당신의 계정 팀을 접촉합니다.
+
+<Render file="gateway/terraform-precedence-warning" product="cloudflare-one" />
+
+## 짐 밸런싱
+
+기본 Cloudflare egress IP 또는 모든 전용 egress IPs, egress 정책과 일치하지 않는 게이트웨이 트래픽을 사용하여 기본 게이트웨이 egress IP를 가진 가장 가까운 Cloudflare 데이터 센터에서 egress. 사용자로부터 동등한 거리의 두 가지 데이터 센터가 있는 경우 게이트웨이는 두 개의 데이터 센터 사이의 트래픽을 분할하고, 로드밸런서는 데이터 센터에 관계없이 동일한 사용자 선택과 egress IP를 유지할 것입니다.
+
+## 힘 IP 버전
+
+IPv4 또는 IPv6가 egress에 사용되었는지 여부를 제어하려면,[DNS 트래픽 필터링](/cloudflare-one/traffic-policies/get-started/dns/), 다음 DNS 정책을 만들[블록 AAAA 또는 레코드](/cloudflare-one/traffic-policies/dns-policies/common-policies/#control-ip-version).
+
+## 예시정책
+
+다음의 egress 정책은 정적 소스 IP를 사용하는 타사 네트워크에 대해 모든 트래픽을 정의합니다.
+
+<Render file="gateway/policies/egress-destination-ip" product="cloudflare-one" />
+
+### Catch-all 정책
+
+최고의 성능을 위해, 우리는 기본 Zero Trust IP 범위를 통해 다른 모든 사용자를 경로에 catch-all 정책을 생성하는 것이 좋습니다.
+
+| 정책 이름        | 옵션 정보 | 회사연혁 | 제품정보                     | Egress 방법               |
+| ------------ | ----- | ---- | ------------------------ | ----------------------- |
+| 기본 egress 정책 | 프로젝트  | 내 계정 | `All options (Protocol)` | Cloudflare 기본 egress 방법 |
+
+Gateway 정책 평가[맨 위로](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence)UI에서, 목록의 하단에 catch-all 정책을 배치해야합니다. catch-all 정책이 포함되지 않는 경우, 다른 모든 트래픽은 가장 가까운 전용 egress IP 위치를 사용하려고합니다. IP Gateway가 사용하는 것을 제어하려면 egress 정책을 작성합니다.
+
+## Egress 방법
+
+egress 정책을 구성하면 기본 Cloudflare egress 방법 또는 전용 egress IPs를 사용하여 egress 트래픽을 선택할 수 있습니다.
+
+### 기본 Cloudflare egress 방법 사용
+
+**기본 Cloudflare egress 방법 사용**모든 Zero Trust 계정에서 공유되는 기본 소스 IP 범위를 사용합니다. 가장 가까운 Cloudflare 데이터 센터에서 사용자 트래픽 egresses로 가장 뛰어난 인터넷 경험을 보장합니다.
+
+### 전용 egress IPs 사용
+
+**전용 egress IPs (Cloudflare 또는 BYOIP) 사용**드롭다운 메뉴에서 선택된 기본 IPv4 주소와 IPv6 범위를 사용합니다.<Render file="gateway/secondary-ipv4-requirement" product="cloudflare-one" />
+
+기본 전용 egress IPv4와 관련 된 데이터 센터가 내려지면 게이트웨이는 다시 루트 동안 트래픽이 떨어지는 것을 방지하기 위해 이차 데이터 센터에서 egress합니다. IPv6 트래픽이 Cloudflare 데이터 센터에서 egress 할 수 있기 때문에 이차 IPv6에는 필요하지 않습니다. 전용 egress IPs는 Cloudflare 또는[BYOIP의 특징](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/#bring-your-own-ip-address-byoip).
+
+IPv4 및 IPv6 egress 행동에 대한 자세한 내용을 보려면, 참조[Egress 위치](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/#egress-location).
+
+## 이름 \*
+
+Gateway는 다음과 같은 선택자에 대한 egress 트래픽을 일치, 또는 기준:
+
+### 제품 설명<Badge text="Beta" variant="caution" />
+
+<Render file="gateway/selectors/application-http" product="cloudflare-one" params={{ policyType: "egress" }} />
+
+<Render file="gateway/selectors/egress-selector-limitation" product="cloudflare-one" />
+
+### 제품 분류<Badge text="Beta" variant="caution" />
+
+<Render file="gateway/selectors/net-http-content-categories" product="cloudflare-one" params={{ APIendpoint: "net.fqdn.content_category" }} />
+
+<Render file="gateway/selectors/egress-selector-limitation" product="cloudflare-one" />
+
+### 여행 일정
+
+<Render file="gateway/selectors/destination-continent" product="cloudflare-one" params={{ one: "net.dst" }} />
+
+### 대상 국가
+
+<Render file="gateway/selectors/destination-country" product="cloudflare-one" params={{ one: "net.dst" }} />
+
+### 대상 IP
+
+<Render file="gateway/selectors/destination-ip" product="cloudflare-one" params={{ APIendpoint: "net.dst.ip" }} />
+
+### 관광 명소
+
+<Render file="gateway/selectors/destination-port" product="cloudflare-one" />
+
+### 장치 Posture
+
+<Render file="gateway/selectors/device-posture" product="cloudflare-one" />
+
+### 이름 \*<Badge text="Beta" variant="caution" />
+
+<Render file="gateway/selectors/domain-http" product="cloudflare-one" params={{ APIendpoint: "net.fqdn.domains" }} />
+
+<Render file="gateway/selectors/egress-selector-limitation" product="cloudflare-one" />
+
+### 이름 \*<Badge text="Beta" variant="caution" />
+
+<Render file="gateway/selectors/host-http" product="cloudflare-one" params={{ APIendpoint: "net.fqdn.host" }} />
+
+<Render file="gateway/selectors/egress-selector-limitation" product="cloudflare-one" />
+
+### 프로젝트
+
+<Render file="gateway/selectors/protocol" product="cloudflare-one" />
+
+### 프록시 엔드포인트
+
+<Render file="gateway/selectors/proxy-endpoint" product="cloudflare-one" />
+
+### 소스 Continent
+
+요청을 만드는 사용자의 대륙.<Render file="gateway/selectors/source-continent-http" product="cloudflare-one" params={{ one: "net.src" }} />
+
+### 소스 국가
+
+요청을 만드는 사용자의 국가.<Render file="gateway/selectors/source-country-http" product="cloudflare-one" params={{ one: "net.src" }} />
+
+### 근원 내부 IP
+
+<Render file="gateway/selectors/source-internal-ip" product="cloudflare-one" params={{ one: "egress", two: "net.src.internal_src_ip" }} />
+
+### 근원 IP
+
+<Render file="gateway/selectors/source-ip" product="cloudflare-one" params={{ APIendpoint: "net.src.ip" }} />
+
+### 소스 포트
+
+<Render file="gateway/selectors/source-port" product="cloudflare-one" />
+
+### 이름 \*
+
+<Render file="gateway/selectors/users-http" product="cloudflare-one" />
+
+### 가상 네트워크
+
+<Render file="gateway/selectors/virtual-network" product="cloudflare-one" params={{ one: "net.vnet_id" }} />
+
+## 비교 연산자
+
+<Render file="gateway/comparison-operators" product="cloudflare-one" />
+
+## 제품정보
+
+단일 값을 입력하거나 일반 표현을 사용하여 다양한 값을 지정할 수 있습니다.
+
+Gateway는 Rust를 사용하여 정규 표현식을 평가합니다. Rust 구현은 다른 곳에서 사용되는 regex 라이브러리보다 약간 다릅니다. 당신의 regex 경기를 평가하려면, 당신은 사용할 수[모델 번호: Rustexp](https://rustexp.lpil.uk/).
+
+## Logical 연산자
+
+<Render file="gateway/logical-operators" product="cloudflare-one" params={{ one: "**Identity** or **Device Posture**" }} />
+
+## 제한 사항
+
+### 선택 사항
+
+더 보기[제품 설명](#application), [제품 분류](#content-categories), [이름 \*](#domain)·[이름 \*](#host)selectors는 작업이 될 때 설정 변경이 필요합니다. 이 선택자에 대한 정책을 배포하기 전에, 참조[호스트 선택기](/cloudflare-one/traffic-policies/egress-policies/host-selectors).

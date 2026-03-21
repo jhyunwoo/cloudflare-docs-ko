@@ -1,0 +1,211 @@
+---
+title: 사이트맵
+pcx_content_type: get-started
+sidebar:
+  order: 2
+description: REST API를 사용하여 AI Search 인스턴스를 프로그래밍적으로 만듭니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/get-started/api/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/get-started/api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { LinkCard } from "@astrojs/starlight/components";
+import { DashButton } from "~/components";
+
+이 가이드는 REST API를 사용하여 AI Search 인스턴스 프로그래밍을 만들 수 있습니다. 이 설정은[서비스 API 토큰](/ai-search/configuration/service-api-token/)시스템 - 시스템 인증
+
+:::note\[서비스 토큰이 있습니까?]
+대시보드XQ를 통해 AI Search 인스턴스를 생성한 경우, 이미 계정이 있습니다.[서비스 API 토큰](/ai-search/configuration/service-api-token/)이름 \* 더 보기`token_id`모수는 선택적입니다 당신은 건너뛰기 할 수 있습니다[단계 5: AI 검색 인스턴스 만들기](#5-create-an-ai-search-instance).
+:::
+
+## 자주 묻는 질문
+
+AI Search는 데이터를 저장하기 위해 R2와 통합합니다. 첫 번째 AI 검색 인스턴스를 만들기 전에 활성 R2 구독이 있어야합니다.
+
+<DashButton url="/?to=/:account/r2/overview" buttonName="R2 Overview" />
+
+## 1. 토큰 생성 권한을 가진 API 토큰 생성
+
+AI Search는 R2 및 기타 리소스에 액세스하는 서비스 API 토큰이 필요합니다. 이 서비스 토큰을 프로그래밍으로 만들려면 먼저 필요[API 토큰](/fundamentals/api/get-started/create-token/)다른 토큰을 만들 수있는 권한.
+
+1. Cloudflare 대시보드에서, 갑니다**내 프로필** > **API 토큰**.
+2. 제품정보**토큰 만들기**.
+3. 제품정보**사용자 정의 토큰 만들기**.
+4. 이름 \***토큰 이름**예를 들어`Token Creator`.
+5. 이름 \***제출**, 선택**사용자 이름** > **API 토큰** > **제품정보**.
+6. 제품정보**자주 묻는 질문**, 다음 선택**토큰 만들기**.
+7. 토큰 가치를 복사하고 저장합니다. 이것은 당신입니다`API_TOKEN`다음 단계.
+
+:::참조
+위의 단계는 사용자 소유 토큰을 만듭니다. 계정 소유 토큰을 만들 수도 있습니다. 더 알아보기[API를 통해 토큰 생성](/fundamentals/api/how-to/create-via-api/)더 많은 정보.
+주요 특징
+
+## 2. 서비스 API 토큰 만들기
+
+사용 방법[토큰 API 만들기](/api/resources/user/subresources/tokens/methods/create/)더 보기[서비스 API 토큰](/ai-search/configuration/service-api-token/). 이 토큰은 R2, Vectorize, Vectorize, Workers AI와 같은 귀하의 계정에 액세스 리소스를 허용합니다.
+
+1. 다음 요청을 실행하여 서비스 API 토큰을 만듭니다. 기타 제품`<API_TOKEN>`단계 1에서 토큰으로`<ACCOUNT_ID>`너와 함께[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+
+   ```bash
+   curl -X POST "https://api.cloudflare.com/client/v4/user/tokens" \
+     -H "Authorization: Bearer <API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{
+       "name": "AI Search Service API Token",
+       "policies": [
+         {
+           "effect": "allow",
+           "resources": {
+             "com.cloudflare.api.account.<ACCOUNT_ID>": "*"
+           },
+           "permission_groups": [
+             { "id": "9e9b428a0bcd46fd80e580b46a69963c" }
+           ]
+         }
+       ]
+     }'
+   ```
+
+   AI Search Index Engine 권한을 가진 토큰을 생성합니다.`9e9b428a0bcd46fd80e580b46a69963c`AI Search Index Engine을 실행하는 액세스 권한을 부여하는 ).
+
+2. 구매하기`id` (`<CF_API_ID>`)와`value` (`<CF_API_KEY>`) 응답에서. 다음 단계에 이러한 값을해야합니다.
+
+   예 응답:
+
+   ```json
+   {
+   	"result": {
+   		"id": "<CF_API_ID>",
+   		"name": "AI Search Service API Token",
+   		"status": "active",
+   		"issued_on": "2025-12-24T22:14:16Z",
+   		"modified_on": "2025-12-24T22:14:16Z",
+   		"last_used_on": null,
+   		"value": "<CF_API_KEY>",
+   		"policies": [
+   			{
+   				"id": "f56e6d5054e147e09ebe5c514f8a0f93",
+   				"effect": "allow",
+   				"resources": { "com.cloudflare.api.account.<ACCOUNT_ID>": "*" },
+   				"permission_groups": [
+   					{
+   						"id": "9e9b428a0bcd46fd80e580b46a69963c",
+   						"name": "AI Search Index Engine"
+   					}
+   				]
+   			}
+   		]
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+## 3. AI 검색 API 토큰 만들기
+
+서비스 토큰을 등록하고 AI Search 인스턴스를 만들려면 AI Search 편집 권한을 가진 API 토큰이 필요합니다.
+
+1. Cloudflare 대시보드에서, 갑니다**내 프로필** > **API 토큰**.
+2. 제품정보**토큰 만들기**.
+3. 제품정보**사용자 정의 토큰 만들기**.
+4. 이름 \***토큰 이름**예를 들어`AI Search Manager`.
+5. 이름 \***제출**, 선택**계좌정보** > **AI 검색** > **제품정보**.
+6. 제품정보**자주 묻는 질문**, 다음 선택**토큰 만들기**.
+7. 토큰 가치를 복사하고 저장합니다. 이것은 당신입니다`AI_SEARCH_API_TOKEN`.
+
+## 4. AI Search로 서비스 토큰 등록
+
+사용 방법[AI 검색에 대한 토큰 API 생성](/api/resources/ai_search/subresources/tokens/methods/create/)단계 2에서 생성 된 서비스 토큰을 등록하려면
+
+1. 서비스 토큰을 등록하려면 다음 요청을 실행하십시오. 기타 제품`<CF_API_ID>`·`<CF_API_KEY>`단계 2.의 값으로
+
+   ```bash
+   curl -X POST "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai-search/tokens" \
+     -H "Authorization: Bearer <AI_SEARCH_API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{
+       "cf_api_id": "<CF_API_ID>",
+       "cf_api_key": "<CF_API_KEY>",
+       "name": "AI Search Service Token"
+     }'
+   ```
+
+2. 구매하기`id` (`<TOKEN_ID>`) 응답에서. 인스턴스를 만들려면 이 값이 필요합니다.
+
+   예 응답:
+
+   ```json
+   {
+   	"success": true,
+   	"result": {
+   		"id": "<TOKEN_ID>",
+   		"name": "AI Search Service Token",
+   		"cf_api_id": "<CF_API_ID>",
+   		"created_at": "2025-12-25 01:52:28",
+   		"modified_at": "2025-12-25 01:52:28",
+   		"enabled": true
+   	}
+   }
+   ```
+
+## 5. AI 검색 인스턴스 만들기
+
+사용 방법[인스턴스 API 만들기](/api/resources/ai_search/subresources/instances/methods/create/)AI Search 인스턴스를 만들려면. 기타 제품`<ACCOUNT_ID>`너와 함께[계정 ID](/fundamentals/account/find-account-and-zone-ids/)·`<AI_SEARCH_API_TOKEN>`토큰으로[단계 3](#3-create-an-ai-search-api-token).
+
+1. 데이터 소스 유형을 선택하고 해당 요청을 실행하십시오.
+
+   **[R2 물통](/ai-search/configuration/data-source/r2/):**
+
+   ```bash
+   curl -X POST "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai-search/instances" \
+     -H "Authorization: Bearer <AI_SEARCH_API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{
+       "id": "my-r2-rag",
+       "token_id": "<TOKEN_ID>",
+       "type": "r2",
+       "source": "<R2_BUCKET_NAME>"
+     }'
+   ```
+
+   **[웹 사이트](/ai-search/configuration/data-source/website/):**
+
+   ```bash
+   curl -X POST "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/ai-search/instances" \
+     -H "Authorization: Bearer <AI_SEARCH_API_TOKEN>" \
+     -H "Content-Type: application/json" \
+     --data '{
+       "id": "my-web-rag",
+       "token_id": "<TOKEN_ID>",
+       "type": "web-crawler",
+       "source": "<DOMAIN_IN_YOUR_ACCOUNT>"
+     }'
+   ```
+
+2. 완료하기 위해 인덱스를 기다립니다. 진행 상황을 모니터링 할 수 있습니다.[Cloudflare 대시보드](https://dash.cloudflare.com/?to=/:account/ai/ai-search).
+
+:::참조
+더 보기`token_id`필드는 이전에 AI Search 인스턴스를 만든 경우 선택 사항입니다.[대시보드](/ai-search/get-started/dashboard/)또는 API를 통해`token_id`이용안내
+주요 특징
+
+## 더 알아보기
+
+인덱스가 완료되면 첫 번째 쿼리를 실행할 수 있습니다. 인덱스 상태를 확인할 수 있습니다.**제품정보**인스턴스의 탭.
+
+1. 오시는 길**컴퓨터 & AI** > **AI 검색**.
+2. 귀하의 인스턴스를 선택합니다.
+3. 선택하기**회사연혁**탭.
+4. 제품정보**AI로 찾기**또는**이름 \***.
+5. 응답을 테스트하는 쿼리를 입력합니다.
+
+## 당신의 신청에 추가
+
+응용 프로그램에 AI 검색을 연결할 수있는 여러 가지 방법이 있습니다.
+
+<LinkCard title="Workers 회사 소개" description="Workers 코드에서 직접 쿼리 AI 검색." href="/ai-search/usage/workers-binding/" />
+
+<LinkCard title="REST API를" description="HTTP 요청을 사용하여 Query AI 검색." href="/ai-search/usage/rest-api/" />

@@ -1,0 +1,434 @@
+---
+pcx_content_type: reference
+title: DNS 레코드 유형
+sidebar:
+  order: 2
+---
+
+import {
+	Details,
+	Render,
+	APIRequest,
+	GlossaryTooltip,
+	Example,
+} from "~/components";
+
+이 페이지에서는 Cloudflare에서 관리할 수 있는 여러 DNS 레코드 유형에 대한 정보를 제공합니다. DNS 레코드를 추가, 편집, 삭제하는 방법은 [Manage DNS records](/dns/manage-dns-records/how-to/create-dns-records/)를 참고하세요.
+
+---
+
+## IP 주소 해석
+
+Cloudflare의 각 도메인에는 최소 하나의 **IP address resolution** 레코드가 필요합니다. 이 레코드만 Cloudflare를 통해 [proxy](/dns/proxy-status/)할 수 있습니다.
+
+### A 및 AAAA
+
+<Render file="a-aaaa-definition" product="dns" />
+
+이 레코드에는 다음 필드가 포함됩니다.
+
+
+<Render file="records-name-field" product="dns" />
+- **IPv4/IPv6 address**: 오리진 서버 주소([Cloudflare IP](https://www.cloudflare.com/ips)는 사용할 수 없음)
+
+  :::note
+
+  Cloudflare는 DNS 레코드를 저장할 때 [canonical notation](https://www.rfc-editor.org/rfc/rfc5952.html#section-4.2)을 사용합니다. 예를 들어 내용이 `fe80::0:0:1`인 AAAA 레코드는 `fe80::1`로 저장되고 반환됩니다.
+
+  IPv4 주소의 대체 표기(`1.1`을 `1.0.0.1` 대신 사용하는 형태 등)는 A 레코드에서 지원되지 않습니다.
+  :::
+
+- **TTL**: DNS 확인자가 응답을 다시 검증하기 전에 얼마나 오래 캐시해야 하는지 제어하는 time to live 값입니다.
+  - **Proxy Status**가 **Proxied**이면 이 값은 기본적으로 **Auto**이며 300초입니다.
+  - **Proxy Status**가 **DNS Only**이면 값을 사용자 지정할 수 있습니다.
+- **Proxy status**: 자세한 내용은 [Proxied DNS records](/dns/proxy-status/)를 참고하세요.
+
+#### API 호출 예시
+
+[API](/dns/manage-dns-records/how-to/create-dns-records/#create-dns-records)를 사용해 A 또는 AAAA 레코드를 만들 때:
+
+- 레코드의 `content`는 IP 주소입니다(A의 경우 IPv4, AAAA의 경우 IPv6).
+- `proxied` 필드는 레코드의 [proxy status](/dns/proxy-status/)에 영향을 줍니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+		type: "A",
+		name: "www.example.com",
+		content: "192.0.2.1",
+		ttl: 3600,
+		proxied: false,
+	}}
+	code={{
+		mark: [5, 7],
+	}}
+/>
+
+```json title="Response"
+{
+	"result": {
+		"id": "<ID>",
+		"zone_id": "<ZONE_ID>",
+		"zone_name": "example.com",
+		"name": "www.example.com",
+		"type": "A",
+		"content": "192.0.2.1",
+		"proxiable": true,
+		"proxied": false,
+		"ttl": 1,
+		"locked": false,
+		"meta": {
+			"source": "primary"
+		},
+		"comment": null,
+		"tags": [],
+		"created_on": "2023-01-17T20:37:05.368097Z",
+		"modified_on": "2023-01-17T20:37:05.368097Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### CNAME
+
+<Render file="cname-definition" product="dns" />
+
+이 레코드에는 다음 필드가 포함됩니다.
+
+
+<Render file="records-name-field" product="dns" />
+- **Target**: 트래픽을 보낼 호스트명(`example.com`)
+- **TTL**: DNS 확인자가 응답을 다시 검증하기 전에 얼마나 오래 캐시해야 하는지 제어하는 time to live 값입니다.
+  - **Proxy Status**가 **Proxied**이면 이 값은 기본적으로 **Auto**이며 300초입니다.
+  - **Proxy Status**가 **DNS Only**이면 값을 사용자 지정할 수 있습니다.
+- **Proxy status**: 자세한 내용은 [Proxied DNS records](/dns/proxy-status/)를 참고하세요.
+
+#### Proxied CNAME 레코드
+
+특히 CNAME 레코드를 <GlossaryTooltip term="proxy status" link="/dns/proxy-status/">proxied</GlossaryTooltip>에서 DNS-only로 변경하거나 반대로 변경하기 전에 다음 사항을 확인하세요.
+
+- 호스트명이 트래픽을 프록시하도록 설계된 경우, CNAME 레코드가 다른 CNAME 레코드를 가리키도록 할 수 있습니다(`www.example2.com` --> `www.example1.com` --> `www.example.com`). 다만 마지막 레코드는 반드시 유효한 IP 주소(즉 유효한 A 또는 AAAA 레코드가 있는 호스트명)를 가리켜야 합니다. 또한 같은 이름에 대한 다른 레코드 유형 질의는 지원되지 않습니다.
+
+<Details header="예시">
+
+<Example>
+**example.com**의 DNS 관리:
+
+| Type  | Name | Content                | Proxy status |
+| ----- | ---- | ---------------------- | ------------ |
+| CNAME | abc  | `target.external.test` | Proxied     |
+
+</Example>
+
+<Example>
+**external.test**의 DNS 관리:
+
+| Type | Name   | Content              |
+| ---- | ------ | -------------------- |
+| A    | target | `192.0.2.1`          |
+| TXT  | target | `"some TXT content"` |
+
+</Example>
+
+이 예시에서는 `abc.example.com`의 TXT 질의가 대상 zone의 TXT 내용을 **반환하지 않습니다**.
+
+</Details>
+
+- Cloudflare는 더 나은 성능을 제공하기 위해 CNAME flattening이라는 프로세스를 사용합니다. 이 프로세스는 몇 가지 기능을 지원하며 [CNAME 레코드에 의존하는 다양한 구성](/dns/cname-flattening/#aspects-to-keep-in-mind)과 상호작용할 수 있습니다. 자세한 내용은 [CNAME flattening 섹션](/dns/cname-flattening/)을 참고하세요.
+
+- 프록시할 수 없는 CNAME 레코드(대개 다른 CDN 공급자와 연관된 경우)를 만나면, 그 레코드의 proxied 버전은 연결 오류를 일으킵니다. Cloudflare는 사용자를 오구성으로부터 보호하기 위해 해당 레코드의 프록시를 의도적으로 막습니다. 자세한 내용은 [proxying limitations](/dns/proxy-status/limitations/#proxy-eligibility)을 참고하세요.
+
+:::note
+Cloudflare를 통해 트래픽이 프록시되는 특정 CNAME 레코드 값은 Shopify SaaS 공급자를 위한 Orange-to-Orange(O2O) 라우팅을 활성화합니다. 자세한 내용은 [Shopify provider guide](/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/provider-guides/shopify/)를 참고하세요.
+:::
+
+#### API 호출 예시
+
+[API](/dns/manage-dns-records/how-to/create-dns-records/#create-dns-records)를 사용해 CNAME 레코드를 만들 때:
+
+- 레코드의 `content`는 [완전한 정규 도메인 이름](https://en.wikipedia.org/wiki/Fully_qualified_domain_name)입니다.
+- `proxied` 필드는 레코드의 [proxy status](/dns/proxy-status/)에 영향을 줍니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+		type: "CNAME",
+		name: "www.example.com",
+		content: "www.another-example.com",
+		ttl: 3600,
+		proxied: false,
+	}}
+	code={{
+		mark: [5, 7],
+	}}
+/>
+
+```json title="Response"
+{
+	"result": {
+		"id": "<ID>",
+		"zone_id": "<ZONE_ID>",
+		"zone_name": "example.com",
+		"name": "www.example.com",
+		"type": "CNAME",
+		"content": "www.another-example.com",
+		"proxiable": true,
+		"proxied": false,
+		"ttl": 1,
+		"locked": false,
+		"meta": {
+			"source": "primary"
+		},
+		"comment": null,
+		"tags": [],
+		"created_on": "2023-01-17T20:37:05.368097Z",
+		"modified_on": "2023-01-17T20:37:05.368097Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+---
+
+## 이메일 인증
+
+이 레코드들은 도메인에서 실제로 이메일을 보내는지 여부와 관계없이 권장됩니다. [보안 이메일 레코드](https://blog.cloudflare.com/tackling-email-spoofing/)를 만들면 도메인을 이메일 스푸핑으로부터 보호하는 데 도움이 됩니다.
+
+도메인을 이메일 송신에 사용하지 않는다면, 권장되는 [제한적 레코드](https://www.cloudflare.com/learning/dns/dns-records/protect-domains-without-email/) 생성 방법을 참고하세요.
+
+### MX
+
+메일 서버로 이메일을 전달하려면 mail exchange(MX) 레코드가 필요합니다.
+
+- [MX 레코드 문법](https://www.cloudflare.com/learning/dns/dns-records/dns-mx-record/)
+- [MX 레코드 만들기](/dns/manage-dns-records/how-to/email-records/#send-and-receive-email)
+
+<Render file="api-field-definitions" product="dns" />
+
+### DKIM
+
+DomainKeys Identified Mail(DKIM) 레코드는 이메일에 암호학적 서명을 추가해 이메일의 진위를 보장합니다.
+
+- [DKIM 레코드 문법](https://www.cloudflare.com/learning/dns/dns-records/dns-dkim-record/)
+- [DKIM 레코드 만들기](/dmarc-management/security-records/#create-security-records)
+
+### SPF
+
+Sender Policy Framework(SPF) 레코드는 사용자 도메인을 대신해 이메일을 보낼 수 있는 승인된 IP 주소와 도메인을 나열합니다.
+
+- [SPF 레코드 문법](https://www.cloudflare.com/learning/dns/dns-records/dns-spf-record/)
+- [SPF 레코드 만들기](/dmarc-management/security-records/#create-security-records)
+
+### DMARC
+
+Domain-based Message Authentication Reporting and Conformance(DMARC) 레코드는 이메일 트래픽에 대한 집계 보고서를 생성하고, 규정을 준수하지 않는 이메일을 수신자가 어떻게 처리해야 하는지에 대한 명확한 지침을 제공합니다.
+
+- [DMARC 레코드 문법](https://www.cloudflare.com/learning/dns/dns-records/dns-dmarc-record/)
+- [DMARC 레코드 만들기](/dmarc-management/security-records/#create-security-records)
+
+---
+
+## 특수 레코드
+
+### TXT
+
+[text(TXT) 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-txt-record/)를 사용하면 DNS 시스템에 텍스트를 입력할 수 있습니다.
+
+TXT 레코드의 내용은 큰따옴표(`"`)로 구분된 하나 이상의 텍스트 문자열로 구성되므로, 따옴표가 일관되지 않으면(예: `"this` 또는 `"these" ones"`) 검증 오류가 발생할 수 있습니다. 새 레코드의 TXT 내용을 따옴표 없이 저장하면 Cloudflare가 자동으로 큰따옴표를 추가합니다. 자세한 내용은 [What is a DNS TXT record](https://www.cloudflare.com/learning/dns/dns-records/dns-txt-record/)를 참고하세요.
+
+Cloudflare에서 TXT 레코드는 [도메인](/ssl/edge-certificates/changing-dcv-method/) 또는 [Cloudflare for SaaS 도메인](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/)에 대한 SSL/TLS 인증서를 발급하기 전 도메인 소유권을 증명하는 용도로 가장 자주 사용됩니다.
+
+TXT를 사용해 이메일 인증 레코드를 만들 수도 있지만, 대신 [Email security Wizard](/dns/manage-dns-records/how-to/email-records/#prevent-domain-spoofing)를 사용하는 것을 권장합니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+:::note
+
+각 TXT 레코드의 **Content**는 2,048자 이하여야 합니다.
+
+같은 **Name**을 가진 TXT 레코드가 여러 개 있다면, 이들의 **Content** 길이 합계 역시 8,192자를 넘을 수 없습니다.
+
+:::
+
+### CAA
+
+[Certificate Authority Authorization(CAA) 레코드](/ssl/edge-certificates/caa-records/)는 어떤 Certificate Authority(CA)가 도메인용 인증서를 발급할 수 있는지 지정합니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+### SRV
+
+[service(SRV) 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-srv-record/)는 음성 IP(VOIP), 인스턴트 메시징 등 특정 서비스에 대해 호스트와 포트를 지정합니다.
+
+#### API 호출 예시
+
+<Render file="api-field-definitions" product="dns" />
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+		type: "SRV",
+		name: "_xmpp._tcp.example.com",
+		data: {
+			priority: 10,
+			weight: 5,
+			port: 5223,
+			target: "server.example.com",
+		},
+	}}
+/>
+
+```json title="Response"
+{
+	"result": {
+		"id": "<ID>",
+		"zone_id": "<ZONE_ID>",
+		"zone_name": "example.com",
+		"name": "_xmpp._tcp.example.com",
+		"type": "SRV",
+		"content": "5 5223 server.example.com",
+		"priority": 10,
+		"proxiable": false,
+		"proxied": false,
+		"ttl": 1,
+		"locked": false,
+		"data": {
+			"port": 5223,
+			"priority": 10,
+			"target": "server.example.com",
+			"weight": 5
+		},
+		"meta": {
+			"auto_added": false,
+			"managed_by_apps": false,
+			"managed_by_argo_tunnel": false,
+			"source": "primary"
+		},
+		"comment": null,
+		"tags": [],
+		"created_on": "2022-11-08T15:57:39.585977Z",
+		"modified_on": "2022-11-08T15:57:39.585977Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### SVCB 및 HTTPS
+
+Service Binding(SVCB)과 HTTPS Service(HTTPS) 레코드를 사용하면 초기 평문 HTTP 연결 없이도 클라이언트에게 서버 연결 방식을 미리 제공할 수 있습니다.
+
+도메인에 [HTTP/2 또는 HTTP/3가 활성화](/speed/optimization/protocol/)되어 있고, [proxied DNS records](/dns/proxy-status/)를 사용하며, [Universal SSL](/ssl/edge-certificates/universal-ssl/)도 사용 중이라면 Cloudflare는 클라이언트에게 서버 연결 방식을 알리기 위해 HTTPS 레코드를 자동으로 동적으로 생성합니다.
+
+자세한 내용과 배경은 [공지 블로그 게시물](https://blog.cloudflare.com/speeding-up-https-and-http-3-negotiation-with-dns/)과 [RFC 9460](https://www.rfc-editor.org/rfc/rfc9460.html)을 참고하세요.
+
+<Render file="api-field-definitions" product="dns" />
+
+### PTR
+
+[pointer(PTR) 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-ptr-record/)는 주어진 IP 주소에 대해 허용된 호스트를 지정합니다.
+
+Cloudflare 내에서 PTR 레코드는 reverse DNS 조회에 사용되며, 가능하면 [reverse zones](/dns/additional-options/reverse-zones/)에 추가하는 것이 좋습니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+### SOA
+
+start of authority(SOA) 레코드는 관리 이메일 주소, 도메인이 마지막으로 업데이트된 시점 등 도메인에 대한 정보를 저장합니다. 예시는 [What is a DNS SOA record](https://www.cloudflare.com/learning/dns/dns-records/dns-soa-record/)를 참고하세요.
+
+[authoritative DNS](/dns/zone-setups/full-setup/)에 Cloudflare를 사용하고 있다면 SOA 레코드를 만들 필요가 없습니다. Cloudflare authoritative nameservers 사용을 시작하면 Cloudflare가 이 레코드를 자동으로 생성합니다.
+
+Enterprise 계정에서는 Cloudflare가 사용할 SOA 레코드 값을 변경할 수도 있습니다.
+
+- DNS zone 기본값으로: 계정에 새로 추가되는 모든 zone에 Cloudflare가 사용할 SOA 레코드 값을 정의합니다. 단계별 안내는 [Configure DNS zone defaults](/dns/additional-options/dns-zone-defaults/)를 참고하세요.
+- 기존 zone에 대해: [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지의 **DNS record options** 아래에서 기본값 또는 Cloudflare가 생성한 값을 덮어쓸 수 있습니다.
+
+:::note
+Enterprise 고객인데도 이 옵션이 Cloudflare 대시보드에 보이지 않는다면 계정 팀에 문의하세요.
+:::
+
+각 SOA 레코드 필드에 대한 정보는 아래 목록을 참고하세요.
+
+<Details header="SOA 레코드 필드">
+
+- **`MNAME`**: zone의 기본 네임서버입니다. 보조 네임서버는 이 필드에 지정된 네임서버로부터 zone 업데이트를 받습니다.
+- **`RNAME`**: zone을 담당하는 관리자의 이메일 주소입니다.
+
+  `@` 기호는 첫 번째 점으로 대체됩니다. 이메일 주소에 `@` 앞에 점이 포함되어 있다면 `\.`로 표현해야 합니다.
+
+  | Email                  | `RNAME`                 |
+  | ---------------------- | ----------------------- |
+  | `john@example.com`     | `john.example.com`      |
+  | `john.doe@example.com` | `john\.doe.example.com` |
+
+- **`Serial`**: zone의 serial 번호입니다. 이 번호가 증가하면 보조 네임서버가 zone transfer를 시작합니다.
+- **`Refresh`**: 보조 네임서버가 zone 변경을 감지하기 위해 기본 네임서버에 `SOA` 레코드를 다시 질의해야 하는 시간(초)입니다. DNS NOTIFY([RFC 1996](https://www.rfc-editor.org/rfc/rfc1996.html))가 구성되지 않은 경우에만 관련이 있습니다.
+
+  | Default | Minimum | Maximum |
+  | ------- | ------- | ------- |
+  | `10000` | `600`   | `86400` |
+
+- **`Retry`**: 보조 네임서버가 기본 네임서버에서 serial 번호를 가져오려다 실패한 뒤 다시 시도해야 하는 시간(초)입니다. 지정한 값은 `Refresh`보다 클 수 없습니다.
+
+  | Default | Minimum | Maximum |
+  | ------- | ------- | ------- |
+  | `2400`  | `600`   | `3600`  |
+
+- **`Expire`**: 기본 네임서버가 응답하지 않을 때, 보조 네임서버가 zone에 대한 질의 응답을 중단하기 전까지의 시간(초)입니다. 지정한 값은 `Refresh`보다 작을 수 없습니다.
+
+  | Default  | Minimum | Maximum   |
+  | -------- | ------- | --------- |
+  | `604800` | `86400` | `2419200` |
+
+- **`Record TTL`**: SOA 레코드의 [time to live](/dns/manage-dns-records/reference/ttl/) 값입니다.
+
+  | Default | Minimum | Maximum |
+  | ------- | ------- | ------- |
+  | `3600`  | `1800`  | `3600`  |
+
+- **`Minimum TTL`**: 음수 응답 캐시를 위한 TTL입니다. 자세한 내용은 [RFC 2308](https://www.rfc-editor.org/rfc/rfc2308.html#section-4)을 참고하세요.
+
+  | Default | Minimum | Maximum |
+  | ------- | ------- | ------- |
+  | `1800`  | `60`    | `86400` |
+
+</Details>
+
+### NS
+
+[nameserver(NS) 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-ns-record/)는 authoritative DNS에 어떤 서버를 사용해야 하는지 나타냅니다.
+
+Cloudflare의 DNS 레코드 표에 NS 레코드를 추가해야 하는 경우는 [subdomain setup](/dns/zone-setups/subdomain-setup/)을 사용하거나 [Cloudflare 외부로 서브도메인을 위임](/dns/manage-dns-records/how-to/subdomains-outside-cloudflare/)할 때뿐입니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+:::note
+할당된 Cloudflare nameservers, custom nameservers, 그리고 해당 [nameserver TTL](/dns/nameservers/nameserver-options/#nameserver-ttl)은 [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지의 전용 섹션에서 제어됩니다. 자세한 내용은 [Nameservers](/dns/nameservers/)를 참고하세요.
+:::
+
+#### 제한
+<Render file="ns-delegation-name-limit" product="dns" />
+
+### DS 및 DNSKEY
+
+[DS 및 DNSKEY](https://www.cloudflare.com/learning/dns/dns-records/dnskey-ds-records/) 레코드는 DNS 레코드에 암호학적 서명을 적용해 도메인 스푸핑을 방지하는 DNSSEC 구현을 돕습니다.
+
+대부분의 Cloudflare 도메인은 이 레코드를 추가할 필요가 없으며, 대신 [DNSSEC setup guide](/dns/dnssec/)를 따라야 합니다.
+
+<Render file="api-field-definitions" product="dns" />
+
+### 기타
+
+Cloudflare는 URI, NAPTR, 인증서 관련 레코드 유형(SSHFP, TLSA, SMIMEA, CERT)처럼 덜 일반적인 레코드 유형도 지원합니다. 자세한 내용은 [블로그 게시물](https://blog.cloudflare.com/additional-record-types-available-with-cloudflare-dns/)을 참고하세요.

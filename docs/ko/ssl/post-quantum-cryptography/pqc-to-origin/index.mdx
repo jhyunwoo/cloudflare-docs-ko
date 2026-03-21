@@ -1,0 +1,65 @@
+---
+pcx_content_type: how-to
+title: Cloudflare와 origin server 사이의 post-quantum
+sidebar:
+  order: 3
+  label: PQC to your origin
+head: []
+description: Cloudflare와 origin server 사이 연결에서의 post-quantum cryptography를 알아보세요.
+---
+
+import { Example, APIRequest } from "~/components";
+
+[PQC 소개](/ssl/post-quantum-cryptography/)에서 설명한 것처럼, Cloudflare는 TLS 1.3에서 가장 일반적인 key agreement인 X25519와 post-quantum secure ML-KEM을 모두 포함하는 hybrid key agreement 지원을 배포했습니다.
+
+X25519에서는 [ClientHello](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/)가 거의 항상 하나의 네트워크 패킷에 들어맞습니다. 그러나 ML-KEM이 추가되면 ClientHello는 보통 두 개의 패킷으로 나뉩니다.
+
+이로 인해 origin server뿐 아니라 다른 middlebox(라우터, 로드 밸런서 등)가 이러한 동작 변화에 어떻게 대응할지라는 문제가 생깁니다. TLS 1.3 표준([RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html))에서 허용되더라도, 분할된 ClientHello는 [protocol ossification](https://en.wikipedia.org/wiki/Protocol_ossification)과 구현 버그 때문에 제대로 처리되지 않을 위험이 있습니다. 자세한 내용은 Cloudflare [블로그 글](https://blog.cloudflare.com/post-quantum-to-origins/)을 참고하세요.
+
+고객은 [PQ Cloudflare Tunnel](/ssl/post-quantum-cryptography/pqc-and-zero-trust/)을 통해 origin server 연결을 구성할 수도 있습니다.
+
+## Cloudflare의 ClientHello
+
+Hybrid key agreement를 지원할 준비가 되지 않은 서버에 연결할 때 발생할 수 있는 문제 위험을 줄이기 위해 Cloudflare는 HelloRetryRequest를 활용합니다. 즉, [X25519MLKEM768](/ssl/post-quantum-cryptography/#hybrid-key-agreement)을 keyshare로 즉시 보내는 대신 [^1], 기본적으로는 그 지원만 광고합니다.
+
+Origin이 post-quantum hybrid key agreement를 지원하는 경우, HelloRetryRequest를 사용해 Cloudflare에 이를 요청할 수 있습니다.
+
+## 설정
+
+### Cloudflare zone 설정
+
+위에서 설명한 방법은 Cloudflare가 모든 outbound connection에 대해 post-quantum을 지원하는 방식입니다. 하지만 origin server가 PQC를 지원하고 이를 선호한다면, [API](/api/resources/origin_post_quantum_encryption/methods/update/)를 사용해 Cloudflare zone 설정을 조정하고 추가 왕복을 피할 수 있습니다.
+
+같은 API endpoint를 사용해 PQC를 비활성화하는 것도 가능합니다.
+
+:::note
+이 설정은 [Workers](/workers/)가 해당 zone에서 수행하는 `fetch()` 요청을 포함해, API 호출에서 지정한 zone의 모든 outbound connection에 영향을 줍니다.
+:::
+
+<APIRequest
+  path="/zones/{zone_id}/cache/origin_post_quantum_encryption"
+  method="PUT"
+  json={{
+		"value": "<YOUR_CHOSEN_SETTING>"
+	}}
+/>
+
+가능한 값은 다음과 같습니다.
+- `supported` (가장 높은 호환성): post-quantum key agreement 지원을 광고하지만, 첫 ClientHello에서는 classical keyshare를 보냅니다.
+- `preferred` (가장 높은 성능): 첫 ClientHello에서 post-quantum keyshare를 보냅니다. Cloudflare는 classical keyshare 지원도 계속 광고합니다.
+- `off`: origin에 대해 post-quantum key agreement를 보내지도, 지원을 광고하지도 않습니다.
+
+### Origin server
+
+Origin server가 post-quantum key agreement를 선호하도록 하려면 [BoringSSL](https://github.com/google/boringssl)의 `bssl` 도구를 사용하세요.
+
+<Example>
+```bash
+$ bssl client -connect (your server):443 -curves X25519MLKEM768
+```
+
+Handshake 출력에서 `ECDHE curve`가 `X25519MLKEM768`로 표시되는지 확인하세요.
+
+</Example>
+
+[^1]: 왕복 한 번을 줄이기 위해 클라이언트가 서버가 무엇을 지원하는지 추측하는 경우를 말합니다.

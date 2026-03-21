@@ -1,0 +1,223 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+updated: 2025-08-05T00:00:00.000Z
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/workers-vpc/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	PackageManagers,
+	FileTree,
+	Tabs,
+	TabItem,
+	TypeScriptExample,
+	WranglerConfig,
+	LinkButton,
+	Steps,
+} from "~/components";
+
+이 가이드는 당신의 첫번째 Workers VPC 서비스를 창조하는 것을 통해, 당신의 개인 네트워크에 있는 접근 자원에 당신의 노동자를 허용하.
+
+당신은 CloudflareXQ 응용 프로그램을 만들 것입니다, 개인 네트워크에 터널을 생성 CloudflareXQ에 연결, 다음 WorkersXQ에서 액세스하려는 개인 네트워크에 대한 VPC 서비스를 구성.
+
+:::참조
+
+Workers VPC는 현재 베타에 있습니다. 특징 및 API는 일반적인 가용성의 앞에 변화할지도 모릅니다. 베타에서, Workers VPC는 모든 Workers 계획에 무료로 사용할 수 있습니다.
+
+:::
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을 완료했습니다.
+
+<Render file="prereqs" product="workers" />
+
+또한, 당신은 필요로 할 것입니다:
+
+- 개인 네트워크에 액세스 (당신의 로컬 네트워크, AWS VPC, Azure VNet, GCP VPC, 또는 온-프레미스 네트워크)
+- 더 보기**Connectivity 디렉토리 Bind**Workers에서 기존 VPC 서비스에 바인딩하는 역할.
+- 또는,**Connectivity Directory 관리자**VPC 서비스를 만들고 Workers에서 그들을 묶는 역할.
+
+## 1. 새로운 Worker 프로젝트 만들기
+
+Wrangler를 사용하여 새로운 노동자 프로젝트를 만드십시오:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"workers-vpc-app"} />
+
+<Render file="c3-post-run-steps" product="workers" params={{ category: "hello-world", type: "Worker only", lang: "TypeScript" }} />
+
+프로젝트 디렉토리에 Navigate:
+
+```sh
+cd workers-vpc-app
+```
+
+## 2. Cloudflare를 설치하십시오 관련 제품
+
+Cloudflare 터널은 개인 네트워크에서 Cloudflare에 안전한 연결을 만듭니다. 이 갱도는 Workers를 허용하여 개인 자원에 안전하게 접근할 수 있습니다. 외부 클라우드에서 가상 머신 또는 컨테이너에 터널을 만들 수 있습니다, 또는이 튜토리얼의 술에 대한 로컬 데스크탑에서도.
+
+<Steps>
+  1. 탐색하기[Workers VPC dashboard](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels)그리고 선택**연락처**탭.
+
+  2. 제품정보**이름 \***&#xC0C8;로운 터널을 만듭니다.
+
+  3. 터널의 이름을 입력합니다 (예를 들어,`workers-vpc-tunnel`) 및 선택**저장 터널**.
+
+  4. 운영 체제 및 아키텍처를 선택하십시오. dashboard는 당신의 환경을 위한 특정한 임명 지시를 제공할 것입니다.
+
+  5. 지정된 명령을 따라 다운로드 및 설치`cloudflared`, 그리고 당신의 유일한 토큰으로 서비스 임명 명령을 실행하십시오.
+</Steps>
+
+dashboard는 당신의 갱도가 성공적으로 연결될 때 확인합니다.
+
+### Cloudflare 터널에 대한 개인 네트워크 구성
+
+터널이 연결되면 Workers를 원하는 서비스에 액세스 할 수 있도록해야합니다. 터널은 Workers VPC에 노출하려는 내부 리소스에 도달 할 수있는 기계에 설치해야합니다. 외부 구름에서, 이것은 접근 통제 명부, 안전 그룹, 또는 갱도가 원하는 서비스를 접근할 수 있다는 것을 지키는 VPC 방호벽 규칙을 구성하는 것을 의미할지도 모릅니다.
+
+:::참조
+이 가이드는 Workers VPC를 위한 빠른 설치를 제공합니다.
+
+종합 터널 구성, 모니터링 및 관리, 참조[가득 차있는 Cloudflare 비밀번호](/cloudflare-one/networks/connectors/cloudflare-tunnel/).
+:::
+
+## 3. VPC 서비스 만들기
+
+이제 터널이 실행되고 Workers가 내부 리소스에 액세스 할 수있는 VPC 서비스를 만듭니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    <Steps>
+      1. 탐색하기[Workers VPC dashboard](https://dash.cloudflare.com/?to=/:account/workers/vpc)그리고 선택**VPC 서비스**탭.
+
+      2. 제품정보**이름 \***&#xC0C8;로운 VPC 서비스를 만들려면.
+
+      3. 이름 \***서비스 이름**VPC 서비스 (예를 들면,`my-private-api`).
+
+      4. 터널 선택**관련 제품**드롭다운, 또는 선택**터널 만들기**새로운 것을 만들려면.
+
+      5. 이름 \***호스트 또는 IP 주소**내부 서비스 (예를 들면,`localhost`, `internal-api.company.local`, 또는`10.0.1.50`).
+
+      6. 설정하기**항구 항구**. 선택:
+         - **기본 포트 사용**표준 HTTP (80) 및 HTTPS (443)
+         - **포트 값 제공**사용자 지정 HTTP 및 HTTPS 포트 지정
+
+      7. 설정하기**DNS 해결**. 선택:
+         - **문제 해결사로 터널 사용**터널의 내장 DNS 해상도 사용
+         - **사용자 정의**DNS 해설 IP(예를 들어,`8.8.8.8`)
+
+      8. 제품정보**회사 소개**VPC 서비스 만들기.
+    </Steps>
+
+    dashboard는 고유한 서비스 ID를 가진 당신의 새로운 VPC 서비스를 표시할 것입니다. 다음 단계에 대한 이 서비스 ID를 저장합니다.
+  </TabItem>
+
+  <TabItem label="Wrangler 클립">
+    ```sh
+    npx wrangler vpc service create my-private-api \
+      --type http \
+      --tunnel-id <YOUR_TUNNEL_ID> \
+      --hostname <YOUR_HOSTNAME>
+    ```
+
+    교체:
+
+    - `<YOUR_TUNNEL_ID>`단계 2에서 터널 ID로
+    - `<YOUR_HOSTNAME>`내부 서비스 호스트 이름 (예를 들면,`internal-api.company.local`)
+
+    당신은 또한 할 수 있습니다:
+
+    - IP 주소를 사용하여 서비스 생성`--hostname <YOUR_HOSTNAME>`이름 \*`--ipv4 <YOUR_IPV4_ADDRESS>`(예:`--ipv4 10.0.1.50`), `--ipv6 <YOUR_IPV6_ADDRESS>`(예:`--ipv6 fe80::1`), 또는 둘 다 이중 압정 윤곽 (`--ipv4 10.0.1.50 --ipv6 fe80::1`)
+    - 사용자 정의 포트 추가`--http-port <PORT>`및/또는`--https-port <PORT>`(예:`--http-port 8080 --https-port 8443`)
+
+    명령은 서비스 ID를 반환합니다. 다음 단계로 이것을 저장하십시오.
+  </TabItem>
+</Tabs>
+
+권한 오류가 발생하면, 참조[필수 역할](/workers-vpc/configuration/vpc-services/#required-roles).
+
+## 4. 당신의 노동자를 구성하십시오
+
+Wrangler 구성 파일에 VPC 서비스 바인딩을 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "workers-vpc-app",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"vpc_services": [
+  		{
+  			"binding": "VPC_SERVICE",
+  			"service_id": "<YOUR_SERVICE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+기타 제품`<YOUR_SERVICE_ID>`단계 3에서 서비스 ID로
+
+## 5. 작업 코드를 작성
+
+VPC 서비스 바인딩을 사용하는 노동자를 업데이트하십시오. 다음 예제:
+
+```ts
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		const url = new URL(request.url);
+
+		//이것은 간단한 프록시 시나리오입니다.
+		//이 경우 적절한 프로토콜 (http vs. https), hostname 및 포트와 URL을 교체해야합니다.
+		//예를 들어, 이것은 "http://localhost:1111","http://192.0.0.1:3000", "https://my-internal-api.example.com"XQ
+		const targetUrl = new URL(`http://<ENTER_SERVICE_HOST>:<ENTER_SERVICE_PORT>${url.pathname}${url.search}`);
+
+		//대상 URL로 새로운 요청을 생성하고 다른 모든 속성을 보존
+		const proxyRequest = new Request(targetUrl, {
+			method: request.method,
+			headers: request.headers,
+			body: request.body,
+		});
+
+		const response = await env.VPC_SERVICE.fetch(proxyRequest);
+
+		return response;
+	},
+} satisfies ExportedHandler<Env>;
+
+```
+
+## 6. 로컬 테스트
+
+당신의 노동자를 국부적으로 시험하십시오. 원격 VPC 서비스를 사용해야 합니다.[Workers 원격 바인딩](/workers/development-testing/#remote-bindings)설정하기`wrangler.jsonc`구성 파일, 또는 사용`npx wrangler dev --remote`:
+
+```sh
+npx wrangler dev
+```
+
+기타`http://localhost:8787`당신의 개인 네트워크에 당신의 노동자의 연결을 시험하기 위하여.
+
+## 7. 노동자를 배포
+
+테스트가 완료되면 Worker를 배포합니다.
+
+```sh
+npx wrangler deploy
+```
+
+당신의 노동자는 지금 배치되고 Cloudflare 갱도를 통해서 개인 네트워크 자원에 안전하게 접근할 수 있습니다. 권한 오류가 발생하면, 참조[필수 역할](/workers-vpc/configuration/vpc-services/#required-roles).
+
+## 다음 단계
+
+- 여행 정보[구성 옵션](/workers-vpc/configuration/)고급 설정
+- 설치하기[높은 가용성 갱도](/workers-vpc/configuration/tunnel/hardware-requirements/)생산 라인
+- \- 연혁[플랫폼별 가이드](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/)AWS, Azure, GCP 및 Kubernetes의 경우
+- 자주 묻는 질문[이름 \*](/workers-vpc/examples/)일반적인 사용 사례

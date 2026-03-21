@@ -1,0 +1,827 @@
+---
+pcx_content_type: navigation
+title: 대기실
+slug: realtime/realtimekit/core/waiting-room
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/core/waiting-room/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/waiting-room/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+:::노트\[필수]
+이 페이지는 이미 SDK를 초기화하고 미팅 객체 구조를 이해해야 합니다. 더 알아보기[SDK 초기화](/realtime/realtimekit/core/)·[회의 목표 설명](/realtime/realtimekit/core/meeting-object-explained/)필요한 경우.
+주요 특징
+
+대기실 기능은 호스트가 회의에 참여할 수 있는 컨트롤을 허용합니다. 활성화되면 참가자는 회의에 들어가기 전에 승인을 기다립니다.
+
+<RTKSDKSelector />
+
+## 대기실은 어떻게 작동합니까?
+
+전화 번호`meeting.join()`, 2개의 사건 중 하나가 일어날 것입니다:
+
+- **`roomJoined`**- 즉시 회의에 참여할 수 있습니다.
+- **`waitlisted`**- 대기실에 배치하고 호스트 승인을 기다릴 필요
+
+제품 정보`meeting.self.roomState`회의에서 사용자의 상태를 추적합니다.
+
+:::참조
+아래 다이어그램은 대기실 관련 상태를 나타냅니다. 더 보기`roomState`재산 또한 다른 국가를 통해 전환`'disconnected'`, `'left'`, `'kicked'`·`'ended'`.
+:::
+
+## 대기실 미국
+
+### 국가 흐름
+
+```
+        join()
+          ↓
+    [waitlisted]  ←------ (host rejects)
+          ↓                     ↓
+   (host accepts)           [rejected]
+          ↓
+      [joined]
+```
+
+## 국가 변경에 대해
+
+### 회원 가입
+
+로컬 사용자가 성공적으로 회의에 참여할 때 Triggered.
+
+<RTKCodeSnippet id="web-react">
+  로컬 사용자가 회의에 참여할 때 모니터:
+
+  ```jsx
+  import { useRealtimeKitSelector } from "@cloudflare/realtimekit-react";
+  import { useEffect } from "react";
+
+  function MeetingStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const joined = roomState === "joined";
+
+  	useEffect(() => {
+  		if (joined) {
+  			console.log("Successfully joined the meeting");
+  		}
+  	}, [joined]);
+
+  	return joined ? <div>You are in the meeting</div> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```jsx
+  import { useRealtimeKitClient } from "@cloudflare/realtimekit-react";
+
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleRoomJoined = () => {
+  		console.log("Successfully joined the meeting");
+  	};
+
+  	meeting.self.on("roomJoined", handleRoomJoined);
+
+  	return () => {
+  		meeting.self.off("roomJoined", handleRoomJoined);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-angular","web-web-components"]}>
+  ```js
+  meeting.self.on("roomJoined", () => {
+  	//로컬 사용자는 회의에
+  	console.log("Successfully joined the meeting");
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addMeetingRoomEventListener(object : RtkMeetingRoomEventListener {
+  	override fun onMeetingRoomJoinCompleted(meeting: RealtimeKitClient) {
+  		// Local user is in the meeting
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension MeetingViewModel: RtkMeetingRoomEventListener {
+  	func onMeetingRoomJoinCompleted(meeting: RealtimeKitClient) {
+  		// Local user is in the meeting
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class MeetingRoomNotifier extends RtkMeetingRoomEventListener {
+  	@override
+  	void onMeetingRoomJoinCompleted() {
+  		// Local user is in the meeting
+  	}
+  }
+
+  meeting.addMeetingRoomEventListener(MeetingRoomNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  로컬 사용자가 회의에 참여할 때 모니터:
+
+  ```tsx
+  import { useRealtimeKitSelector } from "@cloudflare/realtimekit-react-native";
+  import { useEffect } from "react";
+
+  function MeetingStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const joined = roomState === "joined";
+
+  	useEffect(() => {
+  		if (joined) {
+  			console.log("Successfully joined the meeting");
+  		}
+  	}, [joined]);
+
+  	return joined ? <Text>You are in the meeting</Text> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```tsx
+  import { useRealtimeKitClient } from "@cloudflare/realtimekit-react-native";
+
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleRoomJoined = () => {
+  		console.log("Successfully joined the meeting");
+  	};
+
+  	meeting.self.on("roomJoined", handleRoomJoined);
+
+  	return () => {
+  		meeting.self.off("roomJoined", handleRoomJoined);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+### 행사일정
+
+현지 사용자가 대기실에 배치될 때 Triggered.
+
+<RTKCodeSnippet id="web-react">
+  현지 사용자가 대기실에 있을 때 모니터:
+
+  ```jsx
+  function WaitingRoomStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const isWaitlisted = roomState === "waitlisted";
+
+  	useEffect(() => {
+  		if (isWaitlisted) {
+  			console.log("You are in the waiting room");
+  		}
+  	}, [isWaitlisted]);
+
+  	return isWaitlisted ? <div>Waiting for host approval...</div> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```jsx
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleWaitlisted = () => {
+  		console.log("You are in the waiting room");
+  	};
+
+  	meeting.self.on("waitlisted", handleWaitlisted);
+
+  	return () => {
+  		meeting.self.off("waitlisted", handleWaitlisted);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-angular","web-web-components"]}>
+  ```js
+  meeting.self.on("waitlisted", () => {
+  	//현지 사용자는 대기
+  	console.log("You are in the waiting room. Waiting for host approval...");
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addSelfEventListener(object : RtkSelfEventListener {
+  	override fun onWaitListStatusUpdate(waitListStatus: WaitListStatus) {
+  		when (waitListStatus) {
+  			WAITING -> {
+  				// Local user is in the waiting room
+  			}
+  			REJECTED -> {
+  				// Local user's join room request was rejected by the host
+  			}
+  			NONE, ACCEPTED -> {
+  				// Local user is not in the wait list or was already accepted
+  			}
+  		}
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension MeetingViewModel: RtkSelfEventListener {
+  	func onWaitListStatusUpdate(waitListStatus: WaitListStatus) {
+  		switch waitListStatus {
+  		case .accepted:
+  			// Local user's join room request was accepted by the host
+  		case .waiting:
+  			// Local user is in the waiting room
+  		case .rejected:
+  			// Local user's join room request was rejected by the host
+  		default:
+  			return .none
+  		}
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class WaitingRoomNotifier extends RtkSelfEventListener {
+  	@override
+  	void onWaitListStatusUpdate(WaitlistStatus waitListStatus) {
+  		switch (waitListStatus) {
+  			case WaitlistStatus.waiting:
+  			// Local user is in the waiting room
+  			case WaitlistStatus.rejected:
+  			// Local user's join room request was rejected by the host
+  			case WaitlistStatus.accepted:
+  			// Local user's join room request was accepted by the host
+  			default:
+  				break;
+  		}
+  	}
+  }
+
+  meeting.addSelfEventListener(WaitingRoomNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  현지 사용자가 대기실에 있을 때 모니터:
+
+  ```tsx
+  function WaitingRoomStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const isWaitlisted = roomState === "waitlisted";
+
+  	useEffect(() => {
+  		if (isWaitlisted) {
+  			console.log("You are in the waiting room");
+  		}
+  	}, [isWaitlisted]);
+
+  	return isWaitlisted ? <Text>Waiting for host approval...</Text> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```tsx
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleWaitlisted = () => {
+  		console.log("You are in the waiting room");
+  	};
+
+  	meeting.self.on("waitlisted", handleWaitlisted);
+
+  	return () => {
+  		meeting.self.off("waitlisted", handleWaitlisted);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+### 관련 기사
+
+호스트가 항목 요청을 거부 할 때 트리거.
+
+<RTKCodeSnippet id="web-react">
+  호스트가 항목 요청을 거부 할 때 모니터 :
+
+  ```jsx
+  function RejectionStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const rejected = roomState === "rejected";
+
+  	useEffect(() => {
+  		if (rejected) {
+  			console.log("Your entry request was rejected");
+  		}
+  	}, [rejected]);
+
+  	return rejected ? <div>Your entry was rejected by the host</div> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```jsx
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleRoomLeft = ({ state }) => {
+  		if (state === "rejected") {
+  			console.log("Your entry request was rejected");
+  		}
+  	};
+
+  	meeting.self.on("roomLeft", handleRoomLeft);
+
+  	return () => {
+  		meeting.self.off("roomLeft", handleRoomLeft);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-angular","web-web-components"]}>
+  ```js
+  meeting.self.on("roomLeft", ({ state }) => {
+  	if (state === "rejected") {
+  		//호스트는 항목을 거부
+  		console.log("Your entry request was rejected");
+  	}
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  호스트가 항목 요청을 거부 할 때,`onWaitListStatusUpdate`callback은 트리거됩니다.`WaitListStatus.REJECTED`:
+
+  ```kotlin
+  meeting.addSelfEventListener(object : RtkSelfEventListener {
+  	override fun onWaitListStatusUpdate(waitListStatus: WaitListStatus) {
+  		when (waitListStatus) {
+  			WaitListStatus.REJECTED -> {
+  				// Local user's join room request was rejected by the host
+  				Log.d("WaitingRoom", "Your entry request was rejected")
+  			}
+  			WaitListStatus.WAITING -> {
+  				// Local user is in the waiting room
+  			}
+  			WaitListStatus.ACCEPTED, WaitListStatus.NONE -> {
+  				// Local user was accepted or not in waitlist
+  			}
+  		}
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  호스트가 항목 요청을 거부 할 때,`onWaitListStatusUpdate`callback은 트리거됩니다.`WaitListStatus.rejected`:
+
+  ```swift
+  extension MeetingViewModel: RtkSelfEventListener {
+  	func onWaitListStatusUpdate(waitListStatus: WaitListStatus) {
+  		switch waitListStatus {
+  		case .rejected:
+  			// Local user's join room request was rejected by the host
+  			print("Your entry request was rejected")
+  		case .waiting:
+  			// Local user is in the waiting room
+  			break
+  		case .accepted:
+  			// Local user's join room request was accepted by the host
+  			break
+  		default:
+  			break
+  		}
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  호스트가 항목 요청을 거부 할 때,`onWaitListStatusUpdate`callback은 트리거됩니다.`WaitlistStatus.rejected`:
+
+  ```dart
+  class WaitingRoomNotifier extends RtkSelfEventListener {
+  	@override
+  	void onWaitListStatusUpdate(WaitlistStatus waitListStatus) {
+  		switch (waitListStatus) {
+  			case WaitlistStatus.rejected:
+  				// Local user's join room request was rejected by the host
+  				print("Your entry request was rejected");
+  			case WaitlistStatus.waiting:
+  				// Local user is in the waiting room
+  				break;
+  			case WaitlistStatus.accepted:
+  				// Local user's join room request was accepted by the host
+  				break;
+  			default:
+  				break;
+  		}
+  	}
+  }
+
+  meeting.addSelfEventListener(WaitingRoomNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  호스트가 항목 요청을 거부 할 때 모니터 :
+
+  ```tsx
+  function RejectionStatus() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+  	const rejected = roomState === "rejected";
+
+  	useEffect(() => {
+  		if (rejected) {
+  			console.log("Your entry request was rejected");
+  		}
+  	}, [rejected]);
+
+  	return rejected ? <Text>Your entry was rejected by the host</Text> : null;
+  }
+  ```
+
+  대체로, 이벤트 청취자:
+
+  ```tsx
+  useEffect(() => {
+  	if (!meeting) return;
+
+  	const handleRoomLeft = ({ state }) => {
+  		if (state === "rejected") {
+  			console.log("Your entry request was rejected");
+  		}
+  	};
+
+  	meeting.self.on("roomLeft", handleRoomLeft);
+
+  	return () => {
+  		meeting.self.off("roomLeft", handleRoomLeft);
+  	};
+  }, [meeting]);
+  ```
+</RTKCodeSnippet>
+
+### 모니터 상태 with roomState
+
+현재 방 상태를 직접 확인할 수 있습니다.
+
+<RTKCodeSnippet id="web-react">
+  1개의 성분에 있는 모든 대기실 국가를 취급하십시오:
+
+  ```jsx
+  function WaitingRoomManager() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+
+  	switch (roomState) {
+  		case "init":
+  			return <div>Connecting...</div>;
+  		case "waitlisted":
+  			return <div>Waiting for host approval...</div>;
+  		case "joined":
+  			return <div>You are in the meeting</div>;
+  		case "rejected":
+  			return <div>Your entry was rejected</div>;
+  		case "left":
+  			return <div>You left the meeting</div>;
+  		case "kicked":
+  			return <div>You were removed from the meeting</div>;
+  		case "ended":
+  			return <div>The meeting has ended</div>;
+  		case "disconnected":
+  			return <div>Connection lost</div>;
+  		default:
+  			return null;
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-angular","web-web-components"]}>
+  ```js
+  const currentState = meeting.self.roomState;
+
+  if (currentState === "waitlisted") {
+  	console.log("Waiting for approval");
+  } else if (currentState === "joined") {
+  	console.log("In the meeting");
+  } else if (currentState === "rejected") {
+  	console.log("Entry was rejected");
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  상태 변경을 모니터링하기 위해 위의 이벤트 리스너를 사용합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  상태 변경을 모니터링하기 위해 위의 이벤트 리스너를 사용합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  상태 변경을 모니터링하기 위해 위의 이벤트 리스너를 사용합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  1개의 성분에 있는 모든 대기실 국가를 취급하십시오:
+
+  ```tsx
+  function WaitingRoomManager() {
+  	const roomState = useRealtimeKitSelector((m) => m.self.roomState);
+
+  	switch (roomState) {
+  		case "init":
+  			return <Text>Connecting...</Text>;
+  		case "waitlisted":
+  			return <Text>Waiting for host approval...</Text>;
+  		case "joined":
+  			return <Text>You are in the meeting</Text>;
+  		case "rejected":
+  			return <Text>Your entry was rejected</Text>;
+  		case "left":
+  			return <Text>You left the meeting</Text>;
+  		case "kicked":
+  			return <Text>You were removed from the meeting</Text>;
+  		case "ended":
+  			return <Text>The meeting has ended</Text>;
+  		case "disconnected":
+  			return <Text>Connection lost</Text>;
+  		default:
+  			return null;
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+## 호스트 활동
+
+호스트는 참가자 관리 방법을 사용하여 대기실 요청을 관리 할 수 있습니다. 이름 \*[원격 참가자](/realtime/realtimekit/core/remote-participants/)상세 정보:
+
+- **`acceptWaitingRoomRequest(participantId)`**- 대기실에서 참가자를 수락
+- **`rejectWaitingRoomRequest(participantId)`**- 참가자의 입장 요청을 거부
+
+### 예: 참가자를 수용하는 호스트
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  import {
+  	useRealtimeKitClient,
+  	useRealtimeKitSelector,
+  } from "@cloudflare/realtimekit-react";
+
+  function WaitingRoomHost() {
+  	const [meeting] = useRealtimeKitClient();
+  	const waitlistedParticipants = useRealtimeKitSelector((m) =>
+  		m.participants.waitlisted.toArray(),
+  	);
+
+  	const acceptParticipant = async (participantId) => {
+  		await meeting.participants.acceptWaitingRoomRequest(participantId);
+  	};
+
+  	const rejectParticipant = async (participantId) => {
+  		await meeting.participants.rejectWaitingRoomRequest(participantId);
+  	};
+
+  	return (
+  		<div>
+  			<h3>Waiting Room ({waitlistedParticipants.length})</h3>
+  			{waitlistedParticipants.map((participant) => (
+  				<div key={participant.id}>
+  					<span>{participant.name}</span>
+  					<button onClick={() => acceptParticipant(participant.id)}>
+  						Accept
+  					</button>
+  					<button onClick={() => rejectParticipant(participant.id)}>
+  						Reject
+  					</button>
+  				</div>
+  			))}
+  		</div>
+  	);
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-angular","web-web-components"]}>
+  ```js
+  //대기 참가자
+  const waitlistedParticipants = meeting.participants.waitlisted.toArray();
+
+  //첫번째 waitlisted 참가자를 받아들이십시오
+  if (waitlistedParticipants.length > 0) {
+  	const participantId = waitlistedParticipants[0].id;
+  	await meeting.participants.acceptWaitingRoomRequest(participantId);
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  // Get waitlisted participants
+  val waitlistedParticipants = meeting.participants.waitlisted
+
+  // Accept a participant from the waiting room
+  if (waitlistedParticipants.isNotEmpty()) {
+  	val participant = waitlistedParticipants[0]
+  	meeting.participants.acceptWaitingRoomRequest(participant.id)
+  }
+
+  // Reject a participant's entry request
+  if (waitlistedParticipants.isNotEmpty()) {
+  	val participant = waitlistedParticipants[0]
+  	meeting.participants.rejectWaitingRoomRequest(participant.id)
+  }
+
+  // Listen for waiting room events
+  meeting.addWaitlistEventListener(object : RtkWaitlistEventListener {
+  	override fun onWaitListParticipantJoined(participant: RtkRemoteParticipant) {
+  		// Called when a new participant joins the waiting room
+  	}
+
+  	override fun onWaitListParticipantAccepted(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant is accepted into the meeting
+  	}
+
+  	override fun onWaitListParticipantRejected(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant is denied entry
+  	}
+
+  	override fun onWaitListParticipantClosed(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant leaves the waiting room
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  // Get waitlisted participants
+  let waitlistedParticipants = meeting.participants.waitlisted
+
+  // Accept a participant from the waiting room
+  if let participant = waitlistedParticipants.first {
+  	meeting.participants.acceptWaitingRoomRequest(id: participant.id)
+  }
+
+  // Reject a participant's entry request
+  if let participant = waitlistedParticipants.first {
+  	meeting.participants.rejectWaitingRoomRequest(participant.id)
+  }
+
+  // Listen for waiting room events
+  extension MeetingViewModel: RtkWaitlistEventListener {
+  	func onWaitListParticipantJoined(participant: RtkRemoteParticipant) {
+  		// Called when a new participant joins the waiting room
+  	}
+
+  	func onWaitListParticipantAccepted(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant is accepted into the meeting
+  	}
+
+  	func onWaitListParticipantRejected(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant is denied entry
+  	}
+
+  	func onWaitListParticipantClosed(participant: RtkRemoteParticipant) {
+  		// Called when a waitlisted participant leaves the waiting room
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  // Get waitlisted participants
+  final waitlistedParticipants = meeting.participants.waitlisted;
+
+  // Accept a participant from the waiting room
+  if (waitlistedParticipants.isNotEmpty) {
+  	final participant = waitlistedParticipants[0];
+  	meeting.participants.acceptWaitlistedParticipant(participant);
+  }
+
+  // Reject a participant's entry request
+  if (waitlistedParticipants.isNotEmpty) {
+  	final participant = waitlistedParticipants[0];
+  	meeting.participants.rejectWaitlistedParticipant(participant);
+  }
+
+  // Accept all waitlisted participants at once
+  meeting.participants.acceptAllWaitingRoomRequests();
+
+  // Listen for waiting room events
+  class WaitlistStatusNotifier extends RtkWaitlistEventListener {
+  	@override
+  	void onWaitListParticipantJoined(RtkRemoteParticipant participant) {
+  		// Called when a new participant joins the waiting room
+  	}
+
+  	@override
+  	void onWaitListParticipantAccepted(RtkRemoteParticipant participant) {
+  		// Called when a waitlisted participant is accepted into the meeting
+  	}
+
+  	@override
+  	void onWaitListParticipantRejected(RtkRemoteParticipant participant) {
+  		// Called when a waitlisted participant is denied entry
+  	}
+
+  	@override
+  	void onWaitListParticipantClosed(RtkRemoteParticipant participant) {
+  		// Called when a waitlisted participant leaves the waiting room
+  	}
+  }
+
+  meeting.addWaitlistEventListener(WaitlistStatusNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  import {
+  	useRealtimeKitClient,
+  	useRealtimeKitSelector,
+  } from "@cloudflare/realtimekit-react-native";
+  import { View, Text, Button } from "react-native";
+
+  function WaitingRoomHost() {
+  	const [meeting] = useRealtimeKitClient();
+  	const waitlistedParticipants = useRealtimeKitSelector((m) =>
+  		m.participants.waitlisted.toArray(),
+  	);
+
+  	const acceptParticipant = async (participantId) => {
+  		await meeting.participants.acceptWaitingRoomRequest(participantId);
+  	};
+
+  	const rejectParticipant = async (participantId) => {
+  		await meeting.participants.rejectWaitingRoomRequest(participantId);
+  	};
+
+  	return (
+  		<View>
+  			<Text>Waiting Room ({waitlistedParticipants.length})</Text>
+  			{waitlistedParticipants.map((participant) => (
+  				<View key={participant.id}>
+  					<Text>{participant.name}</Text>
+  					<Button
+  						title="Accept"
+  						onPress={() => acceptParticipant(participant.id)}
+  					/>
+  					<Button
+  						title="Reject"
+  						onPress={() => rejectParticipant(participant.id)}
+  					/>
+  				</View>
+  			))}
+  		</View>
+  	);
+  }
+  ```
+</RTKCodeSnippet>
+
+## 최고의 연습
+
+- **Clear Feedback 제공**- 대기실에있을 때 사용자가 표시하고 승인을 기다리고 있습니다.
+- **기대 설정**- 사용자가 자신의 요청을 검토하는 것이 좋습니다.
+- **손잡이 거절 Gracefully**- 입력이 거부되면 친절한 메시지를 제공합니다.
+- **모니터 상태 변경**- 방 상태 변경에 따라 UI 업데이트
+- **자주 묻는 질문**- 대기실 기능을 사용하려면 미리 설정된 권한이 있어야 합니다.

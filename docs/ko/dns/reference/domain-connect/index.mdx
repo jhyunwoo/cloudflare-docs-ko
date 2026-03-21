@@ -1,0 +1,149 @@
+---
+pcx_content_type: reference
+title: Domain Connect
+sidebar:
+  order: 5
+head: []
+description: DNS 제공자로 Cloudflare를 사용하는 Domain Connect 템플릿을 온보딩하는 방법을 알아보세요.
+---
+
+서비스 제공자라면, Cloudflare가 [Domain Connect](https://www.domainconnect.org/)를 어떻게 지원하는지와 템플릿을 어떻게 온보딩할 수 있는지에 대한 정보를 이 페이지에서 확인하세요.
+
+## Domain Connect란 무엇인가
+
+Domain Connect는 이메일 또는 웹 호스팅 플랫폼과 같은 서비스 제공자가, 최종 사용자가 DNS 레코드를 수동으로 편집하지 않고도 기능을 더 쉽게 구성할 수 있도록 해 주는 개방형 표준입니다.
+
+이는 서비스 제공자가 요구하는 필요한 구성과 authoritative DNS 제공자에서 이루어져야 하는 필요한 DNS 레코드 변경 사이의 간극을 메우는 템플릿을 통해 실현됩니다.
+
+실제로 이는 `example.com`을 소유하고 Cloudflare를 authoritative DNS로 사용하는 사용자가 서비스 제공자의 서비스를 사용하려 할 때, DNS 레코드를 수동으로 업데이트하는 대신 본인 인증만 하면 필요한 변경 사항이 자동으로 적용된다는 의미입니다.
+
+## 설정
+
+### 시작하기 전에
+
+* Cloudflare는 [Domain Connect synchronous flow](https://www.domainconnect.org/getting-started/)만 지원한다는 점에 유의하세요.
+* Domain Connect 템플릿과 도구는 GitHub에 게시되므로, GitHub 계정이 있어야 하며 [GitHub fork와 pull request](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks)에 익숙해야 합니다.
+
+### 1. 리포지토리에 템플릿 추가
+
+Domain Connect 템플릿은 GitHub 저장소에 게시되고 유지 관리됩니다.
+
+1. [templates repository](https://github.com/Domain-Connect/Templates)를 포크합니다.
+2. 템플릿을 추가합니다. 기존 템플릿 중 하나를 복사해 필요에 맞게 편집하면 됩니다.
+   * 사용 가능한 각 필드에 대한 자세한 내용은 [Domain Connect Specification](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc)을 참고하세요.
+	 :::note
+	 모든 필드(속성)가 Cloudflare에서 지원되는 것은 아니며, 템플릿 온보딩을 위해 필수인 필드도 있습니다. 자세한 내용은 아래 [properties support](#properties-support) 섹션을 참고하세요.
+	 :::
+   * 템플릿에 `syncBlock` 필드가 있으면 값을 `false`로 설정해야 합니다. 이는 템플릿 흐름이 synchronous가 됨을 의미하며, Cloudflare가 지원하는 유일한 옵션입니다.
+   * 또한 synchronous public key domain(`syncPubKeyDomain` [^1])도 제공해야 합니다. 템플릿이 사용될 때 synchronous 호출은 디지털 서명됩니다.
+3. Domain Connect가 정의한 네이밍 형식 `<providerId>.<serviceId>.json`을 따르는지 확인합니다.
+
+:::note[팁]
+
+Domain Connect의 [linter tool](https://github.com/Domain-Connect/dc-template-linter)에 `-cloudflare` 옵션을 사용하면 템플릿을 Cloudflare 전용 규칙에 맞게 검사할 수 있습니다.
+:::
+
+4. 템플릿을 저장소에 추가하기 위한 pull request를 제출합니다.
+
+pull request가 검토 및 병합된 후에는 아래 안내에 따라 Cloudflare에 연락하세요.
+
+### 2. 템플릿 온보딩을 위해 Cloudflare에 연락
+
+템플릿이 온보딩되면 최종 사용자가 사용할 수 있는 그래픽 사용자 인터페이스 흐름이 제공됩니다.
+
+다음 정보를 포함해 `domain-connect@cloudflare.com`으로 이메일을 보내세요.
+
+1. 온보딩하려는 템플릿 목록과 각각의 GitHub 하이퍼링크.
+2. `syncPubKeyDomain`[^1] TXT 레코드를 조회할 fully qualified domain name.
+3. Domain Connect 흐름의 일부로 표시될 로고. 가능하면 `SVG` 형식 권장.
+4. 템플릿에 포함된 `A`, `AAAA`, `CNAME` 레코드에 대해 Cloudflare가 기본으로 설정하길 원하는 [proxy status](/dns/proxy-status/). 다른 레코드 타입의 프록시는 지원되지 않습니다.
+
+   :::note
+   Proxy status는 템플릿별로 적용됩니다. 필요하다면 레코드를 서로 다른 템플릿으로 분리해 템플릿별 기본 proxy status를 다르게 지정하세요. 레코드가 생성된 후에는 도메인 소유자가 `A`, `AAAA`, `CNAME` 레코드의 proxy status를 언제든지 변경할 수 있습니다.
+   :::
+
+5. (선택 사항) 흐름 테스트용 Cloudflare [account ID](/fundamentals/account/find-account-and-zone-ids/).
+
+   [DNS provider discovery](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc#dns-provider-discovery) 자동화가 준비되어 있고 새 DNS 제공자를 수동으로 나열하지 않을 계획이라면, Cloudflare는 처음에는 템플릿을 해당 계정에만 노출되도록 제한할 수 있습니다. 모든 것이 예상대로 동작한다고 확인되면, Cloudflare가 템플릿을 discovery endpoint에 게시하여 자동화가 이를 가져가도록 할 수 있습니다.
+
+## 속성 지원
+
+[Domain Connect Specification](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc)에는 다음 속성이 정의되어 있습니다.
+
+- [apply template URL](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc#apply-template)에서 사용할 수 있는 속성
+- [템플릿 자체 정의](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc#template-definition)를 위한 속성
+- 개별 [DNS 레코드](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc#template-record)를 정의하기 위한 속성
+
+이들 대부분은 Cloudflare에서 지원되지만, 일부는 필수이고 일부는 지원되지 않습니다.
+
+:::note[Linter tool]
+Domain Connect의 [linter tool](https://github.com/Domain-Connect/dc-template-linter)에 `-cloudflare` 옵션을 사용하여 템플릿을 Cloudflare 전용 규칙에 맞게 검사하세요.
+:::
+
+### Apply template URL
+
+전체 목록은 [Domain Connect Specification](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc)을 참고하세요. 아래는 Cloudflare에 특화된 세부 사항입니다.
+
+- **Redirect URI**: Domain Connect 문서에서는 템플릿의 `syncRedirectDomain` 범위에 속해야 하거나 요청이 서명되어야 한다고 명시합니다. Cloudflare는 요청 서명을 요구하므로 `redirect_uri`가 `syncRedirectDomain` 범위인지 별도로 검사하지 않습니다.
+- **State**: 지원되지 않으며 무시됩니다.
+- **Service Name**: 지원되지 않으며 무시됩니다.
+- **Signature**: 필수이며, 쿼리 문자열의 마지막 매개변수여야 합니다.
+- **Key**: 필수입니다. 공개 키를 게시하고 이를 템플릿에서 `syncPubKeyDomain`으로 지정한 도메인의 DNS TXT 레코드에 넣어야 합니다. 키 로테이션을 허용하기 위해 TXT 레코드의 호스트명은 폼의 쿼리 문자열에 또 다른 변수로 추가되어야 합니다.
+
+### Template definition
+
+전체 목록은 [Domain Connect Specification](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc)을 참고하세요. 아래는 Cloudflare에 특화된 세부 사항입니다.
+
+- **Service Provider Name**: 사용자 인터페이스에 표시됩니다.
+- **Service Name**: 사용자 인터페이스에 **표시되지 않습니다**.
+- **Logo**: 있을 경우 사용자 인터페이스에 표시됩니다.
+- **Synchronous Block**: 지원되지 않으며 무시됩니다. Cloudflare는 synchronous flow만 지원합니다.
+- **Shared**: 지원되지 않으며 무시됩니다.
+- **Shared Service Name**: 지원되지 않으며 무시됩니다.
+- **Synchronous Public Key Domain**: 필수입니다. Cloudflare는 synchronous flow만 지원하며 항상 서명을 확인합니다.
+- **Synchronous Redirect Domains**: 지원되지 않으며 무시됩니다. Cloudflare는 서명된 apply template URL에 제공된 `redirect_uri`를 확인합니다.
+- **Multiple Instance**: 지원되지 않으며 무시됩니다.
+- **Warn Phishing**: 지원되지 않으며 무시됩니다.
+- **Host Required**: 지원되지 않으며 무시됩니다.
+
+### DNS records
+
+전체 목록은 [Domain Connect Specification](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc)을 참고하세요. 아래는 Cloudflare에 특화된 세부 사항입니다.
+
+- **Essential**: 지원되지 않으며 무시됩니다.
+- **TXT Conflict Matching Mode**: 지원되지 않으며 무시됩니다.
+- **TXT Conflict Matching Prefix**: 지원되지 않으며 무시됩니다.
+
+## 템플릿 업데이트
+
+2024년 9월부터 템플릿 업데이트는 자동화에 의해 반영됩니다.
+
+이 자동화는 Cloudflare 내 템플릿 버전 번호와 인터넷상의 권위 있는 템플릿 소스를 비교합니다. 이 검사는 하루에 여러 번 실행됩니다. Cloudflare가 정확한 반영 시점을 보장할 수는 없지만, 일반적으로 8시간을 넘기지 않도록 설계되어 있습니다.
+
+:::note
+자동화가 올바르게 작동하려면 권위 있는 소스가 [이 예시](https://raw.githubusercontent.com/Domain-Connect/Templates/master/exampleservice.domainconnect.org.template1.json)처럼 raw `json` 형식이어야 합니다.
+
+소스 템플릿을 사용할 수 없거나 기술적으로 유효하지 않다면, 업데이트된 버전이 수정될 때까지 Cloudflare는 이전 템플릿을 계속 사용합니다.
+:::
+
+원하면 Cloudflare에 연락해 자동 업데이트를 비활성화할 수 있습니다. 자동화가 비활성화되면 `domain-connect@cloudflare.com`으로 요청해 개별 템플릿 업데이트를 반영할 수 있습니다.
+
+### 문제 해결
+
+다음 정보를 포함해 `domain-connect@cloudflare.com`으로 이메일을 보내세요.
+
+1. 무엇이 잘못되었는지에 대한 상세 설명:
+   - 문제가 발생한 날짜와 시간
+   - 템플릿의 `providerId`와 `serviceId`
+   - 요청이 수행한 동작 설명
+   - 기대했던 동작 설명
+
+2. 문제가 발생한 업데이트를 포함한 [HAR 파일](/support/troubleshooting/general-troubleshooting/gathering-information-for-troubleshooting-sites/#generate-a-har-file) 첨부.
+
+### 검증 오류
+
+템플릿 온보딩 후 가장 흔한 문제는 검증 오류이며, 보통 `syncPubKeyDomain` TXT 레코드 때문에 발생합니다.
+
+[Domain Connect](https://exampleservice.domainconnect.org/sig)에서 제공하는 도구 등을 사용해 서명을 다시 게시하면 이를 해결할 수 있습니다. 또한 [public key debug tool](https://github.com/kerolasa/dc-debug-pubkey)로 서명 검증을 테스트할 수도 있습니다.
+
+[^1]: 디지털 서명을 검증하기 위한 공개 키가 담긴 `TXT` 레코드를 조회할 수 있는 도메인입니다. 자세한 내용은 [digitally signed requests](https://github.com/Domain-Connect/spec/blob/master/Domain%20Connect%20Spec%20Draft.adoc#digitally-sign-requests)를 참고하세요.

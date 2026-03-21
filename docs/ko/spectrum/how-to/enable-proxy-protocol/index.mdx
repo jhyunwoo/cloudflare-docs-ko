@@ -1,0 +1,134 @@
+---
+pcx_content_type: configuration
+title: Proxy protocol 활성화
+weight: 0
+
+---
+
+import { DashButton } from "~/components";
+
+Cloudflare는 패킷을 서버로 전달하기 전에 가로채므로, 클라이언트 IP를 조회하면 실제 클라이언트 IP가 아니라 Cloudflare의 IP가 보이게 됩니다.
+
+운영 중인 일부 서비스는 실제 클라이언트 IP를 알아야 할 수 있습니다. 이런 경우 Cloudflare가 클라이언트 IP를 서비스에 전달하도록 proxy protocol을 사용할 수 있습니다. 프록시 정보 전달 방식은 TCP를 사용하는지 UDP를 사용하는지에 따라 달라집니다. TCP의 경우 Spectrum은 Amazon ELB와 [NGINX](https://docs.nginx.com/nginx/admin-guide/load-balancer/using-proxy-protocol/)가 지원하는 사람이 읽을 수 있는 형식인 [Proxy Protocol v1](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt)을 추가하는 기능을 지원합니다. UDP 애플리케이션의 경우 Cloudflare는 Simple Proxy Protocol이라는 자체 proxy protocol을 개발했습니다. Proxy Protocol은 Cloudflare WAN(이전 Magic WAN)으로 향하는 Spectrum egress에는 지원되지 않는다는 점에 유의하세요.
+
+:::note
+
+
+이 기능은 Enterprise 플랜이 필요합니다. 업그레이드하려면 계정 팀에 문의하세요.
+
+
+:::
+
+## TCP용 Proxy Protocol v1 활성화
+
+1. Cloudflare 대시보드에서 **Spectrum** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/spectrum" />
+
+2. PROXY protocol을 사용할 애플리케이션을 찾아 **Configure**를 선택합니다.
+3. 드롭다운에서 **PROXY Protocol v1**을 선택합니다.
+
+TCP 애플리케이션이 **PROXY Protocol v1**을 사용하도록 구성되면 Cloudflare는 각 인바운드 TCP 연결 앞에 PROXY Protocol 평문 헤더를 추가합니다.
+
+### Proxy Protocol v1 헤더
+
+PROXY Protocol은 모든 연결 앞에 클라이언트 IP 주소와 포트를 보고하는 헤더를 덧붙입니다. PROXY Protocol 평문 헤더의 형식은 다음과 같습니다.
+
+```
+PROXY_STRING + single space + INET_PROTOCOL + single space + CLIENT_IP + single space + PROXY_IP + single space + CLIENT_PORT + single space + PROXY_PORT + "\r\n"
+```
+
+IPv4 주소에 대한 PROXY Protocol 줄의 예시는 다음과 같습니다.
+
+```
+PROXY TCP4 192.0.2.0 192.0.2.255 42300 443\r\n
+```
+
+IPv6 주소에 대한 PROXY Protocol 줄의 예시는 다음과 같습니다.
+
+```
+PROXY TCP6 2001:db8:: 2001:db8:ffff:ffff:ffff:ffff:ffff:ffff 42300 443\r\n
+```
+
+## TCP/UDP용 Proxy Protocol v2 활성화
+
+1. Cloudflare 대시보드에서 **Spectrum** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/spectrum" />
+
+2. PROXY protocol을 사용할 애플리케이션을 찾아 **Configure**를 선택합니다.
+3. 드롭다운에서 **PROXY Protocol v2**를 선택합니다.
+
+TCP 애플리케이션이 **PROXY Protocol v2**를 사용하도록 구성되면 Cloudflare는 각 인바운드 TCP 연결 앞에 PROXY Protocol 바이너리 헤더를 추가합니다.
+
+UDP 애플리케이션이 **PROXY Protocol v2**를 사용하도록 구성되면 Cloudflare는 스트림의 첫 번째 UDP 데이터그램 앞에 PROXY Protocol 바이너리 헤더를 추가합니다.
+
+### Proxy Protocol v2 헤더
+
+PROXY Protocol은 모든 연결 앞에 클라이언트 IP 주소와 포트를 보고하는 헤더를 덧붙입니다.
+
+IPv4 인바운드 주소에 대한 PROXY Protocol 바이너리 헤더 형식은 다음과 같습니다.
+
+```txt
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                  Proxy Protocol v2 Signature                  |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|Version|Command|   AF  | Proto.|         Address Length        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                      IPv4 Source Address                      |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                    IPv4 Destination Address                   |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          Source Port          |        Destination Port       |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+IPv6 인바운드 주소에 대한 PROXY Protocol 바이너리 헤더 형식은 다음과 같습니다.
+
+```txt
+ 0                   1                   2                   3
+ 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                  Proxy Protocol v2 Signature                  |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|Version|Command|   AF  | Proto.|         Address Length        |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                      IPv6 Source Address                      +
+|                                                               |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|                                                               |
++                                                               +
+|                                                               |
++                    IPv6 Destination Address                   +
+|                                                               |
++                                                               +
+|                                                               |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+|          Source Port          |        Destination Port       |
++-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+```
+
+## UDP용 Simple Proxy Protocol 활성화
+
+UDP에 Spectrum을 사용할 때는 UDP용으로 특별히 개발된 경량 프로토콜인 Simple Proxy Protocol을 사용해 클라이언트 소스 IP와 포트 정보를 얻을 수 있습니다.
+
+활성화하려면 Spectrum 애플리케이션에서 **Configure**를 선택한 뒤 Simple Proxy Protocol 설정을 **On**으로 전환합니다.
+
+Simple Proxy Protocol은 원본에서도 클라이언트로 향하는 패킷 앞에 동일한 헤더를, 원래의 클라이언트 소스 정보를 포함한 채 덧붙여야 한다고 규정합니다. 이는 들어오는 패킷이 실제로 해당 클라이언트를 위한 것인지 검증하기 위해 필요합니다.
+
+Simple Proxy Protocol 헤더에 대한 자세한 내용은 [Simple Proxy Protocol headers](/spectrum/reference/simple-proxy-protocol-header/)를 참고하세요.

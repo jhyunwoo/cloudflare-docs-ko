@@ -1,0 +1,301 @@
+---
+title: 집계 함수
+pcx_content_type: reference
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: SQL 레퍼런스
+
+---
+
+import { Badge } from "~/components"
+
+## count
+
+사용법:
+
+```sql
+count()
+count(DISTINCT column_name)
+```
+
+`count`는 각 그룹 또는 결과 집합의 행 수를 반환하는 집계 함수입니다.
+
+`count`는 각 열의 고유한(distinct) 값 개수를 세는 데도 사용할 수 있습니다.
+
+예시:
+
+```sql
+-- 전체 행 수 반환
+count()
+-- 열에 있는 서로 다른 값의 개수 반환
+count(DISTINCT column_name)
+```
+
+## sum
+
+사용법:
+
+```sql
+sum([DISTINCT] column_name)
+```
+
+`sum`은 각 그룹 또는 결과 집합의 모든 행에 걸친 열 값의 합계를 반환하는 집계 함수입니다. `sum`도 `DISTINCT`를 지원하며, 이 경우 열의 고유한 값만 합산합니다.
+
+예시:
+
+```sql
+-- 모든 항목의 총 비용 반환
+sum(item_cost)
+-- 고유한 항목 비용의 총합 반환
+sum(DISTINCT item_cost)
+```
+
+## avg
+
+사용법:
+
+```sql
+avg([DISTINCT] column_name)
+```
+
+`avg`는 각 그룹 또는 결과 집합의 모든 행에 걸친 열 값의 평균을 반환하는 집계 함수입니다. `avg`도 `DISTINCT`를 지원하며, 이 경우 열의 고유한 값만 평균에 반영합니다.
+
+예시:
+
+```sql
+-- 항목 비용의 평균 반환
+avg(item_cost)
+-- 고유한 항목 비용의 평균 반환
+avg(DISTINCT item_cost)
+```
+
+## min
+
+사용법:
+
+```sql
+min(column_name)
+```
+
+`min`은 모든 행에 걸친 열의 최솟값을 반환하는 집계 함수입니다.
+
+예시:
+
+```sql
+-- 항목 비용의 최솟값 반환
+min(item_cost)
+```
+
+## max
+
+사용법:
+
+```sql
+max(column_name)
+```
+
+`max`는 모든 행에 걸친 열의 최댓값을 반환하는 집계 함수입니다.
+
+예시:
+
+```sql
+-- 항목 비용의 최댓값 반환
+max(item_cost)
+```
+
+## quantileExactWeighted
+
+사용법:
+
+```sql
+quantileExactWeighted(q)(column_name, weight_column_name)
+```
+
+`quantileExactWeighted`는 각 그룹 또는 결과 집합의 모든 행에 대해, 지정한 열에서 q<sup>번째</sup> 분위수 값을 반환하는 집계 함수입니다. 각 행은 `weight_column_name` 값으로 가중됩니다. 일반적으로는 `_sample_interval`을 사용합니다. 자세한 내용은 [Sampling](/analytics/analytics-engine/sql-api/#sampling)을 참고하세요.
+
+예시:
+
+```sql
+-- <double1>의 중앙값 추정
+quantileExactWeighted(0.5)(double1, _sample_interval)
+
+-- 쿼리 시간 테이블에서 95백분위 쿼리 시간 추정
+quantileExactWeighted(0.95)(query_time, _sample_interval)
+```
+
+하위 호환성을 위해 `quantileWeighted(q, column_name, weight_column_name)`로도 사용할 수 있습니다.
+
+## argMax <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+argMax(arg, val)
+```
+
+`argMax`는 `val`의 최댓값에 대응하는 `arg` 값을 반환하는 집계 함수입니다.
+
+여러 `arg` 값이 동일한 최댓값을 가지면 그중 하나가 반환됩니다.
+
+예시:
+
+```sql
+-- 가장 큰 <double1>을 가진 행의 <blob1> 값 찾기
+argMax(blob1, double1)
+
+-- 가장 강하게 샘플링된 행의 <blob1> 값 찾기
+argMax(blob1, _sample_interval)
+```
+
+## argMin <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+argMin(arg, val)
+```
+
+`argMin`은 `val`의 최솟값에 대응하는 `arg` 값을 반환하는 집계 함수입니다.
+
+여러 `arg` 값이 동일한 최솟값을 가지면 그중 하나가 반환됩니다.
+
+예시:
+
+```sql
+-- 가장 작은 <double1>을 가진 행의 <blob1> 값 찾기
+argMin(blob1, double1)
+
+-- 가장 약하게 샘플링된 행의 <blob1> 값 찾기
+argMin(blob1, _sample_interval)
+```
+
+## first_value <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+first_value(column_name)
+```
+
+`first_value`는 제공한 열의 첫 번째 값을 반환하는 집계 함수입니다.
+
+예시:
+
+```sql
+-- <blob1>의 가장 오래된 값 찾기
+SELECT first_value(blob1) FROM my_dataset ORDER BY timestamp ASC
+```
+
+## last_value <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+last_value(column_name)
+```
+
+`last_value`는 제공한 열의 마지막 값을 반환하는 집계 함수입니다.
+
+예시:
+
+```sql
+-- <blob1>의 가장 최근 값 찾기
+SELECT last_value(blob1) FROM my_dataset ORDER BY timestamp DESC
+```
+
+## topK <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+topK(N)(column)
+```
+
+`topK`는 열에서 가장 자주 나타나는 상위 `N`개 값을 반환하는 집계 함수입니다.
+
+`N`은 선택 사항이며 기본값은 `10`입니다.
+
+예시:
+
+```sql
+-- <double1>에서 가장 흔한 값 10개 찾기
+SELECT topK(double1) FROM my_dataset
+
+-- <blob1>에서 가장 흔한 값 15개 찾기
+SELECT topK(15)(blob1) FROM my_dataset
+```
+
+## topKWeighted <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+topKWeighted(N)(column, weight_column)
+```
+
+`topKWeighted`는 두 번째 열을 가중치로 사용해, 열에서 가장 자주 나타나는 상위 `N`개 값을 반환하는 집계 함수입니다.
+
+`N`은 선택 사항이며 기본값은 `10`입니다.
+
+예시:
+
+```sql
+-- `_sample_interval`로 가중한 <double1>의 가장 흔한 값 10개 찾기
+SELECT topKWeighted(double1, _sample_interval) FROM my_dataset
+
+-- `_sample_interval`로 가중한 <blob1>의 가장 흔한 값 15개 찾기
+SELECT topKWeighted(15)(blob1, _sample_interval) FROM my_dataset
+```
+
+## countIf <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+countIf(<expr>)
+```
+
+`countIf`는 결과 집합의 행 수를 반환하는 집계 함수이지만, 제공한 식이 참으로 평가되는 행만 계산합니다.
+
+예시:
+
+```sql
+-- `double1`이 5보다 큰 행 수 반환
+countIf(double1 > 5)
+```
+
+## sumIf <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+sumIf(<expr>, <expr>)
+```
+
+`sumIf`는 결과 집합의 모든 행에 대해 첫 번째 식의 합계를 반환하는 집계 함수이지만, 두 번째 식이 참으로 평가되는 행만 포함합니다.
+
+예시:
+
+```sql
+-- 다른 열 `in_stock`이 0이 아닌 모든 항목의 `item_cost` 합계 반환
+sumIf(item_cost, in_stock > 0)
+```
+
+## avgIf <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+avgIf(<expr>, <expr>)
+```
+
+`avgIf`는 결과 집합의 모든 행에 대해 식의 평균을 반환하는 집계 함수이지만, 두 번째 식이 참으로 평가되는 행만 포함합니다.
+
+예시:
+
+```sql
+-- 다른 열 `in_stock`이 0이 아닌 경우의 `item_cost` 평균 반환
+avgIf(item_cost, in_stock > 0)
+```

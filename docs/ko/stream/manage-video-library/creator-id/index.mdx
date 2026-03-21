@@ -1,0 +1,218 @@
+---
+pcx_content_type: how-to
+title: 제작자 관리
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/manage-video-library/creator-id/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/manage-video-library/creator-id/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+토큰화된 업로드 URL이 요청된 시간에 내부 사용자 ID를 가진 제작자 필드를 설정할 수 있습니다. 비디오가 업로드되면, 제작자 재산은 분석 데이터에 사용되거나 특정 제작자에 의해 비디오를 검색 할 수있는 내부 사용자 ID에 자동으로 설정됩니다.
+
+기본 업로드를 위해서는 동영상 업로드 후 Creator ID를 추가해야합니다.
+
+## URL에서 업로드
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/copy" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{"url":"https://example.com/myvideo.mp4","creator": "<CREATOR_ID>","thumbnailTimestampPct":0.529241,"allowedOrigins":["example.com"],"requireSignedURLs":true,"watermark":{"uid":"ea95132c15732412d22c1476fa83f27a"}}'
+```
+
+**관련 기사**
+
+```json null {35}
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": {
+		"allowedOrigins": ["example.com"],
+		"created": "2014-01-02T02:20:00Z",
+		"duration": 300,
+		"input": {
+			"height": 1080,
+			"width": 1920
+		},
+		"maxDurationSeconds": 300,
+		"meta": {},
+		"modified": "2014-01-02T02:20:00Z",
+		"uploadExpiry": "2014-01-02T02:20:00Z",
+		"playback": {
+			"hls": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.m3u8",
+			"dash": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/manifest/video.mpd"
+		},
+		"preview": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/watch",
+		"readyToStream": true,
+		"requireSignedURLs": true,
+		"size": 4190963,
+		"status": {
+			"state": "ready",
+			"pctComplete": "100.000000",
+			"errorReasonCode": "",
+			"errorReasonText": ""
+		},
+		"thumbnail": "https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.jpg",
+		"thumbnailTimestampPct": 0.529241,
+		"creator": "<CREATOR_ID>",
+		"uid": "6b9e68b07dfee8cc2d116e4c51d6a957",
+		"liveInput": "fc0a8dc887b16759bfd9ad922230a014",
+		"uploaded": "2014-01-02T02:20:00Z",
+		"watermark": {
+			"uid": "6b9e68b07dfee8cc2d116e4c51d6a957",
+			"size": 29472,
+			"height": 600,
+			"width": 400,
+			"created": "2014-01-02T02:20:00Z",
+			"downloadedFrom": "https://company.com/logo.png",
+			"name": "Marketing Videos",
+			"opacity": 0.75,
+			"padding": 0.1,
+			"scale": 0.1,
+			"position": "center"
+		}
+	}
+}
+```
+
+## 동영상에 대한 기본 제작자 설정
+
+기본 제작자 ID 값을 설정하여 단일 제작자와 비디오를 연결할 수 있습니다. 나중에 제작자 ID 또는 분석 데이터를 검색하는 데 사용할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/live_inputs" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{"DefaultCreator":"1234"}'
+```
+
+라이브 스트림을 시작하는 여러 제작자가 있다면,[실시간 입력](/stream/get-started/#step-1-create-a-live-input)스트림을 살린 각 창조자를 위해 다음 설정`DefaultCreator`입력 당 값. 각 입력에 대한 기본 제작자 ID를 설정하면 제작자의 입력에서 스트림 된 기록 된 동영상이 상속됩니다.`DefaultCreator`가치.
+
+이번에는 API를 통해 기본 제작자 ID 값을 관리할 수 있습니다.
+
+## 기존 동영상의 업데이트 제작자
+
+기존 동영상의 제작자 속성을 업데이트하려면`POST`아래 예시로 제작자 속성을 지정하는 JSON payload로 video object endpoint에 요청합니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/<VIDEO_UID>" \
+--header "Authorization: Bearer <AUTH_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{"creator":"test123"}'
+```
+
+## 직접 제작자 업로드
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/direct_upload" \
+--header "Authorization: Bearer <AUTH_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{"maxDurationSeconds":300,"expiry":"2021-01-02T02:20:00Z","creator": "<CREATOR_ID>", "thumbnailTimestampPct":0.529241,"allowedOrigins":["example.com"],"requireSignedURLs":true,"watermark":{"uid":"ea95132c15732412d22c1476fa83f27a"}}'
+```
+
+**관련 기사**
+
+```json null {8}
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": {
+		"uploadURL": "www.example.com/samplepath",
+		"uid": "ea95132c15732412d22c1476fa83f27a",
+		"creator": "<CREATOR_ID>",
+		"watermark": {
+			"uid": "ea95132c15732412d22c1476fa83f27a",
+			"size": 29472,
+			"height": 600,
+			"width": 400,
+			"created": "2014-01-02T02:20:00Z",
+			"downloadedFrom": "https://company.com/logo.png",
+			"name": "Marketing Videos",
+			"opacity": 0.75,
+			"padding": 0.1,
+			"scale": 0.1,
+			"position": "center"
+		}
+	}
+}
+```
+
+## Creator ID로 동영상 받기
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream?after=2014-01-02T02:20:00Z&before=2014-01-02T02:20:00Z&include_counts=false&creator=<CREATOR_ID>&limit=undefined&asc=false&status=downloading,queued,inprogress,ready,error" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+**관련 기사**
+
+```json null {36}
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": [
+		{
+			"allowedOrigins": ["example.com"],
+			"created": "2014-01-02T02:20:00Z",
+			"duration": 300,
+			"input": {
+				"height": 1080,
+				"width": 1920
+			},
+			"maxDurationSeconds": 300,
+			"meta": {},
+			"modified": "2014-01-02T02:20:00Z",
+			"uploadExpiry": "2014-01-02T02:20:00Z",
+			"playback": {
+				"hls": "https://customer-<CODE>.cloudflarestream.com/ea95132c15732412d22c1476fa83f27a/manifest/video.m3u8",
+				"dash": "https://customer-<CODE>.cloudflarestream.com/ea95132c15732412d22c1476fa83f27a/manifest/video.mpd"
+			},
+			"preview": "https://customer-<CODE>.cloudflarestream.com/ea95132c15732412d22c1476fa83f27a/watch",
+			"readyToStream": true,
+			"requireSignedURLs": true,
+			"size": 4190963,
+			"status": {
+				"state": "ready",
+				"pctComplete": "100.000000",
+				"errorReasonCode": "",
+				"errorReasonText": ""
+			},
+			"thumbnail": "https://customer-<CODE>.cloudflarestream.com/ea95132c15732412d22c1476fa83f27a/thumbnails/thumbnail.jpg",
+			"thumbnailTimestampPct": 0.529241,
+			"creator": "some-creator-id",
+			"uid": "ea95132c15732412d22c1476fa83f27a",
+			"liveInput": "fc0a8dc887b16759bfd9ad922230a014",
+			"uploaded": "2014-01-02T02:20:00Z",
+			"watermark": {
+				"uid": "ea95132c15732412d22c1476fa83f27a",
+				"size": 29472,
+				"height": 600,
+				"width": 400,
+				"created": "2014-01-02T02:20:00Z",
+				"downloadedFrom": "https://company.com/logo.png",
+				"name": "Marketing Videos",
+				"opacity": 0.75,
+				"padding": 0.1,
+				"scale": 0.1,
+				"position": "center"
+			}
+		}
+	],
+	"total": "35586",
+	"range": "1000"
+}
+```
+
+## 뚱 베어
+
+Creator ID 추가`Upload-Creator`헤더. 더 많은 정보를 원하시면, 참조[대용량 파일(tus)](/stream/uploading-videos/resumable-uploads/#set-creator-property).
+
+## GraphQL과 Creator ID에 의해 쿼리
+
+제작자 재산을 설정 한 후, 당신은 사용할 수 있습니다[그래프QL API](/analytics/graphql-api/)특정 제작자에 의해 필터링합니다. 더 알아보기[Fetching 대량 분석](/stream/getting-analytics/fetching-bulk-analytics)사용 가능한 미터 및 필터에 대한 자세한 내용은.

@@ -1,0 +1,158 @@
+---
+pcx_content_type: configuration
+title: 계획된 Handler
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/runtime-apis/handlers/scheduled/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components";
+
+## 이름 \*
+
+노동자가 잘못되면[Cron 방아쇠](/workers/configuration/cron-triggers/)·`scheduled()`핸들링은 발명품을 취급합니다.
+
+:::노트\[시험 예정() 핸들러 현지 개발]
+
+당신은 당신의 행동을 테스트 할 수 있습니다`scheduled()`Wrangler를 사용하여 로컬 개발의 핸들러.
+
+Cron Triggers는 시험될 수 있습니다`Wrangler`자주 묻는 질문`--test-scheduled`본문 바로가기[`wrangler dev`](/workers/wrangler/commands/#dev). 이것은 노출될 것입니다`/__scheduled`(주)`/cdn-cgi/handler/scheduled`QXQX0852XQQ QXWorkers) 경로는 http 요청을 사용하여 테스트 할 수 있습니다. 다른 cron 패턴을 시뮬레이션하기 위해,`cron`질 모수는 안으로 통과될 수 있습니다.
+
+```sh
+npx wrangler dev --test-scheduled
+
+curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"
+
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*" #Python Workers
+```
+
+:::
+
+***
+
+## 옵션 정보
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async scheduled(controller, env, ctx) {
+    		ctx.waitUntil(doSomeTaskOnASchedule());
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async scheduled(
+    		controller: ScheduledController,
+    		env: Env,
+    		ctx: ExecutionContext,
+    	) {
+    		ctx.waitUntil(doSomeTaskOnASchedule());
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def scheduled(self, controller, env, ctx):
+            ctx.waitUntil(doSomeTaskOnASchedule())
+    ```
+  </TabItem>
+</Tabs>
+
+### 제품 정보
+
+- `controller.cron`이름 \*
+  - 가치의[Cron 방아쇠](/workers/configuration/cron-triggers/)시작하기`ScheduledEvent`.
+
+- `controller.type`이름 \*
+  - 관제사의 유형. 이것은 항상 반환합니다`"scheduled"`.
+
+- `controller.scheduledTime`이름 \*
+  - 시간 시간`ScheduledEvent`1970년 1월 1일 이후 milliseconds에서 실행될 예정입니다. 그것은로 파종될 수 있습니다<code>새로운 날짜 (controller.scheduledTime)</code>.
+
+- `env`기타 제품
+  - KV 네임스페이스 및 Durable ObjectsXQ와 같은 ES 모듈 형식을 사용하여 작업자와 관련된 바인딩을 포함하는 객체.
+
+- `ctx`기타 제품
+  - ES 모듈 형식을 사용하여 Worker와 관련된 컨텍스트를 포함하는 객체. 현재,이 객체는 단지 포함`waitUntil`기능.
+
+### 여러 cron 트리거를 처리
+
+여러 구성[Cron 트리거](/workers/configuration/cron-triggers/)단일 노동자를 위해, 각 방아쇠는 동일을 주장합니다`scheduled()`핸들러. 제품 정보`controller.cron`서로 다른 논리를 실행하는 것을 구별합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"triggers": {
+  		"crons": ["*/5 * * * *", "0 0 * * *"],
+  	},
+  }
+  ```
+</WranglerConfig>
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async scheduled(controller, env, ctx) {
+    		switch (controller.cron) {
+    			case "*/5 * * * *":
+    				ctx.waitUntil(fetch("https://example.com/api/sync"));
+    				break;
+    			case "0 0 * * *":
+    				ctx.waitUntil(env.MY_KV.put("last-cleanup", new Date().toISOString()));
+    				break;
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async scheduled(
+    		controller: ScheduledController,
+    		env: Env,
+    		ctx: ExecutionContext,
+    	) {
+    		switch (controller.cron) {
+    			case "*/5 * * * *":
+    				ctx.waitUntil(fetch("https://example.com/api/sync"));
+    				break;
+    			case "0 0 * * *":
+    				ctx.waitUntil(env.MY_KV.put("last-cleanup", new Date().toISOString()));
+    				break;
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+가치의`controller.cron`설정에서 정확한 cron expression 문자열입니다. 문자 대문자를 일치해야 합니다.
+
+### 제품 설명
+
+Workers 스크립트가 호출되면[Cron 방아쇠](/workers/configuration/cron-triggers/), Workers 런타임 시작`ScheduledEvent`처리 될 것 이다`scheduled`Workers의 기능 모듈 클래스. 더 보기`ctx`인수는 함수가 실행되고, 다음을 제어하는 다음 방법을 포함합니다:
+
+- <code>ctx.waitUntil(프로미스프로미스)</code>: void - 이 방법을 사용하여 notify
+  비동기 작업을 기다리는 실행 시간 (예를 들어, 로깅, 분석
+  타사 서비스, 스트리밍 및 캐싱). 첫 번째`ctx.waitUntil`으로
+  실패는 관찰되고 기록될 것입니다[한국어
+  더 큰](/workers/configuration/cron-triggers/)과거 이벤트 테이블. 다른 것,
+  그것은 성공으로보고 될 것입니다.

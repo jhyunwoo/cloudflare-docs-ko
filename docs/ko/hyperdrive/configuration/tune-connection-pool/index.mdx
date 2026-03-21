@@ -1,0 +1,97 @@
+---
+pcx_content_type: how-to
+title: Tune 연결 풀
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/hyperdrive/configuration/tune-connection-pool/
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/configuration/tune-connection-pool/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, DashButton } from "~/components";
+
+Hyperdrive는 Worker invocations에서 공유되는 데이터베이스에 연결의 풀을 유지합니다. 데이터베이스 용량 및 애플리케이션 요구 사항에 따라 이러한 연결의 최대 수를 구성할 수 있습니다.
+
+:::참조
+Hyperdrive는 동시의 수에 한계가 없습니다*고객 지원*Workers에서 HyperdriveQ로 만든 연결.
+
+Hyperdrive는 한계가 있습니다*이름 \**&#x48;yperdrive에서 데이터베이스로 만들 수있는 연결. 이 공유는 Workers, 데이터베이스 거래 과정에서 이러한 연결 중 하나를 사용하여 각 노동자. 더 알아보기[거래 풀 모드](/hyperdrive/concepts/connection-pooling/#pooling-mode)더 많은 정보.
+
+:::
+
+## 연결 풀 사이즈 구성
+
+Cloudflare QX대시보드, Wrangler CLI 또는 Cloudflare API를 사용하여 연결 풀 크기를 구성할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    대시보드를 통해 연결 풀 크기를 구성하려면:
+
+    1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com)계정 선택
+
+    2. 오시는 길**스토리지 및 데이터베이스** > **모델 번호: Hyperdrive**.
+
+       <DashButton url="/?to=/:account/workers/hyperdrive" />
+
+    3. Hyperdrive 구성을 선택하십시오.
+
+    4. 제품정보**계정 설정**.
+
+    5. 내 계정**근원 연결 한계**단면도, 조정**최대 연결**가치.
+
+    6. 제품정보**제품 정보**.
+  </TabItem>
+
+  <TabItem label="모델 번호: Wrangler">
+    사용 방법[`wrangler hyperdrive update`](/hyperdrive/reference/wrangler-commands/#hyperdrive-update)명령과`--origin-connection-limit`플래그:
+
+    ```sh
+    npx wrangler hyperdrive update <HYPERDRIVE_ID> --origin-connection-limit=<MAX_CONNECTIONS>
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    사용 방법[Hyperdrive 등급 API](/api/resources/hyperdrive/subresources/configs/methods/update/)당신의 윤곽을 새롭게 하기:
+
+    ```sh
+    curl --request PATCH \
+      --url https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/hyperdrive/configs/<HYPERDRIVE_ID> \
+      --header 'Content-Type: application/json' \
+      --header 'Authorization: Bearer <API_TOKEN>' \
+      --data '{
+        "origin_connection_limit": <MAX_CONNECTIONS>
+      }'
+    ```
+  </TabItem>
+</Tabs>
+
+모든 Hyperdrive 구성에는 최소 5개의 연결이 있습니다. 최대 연결 수는 당신의 것에 달려 있습니다[Workers 계획](/hyperdrive/platform/limits/).
+
+:::참조
+Hyperdrive 연결 풀 제한은 "소프트 제한"입니다. 이것은 Hyperdrive를 위해 가능하여 높은 가용성을 보장하기 위하여 네트워크 실패의 사건에 있는 이 한계 보다는 당신의 데이타베이스에 더 많은 연결을 만드는 것을 의미합니다. Hyperdrive 연결 제한을 설정하는 것이 좋습니다. Hyperdrive가 탄력성에 대한 더 많은 연결을 만들 필요가있는 경우 원래 데이터베이스의 한계보다 낮을 것이 좋습니다.
+
+:::
+
+:::참조
+당신은 Hyperdrive의 근원 연결 한계에 조정을 요구할 수 있습니다. 증가를 요청하려면, 제출[제한 증가 요청](https://forms.gle/ukpeZVLWLnKeixDu7)그리고 Cloudflare는 다음 단계로 당신에게 연락할 것입니다. Cloudflare는 또한 정기적으로 안으로 Hyperdrive 채널을 감시합니다[Cloudflare의 Discord 커뮤니티](https://discord.cloudflare.com/)제한 및 요청에 대한 질문에 답변 할 수 있습니다.
+주요 특징
+
+## 좋은 관행
+
+- **자주 묻는 질문**: 낮은 연결 카운트로 시작하여 응용 프로그램의 성능에 따라 점차 증가합니다.
+- **모니터 데이터베이스 미터**: 데이터베이스의 연결 사용 및 성능 측정을 시청하여 연결 수를 최적화합니다.
+- **데이터베이스 제한 고려**: 구성된 연결 카운트가 데이터베이스의 최대 연결 제한을 초과하지 않습니다.
+- **다수 윤곽을 위한 계정**: 여러 HyperdriveXQ 구성이 동일한 데이터베이스에 연결되면 모든 구성의 전체 연결 수를 고려합니다.
+
+## 관련 자료
+
+- [연결 풀링 개념](/hyperdrive/concepts/connection-pooling/)
+- [연결 수명주기](/hyperdrive/concepts/connection-lifecycle/)
+- [미터 및 분석](/hyperdrive/observability/metrics/)
+- [Hyperdrive 제한](/hyperdrive/platform/limits/)
+- [Query 캐싱](/hyperdrive/concepts/query-caching/)

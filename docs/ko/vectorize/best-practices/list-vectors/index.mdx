@@ -1,0 +1,78 @@
+---
+title: 벡터 목록
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/best-practices/list-vectors/'
+translation_source_md: >-
+  https://developers.cloudflare.com/vectorize/best-practices/list-vectors/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+목록 학습 작업은 Vectorize 인덱스의 모든 벡터 식별자를 질화 요청을 사용하여 처리 할 수 있습니다. 이 가이드는이 작업을 효율적으로 수행하기위한 모범 사례를 다룹니다.
+
+:::note\[Python SDK 가용성]
+
+더 보기`client.vectorize.indexes.list_vectors()`방법은 아직 현재 릴리스에서 사용할 수 없습니다.[CloudflarePython SDK의 특징](https://pypi.org/project/cloudflare/). 메서드가 나타나는 동안[API reference](/api/python/resources/vectorize/subresources/indexes/methods/list_vectors/), v4.3.1의 게시된 SDK 버전에 포함되지 않았습니다. 반면에, 당신은 사용할 수 있습니다[REST API를](/api/resources/vectorize/subresources/indexes/methods/list_vectors/)또는 목록 벡터에 Wrangler CLI.
+
+:::
+
+## List-vectors를 사용할 때
+
+사용 목록:
+
+- **대량 작업**: 인덱스의 모든 벡터 처리
+- **감사합니다.**: 인덱스의 내용을 확인하거나 보고서 생성
+- **데이터 마이그레이션**: 인덱스 또는 시스템 간의 벡터 이동
+- **Cleanup 운영**: outdated 벡터를 식별하고 제거하기
+
+## Pagination 행동
+
+List-vectors 작업은 중요한 일관성 보증을 가진 커서 기반 pagination을 사용합니다.
+
+### Snapshot 일관성
+
+벡터 식별자는 첫 번째 목록 작성자 요청시 인덱스 스냅샷 캡처에 속합니다. 이 지수가 반복될 때에도 일관성있는 pagination을 보장합니다:
+
+- **새로운 벡터**: 초기 요청 후 삽입 된 벡터는 후속 paginated 결과에 표시되지 않습니다.
+- **삭제 된 벡터**: 초기 요청 후 삭제 된 벡터는 질이 완료 될 때까지 나머지 응답에 나타납니다.
+
+### 새로운 여정 시작
+
+최근 추가 또는 삭제 된 벡터를 보려면 새로운 목록 작성자 요청 시퀀스를 시작해야합니다 (cursor없이). 인덱스의 신선한 스냅샷을 캡처합니다.
+
+### 응답 구조
+
+각 응답은 다음을 포함합니다:
+
+- `count`: 이 응답에서 반환되는 벡터 수
+- `totalCount`: 인덱스의 총 벡터 수
+- `isTruncated`: 더 많은 벡터가 있음
+- `nextCursor`: 다음 페이지의 커서 (결과가 없을 경우)
+- `cursorExpirationTimestamp`: 커서가 만료되면 Timestamp
+- `vectors`: 벡터 식별자의 배열
+
+### Cursor 만료
+
+커서에는 만료 타임스탬프가 있습니다. 커서가 만료되면 새로운 목록 작성자 요청 시퀀스를 시작해야 합니다.
+
+## 성과 고려사항
+
+비율 제한을 피하기 위해 연속적인 요청 사이에 충분한 간격을 가지고 갑니다.
+
+## 작업 흐름
+
+인덱스의 모든 벡터 처리를위한 전형적인 패턴은 다음과 같습니다.
+
+```sh
+#시작 iteration
+wrangler vectorize list-vectors my-index --count=1000
+
+#응답에서 커서 계속
+wrangler vectorize list-vectors my-index --count=1000 --cursor="<cursor-from-response>"
+
+#더 많은 결과까지 반복
+```

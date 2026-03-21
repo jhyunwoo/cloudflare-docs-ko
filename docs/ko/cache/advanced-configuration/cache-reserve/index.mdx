@@ -1,0 +1,217 @@
+---
+title: Cache Reserve
+pcx_content_type: concept
+---
+
+import { Render, TabItem, Tabs, APIRequest, DashButton } from "~/components";
+
+<Render file="smart-shield-callout" product="smart-shield" />
+
+<Render file="cache-reserve-intro" product="cache" />
+
+![오리진에서 제공된 콘텐츠가 Cache Reserve와 엣지 캐시 데이터 센터(T1=상위 티어, T2=하위 티어)를 거쳐 클라이언트로 돌아오며 캐시되는 모습](~/assets/images/cache/content-being-served.png)
+
+Cache Reserve 안의 콘텐츠가 얼마나 오래 "fresh"로 간주될지는 [Edge Cache TTL](/cache/how-to/edge-browser-cache-ttl/#edge-cache-ttl)이 설정되어 있지 않은 경우 Edge Cache TTL 설정 또는 오리진의 Cache-Control 헤더에 의해 결정됩니다. 신선도 기간이 만료되면 이후 요청이 들어왔을 때 Cloudflare는 해당 자산을 재검증하려고 시도합니다. 이는 Cloudflare의 일반 CDN과 동일한 동작입니다.
+
+자산의 보존 기간은 Cloudflare가 해당 자산을 Cache Reserve에 얼마나 오래 보관한 뒤 제거 대상으로 표시할지를 뜻합니다. Cache Reserve는 30일의 보존 기간으로 시작합니다. 자산이 보존 기간 내에 요청되지 않으면 Cache Reserve에서 제거됩니다. 자산에 다시 접근하면 보존 기간이 갱신됩니다.
+
+Cache Reserve를 사용하려면 자산이 [특정 기준](#cache-reserve-asset-eligibility)을 충족해야 합니다.
+
+Cache Reserve는 사용량 기반 제품이며 [가격](#pricing)은 아래에 자세히 설명되어 있습니다. Cache Reserve를 사용하려면 유료 요금제가 필요하지만, 사용자는 Cache Reserve 없이 Cloudflare CDN 자체는 계속 무료로 사용할 수 있습니다.
+
+## Cache Reserve 활성화
+
+활성화하려면 유료 Cache Reserve Plan이 필요합니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **Cache Reserve** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/cache-reserve" />
+
+2. **Enable storage sync**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+자세한 내용은 [Change Cache Reserve setting API](/api/resources/cache/subresources/cache_reserve/methods/edit/)를 참고하세요.
+
+</TabItem> </Tabs>
+
+:::note[Note]
+언제든지 Cache Reserve를 일시 중지할 수 있습니다. Cache Reserve를 일시 중지하면 Cloudflare 네트워크는 더 이상 Cache Reserve를 사용해 데이터를 제공하지 않지만, 리소스 자체는 퍼지되거나 만료될 때까지 스토리지에 남아 있습니다.
+:::
+
+Enterprise 고객이면서 Cache Reserve에 관심이 있다면 계정 팀에 문의해 구성 지원을 받으세요.
+
+## Cache Reserve 자산 적격성
+
+<Render file="cache-reserve-eligibility" product="cache" />
+
+## 제한 사항
+
+<Render file="cache-reserve-limits" product="cache" />
+
+## 사용량
+
+표준 CDN과 마찬가지로 Cache Reserve도 `cf-cache-status` 헤더를 사용해 `MISS`, `HIT`, `REVALIDATED`와 같은 [캐시 응답 상태](/cache/concepts/cache-responses/)를 나타냅니다. Cache Reserve의 cache miss와 hit는 대시보드의 캐시 적중률에 반영됩니다.
+
+Cache Reserve에 의해 채워지거나 제공된 개별 샘플 요청은 [CacheReserveUsed](/logs/logpush/logpush-job/datasets/zone/http_requests/) Logpush 필드를 통해 확인할 수 있습니다.
+
+Cache Reserve의 월간 작업 수와 스토리지 사용량도 대시보드에서 확인할 수 있습니다.
+
+## 가격
+
+Cache Reserve는 저장된 총 데이터 용량과 그 데이터에 대해 수행되는 두 가지 종류의 작업을 기준으로 요금을 부과합니다.
+
+- 상태를 변경하는 경향이 있고 더 비싼 [Class A operations](/r2/pricing/#class-a-operations)
+- 기존 상태를 읽는 경향이 있는 [Class B operations](/r2/pricing/#class-b-operations)
+
+대부분의 경우 Cache Reserve miss는 class A 작업 1회와 class B 작업 1회를 모두 유발하고, Cache Reserve hit는 class B 작업 1회를 유발합니다. 1GB보다 큰 자산은 크기에 비례하여 더 많은 작업 수를 발생시킵니다.
+
+### Cache Reserve 가격
+
+<table>
+	<tbody>
+		<th></th>
+		<th>요율</th>
+		<tr>
+			<td>스토리지</td>
+			<td>$0.015 / GB-month</td>
+		</tr>
+		<tr>
+			<td>Class A 작업(쓰기)</td>
+			<td>$4.50 / 백만 요청</td>
+		</tr>
+		<tr>
+			<td>Class B 작업(읽기)</td>
+			<td>$0.36 / 백만 요청</td>
+		</tr>
+	</tbody>
+</table>
+
+<Render file="cache-reserve-billing-note" product="cache" />
+
+### 스토리지 사용량
+
+스토리지는 기가바이트-월(GB-month)을 청구 단위로 사용합니다. GB-month는 한 달 동안 저장된 총 바이트 수를 기록하여 계산합니다.
+
+예를 들면 다음과 같습니다.
+
+- 1GB를 30일 동안 저장하면 1 GB-month로 청구됩니다.
+- 2GB를 15일 동안 저장하면 1 GB-month로 청구됩니다.
+
+### 작업 수
+
+<Render
+  file="cache-reserve-operations"
+  product="cache"
+/>
+
+## Cache Reserve 청구 예시
+
+#### 예시 1
+
+월초에 1,000개의 자산(각각 1GB)이 Cache Reserve에 기록되고 각 자산이 1,000번 읽힌다고 가정하면, 월 예상 비용은 다음과 같습니다.
+
+|                    | 사용량                                    | 청구 수량          | 가격       |
+| ------------------ | ----------------------------------------- | ----------------- | ---------- |
+| Class B 작업       | (1,000개 자산) \* (자산당 1,000회 읽기)   | 1,000,000         | $0.36      |
+| Class A 작업       | (1,000개 자산) \* (자산당 1회 쓰기)       | 1,000             | $4.50      |
+| 스토리지           | (1,000개 자산) \* (자산당 1GB)            | 1,000 GB-months   | $15.00     |
+| **총계**           |                                           |                   | **$19.86** |
+|                    |                                           |                   |            |
+
+<Render file="cache-reserve-billing-note" product="cache" />
+
+#### 예시 2
+
+1,000,000개의 자산(각각 1MB)이 Cache Reserve에 있고, 다음과 같다고 가정합니다.
+
+- 각 자산은 하루에 1번 만료되어 Cache Reserve에 다시 기록됨
+- 각 자산은 하루에 2번 읽힘
+
+월 예상 비용은 다음과 같습니다.
+
+|                    | 사용량                                               | 청구 수량          | 가격        |
+| ------------------ | ---------------------------------------------------- | ----------------- | ----------- |
+| Class B 작업       | (1,000,000개 자산) \* (하루 2회 읽기) \* (30일)      | 60,000,000        | $21.60      |
+| Class A 작업       | (1,000,000개 자산) \* (하루 1회 쓰기) \* (30일)      | 30,000,000        | $135.00     |
+| 스토리지           | (1,000,000개 자산) \* (자산당 1MB)                   | 1,000 GB-months   | $15.00      |
+| **총계**           |                                                      |                   | **$171.60** |
+|                    |                                                      |                   |             |
+
+<Render file="cache-reserve-billing-note" product="cache" />
+
+## 팁과 모범 사례
+
+Cache Reserve는 [Tiered Cache](/cache/how-to/tiered-cache/)를 활성화한 상태에서 사용하는 것이 좋습니다. Cache Reserve는 최대 수준의 오리진 보호를 위해 Tiered Cache가 활성화된 환경에 맞춰 설계되었습니다. Tiered Cache 없이 Cache Reserve를 사용하면 스토리지 작업 비용이 더 높아질 수 있습니다. Cloudflare 대시보드에서 Cache Reserve를 활성화하면 Tiered Cache가 켜져 있는지 확인하고, 꺼져 있으면 경고를 표시합니다.
+
+## Cache Reserve 분석
+
+<Render
+  file="cache-reserve-analytics"
+	product="cache"
+	params={{
+		conditional: "dedicated-cache-tile"
+	}}
+/>
+
+## Cache Reserve 비우기 버튼
+
+대시보드 또는 API를 통해 Cache Reserve에 저장된 모든 데이터를 제거할 수 있습니다. Cache Reserve를 비우려면 다음 조건을 충족해야 합니다.
+
+- 영역에서 Cache Reserve가 이미 활성화되어 있어야 합니다.
+- Cache Reserve가 꺼져 있어야 합니다.
+
+삭제가 완료되기까지 최대 24시간이 걸릴 수 있다는 점에 유의하세요.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+
+1. Cloudflare 대시보드에서 **Cache Reserve** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/cache-reserve" />
+
+2. **Delete Cache Reserve Data**에서 **Delete Storage**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+API를 통해 Cache Reserve 데이터를 삭제하려면 다음 예시 요청을 사용하세요. 자세한 내용은 [API documentation](/api/resources/cache/subresources/cache_reserve/methods/clear/)를 참고하세요.
+
+**Request 1: Cache Reserve 상태 조회**
+
+<APIRequest path="/zones/{zone_id}/cache/cache_reserve" method="GET" />
+
+```json title="Response"
+{
+	"result": {
+		"editable": true,
+		"id": "cache_reserve",
+		"value": "off"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+Cache Reserve가 꺼져 있으면 Cache Reserve 비우기 작업을 진행할 수 있습니다.
+
+**Request 2: Cache Reserve 비우기 시작**
+
+<APIRequest path="/zones/{zone_id}/cache/cache_reserve_clear" method="POST" />
+
+```json title="Response"
+{
+	"result": {
+		"id": "cache_reserve_clear",
+		"start_ts": "2024-06-02T10:00:00.12345Z",
+		"state": "In-progress"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+</TabItem> </Tabs>

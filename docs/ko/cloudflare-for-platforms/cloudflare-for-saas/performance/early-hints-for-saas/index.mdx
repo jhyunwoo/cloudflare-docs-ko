@@ -1,0 +1,85 @@
+---
+pcx_content_type: how-to
+title: SaaS를 위한 조기 힌트
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/performance/early-hints-for-saas/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/performance/early-hints-for-saas/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+[초기 힌트](/cache/advanced-configuration/early-hints/)브라우저가 로드 리소스를 시작할 수 있도록 소스 서버가 전체 응답을 컴파일하는 동안. 이것은 최종 사용자의 웹 페이지 로딩 속도를 향상시킵니다. SaaS 공급자로, 사용자 정의 호스트 이름의 일부에 대한 속도를 우선 순위 할 수 있습니다. custom metadata를 사용하여, 당신은 할 수 있습니다[초기 힌트](/cache/advanced-configuration/early-hints/#enable-early-hints)custom hostname에 의하여.
+
+***
+
+## 자주 묻는 질문
+
+SaaS의 초기 힌트를 사용할 수 있기 전에 사용자 정의 호스트 이름을 만들 필요가 있습니다. 이름 \*[SaaS를 위한 Cloudflare로 시작하기](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)이미 그렇게하지 않았다면.
+
+***
+
+## API를 통해 사용자 정의 hostname 당 조기 힌트 가능
+
+1. [지역 ID 찾기](/fundamentals/account/find-account-and-zone-ids/)Cloudflare 대시보드에서 유효한.
+
+2. 인증 키 찾기[**API 토큰**](https://dash.cloudflare.com/?to=/:account/profile/api-tokens)페이지, 아래**글로벌 API 키**.
+
+3. 당신은[새로운 사용자 정의 hostname 만들기](/api/resources/custom_hostnames/methods/create/), 아래 예제와 같은 API 호출을, 지정`"early_hints": "on"`:
+
+<APIRequest
+  path="/zones/{zone_id}/custom_hostnames"
+  method="POST"
+  json={{
+  	"hostname": "<CUSTOM_HOSTNAME>",
+  	"ssl": {
+  		"method": "http",
+  		"type": "dv",
+  		"settings": {
+  			"http2": "on",
+  			"min_tls_version": "1.2",
+  			"tls_1_3": "on",
+  			"early_hints": "on"
+  			},
+  			"bundle_method": "ubiquitous",
+  			"wildcard": false
+  		},
+  }}
+/>
+
+4. 기존의 사용자 정의 호스트 이름의 경우, locate`id`그 호스트명`GET`전화:
+
+<APIRequest
+  path="/zones/{zone_id}/custom_hostnames"
+  method="GET"
+  parameters={{
+  	hostname:"{hostname}"
+  }}
+/>
+
+5. 그런 다음 아래 예제와 같은 API 호출을 만들고, 지정`"early_hints": "on"`:
+
+<APIRequest
+  path="/zones/{zone_id}/custom_hostnames/{custom_hostname_id}"
+  method="PATCH"
+  json={{
+  	"ssl": {
+  		"method": "http",
+  		"type": "dv",
+  		"settings": {
+  			"http2": "on", // Note: These settings will be set to default if not included when updating early hints
+  			"min_tls_version": "1.2",
+  			"tls_1_3": "on",
+  			"early_hints": "on"
+  			}
+  		},
+  }}
+/>
+
+현재, 모든 옵션`settings`기본 설정에서 그 옵션을 방지하려면 필수입니다. 초기 힌트를 확장하기 전에 현재 설정 상태를 끌어 당길 수 있습니다.`id`호스트명

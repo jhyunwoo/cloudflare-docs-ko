@@ -1,0 +1,1015 @@
+---
+pcx_content_type: navigation
+title: 단계 관리
+slug: realtime/realtimekit/core/stage-management
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/core/stage-management/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/stage-management/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+이 가이드는 QXQX0020XQ RealtimeKit의 웹 세미나 (WebRTC) 사용 사례에 대한 단계 관리 API를 사용하는 방법을 설명합니다.
+
+<RTKSDKSelector />
+
+대신 전통적인 게시 구독 모델, 사용자가 게시 할 수있는 곳
+매체 및 다른 사람은 구독하기 위하여 선택할 수 있습니다, RealtimeKit는 선택으로 옵니다
+관리 구성. 이 관리된 구성에서, 적은 특권한 사용자는 할 수 있습니다
+미디어를 게시하지 않는 기본 동작으로 구성됩니다. 사용자는 그 후에 할 수 있습니다
+권한이 부여된 미디어를 게시할 수 있는 권한을 요청합니다.
+권한을 부여하거나 거부 할 수 있습니다.
+
+RealtimeKit의 단계 관리 API를 사용하여 사용자는 다음과 같은 작업을 수행 할 수 있습니다.
+
+- 자주 묻는 질문
+- 단계 요청 및 권한 관리
+- Kick 참가자
+
+## 단계 API에 액세스
+
+단계 단위는 아래에 접근될 수 있습니다`meeting.stage`네임스페이스
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  console.log("Stage object:", meeting.stage);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  console.log("Stage object:", meeting.stage);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  console.log("Stage object:", meeting.stage);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  Log.d("Stage", "Stage object: ${meeting.stage}")
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  print("Stage object: \(meeting.stage)")
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  print("Stage object: ${meeting.stage}");
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  console.log("Stage object:", meeting.stage);
+  ```
+</RTKCodeSnippet>
+
+## 제품 정보
+
+### 주요연혁
+
+더 보기`meeting.stage.status`속성은 로컬 사용자의 현재 단계 상태를 반환합니다.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  console.log("Stage status:", meeting.stage.status);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  console.log("Stage status:", meeting.stage.status);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  console.log("Stage status:", meeting.stage.status);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  Log.d("Stage", "Stage status: ${meeting.stage.stageStatus}")
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  print("Stage status: \(meeting.stage.stageStatus)")
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  print("Stage status: ${meeting.stage.status}");
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  console.log("Stage status:", meeting.stage.status);
+  ```
+</RTKCodeSnippet>
+
+**가능한 상태 값:**
+
+- **`ON_STAGE`**- 사용자는 현재 무대에서 오디오 및 비디오를 공유하고 있습니다.
+- **`OFF_STAGE`**- 사용자는 세션을보고 있지만 무대에 있지 않으며 오디오 또는 비디오를 공유하지 않습니다.
+- **`REQUESTED_TO_JOIN_STAGE`**- 사용자는 단계에 가입하고 오디오 및 비디오를 공유 할 수 있습니다. 이 상태는 호스트가 허용하거나 요청을 거부 할 때까지 남아있다.
+- **`ACCEPTED_TO_JOIN_STAGE`**- 호스트는 사용자의 요청을 받아 단계에 합류했습니다.
+
+:::참조
+직접 단계에 가입 할 수있는 사용자 만 가정 할 수 있습니다`ON_STAGE`·`ACCEPTED_TO_JOIN_STAGE`상태 값.
+주요 특징
+
+## 호스트 컨트롤
+
+현재 위치 Kit's Stage Management APIs는 호스트를 수신하고 단계 요청을 관리하고 단계에 합류 할 수 있습니다.
+
+### 회사 소개
+
+이 방법은 미디어 룸에 사용자를 연결하고 회의에서 다른 동료와 상호 작용 할 수 있습니다.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.join();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.join();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.join();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.join()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.join()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.join();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.join();
+  ```
+</RTKCodeSnippet>
+
+### 맨 위로
+
+이 방법을 고용함으로써 사용자는 미디어 룸에서 분리되고 동료와 의사 소통 할 수 없습니다. 또한, 그들의 오디오 및 비디오는 더 이상 객실에서 다른 사람에게 볼 수 없습니다.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.leave();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.leave();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.leave();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.leave()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.leave()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.leave();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.leave();
+  ```
+</RTKCodeSnippet>
+
+### Grant 액세스
+
+권한이 있는 사용자는 사용자의 설정에 대한 액세스를 부여할 수 있습니다.`grantAccess`방법.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.grantAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.grantAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.grantAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.grantAccess(userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.grantAccess(userIds: userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.grantAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.grantAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+**모수:**
+
+<RTKCodeSnippet id="web-react">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  - `userIds` (`List<String>`) - 사용자 ID 목록은 단계 액세스 권한을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { it.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  - `userIds` (`[String]`) - 사용자 ID의 배열은 단계 접근을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { $0.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  - `userIds` (`List<String>`) - 사용자 ID 목록은 단계 액세스 권한을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map((p) => p.userId).toList()`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 부여합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+### Deny 액세스
+
+권한이 있는 사용자는 사용자의 설정에 대한 액세스를 거부할 수 있습니다.`denyAccess`방법.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.denyAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.denyAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.denyAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.denyAccess(userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.denyAccess(userIds: userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.denyAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.denyAccess(userIds);
+  ```
+</RTKCodeSnippet>
+
+**모수:**
+
+<RTKCodeSnippet id="web-react">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  - `userIds` (`List<String>`) - 사용자 ID 목록은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { it.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  - `userIds` (`[String]`) - 사용자 ID의 배열은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { $0.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  - `userIds` (`List<String>`) - 사용자 ID 목록은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map((p) => p.userId).toList()`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  - `userIds` (`string[]`) - 사용자 ID의 배열은 단계 접근을 거부합니다. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+### Kick 사용자
+
+권한이 있는 사용자는 스테이지에서 설정할 수 있습니다.`kick`방법.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.kick(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.kick(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.kick(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.kick(userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.kick(userIds: userIds)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.kick(userIds);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.kick(userIds);
+  ```
+</RTKCodeSnippet>
+
+**모수:**
+
+<RTKCodeSnippet id="web-react">
+  - `userIds` (`string[]`) - 단계에서 제거하기 위하여 사용자 ID의 배열. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  - `userIds` (`string[]`) - 단계에서 제거하기 위하여 사용자 ID의 배열. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  - `userIds` (`string[]`) - 단계에서 제거하기 위하여 사용자 ID의 배열. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  - `userIds` (`List<String>`) - 사용자 ID 목록에서 제거 단계. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { it.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  - `userIds` (`[String]`) - 단계에서 제거하기 위하여 사용자 ID의 배열. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map { $0.userId }`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  - `userIds` (`List<String>`) - 사용자 ID 목록에서 제거 단계. 사용자 ID를 검색할 수 있습니다.`meeting.participants.map((p) => p.userId).toList()`
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  - `userIds` (`string[]`) - 단계에서 제거하기 위하여 사용자 ID의 배열. 사용자 ID를 검색할 수 있습니다.`meeting.participants.toArray().map(p => p.userId)`
+</RTKCodeSnippet>
+
+## 부분적인 통제
+
+현재 위치 키트의 단계 관리 API는 참가자가 요청하고 단계 접근을 관리 할 수 있습니다.
+
+### 자주 묻는 질문
+
+이 방법은 호스트에 의해 승인 될 수있는 새로운 단계 요청을 만드는 데 사용됩니다. 각 사용자 (뷰어 또는 호스트)는 단계에 가입하기 위해이 방법을 호출해야합니다.
+
+호스트가 이 메소드를 호출하면 상태는 업데이트됩니다.`ACCEPTED_TO_JOIN_STAGE`.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.requestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.requestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.requestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.requestAccess()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.requestAccess()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.requestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.requestAccess();
+  ```
+</RTKCodeSnippet>
+
+### 자주 묻는 질문
+
+단계 요청을 취소하려면이 방법을 호출 할 수 있습니다.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  await meeting.stage.cancelRequestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  await meeting.stage.cancelRequestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  await meeting.stage.cancelRequestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.stage.cancelRequestAccess()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  meeting.stage.cancelRequestAccess()
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  meeting.stage.cancelRequestAccess();
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  await meeting.stage.cancelRequestAccess();
+  ```
+</RTKCodeSnippet>
+
+## (주)
+
+더 보기`meeting.stage`모듈은 다음과 같은 이벤트를 방출:
+
+### 단계 액세스 요청 업데이트
+
+단계 액세스 요청에 업데이트가있을 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("stageAccessRequestUpdate", (data) => {
+  	console.log("Stage access request updated:", data);
+  });
+  ```
+
+  대안으로, 당신은 단계 업데이트를 듣고 React 걸이를 사용할 수 있습니다:
+
+  ```jsx
+  import { useRealtimeKitSelector } from "@cloudflare/realtimekit-react";
+
+  //사용RealtimeKitSelector 걸이는 `RealtimeKitProvider`가 사용될 때만 작동합니다.
+  const stageStatus = useRealtimeKitSelector((m) => m.stage.status);
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("stageAccessRequestUpdate", (data) => {
+  	console.log("Stage access request updated:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("stageAccessRequestUpdate", (data) => {
+  	console.log("Stage access request updated:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onStageAccessRequestsUpdated(accessRequests: List<RtkRemoteParticipant>) {
+  		// Stage access requests list updated
+  		Log.d("Stage", "Access requests updated: ${accessRequests.size}")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onStageAccessRequestsUpdated(accessRequests: [RtkRemoteParticipant]) {
+  		// Stage access requests list updated
+  		print("Access requests updated: \(accessRequests.count)")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onStageAccessRequestsUpdated(List<RtkRemoteParticipant> accessRequests) {
+  		// Stage access requests list updated
+  		print("Access requests updated: ${accessRequests.length}");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("stageAccessRequestUpdate", (data) => {
+  	console.log("Stage access request updated:", data);
+  });
+  ```
+
+  대안으로, 당신은 단계 업데이트를 듣고 React 걸이를 사용할 수 있습니다:
+
+  ```tsx
+  import { useRealtimeKitSelector } from "@cloudflare/realtimekit-react-native";
+
+  //사용RealtimeKitSelector 걸이는 `RealtimeKitProvider`가 사용될 때만 작동합니다.
+  const stageStatus = useRealtimeKitSelector((m) => m.stage.status);
+  ```
+</RTKCodeSnippet>
+
+### 단계 접근 요구 수락
+
+호스트가 가입 단계 요청을 수락하거나 직접 단계를 초대 할 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("acceptPresentRequests", (data) => {
+  	console.log("Present requests accepted:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("acceptPresentRequests", (data) => {
+  	console.log("Present requests accepted:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("acceptPresentRequests", (data) => {
+  	console.log("Present requests accepted:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		Log.d("Stage", "Access request accepted")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		print("Access request accepted")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		print("Access request accepted");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("acceptPresentRequests", (data) => {
+  	console.log("Present requests accepted:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+### 단계 상태 업데이트
+
+로컬 사용자의 단계 상태가 변경 될 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("stageStatusUpdate", (status) => {
+  	console.log("Stage status updated:", status);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("stageStatusUpdate", (status) => {
+  	console.log("Stage status updated:", status);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("stageStatusUpdate", (status) => {
+  	console.log("Stage status updated:", status);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onStageStatusUpdated(oldStatus: StageStatus, newStatus: StageStatus) {
+  		// Local user's stage status changed
+  		Log.d("Stage", "Status updated from $oldStatus to $newStatus")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onStageStatusUpdated(oldStatus: StageStatus, newStatus: StageStatus) {
+  		// Local user's stage status changed
+  		print("Status updated from \(oldStatus) to \(newStatus)")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onStageStatusUpdated(StageStatus oldStatus, StageStatus newStatus) {
+  		// Local user's stage status changed
+  		print("Status updated from $oldStatus to $newStatus");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("stageStatusUpdate", (status) => {
+  	console.log("Stage status updated:", status);
+  });
+  ```
+</RTKCodeSnippet>
+
+### 새로운 단계 요구
+
+새로운 참가자 요청이 무대에 가입 할 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("newStageRequest", (request) => {
+  	console.log("New stage request:", request);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("newStageRequest", (request) => {
+  	console.log("New stage request:", request);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("newStageRequest", (request) => {
+  	console.log("New stage request:", request);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onNewStageAccessRequest(participant: RtkRemoteParticipant) {
+  		// New participant requested to join the stage
+  		Log.d("Stage", "New stage request from: ${participant.name}")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onNewStageAccessRequest(participant: RtkRemoteParticipant) {
+  		// New participant requested to join the stage
+  		print("New stage request from: \(participant.name)")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onNewStageAccessRequest(RtkRemoteParticipant participant) {
+  		// New participant requested to join the stage
+  		print("New stage request from: ${participant.name}");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("newStageRequest", (request) => {
+  	console.log("New stage request:", request);
+  });
+  ```
+</RTKCodeSnippet>
+
+### 단계 요청 승인
+
+단계 요청이 호스트에 의해 승인 될 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("stageRequestApproved", (data) => {
+  	console.log("Stage request approved:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("stageRequestApproved", (data) => {
+  	console.log("Stage request approved:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("stageRequestApproved", (data) => {
+  	console.log("Stage request approved:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		Log.d("Stage", "Stage request approved")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		print("Stage request approved")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onStageAccessRequestAccepted() {
+  		// Host accepted the join stage request or invited user directly to stage
+  		print("Stage request approved");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("stageRequestApproved", (data) => {
+  	console.log("Stage request approved:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+### 단계 요구 거부
+
+호스트가 단계 요청을 거부 할 때 방출.
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  meeting.stage.on("stageRequestRejected", (data) => {
+  	console.log("Stage request rejected:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```typescript
+  meeting.stage.on("stageRequestRejected", (data) => {
+  	console.log("Stage request rejected:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```js
+  meeting.stage.on("stageRequestRejected", (data) => {
+  	console.log("Stage request rejected:", data);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ```kotlin
+  meeting.addStageEventListener(object : RtkStageEventListener {
+  	override fun onStageAccessRequestRejected() {
+  		// Host rejected the join stage request
+  		Log.d("Stage", "Stage request rejected")
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  ```swift
+  extension WebinarViewModel: RtkStageEventListener {
+  	func onStageAccessRequestRejected() {
+  		// Host rejected the join stage request
+  		print("Stage request rejected")
+  	}
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  ```dart
+  class StageEventListener extends RtkStageEventListener {
+  	@override
+  	void onStageAccessRequestRejected() {
+  		// Host rejected the join stage request
+  		print("Stage request rejected");
+  	}
+  }
+
+  meeting.addStageEventListener(StageEventListener());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  ```tsx
+  meeting.stage.on("stageRequestRejected", (data) => {
+  	console.log("Stage request rejected:", data);
+  });
+  ```
+</RTKCodeSnippet>

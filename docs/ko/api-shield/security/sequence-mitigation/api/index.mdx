@@ -1,0 +1,115 @@
+---
+title: API를 통해 sequence mitigation 구성하기
+pcx_content_type: how-to
+
+sidebar:
+  order: 3
+  label: API
+head:
+  - tag: title
+    content: API를 통해 sequence mitigation 구성하기
+
+---
+
+API를 통해 sequence mitigation을 구성하는 과정은 시퀀스를 선택하고 규칙 유형과 동작을 설정하여 rule object를 만드는 것으로 이루어집니다.
+
+```json title="규칙 객체 예시"
+{
+    "id": "d4909253-390f-4956-89fd-92a5b0cd86d8",
+    "title": "<RULE_TITLE>",
+    "kind": "allow",
+    "action": "block",
+    "sequence": [
+     "0d9bf70c-92e1-4bb3-9411-34a3bcc59003",
+     "b704ab4d-5be0-46e0-9875-b2b3d1ab42f9"
+    ],
+    "priority": 0,
+    "last_updated": "2023-07-24T12:06:51.796286Z",
+    "created_at": "2023-07-24T12:06:51.796286Z"
+}
+```
+
+이 규칙은 endpoint `0d9bf70c-92e1-4bb3-9411-34a3bcc59003`에 대한 요청이 endpoint `b704ab4d-5be0-46e0-9875-b2b3d1ab42f9`에 대한 요청보다 먼저 와야 함을 강제합니다.
+
+그렇지 않으면 endpoint `b704ab4d-5be0-46e0-9875-b2b3d1ab42f9`에 대한 요청이 차단됩니다.
+
+### 필드
+
+| <div style="width:115px">필드 이름</div> | 설명 | 가능한 값 | 예시 |
+| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `id`                                      | 규칙을 식별하는 불투명한 식별자입니다. | UUID | `"d4909253-390f-4956-89fd-92a5b0cd86d8"` |
+| `title`                                   | 규칙을 식별하는 데 도움이 되는 문자열입니다. | 1~50자 값 | `"Allow checkout sequence"` |
+| `kind`                                    | 이 규칙의 의미를 정의합니다. Block rules는 negative security model이며 특정 시퀀스를 명시적으로 거부할 수 있습니다. Allow rules는 positive security model이며 구성된 시퀀스를 제외한 모든 것을 거부합니다. | `block`, `allow` | `"block"` |
+| `action`                                  | 규칙이 매치될 때 수행할 firewall action입니다. | `block`,`log` | `"log"` |
+| `sequence`                                | 이 규칙의 시퀀스를 구성하는 작업들(Endpoint Management에서 가져옴)을 나타냅니다. 현재는 길이가 2인 시퀀스만 지원합니다. 첫 번째 operation은 시작 엔드포인트이고 두 번째 operation은 종료 엔드포인트입니다. | Endpoint Management의 유효한 operation ID 두 개를 가진 배열 | `["0d9bf70c-92e1-4bb3-9411-34a3bcc59003", "b704ab4d-5be0-46e0-9875-b2b3d1ab42f9"]` |
+| `priority`                                | 다른 모든 규칙과의 관계에서 이 규칙의 우선순위를 나타냅니다. priority 값이 높은 규칙이 낮은 값의 규칙보다 먼저 평가됩니다. 두 규칙의 우선순위가 같다면 추가된 순서대로 평가됩니다. | 유효한 정수 | `10` |
+| `last_updated`                            | 이 규칙이 마지막으로 변경된 시점입니다. | 날짜 문자열 | `2023-05-02T12:06:51.796286Z` |
+| `created_at`                              | 이 규칙이 생성된 시점입니다. | 날짜 문자열 | `2023-05-02T12:06:51.796286Z` |
+
+[Endpoint Management](/api-shield/management-and-monitoring/#export-a-schema)에서 schema를 export하거나 [API](/api/resources/api_gateway/subresources/operations/methods/list/)를 통해 엔드포인트의 operation ID를 찾을 수 있습니다.
+
+### Sequence rules 나열
+
+규칙을 나열하려면 `GET` 명령을 사용합니다.
+
+```bash title="cURL command"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/seqrules"
+```
+
+### 단일 sequence rule 추가
+
+하나의 규칙을 만들려면 `POST` 명령을 사용합니다.
+
+이 명령은 기존 모든 규칙에 단일 규칙을 추가합니다. Priority를 사용해 해당 규칙을 다른 규칙들 사이, 앞, 뒤에 배치할 수 있습니다.
+
+응답에는 작성된 규칙과 그 ID가 반영됩니다. 규칙에 문제가 있을 경우에는 문제 지점을 가리키는 `json` 경로와 함께 적절한 오류 메시지가 제공됩니다.
+
+```bash title="Example using cURL"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/seqrules/rules" \
+--header "Content-Type: application/json" \
+--data '{
+  "title": "string",
+  "kind": "block",
+  "action": "block",
+  "sequence": [
+    "0d9bf70c-92e1-4bb3-9411-34a3bcc59003",
+    "b704ab4d-5be0-46e0-9875-b2b3d1ab42f9"
+  ],
+  "priority": 0
+}'
+```
+
+### 여러 sequence rules 추가
+
+새 규칙을 일괄 설정하려면 `PUT` 명령을 사용합니다.
+
+이 작업은 기존 규칙을 모두 덮어쓰고 요청 본문에 지정한 규칙으로 대체합니다. 규칙 배열을 빈 배열로 설정하면 모든 규칙이 제거됩니다.
+
+응답에는 작성된 규칙과 그 ID가 반영됩니다. 규칙에 문제가 있으면 문제 지점을 가리키는 `json` 경로와 함께 적절한 오류 메시지가 제공됩니다.
+
+```bash title="Example using cURL"
+curl --request PUT "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/seqrules" \
+--header "Content-Type: application/json" \
+--data '{
+  "rules": [
+    {
+      "title": "<RULE_TITLE>",
+      "kind": "block",
+      "action": "block",
+      "sequence": [
+        "0d9bf70c-92e1-4bb3-9411-34a3bcc59003",
+        "b704ab4d-5be0-46e0-9875-b2b3d1ab42f9"
+      ],
+      "priority": 0
+    }
+  ]
+}'
+```
+
+### 규칙 삭제
+
+규칙 ID와 함께 `DELETE` 명령을 사용해 규칙을 삭제할 수 있습니다.
+
+```bash title="cURL command"
+curl --request DELETE "https://api.cloudflare.com/client/v4/zones/{zone_id}/api_gateway/seqrules/rules/d4909253-390f-4956-89fd-92a5b0cd86d8"
+```

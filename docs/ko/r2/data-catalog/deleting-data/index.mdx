@@ -1,0 +1,223 @@
+---
+pcx_content_type: concept
+title: 데이터 삭제
+description: R2 데이터 카탈로그에서 데이터를 제대로 삭제하는 방법
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/deleting-data/'
+translation_source_md: 'https://developers.cloudflare.com/r2/data-catalog/deleting-data/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree } from "~/components"
+import { Tabs, TabItem } from "~/components"
+import { InlineBadge } from "~/components";
+
+R2에서 데이터 삭제 Data Catalog 또는 Apache Iceberg 카탈로그는 카탈로그 자체를 통해 트랜잭션에서 작업을 수행해야 합니다. 수동으로 메타 데이터 또는 데이터 파일을 직접 삭제하는 것은 데이터 카탈로그 손상으로 이어질 수 있습니다.
+
+## 자동 테이블 정비
+
+모델 번호: R2 Data Catalog는 snapshot expiration 및 compaction과 같은 테이블 유지 보수 작업을 자동으로 관리할 수 있습니다. 이 지속적인 가동은 대기권과 저장 비용을 아래로 지킵니다.
+
+- **Snapshot 만료**: 자동 제거 오래된 스냅 샷. 이것은 메타 데이터 오버 헤드를 감소시킵니다. Data 파일은 orphan 파일 제거가 실행 될 때까지 제거되지 않습니다.
+- **압축**: 작은 데이터 파일이 더 큰 것. 이 기능을 최적화하고 쿼리 중 파일 수를 줄일 수 있습니다.
+
+자동 유지 보수를 활성화하지 않고 수동으로 이러한 작업을 처리해야합니다.
+
+더 알아보기[테이블 정비](/r2/data-catalog/table-maintenance/)문서.
+
+## R2 데이터 카탈로그에서 자동 테이블 유지 보수를 가능하게하는 예
+
+```bash
+#전체 카탈로그에 대한 자동 스냅 샷 만료 가능
+npx wrangler r2 bucket catalog snapshot-expiration enable my-bucket \
+	--older-than-days 30 \
+	--retain-last 5
+
+#전체 카탈로그에 대한 자동 압축
+npx wrangler r2 bucket catalog compaction enable my-bucket \
+	--target-size 256
+```
+
+추가 예제를 참조하십시오.[카탈로그](/r2/data-catalog/manage-catalogs/)문서.
+
+## 수동으로 삭제 및 데이터 제거
+
+당신은 수동으로 데이터를 삭제해야합니다 :
+
+- GDPR 또는 CCPA와 같은 데이터 보존 정책을 준수합니다.
+- 상태 논리를 사용하여 선택 기반 삭제.
+- QXQX0388XQ 데이터 카탈로그가 관리되지 않는 stale 또는 unreferenceXQD 파일 제거
+
+다음은 PySpark를 사용하는 기본 예이지만 유사한 작업은 다른 Iceberg 호환 엔진을 사용하여 수행 할 수 있습니다. PySpark를 구성하려면,[이름 \*](/r2/data-catalog/config-examples/spark-python/)또는 공식[PySpark 문서](https://spark.apache.org/docs/latest/api/python/getting_started/index.html).
+
+### 테이블에서 행을 삭제
+
+```py
+#새로운 스냅 샷을 만들고 Cleanup에 대한 오래된 파일을 표시
+spark.sql("""
+	DELETE FROM r2dc.namespace.table_name
+	WHERE column_name = 'value'
+""")
+
+#다음은 TRUNCATE 작업입니다.
+spark.sql("DELETE FROM r2dc.namespace.table_name")
+
+#큰 삭제를 위해, 분할된 테이블을 사용하고 더 빠른 성과를 위한 전체 파티션을 삭제하십시오:
+spark.sql("""
+    DELETE FROM r2dc.namespace.table_name
+    WHERE date_partition < '2024-01-01'
+""")
+```
+
+### Dropping 테이블과 네임스페이스
+
+```py
+#카탈로그에서 테이블을 제거하지만 R2 저장에 데이터 파일을 유지
+spark.sql("DROP TABLE r2dc.namespace.table_name")
+
+#⚠️ DANGER : 영구적으로 R2의 모든 데이터 파일을 삭제
+#이 가동은 undone일 수 없습니다
+spark.sql("DROP TABLE r2dc.namespace.table_name PURGE")
+
+#Namespace 내의 모든 테이블을 드롭하기 위해 CASCADE를 사용하십시오.
+spark.sql("DROP NAMESPACE r2dc.namespace_name CASCADE")
+
+#영구적으로 데이터 파일을 삭제하기 위해 CASCADE를 실행하기 전에 테이블을 PURGE해야합니다
+#namespace에서 모든 테이블에 루프를 수행 할 수 있습니다.
+tables = spark.sql("SHOW TABLES IN r2dc.namespace_name").collect()
+for row in tables:
+	table_name = row['tableName']
+  spark.sql(f"DROP TABLE r2dc.namespace_name.{table_name} PURGE")
+spark.sql("DROP NAMESPACE r2dc.namespace_name CASCADE")
+```
+
+:::caution\[데이터 손실 경고]
+`DROP TABLE ... PURGE`R2 저장에서 모든 데이터 파일을 영구적으로 삭제합니다. 이 가동은 undone이고 time-travel 기능을 우회할 수 없습니다.
+주요 특징
+
+### 수동 정비 가동
+
+```py
+#deletion에 표시된 오래된 메타데이터 및 데이터 파일 제거
+#다음은 지난 5 스냅 샷을 유지하고 11 월 28 일 이전의 파일을 삭제 2024
+spark.sql("""
+	CALL r2dc.system.expire_snapshots(
+    table => 'r2dc.namespace_name.table_name',
+    older_than => TIMESTAMP '2024-11-28 00:00:00',
+     retain_last => 5
+  )
+""")
+
+#제거 unreferenced 데이터 파일에서 R2 저장 (오판 파일)
+spark.sql("""
+  CALL r2dc.system.remove_orphan_files(
+    table => 'namespace.table_name'
+  )
+""")
+
+#대상 파일 크기 (예 : 512 MB)로 데이터 파일을 다시 작성
+spark.sql("""
+  CALL r2dc.system.rewrite_data_files(
+    table => 'r2dc.namespace_name.table_name',
+    options => map('target-file-size-bytes', '536870912')
+  )
+""")
+```
+
+## 아파치 Iceberg 메타데이터
+
+Apache Iceberg는 테이블 데이터를 효율적으로 관리하기 위해 계층화된 메타데이터 구조를 사용합니다. 다음은 주요 구성 요소 및 파일 구조입니다.
+
+- **메타데이터.json**: 현재 스냅샷에 대한 최상위 JSON 파일
+- **스냅 샷-**\*: 시간에 주어진 점을 위한 Immutable 테이블 국가
+- **표시-\*.avro**: 주어진 스냅 샷을위한 모든 표정 파일을 나열하는 Avro 파일
+- **파일 형식 \*.avro**: Avro 파일 추적 데이터 파일 및 통계
+- **자료\*.parquet**: 실제 테이블 데이터를 포함하는 Parquet 파일
+- **이름 \***: Unchanged 파일이 snapshots에서 재사용됩니다.
+
+:::카트로션
+수동으로 수정하거나 이 파일의 삭제는 직접 데이터 카탈로그 손상에 지도할 수 있습니다.
+주요 특징
+
+<FileTree>
+  - 메타데이터.json**Metadata 파일**- 현재 스냅 샷 포인트
+    - 테이블 Schema
+    - 분할 Spec
+    - 정렬 순서
+    - 스냅샷
+      - 스냅 샷 - 3051729675574597004.avro**스냅 샷 1**(화학)
+        - 예제 - 목록 -abc123.avro**Manifest 목록**
+          - 파일 형식 : .avro**Manifest 파일**
+            - data-00001.parquet (10 MB의 50K 줄)
+            - data-00002.parquet (12 MB, 60K 행)
+            - data-00003.parquet (11 MB, 55K 행)
+          - 파일 형식-002.avro
+            - data-00004.parquet (9 MB, 45K 행)
+            - data-00005.패켓 (10 MB, 50K 행)
+      - 스냅 샷 - 3051729675574597005.avro**스냅 샷 2**(현재)
+        - 현명한 목록 def456.avro**Manifest 목록**
+          - 파일 형식 : .avr&#x6F;*( Snapshot에서 재사용 1)*
+            - 자료-00001.parquet
+            - 자료-00002.회
+            - 자료-00003.회
+          - 파일-003.avr&#x6F;*(새로운)*
+            - data-00006.parquet (11 MB, 53K 행)
+            - data-00007.parquet (10 MB, 51K 행)
+            - data-00008.평 (12 MB, 58K 행)
+</FileTree>
+
+### deletion 도중 일어나는 것
+
+Apache Iceberg는 두 개의 deletion 모드를 지원합니다.**복사본 (COW)**·**메지 온더 (MOR)**. 둘 다 새로운 snapshot를 창조하고 cleanup를 위한 오래된 파일을 표시하고, 그러나 deletion를 다르게 취급하십시오:
+
+| 이름 \*        | 복사본 (COW)             | 메지 온더 (MOR)                                  |
+| ------------ | --------------------- | -------------------------------------------- |
+| **삭제 방법**    | 삭제된 행 없이 데이터 파일을 재 작성 | 삭제 파일 표시 줄을 생성하여 건너뛰기                        |
+| **Query 성능** | 빠른 (필요한 합병 없음)        | Slower (읽을 시간 병합 필요)                         |
+| **연락처**      | Slower (데이터 파일을 삭제)   | 빠른 (만 쓰기 delete markers)                     |
+| **저장 충격**    | 새 데이터 파일 만들기 즉시       | 시간이 지남에 따라 파일을 삭제                            |
+| **관련 상품**    | Snapshot 만료           | 스냅 샷 expiration + 컴팩트 (`rewrite_data_files`) |
+| **제품 정보**    | 자세히보기                 | 빈번한 작은 mutations와 쓰기 무거운 작업 부하               |
+
+:::note\[모든 삭제 모드에 대한 중요]
+
+- 삭제 된 데이터는**즉시 제거**R2 - 파일이 정리되어 있습니다.
+- 이름 \*[스냅 샷 expiration](/r2/data-catalog/table-maintenance)QXQX0395XQ 데이터 카탈로그에서 이전 스냅 샷 및 파일을 자동으로 정리합니다.
+  주요 특징
+
+### Common deletion 운영
+
+이 작업은 COW 및 MOR 테이블 모두를위한 동일한 방법을 작동 :
+
+| - 연혁                   | 그것은 무엇입니까?             | 데이터 삭제?      | 대화할 수 있나요?          |
+| ---------------------- | ---------------------- | ------------ | ------------------- |
+| `DELETE FROM`          | 일치하는 조건을 제거            | 없음 (클립업에 표시) | 시간 여행[^1]           |
+| `DROP TABLE`           | 카탈로그에서 테이블 제거          | 이름 \*        | 예 (데이터 파일이 존재하는 경우) |
+| `DROP TABLE ... PURGE` | 테이블 제거 및 데이터 삭제        | **이름 \***    | **이름 \***           |
+| `expire_snapshots`     | 이전 스냅샷/파일 정리           | **이름 \***    | **이름 \***           |
+| `remove_orphan_files`  | unreferenced 파일을 제거합니다 | **이름 \***    | **이름 \***           |
+
+### MOR-specific 운영
+
+Merge-on-Read 테이블의 경우 성능에 대한 삭제를 수동으로 적용해야 할 수 있습니다.
+
+| - 연혁                     | 그것은 무엇입니까? | 이용 시                        |
+| ------------------------ | ---------- | --------------------------- |
+| `rewrite_data_files`(액션) | 삭제 및 파일 통합 | 많은 삭제 파일로 인해 쿼리 성능 degrades |
+
+:::참조
+R2 데이터 카탈로그는 automate 할 수 있습니다[rewriting 자료 파일](/r2/data-catalog/table-maintenance/)당신을 위해.
+주요 특징
+
+## 관련 자료
+
+- [테이블 정비](/r2/data-catalog/table-maintenance)- 자동 유지 보수 작업에 대해 알아보기
+- [R2 데이터 카탈로그](/r2/data-catalog/)- 개요 및 시작 가이드
+- [Query 데이터](/r2-sql/query-data)- R2 SQL로 쿼리 테이블
+- [아파치 Iceberg 정비](https://iceberg.apache.org/docs/latest/maintenance/)- Table Maintenance의 공식 Iceberg 문서
+
+[^1]: 운행시간까지`expire_snapshots`이름 \*

@@ -1,0 +1,143 @@
+---
+pcx_content_type: how-to
+title: Google Firebase로 Turnstile 구현
+sidebar:
+  order: 2
+  label: Google 파이어베이스
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/turnstile/extensions/google-firebase/'
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/extensions/google-firebase/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps, DashButton } from "~/components"
+
+Turnstile는 입니다[확장 가능](https://extensions.dev/extensions/cloudflare/cloudflare-turnstile-app-check-provider)이름 \*[구글의 Firebase](https://firebase.google.com/)플랫폼으로[앱 확인](https://firebase.google.com/docs/app-check)회사 소개 Cloudflare Turnstile의 봇 탐지 및 도전 기능을 활용하여 Firebase 백엔드 서비스에 대한 요청을 확인하고 실제 사용자의 응용 프로그램과 상호 작용할 수 있습니다.
+
+Google Firebase는 개발자 빌드, 개선 및 모바일 및 웹 응용 프로그램을 성장시키는 다양한 도구 및 서비스를 제공하는 포괄적 인 앱 개발 플랫폼입니다.
+
+Firebase App Check는 Cloud Firestore, Realtime Database, Cloud Storage, Functions와 같은 Firebase 리소스를 보호하는 데 도움이되며 자동화된 사기 공격 및 서비스 (DoS) 공격과 같은 기능을 통해 수신 요청이 합법적 인 방문자 및 신뢰할 수있는 소스로부터 보호됩니다.
+
+## 1. Google Firebase 프로젝트 설정
+
+<Steps>
+  1. Firebase 프로젝트 만들기[Firebase 콘솔](https://console.firebase.google.com/).
+  2. 제품정보**프로젝트**새로운 프로젝트를 만들 수있는 프롬프트를 따르십시오.
+  3. 프로젝트에 앱을 추가하세요.
+  4. 프로젝트에서 개요, 선택**앱 추가**그리고 플랫폼을 선택하십시오:**웹 사이트**.
+  5. [앱 등록](https://firebase.google.com/docs/web/setup?hl=en\&authuser=0#register-app)당신의 Firebase 윤곽을 얻는 가이드를 따르십시오.
+</Steps>
+
+:::참조
+
+Turnstile로 연결하기 위해 먼저 웹 앱을 등록하는 것이 중요합니다.
+주요 특징
+
+## 2. Cloudflare Turnstile를 설치하십시오
+
+<Steps>
+  1. Cloudflare Turnstile 사이트 만들기[Cloudflare Turnstile 대시보드](https://dash.cloudflare.com/?to=/:account/turnstile).
+  2. 새로운 위젯을 만들고 얻을[사이트키와 비밀 키](/turnstile/get-started/#get-a-sitekey-and-secret-key).
+     - Turnstile 위젯을 구성하는 도메인은 웹 앱의 도메인이어야합니다.
+     - 더 보기[위젯 모드](/turnstile/concepts/widget/)\*필수**옵션 정보**.
+</Steps>
+
+## 3. 통합 Firebase App Turnstile로 검사
+
+### 3a. Firebase에서 앱 확인
+
+<Steps>
+  1. 오시는 길[발사체 연장 허브에 있는 Cloudflare Turnstile](https://extensions.dev/extensions/cloudflare/cloudflare-turnstile-app-check-provider).
+  2. Firebase 프로젝트에 Cloudflare Turnstile 확장을 설치하십시오.
+  3. 이름 \*[클라우드 기능](https://cloud.google.com/functions?hl=en), [Artifact 등록](https://cloud.google.com/artifact-registry)·[비밀 관리자](https://cloud.google.com/security/products/secret-manager?hl=en).
+  4. Cloudflare Turnstile 및 Firebase 앱 ID에서 비밀 키를 입력하십시오.
+  5. 제품정보**설치 확장**.
+</Steps>
+
+### 3b. Cloudflare 확장에 대한 보조 액세스
+
+<Steps>
+  1. 프로젝트의 IAM 섹션에서 Cloudflare 확장에 대한 부여 액세스**Grant 액세스**이름 \***본문 바로가기**.
+  2. 제품정보`ext-cloudflare-turnstile`드롭다운 메뉴에서.
+  3. 토큰을 필터링 할 때, 선택**서비스 계정 Token Creator**.
+</Steps>
+
+### 3c. Turnstile와 앱에서 Firebase 구성
+
+<Steps>
+  1. 이름 \*`index.ts`파일.
+  2. Firebase 설정 추가.
+
+     ```js
+     import { initializeApp } from "firebase/app";
+     import { getAppCheck, initializeAppCheck } from "firebase/app-check";
+     import {
+         CloudflareProviderOptions,
+     } from '@cloudflare/turnstile-firebase-app-check';
+
+     const firebaseConfig = {
+     apiKey: "YOUR_API_KEY",
+     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+     projectId: "YOUR_PROJECT_ID",
+     storageBucket: "YOUR_PROJECT_ID.appspot.com",
+     messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+     appId: "YOUR_APP_ID",
+     };
+
+     const app = initializeApp(firebaseConfig);
+
+     //App Check를 초기화
+     const siteKey = 'YOUR-SITEKEY';
+     const HTTP_ENDPOINT = '${function:ext-cloudflare-turnstile-app-check-provider-tokenExchange.url}';
+
+     const cpo = new CloudflareProviderOptions(HTTP_ENDPOINT, siteKey);
+     const provider = new CustomProvider(cpo);
+
+     initializeAppCheck(app, { provider });
+
+     //Cloudflare Turnstile에서 토큰을 검색
+     cpo.getToken().then(({ token }) => {
+         document.getElementById('app-check-token').innerHTML = token;
+     });
+
+     ```
+</Steps>
+
+### 3d. 웹 애플리케이션에서 App Check 토큰을 검증
+
+웹 애플리케이션에서 App Check 토큰을 확인하려면 Firebase의 참조[토큰 검증 가이드](https://firebase.google.com/docs/app-check/custom-resource-backend?hl=en#verification).
+
+```js
+import express from "express";
+import { initializeApp } from "firebase-admin/app";
+import { getAppCheck } from "firebase-admin/app-check";
+
+const expressApp = express();
+const firebaseApp = initializeApp();
+
+const appCheckVerification = async (req, res, next) => {
+    const appCheckToken = req.header("X-Firebase-AppCheck");
+
+    if (!appCheckToken) {
+        res.status(401);
+        return next("Unauthorized");
+    }
+
+    try {
+        const appCheckClaims = await getAppCheck().verifyToken(appCheckToken);
+
+        //validToken()가 성공하면 스택에 다음 미들웨어 함수가 계속됩니다.
+        return next();
+    } catch (err) {
+        res.status(401);
+        return next("Unauthorized");
+    }
+}
+
+expressApp.get("/yourApiEndpoint", [appCheckVerification], (req, res) => {
+    //손잡이 요구.
+});
+```

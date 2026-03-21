@@ -1,0 +1,266 @@
+---
+title: Cloudflare로 맞춤형 콘텐츠 제공하기
+pcx_content_type: concept
+sidebar:
+  order: 3
+  label: 맞춤형 콘텐츠 제공
+---
+
+import { DashButton, APIRequest } from "~/components";
+
+콘텐츠 협상은 하나의 URL에서 서로 다른 버전의 리소스를 제공하여 최종 사용자 경험을 맞춤화하는 방식입니다. 대표적인 예로는 특정 언어(`Accept-Language`)에 맞는 콘텐츠 제공, 디바이스(`User-Agent`) 최적화, 최신 이미지 포맷(`Accept`) 제공이 있습니다.
+
+Cloudflare의 글로벌 네트워크는 이러한 작업을 대규모로 처리하도록 설계되어 있습니다. 차세대 이미지 제공 같은 일반적인 시나리오에서는 전용 기능을 통해 이러한 협상이 간소화됩니다. 더 맞춤화된 로직이 필요한 경우 Cloudflare는 Transform Rules, Snippets, Custom Cache Keys, Workers를 포함한 도구 세트를 제공하므로, 매번 각 사용자에게 올바른 콘텐츠가 제공되도록 세밀하게 제어할 수 있습니다.
+
+---
+
+## 쿼리 문자열 사용
+
+[Transform Rule](/rules/transform/) 방식은 방문자 위치 기반 콘텐츠처럼 별도의 URL을 만들 수 있을 때 이상적입니다.
+
+### 위치 정보 예시
+
+이 예시에서는 전자상거래 사이트를 운영하면서 방문자 국가에 따라 현지 통화로 가격을 표시하려고 합니다.
+
+1. Cloudflare 대시보드에서 Rules **Overview** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. **Create rule**을 선택하고 **URL Rewrite Rule** 옵션을 선택합니다.
+3. `Vary by Country - Canada`와 같이 설명적인 이름을 입력합니다.
+4. **If incoming requests match...**에서 **Custom filter expression**을 선택합니다.
+5. **When incoming requests match...** 아래에서 다음 표현식을 생성합니다.
+   - **Field:** `Country`
+   - **Operator:** `equals`
+   - **Value:** `Canada`
+6. **Then...** 아래에서:
+    - **Path**는 **Preserve**를 선택합니다.
+    - **Query**는 **Rewrite to**: **Dynamic** `loc=ca`를 선택합니다.
+7. **Save**를 선택합니다.
+
+이제 캐나다에서 `/products/item`으로 들어오는 요청은 오리진이나 캐시에 도달하기 전에 `/products/item?loc=ca`로 변환되어 별도의 캐시 항목을 만듭니다.
+
+:::note[Availability]
+Free, Pro, Business, Enterprise 플랜
+:::
+
+---
+
+## Vary for Images
+
+[Vary for Images](/cache/advanced-configuration/vary-for-images/)는 오리진이 어떤 변형을 지원하는지 Cloudflare에 알려줍니다. 그러면 Cloudflare는 각 버전을 따로 캐시하고, 매번 오리진에 문의하지 않고 브라우저에 맞는 버전을 제공합니다. 이 기능은 Cloudflare API를 통해 관리됩니다.
+
+### Vary for Images 활성화
+
+이 기능을 활성화하려면 API를 사용해 _variants rule_을 생성하세요. 이 규칙은 파일 확장자와 오리진이 제공할 수 있는 이미지 포맷을 매핑합니다.
+
+예를 들어 다음 API 호출은 `.jpeg` 및 `.jpg` 파일에 대해 오리진이 `image/webp`와 `image/avif` 변형을 제공할 수 있음을 Cloudflare에 알려줍니다.
+
+<APIRequest
+  path="/zones/{zone_id}/cache/variants"
+  method="PATCH"
+  json={{
+    value: {
+      jpeg: ["image/webp", "image/avif"],
+      jpg: ["image/webp", "image/avif"]
+    }
+  }}
+/>
+
+규칙을 생성한 뒤 Cloudflare는 각 이미지 변형에 대해 별도 캐시 항목을 만들어, 최신 브라우저를 사용하는 사용자에게 더 나은 성능을 제공합니다.
+
+:::note[Availability]
+Pro, Business, Enterprise 플랜
+:::
+
+## 프로그래밍 방식 캐싱에 Snippets 사용
+
+[Snippets](/rules/snippets/)는 Cloudflare를 통과하는 요청에 대해 엣지에서 실행되는 독립형 JavaScript fetch 핸들러입니다. 사용자에게 보이는 URL을 바꾸지 않고도 캐시 키와 응답 동작을 프로그래밍 방식으로 제어할 수 있으므로, 캐시에 대한 완전한 제어권을 제공합니다.
+
+### 예시: A/B 테스트
+
+이 예시에서는 `ab-test`라는 쿠키(`group-a` 또는 `group-b` 값)를 이용해 A/B 테스트를 진행합니다. 각 그룹에 대해 서로 다른 페이지 버전을 캐시하고 싶다고 가정합니다.
+
+1. Cloudflare 대시보드에서 **Snippets** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/rules/snippets" />
+
+2. **Create new Snippet**을 선택하고 이름을 `ab-test-caching`으로 지정합니다.
+3. 다음 코드를 붙여 넣습니다. 이 코드는 `ab-test` 쿠키를 기준으로 캐시 키를 수정하고 응답을 30일간 캐시합니다.
+
+```js
+const CACHE_DURATION = 30 * 24 * 60 * 60; // 30 days
+
+export default {
+  async fetch(request) {
+    // Construct a new URL for the cache key based on the A/B cookie
+    const abCookie = request.headers.get('Cookie')?.match(/ab-test=([^;]+)/)?.[1] || 'control';
+    const url = new URL(request.url);
+    url.pathname = `/ab-test/${abCookie}${url.pathname}`;
+
+    const cacheKey = new Request(url, request);
+    const cache = caches.default;
+
+    let response = await cache.match(cacheKey);
+    if (!response) {
+      // If not in cache, fetch from origin
+      response = await fetch(request);
+      response = new Response(response.body, response);
+      response.headers.set("Cache-Control", `s-maxage=${CACHE_DURATION}`);
+      // Put the response into cache with the custom key
+      await cache.put(cacheKey, response.clone());
+    }
+    return response;
+  },
+};
+```
+
+4. Snippet을 저장하고 배포합니다.
+5. Snippets 대시보드에서 **Attach to routes**를 선택해 해당 Snippet을 라우트에 연결합니다.
+
+:::note[Availability]
+Pro, Business, Enterprise 플랜
+:::
+
+## Custom Cache Keys (Enterprise)
+
+계정이 Enterprise 플랜에 있다면 [Custom Cache Keys](/cache/how-to/cache-keys) 기능을 통해 어떤 요청 속성을 캐시 키에 포함할지 코드 없이 정의할 수 있습니다.
+
+Custom Cache Key 옵션:
+
+- 디바이스 유형 기준 캐시
+- `No query string parameters except` 쿼리 문자열 옵션
+- 헤더와 값 포함
+- 쿠키 이름과 값 포함
+- User: Device type, Country, Language
+
+### 예시: 동일한 URL, 서로 다른 콘텐츠
+
+오리진이 동일한 URL에 대해 `Accept` 헤더를 기준으로 `application/json` 또는 `text/html`처럼 서로 다른 콘텐츠 유형을 제공한다면, 사용자 지정 캐시 키를 사용해 이를 별도로 캐시하세요.
+
+1. Cloudflare 대시보드에서 **Cache Rules** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/cache-rules" />
+
+2. **Create rule**을 선택합니다.
+3. `Vary by Accept Header`와 같은 규칙 이름을 입력합니다.
+4. 규칙이 적용될 조건(예: 특정 호스트 이름 또는 경로)을 설정합니다.
+5. **Cache key** 아래에서 **Use custom key**를 선택합니다.
+6. **Add new**를 선택합니다.
+    - **Type**: `Header`
+    - **Name**: `Accept`
+    - **Value**: 각 `value`를 추가하거나, 모두 포함하려면 비워 둡니다.
+7. **Deploy**를 선택합니다.
+
+이 구성은 `Accept` 헤더 값을 기준으로 별도의 캐시 항목을 만들어, API의 콘텐츠 협상을 존중합니다.
+
+:::note[Availability]
+Enterprise 플랜 전용
+:::
+
+## 고급 로직에는 Cloudflare Workers 사용
+
+복잡한 캐싱 시나리오에서는 [Cloudflare Workers](/cache/interaction-cloudflare-products/workers/)가 맞춤 로직을 대규모로 실행하기에 적합한 완전한 서버리스 환경을 제공합니다.
+
+### 예시: 디바이스 유형 - Free/Pro/Biz (Tiered Cache 없음)
+
+이 Worker는 방문자가 모바일인지 데스크톱인지 판별해 각 유형별로 별도의 캐시 항목을 만들고, 올바른 버전의 사이트가 제공되고 캐시되도록 합니다.
+
+```js
+export default {
+  async fetch(request, env, ctx) {
+    const userAgent = request.headers.get('User-Agent') || '';
+    const deviceType = userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+
+    // Create a new URL for the cache key that includes the device type
+    const url = new URL(request.url);
+    url.pathname = `/${deviceType}${url.pathname}`;
+
+    const cacheKey = new Request(url, request);
+    const cache = caches.default;
+
+    let response = await cache.match(cacheKey);
+
+    if (!response) {
+      console.log(`Cache miss for ${deviceType} device. Fetching from origin.`);
+      response = await fetch(request);
+      let responseToCache = response.clone();
+      ctx.waitUntil(cache.put(cacheKey, responseToCache));
+    }
+
+    return response;
+  },
+};
+```
+
+:::note[Availability]
+Free 및 Paid 플랜
+:::
+
+### 예시: 디바이스 유형 - Enterprise (Tiered Cache 사용)
+
+이 Worker는 방문자가 모바일인지 데스크톱인지 판단하고 각 유형에 대해 별도의 캐시 항목을 생성하여 올바른 버전의 사이트가 제공되고 캐시되도록 합니다. Enterprise의 `cf.customCacheKey` 기능을 사용합니다.
+
+```js
+export default {
+  async fetch(request) {
+    // 1. Determine the device type from the User-Agent header
+    const userAgent = request.headers.get('User-Agent') || '';
+    const deviceType = userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+
+    // 2. Create a custom cache key by appending the device type to the URL
+    const customCacheKey = `${request.url}-${deviceType}`;
+
+    // 3. Fetch the response. Cloudflare's cache automatically uses the
+    //    customCacheKey for cache operations (match, put).
+    const response = await fetch(request, {
+      cf: {
+        cacheKey: customCacheKey,
+      },
+    });
+
+    // Optionally, you can modify the response before returning it
+    // For example, add a header to indicate which cache key was used
+    const newResponse = new Response(response.body, response);
+    newResponse.headers.set("X-Cache-Key", customCacheKey);
+    return newResponse;
+  },
+};
+```
+
+:::note[Availability]
+Enterprise 전용
+:::
+
+## 예시: Next.js RSC 페이로드 캐싱
+
+흔한 과제 중 하나는 Next.js처럼 동일 URL에 대해 HTML 페이지 로드와 RSC 데이터 페이로드를 구분하기 위해 `RSC`(React Server Components) 요청 헤더를 사용하는 프레임워크의 콘텐츠를 캐시하는 것입니다. 이를 처리하는 가장 좋은 방법은 다음과 같습니다.
+
+### 방법 1: Transform Rules
+
+가장 간단한 해결책은 `RSC` 헤더를 확인하고 요청에 고유한 쿼리 매개변수를 추가하는 [Transform Rule](/rules/transform/)을 만드는 것입니다. 이렇게 하면 `/page`(HTML용)와 `/page?_rsc=1`(RSC 페이로드용)이라는 서로 다른 두 개의 캐시 가능한 URL이 생성됩니다.
+
+1. Cloudflare 대시보드에서 Rules **Overview** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. **Create rule**을 선택하고 **URL Rewrite Rule** 옵션을 선택합니다.
+3. `Vary by RSC Header`와 같은 이름을 입력합니다.
+4. **If incoming requests match**에서 **Custom filter expression**을 선택합니다.
+5. **When incoming requests match** 아래에서 표현식을 직접 수정해 `RSC` 헤더가 존재하는지 확인하도록 합니다.
+    - `has_key(http.request.headers, "rsc")`
+
+6. **Then** 아래에서:
+    - **Path**는 **Preserve**를 선택합니다.
+    - **Query**는 **Rewrite to**를 선택한 뒤 **Static** 값으로 `_rsc=1`을 설정합니다.
+
+7. **Save**를 선택합니다.
+
+### 방법 2: Snippets 또는 Custom Cache Keys
+
+대안으로 [Snippets](/rules/snippets/) 또는 [Custom Cache Keys](/cache/how-to/cache-keys)를 사용해 보이는 URL을 수정하지 않고 `RSC` 헤더를 캐시 키에 직접 추가할 수 있습니다. 이 방법은 URL이 더 깔끔하다는 장점이 있지만 더 고급 설정이 필요합니다.
+
+:::note[Availability]
+- Snippets: Pro, Business, Enterprise
+- Custom Cache Keys: Enterprise 전용
+:::

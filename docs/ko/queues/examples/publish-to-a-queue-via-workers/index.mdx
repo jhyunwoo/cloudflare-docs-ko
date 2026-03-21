@@ -1,0 +1,115 @@
+---
+title: Workers
+summary: Publish to a Queue directly from your Worker.
+pcx_content_type: example
+sidebar:
+  order: 30
+head:
+  - tag: title
+    content: Queues - 노동자를 통해 직접 발행
+description: 직장에서 직접 Queue에 게시.
+reviewed: 2025-07-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/queues/examples/publish-to-a-queue-via-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/examples/publish-to-a-queue-via-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+다음 예제는 Worker에서 Queue에 메시지를 게시하는 방법을 보여줍니다. 예를 들어 요청 몸에서 JSON 페이로드를 수신하는 Worker를 사용하고 Queue에 as-is를 작성하지만 실제 응용 프로그램에서 메시지를 큐하기 전에 더 논리를 가질 수 있습니다.
+
+## 자주 묻는 질문
+
+- ·[queue 생성](/queues/get-started/#3-create-a-queue)을 통해[Cloudflare dashboard](https://dash.cloudflare.com)또는[wrangler 클립](/workers/wrangler/install-and-update/).
+- ·[설치하기**회사 소개**관련 제품](/queues/configuration/configure-queues/#producer-worker-configuration)Cloudflare dashboard 또는 WranglerQ 파일에서.
+
+다음과 같이 Wrangler 파일을 구성하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"queues": {
+  		"producers": [
+  			{
+  				"queue": "my-queue",
+  				"binding": "YOUR_QUEUE"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+### 1. 노동자 만들기
+
+다음 작업자 스크립트:
+
+1. 요청 몸이 유효 JSON임을 검증합니다.
+2. 큐에 페이로드를 게시합니다.
+
+```ts
+interface Env {
+	YOUR_QUEUE: Queue;
+}
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		//페이로드 유효성은 JSON입니다.
+		//생산 신청에서, 우리는 더 견고하게 payload를 검증할지도 모릅니다
+		//'zod'와 같은 라이브러리를 사용하여 스키마에 대하여
+		let messages;
+		try {
+			messages = await req.json();
+		} catch {
+			//페이로드가 JSON이 아닌 경우 HTTP 400 (Bad Request)를 반환하십시오.
+			return Response.json({ error: "payload not valid JSON" }, { status: 400 });
+		}
+
+		//Queue에 게시
+		try {
+			await env.YOUR_QUEUE.send(messages);
+		} catch (e) {
+			const message = e instanceof Error ? e.message : "Unknown error";
+			console.error(`failed to send to the queue: ${message}`);
+			//HTTP를 반환 500 (내부 오류) 우리의 출판 작업이 실패하면
+			return Response.json({ error: message }, { status: 500 });
+		}
+
+		//전송이 성공하면 HTTP 200을 반환!
+		return Response.json({ success: true });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+이 노동자를 배포하려면:
+
+```sh
+npx wrangler deploy
+```
+
+### 2. 시험 메시지를 보내십시오
+
+당신이 성공적으로 당신의 큐에 메시지를 작성 확인하려면, 사용`curl`명령줄에:
+
+```sh
+#공유 비밀을 가진 placeholder를 대체해야 합니다.
+curl -XPOST "https://YOUR_WORKER.YOUR_ACCOUNT.workers.dev" --data '{"messages": [{"msg":"hello world"}]}'
+```
+
+```sh output
+{"success":true}
+```
+
+이것은 HTTP POST 요청을 발급하고 성공하면 HTTP 200을 반환합니다.`success: true`응답 몸.
+
+- HTTP 400을 수신하면, 이 쿼리에 대한 malformed JSON을 보내려고 시도했기 때문입니다.
+- HTTP 500을 수신하면, 이 메시지가 Queue에 기록되지 않았기 때문입니다.
+
+사용 가능[`wrangler tail`](/workers/observability/logs/real-time-logs/)출력을 디버그`console.log`.

@@ -1,0 +1,133 @@
+---
+summary: >-
+  Serve a custom maintenance page. Ideal for downtime notifications, planned
+  maintenance, or emergency messages.
+tags:
+  - Redirects
+products:
+  - snippets
+pcx_content_type: example
+title: 공지사항
+description: >-
+  원래 서버 또는 캐시에서 fetching 콘텐츠 대신 사용자 정의 유지 보수 페이지를 보았습니다. 가동 중지 알림, 계획 유지 보수 또는
+  긴급 메시지에 이상적입니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/maintenance/'
+translation_source_md: 'https://developers.cloudflare.com/rules/snippets/examples/maintenance/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## Snippet 코드
+
+```js
+//사용자 정의 입력 정의
+const statusCode = 503;
+const title = "We'll Be Right Back!";
+const message =
+	"Our site is currently undergoing scheduled maintenance. We’re working hard to bring you a better experience. Thank you for your patience and understanding.";
+const estimatedTime = "1 hour";
+const contactEmail = "support@example.com";
+const contactPhone = "+1 234 567 89";
+
+export default {
+	async fetch(request) {
+		//유지 보수 페이지를 응답으로
+		return new Response(generateMaintenancePage(), {
+			status: statusCode,
+			headers: {
+				"Content-Type": "text/html",
+				"Retry-After": "3600", //1 시간 후에 재시행을 건의하십시오
+			},
+		});
+	},
+};
+
+function generateMaintenancePage() {
+	return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>${title}</title>
+        <style>
+            body {
+                margin: 0;
+                font-family: Arial, sans-serif;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                background-color: #f4f4f4;
+                color: #333;
+                text-align: center;
+            }
+            .container {
+                max-width: 600px;
+                padding: 20px;
+            }
+            h1 {
+                font-size: 2rem;
+                color: #0056b3;
+                margin-bottom: 10px;
+            }
+            p {
+                font-size: 1rem;
+                margin-bottom: 20px;
+                line-height: 1.5;
+            }
+            .contact {
+                margin-top: 20px;
+                font-size: 0.9rem;
+                color: #666;
+            }
+            .contact a {
+                color: #0056b3;
+                text-decoration: none;
+            }
+            .contact a:hover {
+                text-decoration: underline;
+            }
+            .logo {
+                margin: 20px 0;
+                max-width: 150px;
+            }
+            .timer {
+                font-weight: bold;
+                color: #e63946;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>${title}</h1>
+            <p>${message}</p>
+            <p>If all goes to plan, we'll be back online in <span class="timer">${estimatedTime}</span>. 🚀</p>
+            <p class="contact">
+                Need help? Reach out to us at <a href="mailto:${contactEmail}">${contactEmail}</a>
+                or call us at <a href="tel:${contactPhone}">${contactPhone}</a>.
+            </p>
+        </div>
+    </body>
+    </html>
+    `;
+}
+```
+
+## Snippet 규칙
+
+사용자 정의 필터 표현 구성:
+
+| 제품정보     | 회사연혁      | 제품정보        |
+| -------- | --------- | ----------- |
+| IP 근원 주소 | 목록은 없습니다. | `admin_ips` |
+
+Expression Editor를 사용하는 경우 다음의 표현을 입력하십시오.
+
+```txt
+(not ip.src in $admin_ips)
+```
+
+더 보기[IP 목록](/waf/tools/lists/custom-lists/#ip-lists) `admin_ips`이전에 생성되어 사이트 관리자의 IP 주소 목록을 포함하고 유지 보수 기간 동안 사이트에 액세스 할 수 있습니다.

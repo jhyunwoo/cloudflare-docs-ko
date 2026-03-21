@@ -1,0 +1,83 @@
+---
+pcx_content_type: concept
+title: Hyperdrive는 어떻게 작동합니까?
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/concepts/how-hyperdrive-works/'
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/concepts/how-hyperdrive-works/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Cloudflare의 글로벌 네트워크에서 전통적인 중앙화된 데이터베이스에 연결[300 데이터 센터 위치](https://www.cloudflare.com/network/)쿼리로 몇 가지 도전을 제시하면이 위치 중 어느 곳에서나 발생할 수 있습니다.
+
+데이터베이스가 중앙 위치 인 경우 쿼리는 데이터베이스와 다시 얻을 수있는 장시간 걸릴 수 있습니다. Queries는 Workers와 같은 stateless 환경에서 새로운 연결을 설정해야 할 상황에서 더 오래 걸릴 수 있으며, 각 작업자의 직업에 대한 여러 라운드 여행을 필요로합니다.
+
+전통적인 데이터베이스는 일반적으로 연결의 최대 수를 처리합니다. 배부된 교통량의 어떤 이유라도, 이 연결을 배출하기 쉽습니다.
+
+Hyperdrive는 당신의 근원 데이타베이스에 세계적인 연결의 수를 관리해서 이 도전을 해결하고, 당신의 데이타베이스에 적재를 감소시키고 당신의 데이타베이스 쿼리를 가속하는 동안 캐시에 쿼리 응답을 따르고 선택하는 선택적으로 파싱하고 선택합니다.
+
+## Hyperdrive가 데이터베이스를 빠르게 만듭니다.
+
+Hyperdrive는 데이터베이스 쿼리를 가속:
+
+- WorkersXQ 근처의 새로운 데이터베이스 연결 설정 수행
+- 당신의 데이터베이스 근처 Pooling 기존 연결
+- Caching 쿼리 결과
+
+Workers에서 데이터베이스에 연결할 때 최적의 성능을 보장합니다.
+
+![Hyperdrive 연결](~/assets/images/hyperdrive/configuration/hyperdrive-comparison.svg)
+
+### 1. 가장자리 연결 설정
+
+데이터베이스 드라이버가 Cloudflare Worker에서 데이터베이스에 연결될 때**기타 제품**, 먼저 연결 설정을 통해 이동합니다. 이 데이터베이스에 여러 라운드 여행을 요구하고 안전한 연결을 설정할 수 있습니다. CloudflareXQ 사이의 거리로 인해 추가 네트워크 지연을 처리 할 수 있습니다. 작업자 및 데이터베이스.
+
+**Hyperdrive로**, 이 연결 설정은 Cloudflare 노동자와 가장자리에 HyperdriveXQ 사이에서 발생, 가능한 한 당신의 노동자에 가까운 (도표, 상표를 보십시오*1. 연결 설정*). 연결 설정이 동일한 위치에서 완료되기 때문에이 incurs는 더 적은 지연 시간을 두었습니다.
+
+Workers와 HyperdriveXQ 사이의 연결 작업에 대해 자세히 알아보기[연결 수명주기](/hyperdrive/concepts/connection-lifecycle/).
+
+### 2. 연결 풀
+
+Hyperdrive는 데이터베이스에 대한 쿼리를 실행할 수 있는 데이터베이스에 연결의 풀을 만듭니다.
+
+데이터베이스 연결의 풀은 원 또는 더 많은 지역에 배치됩니다. 이것은 당신의 QXQX0110XQ QXWorkers와 데이타베이스 사이에서 둥근 지구에 의해 침공을 극소화합니다 새로운 연결을 설치하기 위하여. 이것은 또한 약간의 네트워크 지연은 깨지지 않은 쿼리에 대해 처리됩니다.
+
+연결 풀이 사전 노출되는 경우 연결 풀이 시도하고 연결 (도표, 라벨 참조)을 재사용합니다.*2. Existing 온난한 연결*).
+연결 풀이 사전 컴파일되지 않는 경우, 데이터베이스에 새로운 연결을 설정하고 쿼리를 경로를 사용하는 것입니다. 응용 프로그램을 운영하기 위해 필요한 최소한의 연결 수를 재사용하고 생성하는 것을 목표로합니다.
+
+:::참조
+
+Hyperdrive는 당신의 근원 데이타베이스에 연결의 총 수 제한을 포함하여 당신을 위한 연결 수영장 재산을 자동적으로 처리합니다. 더 알아보기[제한 사항](/hyperdrive/platform/limits/)더 알아보기.
+주요 특징
+
+연결 풀 행동 및 구성에 대해 자세히 알아보기[연결 풀](/hyperdrive/concepts/connection-pooling/).
+
+<Render file="placement-hint-partial" product="hyperdrive" />
+
+### 3. 쿼리 캐싱
+
+Hyperdrive는 당신의 데이타베이스에 non-mutating (read) 쿼리의 캐싱을 지원합니다.
+
+쿼리가 Hyperdrive, Hyperdrive를 통해 전송되고 쿼리가 mutating (쓰기) 또는 non-mutating (read) 쿼리인지 결정합니다.
+
+비 자전 쿼리를 위해, Hyperdrive는 형성된을 위한 응답을 구호할 것입니다`max_age`Hyperdrive는 원본과 일치할 필요가 있는 캐시된 응답을 돌려보낼 것입니다, 본래 데이타베이스에 조회를 다시 발행할 필요가 있는 것을 우회합니다.
+
+캐싱은 원산지 데이터베이스에 부담을 줄이고 쿼리에 대한 응답 시간을 가속화합니다.
+
+쿼리 캐싱 행동 및 구성에 대해 자세히 알아보기[Query 캐싱](/hyperdrive/concepts/query-caching/).
+
+## 풀 모드
+
+<Render file="pooling-mode" product="hyperdrive" />
+
+## 관련 자료
+
+- [연결 수명주기](/hyperdrive/concepts/connection-lifecycle/)
+- [Query 캐싱](/hyperdrive/concepts/query-caching/)
+- [연결 풀](/hyperdrive/concepts/connection-pooling/)

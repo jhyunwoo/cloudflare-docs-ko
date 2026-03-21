@@ -1,0 +1,134 @@
+---
+title: Cloudflare 마술 이동을 가진 잡종 구름 네트워크를 보호하십시오
+pcx_content_type: reference-architecture-diagram
+products:
+  - byoip
+  - ddos-protection
+  - cloudflare-network-firewall
+  - magic-transit
+  - network-interconnect
+sidebar:
+  order: 1
+  label: 하이브리드 클라우드 네트워크를 보호
+reviewed: 2024-09-09T00:00:00.000Z
+description: >-
+  Cloudflare Magic Transit은 모든 인터넷 네트워크에 대한 클라우드 기반, 인라인 DDoS 보호 및 트래픽 가속을
+  제공합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/network/protect-hybrid-cloud-networks-with-cloudflare-magic-transit/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/network/protect-hybrid-cloud-networks-with-cloudflare-magic-transit/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+DDoS 공격으로부터 네트워크 인프라 보호는 강점과 속도의 독특한 조합을 요구합니다. Volumetric 공격은 쉽게 하드웨어 기반 DDoS 보호 기기 및 대역폭 기반 인터넷 링크를 압도 할 수 있습니다.
+
+클라우드 기반 DDoS 보호 솔루션은 더 심각한, 효율적이고 확장성이지만 시장의 대부분의 솔루션은 글로벌 네트워크 발자국 및 스크레이빙 센터 밀도가 좋은 네트워크 성능을 유지하기 위해 필요합니다. 이러한 단점을 가진 DDoS 보호 솔루션은 트래픽이 원래 네트워크로 혼잡 한 곳에서 수천 마일 떨어진 곳에 비소적으로 위치하는 스크랩 센터를 통해 고객 트래픽을 리디렉션해야하며, 결국 네트워크 성능과 처리량에 영향을 미칩니다.
+
+Cloudflare Magic Transit은 클라우드 기반 DDoS 보호 및 트래픽 가속을 제공하여 인터넷에서 사용자 트래픽을 수신하는 모든 인터넷 네트워크에 대한 클라우드 기반, 클라우드, 또는 두 (그, 하이브리드 아키텍처)의 조합을 배포하고 있는지 여부에 관계없이 배포됩니다. 데이터 센터는 수백 개의 도시와 DDoS 완화 용량의 수백 개의 Tbps와 함께, Magic Transit은 전 세계적으로 3 초 이내에 기원의 소스에 가까운 공격을 감지하고 완화 할 수 있습니다.
+
+매직 트랜지션이 어떻게 작동하나요? 다양한 사용 사례를 구축할 수 있는 방법은 이 문서의 끝에 관련 리소스에 문서화됩니다.[Cloudflare 마술 이동](/magic-transit/)·[마술 이동 참고 자료 회사연혁](/reference-architecture/architectures/magic-transit/).
+
+이 문서는 Magic Transit을 사용하여 참고 자료 아키텍처를 사용하여 몇 가지 일반적인 시나리오에 특히 초점을 맞추고 하이브리드 클라우드 기반 네트워크 인프라를 보호합니다.
+
+## Scenario 1 - 온프레미스 및 클라우드 네트워크 배포를위한 고객 BYOIP
+
+이 시나리오에서는 Magic Transit에 의해 보호되어야하는 다중 /24 또는 더 큰 네트워크 접두사가 있습니다. 이 네트워크는 온프레미스 위치에 배포되며 여러 클라우드 제공업체의 지역 전체에 걸쳐 배포됩니다.
+
+아래 그림은 Internet-facing 네트워크와 해당 IP 접두사의 위치 목록입니다.
+
+```txt
+AWS VPC: 192.0.2.0/24
+GCP VPC: 198.51.100.0/24
+Azure vNet: 203.0.113.0/26
+On-premise data center 1: 203.0.113.64/26
+On-premise data center 2: 203.0.113.128/25
+```
+
+![그림 1: 모든 클라우드 및 온프레미스 네트워크에 대한 고객 BYOIP.](~/assets/images/reference-architecture/protect-hybrid-cloud-networks-with-cloudflare-magic-transit/figure-1.svg "Figure 1: Customer BYOIP for all Cloud and on-premises networks.")
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+1. Border Gateway Protocol 사용[사이트맵](https://www.cloudflare.com/learning/security/glossary/what-is-bgp/)), Cloudflare는 Cloudflare의 세계적인 자료 센터의 전부에서 인터넷에 고객의 보호한 IP 접두사를, 가능하게 합니다 광고합니다[IP 별](https://www.cloudflare.com/learning/cdn/glossary/anycast-network/), 그래서 인터넷 트래픽이 이러한 보호 IP 접두사는 항상 트래픽의 소스에 가까운 Cloudflare 데이터 센터에 갈 것입니다.
+
+동시에 on-premise 네트워크(s) 및 클라우드 공급자 네트워크(s)는 각 on-premises 국경 라우터 및 클라우드 국경 라우터에서 동일한 정확한 접두사를 광고할 수 있습니다. 이 모든 인터넷 트래픽은 Magic Transit 보호 IP 접두사는 Cloudflare 네트워크를 통해 추적됩니다.
+
+대신 인터넷에 국경 라우터에서 덜 특정 IP 접두사를 광고 할 수 있습니다. 이 방법, Magic Transit 서비스가 매우 다른 이벤트에서 실패를 경험하는 경우 트래픽은 인터넷에서 네트워크 위치에 직접 다시 추적 할 수 있습니다.
+
+2. 인터넷에서 시작된 트래픽은 보호 된 IP 접두사는 전 세계적으로 Cloudflare 네트워크로 소화됩니다.
+3. 모든 트래픽은 제거되고 Cloudflare 데이터 센터의 모든 Cloudflare 데이터 센터에서 mitigated 공격 트래픽이 제거되고 자동화됩니다.[DDoS 완화](/ddos-protection/)기술.
+4. DDoS 완화를 통과하는 트래픽은 포함되는 추가 방화벽 필터링에 적용됩니다.[Cloudflare 네트워크 방화벽](/cloudflare-network-firewall/)서비스.
+5. 깨끗한, 필터링 된 트래픽은 개인 연결 호출을 통해 보호 된 네트워크에 경로[Cloudflare 네트워크 상호 연결](/network-interconnect/)(CNI) 또는 GRE 또는 IPsec 터널과 같은 표준 IP 터널을 사용하여 공공 인터넷을 통해. Magic Transit IP 터널에 대한 자세한 내용이 있습니다.[Magic Transit Tunnels 및 캡슐화 문서](/magic-transit/reference/gre-ipsec-tunnels/).
+6. 인터넷 사용자에 보호 IP 접두사에서 서버 반환 트래픽은 Cloudflare 네트워크를 우회하여 하이브리드 클라우드 위치에서 인터넷을 통해 직접 경로됩니다. 직접 서버 반환 (DSR)라고합니다. 클라우드 서비스 제공업체와 BYOIP가 있어야 합니다.
+
+Cloudflare 네트워크에서 전 세계적으로 실행되는 단 하나, 통합된 클라우드 중립 네트워크 보호 해결책으로, 당신의 세계적인, 잡종 구름 근거한 인터넷 직면 네트워크는 DDoS와 다른 악의적인 공격에서 잘 보호되고, 어디에서나 배포되는 어떤 환경든지.
+
+다른 하나는 이러한 통합, 클라우드 기반 네트워크 보호 솔루션 사용의 다른 이점은 이러한 네트워크에 대한 보호를 잃지 않고 다양한 하이브리드 클라우드 환경 사이의 인터넷 기반 네트워크를 쉽게 마이그레이션하거나 재구성 할 수 있다는 것입니다. 매직 트랜지션의 루트를 변경하여 새로운 위치에 트래픽을 경로를 변경할 수 있습니다.
+
+## Scenario 2 - 고객 임대 IP 주소는 Cloudflare에서 온-프레미스 및 클라우드 네트워크 배포
+
+네트워크 접두사를 소유하지 않는 경우 /24보다 또는 더 큰 네트워크 접두사를 소유하지만, 여전히 자신의 네트워크를 보호하기 위해 Magic Transit을 사용하고 싶습니다.[임대 IP](/magic-transit/cloudflare-ips/)Cloudflare에서 이러한 작은 네트워크에 할당합니다. 다음 다이어그램은 이러한 배포의 아키텍처를 보여줍니다. 이전 시나리오와 마찬가지로, 이 고객 네트워크는 온프레미스 위치에 배치되며 여러 클라우드 공급자의 지역 전체에 걸쳐 배치됩니다.
+
+아래 그림은 Internet-facing 네트워크와 해당 IP 접두사의 위치 목록입니다.
+
+```txt
+AWS VPC: 192.0.2.0/28
+GCP VPC: 192.0.2.16/28
+Azure vNet: 192.0.2.32/28
+On-premise data center 1: 192.0.2.48/28
+On-premise data center 2: 192.0.2.64/28
+```
+
+![Figure 2: 고객 임대 IPs from Cloudflare for both on-premise and 클라우드 네트워크 배포.](~/assets/images/reference-architecture/protect-hybrid-cloud-networks-with-cloudflare-magic-transit/figure-2.svg "Figure 2: Customer lease IPs from Cloudflare for both on-premise and cloud network deployments.")
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+1. Border Gateway Protocol (BGP)를 사용하여 Cloudflare는 당신이 임대하는 IP 주소를 포함하는 인터넷에 그것의 소유한 IP 접두사를 광고합니다.
+
+\[2에서 5까지의 단계는 위의 시나리오 1과 동일합니다]
+
+6. 서버는 Cloudflare IP 주소로 임대된 Cloudflare IP 주소로 트래픽을 반환하며, 다양한 사이트 국경 라우터를 통해 인터넷에 직접 접근할 수 없습니다. 이 트래픽은 인터넷에 도달하기 위해 Cloudflare 네트워크를 통해 다시 경로가지고,[매직 트레인 Egress](/magic-transit/reference/egress/)기능. 동일한 CNIs 또는 IP 터널을 통해 Cloudflare 네트워크에 전송할 수 있습니다, 귀하의 사이트에서 정책 기반 라우팅 (PBR)과 같은 라우팅 기술을 사용하여.
+7. Magic Transit Egress 트래픽은 네트워크 방화벽 필터링 대상입니다.
+
+## Scenario 3 - 클라우드 네트워크 배포를위한 Cloudflare의 네트워크 및 임대 IP 주소에 대한 고객 BYOIP
+
+이 시나리오에서 더 큰 온프레미스 네트워크와 더 작은 클라우드 기반 네트워크를 배포할 수 있습니다. 클라우드 기반 네트워크에 대한 Cloudflare에서 IP를 방출하면서 온프레미스 네트워크에 자신의 /24 IP 접두사를 할당합니다.
+
+아래 그림은 Internet-facing 네트워크와 해당 IP 접두사의 위치 목록입니다.
+
+```txt
+AWS VPC: 192.0.2.0/28
+GCP VPC: 192.0.2.16/28
+Azure vNet: 192.0.2.32/28
+On-premise data center 1: 198.51.100.0/24
+On-premise data center 2: 203.0.113.0/24
+```
+
+![그림 3 : 온프레미스 네트워크에 대한 고객 BYOIP 및 클라우드 네트워크 배포를위한 Cloudflare에서 IP를 임대.](~/assets/images/reference-architecture/protect-hybrid-cloud-networks-with-cloudflare-magic-transit/figure-3.svg "Figure 3: Customer BYOIP for on-premise networks and lease IP from Cloudflare for cloud network deployments.")
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+1. 국경 게이트웨이 프로토콜 (BGP)를 사용하여 Cloudflare는 고객 소유 및 Cloudflare 소유 IP가 인터넷에 접목합니다.
+
+\[2에서 5까지의 단계는 위의 시나리오 1과 동일합니다]
+
+6. 클라우드 기반 네트워크의 서버 반환 트래픽은 Cloudflare 네트워크를 통해 경로로 전환하여 Magic Transit Egress 기능을 사용하여 인터넷에 도달합니다. 동일한 CNIs 또는 IP 터널을 통해 Cloudflare 네트워크에 전송할 수 있습니다, 당신의 물리적 사이트에서 정책 기반 라우팅 (PBR)과 같은 라우팅 기술을 사용하여.
+7. 이 Magic Transit Egress 트래픽은 네트워크 방화벽 필터링 대상입니다.
+8. On-premises 네트워크에서 인터넷 사용자의 서버 반환 트래픽은 Cloudflare 네트워크를 우회하여 직접 서버 반환 (DSR)입니다.
+
+*이름 \**: 대안으로, 고객은 정책 기반 라우팅 및 Magic Transit Egress 기능을 통해 Cloudflare를 통해 온프레미스 네트워크 서버 반품 트래픽을 선택할 수 있습니다. 이것은 네트워크 방화벽 필터링과 egress 트래픽에 대한 보안 및 제어의 추가 레이어를 추가합니다. 예를 들어, IP 주소 및 사이트, 금지 된 목적지, 또는 국가를 의심 할 여지없이 트래픽을 차단할 수 있습니다.
+
+## 관련 자료
+
+- [마술 이동 참고 자료 회사연혁](/reference-architecture/architectures/magic-transit/)
+- [Cloudflare 마술 이동](/magic-transit/)
+- [Cloudflare 네트워크 상호 연결](/network-interconnect/)
+- [Cloudflare DDoS 보호](/ddos-protection/)
+- [Cloudflare 네트워크 방화벽](/cloudflare-network-firewall/)
+- [Cloudflare IPsec 장치 겸용성 모체](/cloudflare-wan/reference/device-compatibility/)
+- [Cloudflare 마술 이동은 IP를 Leased](/magic-transit/cloudflare-ips/)

@@ -1,0 +1,183 @@
+---
+pcx_content_type: reference
+title: Cloudflare HTTP 헤더
+---
+
+import { Render } from "~/components";
+
+## 요청 헤더
+
+Cloudflare는 모든 HTTP 요청 헤더를 원본 웹 서버로 전달하고, 아래 설명된 추가 헤더를 더합니다.
+
+:::note
+Cloudflare는 [NGINX 기준](https://nginx.org/en/docs/http/ngx_http_core_module.html#ignore_invalid_headers)에 따라 이름이 유효하지 않다고 간주되는 HTTP 요청 헤더를 제거할 수 있습니다. 예를 들어, 헤더 이름에 `.`(점) 문자가 포함된 경우입니다.
+:::
+
+### Accept-Encoding
+
+들어오는 요청의 경우 이 헤더 값은 항상 `accept-encoding: br, gzip`으로 설정됩니다. 클라이언트가 `accept-encoding: deflate`와 같이 다른 값을 설정했다면 덮어써지며, 원래 값은 `request.cf.clientAcceptEncoding`에서 사용할 수 있습니다.
+
+### CF-Connecting-IP
+
+`CF-Connecting-IP`는 Cloudflare에 연결한 클라이언트의 IP 주소를 원본 웹 서버에 제공합니다.
+이 헤더는 Cloudflare 에지에서 원본 웹 서버로 향하는 트래픽에만 전송됩니다.
+
+방문자의 원래 IP 주소를 로깅하는 방법은 [원래 방문자 IP 복원](/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/)을 참조하십시오.
+
+또는 `CF-Connecting-IP` 헤더나 방문자의 IP 주소를 포함할 수 있는 어떠한 HTTP 헤더도 받고 싶지 않다면, [**Remove visitor IP headers** Managed Transform을 활성화](/rules/transform/managed-transforms/configure/)하십시오.
+
+#### Worker 서브리퀘스트에서의 CF-Connecting-IP
+
+동일한 zone의 Worker 서브리퀘스트에서는 `CF-Connecting-IP` 값이 `x-real-ip`(클라이언트 IP)의 값을 반영합니다. `x-real-ip`는 Worker 스크립트에서 사용자가 변경할 수 있습니다.
+
+한 Cloudflare zone에서 다른 Cloudflare zone으로 향하는 교차 zone 서브리퀘스트에서는 보안상의 이유로 `CF-Connecting-IP` 값이 Worker 클라이언트 IP 주소 `'2a06:98c0:3600::103'`으로 설정됩니다.
+
+Cloudflare 고객 zone이 아닌 대상으로 향하는 Worker 서브리퀘스트에서는 `CF-Connecting-IP`와 `x-real-ip` 헤더 모두 클라이언트 IP 주소를 반영하며, 변경 가능한 것은 `x-real-ip` 헤더뿐입니다.
+
+Worker 서브리퀘스트가 트리거되지 않으면 `cf-connecting-ip`는 클라이언트 IP 주소를 반영하고 `x-real-ip` 헤더는 제거됩니다.
+
+### CF-Connecting-IPv6
+
+Cloudflare는 추가 구성이나 하드웨어 없이 모든 도메인에 [무료 IPv6 지원](/network/ipv6-compatibility/)을 제공합니다. IPv6 마이그레이션을 지원하기 위해 Cloudflare의 [Pseudo IPv4](/network/pseudo-ipv4/)는 모든 Cloudflare 도메인에 IPv6-IPv4 변환 서비스를 제공합니다.
+
+<Render file="pseudo-ipv4-warning" product="fundamentals" /> <br />
+
+### CF-EW-Via
+
+이 헤더는 `CDN-Loop` [헤더](https://blog.cloudflare.com/preventing-request-loops-using-cdn-loop/)와 유사하게 루프 감지에 사용됩니다.
+
+### CF-Pseudo-IPv4
+
+[Pseudo IPv4](/network/pseudo-ipv4/)가 `Add Header`로 설정되어 있으면 Cloudflare는 원래 IPv6 주소에서 해시된 Class E IPv4 주소를 담은 `CF-Pseudo-IPv4` 헤더를 자동으로 추가합니다.
+
+### True-Client-IP (Enterprise 플랜 전용)
+
+`True-Client-IP`는 원래 클라이언트 IP 주소를 원본 웹 서버에 제공합니다. `True-Client-IP`는 Enterprise 플랜에서만 사용할 수 있습니다. 아래 예시에서 `203.0.113.1`은 원래 방문자 IP 주소입니다. 예: `True-Client-IP: 203.0.113.1`
+
+`True-Client-IP`와 `CF-Connecting-IP` 헤더 사이에는 헤더 이름 외에는 차이가 없습니다. 일부 Enterprise 고객은 레거시 장치 때문에 사용자 지정 헤더 이름을 읽도록 방화벽이나 로드 밸런서를 업데이트하지 않기 위해 `True-Client-IP`가 필요합니다.
+
+요청에 `True-Client-IP` HTTP 헤더를 추가하려면 [**Add "True-Client-IP" header** Managed Transform을 활성화](/rules/transform/managed-transforms/configure/)하십시오.
+
+반대로 `True-Client-IP` 헤더나 방문자 IP 주소를 포함할 수 있는 어떠한 HTTP 헤더도 받고 싶지 않다면, [**Remove visitor IP headers** Managed Transform을 활성화](/rules/transform/managed-transforms/configure/)하십시오.
+
+:::caution
+Cloudflare를 스택형 CDN으로 사용하고 있고 `True-Client-IP` 헤더의 IP 주소 값을 기준으로 HTTP 요청을 인증한다면, 요청에 반드시 `True-Client-IP` 헤더를 추가해야 합니다. 이 헤더를 추가하지 않으면 값이 임의의 값으로 스푸핑될 수 있습니다.
+:::
+
+### X-Forwarded-For
+
+`X-Forwarded-For`는 프록시 서버와 원래 방문자의 IP 주소를 유지합니다. Cloudflare로 전송된 요청에 기존 `X-Forwarded-For` 헤더가 없었다면 `X-Forwarded-For` 값은 `CF-Connecting-IP` 헤더와 동일합니다.
+
+예를 들어 원래 방문자 IP 주소가 `203.0.113.1`이고 Cloudflare로 전송된 요청에 `X-Forwarded-For` 헤더가 없다면, Cloudflare는 원본에 `X-Forwarded-For: 203.0.113.1`을 전송합니다.
+
+반대로 Cloudflare로 향하는 요청에 이미 `X-Forwarded-For` 헤더가 있는 경우, Cloudflare는 Cloudflare에 연결하는 HTTP 프록시의 IP 주소를 해당 헤더에 추가합니다. 예를 들어 원래 방문자 IP 주소가 `203.0.113.1`이고, 요청이 Cloudflare로 프록시되기 전에 IP 주소 `198.51.100.101`인 프록시 A와 `198.51.100.102`인 프록시 B 두 개를 거쳤다면, Cloudflare는 원본에 `X-Forwarded-For: 203.0.113.1,198.51.100.101,198.51.100.102`를 전송합니다. 프록시 A는 요청을 프록시 B로 전달하기 전에 원래 방문자 IP 주소(`203.0.113.1`)를 `X-Forwarded-For`에 추가하고, 프록시 B는 Cloudflare로 전달하기 전에 프록시 A의 IP 주소(`198.51.100.101`)를 추가합니다. 마지막으로 Cloudflare는 요청을 원본으로 프록시하기 전에 프록시 B의 IP 주소(`198.51.100.102`)를 `X-Forwarded-For`에 추가합니다.
+
+`X-Forwarded-For` 헤더 또는 방문자 IP 주소를 포함할 수 있는 다른 어떠한 HTTP 헤더에도 방문자 IP 주소를 받고 싶지 않다면, [**Remove visitor IP headers** Managed Transform을 활성화](/rules/transform/managed-transforms/configure/)하십시오.
+
+:::note
+원본 웹 서버에서 원래 방문자 IP 주소를 복원하려면, Cloudflare는 로그나 애플리케이션이 `X-Forwarded-For` 대신 `CF-Connecting-IP` 또는 `True-Client-IP`를 확인할 것을 권장합니다. `CF-Connecting-IP`와 `True-Client-IP`는 모두 IP 주소 하나만 포함하는 일관된 형식을 사용합니다.
+:::
+
+### X-Forwarded-Proto
+
+`X-Forwarded-Proto`는 방문자가 Cloudflare에 연결할 때 사용한 프로토콜(HTTP 또는 HTTPS)을 식별하는 데 사용됩니다. 기본적으로 사용되는 프로토콜은 `https`이며, 방문자가 다른 [암호화 모드](/ssl/origin-configuration/ssl-modes/#custom-ssltls)를 선택한 경우는 예외입니다.
+
+들어오는 요청의 경우 이 헤더 값은 클라이언트가 사용한 프로토콜(`http` 또는 `https`)로 설정됩니다. 클라이언트가 다른 값을 설정했다면 덮어써집니다.
+
+### Cf-Ray
+
+`Cf-Ray` 헤더([Ray ID](/fundamentals/reference/cloudflare-ray-id/)라고도 함)는 데이터 센터와 방문자 요청에 대한 정보를 인코딩하는 해시 값입니다. 예: `Cf-Ray: 230b030023ae2822-SJC`
+
+응답 헤더로 표시될 때 `Cf-Ray` 헤더는 요청을 처리한 데이터 센터를 식별합니다. 이는 데이터 센터 위치에 해당하는 세 글자 코드로 표현됩니다.
+
+`Cf-Ray` 헤더는 업스트림 원본에도 전송되며, 연결 데이터 센터를 반영하도록 수정될 수 있습니다. 이는 요청이 [Argo Smart Routing](/argo-smart-routing/) 또는 [Argo Tiered Caching](/cache/how-to/tiered-cache/)을 통해 라우팅될 때 발생합니다. 이런 경우 `Cf-Ray` 헤더의 세 글자 코드는 ingress 데이터 센터가 아니라 원본에 연결한 데이터 센터를 나타냅니다.
+
+서버 로그의 요청과 Cloudflare를 통해 프록시된 요청을 매칭하려면 [`Cf-Ray` 헤더를 원본 웹 서버 로그에 추가](/support/troubleshooting/general-troubleshooting/gathering-information-for-troubleshooting-sites/#add-the-cf-ray-header-to-your-logs)하십시오.
+
+Enterprise 고객은 ingress 데이터 센터 관련 데이터를 포함한 모든 요청을 [Cloudflare Logs](/logs/)에서 볼 수 있습니다.
+
+### CF-IPCountry
+
+`CF-IPCountry` 헤더에는 원래 방문자 국가의 2자리 국가 코드가 포함됩니다.
+
+[ISO-3166-1 alpha-2 코드](https://www.iso.org/iso-3166-country-codes.html) 외에도 Cloudflare는 다음과 같은 특수 국가 코드를 사용합니다.
+
+- `XX` - 국가 코드 데이터가 없는 클라이언트에 사용
+- `T1` - Tor 네트워크를 사용하는 클라이언트에 사용
+
+이 헤더와 방문자 IP 주소에 대한 위치 정보가 포함된 다른 HTTP 헤더를 요청에 추가하려면 [**Add visitor location headers** Managed Transform을 활성화](/rules/transform/managed-transforms/configure/)하십시오.
+
+:::note
+`CF-IPCountry` 헤더는 Cloudflare 뒤에 프록시되지 않은 원본으로 Worker가 요청을 보낼 때 제거됩니다.
+:::
+
+### CF-Visitor
+
+현재 이 헤더는 `scheme`이라는 키 하나만 포함하는 JSON 객체입니다. 이 헤더는 HTTP 또는 HTTPS가 되며, Cloudflare 설정에서 Flexible SSL을 활성화해야 하는 경우에만 관련이 있습니다. 예: `CF-Visitor: { \"scheme\":\"https\"}`.
+
+### CDN-Loop
+
+`CDN-Loop`를 통해 Cloudflare는 요청이 루프 요청으로 차단되기 전까지 Cloudflare 네트워크에 몇 번 들어올 수 있는지 지정할 수 있습니다. 예: `CDN-Loop: cloudflare`
+
+### CF-Connecting-O2O
+
+[SSL for SaaS](/cloudflare-for-platforms/cloudflare-for-saas/)가 [SaaS 제공업체 소유 zone](/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/how-it-works/)에 사용되면 HTTP 헤더가 `cf-connecting-o2o: 1`로 설정됩니다.
+
+### CF-Worker
+
+`CF-Worker` 요청 헤더는 해당 서브리퀘스트를 생성한 호스트를 식별하는 에지 Worker 서브리퀘스트에 추가됩니다. 예: `CF-Worker: example.com`
+
+[`CF-RAY`](/support/troubleshooting/general-troubleshooting/gathering-information-for-troubleshooting-sites/#add-the-cf-ray-header-to-your-logs) 헤더를 추가하는 방식과 유사하게 서버 로그에 `CF-Worker` 헤더를 추가할 수 있습니다. 이를 위해 로그 형식 파일에 `$http_cf_worker`를 추가합니다: `log_format cf_custom "CF-Worker:$http_cf_worker"'`
+
+`CF-Worker`는 `fetch()`를 통해 전송되는 모든 Worker 서브리퀘스트에 추가됩니다. 이 값은 서브리퀘스트를 생성한 Worker를 소유한 zone 이름으로 설정됩니다. 예를 들어 `example.com`의 `foo.example.com/*` 경로에 연결된 Worker 스크립트는 모든 서브리퀘스트에 다음 헤더를 갖습니다.
+
+```txt
+CF-Worker: example.com
+```
+
+이 헤더의 목적은 수신자(예: 원본, 로드 밸런서, 다른 Worker)가 특정 zone의 Worker에서 생성된 트래픽을 인식하고, 필터링하고, 라우팅할 수 있는 수단을 제공하는 것입니다.
+
+:::note
+WAF 사용자 지정 규칙을 구성할 때 이 헤더로 일치시키지 마십시오. 이러한 규칙은 Cloudflare가 `CF-Worker` 헤더를 추가하기 전에 적용됩니다. 대신 같은 값을 담고 동일한 목적을 위해 존재하는 [`cf.worker.upstream_zone`](/ruleset-engine/rules-language/fields/reference/cf.worker.upstream_zone/) 필드를 사용하십시오.
+
+특정 Worker를 차단하려면 `cf.worker.upstream_zone eq "example.com"` 표현식으로 트리거되는 `Block` 작업을 추가하십시오.
+
+자신의 zone Worker에서 온 서브리퀘스트를 제외한 모든 Worker 서브리퀘스트를 차단하려면 `not (cf.worker.upstream_zone in {"" "customer-zone.com"})` 표현식으로 트리거되는 `Block` 작업을 추가하십시오.
+:::
+
+### Connection
+
+들어오는 요청의 경우 이 헤더 값은 항상 `Keep-Alive`로 설정됩니다. 클라이언트가 `close`와 같이 다른 값을 설정했다면 덮어써집니다. 클라이언트가 HTTP/2 또는 HTTP/3를 사용해 연결한 경우에도 마찬가지입니다.
+
+### Spectrum 관련 고려 사항
+
+TCP 애플리케이션과 함께 Spectrum을 사용하는 경우 이 헤더들은 HTTP 헤더이므로 원본에서 보이지 않습니다. 애플리케이션에서 이를 활용하려면 두 가지 방법이 있습니다.
+
+- TCP 대신 HTTP 또는 HTTPS Spectrum 앱 사용
+- [Proxy Protocol 기능](/spectrum/how-to/enable-proxy-protocol/) 사용
+
+## 응답 헤더
+
+Cloudflare는 방문자에게 다시 보내는 응답에서 일부 HTTP 헤더를 제거하고, Cloudflare 전용 HTTP 헤더를 일부 추가합니다.
+
+### 제거되는 응답 헤더
+
+Cloudflare는 원본 서버 응답의 모든 HTTP 헤더를 방문자에게 전달하되, 다음 헤더는 예외로 제거합니다.
+
+- `X-Accel-Buffering`
+- `X-Accel-Charset`
+- `X-Accel-Limit-Rate`
+- `X-Accel-Redirect`
+- `Alt-Svc`
+
+### 추가되는 응답 헤더
+
+Cloudflare는 아래 지정된 HTTP 헤더를 방문자에게 전송되는 응답에 추가합니다.
+
+#### Cf-Ray
+
+방문자에게 반환되는 `Cf-Ray` 값은 원본 서버로 전송된 것과 동일한 `Cf-Ray` 값입니다.
+
+#### Cf-Cache-Status
+
+가능한 모든 `Cf-Cache-Status` 값의 목록은 [Cloudflare cache responses](/cache/concepts/cache-responses/)에 나와 있습니다.

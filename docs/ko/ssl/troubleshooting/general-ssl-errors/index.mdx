@@ -1,0 +1,172 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/200170566-Troubleshooting-SSL-errors
+title: 일반 SSL 오류
+sidebar:
+  order: 1
+head: []
+description: Cloudflare에서 다양한 SSL/TLS 오류를 문제 해결하는 방법을 알아보세요.
+---
+
+import { GlossaryTooltip, DashButton } from "~/components";
+
+## Let's Encrypt 체인 업데이트
+
+### 증상
+
+2024년 9월 9일부터 Android 7.0 이하와 같은 오래된 장치를 사용해 웹사이트에 연결하려는 방문자가 접속 문제를 겪거나 보안 경고를 보게 됩니다.
+
+### 해결 방법
+
+이 문제를 가장 빠르게 해결하는 방법은 인증서의 certificate authority를 [Google Trust Services](/ssl/reference/certificate-authorities/#google-trust-services)로 변경하는 것입니다.
+
+## 오래된 브라우저
+
+### 증상
+
+Cloudflare가 도메인용 SSL 인증서를 제공하기 전까지는 HTTPS 트래픽에 대해 브라우저별로 다음과 같은 오류가 나타날 수 있습니다.
+
+- **Firefox**: `_ssl_error_bad_cert_domain` / `This connection is untrusted`
+- **Chrome**: `Your connection is not private`
+- **Safari**: `Safari can't verify the identity of the website`
+- **Edge / Internet Explorer**: `There is a problem with this website's security certificate`
+
+### 해결 방법
+
+도메인에 대한 Cloudflare SSL 인증서가 프로비저닝된 이후에도 오래된 브라우저는 Cloudflare Universal SSL 인증서가 사용하는 [Server Name Indication (SNI) protocol](https://en.wikipedia.org/wiki/Server_Name_Indication#Support)을 지원하지 않기 때문에 신뢰되지 않는 SSL 인증서 오류를 표시합니다.
+
+해결하려면 [브라우저가 SNI를 지원하는지 확인](https://caniuse.com/#feat=sni)하세요. 지원하지 않으면 브라우저를 업그레이드하세요.
+
+:::note
+
+어떤 인증서를 사용하든 유료 요금제에서는 [Cloudflare Support](/support/contacting-cloudflare-support/)가 non-SNI 지원을 활성화할 수 있습니다.
+
+:::
+
+---
+
+## 일부 서브도메인에서만 SSL 오류가 발생함
+
+### 증상
+
+[Cloudflare Universal SSL certificates](/ssl/edge-certificates/universal-ssl)은 apex domain(`example.com`)과 한 단계 서브도메인(`blog.example.com`)만 커버합니다. 도메인 방문자가 브라우저에서 두 번째 단계 서브도메인(예: `dev.www.example.com`) 접근 시 오류를 보지만 첫 번째 단계 서브도메인에는 오류가 없다면, 아래 방법 중 하나로 문제를 해결하세요.
+
+### 해결 방법
+
+- `dev.www.example.com`을 포함하는 [advanced certificate](/ssl/edge-certificates/advanced-certificate-manager)를 구매합니다.
+- `dev.www.example.com`을 포함하는 [Custom SSL certificate](/ssl/edge-certificates/custom-certificates)를 업로드합니다.
+- [Total TLS](/ssl/edge-certificates/additional-options/total-tls)를 활성화합니다.
+- origin web server에 두 번째 단계 서브도메인용 유효한 인증서가 있다면 `dev.www`의 DNS 레코드를 [DNS Only (grey cloud)](/dns/proxy-status/)로 변경합니다.
+
+---
+
+## Cloudflare Universal SSL 인증서가 활성 상태가 아님
+
+### 증상
+
+활성 상태의 모든 Cloudflare 도메인에는 [Universal SSL certificate](/ssl/edge-certificates/universal-ssl)가 제공됩니다. SSL 오류가 보이고 도메인의 Cloudflare **SSL/TLS** 앱 내 **Edge Certificates** 탭에 **Type**이 *Universal*인 인증서가 없다면, Universal SSL 인증서가 아직 프로비저닝되지 않은 것입니다.
+
+Cloudflare의 SSL 공급업체는 Cloudflare가 도메인 이름에 대한 인증서를 발급하기 전에 각 SSL 인증서 요청을 검증합니다. 이 과정은 15분에서 24시간까지 걸릴 수 있으며, 경우에 따라 추가 검토를 위해 도메인 이름이 표시될 수 있습니다.
+
+### 해결 방법
+
+#### Universal certificate가 없음
+
+Cloudflare 도메인 활성화 후 24시간이 지나도 SSL 인증서가 발급되지 않으면 다음을 수행하세요.
+
+- origin web server에 유효한 SSL 인증서가 있다면 [일시적으로 Cloudflare를 중지](/fundamentals/manage-domains/pause-cloudflare/)하고,
+- [Support에 문의](/support/contacting-cloudflare-support/)하면서 오류 스크린샷을 제공합니다.
+
+Cloudflare를 일시 중지하면 support 팀이 문제를 조사하는 동안 HTTPS 트래픽이 origin web server에서 정상적으로 제공됩니다.
+
+#### Full DNS setup
+
+도메인이 [full setup](/dns/zone-setups/full-setup/) 상태라면 DNS 레코드를 검토하세요.
+
+Cloudflare SSL/TLS 인증서는 [Cloudflare를 통해 프록시된](/dns/proxy-status/) 트래픽에만 적용됩니다. Cloudflare로 프록시되지 않는 호스트명에서만 SSL 오류가 발생한다면 해당 호스트명을 Cloudflare를 통해 프록시하도록 변경하세요.
+
+#### Partial DNS setup
+
+도메인이 <GlossaryTooltip term="CNAME setup" link="/dns/zone-setups/partial-setup/">CNAME setup (partial)</GlossaryTooltip> 상태라면 현재 호스팅 공급자에서 CAA DNS 레코드가 활성화되어 있는지 확인하세요. 활성화되어 있다면 도메인에 인증서를 프로비저닝할 수 있도록 [Cloudflare가 사용하는 Certificate Authorities를 지정](/ssl/edge-certificates/caa-records/)해야 합니다.
+
+---
+
+## OCSP 응답 오류
+
+### 증상
+
+사이트 방문자에게 OCSP 응답 오류가 표시됩니다.
+
+### 해결 방법
+
+이 오류는 브라우저 버전 때문이거나 Cloudflare SSL 공급업체 중 하나의 주의가 필요한 문제 때문에 발생합니다. 정확한 진단을 위해 브라우저 오류를 본 방문자로부터 아래 정보를 받아 [Support에 문의](/support/contacting-cloudflare-support/)하세요.
+
+1. [https://aboutmybrowser.com/](https://aboutmybrowser.com/)의 출력
+2. 방문자 브라우저에서 실행한 `https://<YOUR_DOMAIN>/cdn-cgi/trace`의 출력
+
+---
+
+## 잘못된 HSTS 헤더
+
+### 증상
+
+응답의 HSTS 헤더(`Strict-Transport-Security`, `X-Content-Type-Options`)가 [HSTS 설정](/ssl/edge-certificates/additional-options/http-strict-transport-security/)에 정의한 구성과 일치하지 않습니다.
+
+### 해결 방법
+
+[Response Header Transform Rules](/rules/transform/response-header-modification/)를 구성해 **SSL/TLS** 앱에서 정의한 HSTS 헤더 값을 덮어쓰고 있을 수 있습니다.
+
+1. Cloudflare dashboard에서 Rules **Overview** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. **Response Header Transform Rules** 아래에서 HSTS 헤더(`Strict-Transport-Security` 또는 `X-Content-Type-Options`) 중 하나의 값을 설정하는 규칙을 찾습니다.
+3. **SSL/TLS** 앱에 정의된 HSTS 설정이 적용되도록 해당 규칙을 삭제하거나 편집합니다.
+4. 다른 HSTS 헤더에 대해서도 이 절차를 반복합니다.
+
+---
+
+## 기타 오류
+
+### 증상
+
+브라우저에 `NET::ERR_CERT_COMMON_NAME_INVALID` 오류가 표시됩니다.
+
+### 해결 방법
+
+- [SNI(Server Name Indication)](https://www.cloudflare.com/learning/ssl/what-is-sni/)를 지원하는 브라우저를 사용하고 있는지 확인하세요. 자세한 내용은 [Browser compatibility](/ssl/reference/browser-compatibility/)를 참고하세요.
+- 접속 중인 호스트명이 Cloudflare Dashboard의 DNS 탭에서 [proxied (orange cloud)](/dns/proxy-status/)로 설정되어 있는지 확인하세요.
+- 접속 중인 호스트명이 두 번째 단계 서브도메인(예: `dev.www.example.com`)이라면 다음 중 하나를 수행해야 합니다.
+  - `dev.www.example.com`을 포함하는 [advanced certificate](/ssl/edge-certificates/advanced-certificate-manager)를 구매합니다.
+  - `dev.www.example.com`을 포함하는 [Custom SSL certificate](/ssl/edge-certificates/custom-certificates)를 업로드합니다.
+  - [Total TLS](/ssl/edge-certificates/additional-options/total-tls)를 활성화합니다.
+
+:::note
+
+다음 [`openssl`](https://www.openssl.org/) 명령은 클라이언트와 Cloudflare 네트워크 edge 사이의 TLS handshake를 문제 해결하는 데 도움이 될 수 있습니다.
+
+```sh
+openssl s_client -connect example.com:443 -servername example.com version
+```
+
+:::
+
+---
+
+## Kaspersky Antivirus
+
+Kaspersky Antivirus 사용 시 Cloudflare dashboard에서 SSL 오류를 피하려면 Kaspersky에서 `dash.cloudflare.com`을 허용하세요.
+
+---
+
+## Certificate Approval 갱신 이메일
+
+### 증상
+
+Certificate Approval 갱신 이메일에서 `Approve Certificate`를 클릭하면 다음 오류 메시지가 나타납니다.
+
+`An error occurred while attempting to validate your domain. Please try again later or contact support for assistance.`
+
+### 해결 방법
+
+[Cloudflare dashboard](https://dash.cloudflare.com?to=/:account/:zone/ssl-tls)에서 인증서 상태를 확인하세요. 상태가 `Active`라면 이 이메일과 오류 메시지는 무시해도 됩니다.

@@ -1,0 +1,257 @@
+---
+pcx_content_type: configuration
+title: 카탈로그
+description: R2 버킷과 관련된 Iceberg REST 카탈로그를 관리하는 방법을 이해하십시오.
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/manage-catalogs/'
+translation_source_md: 'https://developers.cloudflare.com/r2/data-catalog/manage-catalogs/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	PackageManagers,
+	Steps,
+	FileTree,
+	Tabs,
+	TabItem,
+	TypeScriptExample,
+	WranglerConfig,
+	LinkCard,
+	DashButton,
+} from "~/components";
+
+학습 방법:
+
+- 사용 및 사용[R2 데이터 카탈로그](/r2/data-catalog/)당신의 물통에.
+- 사용 및 사용[테이블 정비](/r2/data-catalog/table-maintenance/)컴팩트 및 스냅 샷 만료 같은 기능.
+- API 토큰을 사용하여 Iceberg 엔진을 인증합니다.
+
+## 유효한 R2 버킷의 데이터 카탈로그
+
+REST 카탈로그 인터페이스에서 Bucket turn에 카탈로그를 작성하고 제공**카탈로그 URI**·**창고 이름**Iceberg 고객에 의해 요구. 활성화되면, 당신은 그 버킷에서 Iceberg 테이블을 만들고 관리 할 수 있습니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 갑니다**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. 데이터 카탈로그를 활성화하려면 버킷을 선택하십시오.
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 그리고 선택**이름 \***.
+      4. 일단 활성화되면, 참고**카탈로그 URI**·**창고 이름**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="Wrangler 클립">
+    물통에 카탈로그를 활성화하려면, 실행[`r2 bucket catalog enable command`](/workers/wrangler/commands/#r2-bucket-catalog-enable):
+
+    ```bash
+    npx wrangler r2 bucket catalog enable <BUCKET_NAME>
+    ```
+
+    활성화 후 Wrangler는 카탈로그 URI와 창고 이름을 반환합니다.
+  </TabItem>
+</Tabs>
+
+## 분리가능한 R2 버킷의 데이터 카탈로그
+
+물통에 카탈로그를 비활성화하면 카탈로그 인터페이스에서 즉시 수신 요청을 중지합니다. 어떤 Iceberg 테이블 referenceS는 당신이 그것을 재사용할 때까지 그 카탈로그에 저장됩니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 이동하십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. 데이터 카탈로그를 비활성화하려면 물통을 선택하십시오.
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 그리고 선택**사용 방법**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="Wrangler 클립">
+    물통에 카탈로그를 비활성화하려면, 실행[`r2 bucket catalog disable command`](/workers/wrangler/commands/#r2-bucket-catalog-disable):
+
+    ```bash
+    npx wrangler r2 bucket catalog disable <BUCKET_NAME>
+    ```
+  </TabItem>
+</Tabs>
+
+## 공급 업체
+
+Compaction은 여러 개의 작은 파일을 결합하여 쿼리 성능을 향상시킵니다. 데이터 ingestion into someer, 더 큰 파일 설정`target file size`. 컴팩트에 대한 더 많은 정보를 위해 왜 가치가있다, 참조[컴팩트](/r2/data-catalog/table-maintenance/)·
+:::note\[API 토큰 권한 요건]
+컴팩트 및 스냅 샷 만료와 같은 테이블 유지 보수 작업은 Cloudflare API 토큰을 R2 저장 및 R2 데이터 카탈로그 읽기 / 쓰기 권한은 서비스 자격 증명으로 행동합니다.
+
+더 알아보기[Iceberg 엔진 인증](#authenticate-your-iceberg-engine)필요한 권한을 가진 토큰을 만들기에 대한 자세한 내용은.
+주요 특징
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. Compaction을 활성화하려면 버킷을 선택합니다.
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 클릭**제품정보**컴팩트 카드 옆에 아이콘.
+      4. 컴팩트하고 선택적으로 대상 파일 크기를 설정합니다. 기본값은 128MB입니다.
+      5. (선택) 당신의 물통에 있는 파일을 접근하고 재쓰기하기 위하여 조밀함을 위한 Cloudflare API 토큰을 제공합니다.
+      6. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="Wrangler 클립">
+    카탈로그에 압축을 활성화하려면, 실행[`r2 bucket catalog compaction enable`이름 \*](/workers/wrangler/commands/#r2-bucket-catalog-compaction-enable):
+
+    ```bash
+    #Enable Catalog-level 컴팩트 (모든 테이블)
+    npx wrangler r2 bucket catalog compaction enable <BUCKET_NAME> --target-size 128 --token <API_TOKEN>
+
+    #특정 테이블에 대한 Enable compaction
+    npx wrangler r2 bucket catalog compaction enable <BUCKET_NAME> <NAMESPACE> <TABLE> --target-size 128
+    ```
+
+    :::노트\[Table-level vs 카탈로그급 컴팩트]
+
+    - **카탈로그 수준**: 버킷의 모든 테이블에 적용; 서비스 자격으로 API 토큰을 요구합니다.
+    - **테이블 수준**: 특정 테이블에만 적용됩니다.
+
+    :::
+  </TabItem>
+</Tabs>
+
+일단 활성화되면, 조밀함은 모든 기존 테이블 ( 카탈로그 수준 조밀함을 위해) 또는 지정된 테이블 (표면 수준 조밀함을 위해)에 복하게 적용합니다. 오픈 베타 중, 우리는 현재 각 테이블에 대한 시간 당 한 번 파일의 2 GB 가치까지 압축합니다.
+
+## 공급 업체
+
+압축을 해제하면 모든 테이블 (catalog Level) 또는 특정 테이블 (table level)을 실행하여 프로세스를 방지합니다. 언제든지 다시 사용할 수 있습니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. Compaction을 활성화하려면 버킷을 선택합니다.
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 클릭**관련 기사**컴팩트 카드 옆에 아이콘.
+      4. 압축 해제.
+      5. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="Wrangler 클립">
+    카탈로그에 압축을 해제하려면, 실행[`r2 bucket catalog compaction disable`이름 \*](/workers/wrangler/commands/#r2-bucket-catalog-compaction-disable):
+
+    ```bash
+    #분리형 카탈로그-level compaction (모든 테이블)
+    npx wrangler r2 bucket catalog compaction disable <BUCKET_NAME>
+
+    #특정 테이블에 대한 압축
+    npx wrangler r2 bucket catalog compaction disable <BUCKET_NAME> <NAMESPACE> <TABLE>
+    ```
+  </TabItem>
+</Tabs>
+
+## 사용 가능한 snapshot expiration
+
+Snapshot expiration 자동으로 메타데이터블로트 및 저장 비용을 줄이기 위해 오래된 테이블 스냅샷을 제거합니다. Snapshot expiration에 대한 자세한 내용은 왜 가치가 있습니까?[테이블 정비](/r2/data-catalog/table-maintenance/).
+
+:::참조
+스냅 샷 만료 명령은 Wrangler 버전 4.56.0으로 사용할 수 있습니다.
+주요 특징
+
+카탈로그에서 스냅 샷 만료를 활성화하려면, 실행[`r2 bucket catalog snapshot-expiration enable`이름 \*](/workers/wrangler/commands/#r2-bucket-catalog-snapshot-expiration-enable):
+
+```bash
+#Enable Catalog-level snapshot expiration (모든 테이블)
+npx wrangler r2 bucket catalog snapshot-expiration enable <BUCKET_NAME> \
+  --token <API_TOKEN> \
+  --older-than-days 7 \
+  --retain-last 10
+
+#특정 테이블에 대한 스냅 샷 expiration
+npx wrangler r2 bucket catalog snapshot-expiration enable <BUCKET_NAME> <NAMESPACE> <TABLE> \
+  --older-than-days 2 \
+  --retain-last 5
+```
+
+## 무능 스냅 샷 만료
+
+스냅 샷 만료를 비활성화하면 모든 테이블 (catalog Level) 또는 특정 테이블 (table level)을 실행하여 프로세스를 방지합니다. 언제든지 재 활성화할 수 있습니다.
+
+```bash
+#카탈로그 레벨 스냅 샷 만료 (모든 테이블)
+npx wrangler r2 bucket catalog snapshot-expiration disable <BUCKET_NAME>
+
+#특정 테이블에 대한 스냅 샷 만료
+npx wrangler r2 bucket catalog snapshot-expiration disable <BUCKET_NAME> <NAMESPACE> <TABLE>
+```
+
+## Iceberg 엔진 인증
+
+Iceberg 엔진을 R2 데이터 카탈로그에 연결하려면 Cloudflare API 토큰을 제공해야합니다.**모두 보기**R2 데이터 카탈로그 권한 및 R2 저장 권한. Iceberg 엔진은 테이블 작업을 수행하는 R2 데이터 카탈로그와 상호 작용합니다. 카탈로그는 또한 R2에 저장된 자료 파일에 접근하기 위하여 필요한 SigV4 credentials를 가진 엔진을 제공합니다.
+
+### dashboard에서 API 토큰 생성
+
+이름 \*[R2 API 토큰](/r2/api/tokens/#permissions)이름 \***관리자 읽기 및 쓰기**또는**관리자 읽기 만**이름 \* 이 권한은 모두 포함:
+
+- R2 데이터 카탈로그에 액세스 (선택된 권한에 따라 읽기 전용 또는 읽기 / 쓰기)
+- R2 스토리지에 액세스 (선택된 권한에 따라 읽기 전용 또는 읽기 / 쓰기)
+
+Iceberg 엔진에 대한 결과 토큰 가치를 제공함으로써 메타데이터를 관리하고 데이터 작업을 처리할 수 있는 기능을 제공합니다(R2XQ).
+
+### API를 통해 API 토큰 만들기
+
+QXQX0465XQ 데이터 카탈로그를 사용하여 API 토큰을 프로그래밍적으로 만들려면 QXQX0465XQ 데이터 카탈로그 및 QXQX0465XQ 저장 권한 그룹을 모두 지정해야합니다.[오시는 길](/r2/api/tokens/#access-policy).
+
+#### 예제 액세스 정책
+
+```json
+[
+	{
+		"id": "f267e341f3dd4697bd3b9f71dd96247f",
+		"effect": "allow",
+		"resources": {
+			"com.cloudflare.edge.r2.bucket.4793d734c0b8e484dfc37ec392b5fa8a_default_my-bucket": "*",
+			"com.cloudflare.edge.r2.bucket.4793d734c0b8e484dfc37ec392b5fa8a_eu_my-eu-bucket": "*"
+		},
+		"permission_groups": [
+			{
+				"id": "d229766a2f7f4d299f20eaa8c9b1fde9",
+				"name": "Workers R2 Data Catalog Write"
+			},
+			{
+				"id": "2efd5506f9c8494dacb1fa10a3e7d5b6",
+				"name": "Workers R2 Storage Bucket Item Write"
+			}
+		]
+	}
+]
+```
+
+API를 사용하여 QXQX0466XQ Data Catalog에 API 토큰을 생성하는 방법에 대해 자세히 알아 보려면 필요한 권한 그룹 및 사용 예제를 포함하여 API를 사용하여 API 토큰을 생성하는 방법에 대해 자세히 알아보십시오.[API 문서를 통해 API 토큰 만들기](/r2/api/tokens/#create-api-tokens-via-api).
+
+## R2 로컬 업로드
+
+[지역 업로드](/r2/buckets/local-uploads)객체 데이터를 가까운 위치로 씁니다. 동시에 물통에 복사합니다. Data는 즉시 쿼리하고 강력하게 유지됩니다. 이것은 각각 QXQX0468XQ 데이터 카탈로그 물통의 영역 밖에 Apache Iceberg 클라이언트에서 쓰기의 대기 시간을 크게 향상시킬 수 있습니다.
+
+R2 로컬 업로드를 활성화하려면 다음 Wrangler 명령을 사용할 수 있습니다.
+
+```bash
+npx wrangler r2 bucket catalog local-uploads enable <R2_Data_Catalog_BUCKET_NAME>
+```
+
+## 제한 사항
+
+- 모델 번호: R2 데이터 카탈로그는 현재 비기본 관할 구역에서 R2 Buckets를 지원하지 않습니다.
+
+## 더 알아보기
+
+<LinkCard title="시작하기" href="/r2/data-catalog/get-started/" description="물통에 R2 데이터 카탈로그를 활성화하고, 샘플 데이터를로드하고, 첫 번째 쿼리를 실행하는 방법을 알아보십시오." />
+
+<LinkCard title="Iceberg 엔진에 연결" href="/r2/data-catalog/config-examples/" description="Apache Spark 및 기타 일반적인 쿼리 엔진에 대한 자세한 설정 지침을 찾으십시오." />

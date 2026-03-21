@@ -1,0 +1,134 @@
+---
+pcx_content_type: concept
+title: 문제 해결 및 디버그
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/observability/troubleshooting/'
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/observability/troubleshooting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+문제 해결 및 디버그 오류는 일반적으로 Hyperdrive와 데이터베이스에 연결 관련.
+
+## 구성 오류
+
+새로운 HyperdriveXQ 구성을 만들거나 기존 구성과 관련된 연결 매개 변수를 업데이트 할 때 Hyperdrive는 구성을 생성하거나 업데이트하기 전에 배경의 데이터베이스에 대한 테스트 연결을 수행합니다.
+
+Hyperdrive는 또한 빈 시험 조회, a를 발행할 것입니다`;`PostgreSQL에서 데이터베이스에 쿼리를 전달할 수 있습니다.
+
+| 오류 코드  | 이름 \*                                               | 자주 묻는 질문                                                                                             |
+| ------ | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `2008` | 나쁜 이름.                                              | Hyperdrive는 데이터베이스 호스트 이름을 해결할 수 없습니다. 공용 DNS에 존재 확인.                                                |
+| `2009` | 호스트 이름은 공개 IP 주소로 해결되지 않습니다. 또는 IP 주소는 공개 주소가 아닙니다. | Hyperdrive는 공공 IP 주소에만 연결할 수 있습니다. Private IP 주소, 같은`10.1.5.0`또는`192.168.2.1`, 현재 지원되지 않습니다.         |
+| `2010` | 호스트에 연결할 수 없습니다 : 포트.                               | Hyperdrive는 호스트 이름에 경로를 할 수 없습니다 : 공공 IP 주소로 해결하는 공용 DNS 레코드가 있습니다. hostname이 misspelled가 아닌지 확인합니다. |
+| `2011` | 연결 거부.                                              | 네트워크 방화벽 또는 액세스 제어 목록 (ACL)은 Hyperdrive에서 요청을 거부 할 가능성이 있습니다. 공공 인터넷에서 연결을 허용했습니다.                   |
+| `2012` | TLS (SSL)는 데이터베이스에 의해 지원되지 않습니다.                    | Hyperdrive는 연결하기 위하여 TLS (SSL)를 요구합니다. 데이터베이스에 TLS 구성.                                               |
+| `2013` | 잘못된 데이터베이스 자격.                                      | 사용자의 사용자명은 정확합니다 (그리고 존재), 그리고 암호는 정확합니다 (case-sensitive).                                           |
+| `2014` | 지정된 데이터베이스 이름은 존재하지 않습니다.                           | 데이터베이스에 존재하는 데이터베이스 (표시되지 않음) 이름을 체크하면 Hyperdrive에 연결됩니다.                                            |
+| `2015` | 일반 오류.                                              | Hyperdrive 연결 실패하고 이유를 결정할 수 없습니다. 지원 티켓을 열어 Cloudflare를 조사 할 수 있습니다.                                |
+| `2016` | 테스트 쿼리 실패.                                          | 사용자 Hyperdrive가 주어진 데이터베이스에 읽고 쿼리를 쓰기 권한으로 연결된다는 것을 확인하십시오.                                          |
+
+### 연결 실패
+
+Hyperdrive는 또한 방출할지도 모릅니다`Failed to connect to the provided database`Hyperdrive 구성을 만들려고 할 때 데이터베이스에 연결할 실패. TLS (SSL) 인증서가 잘못 구성될 때 가능합니다. 오류를 연결하기 위해 잠재적인 실패의 non-exhaustive 테이블입니다:
+
+| 오류 메시지                               | 이름 \*                                                                     | 자주 묻는 질문                                                                                                      |
+| ------------------------------------ | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Server 반환 오류 및 폐쇄 연결.                | 이 메시지는 클라이언트 인증서 검증이 가능한 데이터베이스에 연결할 때 발생합니다.                             | Hyperdrive를 구성하고 있습니다.[고객 인증서](/hyperdrive/configuration/tls-ssl-certificates-for-hyperdrive/)데이터베이스가 필요한 경우. |
+| TLS Handhake 실패: cert validation 실패. | 이 메시지는 Hyperdrive가 서버 CA 인증서로 구성되고 서버가 예상된 CA 인증서에 의해 서명되지 않은 인증서를 나타냅니다. | Hyperdrive의 정확한 CA 인증서를 사용하거나 올바른 데이터베이스에 연결되도록 보장합니다.                                                        |
+
+## 연결 오류
+
+Hyperdrive는 또한 가동 시간에 과실을 돌려보낼지도 모릅니다. 이것은 초기 연결 설정 중 발생할 수 있습니다, 또는 귀하의 드라이버에 의해 보낸 쿼리 또는 다른 와이어 protocol 명령에 응답.
+
+이 오류가 반환됩니다.`ErrorResponse`유선 프로토콜 메시지, 대부분의 드라이버에 의해 처리되는 책임있는 쿼리 또는 오류 이벤트를 트리거하여.
+Hyperdrive 오류는 오류 메시지 코드로 1:1를 맵하지 않습니다.[PostgreSQL에 의해 문서화](https://www.postgresql.org/docs/current/errcodes-appendix.html)이용안내`58000`오류 코드.
+
+Hyperdrive는 또한 만날지도 모릅니다`ErrorResponse`당신의 데이타베이스에 의해 보내지는 철사 의정서 메시지. Hyperdrive는 이 오류를 전달합니다.
+
+### Hyperdrive 특정 오류
+
+| 오류 메시지                                                                  | 이름 \*                                                  | 자주 묻는 질문                                                                                                                                     |
+| ----------------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Internal error.`                                                       | 우리의 측에 끊어지는 무언가.                                       | Hyperdrive에 영향을 미치는 지속적인 사건을 확인하고,[접촉 Cloudflare 지원하다](/support/contacting-cloudflare-support/). 쿼리를 복원하는 것은 적절하다, 그것이 사용 패턴에 대한 감각을 만드는 경우. |
+| `Failed to acquire a connection from the pool.`                         | Hyperdrive는 당신의 데이타베이스에 연결을 기다리는 동안, 또는 전혀 연결할 수 없습니다. | 이 오류가 간헐적으로 보이는 경우 Hyperdrive 풀이 너무 많은 연결이 작업자가 너무 길게 열리기 때문에 배기됩니다. 이것은 다른 문제점의 신비한에 기인할 수 있습니다, 그러나 장기간의 쿼리/전달은 일반적인 offender입니다.          |
+| `Server connection attempt failed: connection_refused`                  | Hyperdrive는 당신의 근원 데이타베이스에 새로운 연결을 창조할 수 없습니다.         | 네트워크 방화벽 또는 액세스 제어 목록 (ACL)은 Hyperdrive에서 요청을 거부 할 가능성이 있습니다. 공공 인터넷에서 연결을 허용했습니다. 때로는 데이터베이스 호스트 공급자가 연결 제한을 극복할 때 수신 연결을 거부 할 수 있습니다.      |
+| `Hyperdrive does not currently support MySQL COM_STMT_PREPARE messages` | Hyperdrive는 MySQL 데이터베이스에 대한 준비된 성명을 지원하지 않습니다.        | MySQL 쿼리에서 준비된 문 제거.                                                                                                                         |
+
+### Node 오류
+
+| 오류 메시지                                           | 이름 \*                                                            | 자주 묻는 질문                                                                                    |
+| ------------------------------------------------ | ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `Uncaught Error: No such module "node:<module>"` | Cloudflare Workers 프로젝트 또는 가져 오기가 사용할 수없는 노드 모듈에 액세스하려고하는 라이브러리. | 이름 \*[Node.js 호환성](/workers/runtime-apis/nodejs/)Cloudflare QXWorkers 프로젝트의 경우 호환성을 극대화합니다. |
+
+### 자주 묻는 질문
+
+쿼리가 Hyperdrive에도 캐시되지 않은 경우 다음을 확인하십시오.
+
+- **쿼리에 안정 또는 휘발성 PostgreSQL 기능**: PostgreSQL 기능을 포함하는 쿼리`STABLE`또는`VOLATILE`캐시 할 수 없습니다. 일반적인 예제는`NOW()`, `CURRENT_TIMESTAMP`, `CURRENT_DATE`, `RANDOM()`·`LASTVAL()`. 이것을 해결하기 위하여, 당신의 신청 부호에 기능 전화를 이동하고 조회 모수로 결과를 전달하십시오. 예를 들어, 대신`WHERE created_at > NOW()`, 당신의 노동자에 있는 타임스탬프를 보상하고 모수로 그것을 통과하십시오:`WHERE created_at > $1`. 참고[Query 캐싱](/hyperdrive/concepts/query-caching/)uncacheable 기능의 전체 목록.
+
+**SQL 댓글의 기능 이름**: Hyperdrive는 uncacheable 기능을 검출하기 위해 텍스트 기반 패턴을 사용합니다. 기능 이름과 같은 참조`NOW()`SQL 의견에서 함수가 실제로 호출되지 않은 경우에도 uncacheable으로 처리 할 쿼리를 발생시킵니다. 참고 자료s를 제거하여 쿼리 텍스트에서 비활성화 기능 이름을 제거하고, 주석을 포함.
+
+- **드라이버 구성**: 귀하의 드라이버는 Hyperdrive에 의해 캐시되지 않는 것과 같은 구성될 수 있습니다. 당신이 사용 하는 경우이 발생할 수 있습니다.[다운로드](https://github.com/porsager/postgres)드라이버와[`prepare: false`](https://github.com/porsager/postgres?tab=readme-ov-file#prepared-statements). 이 문제를 해결하기 위해, 준비된 문과 함께`prepare: true`.
+
+### 드라이버 오류
+
+| 오류 메시지                                                     | 이름 \*                                                                            | 자주 묻는 질문                                                                                                                                    |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Code generation from strings disallowed for this context` | 사용중인 데이터베이스 드라이버는 사용하려고 시도`eval()`Cloudflare WorkersXQ에 지원되지 않는 명령`mysql2`드라이버). | 데이터베이스 드라이버를 구성하지 않는`eval()`. 방법 보기[관련 제품`mysql2`사용 중지`eval()`](/hyperdrive/examples/connect-to-mysql/mysql-drivers-and-libraries/mysql2/). |
+
+### Stale 연결 및 I/O 컨텍스트 오류
+
+이 오류는 데이터베이스 클라이언트 또는 연결이 글로벌 범위 (요구 핸들러 제외)에서 생성되거나 요청에 따라 재사용됩니다. Workers는 허용하지 않습니다[요청에 따라 I/O](/workers/runtime-apis/bindings/#making-changes-to-bindings), 이전 요청에서 데이터베이스 연결 컨텍스트가 사용되지 않습니다. (주)[handlers 내부 데이터베이스 클라이언트 만들기](/hyperdrive/concepts/connection-lifecycle/#cleaning-up-client-connections).
+
+#### Workers 런타임 오류
+
+| 오류 메시지                                                                                                                                                                                                                         | 이름 \*                                          | 자주 묻는 질문                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `Disallowed operation called within global scope. Asynchronous I/O (ex: fetch() or connect()), setting a timeout, and generating random values are not allowed within global scope.`                                           | 작업자는 데이터베이스 연결을 열거나 스크립트 시작 중에 I/O를 실행하려고 합니다. | 데이터베이스 클라이언트 생성을 귀하의로 이동`fetch`, `queue`, 또는 다른 핸들러 기능.                                 |
+| `Cannot perform I/O on behalf of a different request. I/O objects (such as streams, request/response bodies, and others) created in the context of one request handler cannot be accessed from a different request's handler.` | 한 요청에 따라 만든 데이터베이스 연결 또는 클라이언트는 후속 요청에 재사용됩니다. | 글로벌 변수에서 캐싱 대신 모든 요청에 새로운 데이터베이스 클라이언트를 만듭니다. Hyperdrive의 연결 풀링은 이미 연결 시작 오버 헤드를 삭제합니다. |
+
+#### 노드 포스터 (node-postgres)`pg`) 오류
+
+| 오류 메시지                                                           | 이름 \*                                                        | 자주 묻는 질문                                                                        |
+| ---------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| `Connection terminated`                                          | 고객의`.end()`메소드가 호출되었거나 연결이 이전 요청의 끝에 정리되었습니다.                | 새로운 기능`Client`이전 요청에서 하나 대신 핸들러 내부.                                             |
+| `Connection terminated unexpectedly`                             | 아래 연결은 명시되지 않고 떨어졌다`.end()`호출 — 예를 들어, 이전 요청의 컨텍스트가 수집 된 경우. | 새로운 기능`Client`모든 요청에 대한 핸들러 내부.                                                 |
+| `Client has encountered a connection error and is not queryable` | 소켓 수준의 오류가 연결에 발생했습니다 (요구를 통해 클라이언트를 재사용 할 때).               | 새로운 기능`Client`당신의 핸들러 안쪽에. 글로벌 변수에 클라이언트를 저장하지 마십시오.                            |
+| `Client was closed and is not queryable`                         | 쿼리는 클라이언트에 시도했다`.end()`메서드는 이미 호출되었습니다.                      | 새로운 기능`Client`대신 핸들러 안쪽에.                                                       |
+| `Cannot use a pool after calling end on the pool`                | `pool.connect()`는`Pool`이미 종료된 경우.                            | 이용안내`new Pool()`글로벌 범위에서. 이름 \*`new Client()`핸들러 내부 - Hyperdrive는 연결 풀링을 처리합니다. |
+| `Client has already been connected. You cannot reuse a client.`  | `client.connect()`이미 이전 직업에 연결 된 클라이언트에 호출되었습니다.             | 새로운 기능`Client`요구 당. node-postgres 클라이언트는 한 번 연결될 수 없습니다.                        |
+
+#### 다운로드`postgres`) 오류
+
+Postgres.js 오류 메시지는 오류 코드와 대상 호스트를 포함합니다. 더 보기`code`오류 객체의 속성은 오류 코드가 포함되어 있습니다.
+
+| 오류 메시지                                     | 이름 \*                                                                                                  | 자주 묻는 질문                                                                   |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| `write CONNECTION_ENDED <host>:<port>`     | 질문은 후에 시도되었습니다`sql.end()`호출, 또는 연결은 사전 요청에서 정리되었습니다. 오류 코드:`CONNECTION_ENDED`.                         | 새로운 기능`postgres()`핸들러 내부의 인스턴스.                                            |
+| `write CONNECTION_DESTROYED <host>:<port>` | 연결은 강제로 종료되었습니다 — 예를 들어, 도중`sql.end({ timeout })`만료 또는 연결이 이미 종료되었기 때문에. 오류 코드:`CONNECTION_DESTROYED`. | 새로운 기능`postgres()`모든 요청에 대한 핸들러 내부 인스턴스.                                   |
+| `write CONNECTION_CLOSED <host>:<port>`    | 아래 소켓은 예기치 않게 닫혔지만 쿼리는 여전히 종료되었습니다. 오류 코드:`CONNECTION_CLOSED`.                                         | 새로운 기능`postgres()`핸들러 내부의 인스턴스. 단일 요청 내에서 발생하면 네트워크 문제 또는 쿼리 타임 아웃을 확인합니다. |
+
+#### mysql2 오류
+
+| 오류 메시지                                                     | 이름 \*                                                                            | 자주 묻는 질문                                                                               |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `Can't add new command when connection is in closed state` | 쿼리는 이미 닫히거나 지방 오류를 발생 한 연결에 시도되었습니다.                                             | handler 내부의 새로운 연결 만들기 대신 글로벌 범위에서 하나를 재사용.                                            |
+| `Connection lost: The server closed the connection.`       | underlying 소켓은 서버에 의해 닫혔거나 요청 사이에 수집 된 쓰레기입니다. 오류 코드:`PROTOCOL_CONNECTION_LOST`. | 모든 요청에 대한 핸들러 내부의 새로운 연결 만들기.                                                          |
+| `Pool is closed.`                                          | `pool.getConnection()`이미 닫히는 풀에 호출되었습니다.                                         | 이용안내`createPool()`글로벌 범위에서. 새로운 기능`createConnection()`핸들러 내부 - Hyperdrive는 당신을 위해 풀린다. |
+
+#### mysql 오류
+
+| 오류 메시지                                                          | 이름 \*                                                                             | 자주 묻는 질문                                       |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `Cannot enqueue Query after fatal error.`                       | 쿼리는 이전에 지방 오류에 직면 한 연결에 시도되었습니다. 오류 코드:`PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR`.      | handler 내부의 새로운 연결 만들기 대신 글로벌 범위에서 하나를 재사용.    |
+| `Cannot enqueue Query after invoking quit.`                     | 질문은 후에 연결에 시도되었습니다`.end()`이름 \* 오류 코드:`PROTOCOL_ENQUEUE_AFTER_QUIT`.              | 모든 요청에 대한 핸들러 내부의 새로운 연결 만들기.                  |
+| `Cannot enqueue Handshake after already enqueuing a Handshake.` | `.connect()`이전 요청에 이미 연결 된 연결에 호출되었습니다. 오류 코드:`PROTOCOL_ENQUEUE_HANDSHAKE_TWICE`. | 요청에 따라 새로운 연결을 만듭니다. mysql 연결은 한 번 연결될 수 없습니다. |
+
+### 향상된 성능
+
+트랜잭션으로 작성된 쿼리 트래픽을 제한할 수 있습니다. 이것은 거래의 경우이기 때문에 연결은 다중화 연결을 제한하는 거래의 기간 동안 수행해야합니다. 거래당 다수 쿼리가 있는 경우, 연결 다중화에 특히 영향을 줄 수 있습니다. 가능한 한, 우리는 트랜잭션에서 쿼리를 감싸는 것이 더 공격적으로 공유 할 수있는 연결을 허용하는 것이 좋습니다.

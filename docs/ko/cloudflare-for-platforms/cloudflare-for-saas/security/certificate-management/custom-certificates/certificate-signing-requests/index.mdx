@@ -1,0 +1,146 @@
+---
+title: 인증서 서명 요청 (CSRs)
+pcx_content_type: tutorial
+sidebar:
+  order: 7
+head:
+  - tag: title
+    content: 인증서 서명 요청 (CSRs) — SaaS를 위한 Cloudflare
+description: >-
+  Cloudflare for SaaS는 인증서 서명 요청 (CSR) A CSR을 생성 할 수 있습니다 귀하의 도메인, 일반적인 이름 및 제목
+  대체 이름에 대한 정보를 포함.
+reviewed: 2020-09-03T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/certificate-signing-requests/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/certificate-signing-requests/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+<Render file="csr-definition" product="ssl" />
+
+CSR이 생성되면 고객에게 제공합니다. 고객이 선호하는 CA에 따라 인증서를 취득하고 당신에게 반환합니다. 인증서를 받은 후, CSR 작성 중에 Cloudflare 및 참고 자료XQ 고유의 CSR ID로 업로드해야 합니다.
+
+<Render file="ssl-for-saas-plan-limitation" product="cloudflare-for-platforms" />
+
+***
+
+## 개인 키 및 CSR 생성
+
+### 1. CSR 페이로드 구축
+
+organizational unit 및 key type을 제외한 모든 필드가 필요합니다. 지정하지 않는 경우`key_type`, 기본의`rsa2048`(RSA 2048 조금) 사용될 것입니다; 다른 선택권은 입니다`p256v1`(NIST P-256).
+
+일반적인 이름은 64 문자와 제목의 대체 이름 (SANs)에 제한됩니다 255 문자,[RFC 5280 당](https://tools.ietf.org/html/rfc5280). 최소한 SAN을 지정해야 하며 SAN 목록은 일반적인 이름을 포함해야 합니다.
+
+```bash
+request_body=$(< <(cat <<EOF
+{
+  "country": "US",
+  "state": "MA",
+  "locality": "Boston",
+  "organization": "City of Boston",
+  "organizational_unit": "Championship Parade Detail",
+  "common_name": "app.example.com",
+  "sans": [
+    "app.example.com",
+    "www.example.com",
+    "blog.example.com",
+    "example.com"
+  ],
+  "key_type": "p256v1"
+}
+EOF
+))
+```
+
+### 2. CSR 생성
+
+이제 고객에게 제공 할 수있는 CSR을 생성하고 싶습니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_csrs \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data "$request_body"
+
+#응답:
+{
+  "result": {
+    "id": "7b163417-1d2b-4c84-a38a-2fb7a0cd7752",
+    "country": "US",
+    "state": "MA",
+    "locality": "Boston",
+    "organization": "City of Boston",
+    "organizational_unit": "Championship Parade Detail",
+    "common_name": "app.example.com",
+    "sans": [
+      "app.example.com",
+      "www.example.com",
+      "blog.example.com",
+      "example.com",
+    ],
+    "key_type": "p256v1",
+    "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIIBSzCB8gIBADBiMQswaQYDVQQGEwJVUzELMAkGA1UECBMCTUExDzANBgNVBAcT\nBkJvc3RvbjEaMBgGA1UEChMRQ2l0eSBvZiBDaGFtcGlvbnMxGTAXBgNVBAMTEGNz\nci1wcm9kLnRscy5mdW4wWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAaTKf70NYlwr\n20P6P8xj8/4mTN5q28dbZR/gM3u4m/RPs24+PxAfMZCNvkVKAPVWYfUAadZI4Ha/\ndxLh5Q6X5bhIoC4wLAYJKoZIhvcNAQkOMR8wHTAbBqNVHREEFDASghBjc3ItcHJv\nZC50bHMuZnVuMAoGCCqGSM49BAMCA0gAMEUCIQDgtFUZav466SbT2FGBsIBlahDI\nVkg4y+u+V/K5DlY1+gIgQ9xLfUSKnSnJYbM9TwWr4Z964+lBtB9af4O5pp7/PSA=\n-----END CERTIFICATE REQUEST-----\n"
+  },
+  "success": true
+```
+
+수정하기`\n`당신의 고객에게 전달하기 전에 실제적인 newlines를 가진 특성. 이전에는 jq 및 perl과 같은 도구로 이전 통화의 출력을 배관하여 수행 할 수 있습니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_csrs \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data "$request_body" | jq .result.csr | perl -npe s'/\\n/\n/g; s/"//g' > csr.txt
+```
+
+### 3. 고객은 증명서를 얻습니다
+
+고객이 제공 한 CSR을 취하고 CA와 협력하여 서명하고 공개적으로 신뢰할 수있는 인증서를 취득합니다.
+
+### 4. 인증서 업로드
+
+인증서 및 참고 자료를 업로드하면 CSR을 생성 할 때 제공 된 ID.
+
+리터럴을 가진 인증서의 신화를 대체해야 합니다.`\n`사용자 지정 인증서 업로드 예에서 위에서 설명 한 문자. 그래서, 요청 몸을 구축하고 이전 단계에서 반환 된 ID를 제공합니다.
+
+Cloudflare는 공개적으로 믿을 수 있는 증명서를 받아들입니다. 자기 서명 인증서를 업로드하려고하면 거절됩니다.
+
+```bash
+$ MYCERT="$(cat app_example_com.pem|perl -pe 's/\r?\n/\\n/'|sed -e 's/..$//')"
+
+$ request_body=$(< <(cat <<EOF
+{
+  "hostname": "app.example.com",
+  "ssl": {
+    "custom_csr_id": "7b163417-1d2b-4c84-a38a-2fb7a0cd7752",
+    "custom_certificate": "$MYCERT"
+  }
+}
+EOF
+))
+```
+
+건축되는 요구 몸으로,[사용자 정의 hostname 만들기](/api/resources/custom_hostnames/methods/create/)공급된 관례 증명서로. 여러 호스트명을 가진 인증서를 사용하려는 경우, 여러 API 호출을 대체`hostname`이름 \*
+
+***
+
+## 다른 행동
+
+### 모든 CSR 보기
+
+이전에 생성 된 사용자 정의 CSR의 수집을 요청할 수 있습니다.`GET`지원하다`https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_csrs`.
+
+### CSR 삭제
+
+CSR의 하나 이상을 삭제하여 개인 키를 삭제`DELETE`지원하다`https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_csrs/{csr_id}`.
+
+CSR을 삭제할 수 있습니다. CSR을 위해 생성 된 개인 키를 사용하여 사용자 정의 인증서가 없습니다. 개인 키가 여전히 사용중인 CSR을 삭제하려고하면 오류를 받게됩니다.

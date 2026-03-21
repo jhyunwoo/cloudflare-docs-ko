@@ -1,0 +1,266 @@
+---
+pcx_content_type: how-to
+title: 캡션 추가
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/edit-videos/adding-captions/'
+translation_source_md: 'https://developers.cloudflare.com/stream/edit-videos/adding-captions/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+캡션 및 자막을 비디오 라이브러리에 추가합니다.
+
+## 캡션 추가 또는 수정
+
+비디오에 캡션을 추가하는 두 가지 방법이 있습니다 : AI를 통해 생성하거나 업로드
+caption 파일.
+
+동영상에 캡션을 만들거나 수정하기 위해[모델 번호: Cloudflare 토큰 토큰](https://www.cloudflare.com/a/account/my-account)참고사항
+
+더 보기`<LANGUAGE_TAG>`자주 묻는 질문[BCP 47 체재](http://www.unicode.org/reports/tr35/#Unicode_Language_and_Locale_Identifiers). 편익을 위해, 많은 일반적인
+언어 코드 제공[이 문서의 하단에](#most-common-language-codes)·
+테이블에 포함되지 않은 언어가 있다면, 값을 찾을 수 있습니다.
+한국어[IANA 등록](https://www.iana.org/assignments/language-subtag-registry/language-subtag-registry), 이는 언어 코드 목록을 유지. 자주 묻는 질문
+전송 값, 언어 검색. 아래는 IANA의 예값입니다.
+우리는 터키 자막을 보내기 위한 가치를 찾습니다:
+
+```bash
+%%
+
+Subtag: tr
+Description: Turkish
+Added: 2005-10-16
+Suppress-Script: Latn
+%%
+```
+
+더 보기`Subtag`코드의 값을 나타냅니다`tr`. 이것은 당신이 보낼 가치입니다
+으로`language`HTTP 요청의 끝에.
+
+제공된 언어에서 라벨이 생성됩니다. 라벨은 볼 수 있습니다.
+플레이어의 사용자 선택. 예를 들어, 보낸 경우`tr`, 상표`Türkçe`으로
+생성; 보내면`de`, 상표`Deutsch`생성됩니다.
+
+### 캡션 생성
+
+Generated captions 사용 인공 지능 기반 연설-to-text 기술
+동영상에 대한 닫힌 캡션을 생성합니다.
+
+캡션이 생성되기 전에 비디오 업로드 및 준비 상태에 있어야합니다.
+다음 예 URL에서 비디오의 UID는 referenced입니다.`<VIDEO_UID>`·
+업로드 후 준비 할 비디오 전환 할 때 webhooks를 수신하려면
+자주 묻는 질문[webhooks 사용](/stream/manage-video-library/using-webhooks/).
+
+Captions는 다음 언어로 생성될 수 있습니다:
+
+- `cs`- 체코
+- `nl`- 네덜란드
+- `en`- 한국어
+- `fr`- 프랑스어
+- `de`- 독일
+- `it`- 이탈리아
+- `ja`- 일본어
+- `ko`- 한국어
+- `pl`- 폴란드어
+- `pt`- 포르투갈
+- `ru`- 러시아
+- `es`- 스페인어
+
+캡션을 생성 할 때, 오디오에서 말하는 언어를 생성합니다.
+
+동영상은 여러 언어에 대한 캡션을 포함 할 수 있지만 각 언어는 고유해야합니다.
+예를 들어, 비디오는 영어, 프랑스어 및 독일어 자막이 있습니다.
+그것으로,하지만 두 개의 영어 캡션이 없습니다. 이미 업로드한 경우
+동영상에 대한 영어 캡션, 먼저 삭제해야 합니다.
+English 생성된 캡션을 만듭니다. 캡션을 삭제하는 방법에 대한 지침은 아래에서 찾을 수 있습니다.
+
+더 보기`<LANGUAGE_TAG>`BCP 47 형식을 준수해야합니다. 영어 태그는`en`·
+태그에 지역을 지정할 수 있습니다.`en-GB`라벨을 렌더링합니다.
+그 결과`British English`캡션을 위해.
+
+```bash
+curl -X POST \
+-H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/captions/<LANGUAGE_TAG>/generate
+```
+
+예 응답:
+
+```json
+{
+  "result": {
+    "language": "en",
+    "label": "English (auto-generated)",
+    "generated": true,
+    "status": "inprogress"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+결과가 제공될 것입니다`status`캡션 세대의 발전을 정의합니다.\
+3개의 상태가 있습니다: inprogress, 준비되어 있고, 과실. 주의사항
+(자동 생성)는 상표에 적용됩니다.
+
+생성 된 캡션이 준비되면 자동으로 비디오에 나타납니다.
+플레이어 및 비디오 표시.
+
+캡션이 오류 상태를 입력하면 재생 시도 할 수 있습니다.
+첫번째 삭제하고 그 위에 나열된 endpoint를 사용하여.
+삭제에 대한 지침은 아래에 제공됩니다.
+
+### 파일 업로드
+
+생성 된 캡션을 편집하면 두 가지 변경 사항 : 생성 된 필드가
+관련 기사`false`라벨의 (자동 생성) 부분이 제거됩니다.
+
+캡션 파일을 만들거나 교체하려면:
+
+```bash
+curl -X PUT \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+ -F file=@/Users/mickie/Desktop/example_caption.vtt \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/captions/<LANGUAGE_TAG>
+```
+
+### 엠에디터 플러그 인 참조:Caption
+
+```json
+{
+  "result": {
+    "language": "en",
+    "label": "English",
+    "generated": false,
+    "status": "ready"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 비디오와 관련된 캡션 목록
+
+비디오와 관련된 캡션을 볼 수 있습니다.
+이 결과 목록에는 생성 된 캡션이 포함되어 있습니다.`inprogress`·`error`상태:
+
+```bash
+curl -H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/captions
+```
+
+### 비디오와 관련된 캡션을 얻는 예 응답
+
+```json
+{
+  "result": [
+    {
+      "language": "en",
+      "label": "English (auto-generated)",
+      "generated": true,
+      "status": "inprogress"
+    },
+    {
+      "language": "de",
+      "label": "Deutsch",
+      "generated": false,
+      "status": "ready"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 캡션 파일 Fetch
+
+WebVTT 캡션 파일을 보려면 GET 요청을 만들 수 있습니다.
+
+```bash
+curl \
+-H 'Authorization: Bearer <API_TOKEN>' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/captions/<LANGUAGE_TAG>/vtt
+```
+
+### 비디오에 대한 캡션 파일을 얻는 예 응답
+
+```text
+WEBVTT
+
+1
+00:00:00.000 --> 00:00:01.560
+This is an example of
+
+2
+00:00:01.560 --> 00:00:03.880
+a WebVTT caption response.
+```
+
+## 캡션 삭제
+
+동영상과 관련된 캡션을 제거하려면:
+
+```bash
+curl -X DELETE \
+ -H 'Authorization: Bearer <API_TOKEN>' \
+ https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>/captions/<LANGUAGE_TAG>
+```
+
+입장이 있는 경우`errors`응답 분야, caption는 없었습니다
+로그아웃
+
+### caption 삭제에 대한 응답
+
+```json
+{
+  "result": "",
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 제한 사항
+
+- 캡션 전에 업로드해야 합니다. 다음에서
+  예 URL, 비디오의 ID는 referenced 입니다`media_id`.
+- Stream 지원[웹VTT](https://developer.mozilla.org/en-US/docs/Web/API/WebVTT_API)포맷 된 캡션 파일. 다른 포맷 된 캡션 파일이있는 경우,
+  제품 정보[WebVTT로 파일을 변환하는 도구](https://subtitletools.com/convert-to-vtt-online)업로드하기 전에.
+- 동영상에는 여러 언어 자막이 포함되지만 각 언어는 독특해야 합니다.
+  예를 들어, 비디오는 영어, 프랑스어 및 독일어 자막이 있습니다.
+  그것으로, 그러나 그것은 2개의 프랑스 captions가 있을 수 없습니다.
+- 각 캡션 파일은 크기로 10MB로 제한됩니다.[연락처](/support/contacting-cloudflare-support/)더 큰 파일을 업로드하려면.
+
+## 가장 일반적인 언어 코드
+
+| 언어 코드 | 한국어         |
+| ----- | ----------- |
+| 사이트맵  | Mandarin 중국 |
+| 이름 \* | 한국어         |
+| ₢ 킹   | 한국어         |
+| 이름 \* | 한국어         |
+| 이름 \* | 주요 특징       |
+| 사이트맵  | 한국어         |
+| 뚱 베어  | 채용정보        |
+| ₢ 킹   | 러시아         |
+| ·     | 한국어         |
+| ·     | 한국어         |
+| 뚱 베어  | 스낵 바        |
+| 뚱 베어  | 다운로드        |
+| 한국어   | 한국어         |
+| 뚱 베어  | 담당자: Jack   |
+| ₢ 킹   | 담당자: Ms.    |
+| 뚱 베어  | 채용 정보       |
+| 뚱 베어  | 담당자: Mr. Li |
+| 사이트맵  | 뚱 베어        |
+| 뚱 베어  | 담당자: Ms.    |
+| 사이트맵  | 담당자: Ms.    |
+| 한국어   | 한국어         |
+| 이름 \* | 버뮤즈         |
+| ·     | 뚱 베어        |

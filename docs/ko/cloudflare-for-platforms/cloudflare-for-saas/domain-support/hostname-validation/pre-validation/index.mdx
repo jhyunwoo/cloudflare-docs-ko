@@ -1,0 +1,118 @@
+---
+pcx_content_type: how-to
+title: 사전 유효성
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 사전 유효성 검사 방법 - Custom Hostname Validation
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/pre-validation/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/pre-validation/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+사전 유효성 검사 방법은 고객의 트래픽이 Cloudflare를 통해 프록시되기 전에 도메인 소유권을 확인하는 데 도움이됩니다.
+
+## 사용시
+
+고객이 생산 영역에서 발생하는 모든 다운타임을 견딜 수 없을 때 사전 검증 방법을 사용합니다.
+
+downside는 이러한 방법이 고객의 추가 설정 단계를 필요로한다는 것입니다. 이미 도메인에 뭔가를 추가 할 필요가 있다면[인증서 검증](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/), 사전 유효성 검사는 더 복잡하게 만들 수 있습니다.
+
+고객이 다운 타임의 비트를 허용 할 수 있다면, 당신은 더 간단하게 설정하고, 우리의 리뷰[실시간 검증 방법](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/realtime-validation/).
+
+## 이름 \*
+
+### TXT 기록
+
+TXT 검증은 고객이 추가할 때`TXT`도메인 소유권을 확인하기 위해 인증된 DNS에 기록.
+
+:::참조
+
+고객이 인증된 DNS를 업데이트할 수 없는 경우, 또한 사용할 수 있습니다.[HTTP 유효성](#http-tokens).
+
+:::
+
+설정하기`TXT`유효성:
+
+1. 당신은[사용자 정의 hostname 만들기](/api/resources/custom_hostnames/methods/create/), 저장`ownership_verification`정보.
+
+   ```json null {11-12}
+   {
+   "result": [
+       {
+       "id": "3537a672-e4d8-4d89-aab9-26cb622918a1",
+       "hostname": "app.example.com",
+       // ...
+       "status": "pending",
+       "verification_errors": ["custom hostname does not CNAME to this zone."],
+       "ownership_verification": {
+           "type": "txt",
+           "name": "_cf-custom-hostname.app.example.com",
+           "value": "0e2d5a7f-1548-4f27-8c05-b577cb14f4ec"
+       },
+       "created_at": "2020-03-04T19:04:02.705068Z"
+       }
+   ]
+   }
+   ```
+
+2. 고객 추가`TXT`그와 함께 기록`name`·`value`그들의 권위 있는 DNS 공급자에.
+
+3. 몇 분 후에 호스트 이름 상태를 볼 수 있습니다**지원하다**UI에서.
+
+4. 사용자 정의 hostname을 활성화하면 고객은 제거 할 수 있습니다.`TXT`이름 \*
+
+### HTTP 토큰
+
+HTTP 유효성 검사는 도메인 소유권을 확인하기 위해 자신의 Origin 서버에 HTTP 토큰을 배치 할 때입니다.
+
+HTTP 유효성 설정:
+
+당신은[사용자 정의 hostname 만들기](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/issue-certificates/)API를 사용하여 Cloudflare는 HTTP를 제공합니다`ownership_verification`응답에 기록.
+
+자주 묻는 질문`ownership_verification`자료:
+
+1. API 호출을[Custom Hostname 생성](/api/resources/custom_hostnames/methods/create/).
+
+2. 응답에서, 복사`http_url`·`http_body`으로`ownership_verification_http`객체:
+
+   ```json title="Example response (truncated)" {8-9}
+   {
+     "result": [
+       {
+         "id": "24c8c68e-bec2-49b6-868e-f06373780630",
+         "hostname": "app.example.com",
+         // ...
+         "ownership_verification_http": {
+             "http_url": "http://app.example.com/.well-known/cf-custom-hostname-challenge/24c8c68e-bec2-49b6-868e-f06373780630",
+             "http_body": "48b409f6-c886-406b-8cbc-0fbf59983555"
+         },
+         "created_at": "2020-03-04T20:06:04.117122Z"
+       }
+     ]
+   }
+   ```
+
+3. 고객 위치`http_url`·`http_body`웹 서버에서.
+
+   ```txt title="Example response (truncated)"
+   location "/.well-known/cf-custom-hostname-challenge/24c8c68e-bec2-49b6-868e-f06373780630" {
+       return 200 "48b409f6-c886-406b-8cbc-0fbf59983555\n";
+   }
+   ```
+
+   Cloudflare는 이 토큰에 접근하여`GET`요청하기`http_url`이름 \*`User-Agent: Cloudflare Custom Hostname Verification`.
+
+   :::참조
+   이 토큰을 고객에게 대신 제공 할 수 있다면, 전반적인 설정을 단순화 할 수 있습니다.
+   주요 특징
+
+4. 몇 분 후에 호스트 이름 상태를 볼 수 있습니다**지원하다**UI에서.
+
+5. hostname이 활성화되면 고객은 자신의 Origin 서버에서 토큰을 제거할 수 있습니다.

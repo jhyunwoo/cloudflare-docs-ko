@@ -1,0 +1,735 @@
+---
+title: 회사 소개
+sidebar:
+  order: 20
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/turn/analytics/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/turn/analytics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Realtime TURN 서비스는 바이트의 진입 및 egress 사용을 계산합니다. TURN 분석 API를 사용하여 실시간 및 과거 데이터에 액세스할 수 있습니다. 한 번에 TURN 사용 데이터를 볼 수 있습니다.
+
+Cloudflare TURN 분석은 GraphQL API에서만 가능합니다.
+
+:::note\[API 토큰 권한]
+
+Realtime GraphQL API에 쿼리를 만들기 위해 API 토큰에 "Account Analytics" 권한이 필요합니다.
+주요 특징
+
+:::참조
+
+이름 \*[그래프QL API](/analytics/graphql-api/)GraphQL 클라이언트를 설정하는 방법에 대한 자세한 내용은. 아래 예제는 동일한 GraphQL 엔드포인트를 사용합니다.`https://api.cloudflare.com/client/v4/graphql`.
+:::
+
+## 유효한 미터 및 차원
+
+TURN 분석은 다양한 방법으로 쿼리 및 집계 할 수있는 풍부한 데이터를 제공합니다.
+
+### 미터
+
+다음 메트릭을 쿼리 할 수 있습니다.
+
+- **egress바이트**: TURN 서버에서 클라이언트로 보낸 총 바이트
+- **관련 기사**: TURN 서버에 의해 수신된 총 바이트
+- **동시 연결**: 동시 연결 평균 수
+
+이 메트릭스 지원 집계`sum`·`avg`기능.
+
+### 크기 (mm)
+
+다음 크기로 데이터를 깰 수 있습니다:
+
+- **시간 집계**: `datetime`, `datetimeMinute`, `datetimeFiveMinutes`, `datetimeFifteenMinutes`, `datetimeHour`
+- **Geographic의 특징**: `datacenterCity`, `datacenterCountry`, `datacenterRegion`(Cloudflare 데이터 센터 위치)
+- **이름 \***: `keyId`, `customIdentifier`, `username`
+
+### 필터링
+
+TURN 분석에서 데이터를 필터링 할 수 있습니다:
+
+- 일정 범위
+- TURN 키 ID
+- TURN 사용
+- 사용자 정의 식별자
+
+:::참조
+
+[사용자 정의 식별자](/realtime/turn/replacing-existing/#tag-users-with-custom-identifiers)시스템에 다른 사용자에 대 한 사용의 유용 합니다.
+
+:::
+
+## GraphQL 클라이언트
+
+GraphQL은 자체 문서화 프로토콜입니다. GraphQL 클라이언트를 사용하여 스키마 및 사용 가능한 필드를 탐험 할 수 있습니다. 인기 옵션 포함:
+
+- **[사이트맵](https://altairgraphql.dev/)**: schema 문서 탐색기가있는 GraphQL 클라이언트
+- **[그래피QL](https://github.com/graphql/graphiql)**: 오리지널 GraphQL IDE
+- **[포스트맨](https://www.postman.com/)**: schema introspection과 GraphQL 쿼리 지원
+
+전체 스키마를 탐험하려면 클라이언트를 구성하여 연결`https://api.cloudflare.com/client/v4/graphql`API 자격으로. 더 알아보기[GraphQL 스키마를 탐험](/analytics/graphql-api/getting-started/explore-graphql-schema/)상세 설명.
+
+## 유용한 TURN 분석 쿼리
+
+다음은 일반적인 usecases에 대한 몇 가지 예 쿼리입니다. 당신은 당신의 사용 케이스를 적응시키고 분석 자료에 다른 보기를 얻을 수 있습니다.
+
+### 한 번에 데이터 사용과 동시 연결
+
+이 포괄적 인 쿼리는 동시 여러 미터를 검색하는 방법을 보여줍니다. 동시 연결, egress 및 5 분 간격의 진입 바이트. 이것은 dashboardS를 건축하고 순간 사용법을 감시하기를 위해 유용합니다.
+
+```graphql
+query concurrentConnections {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 10000
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+			) {
+				dimensions {
+					datetimeFiveMinutes
+				}
+				avg {
+					concurrentConnectionsFiveMinutes
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 816
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-02T03:45:00Z"
+              },
+              "sum": {
+                "egressBytes": 207314144,
+                "ingressBytes": 8534200
+              }
+            },
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 1945
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-02T16:00:00Z"
+              },
+              "sum": {
+                "egressBytes": 462909020,
+                "ingressBytes": 128434592
+              }
+            },
+
+					]
+				}
+			]
+		}
+	]
+}
+```
+
+### egress의 상위 TURN 키
+
+```
+query egressByTurnKey{
+  viewer {
+    usage: accounts(filter: { accountTag: $accountId }) {
+        callsTurnUsageAdaptiveGroups(
+          filter: {
+          date_geq: $dateFrom,
+          date_leq: $dateTo
+        }
+          limit: 2
+          orderBy: [sum_egressBytes_DESC]
+        ) {
+          dimensions {
+            keyId
+          }
+          sum {
+            egressBytes
+          }
+        }
+      }
+    },
+		"errors": null
+  }
+
+
+```
+
+예 응답:
+
+```
+{
+  "data": {
+    "viewer": {
+      "usage": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "dimensions": {
+                "keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+              },
+              "sum": {
+                "egressBytes": 160040068147
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### Top TURN 사용자 정의 식별자
+
+```graphql
+query topTurnCustomIdentifiers {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+				limit: 1
+				orderBy: [sum_egressBytes_DESC]
+			) {
+				dimensions {
+					customIdentifier
+				}
+				sum {
+					egressBytes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "dimensions": {
+                "customIdentifier": "some identifier"
+              },
+              "sum": {
+                "egressBytes": 160040068147
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### 특정 사용자 정의 식별자에 대한 사용
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				filter: {
+					date_geq: $dateFrom
+					date_leq: $dateTo
+					customIdentifier: "tango"
+				}
+				limit: 100
+				orderBy: []
+			) {
+				dimensions {
+					keyId
+					customIdentifier
+				}
+				sum {
+					egressBytes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```
+{
+  "data": {
+    "viewer": {
+      "usage": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "dimensions": {
+                "customIdentifier": "tango",
+                "keyId": "74007022d80d7ebac4815fb776b9d3ed"
+              },
+              "sum": {
+                "egressBytes": 162641324
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### timeseries (그래프를 위해)로 사용법
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+				limit: 100
+				orderBy: [datetimeMinute_ASC]
+			) {
+				dimensions {
+					datetimeMinute
+				}
+				sum {
+					egressBytes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "dimensions": {
+                "datetimeMinute": "2025-12-01T00:00:00Z"
+              },
+              "sum": {
+                "egressBytes": 159512
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeMinute": "2025-12-01T00:01:00Z"
+              },
+              "sum": {
+                "egressBytes": 133818
+              }
+            },
+            ... (more data here)
+           ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### 사용 내역 지리적 위치
+
+Cloudflare 데이터 센터 위치에 따라 TURN 트래픽이 제공됩니다. 이것은 지역 용량을 최적화하고 사용자의 지리적 분포를 이해하는 데 유용합니다.
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 100
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+				orderBy: [sum_egressBytes_DESC]
+			) {
+				dimensions {
+					datacenterCity
+					datacenterCode
+					datacenterRegion
+					datacenterCountry
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+				avg {
+					concurrentConnectionsFiveMinutes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 3135
+              },
+              "dimensions": {
+                "datacenterCity": "Columbus",
+                "datacenterCode": "CMH",
+                "datacenterCountry": "US",
+                "datacenterRegion": "ENAM"
+              },
+              "sum": {
+                "egressBytes": 47720931316,
+                "ingressBytes": 19351966366
+              }
+            },
+            ...
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### 특정 키 또는 식별자 필터
+
+특정 TURN 키 또는 사용자 정의 식별자를 분석하는 데이터를 필터링 할 수 있습니다. 이것은 특정한 클라이언트를 위한 특정한 연결 또는 analyzing 사용법 본을 debugging를 위해 유용합니다.
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 1000
+				filter: {
+					keyId: "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+					date_geq: $dateFrom
+					date_leq: $dateTo
+				}
+				orderBy: [datetimeFiveMinutes_ASC]
+			) {
+				dimensions {
+					datetimeFiveMinutes
+					keyId
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+				avg {
+					concurrentConnectionsFiveMinutes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 130
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-01T00:00:00Z",
+                "keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+              },
+              "sum": {
+                "egressBytes": 609156,
+                "ingressBytes": 464326
+              }
+            },
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 118
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-01T00:05:00Z",
+                "keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+              },
+              "sum": {
+                "egressBytes": 534948,
+                "ingressBytes": 401286
+              }
+            },
+            ...
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### 시간 집계 옵션
+
+분석에 따라 다른 시간 집계 간격을 선택할 수 있습니다.
+
+- **`datetimeMinute`**: 1분 간격 (최대 과립)
+- **`datetimeFiveMinutes`**: 5 분 간격 (dashboards를 위해 추천하는)
+- **`datetimeFifteenMinutes`**: 15분 간격
+- **`datetimeHour`**: 시간 간격 (장기적인 추세를 위해 최상)
+
+적시 집계를 가진 보기 질문:
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 1000
+				filter: {
+					keyId: "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+					date_geq: $dateFrom
+					date_leq: $dateTo
+				}
+				orderBy: [datetimeFiveMinutes_ASC]
+			) {
+				dimensions {
+					datetimeFiveMinutes
+					keyId
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+				avg {
+					concurrentConnectionsFiveMinutes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 130
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-01T00:00:00Z",
+                "keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+              },
+              "sum": {
+                "egressBytes": 609156,
+                "ingressBytes": 464326
+              }
+            },
+            {
+              "avg": {
+                "concurrentConnectionsFiveMinutes": 118
+              },
+              "dimensions": {
+                "datetimeFiveMinutes": "2025-12-01T00:05:00Z",
+                "keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+              },
+              "sum": {
+                "egressBytes": 534948,
+                "ingressBytes": 401286
+              }
+            },
+            ...
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+## 고급 사용 사례
+
+### 여러 차원의 결합
+
+단일 쿼리에 여러 차원을 결합하여 자세한 내역을 얻을 수 있습니다. 예를 들어, 두 시간 및 위치로 사용량을 볼 수 있습니다.
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 10000
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+				orderBy: [datetimeHour_ASC, sum_egressBytes_DESC]
+			) {
+				dimensions {
+					datetimeHour
+					datacenterCity
+					datacenterCountry
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "callsTurnUsageAdaptiveGroups": [
+            {
+              "dimensions": {
+                "datacenterCity": "Chennai",
+                "datacenterCountry": "IN",
+                "datetimeHour": "2025-12-01T00:00:00Z"
+              },
+              "sum": {
+                "egressBytes": 3416216,
+                "ingressBytes": 498927214
+              }
+            },
+            {
+              "dimensions": {
+                "datacenterCity": "Mumbai",
+                "datacenterCountry": "IN",
+                "datetimeHour": "2025-12-01T00:00:00Z"
+              },
+              "sum": {
+                "egressBytes": 1267076,
+                "ingressBytes": 1140140
+              }
+            },
+						...
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+### 최고 소비자 식별
+
+키 또는 사용자 정의 식별자가 가장 대역폭을 사용하는 것을 찾으려면 :
+
+```graphql
+query {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			callsTurnUsageAdaptiveGroups(
+				limit: 10
+				filter: { date_geq: $dateFrom, date_leq: $dateTo }
+				orderBy: [sum_egressBytes_DESC, sum_ingressBytes_DESC]
+			) {
+				dimensions {
+					keyId
+					customIdentifier
+				}
+				sum {
+					egressBytes
+					ingressBytes
+				}
+				avg {
+					concurrentConnectionsFiveMinutes
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+	"data": {
+		"viewer": {
+			"accounts": [
+				{
+					"callsTurnUsageAdaptiveGroups": [
+						{
+							"avg": {
+								"concurrentConnectionsFiveMinutes": 837305
+							},
+							"dimensions": {
+								"customIdentifier": "",
+								"keyId": "82a58d0aeabfa8f4a4e0c4a9efc9cda5"
+							},
+							"sum": {
+								"egressBytes": 160040068147,
+								"ingressBytes": 154955460564
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+## Schema 탐험
+
+GraphQL Analytics API는 자체 문서화입니다. 모든 사용 가능한 필드, 필터 및 기능을 발견하는 인트로픽션을 사용할 수 있습니다.`callsTurnUsageAdaptiveGroups`. Altair 또는 GraphiQL과 같은 GraphQL 클라이언트를 사용하여, 당신은 당신의 특정한 사용 케이스를 위해 유용할지도 모르다 추가 차원 및 미터를 찾아내기 위하여 상호 작용하는 schema를 찾아낼 수 있습니다.
+
+GraphQL introspection 및 schema exploration에 대한 자세한 내용은 다음과 같습니다.
+
+- [GraphQL 스키마를 탐험](/analytics/graphql-api/getting-started/explore-graphql-schema/)
+- [GraphQL 소개](/analytics/graphql-api/features/discovery/introspection/)

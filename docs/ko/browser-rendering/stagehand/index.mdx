@@ -1,0 +1,279 @@
+---
+pcx_content_type: concept
+title: 회사 소개
+description: Browser Rendering을 사용하여 브라우저 자동화 기능을 에이전트에 제공합니다.
+sidebar:
+  order: 8
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/stagehand/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/stagehand/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	WranglerConfig,
+	TabItem,
+	Tabs,
+	PackageManagers,
+	Details,
+	DashButton,
+} from "~/components";
+
+[회사 소개](https://www.stagehand.dev/)오픈 소스, AI 기반 브라우저 자동화 라이브러리입니다. Stagehand는 AI에 의해 구동되는 자연적인 언어 지시를 가진 부호를 결합하고, 정확한 단계 또는 지정한 선별기를 삭제하는 필요를 삭제합니다. Stagehand로 에이전트는 웹 사이트 변경 및 유지 보수가 용이하며 더 안정적으로 구축 할 수 있도록 도와줍니다.
+
+이 가이드는 배포하는 방법을 보여줍니다[작업자](/workers/)stagehand, Browser Rendering, 그리고[Workers AI](/workers-ai/)웹 작업을 자동화합니다.
+
+:::참조
+Browser Rendering 현재 지원`@browserbasehq/stagehand` `v2.5.x`이름 \*
+회사 소개`v3`그리고 나중에는 Playwright 기반이기 때문에 지원되지 않습니다.
+주요 특징
+
+## Workers AI
+
+이 예에서, 당신은이 영화에 대한 검색 단계에 사용[example 영화 디렉토리](https://demo.playwright.dev/movies), 그것의 세부 사항 추출 (제, 년, 등급, 기간, 및 장르), 웹 페이지의 스크린 샷과 함께 정보를 반환.
+<Details header="이 예의 비디오 보기"> ![무대 영상](/images/browser-rendering/speedystagehand.gif)산출:![Stagehand 예제 결과](~/assets/images/browser-rendering/stagehand-example.png)</Details>
+
+만약 당신이 단계와 시작하기XQ를 건너고 싶다면, 선택**Cloudflare에 배포**아래.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/playwright/tree/main/packages/playwright-cloudflare/examples/stagehand)
+
+배포 후, 이 URL 패턴을 사용하여 Worker와 상호 작용할 수 있습니다.
+
+```
+https://<your-worker>.workers.dev
+```
+
+### 1. 당신의 프로젝트를 설치하십시오
+
+필요한 의존성 설치:
+
+```bash
+npm ci
+```
+
+### 2. 작업자 구성
+
+브라우저 렌더링에 대한 바인딩을 포함하는 Wrangler 구성 파일을 업데이트하고[Workers AI](/workers-ai/):
+
+:::참조
+작업자 구성을 포함해야 합니다.`nodejs_compat`호환성 깃발 및`compatibility_date`2025-09-15 이상.
+주요 특징
+
+<WranglerConfig>
+  ```jsonc
+  	{
+  		"name": "stagehand-example",
+  		"main": "src/index.ts",
+  		"compatibility_flags": ["nodejs_compat"],
+  		"compatibility_date": "$today",
+  		"observability": {
+  			"enabled": true
+  		},
+  		"browser": {
+  			"binding": "BROWSER"
+  		},
+  		"ai": {
+  			"binding": "AI"
+  		}
+  	}
+  ```
+</WranglerConfig>
+
+사용중인 경우[모델 번호: Cloudflare Vite 플러그인](https://developers.cloudflare.com/workers/vite-plugin/), 당신은 다음을 포함해야[아리아스](https://vite.dev/config/shared-options.html#resolve-alias)내 계정`vite.config.ts`:
+
+```ts
+export default defineConfig({
+	//· ...
+	resolve: {
+		alias: {
+			'playwright': '@cloudflare/playwright',
+		},
+	},
+});
+```
+
+Cloudflare Vite 플러그인을 사용하지 않으면 다음을 포함해야합니다.[모듈 별명으로](https://developers.cloudflare.com/workers/wrangler/configuration/#module-aliasing)wrangler 구성에:
+
+```jsonc
+{
+	//· ...
+	"alias": {
+		"playwright": "@cloudflare/playwright"
+	}
+}
+```
+
+### 3. Worker 코드를 작성
+
+관련 기사[채용정보](https://github.com/cloudflare/playwright/blob/main/packages/playwright-cloudflare/examples/stagehand/src/worker/workersAIClient.ts)당신의 프로젝트에.
+
+그때, 당신의 노동자 코드에서, 수입`workersAIClient.ts`파일 및 새를 구성하기 위해 사용`Stagehand`이름:
+
+```ts title="src/index.ts"
+
+import { Stagehand } from "@browserbasehq/stagehand";
+import { z } from "zod";
+import { endpointURLString } from "@cloudflare/playwright";
+import { WorkersAIClient } from "./workersAIClient";
+
+export default {
+	async fetch(request: Request, env: Env) {
+		if (new URL(request.url).pathname !== "/")
+			return new Response("Not found", { status: 404 });
+
+		const stagehand = new Stagehand({
+			env: "LOCAL",
+			localBrowserLaunchOptions: { cdpUrl: endpointURLString(env.BROWSER) },
+			llmClient: new WorkersAIClient(env.AI),
+			verbose: 1,
+		});
+
+		await stagehand.init();
+		const page = stagehand.page;
+
+		await page.goto('https://demo.playwright.dev/movies');
+
+		//검색이 다단계 행동이라면, stagehand는 행동의 배열을 반환합니다.
+		const actions = await page.observe('Search for "Furiosa"');
+		for (const action of actions)
+			await page.act(action);
+
+		await page.act('Click the search result');
+
+		//정상적인 playwright 기능은 예상대로 일합니다
+		await page.waitForSelector('.info-wrapper .cast');
+
+		let movieInfo = await page.extract({
+			instruction: 'Extract movie information',
+			schema: z.object({
+				title: z.string(),
+				year: z.number(),
+				rating: z.number(),
+				genres: z.array(z.string()),
+				duration: z.number().describe("Duration in minutes"),
+			}),
+		});
+
+		await stagehand.close();
+
+		return Response.json(movieInfo);
+	},
+};
+```
+
+:::참조
+위의 스니펫은[조드 v3](https://v3.zod.dev/)그리고 현재 Zod v4와 호환되지 않습니다.
+
+감사합니다.`package.json`뒤에 오는 의존도가 있습니다:
+
+```json
+{
+	// ...
+	"dependencies": {
+		"@browserbasehq/stagehand": "2.5.x",
+		"@cloudflare/playwright": "^1.0.0",
+		"zod": "^3.25.76",
+		"zod-to-json-schema": "^3.24.6"
+		// ...
+	}
+}
+```
+
+:::
+
+### 4. 프로젝트 구축
+
+```bash
+npm run build
+```
+
+### 5. Cloudflare Workers에 배포
+
+배포 후, 이 URL 패턴을 사용하여 Worker와 상호 작용할 수 있습니다.
+
+```
+https://<your-worker>.workers.dev
+```
+
+```bash
+npm run deploy
+```
+
+## Cloudflare AI 게이트웨이를 사용하여 Workers AIXQ
+
+[AI 게이트웨이](/ai-gateway/)AI 애플리케이션에 Observability를 추가하는 서비스입니다. AI Gateway를 통해 요청을 올리면 AI 애플리케이션을 모니터링하고 디버그할 수 있습니다.
+
+제3자 모델로 AI Gateway를 사용하려면 먼저 게이트웨이를 만듭니다.**AI 게이트웨이**Cloudflare 대시보드의 페이지.
+
+<DashButton url="/?to=/:account/ai/ai-gateway" />
+
+이 예에서는 게이트웨이를 지명했습니다.`stagehand-example-gateway`.
+
+```typescript
+const stagehand = new Stagehand({
+        env: "LOCAL",
+        localBrowserLaunchOptions: { cdpUrl },
+        llmClient: new WorkersAIClient(env.AI, {
+          gateway: {
+            id: "stagehand-example-gateway"
+          }
+        }),
+      });
+```
+
+## 제3자 모델 사용
+
+Workers AIXQ 외의 모델을 사용하려면 지원되는 모델에 사용하도록 Stagehand를 구성할 수 있습니다.[제3자 제공](https://docs.stagehand.dev/configuration/models#supported-providers), OpenAI 및 Anthropic을 포함한, 자신의 자격 증명을 제공함으로써.
+
+이 예제에서 사용하려면 Stagehand를 구성합니다.[오시는 길](https://openai.com/). OpenAI API 키가 필요합니다. Cloudflare는 API 키를 저장하는 것을 추천합니다[이름 \*](/workers/configuration/secrets/).
+
+```bash
+	npx wrangler secret put OPENAI_API_KEY
+```
+
+그런 다음 공급자, 모델 및 API 키로 Stagehand를 구성합니다.
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: { cdpUrl: endpointURLString(env.BROWSER) },
+  modelName: "openai/gpt-4.1",
+  modelClientOptions: {
+    apiKey: env.OPENAI_API_KEY,
+  },
+});
+```
+
+## Cloudflare AI Gateway를 제3자 모델로 사용
+
+[AI 게이트웨이](/ai-gateway/)AI 애플리케이션에 Observability를 추가하는 서비스입니다. AI Gateway를 통해 요청을 올리면 AI 애플리케이션을 모니터링하고 디버그할 수 있습니다.
+
+제3자 모델로 AI Gateway를 사용하려면 먼저 게이트웨이를 만듭니다.**AI 게이트웨이**Cloudflare 대시보드의 페이지.
+
+<DashButton url="/?to=/:account/ai/ai-gateway" />
+
+이 예제에서, 우리는 사용[AI 게이트웨이와 OpenAI](/ai-gateway/usage/providers/openai/). 추가해야 합니다.`baseURL`아래에 표시된 것과 같이, 계정 ID와 Gateway ID.
+
+지정해야 합니다.`apiKey`내 계정`modelClientOptions`:
+
+```typescript
+const stagehand = new Stagehand({
+  env: "LOCAL",
+  localBrowserLaunchOptions: { cdpUrl: endpointURLString(env.BROWSER) },
+  modelName: "openai/gpt-4.1",
+  modelClientOptions: {
+    apiKey: env.OPENAI_API_KEY,
+    baseURL: `https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai`,
+  },
+});
+```
+
+인증 된 AI 게이트웨이를 사용하는 경우, 지침을 따르십시오.[AI Gateway 인증](/ai-gateway/configuration/authentication/)관련 기사`cf-aig-authorization`머리로.
+
+## 단계 API
+
+Stagehand 방법 및 기능의 전체 목록은 공식을 참조[Stephand API 문서](https://docs.stagehand.dev/first-steps/introduction).

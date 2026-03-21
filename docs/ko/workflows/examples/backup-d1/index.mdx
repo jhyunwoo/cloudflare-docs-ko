@@ -1,0 +1,172 @@
+---
+summary: Export a D1 database into R2 storage with Workflows
+products:
+  - d1
+  - r2
+tags:
+  - TypeScript
+pcx_content_type: example
+title: D1 데이터베이스 내보내기 및 저장
+sidebar:
+  order: 3
+description: 쇼핑 카트가 체크 아웃되고 지불될 때 청구서를 보내십시오
+reviewed: 2024-12-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/examples/backup-d1/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/examples/backup-d1/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components";
+
+이 예제에서는 Workflow 주기적으로 방아쇠를 구현합니다.[Cron 방아쇠](/workers/configuration/cron-triggers). 작업 흐름은 REST API를 사용하여 D1 데이터베이스에 대한 백업을 시작하고 SQL 덤프를 저장합니다.[모델 번호: R2](/r2)물통.
+
+작업 흐름이 트리거되면 REST API가 특정 데이터베이스에 대한 수출 작업을 시작합니다. 그런 다음 백업 작업이 준비되고 SQL 덤프가 다운로드 할 수 있는지 확인하는 동일한 엔드 포인트를 fetches.
+
+이 예시로 Workflows는 응답과 실패를 모두 처리하며 개발자로부터 부담을 제거합니다. Workflows는 뒤에 오는 단계를 떠납니다:
+
+- API 호출 까지 성공적인 응답
+- 제공된 URL에서 백업
+- 파일 저장[모델 번호: R2](/r2)
+
+작업 흐름은 백업 파일이 준비 될 때까지 실행할 수 있으며, 완료 될 때까지 가능한 모든 상태를 처리 할 수 있습니다.
+
+이 예제는 백업을위한 단순화 된 단계를 제공합니다.[모델 번호: D1](/d1)Workflows의 가능성을 이해하는 데 도움이 데이터베이스. 모든 단계에서, 그것은[기본 정보](/workflows/build/sleeping-and-retrying)수면과 복원 구성. 실제 시나리오에서 더 많은 단계와 추가 논리가 필요할 것입니다.
+
+```ts
+import {
+	WorkflowEntrypoint,
+	WorkflowStep,
+	WorkflowEvent,
+} from "cloudflare:workers";
+
+//D1 백업을 저장하려면 R2XQ를 사용하고 있습니다.
+type Env = {
+	BACKUP_WORKFLOW: Workflow;
+	D1_REST_API_TOKEN: string;
+	BACKUP_BUCKET: R2Bucket;
+};
+
+//Workflow 매개 변수: 우리는 accountId와 databaseId를 기대합니다
+type Params = {
+	accountId: string;
+	databaseId: string;
+};
+
+//작업 흐름 논리
+export class backupWorkflow extends WorkflowEntrypoint<Env, Params> {
+	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+		const { accountId, databaseId } = event.payload;
+
+		const url = `https://api.cloudflare.com/client/v4/accounts/${accountId}/d1/database/${databaseId}/export`;
+		const method = "POST";
+		const headers = new Headers();
+		headers.append("Content-Type", "application/json");
+		headers.append("Authorization", `Bearer ${this.env.D1_REST_API_TOKEN}`);
+
+		const bookmark = await step.do(
+			`Starting backup for ${databaseId}`,
+			async () => {
+				const payload = { output_format: "polling" };
+
+				const res = await fetch(url, {
+					method,
+					headers,
+					body: JSON.stringify(payload),
+				});
+				const { result } = (await res.json()) as any;
+
+				//우리는 `at_bookmark`를 얻지 않는 경우에 우리는 단계를 retry에 던졌습니다
+				if (!result?.at_bookmark) throw new Error("Missing `at_bookmark`");
+
+				return result.at_bookmark;
+			},
+		);
+
+		await step.do("Check backup status and store it on R2", async () => {
+			const payload = { current_bookmark: bookmark };
+
+			const res = await fetch(url, {
+				method,
+				headers,
+				body: JSON.stringify(payload),
+			});
+			const { result } = (await res.json()) as any;
+
+			//endpoint는 백업이 다운로드 할 준비가되면 `signed_url`를 보냅니다.
+			//우리는 `signed_url`XQ를 얻지 않는 경우에 우리는 단계를 retry.
+			if (!result?.signed_url) throw new Error("Missing `signed_url`");
+
+			const dumpResponse = await fetch(result.signed_url);
+			if (!dumpResponse.ok) throw new Error("Failed to fetch dump file");
+
+			//마지막으로, R2에 파일을 직접 스트림
+			await this.env.BACKUP_BUCKET.put(result.filename, dumpResponse.body);
+		});
+	}
+}
+
+export default {
+	async fetch(req: Request, env: Env): Promise<Response> {
+		return new Response("Not found", { status: 404 });
+	},
+	async scheduled(
+		controller: ScheduledController,
+		env: Env,
+		ctx: ExecutionContext,
+	) {
+		const params: Params = {
+			accountId: "{accountId}",
+			databaseId: "{databaseId}",
+		};
+		const instance = await env.BACKUP_WORKFLOW.create({ params });
+		console.log(`Started workflow: ${instance.id}`);
+	},
+};
+```
+
+다음은 최소 package.json입니다.
+
+```json
+{
+	"devDependencies": {
+		"wrangler": "^3.99.0"
+	}
+}
+```
+
+현재 위치[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "backup-d1",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"workflows": [
+  		{
+  			"name": "backup-workflow",
+  			"binding": "BACKUP_WORKFLOW",
+  			"class_name": "backupWorkflow"
+  		}
+  	],
+  	"r2_buckets": [
+  		{
+  			"binding": "BACKUP_BUCKET",
+  			"bucket_name": "d1-backups"
+  		}
+  	],
+  	"triggers": {
+  		"crons": [
+  			"0 0 * * *"
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>

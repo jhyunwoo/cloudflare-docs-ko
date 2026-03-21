@@ -1,0 +1,526 @@
+---
+pcx_content_type: reference
+title: 페이지 방패 API
+sidebar:
+  order: 12
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/page-shield/reference/page-shield-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/page-shield/reference/page-shield-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, APIRequest } from "~/components";
+
+페이지 방패의 클라이언트 측 리소스 모니터링, 설정 구성 및 감지된 스크립트 및 연결에 대한 fetch 정보를 사용할 수 있습니다.[페이지 방패 API](/api/resources/page_shield/methods/get/).
+
+API 요청을 인증하려면[API 토큰](/fundamentals/api/get-started/create-token/). 필요한 API 토큰 권한에 대한 자세한 내용은 참조[역할 및 권한](/page-shield/reference/roles-and-permissions/).
+
+:::참조
+더 알아보기[API 결정](/fundamentals/api/reference/deprecations/)Page Shield API 변경에 대한 자세한 내용은.
+주요 특징
+
+## 이름 \*
+
+완료된 엔드포인트를 얻을 수 있습니다.[페이지 방패 API](/api/resources/page_shield/methods/get/)Cloudflare API 기본 URL에 엔드포인트:
+
+```txt
+https://api.cloudflare.com/client/v4
+```
+
+더 보기`{zone_id}`인수는 영역 ID입니다 (thocdecimal 문자열). Cloudflare\`\`대시보드 또는 Cloudflare API'를 사용하여 이 값을 찾을 수 있습니다.[`/zones`끝점](/fundamentals/account/find-account-and-zone-ids/).
+
+더 보기`{script_id}`인수는 스크립트 ID입니다 (thocdecimal string). 이 값은 응답에 포함되어 있습니다.[Page Shield 스크립트 목록](/api/resources/page_shield/subresources/scripts/methods/list/)모든 감지된 스크립트에 대한 작동.
+
+더 보기`{connection_id}`인수는 연결 ID입니다 (thocdecimal string). 이 값은 각 검출된 연결을 위한 List Page Shield 연결 API 가동의 응답에 포함됩니다.
+
+뒤에 오는 테이블은 유효한 가동을 요약합니다:
+
+| - 연혁                         | 방법 + URL 스텁                                                   | 지원하다                          |
+| ---------------------------- | ------------------------------------------------------------- | ----------------------------- |
+| [페이지 방패 설정][1]               | `GET zones/{zone_id}/page_shield`                             | Fetch Page Shield 설정 (상태 포함). |
+| [Update Page Shield 설정][2]   | `PUT zones/{zone_id}/page_shield`                             | 페이지 보호 설정 업데이트.               |
+| [Page Shield 스크립트 목록][3]     | `GET zones/{zone_id}/page_shield/scripts`                     | 검색된 스크립트의 목록을 Fetch합니다.       |
+| [Page Shield 스크립트를 가져옵니다][4] | `GET zones/{zone_id}/page_shield/scripts/{script_id}`         | 스크립트의 세부 사항을 Fetch합니다.        |
+| [페이지 방패 연결][5]               | `GET zones/{zone_id}/page_shield/connections`                 | 검색된 연결 목록을 Fetch합니다.          |
+| [페이지 보호 연결][6]               | `GET zones/{zone_id}/page_shield/connections/{connection_id}` | 연결의 세부 사항을 Fetch.             |
+| [페이지 방패 쿠키][7]               | `GET zones/{zone_id}/page_shield/cookies`                     | 검색된 쿠키 목록.                    |
+| [페이지 방패 쿠키][8]               | `GET zones/{zone_id}/page_shield/cookies/{cookie_id}`         | 쿠키의 세부 정보를 읽으십시오.             |
+| [페이지 방패 정책][9]               | `GET zones/{zone_id}/page_shield/policies`                    | 모든 구성 CSP 정책 목록을 Fetch.       |
+| [페이지 보호 정책][10]              | `GET zones/{zone_id}/page_shield/policies/{policy_id}`        | CSP 정책의 세부 사항을 Fetch.         |
+| [페이지 보호 정책][11]              | `POST zones/{zone_id}/page_shield/policies`                   | 제공된 구성으로 CSP 정책을 만듭니다.        |
+| [페이지 보호 정책 업데이트][12]         | `PUT zones/{zone_id}/page_shield/policies/{policy_id}`        | 기존 CSP 정책 업데이트                |
+| [페이지 보호 정책 삭제][13]           | `DELETE zones/{zone_id}/page_shield/policies/{policy_id}`     | 기존 CSP 정책 삭제.                 |
+
+[1]: /api/resources/page_shield/methods/get/
+
+[2]: /api/resources/page_shield/methods/update/
+
+[3]: /api/resources/page_shield/subresources/scripts/methods/list/
+
+[4]: /api/resources/page_shield/subresources/scripts/methods/get/
+
+[5]: /api/resources/page_shield/subresources/connections/methods/list/
+
+[6]: /api/resources/page_shield/subresources/connections/methods/get/
+
+[7]: /api/resources/page_shield/subresources/cookies/methods/list/
+
+[8]: /api/resources/page_shield/subresources/cookies/methods/get/
+
+[9]: /api/resources/page_shield/subresources/policies/methods/list/
+
+[10]: /api/resources/page_shield/subresources/policies/methods/get/
+
+[11]: /api/resources/page_shield/subresources/policies/methods/create/
+
+[12]: /api/resources/page_shield/subresources/policies/methods/update/
+
+[13]: /api/resources/page_shield/subresources/policies/methods/delete/
+
+## API 노트
+
+악성 스크립트 분류 (`Malicious`또는`Not malicious`)는 API에서 직접 유효하지 않습니다. 이 분류를 결정하려면 스크립트의 비교`js_integrity_score`현재 10로 설정된 분류 임계값을 가진 값. 임계 값보다 낮은 점수 값과 스크립트는 악의적으로 간주됩니다.
+
+## Common API 호출
+
+### 페이지 방패 설정
+
+이 예제는 상태 (enabled/disabled)를 포함하여 Page Shield의 현재 설정을 얻습니다.
+
+<APIRequest path="/zones/{zone_id}/page_shield" method="GET" />
+
+```json output
+{
+	"result": {
+		"enabled": true,
+		"updated_at": "2023-05-14T11:47:55.677555Z",
+		"use_cloudflare_reporting_endpoint": true,
+		"use_connection_url_path": false
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### Enable 페이지 방패
+
+이 예제는 지정된 영역에서 Page Shield를 활성화합니다.
+
+<APIRequest path="/zones/{zone_id}/page_shield" method="PUT" json={{ enabled: true }} />
+
+```json output
+{
+	"result": {
+		"enabled": true,
+		"updated_at": "2023-05-14T11:50:41.756996Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### 검색된 스크립트의 Fetch 목록
+
+이름 \*`GET`요청은 hostname에 페이지 방패에 의해 감지된 스크립트 목록을 fetches`example.net`, 페이지 당 15 항목으로 첫 번째 페이지를 요청. URL 쿼리 문자열은 필터링 및 paging 매개 변수를 포함합니다.
+
+기본적으로 응답은 스크립트만 포함됩니다.`active`지정하지 않을 때 상태`status`URL 쿼리 문자열에 필터 매개 변수.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/scripts"
+  parameters={{
+  	hosts: "example.net",
+  	page: "1",
+  	per_page: "15",
+  }}
+  method="GET"
+/>
+
+```json output
+{
+	"result": [
+		{
+			"id": "8337233faec2357ff84465a919534e4d",
+			"url": "https://malicious.example.com/badscript.js",
+			"added_at": "2023-05-18T10:51:10.09615Z",
+			"first_seen_at": "2023-05-18T10:51:08Z",
+			"last_seen_at": "2023-05-22T09:57:54Z",
+			"host": "example.net",
+			"domain_reported_malicious": false,
+			"url_reported_malicious": true,
+			"malicious_url_categories": ["Malware"],
+			"first_page_url": "http://malicious.example.com/page_one.html",
+			"status": "active",
+			"url_contains_cdn_cgi_path": false,
+			"hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+			"js_integrity_score": 10,
+			"obfuscation_score": 10,
+			"dataflow_score": 8,
+			"malware_score": 8,
+			"cryptomining_score": 9,
+			"magecart_score": 8,
+			"fetched_at": "2023-05-21T16:58:07Z"
+		}
+		// (...)
+	],
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result_info": {
+		"page": 1,
+		"per_page": 15,
+		"count": 15,
+		"total_count": 24,
+		"total_pages": 2
+	}
+}
+```
+
+예 응답에 표시된 일부 필드는 Cloudflare 플랜에 따라 사용할 수 없습니다.
+
+사용 가능한 필터링, paging 및 정렬 매개 변수에 대한 자세한 내용은 참조[API 참고 자료](/api/resources/page_shield/subresources/scripts/methods/list/).
+
+### infrequently의 Fetch 목록은 스크립트를보고
+
+이름 \*`GET`hostname에 infrequently 보고된 스크립트의 목록을 요청합니다.`example.net`, 페이지 당 15 항목으로 첫 번째 페이지를 요청. URL 쿼리 문자열은 필터링 및 paging 매개 변수를 포함합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/scripts"
+  parameters={{
+  	status: "infrequent",
+  	hosts: "example.net",
+  	page: "1",
+  	per_page: "15",
+  }}
+  method="GET"
+/>
+
+```json output
+{
+	"result": [
+		{
+			"id": "83c8da2267394ce8465b74c299658fea",
+			"url": "https://scripts.example.com/anotherbadscript.js",
+			"added_at": "2023-05-17T13:16:03.419619Z",
+			"first_seen_at": "2023-05-17T13:15:23Z",
+			"last_seen_at": "2023-05-18T09:05:20Z",
+			"host": "example.net",
+			"domain_reported_malicious": false,
+			"url_reported_malicious": false,
+			"first_page_url": "http://malicious.example.com/page_one.html",
+			"status": "infrequent",
+			"url_contains_cdn_cgi_path": false,
+			"hash": "9245aad577e846dd9b990b1b32425a3fae4aad8b8a28441a8b80084b6bb75a45",
+			"js_integrity_score": 48,
+			"obfuscation_score": 49,
+			"dataflow_score": 45,
+			"malware_score": 45,
+			"cryptomining_score": 37,
+			"magecart_score": 49,
+			"fetched_at": "2023-05-18T03:58:07Z"
+		}
+		// (...)
+	],
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result_info": {
+		"page": 1,
+		"per_page": 15,
+		"count": 15,
+		"total_count": 17,
+		"total_pages": 2
+	}
+}
+```
+
+예 응답에 표시된 일부 필드는 Cloudflare 플랜에 따라 사용할 수 없습니다.
+
+사용 가능한 필터링, paging 및 정렬 매개 변수에 대한 자세한 내용은 참조[API 참고 자료](/api/resources/page_shield/subresources/scripts/methods/list/).
+
+### 검출된 스크립트의 세부 사항 보기
+
+이름 \*`GET`요청은 스크립트 ID로 페이지 방패에 의해 감지된 스크립트의 세부 정보를 얻을`8337233faec2357ff84465a919534e4d`.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/scripts/{script_id}"
+  method="GET"
+  parameters={{
+  	script_id: "8337233faec2357ff84465a919534e4d",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "8337233faec2357ff84465a919534e4d",
+		"url": "https://malicious.example.com/badscript.js",
+		"added_at": "2023-05-18T10:51:10.09615Z",
+		"first_seen_at": "2023-05-18T10:51:08Z",
+		"last_seen_at": "2023-05-22T09:57:54Z",
+		"host": "example.net",
+		"domain_reported_malicious": false,
+		"url_reported_malicious": true,
+		"malicious_url_categories": ["Malware"],
+		"first_page_url": "http://malicious.example.com/page_one.html",
+		"status": "active",
+		"url_contains_cdn_cgi_path": false,
+		"hash": "9245aad577e846dd9b990b1b32425a3fae4aad8b8a28441a8b80084b6bb75a45",
+		"js_integrity_score": 48,
+		"obfuscation_score": 49,
+		"dataflow_score": 45,
+		"malware_score": 42,
+		"cryptomining_score": 32,
+		"magecart_score": 44,
+		"fetched_at": "2023-05-21T16:58:07Z",
+		"page_urls": [
+			"http://malicious.example.com/page_two.html",
+			"http://malicious.example.com/page_three.html",
+			"http://malicious.example.com/page_four.html"
+		],
+		"versions": [
+			{
+				"hash": "9245aad577e846dd9b990b1b32425a3fae4aad8b8a28441a8b80084b6bb75a45",
+				"js_integrity_score": 48,
+				"obfuscation_score": 49,
+				"dataflow_score": 45,
+				"malware_score": 42,
+				"cryptomining_score": 32,
+				"magecart_score": 44,
+				"fetched_at": "2023-05-21T16:58:07Z"
+			}
+		]
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+예 응답에 표시된 일부 필드는 Cloudflare 플랜에 따라 사용할 수 없습니다.
+
+### 검출된 연결의 Fetch 목록
+
+이름 \*`GET`페이지 방패에 의해 감지 된 연결 목록을 요청, 페이지 당 15 항목으로 첫 번째 페이지를 요청.
+
+기본적으로 응답은 연결만 포함됩니다.`active`지정하지 않을 때 상태`status`URL 쿼리 문자열에 필터 매개 변수.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/connections"
+  parameters={{
+  	page: "1",
+  	per_page: "15",
+  }}
+  method="GET"
+/>
+
+```json output
+{
+	"result": [
+		{
+			"id": "0a7bb628776f4e50a50d8594c4a01740",
+			"url": "https://malicious.example.com",
+			"added_at": "2022-09-18T10:51:10.09615Z",
+			"first_seen_at": "2022-09-18T10:51:08Z",
+			"last_seen_at": "2022-09-02T09:57:54Z",
+			"host": "example.net",
+			"domain_reported_malicious": true,
+			"malicious_domain_categories": ["Malware", "Spyware"],
+			"url_reported_malicious": false,
+			"malicious_url_categories": [],
+			"first_page_url": "https://example.net/one.html",
+			"status": "active",
+			"url_contains_cdn_cgi_path": false
+		}
+		// (...)
+	],
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result_info": {
+		"page": 1,
+		"per_page": 15,
+		"count": 15,
+		"total_count": 16,
+		"total_pages": 2
+	}
+}
+```
+
+사용 가능한 필터링, paging 및 정렬 매개 변수에 대한 자세한 내용은 참조[API 참고 자료](/api/resources/page_shield/subresources/scripts/methods/list/).
+
+### 검출된 연결의 세부사항을 얻으십시오
+
+이름 \*`GET`요청은 연결 ID를 가진 페이지 방패에 의해 검출된 연결의 세부사항을 얻습니다`0a7bb628776f4e50a50d8594c4a01740`.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/connections/{connection_id}"
+  method="GET"
+  parameters={{
+  	connection_id: "0a7bb628776f4e50a50d8594c4a01740",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "0a7bb628776f4e50a50d8594c4a01740",
+		"url": "https://malicious.example.com",
+		"added_at": "2022-09-18T10:51:10.09615Z",
+		"first_seen_at": "2022-09-18T10:51:08Z",
+		"last_seen_at": "2022-09-02T09:57:54Z",
+		"host": "example.net",
+		"domain_reported_malicious": true,
+		"malicious_domain_categories": ["Malware", "Spyware"],
+		"url_reported_malicious": false,
+		"malicious_url_categories": [],
+		"first_page_url": "https://example.net/one.html",
+		"status": "active",
+		"url_contains_cdn_cgi_path": false
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### 검색된 쿠키 목록
+
+이름 \*`GET`페이지 방패에 의해 감지 된 쿠키 목록, 페이지 당 15 항목으로 첫 번째 페이지를 요청.
+
+기본적으로 응답은 쿠키만 포함됩니다.`active`지정하지 않을 때 상태`status`URL 쿼리 문자열에 필터 매개 변수.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/cookies"
+  parameters={{
+  	page: "1",
+  	per_page: "15",
+  }}
+  method="GET"
+/>
+
+```json output
+{
+	"result": [
+		{
+			"id": "beee03ada7e047e79f076785d8cd8b8e",
+			"type": "first_party",
+			"name": "PHPSESSID",
+			"host": "example.net",
+			"domain_attribute": "example.net",
+			"expires_attribute": "2024-10-21T12:28:20Z",
+			"http_only_attribute": true,
+			"max_age_attribute": null,
+			"path_attribute": "/store",
+			"same_site_attribute": "strict",
+			"secure_attribute": true,
+			"first_seen_at": "2024-05-06T10:51:08Z",
+			"last_seen_at": "2024-05-07T11:56:01Z",
+			"first_page_url": "example.net/store/products",
+			"page_urls": ["example.net/store/products/1"]
+		}
+		// (...)
+	],
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result_info": {
+		"page": 1,
+		"per_page": 15,
+		"count": 15,
+		"total_count": 16,
+		"total_pages": 2
+	}
+}
+```
+
+사용 가능한 필터링, paging 및 정렬 매개 변수에 대한 자세한 내용은 참조[API 호출](/fundamentals/api/how-to/make-api-calls/#pagination).
+
+### 검색된 쿠키의 세부 정보 얻기
+
+이름 \*`GET`요청은 Page Shield에서 ID로 검출된 쿠키의 세부 정보를 얻습니다.`beee03ada7e047e79f076785d8cd8b8e`.
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/cookies/{cookie_id}"
+  method="GET"
+  parameters={{
+  	cookie_id: "beee03ada7e047e79f076785d8cd8b8e",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "beee03ada7e047e79f076785d8cd8b8e",
+		"type": "first_party",
+		"name": "PHPSESSID",
+		"host": "example.net",
+		"domain_attribute": "example.net",
+		"expires_attribute": "2024-10-21T12:28:20Z",
+		"http_only_attribute": true,
+		"max_age_attribute": null,
+		"path_attribute": "/store",
+		"same_site_attribute": "strict",
+		"secure_attribute": true,
+		"first_seen_at": "2024-05-06T10:51:08Z",
+		"last_seen_at": "2024-05-07T11:56:01Z",
+		"first_page_url": "example.net/store/products",
+		"page_urls": ["example.net/store/products/1"]
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### 정책 만들기
+
+이름 \*`POST`요청은 페이지 방패 정책 (또는 콘텐츠 보안 규칙)을 작성합니다.*로그인*동작, 다음과 같은 스크립트를 정의하여 호스팅되는 곳을 기준으로 허용:
+
+- 호스팅되는 스크립트`myapp.example.com`(스크립트가 포함되지 않음)`example.com`).
+- 호스팅되는 스크립트`cdnjs.cloudflare.com`.
+- 전체 URL을 사용하여 Google Analytics 스크립트.
+- 같은 기원의 모든 스크립트 (same HTTP 또는 HTTPS 방식과 hostname).
+
+다른 모든 스크립트는 정책 위반을 트리거하지만, 그 스크립트는 차단되지 않습니다.
+
+더 많은 정보<GlossaryTooltip term="content security policy (CSP)">콘텐츠 보안 정책 (CSP)</GlossaryTooltip>지시어와 값, 참조[MDN 문서](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy).
+
+:::참조
+CSP 지침 및 정책에 의해 지원되는 키워드 목록은 참조[CSP 지침 지원](/page-shield/policies/csp-directives/).
+:::
+
+<APIRequest
+  path="/zones/{zone_id}/page_shield/policies"
+  method="POST"
+  json={{
+  	description: "My first policy in log mode",
+  	action: "log",
+  	expression: 'http.host eq "myapp.example.com"',
+  	enabled: "true",
+  	value:
+  		"script-src myapp.example.com cdnjs.cloudflare.com https://www.google-analytics.com/analytics.js 'self'",
+  }}
+/>
+
+```json output
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": {
+		"id": "<POLICY_ID>",
+		"description": "My first policy in log mode",
+		"action": "log",
+		"expression": "http.host eq \"myapp.example.com\"",
+		"enabled": "true",
+		"value": "script-src myapp.example.com cdnjs.cloudflare.com https://www.google-analytics.com/analytics.js 'self'"
+	}
+}
+```
+
+정책 만들기*지원하다*대신 작업*로그인*, 사용`"action": "allow"`요청 몸에서. 이러한 정책의 경우 정책에 의해 허용되는 모든 스크립트가 차단됩니다.

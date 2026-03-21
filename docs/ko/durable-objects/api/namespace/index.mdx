@@ -1,0 +1,203 @@
+---
+title: 튼튼한 목표 Namespace
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/api/namespace/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/api/namespace/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, GlossaryTooltip } from "~/components";
+
+## 이름 \*
+
+튼튼한 오브젝트 네임스페이스는 Durable ObjectsXQ의 집합입니다.<GlossaryTooltip term="Durable Object class">튼튼한 목표 종류</GlossaryTooltip>. 클래스당 하나의 튼튼한 오브젝트 네임스페이스만 있습니다. 튼튼한 목표 네임스페이스는 Durable Objects의 번호를 포함할 수 있습니다.
+
+더 보기`DurableObjectNamespace`인터페이스는 새로운 기존 Durable ObjectsXQ를 얻기 위해 사용됩니다. 인터페이스는 Cloudflare에 fetch 핸들러에서 접근 가능 노동자를 통해`env`묶음을 선언할 때 표준 인터페이스인 매개 변수[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+이 인터페이스는 몇 가지 정의[계정 만들기](/durable-objects/api/namespace/#methods)그것은 튼튼한 개체에 대한 ID를 만들 수 있습니다. 튼튼한 개체에 대한 ID를 생성하는 것은 튼튼한 개체를 만들지 않습니다. 튼튼한 목표는 호출 후에 lazily 창조됩니다[`DurableObjectNamespace::get`](/durable-objects/api/namespace/#get)더 보기[`DurableObjectStub`](/durable-objects/api/stub)한국어`DurableObjectId`. 이 객체는 실제로 접근 할 때까지 건설되지 않습니다.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+      ...
+    }
+
+    //작업자
+    export default {
+      async fetch(request, env) {
+        //stub는 튼튼한 개체에 의해 정의 된 invoke 메소드에 사용되는 클라이언트 객체입니다
+        const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+        ...
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+      MY_DURABLE_OBJECT: DurableObjectNamespace<MyDurableObject>;
+    }
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+      ...
+    }
+
+    //작업자
+    export default {
+      async fetch(request, env) {
+        //stub는 튼튼한 개체에 의해 정의 된 invoke 메소드에 사용되는 클라이언트 객체입니다
+        const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+        ...
+      }
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import DurableObject, WorkerEntrypoint
+
+    #튼튼한 목표
+    class MyDurableObject(DurableObject):
+      pass
+
+    #작업자
+    class Default(WorkerEntrypoint):
+      async def fetch(self, request):
+        #stub는 튼튼한 개체에 의해 정의 된 invoke 메소드에 사용되는 클라이언트 객체입니다
+        stub = self.env.MY_DURABLE_OBJECT.getByName("foo")
+        #· ...
+    ```
+  </TabItem>
+</Tabs>
+
+## 제품 설명
+
+### `idFromName`
+
+`idFromName`독특한 창조[`DurableObjectId`](/durable-objects/api/id)내구재 Object 클래스의 개별 인스턴스를 나타냅니다. Named Durable Objects는 Durable Objects에 참조하는 가장 일반적인 방법입니다.
+
+```js
+const fooId = env.MY_DURABLE_OBJECT.idFromName("foo");
+const barId = env.MY_DURABLE_OBJECT.idFromName("bar");
+```
+
+#### 매개 변수
+
+- 필요한 문자열을 생성하기 위해[`DurableObjectId`](/durable-objects/api/id)내구재 목표의 이름에 대응.
+
+#### 반환 값
+
+- ·[`DurableObjectId`](/durable-objects/api/id)튼튼한 개체 클래스의 인스턴스를 참조.
+
+### `newUniqueId`
+
+`newUniqueId`무작위로 생성되고 독특하게 만듭니다.[`DurableObjectId`](/durable-objects/api/id)내구재 Object 클래스의 개별 인스턴스를 나타냅니다. ID 생성`newUniqueId`, 다시 같은 내구성 개체를 참조하기 위해 문자열로 저장해야합니다. 예를 들어, ID는 Workers KV, 또 다른 튼튼한 목표 또는 사용자 브라우저의 쿠키에 저장될 수 있습니다.
+
+```js
+const id = env.MY_DURABLE_OBJECT.newUniqueId();
+const euId = env.MY_DURABLE_OBJECT.newUniqueId({ jurisdiction: "eu" });
+```
+
+:::주최\[`newUniqueId`첫 번째 사용시 낮은 요청 대기 시간에서 결과]
+
+이름에서 파생된 ID에 근거를 둔 튼튼한 목표 스텁을 얻는 첫번째로, 체계는 세계의 반대 측에 노동자가 동시에 동일한 지명한 튼튼한 목표에 접근할 수 있던 가능성에 고려해야 하는 것을 고려해야 합니다. 튼튼한 개체의 한 인스턴스만이 생성되도록, 시스템은 다른 곳에서는 튼튼한 개체가 생성되지 않았는지 확인해야합니다. 빛의 속도의 무장한 한계 때문에, 이 둥근 세계 체크는 100 milliseconds까지 가지고 갈 수 있습니다.`newUniqueId`이 체크를 건너 뛸 수 있습니다.
+
+이 첫 번째 사용 후, 내구성 개체의 위치는 전 세계 캐시됩니다 그래서 그 후속의 조회는 더 빠릅니다.
+
+:::
+
+#### 매개 변수
+
+- 열쇠를 가진 선택적인 목표`jurisdiction`그리고 가치의[회사연혁](/durable-objects/reference/data-location/#restrict-durable-objects-to-a-jurisdiction)문자열.
+
+#### 반환 값
+
+- ·[`DurableObjectId`](/durable-objects/api/id)튼튼한 개체 클래스의 인스턴스를 참조.
+
+### `idFromString`
+
+`idFromString`제품정보[`DurableObjectId`](/durable-objects/api/id)이전에 생성 된 ID에서 문자열로 변환되었습니다. 이 방법은 ID가 유효하지 않은 경우 예외를 던집니다. 예를 들어 ID가 동일하지 않은 경우`DurableObjectNamespace`.
+
+<Render file="example-id-from-string" product="durable-objects" />
+
+#### 매개 변수
+
+- 관련 문자열[`DurableObjectId`](/durable-objects/api/id)현재 위치`newUniqueId`또는`idFromName`.
+
+#### 반환 값
+
+- ·[`DurableObjectId`](/durable-objects/api/id)튼튼한 개체 클래스의 인스턴스를 참조.
+
+### `get`
+
+`get`한국어[`DurableObjectStub`](/durable-objects/api/stub)한국어[`DurableObjectId`](/durable-objects/api/id)그것은 튼튼한 목표에 invoke 방법에 사용될 수 있습니다.
+
+이 방법 반환<GlossaryTooltip term="stub">뚱 베어</GlossaryTooltip>즉각, 연결의 앞에 수시로 튼튼한 목표에 설치되었습니다. 이 요청은 네트워크 라운드 여행을 기다리지 않고 인스턴스로 전송됩니다.
+
+```js
+const id = env.MY_DURABLE_OBJECT.newUniqueId();
+const stub = env.MY_DURABLE_OBJECT.get(id);
+```
+
+#### 매개 변수
+
+- 자주 묻는 질문[`DurableObjectId`](/durable-objects/api/id)
+- 열쇠를 가진 선택적인 목표`locationHint`그리고 가치의[위치Hint](/durable-objects/reference/data-location/#provide-a-location-hint)문자열.
+
+#### 반환 값
+
+- ·[`DurableObjectStub`](/durable-objects/api/stub)튼튼한 개체 클래스의 인스턴스를 참조.
+
+### `getByName`
+
+`getByName`한국어[`DurableObjectStub`](/durable-objects/api/stub)제공된 이름에서, 그것은 튼튼한 목표에 invoke 방법에 사용될 수 있습니다.
+
+이 방법 반환<GlossaryTooltip term="stub">뚱 베어</GlossaryTooltip>즉각, 연결의 앞에 수시로 튼튼한 목표에 설치되었습니다. 이 요청은 네트워크 라운드 여행을 기다리지 않고 인스턴스로 전송됩니다.
+
+```js
+const fooStub = env.MY_DURABLE_OBJECT.getByName("foo");
+const barStub = env.MY_DURABLE_OBJECT.getByName("bar");
+```
+
+#### 매개 변수
+
+- 필요한 문자열을 생성하기 위해[`DurableObjectStub`](/durable-objects/api/stub)제공된 이름과 함께 튼튼한 개체 클래스의 인스턴스에 해당합니다.
+
+#### 반환 값
+
+- ·[`DurableObjectStub`](/durable-objects/api/stub)튼튼한 개체 클래스의 인스턴스를 참조.
+
+### `jurisdiction`
+
+`jurisdiction`모든 튼튼한 개체 ID와 참고 자료XQS가 지정된 네임스페이스에서 하위 네임스페이스를 생성합니다.[회사연혁](/durable-objects/reference/data-location/#restrict-durable-objects-to-a-jurisdiction).
+
+```js
+const subnamespace = env.MY_DURABLE_OBJECT.jurisdiction("eu");
+const euStub = subnamespace.getByName("foo");
+```
+
+#### 매개 변수
+
+- 자주 묻는 질문[회사연혁](/durable-objects/reference/data-location/#restrict-durable-objects-to-a-jurisdiction)문자열.
+
+#### 반환 값
+
+- ·`DurableObjectNamespace`특정 규제 또는 지리적 관할권 범위. 추가적인 지리적 관할권은 지속적으로 평가됩니다, 그래서 요청을 공유[모델 번호: Durable Objects Discord 채널](https://discord.com/channels/595317990191398933/773219443911819284).
+
+## 관련 자료
+
+- [Durable Objects: 쉬운, 빠른, 정확한 – 3를 선택하십시오](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/).

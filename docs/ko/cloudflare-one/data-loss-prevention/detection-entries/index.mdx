@@ -1,0 +1,156 @@
+---
+pcx_content_type: concept
+title: 검색 항목
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/detection-entries/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/detection-entries/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components";
+
+Cloudflare DLP는 사용자 정의 검출 항목에서 정의 특정 데이터에 대한 웹 트래픽 및 SaaS 응용 프로그램을 스캔 할 수 있습니다. 감지 항목은 DLP에 대한 사용자 정의 데이터 패턴을 정의 할 수 있습니다.[DLP 프로필](/cloudflare-one/data-loss-prevention/dlp-profiles/). 탐지 항목은 관례를 포함합니다[데이터셋](#datasets)정의된 자료로,[문서 항목](#documents)예를 들어 지문 및[AI 신속한 주제](#ai-prompt-topics).
+
+Cloudflare에 도달하기 전에 민감한 데이터를 구성하고 일치에서 적색[payload 로그](/cloudflare-one/data-loss-prevention/dlp-policies/logging-options/#log-the-payload-of-matched-rules).
+
+## 데이터셋
+
+특정 매칭 데이터를 스캔하고 업로드할 수 있습니다.
+
+### Dataset 유형
+
+#### Exact 데이터 일치
+
+Exact Data Match (EDM)는 이름, 주소, 전화 번호 및 신용 카드 번호와 같은 민감한 정보를 보호합니다.
+
+업로드 된 모든 데이터 세트는 Cloudflare에 도달하기 전에 암호화됩니다. 일치를 감지하기 위해 Cloudflare hashes 트래픽과 데이터 세트에서 해시를 비교합니다. 일치된 자료는 payload 통나무에서 redacted.
+
+#### 주문 Wordlist
+
+Custom Wordlist (CWL)는 지적 재산과 SKU 번호와 같은 비 과민한 자료를 보호합니다. 선택적으로, CWL는 케이스 과민한 자료를 검출할 수 있습니다.
+
+Cloudflare는 DLP 내에서 CWL 데이터셋에서 데이터를 저장합니다. Plaintext 일치는 페이로드 로그에 나타납니다.
+
+### DLP 데이터셋 준비
+
+#### 파일 형식
+
+DLP에 대한 데이터 세트를 준비하려면 원하는 데이터를 멀티 컬럼 스프레드 시트에 추가하십시오. 각 선은 적어도 긴 6개의 특성이어야 합니다. Entries는 트레일 또는 최종 commas를 요구하지 않습니다.
+
+호환성을 위해, 하나에 있는 당신의 파일을 저장하십시오`.csv`또는`.txt`LF로 포맷 (`\n`) newline 문자. DLP는 CRLF를 지원하지 않습니다 (`\r\n`) newline 문자. dataset 제한에 대한 정보는 참조[계정 제한](/cloudflare-one/account-limits/#data-loss-prevention-dlp).
+
+#### 열 제목 셀
+
+Column title cell은 Custom Wordlist datasets에서 false 긍정적으로 발생하며 제거해야합니다.
+
+DLP는 Exact Data Match datasets를 위한 열 이름으로 제목 세포를 검출하고 사용합니다. 여러 열이 같은 이름을 가지고 있다면 DLP는 숫자 기호를 추가합니다 (`#`) 그리고 그들의 이름에 수.
+
+:::caution\[Update EDM 데이터셋]
+Exact Data Match 칼럼을 선택하여 사용하려면 필요할 것입니다.[어떤 EDM datasets든지 reupload](#manage-existing-datasets)열 지원 이전에 추가.
+주요 특징
+
+### 새 dataset 업로드
+
+<Details header="Exact Data Match 데이터셋 업로드">
+  1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**데이터 손실 방지** > **검색 항목**.
+  2. 에 의해**데이터셋**탭, 선택**dataset 추가**.
+  3. 제품정보**정확한 데이터 일치 (EDM)**.
+  4. dataset 파일을 업로드합니다. 제품정보**이름 \***.
+  5. 검토하고 당신이 포함하려는 감지 된 열을 선택합니다. 제품정보**이름 \***.
+  6. 데이터셋 이름. 선택적으로, 설명을 추가합니다. 제품정보**이름 \***.
+  7. 업로드된 dataset에 대한 세부 정보를 검토합니다. 제품정보**데이터셋 저장**.
+
+  DLP는 데이터셋을 암호화하고 해시를 절약합니다.
+</Details>
+
+<Details header="사용자 정의 Wordlist dataset 업로드">
+  1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**데이터 손실 방지** > **검색 항목**.
+  2. 에 의해**데이터셋**탭, 선택**dataset 추가**.
+  3. 제품정보**사용자 정의 Wordlist (CWL)**.
+  4. 데이터셋 이름. 선택적으로, 설명을 추가합니다.
+  5. (선택) 안으로**계정 설정**, 켜기**케이스 감도 강화**정확한 자본화를 포함하기 위해 일치하는 값을 요구합니다.
+  6. 내 계정**파일 업로드**, 당신의 dataset 파일을 선택하십시오.
+  7. 제품정보**제품 정보**.
+
+  DLP는 cleartext에 데이터를 저장합니다.
+</Details>
+
+dataset는 리스트에 표시됩니다.**다운로드**이름 \* 업로드가 완료되면 상태가 변경됩니다.**지원하다**. 업로드 된 데이터셋을 사용하려면 기존 항목으로 추가하십시오.[사용자 정의 DLP 프로파일](/cloudflare-one/data-loss-prevention/dlp-profiles/#build-a-custom-profile).
+
+### 기존 데이터셋 관리
+
+업로드된 DLP datasets는 읽기 전용입니다. 데이터셋을 업데이트하려면 새로운 파일을 업로드해야 합니다.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**데이터 손실 방지** > **검색 항목**.
+2. 에 의해**데이터셋**탭, 업데이트하려는 dataset을 선택합니다.
+3. 제품정보**Dataset 정보**업데이트된 데이터셋을 선택하십시오. 제품정보**이름 \***.
+4. 선택된 데이터셋이 Exact Data Match dataset인 경우, 검토 및 새로운 열을 선택합니다. 제품정보**이름 \***.
+5. 제품정보**데이터셋 저장**.
+
+새 데이터셋은 원본 데이터셋을 대체합니다.
+
+:::caution\[현재 열 항목]
+Exact Data Match dataset을 업데이트하려면 사용중인 열을 제거하려면[기존 검색](/cloudflare-one/data-loss-prevention/dlp-profiles/#build-a-custom-profile), 당신은 dataset를 새롭게 하기 전에 그것을 사용하여 어떤 주문 DLP 단면도든지에서 기존하는 입장을 제거해야 합니다.
+주요 특징
+
+## 회사연혁
+
+조직에 공통된 데이터 또는 특정 문서 유형에 대해 예를 들면 문서를 스캔할 수 있습니다. DLP는 문서의 독특한 지문을 만들 것이며 조직의 트래픽에서 패턴을 감지하는 것은 원래 지문에 얼마나 유사합니다.
+
+DLP 상점 업로드 문서는 나머지에서 암호화[Cloudflare R2](/r2/)물통. 메모리에 저장되는 민감한 데이터를 업로드하려면 사용[Exact 데이터 일치](#exact-data-match).
+
+### 문서 항목
+
+DLP는 문서 지원`.docx`·`.txt`파일 형식. 문서는 10MB 미만이어야 합니다.
+
+### 새 문서 항목을 업로드
+
+DLP에 새 문서 항목을 업로드하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**데이터 손실 방지** > **검색 항목**.
+2. 에 의해**회사연혁**탭, 선택**문서 입력**.
+3. 문서 이름. 선택적으로, 설명을 추가합니다.
+4. 내 계정**경기에 대한 최소 유사성**0%와 100% 사이의 값을 입력합니다.
+5. 내 계정**문서 업로드**, 문서 파일을 선택하고 업로드.
+6. 제품정보**제품 정보**.
+
+문서는 목록에서 나타납니다.**관련 기사**이름 \* 업로드가 완료되면 상태가 변경됩니다.**지원하다**. Terraform 문서를 작성한 경우, 상태는**파일 없음**파일 업로드까지.
+
+업로드 된 문서 지문을 사용하려면 기존 항목으로 추가하십시오.[사용자 정의 DLP 프로파일](/cloudflare-one/data-loss-prevention/dlp-profiles/#build-a-custom-profile).
+
+### 기존 문서 항목 관리
+
+업로드된 문서 항목은 읽기 전용입니다. 문서 입력을 업데이트하려면 새 파일을 업로드해야 합니다.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**데이터 손실 방지** > **검색 항목**.
+2. 에 의해**회사연혁**탭, 업데이트하고 선택하려는 문서 선택**제품정보**.
+3. (선택 사항) 문서 항목에 대한 일치에 대한 이름과 최소 유사성을 업데이트합니다. 기존 업로드 문서도 열 수 있습니다.
+4. 내 계정**본문 바로가기**, 당신의 업데이트 된 문서 파일을 선택하고 업로드.
+5. 제품정보**제품 정보**.
+
+새 문서 입력은 원본 문서 입력을 대체합니다. 파일 업로드가 실패하면 DLP는 여전히 입력을 삭제할 때까지 트래픽을 스캔하기 위해 원본 문서 지문을 사용합니다.
+
+## AI 신속한 주제
+
+DLP 사용[신청 과립상 통제](/cloudflare-one/traffic-policies/http-policies/#application-granular-controls)Genrative AI 도구로 제출된 검색 및 분류 프롬프트. Application Granular Controls는 콘텐츠와 사용자 의도 모두를 위한 프롬프트를 분석합니다. 지원된 AI 신속한 보호 탐지는 다음을 포함합니다:
+
+| 본문 바로가기               | 이름 \*                                             |
+| --------------------- | ------------------------------------------------- |
+| 내용: PII               | Prompt는 이름, SSN, 이메일 주소와 같은 개인 정보를 포함합니다.         |
+| 내용: Credentials와 비밀   | Prompt는 API 열쇠, 암호, 또는 다른 과민한 credentials를 포함합니다. |
+| 내용: 소스 코드             | Prompt는 실제 소스 코드, 코드 스니펫, 또는 독점 알고리즘을 포함합니다.      |
+| 내용: 고객 자료             | Prompt는 고객 이름, 프로젝트, 사업 활동, 또는 기밀 고객 컨텍스트를 포함합니다. |
+| 내용: 금융정보              | Prompt는 금융 번호 또는 기밀 비즈니스 데이터를 포함합니다.              |
+| 의도: PII               | 개인 정보 보호 정책                                       |
+| Intent: 코드 남용과 맛있는 코드 | Prompt는 공격, 악용, 또는 유해한 활동을 위한 악의적인 코드를 요청합니다.     |
+| 의도: 감옥                | Prompt는 AI 보안 정책을 우회하려고합니다.                       |
+
+각 검출 항목은 내용 또는 의도로 분류됩니다. Content는 특정 텍스트 또는 데이터에 초점을 맞추고 사용자가 유전자 AI 도구를 제공합니다. AI가 프로세스를 요구하고 응답을 생성하는 분석입니다. Intent는 AI의 응답을 위한 사용자의 목표 또는 목표에 집중합니다. 그것은 사용자가 수신하려는 출력의 유형을 결정한다. 이 범주는 SaaS 커넥터 또는 MCP를 사용하는 고객에게 특히 유용합니다. 민감한 정보를 포함하는 내부 데이터 소스에 AI 응용 액세스를 제공하는.
+
+AI 신속한 주제를 사용하려면 해당 구성[사전 정의 DLP 프로파일](/cloudflare-one/data-loss-prevention/dlp-profiles/predefined-profiles/#ai-prompt)또는 기존 항목으로 추가[사용자 정의 DLP 프로파일](/cloudflare-one/data-loss-prevention/dlp-profiles/#build-a-custom-profile). AI 신속한 보호는 ChatGPT, Google Gemini, Perplexity 및 Claude를 위해 유효합니다.

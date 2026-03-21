@@ -1,0 +1,201 @@
+---
+summary: >-
+  Set up an A/B test by controlling what response is served based on cookies.
+  This version supports passing the request through to test and control on the
+  origin, bypassing random assignment.
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: A/B 테스트와 동일한-URL 직접 액세스
+sidebar:
+  order: 1001
+description: >-
+  A / B 테스트를 설정하여 응답이 쿠키를 기반으로 제공되는 것을 제어하십시오. 이 버전은 임의의 할당을 우회하여 원산지 테스트 및 제어를
+  통해 요청을 전달합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/ab-testing/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/ab-testing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const NAME = "myExampleWorkersABTest";
+
+    export default {
+    	async fetch(req) {
+    		const url = new URL(req.url);
+
+    		//Enable Passthrough 제어 및 테스트 경로에 직접 액세스 할 수 있습니다.
+    		if (url.pathname.startsWith("/control") || url.pathname.startsWith("/test"))
+    			return fetch(req);
+
+    		//이 requester를 그룹화하는 용어입니다.
+    		const cookie = req.headers.get("cookie");
+
+    		if (cookie && cookie.includes(`${NAME}=control`)) {
+    			url.pathname = "/control" + url.pathname;
+    		} else if (cookie && cookie.includes(`${NAME}=test`)) {
+    			url.pathname = "/test" + url.pathname;
+    		} else {
+    			//쿠키가 없으면 새로운 클라이언트입니다. 그룹을 선택하고 쿠키를 설정합니다.
+    			const group = Math.random() < 0.5 ? "test" : "control"; //50/50 분할
+    			if (group === "control") {
+    				url.pathname = "/control" + url.pathname;
+    			} else {
+    				url.pathname = "/test" + url.pathname;
+    			}
+    			//immutability를 피하는 재구성 응답
+    			let res = await fetch(url);
+    			res = new Response(res.body, res);
+    			//Persistent A/B 세션을 활성화하기 위해 쿠키를 설정합니다.
+    			res.headers.append("Set-Cookie", `${NAME}=${group}; path=/`);
+    			return res;
+    		}
+    		return fetch(url);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    const NAME = "myExampleWorkersABTest";
+
+    export default {
+    	async fetch(req): Promise<Response> {
+    		const url = new URL(req.url);
+    		//Enable Passthrough 제어 및 테스트 경로에 직접 액세스 할 수 있습니다.
+    		if (url.pathname.startsWith("/control") || url.pathname.startsWith("/test"))
+    			return fetch(req);
+    		//이 requester를 그룹화하는 용어입니다.
+    		const cookie = req.headers.get("cookie");
+    		if (cookie && cookie.includes(`${NAME}=control`)) {
+    			url.pathname = "/control" + url.pathname;
+    		} else if (cookie && cookie.includes(`${NAME}=test`)) {
+    			url.pathname = "/test" + url.pathname;
+    		} else {
+    			//쿠키가 없으면 새로운 클라이언트입니다. 그룹을 선택하고 쿠키를 설정합니다.
+    			const group = Math.random() < 0.5 ? "test" : "control"; //50/50 분할
+    			if (group === "control") {
+    				url.pathname = "/control" + url.pathname;
+    			} else {
+    				url.pathname = "/test" + url.pathname;
+    			}
+    			//immutability를 피하는 재구성 응답
+    			let res = await fetch(url);
+    			res = new Response(res.body, res);
+    			//Persistent A/B 세션을 활성화하기 위해 쿠키를 설정합니다.
+    			res.headers.append("Set-Cookie", `${NAME}=${group}; path=/`);
+    			return res;
+    		}
+    		return fetch(url);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    import random
+    from urllib.parse import urlparse, urlunparse
+    from workers import Response, fetch, WorkerEntrypoint
+
+    NAME = "myExampleWorkersABTest"
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		url = urlparse(request.url)
+    		#지역적으로 테스트 할 때 아래 드문
+    		#URL = url. replace(netloc="example.com") if "localhost" in url.netloc 다른 URL
+
+    		#Enable Passthrough 제어 및 테스트 경로에 직접 액세스 할 수 있습니다.
+    		if url.path.startswith("/control") or url.path.startswith("/test"):
+    			return fetch(urlunparse(url))
+
+    		#이 requester를 그룹화하는 용어입니다.
+    		cookie = request.headers.get("cookie")
+
+    		if cookie and f'{NAME}=control' in cookie:
+    			url = url._replace(path="/control" + url.path)
+    		elif cookie and f'{NAME}=test' in cookie:
+    			url = url._replace(path="/test" + url.path)
+    		else:
+    			#쿠키가 없으면 새로운 클라이언트입니다. 그룹을 선택하고 쿠키를 설정합니다.
+    			group = "test" if random.random() < 0.5 else "control"
+    			if group == "control":
+    				url = url._replace(path="/control" + url.path)
+    			else:
+    				url = url._replace(path="/test" + url.path)
+
+    			#immutability를 피하는 재구성 응답
+    			res = await fetch(urlunparse(url))
+    			headers = dict(res.headers)
+    			headers["Set-Cookie"] = f'{NAME}={group}; path=/'
+    			return Response(res.body, headers=headers)
+
+    		return fetch(urlunparse(url))
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { getCookie, setCookie } from "hono/cookie";
+
+    const app = new Hono();
+
+    const NAME = "myExampleWorkersABTest";
+
+    //Enable passthrough 제어 및 테스트 경로에 직접 액세스 허용
+    app.all("/control/*", (c) => fetch(c.req.raw));
+    app.all("/test/*", (c) => fetch(c.req.raw));
+
+    //A/B 테스트 로직을 처리하는 Middleware
+    app.use("*", async (c) => {
+    	const url = new URL(c.req.url);
+
+    	//이 requester를 그룹하는 용어는
+    	const abTestCookie = getCookie(c, NAME);
+
+    	if (abTestCookie === "control") {
+    		//사용자는 통제 그룹에 있습니다
+    		url.pathname = "/control" + c.req.path;
+    	} else if (abTestCookie === "test") {
+    		//사용자는 시험 그룹에 있습니다
+    		url.pathname = "/test" + c.req.path;
+    	} else {
+    		//쿠키가 없으면 새로운 클라이언트입니다.
+    		//그룹을 선택하고 쿠키 (50/50 분할) 설정
+    		const group = Math.random() < 0.5 ? "test" : "control";
+
+    		//지정된 그룹에 따라 URL 경로 업데이트
+    		if (group === "control") {
+    			url.pathname = "/control" + c.req.path;
+    		} else {
+    			url.pathname = "/test" + c.req.path;
+    		}
+
+    		//Persistent A/B 세션을 활성화하기 위한 쿠키 설정
+    		setCookie(c, NAME, group, {
+    			path: "/",
+    		});
+    	}
+
+    	const res = await fetch(url);
+
+    	return c.body(res.body, res);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

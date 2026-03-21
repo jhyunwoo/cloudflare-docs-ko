@@ -1,0 +1,603 @@
+---
+pcx_content_type: reference
+title: 생성McpHandler
+tags:
+  - MCP
+sidebar:
+  order: 12
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/mcp-handler-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/api-reference/mcp-handler-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+더 보기`createMcpHandler`함수는 fetch handler를 사용하여[MCP 서버](/agents/model-context-protocol/). 일반 노동자에서 실행되는 stateless MCP 서버를 원할 때 사용하십시오 (더 튼튼한 목표 없음). 요청에 따라 persist 상태의 MCP 서버를 위해, 사용[`McpAgent`](/agents/api-reference/mcp-agent-api)대신 클래스.
+
+그것은 MCP 운송 인터페이스의 구현을 사용합니다,`WorkerTransport`, 웹 기준의 정상에 건축하는, 이는에 따릅니다[스트림 가능 http](https://modelcontextprotocol.io/specification/draft/basic/transports/#streamable-http)수송 명세.
+
+```ts
+import { createMcpHandler, type CreateMcpHandlerOptions } from "agents/mcp";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+function createMcpHandler(
+	server: McpServer,
+	options?: CreateMcpHandlerOptions,
+): (request: Request, env: Env, ctx: ExecutionContext) => Promise<Response>;
+```
+
+#### 매개 변수
+
+- **계정 관리**— 인스턴스[`McpServer`](https://modelcontextprotocol.io/docs/develop/build-server#node)으로`@modelcontextprotocol/sdk`제품 설명
+- **옵션 정보**— 옵션 구성 객체 (see)[`CreateMcpHandlerOptions`](#createmcphandleroptions))
+
+#### 기타 제품
+
+서명을 가진 Worker fetch 핸들러 기능`(request: Request, env: unknown, ctx: ExecutionContext) => Promise<Response>`.
+
+### CreateMcpHandler옵션
+
+MCP 핸들러를 만드는 구성 옵션.
+
+```ts
+interface CreateMcpHandlerOptions extends WorkerTransportOptions {
+	/** 이름
+* 이 MCP 핸들러가 응답해야 하는 경로.
+* 지정한 경우 핸들러는 이 경로와 일치하는 프로세스 요청만 할 수 있습니다.
+* @ 과태 "/mcp"*/
+	route?: string;
+
+	/** 이름
+* MCP 요청을 처리하는 데 사용할 수있는 옵션 오스 컨텍스트.
+* 제공되지 않은 경우, 핸들러는 실행 상황에 대한 제안을 볼 수 있습니다.*/
+	authContext?: McpAuthContext;
+
+	/** 이름
+* MCP 요청을 처리하기위한 옵션 운송.
+* 제공되지 않은 경우, WorkerTransport는 제공된 WorkerTransportOptions로 만들 것입니다.*/
+	transport?: WorkerTransport;
+
+	//WorkerTransportOptions에서 주장:
+	sessionIdGenerator?: () => string;
+	enableJsonResponse?: boolean;
+	onsessioninitialized?: (sessionId: string) => void;
+	corsOptions?: CORSOptions;
+	storage?: MCPStorageApi;
+}
+```
+
+#### 옵션 정보
+
+##### 오시는 길
+
+MCP 핸들러가 응답하는 URL 경로. 다른 경로에 요청은 404 응답을 반환합니다.
+
+**기본 정보:** `"/mcp"`
+
+<TypeScriptExample>
+  ```ts
+  const handler = createMcpHandler(server, {
+  	route: "/api/mcp", ///api/mcp에서 요청에만 응답
+  });
+  ```
+</TypeScriptExample>
+
+#### authContext에
+
+MCP 도구로 사용할 수 있는 인증 컨텍스트 객체[`getMcpAuthContext()`](/agents/api-reference/mcp-handler-api#authentication-context).
+
+사용시[`OAuthProvider`](/agents/model-context-protocol/authorization/)이름 \*`@cloudflare/workers-oauth-provider`, 인증 컨텍스트는 OAuth 흐름의 정보로 자동 변환됩니다. 당신은 일반적으로이 수동으로 설정할 필요가 없습니다.
+
+#### 관련 상품
+
+사용자 정의`WorkerTransport`예. 제공되지 않은 경우, 새로운 운송은 모든 요청에 생성됩니다.
+
+<TypeScriptExample>
+  ```ts
+  import { createMcpHandler, WorkerTransport } from "agents/mcp";
+
+  const transport = new WorkerTransport({
+  	sessionIdGenerator: () => `session-${crypto.randomUUID()}`,
+  	storage: {
+  		get: () => myStorage.get("transport-state"),
+  		set: (state) => myStorage.put("transport-state", state),
+  	},
+  });
+
+  const handler = createMcpHandler(server, { transport });
+  ```
+</TypeScriptExample>
+
+## Stateless MCP 서버
+
+많은 MCP Server는 stateless이며, 요청시 세션 상태를 유지하지 않습니다. 더 보기`createMcpHandler`기능은 경량 대안입니다`McpAgent`MCP 서버가 직장에서 바로 사용할 수 있는 클래스입니다. 더 보기[GitHub에서 보기](https://github.com/cloudflare/agents/tree/main/examples/mcp-worker).
+
+:::캐피온\[MCP SDK 1.26.0]
+
+**중요 :**&#x4D;CP SDK 버전에서 1.26.0 전에 업그레이드하면 생성하는 방법을 업데이트해야 합니다.`McpServer`stateless 서버의 인스턴스.
+
+MCP SDK 1.26.0은 이미 운송에 연결 된 서버 인스턴스에 연결하는 것을 방지하는 가드를 소개합니다. 이 보안 취약점 수정 (Security vulnerability)[사이트맵](https://github.com/modelcontextprotocol/typescript-sdk/security/advisories/GHSA-345p-7cg4-v4c7)) 서버 또는 수송 인스턴스를 공유하는 것은 cross-client 응답 자료를 누출할 수 있었습니다.
+
+**stateless MCP 서버가 선언한 경우`McpServer`또는 글로벌 범위에서 인스턴스를 전송하면 요청당 새 인스턴스를 작성해야 합니다.**
+
+이름 \*[본문 바로가기](/agents/api-reference/mcp-handler-api/#migration-guide-for-mcp-sdk-1260)상세 정보
+주요 특징
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  import { createMcpHandler } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  function createServer() {
+  	const server = new McpServer({
+  		name: "Hello MCP Server",
+  		version: "1.0.0",
+  	});
+
+  	server.tool(
+  		"hello",
+  		"Returns a greeting message",
+  		{ name: z.string().optional() },
+  		async ({ name }) => {
+  			return {
+  				content: [
+  					{
+  						text: `Hello, ${name ?? "World"}!`,
+  						type: "text",
+  					},
+  				],
+  			};
+  		},
+  	);
+
+  	return server;
+  }
+
+  export default {
+  	fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+  		//요청당 새 서버 인스턴스 생성
+  		const server = createServer();
+  		return createMcpHandler(server)(request, env, ctx);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+MCP 서버의 각 요청은 새로운 세션과 서버 인스턴스를 만듭니다. 서버는 요청 사이에 상태를 유지하지 않습니다. MCP 서버를 구현하는 가장 간단한 방법입니다.
+
+## MCP 소개 서버
+
+여러 요청을 통해 세션 상태를 유지해야하는 최첨단 MCP 서버를 위해, 당신은 사용할 수 있습니다`createMcpHandler`함수`WorkerTransport`예를 들어 직접`Agent`. 이것은 당신이 elicitation와 표본 추출 같이 진보된 클라이언트 특징의 사용을 만드는 경우에 유용합니다.
+
+사용자 정의`WorkerTransport`persistent 저장으로. 더 보기[GitHub에서 보기](https://github.com/cloudflare/agents/tree/main/examples/mcp-elicitation).
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  import { Agent } from "agents";
+  import {
+  	createMcpHandler,
+  	WorkerTransport,
+  	type TransportState,
+  } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+  const STATE_KEY = "mcp-transport-state";
+
+  type State = { counter: number };
+
+  export class MyStatefulMcpAgent extends Agent<Env, State> {
+  	server = new McpServer({
+  		name: "Stateful MCP Server",
+  		version: "1.0.0",
+  	});
+
+  	transport = new WorkerTransport({
+  		sessionIdGenerator: () => this.name,
+  		storage: {
+  			get: () => {
+  				return this.ctx.storage.get<TransportState>(STATE_KEY);
+  			},
+  			set: (state: TransportState) => {
+  				this.ctx.storage.put(STATE_KEY, state);
+  			},
+  		},
+  	});
+
+  	async onRequest(request: Request) {
+  		return createMcpHandler(this.server, {
+  			transport: this.transport,
+  		})(request, this.env, this.ctx as unknown as ExecutionContext);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이 경우 우리는 정의`sessionIdGenerator`세션 ID로 에이전트 이름을 반환합니다. 우리가 사용할 수있는 올바른 에이전트로 경로를 확인하려면`getAgentByName`노동자 핸들러에서:
+
+<TypeScriptExample>
+  ```ts
+  import { getAgentByName } from "agents";
+
+  export default {
+  	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  		//header에서 세션 ID를 추출하거나 새로운 것을 생성
+  		const sessionId =
+  			request.headers.get("mcp-session-id") ?? crypto.randomUUID();
+
+  		//name/session ID로 Agent 인스턴스를 가져옵니다.
+  		const agent = await getAgentByName(env.MyStatefulMcpAgent, sessionId);
+
+  		//MCP 요청을 에이전트로 경로
+  		return await agent.onRequest(request);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+지속적인 저장으로, 수송은 보존합니다:
+
+- 세션 ID
+- Protocol version 협상 상태
+- 초기화 상태
+
+MCP 클라이언트가 연결하고 연결 손실의 행사에서 세션을 재개 할 수 있습니다.
+
+## MCP SDK 1.26.0의 마이그레이션 가이드
+
+MCP SDK 1.26.0은 하나의 클라이언트가 공유 서버 또는 전송 인스턴스를 사용할 때 다른 클라이언트로 누출 할 수있는 중요한 보안 취약점에 대한 무결성 MCP 서버를 위한 깨진 변화를 소개합니다.
+
+### 누가 영향을 받습니까?
+
+| 서버 유형                             | 자주 묻는 질문 | 작업 필수                   |
+| --------------------------------- | -------- | ----------------------- |
+| 서버 사용`Agent`/Durable 개체           | 이름 \*    | 자주 묻는 질문                |
+| Stateless 서버 사용`createMcpHandler` | 이름 \*    | 새로운 기능`McpServer`요청에 따라 |
+| raw SDK 수송을 사용하는 무인 서버            | 이름 \*    | 새로운 기능`McpServer`요청당 운송 |
+
+### 왜 필요한가?
+
+선언의 이전 패턴`McpServer`글로벌 범위의 인스턴스는 하나의 클라이언트에서 다른 클라이언트로 누출 할 수 있습니다. 보안 취약점입니다. 새로운 SDK 버전은 이미 연결되는 서버를 연결하려고 하는 경우 오류를 던지고 이를 방지합니다.
+
+### 이전에 ( SDK 1.26.0에 부패)
+
+<TypeScriptExample>
+  ```ts
+  import { createMcpHandler } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+  //INCORRECT: 글로벌 서버 인스턴스
+  const server = new McpServer({
+  	name: "Hello MCP Server",
+  	version: "1.0.0",
+  });
+
+  server.tool("hello", "Returns a greeting", {}, async () => {
+  	return {
+  		content: [{ text: "Hello, World!", type: "text" }],
+  	};
+  });
+
+  export default {
+  	fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+  		//이것은 MCP SDK 1.26.0+와 두 번째 요청에 실패합니다.
+  		return createMcpHandler(server)(request, env, ctx);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### 이후 (현재)
+
+<TypeScriptExample>
+  ```ts
+  import { createMcpHandler } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+  //CORRECT: 서버 인스턴스를 생성하는 공장 기능
+  function createServer() {
+  	const server = new McpServer({
+  		name: "Hello MCP Server",
+  		version: "1.0.0",
+  	});
+
+  	server.tool("hello", "Returns a greeting", {}, async () => {
+  		return {
+  			content: [{ text: "Hello, World!", type: "text" }],
+  		};
+  	});
+
+  	return server;
+  }
+
+  export default {
+  	fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+  		//요청당 새 서버 인스턴스 생성
+  		const server = createServer();
+  		return createMcpHandler(server)(request, env, ctx);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### raw SDK 수송 사용자를 위해
+
+직접 익지않는 SDK 수송을 사용하는 경우에 (를 통해 아닙니다`createMcpHandler`), 당신은 또한 요구 당 새로운 수송 인스턴스를 창조해야 합니다:
+
+<TypeScriptExample>
+  ```ts
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+
+  function createServer() {
+  	const server = new McpServer({
+  		name: "Hello MCP Server",
+  		version: "1.0.0",
+  	});
+
+  	//등록 도구 ...
+
+  	return server;
+  }
+
+  export default {
+  	async fetch(request: Request) {
+  		//요청 당 새로운 운송 및 서버 만들기
+  		const transport = new WebStandardStreamableHTTPServerTransport();
+  		const server = createServer();
+  		server.connect(transport);
+  		return transport.handleRequest(request);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### 채용정보
+
+더 보기`WorkerTransport`클래스는 MCP 전송 인터페이스를 구현하고 HTTP 요청 / 응답주기, Server-Sent Events (SSE) 스트리밍, 세션 관리 및 CORS를 처리합니다.
+
+```ts
+class WorkerTransport implements Transport {
+	sessionId?: string;
+	started: boolean;
+	onclose?: () => void;
+	onerror?: (error: Error) => void;
+	onmessage?: (message: JSONRPCMessage, extra?: MessageExtraInfo) => void;
+
+	constructor(options?: WorkerTransportOptions);
+
+	async handleRequest(
+		request: Request,
+		parsedBody?: unknown,
+	): Promise<Response>;
+	async send(
+		message: JSONRPCMessage,
+		options?: TransportSendOptions,
+	): Promise<void>;
+	async start(): Promise<void>;
+	async close(): Promise<void>;
+}
+```
+
+#### Constructor 옵션
+
+```ts
+interface WorkerTransportOptions {
+	/** 이름
+* 독특한 세션 ID를 생성하는 기능.
+* 새로운 세션이 초기화될 때 호출됩니다.*/
+	sessionIdGenerator?: () => string;
+
+	/** 이름
+* 전통적인 요청/Response 모드 활성화, 스트리밍 비활성화.
+* 사실, 응답은 SSE 스트림 대신 JSON으로 반환됩니다.
+* @기본 false*/
+	enableJsonResponse?: boolean;
+
+	/** 이름
+* 세션이 초기화 될 때 Callback invoked.
+* 생성되거나 복원된 세션 ID를 수신합니다.*/
+	onsessioninitialized?: (sessionId: string) => void;
+
+	/** 이름
+* Cross-origin 요청에 대한 CORS 구성.
+* Access-Control-* 헤더 구성.*/
+	corsOptions?: CORSOptions;
+
+	/** 이름
+* persisting 수송 국가를 위한 선택적인 저장 API.
+* 튼튼한 Object/Agent 저장에 있는 세션 상태를 저장하기 위하여 이것을 사용하십시오
+* 그래서 그것은 hibernation/restart를 살아남습니다.*/
+	storage?: MCPStorageApi;
+}
+```
+
+#### 세션IdGenerator
+
+사용자 정의 세션 식별자를 제공합니다. 이 세션 식별자는 MCP 클라이언트에서 세션을 식별하는 데 사용됩니다.
+
+<TypeScriptExample>
+  ```ts
+  const transport = new WorkerTransport({
+  	sessionIdGenerator: () => `user-${Date.now()}-${Math.random()}`,
+  });
+  ```
+</TypeScriptExample>
+
+#### 활성화JsonResponse
+
+SSE 스트리밍을 비활성화하고 표준 JSON으로 응답을 반환합니다.
+
+<TypeScriptExample>
+  ```ts
+  const transport = new WorkerTransport({
+  	enableJsonResponse: true, //스트리밍, JSON 응답 반환
+  });
+  ```
+</TypeScriptExample>
+
+#### 관련 기사
+
+세션이 초기화될 때, 새로운 세션을 생성하거나 저장에서 복원하여 호출합니다.
+
+<TypeScriptExample>
+  ```ts
+  const transport = new WorkerTransport({
+  	onsessioninitialized: (sessionId) => {
+  		console.log(`MCP session initialized: ${sessionId}`);
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+#### 손상된
+
+Cross-origin 요청을 위한 CORS 헤더를 구성합니다.
+
+```ts
+interface CORSOptions {
+	origin?: string;
+	methods?: string;
+	headers?: string;
+	maxAge?: number;
+	exposeHeaders?: string;
+}
+```
+
+<TypeScriptExample>
+  ```ts
+  const transport = new WorkerTransport({
+  	corsOptions: {
+  		origin: "https://example.com",
+  		methods: "GET, POST, OPTIONS",
+  		headers: "Content-Type, Authorization",
+  		maxAge: 86400,
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+#### 제품정보
+
+Persist 수송 상태는 튼튼한 목표 hibernation를 생존하거나 재시작합니다.
+
+```ts
+interface MCPStorageApi {
+	get(): Promise<TransportState | undefined> | TransportState | undefined;
+	set(state: TransportState): Promise<void> | void;
+}
+
+interface TransportState {
+	sessionId?: string;
+	initialized: boolean;
+	protocolVersion?: ProtocolVersion;
+}
+```
+
+<TypeScriptExample>
+  ```ts
+  //대리인 또는 튼튼한 목표 종류 방법 안쪽에:
+  const transport = new WorkerTransport({
+  	storage: {
+  		get: async () => {
+  			return await this.ctx.storage.get<TransportState>("mcp-state");
+  		},
+  		set: async (state) => {
+  			await this.ctx.storage.put("mcp-state", state);
+  		},
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+## 인증 Context
+
+사용 방법[OAuth 인증](/agents/model-context-protocol/authorization/)이름 \*`createMcpHandler`, 사용자 정보는 MCP 툴에서 사용할 수 있습니다.`getMcpAuthContext()`. 이 사용 후`AsyncLocalStorage`도구 핸들러에 대한 요청을 전달하려면 인증 컨텍스트를 사용할 수 있습니다.
+
+```ts
+interface McpAuthContext {
+	props: Record<string, unknown>;
+}
+```
+
+### getMcpAuth콘텍스
+
+MCP 도구 핸들러 내에서 현재 인증 컨텍스트를 검색합니다. OAuth 공급자가 대중화 한 사용자 정보를 반환합니다. 사용방법`McpAgent`, 이 정보는 직접 접근 가능`this.props`대신.
+
+```ts
+import { getMcpAuthContext } from "agents/mcp";
+
+function getMcpAuthContext(): McpAuthContext | undefined;
+```
+
+<TypeScriptExample>
+  ```ts
+  import { getMcpAuthContext } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+
+  function createServer() {
+  	const server = new McpServer({ name: "Auth Server", version: "1.0.0" });
+
+  	server.tool("getProfile", "Get the current user's profile", {}, async () => {
+  		const auth = getMcpAuthContext();
+  		const username = auth?.props?.username as string | undefined;
+  		const email = auth?.props?.email as string | undefined;
+
+  		return {
+  			content: [
+  				{
+  					type: "text",
+  					text: `User: ${username ?? "anonymous"}, Email: ${email ?? "none"}`,
+  				},
+  			],
+  		};
+  	});
+
+  	return server;
+  }
+  ```
+</TypeScriptExample>
+
+:::참조
+MCP 서버로 OAuth 인증 설정에 대한 완벽한 가이드[MCP 인증 문서](/agents/model-context-protocol/authorization/). 보기[GitHub의 Worker 예제에서 MCP 서버 완성](https://github.com/cloudflare/agents/tree/main/examples/mcp-worker-authenticated).
+:::
+
+## 오류 처리
+
+더 보기`createMcpHandler`자동으로 오류를 잡아서 JSON-RPC 오류 응답을 코드로 반환합니다.`-32603`(내부 오류).
+
+<TypeScriptExample>
+  ```ts
+  server.tool("riskyOperation", "An operation that might fail", {}, async () => {
+  	if (Math.random() > 0.5) {
+  		throw new Error("Random failure occurred");
+  	}
+  	return {
+  		content: [{ type: "text", text: "Success!" }],
+  	};
+  });
+
+  //오류는 자동으로 붙잡고 반환됩니다 :
+  //이름 *
+  //"jsonrpc": "2.0",
+  //이름 *
+  //"코드": -32603,
+  //"message": "Random 실패가 발생했습니다"
+  //이름 *
+  //"id": <request id>
+  //이름 *
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+<LinkCard title="MCP 서버 구축" href="/agents/guides/remote-mcp-server/" description="Cloudflare에서 MCP 서버를 구축하고 배포합니다." />
+
+<LinkCard title="MCP 도구" href="/agents/model-context-protocol/tools/" description="MCP 서버에 도구를 추가합니다." />
+
+<LinkCard title="MCP 인증" href="/agents/model-context-protocol/authorization/" description="OAuth 사용자를 인증합니다." />
+
+<LinkCard title="McpAgent API를" href="/agents/api-reference/mcp-agent-api/" description="MCP 서버 구축" />

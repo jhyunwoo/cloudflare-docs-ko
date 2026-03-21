@@ -1,0 +1,329 @@
+---
+pcx_content_type: how-to
+title: 미디어 취득 Approaches
+slug: realtime/realtimekit/core/media-acquisition-approaches
+sidebar:
+  order: 17
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/media-acquisition-approaches/
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/media-acquisition-approaches/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+:::참조
+이 가이드는 이미 익숙한 것을 가정[RealtimeKit SDK 초기화](/realtime/realtimekit/core/).
+:::
+
+RealtimeKit은 참가자 미디어 (audio 및 비디오 트랙)를 취득하고 관리하기위한 유연한 접근 방식을 제공합니다. 기본적으로 SDK는 미디어 인수를 자동으로 처리합니다. 그러나 특정 사용 사례는 SDK 초기화 이전에 미디어 트랙에 액세스해야 합니다.
+
+<RTKSDKSelector />
+
+<RTKCodeSnippet id={["mobile-android", "mobile-ios", "mobile-flutter", "mobile-react-native"]}>
+  수동 트랙 처리는이 플랫폼에서 사용할 수 없습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["web-react", "web-web-components", "web-angular"]}>
+  ## 사용자 정의 미디어 취득을 사용할 때
+
+  사용자 정의 미디어 취득은 당신이 필요로 할 때 유용합니다:
+
+  - **참여하기 전에 참가자**: 검증서비스를 통한 오디오 및 비디오 전달 (예: EdTech 평가에서 배우는 시스템).
+  - **Pre-process 미디어 스트림**: 세션이 시작되기 전에 필터, 변형 또는 품질 검사를 적용합니다.
+  - **외부 서비스 통합**: 분석 또는 준수 검사를 위한 제3자 API로 미디어를 전송합니다.
+  - **기존 트랙 재사용**: 다른 애플리케이션에서 미디어 트랙을 활용합니다.
+
+  :::카트로션
+  대부분의 신청은 주문 매체 취득을 필요로 하지 않습니다. 사용 사례가 이 기능을 필요로 하는 경우, 표준 SDK 초기화 접근 방식을 사용하십시오. 사용자 정의 미디어 관리는 복잡성을 추가하고 브라우저 미디어 API의 주의적 취급을 요구합니다.
+  주요 특징
+
+  ## 접근 1: SDK-first (추천)
+
+  SDK를 먼저 초기화한 후 미팅 객체에서 미디어 트랙을 접속합니다. 이것은 가장 간단한 접근이며 대부분의 사용 사례에 적합합니다.
+
+  **이용 시**: SDK 초기화 후 미디어 트랙에 액세스해야 하며, 로깅, 분석, 또는 다른 서비스와 통합.
+
+  <RTKCodeSnippet id="web-react">
+    ```ts
+    import { useEffect } from 'react';
+    import { useRealtimeKitClient } from '@cloudflare/realtimekit-react';
+
+    export default function App() {
+    	const [meeting, initMeeting] = useRealtimeKitClient();
+
+        useEffect(() => {
+        	initMeeting({ authToken: "<auth-token>" });
+        }, []);
+
+        useEffect(() => {
+            if(meeting){
+                console.log('audioTrack:: ', meeting.self.audioTrack);
+                console.log('videoTrack:: ', meeting.self.videoTrack);
+            }
+
+        }, [meeting])
+
+        return <div>Your meeting component comes here</div>;
+
+    }
+
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-web-components">
+    ```js
+    const authToken = "<auth-token>";
+    const meeting = await RealtimeKitClient.init({
+    	authToken,
+    });
+
+    console.log("audioTrack:: ", meeting.self.audioTrack);
+    console.log("videoTrack:: ", meeting.self.videoTrack);
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-angular">
+    ```ts
+    class AppComponent {
+    	title = "MyProject";
+    	@ViewChild("myid") meetingComponent: RtkMeeting;
+    	rtkMeeting: RealtimeKitClient;
+
+    	async ngAfterViewInit() {
+    		const meeting = await RealtimeKitClient.init({
+    			authToken: "<auth-token>",
+    		});
+
+    		console.log("audioTrack:: ", meeting.self.audioTrack);
+    		console.log("videoTrack:: ", meeting.self.videoTrack);
+    	}
+    }
+    ```
+  </RTKCodeSnippet>
+
+  ## 접근 2: 미디어 우선
+
+  <RTKCodeSnippet id="web-react">
+    미디어 핸들러를 처음 사용`RealtimeKitClient.initMedia()`, 초기화 중에 SDK로 전달합니다. SDK는 권한을 다시 요청하지 않고 인수 된 미디어 트랙을 재사용합니다.
+
+    **이용 시**: 세션에 참여하기 전에 미디어 트랙 분을 미리 취득해야합니다. WebSocket 연결 관리 또는 전체 SDK 초기화와 함께 제공되는 미디어 차단을 처리하지 않고 일찍 ProTech 평가 플랫폼에 특히 유용합니다.
+
+    **이름 \***:
+
+    - SDK는 미디어 인수 및 브라우저 호환성을 관리합니다.
+    - 참가자는 두 번 허가를받지 않습니다.
+    - 미디어 트랙은 검증 서비스와 SDK 사이에 자동으로 동기화됩니다.
+    - SDK 연결 상태를 관리하지 않고 미디어를 일찍 취득.
+
+    ```ts
+    import { useEffect, useState } from 'react';
+    import RealtimeKitClient from '@cloudflare/realtimekit';
+    import type { RTKSelfMedia } from '@cloudflare/realtimekit';
+    import { useRealtimeKitClient } from '@cloudflare/realtimekit-react';
+
+    export default function App() {
+    	const [meeting, initMeeting] = useRealtimeKitClient();
+        const [media, setMedia] = useState<RTKSelfMedia>();
+        const [readyToInitializeSDK, setReadyToInitializeSDK] = useState(false);
+
+        useEffect(() => {
+            async function initMediaWithoutSDKInitialization(){
+                const mediaFromSDK = await RealtimeKitClient.initMedia({
+                  video : true,
+                  audio: true,
+                });
+
+                setMedia(mediaFromSDK);
+
+                console.log('audioTrack', mediaFromSDK.audioTrack);
+                console.log('videoTrack', mediaFromSDK.videoTrack);
+
+                setTimeout(() => {
+                    //SDK를 초기화 할 준비가되면 true로 설정
+                    //실제 세계 시나리오를 mimic에, 우리는 5 초 후에 진실하게 조정합니다
+                    setReadyToInitializeSDK(true);
+                }, 5000);
+            }
+            if(!media){
+                initMediaWithoutSDKInitialization();
+            }
+        }, [media]);
+
+        useEffect(() => {
+            if(meeting){
+                return;
+            }
+            if(!readyToInitializeSDK){
+                return;
+            }
+            if(!media){
+                return;
+            }
+        	initMeeting({ authToken: "<auth-token>", defaults: { mediaHandler: media } });
+        }, [meeting, readyToInitializeSDK, media]);
+
+        return <div>Your meeting component comes here</div>;
+    }
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-web-components">
+    미디어 핸들러를 처음 사용`RealtimeKitClient.initMedia()`, 초기화 중에 SDK로 전달합니다. SDK는 권한을 다시 요청하지 않고 인수 된 미디어 트랙을 재사용합니다.
+
+    **이용 시**: 세션에 참여하기 전에 미디어 트랙 분을 미리 취득해야합니다. WebSocket 연결 관리 또는 전체 SDK 초기화와 함께 제공되는 미디어 차단을 처리하지 않고 일찍 ProTech 평가 플랫폼에 특히 유용합니다.
+
+    **이름 \***:
+
+    - SDK는 미디어 인수 및 브라우저 호환성을 관리합니다.
+    - 참가자는 두 번 허가를받지 않습니다.
+    - 미디어 트랙은 검증 서비스와 SDK 사이에 자동으로 동기화됩니다.
+    - SDK 연결 상태를 관리하지 않고 미디어를 일찍 취득.
+
+    ```js
+    const mediaFromSDK = await RealtimeKitClient.initMedia({
+    	video: true,
+    	audio: true,
+    });
+
+    setTimeout(() => {
+    	const authToken = "<auth-token>";
+    	RealtimeKitClient.init({
+    		authToken,
+    		defaults: {
+    			mediaHandler: mediaFromSDK,
+    		},
+    	}).then((meeting) => {
+    		//다음 - Meeting.join();
+    	});
+    }, 5000);
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-angular">
+    미디어 핸들러를 처음 사용`RealtimeKitClient.initMedia()`, 초기화 중에 SDK로 전달합니다. SDK는 권한을 다시 요청하지 않고 인수 된 미디어 트랙을 재사용합니다.
+
+    **이용 시**: 세션에 참여하기 전에 미디어 트랙 분을 미리 취득해야합니다. WebSocket 연결 관리 또는 전체 SDK 초기화와 함께 제공되는 미디어 차단을 처리하지 않고 일찍 ProTech 평가 플랫폼에 특히 유용합니다.
+
+    **이름 \***:
+
+    - SDK는 미디어 인수 및 브라우저 호환성을 관리합니다.
+    - 참가자는 두 번 허가를받지 않습니다.
+    - 미디어 트랙은 검증 서비스와 SDK 사이에 자동으로 동기화됩니다.
+    - SDK 연결 상태를 관리하지 않고 미디어를 일찍 취득.
+
+    ```ts
+    class AppComponent {
+    	title = "MyProject";
+    	@ViewChild("myid") meetingComponent: RtkMeeting;
+    	rtkMeeting: RealtimeKitClient;
+
+    	async ngAfterViewInit() {
+    		const mediaFromSDK = await RealtimeKitClient.initMedia({
+    			video: true,
+    			audio: true,
+    		});
+
+    		setTimeout(() => {
+    			const authToken = "<auth-token>";
+    			RealtimeKitClient.init({
+    				authToken,
+    				defaults: {
+    					mediaHandler: mediaFromSDK,
+    				},
+    			}).then((meeting) => {
+    				//다음 - Meeting.join();
+    			});
+    		}, 5000);
+    	}
+    }
+    ```
+  </RTKCodeSnippet>
+
+  ## 접근 3: 자동 관리 (advanced)
+
+  브라우저 API를 사용하여 미디어 트랙을 독립적으로 관리하고 관리하고 오디오 및 비디오를 활성화 할 때 SDK에 전달합니다.
+
+  **이용 시**: 기존 미디어 관리 인프라 또는 미디어 인수에 대한 완전한 제어가 필요합니다.
+
+  **관련 기사**:
+
+  - 브라우저 호환성 및 API 변경을 처리하는 책임입니다.
+  - SDK 업데이트는 자동으로 코드에서 미디어 인수 문제를 수정하지 않습니다.
+  - WebRTC 및 브라우저 미디어 API의 더 깊은 지식이 필요합니다.
+
+  오디오 및 비디오 장애가있는 SDK를 초기화 한 다음 사용자 정의 트랙으로 활성화하십시오.
+
+  <RTKCodeSnippet id="web-react">
+    ```ts
+    import { useEffect } from 'react';
+    import { useRealtimeKitClient } from '@cloudflare/realtimekit-react';
+
+    export default function App() {
+    	const [meeting, initMeeting] = useRealtimeKitClient();
+
+        useEffect(() => {
+        	initMeeting({ authToken: "<auth-token>" });
+        }, []);
+
+        useEffect(() => {
+            async function setupMediaTracks(){
+                if (meeting) {
+                    let audioTrack; //브라우저에서 취득한 audioTrack을 넣으십시오.
+                    let videoTrack; //브라우저에서 취득한 videoTrack을 넣으십시오.
+                    await meeting.self.enableAudio(audioTrack);
+                    await meeting.self.enableVideo(videoTrack);
+                    //만나기.self.join();
+                }
+            }
+            setupMediaTracks();
+
+        }, [meeting])
+
+        return <div>Your meeting component comes here</div>;
+
+    }
+
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-web-components">
+    ```js
+    const authToken = "<auth-token>";
+    const meeting = await RealtimeKitClient.init({
+    	authToken,
+    });
+
+    let audioTrack; //브라우저에서 취득한 audioTrack을 넣으십시오.
+    let videoTrack; //브라우저에서 취득한 videoTrack을 넣으십시오.
+    await meeting.self.enableAudio(audioTrack);
+    await meeting.self.enableVideo(videoTrack);
+    ```
+  </RTKCodeSnippet>
+
+  <RTKCodeSnippet id="web-angular">
+    ```ts
+    class AppComponent {
+    	title = "MyProject";
+    	@ViewChild("myid") meetingComponent: RtkMeeting;
+    	rtkMeeting: RealtimeKitClient;
+
+    	async ngAfterViewInit() {
+    		const meeting = await RealtimeKitClient.init({
+    			authToken: "<auth-token>",
+    		});
+
+    		let audioTrack; //브라우저에서 취득한 audioTrack을 넣으십시오.
+    		let videoTrack; //브라우저에서 취득한 videoTrack을 넣으십시오.
+    		await meeting.self.enableAudio(audioTrack);
+    		await meeting.self.enableVideo(videoTrack);
+    	}
+    }
+    ```
+  </RTKCodeSnippet>
+</RTKCodeSnippet>

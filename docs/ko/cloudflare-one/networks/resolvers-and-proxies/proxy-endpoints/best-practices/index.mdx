@@ -1,0 +1,284 @@
+---
+pcx_content_type: how-to
+title: PAC 파일 모범 사례
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/resolvers-and-proxies/proxy-endpoints/best-practices/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/resolvers-and-proxies/proxy-endpoints/best-practices/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components";
+
+PAC 파일은 프록시 서버로 리디렉션해야 하는 문자 파일입니다. 브라우저가 웹 요청을 할 때 PAC 파일에 문의하십시오.`FindProxyForURL()`요청을 평가하고 직접 연결, 프록시 서버 또는 실패 시퀀스와 같은 라우팅 지침을 반환하는 기능.
+
+## PAC 파일 형식
+
+기본 Cloudflare PAC 파일은 표준 형식을 따릅니다.
+
+```js title="default-pac.js"
+function FindProxyForURL(url, host) {
+	//개인에 대한 프록시 없음 (RFC 1918) IP 주소 (인트라넷 사이트)
+	if (
+		isInNet(dnsResolve(host), "10.0.0.0", "255.0.0.0") ||
+		isInNet(dnsResolve(host), "172.16.0.0", "255.240.0.0") ||
+		isInNet(dnsResolve(host), "192.168.0.0", "255.255.0.0")
+	) {
+		return "DIRECT";
+	}
+
+	//localhost에 대한 프록시 없음
+	if (isInNet(dnsResolve(host), "127.0.0.0", "255.0.0.0")) {
+		return "DIRECT";
+	}
+
+	//Proxy 모두
+	return "HTTPS 3ele0ss56t.proxy.cloudflare-gateway.com:443";
+}
+```
+
+당신은 할 수[PAC 파일을 사용자 정의](https://developer.mozilla.org/en-US/docs/Web/HTTP/Proxy_servers_and_tunneling/Proxy_Auto-Configuration_PAC_file)브라우저에 접근할 수 있는 호스트
+
+### 옵션 선택
+
+- endpoint에 사용된 지시어는`HTTPS`그리고 아니`PROXY`. 예를 들면:
+  - 정확한:`return "HTTPS your-subdomain.proxy.cloudflare-gateway.com:443";`
+  - 잘못된:`return "PROXY your-subdomain.proxy.cloudflare-gateway.com:443";`
+- 브라우저의 프록시 설정에서 endpoint를 직접 구성하는 대신 PAC 파일을 사용해야 합니다. 현대 브라우저는 PAC 파일없이 HTTPS 프록시를 지원하지 않습니다.
+- VS Code와 같은 일반 텍스트 편집기를 사용하여 추가 문자를 피하십시오.
+- 공공 인터넷 검색 PAC 파일을 사용하는 경우 (내부 서비스 대신), 참조[일반적인 우회 규칙](#common-bypass-rules)도메인의 경우 웹 사이트 기능 문제를 방지하기 위해 프록시에서 제외해야합니다.
+
+## ID 공급자 bypass로 PAC 파일 템플릿
+
+사용 방법[승인 endpoints](/cloudflare-one/networks/resolvers-and-proxies/proxy-endpoints/#authorization-endpoint), PAC 파일에 ID 공급자 (IdP) 도메인을 우회해야 합니다. 브라우저가 IdP에 도달하기 전에 프록시를 인증하는 것을 방지합니다.
+
+다음 예제 PAC 파일은 일반적인 IdP 우회 규칙을 포함하는 포괄적 인 템플릿입니다. 당신의 윤곽을 가진 placeholder 가치를 대체하십시오:
+
+```js title="pac-idp-template.js"
+function FindProxyForURL(url, host) {
+	//*** 신분증 공급자 Bypass ***
+	//CRITICAL : 인증 루프를 방지하기 위해 IdP를 우회하십시오.
+	//드문과 IdP의 섹션을 구성:
+
+	//오오타
+	//if (host === "your-domain.okta.com" || shExpMatch(host, "*.oktacdn.com) {
+	//반환 "DIRECT";
+	//이름 *
+
+	//마이크로 소프트 엔트라 ID (Azure AD)
+	//(주)
+	//호스트 === "login.microsoftonline.com" ||
+	//호스트 === "aadcdn.msauth.net" ||
+	//호스트 === "aadcdn.msftauth.net"
+	//·
+	//반환 "DIRECT";
+	//이름 *
+
+	//Google 작업 공간
+	//(주)
+	//호스트 === "accounts.google.com" ||
+	//shExpMatch (호스트, "*.gstatic.com")
+	//·
+	//반환 "DIRECT";
+	//이름 *
+
+	//프로젝트
+	//if (shExpMatch (host, "*.github.com")) {
+	//반환 "DIRECT";
+	//이름 *
+
+	//*** 개인 네트워크 ***
+	//우회 개인적인 RFC 1918 IP 주소
+	if (
+		isInNet(dnsResolve(host), "10.0.0.0", "255.0.0.0") ||
+		isInNet(dnsResolve(host), "172.16.0.0", "255.240.0.0") ||
+		isInNet(dnsResolve(host), "192.168.0.0", "255.255.0.0")
+	) {
+		return "DIRECT";
+	}
+
+	//로컬호스팅
+	if (isInNet(dnsResolve(host), "127.0.0.0", "255.0.0.0")) {
+		return "DIRECT";
+	}
+
+	//우회 보통 hostnames (dots 없음)
+	if (isPlainHostName(host)) {
+		return "DIRECT";
+	}
+
+	//Bypass .local 도메인
+	if (shExpMatch(host, "*.local")) {
+		return "DIRECT";
+	}
+
+	//Cloudflare 액세스 로그아웃 ***
+	//옵션: 액세스 로그아웃 페이지로 이동
+	//if (shExpMatch (url, "*logout*")) {
+	//반환 "HTTPS your-team-name.cloudflareaccess.com/cdn-cgi/access/logout";
+	//이름 *
+
+	//*** 다른 모든 트래픽을 프록시 ***
+	return "HTTPS your-subdomain.proxy.cloudflare-gateway.com:443";
+}
+```
+
+:::caution\[IdP 우회 필요조건]
+인증 엔드포인트를 사용할 때 ID 공급자를 위한 IdP 우회를 구성해야 합니다. 이없이 사용자는 프록시를 사용하려고 할 때 오류를 정정하고 발생 할 수 없습니다.
+주요 특징
+
+## 성능 최적화
+
+브라우저는 모든 요청에 PAC 파일을 평가합니다. PAC 파일 성능 최적화는 사용자가 웹 브라우징에서 지연 및 문제를 방지하기 위해 중요합니다.
+
+### Cache DNS 결과 변수
+
+DNS 해상도를 수행 할 때`dnsResolve()`, 여러 체크를 가로지르는 변수에 결과를 저장합니다. 이것은 중복된 DNS 조회를 피합니다:
+
+```js
+function FindProxyForURL(url, host) {
+	//한 번 해결하고 재사용
+	var hostIP = dnsResolve(host);
+
+	if (isInNet(hostIP, "10.0.0.0", "255.0.0.0")) {
+		return "DIRECT";
+	}
+
+	//추가 체크를 위한 hostIP를 재사용하십시오
+	if (isInNet(hostIP, "172.16.0.0", "255.240.0.0")) {
+		return "DIRECT";
+	}
+
+	return "HTTPS proxy.example.com:443";
+}
+```
+
+### 일반 호스트 이름
+
+NetBIOS 이름 (기간없이 호스트 이름)는 일반적으로 내부이며 프록시를 우회해야합니다. 이 첫번째에 대한 체크:
+
+```js
+if (isPlainHostName(host)) return "DIRECT";
+```
+
+## 고급 기술
+
+### 케이스 감도 취급
+
+JavaScript는 케이스 과민합니다. 일관된 일치를 위해 더 낮은 케이스에 hostname를 변환하십시오:
+
+```js
+function FindProxyForURL(url, host) {
+	//Lowercase에 정상화
+	host = host.toLowerCase();
+	url = url.toLowerCase();
+
+	if (shExpMatch(host, "*.example.com")) {
+		return "DIRECT";
+	}
+
+	return "HTTPS proxy.cloudflare-gateway.com:443";
+}
+```
+
+## 일반적인 우회 규칙
+
+공공 인터넷 브라우징 PAC 파일을 사용할 때 (내부 서비스는 아닙니다), 웹 사이트 기능 문제를 방지하기 위해 특정 도메인에 대한 프록시를 우회해야합니다. 다음은 프록시가 트래픽을 방해할 수 있는 일반적인 시나리오입니다.
+
+:::노트\[선택적 규칙]
+이러한 우회 규칙은 선택 사항이며 조직의 보안 요구 사항에 따라 다릅니다. 구현하기 전에 보안 정책에 대한 각 우회 규칙을 준수합니다. 당신은 또한 사용할 수 있습니다[HTTP 정책](/cloudflare-one/traffic-policies/http-policies/)이 도메인에서 선택적으로 필터 트래픽을 필터링하는 동안 여전히 프록시를 통해 routing.
+주요 특징
+
+### 글꼴 및 정적 자산 공급자
+
+글꼴 API 및 정적 자산 제공 업체는 일반적으로 렌더링 문제를 방지하기 위해 프록시를 우회해야합니다.
+
+```js
+//Bypass 글꼴 제공
+if (
+	shExpMatch(host, "*.googleapis.com") ||
+	shExpMatch(host, "*.gstatic.com") ||
+	shExpMatch(host, "fonts.adobe.com")
+) {
+	return "DIRECT";
+}
+```
+
+### 스트리밍 및 미디어 서비스
+
+비디오 스트리밍 및 대형 미디어 다운로드는 직접 연결으로 더 나은 수행 할 수 있습니다 :
+
+```js
+//Bypass 스트리밍 서비스
+if (
+	shExpMatch(host, "*.netflix.com") ||
+	shExpMatch(host, "*.youtube.com") ||
+	shExpMatch(host, "*.googlevideo.com")
+) {
+	return "DIRECT";
+}
+```
+
+## PAC 파일 테스트
+
+### 예상 웹 사이트로 테스트
+
+PAC 파일을 조직의 모든 사용자에게 배포하기 전에 웹 사이트 및 응용 프로그램으로 테스트하여 일반적으로 액세스합니다. 이 도움말:
+
+- 내부 자원은 접근 할 수 없으며 프록시를 통해 잘못된 경로가 없습니다.
+- 외부 웹 사이트는 Gateway를 통해 올바르게 필터링됩니다.
+- 성과는 전형적인 사용법 본을 위해 수락가능합니다
+
+:::가격
+대표 도메인의 테스트 목록을 작성하고 PAC 파일을 올바르게 검증합니다.
+주요 특징
+
+### 유효성 검사
+
+PAC 파일 사용 JavaScript 구문. 단일 구문 오류 (누락 된 폐쇄 모체와 같은)`)`또는 부류`]`) 실패하는 전체 PAC 파일을 일으킬 것입니다. JavaScript-aware 텍스트 편집기를 사용하여 배포하기 전에 구문 오류를 찾아 수정합니다.
+
+## 문제 해결
+
+### Debug PAC 파일 여정 결정
+
+프록시 라우팅 문제가 있다면 대부분의 브라우저는 PAC 파일 동작을 확인하기 위해 디버깅 도구를 제공합니다.
+
+<Details header="크롬 기반 브라우저 (Chrome, Edge, Brave)">
+  1. 브라우저에서 이동`chrome://net-export/`(주)`edge://net-export/`).
+  2. 제품정보**Disk 로깅 시작**.
+  3. 웹 사이트로 이동하면 영향을받는 브라우저로 테스트 할 수 있습니다.
+  4. 제품정보**관련 링크**.
+  5. 다운로드 된 파일을 엽니 다[netlog 뷰어](https://netlog-viewer.appspot.com/).
+  6. 도메인 검색 프록시 해상도 결정.
+</Details>
+
+<Details header="파이어 폭스">
+  1. Firefox에서**회사 소개** > **비밀번호** > **브라우저 콘솔**.
+  2. 웹 사이트로 이동하면 영향을받는 브라우저로 테스트 할 수 있습니다.
+  3. 프록시 해상도와 관련된 메시지를 찾습니다.
+
+  콘솔에서 PAC 파일 로직을 직접 테스트 할 수 있습니다.`FindProxyForURL`기능 및 테스트 URL로 호출. 예를 들면:
+
+  사이트맵
+</Details>
+
+<Details header="스낵 바">
+  1. 사파리에서**스낵 바** > **계정 설정**, 다음 선택**지원하다**.
+  2. 기타 제품**메뉴바에서 메뉴 개발**.
+  3. 제품정보**개발사업** > **웹 검사기 표시**.
+  4. 오시는 길**회사연혁**탭.
+  5. proxy 사용법을 확인하기 위한 요청 세부 정보를 확인하세요.
+</Details>
+
+### PAC 파일을 사용하여 장치에 대한 탐색은 느립니다.
+
+PAC 파일에서 과도한 DNS 조회는 지연을 일으킬 수 있습니다. PAC 파일을 검토하고 사용 최소화`dnsResolve()`, `isInNet()`·`isResolvable()`기능.
+
+### 브라우저 캐시 PAC 파일 잘못된
+
+PAC 파일을 업데이트하면 브라우저가 캐시 된 버전을 계속 사용할 수 있으며 예상치 못한 동작을 유발할 수 있습니다. 브라우저 캐시를 정리하고 브라우저가 최신 버전을 사용하도록 PAC 파일을 업데이트 한 후 브라우저를 다시 시작합니다.

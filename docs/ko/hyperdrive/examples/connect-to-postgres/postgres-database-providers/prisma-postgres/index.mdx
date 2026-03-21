@@ -1,0 +1,103 @@
+---
+type: example
+summary: Connect Hyperdrive to a Prisma Postgres database.
+pcx_content_type: example
+title: Prisma 포스터
+sidebar:
+  order: 12
+description: Hyperdrive를 Prisma Postgres 데이터베이스에 연결하십시오.
+reviewed: 2025-08-20T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-database-providers/prisma-postgres/
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-postgres/postgres-database-providers/prisma-postgres/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, Steps } from "~/components";
+
+이 예제는 Hyperdrive를 연결하는 방법을 보여줍니다.[Prisma 포스터](https://www.prisma.io/postgres)데이터베이스.
+
+## 1. Hyperdrive 액세스 허용
+
+기존 데이터베이스 연결 문자열을 사용하여 Hyperdrive를 기존 Prisma Postgres 데이터베이스에 연결할 수 있습니다.
+
+### Prisma 데이터 플랫폼
+
+1. 오시는 길[**Prisma 데이터 플랫폼 콘솔**](https://console.prisma.io/)프로젝트 (database)를 선택하면 연결해야 합니다.
+2. 제품정보**데이터베이스에 연결** > **어떤 클라이언트**.
+3. 제품정보**데이터베이스 자격 증명**. Prisma Postgres 데이터베이스에 대한 연결 문자열을 복사합니다.
+4. 연결 문자열을 수정하여 Hyperdrive와 호환됩니다.
+
+- 포트 후에 데이터베이스 이름을 추가합니다. 쿼리 매개 변수를 제거 할 수 있습니다.`?sslmode=require`.
+- 마지막 문자열은 다음과 같습니다 :
+
+```txt ins="database_name"
+postgres://USERNAME:PASSWORD@HOSTNAME_OR_IP_ADDRESS:PORT/database_name
+```
+
+:::참조
+
+Prisma Data Platform에 대한 대안은 사용[`create-db`](https://www.npmjs.com/package/create-db)패키지. 이 패키지는 사용하기 위해 빠른 임시 Prisma Postgres 데이터베이스를 생성합니다.
+
+```bash
+npx create-db@latest
+```
+
+:::
+
+이 연결 문자열을 사용하면 이제 Hyperdrive 데이터베이스 구성을 만들 수 있습니다.
+
+## 2. 데이터베이스 구성 만들기
+
+<Render file="create-hyperdrive-config" product="hyperdrive" />
+
+## 4. Hyperdrive 최대 연결을 구성하십시오
+
+Prisma Postgres에는 Hyperdrive를 사용하여 데이터베이스에 만들 수있는 직접 연결 수에 제한이 있습니다. 더 알아보기[Prisma Postgres 제한](https://www.prisma.io/docs/postgres/database/direct-connections?utm_source=website\&utm_medium=postgres-page#connection-limit).
+
+:::참조
+여기에 고려하는 두 가지 제한이 있습니다.
+
+- Origin 데이터베이스의 연결 제한, 기원 데이터베이스 제공 업체에 의해 설정. 이것은 원래 데이터베이스에 만들 수있는 직접 데이터베이스 연결의 최대 번호입니다.
+- Hyperdrive의 원래 연결 제한, Hyperdrive에 의해 설정. 이것은 Hyperdrive가 원산지 데이터베이스 (이 경우 Prisma Postgres)에 만들 수있는 데이터베이스 연결의 최대 번호입니다.
+
+Hyperdrive의 근원 연결 한계는 Prisma Postgres 연결 한계 보다는 더 낮아야 합니다, Hyperdrive의 근원 연결 한계가 연약한 한계이고, Hyperdrive는 사용중인 네트워크 붕괴가 있는 경우에 더 많은 연결을 창조할지도 모릅니다.
+주요 특징
+
+<Tabs>
+  <TabItem label={"Dashboard"}>
+    <Steps>
+      1. 에 의해[CloudflareQXQX0584XQQQX대시보드](https://dash.cloudflare.com/?to=/:account/workers/hyperdrive), 새로 만든 Hyperdrive 구성을 선택합니다.
+      2. 오시는 길**계정 설정**.
+      3. 내 계정**근원 연결 한계**, 선택**편집 설정**, 그리고 당신의 Prisma 연결 한계 보다는 더 낮은 수에 당신의 최대 연결을 놓으십시오.
+    </Steps>
+  </TabItem>
+
+  <TabItem label={"Wrangler CLI"}>
+    <Steps>
+      1. 기존 HyperdriveXQ 구성 편집`--origin-connection-limit`모수:
+
+         ```bash
+         npx wrangler hyperdrive update <HYPERDRIVE_ID> --origin-connection-limit=10
+         ```
+
+         기타 제품`<HYPERDRIVE_ID>`Hyperdrive 구성 ID를 사용하여 Prisma 연결 제한보다 적은 수에 연결 제한을 설정합니다.
+      2. 설정 변경 확인:
+         ```bash
+         npx wrangler hyperdrive get <HYPERDRIVE_ID>
+         ```
+    </Steps>
+  </TabItem>
+</Tabs>
+
+:::참조
+
+Prisma Postgres 데이터베이스에 연결하면 Hyperdrive, 당신은 같은 드라이버를 사용해야합니다[노드 포스트 (pg)](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/node-postgres/)또는[다운로드](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/postgres-js/)Prisma Accelerate 확장 대신 아래 PostgreSQL 데이터베이스에 직접 연결하십시오. Hyperdrive는 Workers를 위한 데이타베이스 접근을 위해 낙관되고, 당신의 데이타베이스에 직접 연결하고 세계적인 연결 풀기 및 빠른 조회 여정을 실행하기 위하여 연결합니다.
+
+:::
+
+<Render file="create-hyperdrive-config-next-steps" product="hyperdrive" />

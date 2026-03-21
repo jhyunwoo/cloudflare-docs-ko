@@ -1,0 +1,102 @@
+---
+title: 문제 해결 규칙
+pcx_content_type: troubleshooting
+sidebar:
+  order: 1
+  label: 문제 해결
+head:
+  - tag: title
+    content: 규칙 문제 해결
+description: 규칙 기능에 대한 일반적인 문제 해결 시나리오를 검토하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/reference/troubleshooting/'
+translation_source_md: 'https://developers.cloudflare.com/rules/reference/troubleshooting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example, Render } from "~/components";
+
+## 리디렉션 및 기타 Cloudflare 제품 간의 상호 작용
+
+리디렉션은 Cloudflare 제품 및 문제와 같은 기능을 방해 할 수 있습니다. 자주 묻는 질문[`/cdn-cgi/*`URI 경로](/fundamentals/reference/cdn-cgi-endpoint/)당신의 규칙 표현에서 문제를 피하기 위해. 대안으로, 당신은 같은 하위 경로만 제외할 수 있습니다`/cdn-cgi/challenge-platform/*`특정 기능으로 문제를 피하기 위해 (이 예에서,[Cloudflare 도전 과제](#interaction-between-cloudflare-challenges-and-rules-features)).
+
+당신은 또한 제외 할 수 있습니다`/.well-known/*`URL 경로는 여러 검증 서비스에서 사용됩니다. 더 알아보기[HTTP DCV와 같은 리디렉션 및 검증 절차 간의 상호 작용](#interaction-between-redirects-and-verification-procedures-like-http-dcv)더 많은 정보.
+
+## CloudflareXQ 도전과 규칙의 상호 작용 특징
+
+당신이 발행하는 경우[- 연혁](/cloudflare-challenges/)하나 이상의 규칙이 있는 URI 경로의 경우, URI 경로가 시작된 URI 경로 제외`/cdn-cgi/challenge-platform/`도전 루프를 피하기 위해 규칙 표현에서.
+
+예를 들어, 규칙에 대한 화합물 표현을 정의합니다.`and`연산자 및[`starts_with()`](/ruleset-engine/rules-language/functions/#starts_with)기능:
+
+```txt
+<OTHER_RULE_CONDITIONS> and not starts_with(http.request.uri, "/cdn-cgi/challenge-platform/")
+```
+
+## HTTP DCV와 같은 리디렉션 및 검증 절차 간의 상호 작용
+
+사용자 정의 호스트 이름 검증과 같은 검증 절차에 사용되는 경로 (Arror)[SaaS를 위한 Cloudflare](/cloudflare-for-platforms/cloudflare-for-saas/)), [Pages 도메인 검증](/pages/configuration/debugging-pages/), 또는[HTTP 도메인 제어 검증 (DCV)](/ssl/edge-certificates/changing-dcv-method/methods/http/)리디렉션에 영향을 줄 수 있습니다.
+
+자주 묻는 질문`/.well-known/*`URI의 경로는 문제를 피하기 위해.
+
+## Content-Length header는 응답에서 제거했습니다
+
+Cloudflare는 제거할지도 모릅니다`Content-Length`웹 사이트 방문자에게 전달되는 응답의 헤더. 방문자가받을 경우`Content-Length`header, Origin 서버를 구성하여`cache-control: no-transform`HTTP 헤더 응답.
+
+## 이 규칙은 교통에 적용되지 않을 수 있습니다
+
+Cloudflare를 통해 DNS 레코드를 생성하거나 프록시 트래픽을 생성하지 않은 호스트 이름과 일치하면 몇 가지 옵션으로 팝업 창을 얻을 수 있습니다.
+
+- **DNS 레코드가 hostname에 존재하지 않는 경우**: 규칙 생성을 진행하거나 호스트 이름에 대한 새로운 proxied DNS 레코드를 만들지 여부.
+- **hostname에 DNS 레코드가 있는 경우, 하지만 트래픽은 발음되지 않습니다.**: 규칙 생성을 진행하거나 기존 DNS 레코드를 프록시 할 수 있는지 여부.
+
+새로운 DNS 레코드를 만들려면 새로운 레코드가 있습니다.`rules`태그 및 다음 관련 코멘트 :
+
+```txt
+Created during Cloudflare Rules deployment process for <RULE_NAME>
+```
+
+## URL rewrite는 다른 규칙 특징에 나중에 실행
+
+URI 경로를 바꾸면[URL 재 작성](/rules/transform/url-rewrite/), 나중에 실행된 다른 규칙 기능에 영향을 미칠 수 있습니다 — such as[회사 소개](/rules/origin-rules/)- 필터 표현의 URI 경로가 포함되면.
+
+다음과 같은 근원 규칙 구성을 고려하십시오:
+
+<Example>
+  - 규칙 표현:`http.host == "example.com" and starts_with(http.request.uri.path, "/downloads/")`
+  - **호스트 헤더** > **자주 묻는 질문**: `assets.example.com`
+</Example>
+
+다음 설정으로 새 URL을 다시 작성하면:
+
+<Example>
+  - 규칙 표현:`http.host == "example.com" and starts_with(http.request.uri.path, "/downloads/")`
+  - **오시는 길** > **자주 묻는 질문** > **·**: `regex_replace(http.request.uri.path, "^/downloads/", "/")`
+</Example>
+
+원래 규칙은 더 이상 일치하지 않습니다`/downloads/*`URL rewrites가 Origin 규칙의 앞에 실행되고 URI 경로는 rewritten from`"/downloads/"`으로`"/"`.
+
+### 제품정보
+
+이 상황을 방지하기 위해 규칙 표현의 원시 필드를 사용합니다. 원시 필드는 전체 요청 평가 워크플로에서 immutable이며, 이전에 일치하는 규칙의 행동에 영향을 미치지 않습니다.
+
+현재 예시에서는 사용할 수 있습니다.`raw.http.request.uri.path`두 규칙에 있는 분야:
+
+**URL 재 작성**
+
+<Example>
+  - 규칙 표현:`http.host == "example.com" and starts_with(raw.http.request.uri.path, "/downloads/")`
+  - **오시는 길** > **자주 묻는 질문** > **·**: `regex_replace(raw.http.request.uri.path, "^/downloads/", "/")`
+</Example>
+
+**근원 규칙**
+
+<Example>
+  - 규칙 표현:`http.host == "example.com" and starts_with(raw.http.request.uri.path, "/downloads/")`
+  - **호스트 헤더** > **자주 묻는 질문**: `assets.example.com`
+</Example>
+
+이 방법, 두 가지 규칙은 예정대로 작동합니다. 또한 첫 번째 규칙이 URI 경로 값을 업데이트 할 때 두 가지 규칙에서 동일한 표현식을 사용할 수 있습니다.
+
+원료 분야의 목록은, 참고합니다[필드 참고 자료](/ruleset-engine/rules-language/fields/reference/?field-category=Raw+fields).

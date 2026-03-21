@@ -1,0 +1,125 @@
+---
+pcx_content_type: configuration
+title: 채용 정보
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/upstash/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/upstash/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+[채용 정보](https://upstash.com/)Redis\* 및 Kafka API를 가진 serverless 데이터베이스입니다. Upstash는 QStash, 서버리스를 위해 설계된 작업 큐/스케일러를 제공합니다.
+
+## Redis를 위한 Upstash
+
+Upstash와 통합을 설정하려면:
+
+1. 기존 Upstash 데이터베이스가 필요합니다.[Upstash 데이터베이스 만들기](https://docs.upstash.com/redis#create-a-database)또는[기존 데이터베이스에서 Upstash로 데이터로드](https://docs.upstash.com/redis/howto/connectclient).
+
+2. 데이터를 Upstash 데이터베이스에 삽입합니다. 두 가지 방법으로 Upstash 데이터베이스에 데이터를 추가 할 수 있습니다.
+
+   - Upstash 콘솔에서 CLI를 직접 사용하십시오.
+   - 대안, 설치[레드리스 cli](https://redis.io/docs/getting-started/installation/)로컬과 다음 명령을 실행합니다.
+
+   ```sh
+   set GB "Ey up?"
+   ```
+
+   ```sh output
+   OK
+   ```
+
+   ```sh
+   set US "Yo, what’s up?"
+   ```
+
+   ```sh output
+   OK
+   ```
+
+   ```sh
+   set NL "Hoi, hoe gaat het?"
+   ```
+
+   ```sh output
+   OK
+   ```
+
+3. 당신의 노동자에 Upstash Redis 자격 구성:
+
+   Upstash Redis 데이터베이스 URL 및 토큰을 작업자에게 비밀로 추가해야합니다. 너에게[Upstash 콘솔](https://console.upstash.com)데이터베이스 세부 사항에서 Wrangler를 사용하여 비밀로 추가하십시오.
+
+   ```sh
+   #Upstash Redis URL을 비밀으로 추가하십시오.
+   npx wrangler secret put UPSTASH_REDIS_REST_URL
+   #신속한 경우, Upstash Redis REST URL을 붙여넣기
+
+   #Upstash Redis 토큰을 비밀으로 추가
+   npx wrangler secret put UPSTASH_REDIS_REST_TOKEN
+   #신속한 경우 Upstash Redis REST 토큰을 붙여넣기
+   ```
+
+4. 직장에서, 설치`@upstash/redis`, HTTP 클라이언트는 데이터베이스에 연결하고 데이터를 조작 시작:
+
+   <PackageManagers pkg="@upstash/redis" />
+
+5. 다음 예제는 작업자의 Upstash 데이터베이스에 쿼리를 만드는 방법을 보여줍니다. Upstash에 연결하기 위해 필요한 자격 증명은 작업자에게 비밀로 추가되었습니다.
+
+   ```js
+   import { Redis } from "@upstash/redis/cloudflare";
+
+   export default {
+   	async fetch(request, env) {
+   		const redis = Redis.fromEnv(env);
+
+   		const country = request.headers.get("cf-ipcountry");
+   		if (country) {
+   			const greeting = await redis.get(country);
+   			if (greeting) {
+   				return new Response(greeting);
+   			}
+   		}
+
+   		return new Response("Hello What's up!");
+   	},
+   };
+   ```
+
+   :::참조
+
+   `Redis.fromEnv(env)`자동으로 기본값을 선택합니다`url`·`token`통합에서 만든 이름.
+
+   비밀을 이름을 딴 경우 명시적으로 선언해야 합니다.[Upstash 기본 예](https://docs.upstash.com/redis/sdks/redis-ts/getstarted#basic-usage).
+
+   :::
+
+Upstash에 대해 더 알아보기 위해, 참조[Upstash 문서](https://docs.upstash.com/redis).
+
+## Upstash의 QStash
+
+Upstash QStash와 통합을 설정하려면:
+
+1. 설정하기[유효한 HTTP 엔드포인트](https://docs.upstash.com/qstash#1-public-api)메시지를 보낼 수 있습니다.
+
+2. 당신의 노동자에 있는 Upstash QStash credentials를 구성하십시오:
+
+   Upstash QStash 토큰을 작업자에게 비밀으로 추가해야 합니다. 토큰을 받으세요[Upstash 콘솔](https://console.upstash.com)QStash 설정에서 Wrangler를 사용하여 비밀으로 추가하십시오.
+
+   ```sh
+   #QStash 토큰을 비밀으로 추가하십시오.
+   npx wrangler secret put QSTASH_TOKEN
+   #신속한 경우 QStash 토큰을 붙여넣기
+   ```
+
+3. 직장에서, 설치`@upstash/qstash`, 데이터베이스 QStash 엔드포인트에 연결하는 HTTP 클라이언트:
+
+   <PackageManagers pkg="@upstash/qstash" />
+
+4. 더 알아보기[Cloudflare Worker에서 웹훅을 수신하는 방법에 대한 Upstash 문서](https://docs.upstash.com/qstash/quickstarts/cloudflare-workers#3-use-qstash-in-your-handler).
+
+\* Redis는 Redis Ltd.의 상표입니다. 저작권 © 2018 Redis. 모든 권리 보유. Upstash의 모든 사용은 참고 목적으로 만이며 Redis와 Upstash 사이의 후원, 보증 또는 제휴를 표시하지 않습니다.

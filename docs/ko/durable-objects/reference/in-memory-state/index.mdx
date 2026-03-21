@@ -1,0 +1,55 @@
+---
+title: 튼튼한 개체의 In-memory 상태
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/reference/in-memory-state/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/reference/in-memory-state/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components";
+
+In-memory 상태는 각 것을 의미합니다<GlossaryTooltip term="Durable Object">튼튼한 목표</GlossaryTooltip>특정 시간에 하나의 활성 인스턴스가 있습니다. 모든 요청은 같은 인스턴스에 의해 처리됩니다. 메모리에서 일부 상태를 저장할 수 있습니다.
+
+내구재 목표에 있는 변수는 당신의 튼튼한 목표 때문에 국가를 기억에서 evicted 유지할 것입니다.
+
+일반적인 패턴은 튼튼한 개체를 초기화하는 것입니다.[persistent 저장](/durable-objects/api/sqlite-storage-api/)그리고 인스턴스 변수를 첫번째로 설정한다. 향후 액세스는 동일한 내구성 개체로 경로를 지정하므로, 기존 스토리지에 더 많은 통화를 하지 않고 초기화 된 값을 반환할 수 있습니다.
+
+```js
+import { DurableObject } from "cloudflare:workers";
+
+export class Counter extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+    //`blockConcurrencyWhile()`는 아무 요구도 배달되지 않습니다
+    //초기화 완료.
+    this.ctx.blockConcurrencyWhile(async () => {
+      let stored = await this.ctx.storage.get("value");
+      //초기화 후, 미래는 스토리지에 액세스 할 필요가 없습니다.
+      this.value = stored || 0;
+    });
+  }
+
+  //클라이언트에서 HTTP 요청을 처리하십시오.
+  async fetch(request) {
+    //저장 보다는 오히려 this.value를 사용하십시오
+  }
+}
+```
+
+튼튼한 객체의 주어진 인스턴스는 같은 Worker 코드에서 정의된 다른 인스턴스와 글로벌 메모리를 공유할 수 있습니다.
+
+위의 예에서 글로벌 변수를 사용하여`value`대신 인스턴스 변수`this.value`잘못된 것입니다. 두 가지 다른 인스턴스`Counter`각각은 자신의 별도의 메모리가 있습니다.`this.value`, 그러나 글로벌 변수에 대한 메모리를 공유 할 수 있습니다`value`, 예상치 못한 결과에 지도. 이 때문에 글로벌 변수를 방지하는 것이 좋습니다.
+
+:::노트\[부틸트인 캐싱]
+
+튼튼한 개체의 저장에는 자체의 내장 메모리 캐시가 있습니다. 이용안내`get()`최근 읽거나 작성된 값을 검색하려면, 결과는 캐시에서 즉시 반환됩니다. 위에 같은 초기화 코드를 쓰는 대신 사용할 수 있습니다.`get("value")`당신이 그것을 필요로 할 때마다, 그리고이 빠른 만들 내장 캐시에 의존. 더 알아보기[카운터 예제](/durable-objects/examples/build-a-counter/)이 접근법에 대해 더 알아보기.
+
+그러나, 더 복잡한 상태와 응용 프로그램에서, 명시적으로 귀하의 개체의 상태를 저장하는 것은 모든 액세스에 Storage API 호출보다 쉽게 될 수 있습니다. 프로젝트의 구성에 따라, 당신을 위해 가장 쉬운 방법으로 코드를 작성.
+
+:::

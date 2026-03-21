@@ -1,0 +1,289 @@
+---
+pcx_content_type: reference
+title: Waiting Room Analytics
+sidebar:
+  order: 8
+
+---
+
+import { Details, DashButton } from "~/components"
+
+Waiting Room Analytics는 대기실을 통과하는 트래픽을 대기실 설정과 비교해 과거 인사이트를 제공합니다. 데이터는 지난 30일 동안 저장됩니다.
+
+Waiting Room Analytics를 사용하면 다음과 같은 작업을 할 수 있습니다.
+
+* 대기실과 사이트를 통과하는 피크 트래픽 흐름을 평가합니다.
+* 사용자가 대기실에서 얼마나 오래 머물렀는지 확인합니다.
+* analytics를 사용해 대기실 설정을 보정합니다.
+
+## 대시보드 분석
+
+대시보드에서 대기실 analytics에 접근하려면 다음과 같이 하세요.
+
+1. Cloudflare 대시보드에서 **Waiting Room** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/traffic/waiting-rooms" />
+
+2. 지표를 검토하려는 대기실 행을 펼치면 waiting room analytics의 미리 보기가 표시됩니다. 이 미리 보기에는 지난 24시간 동안 대기실을 통과한 피크 트래픽에 대한 인사이트가 포함되며, Maximum active users, Maximum queued users, queued users의 Typical time in queue를 보여 줍니다.
+3. 더 긴 기간의 분석을 보려면 Waiting Room Analytics 섹션 아래의 **View More**를 선택합니다.
+4. 표시되는 모든 지표의 시간 범위는 기본적으로 최근 24시간입니다. 시간 범위를 바꾸려면 드롭다운에서 선택하세요. 최근 30일 범위 안에서 최소 30분 단위로 선택할 수 있습니다.
+
+## 이벤트 분석
+
+대기실에 완료된 예약 이벤트가 있다면, 관심 있는 대기실 행을 펼친 다음 이벤트 시간을 선택해 해당 이벤트의 analytics에 빠르게 접근할 수 있습니다. 링크를 열면 pre-queueing 기간부터 이벤트 종료 시점까지의 정보를 포함한 해당 대기실 analytics 화면이 표시됩니다.
+
+이 이벤트 정보를 저장하려면 **Download data** 또는 **Print report**를 선택하면 됩니다. 이벤트를 삭제하면 대시보드에서 해당 시간대 링크가 더 이상 표시되지 않습니다. 이벤트 시간을 수정하면 링크도 함께 업데이트됩니다.
+
+이벤트 analytics 링크가 보이지 않는다면 다음 중 하나일 수 있습니다.
+
+* 이벤트가 아직 발생하지 않았습니다.
+* 이벤트 시작 시점이 30일보다 더 이전입니다.
+
+## Metrics
+
+아래는 Analytics 대시보드에서 제공되는 지표와 그 계산 방식입니다.
+
+### Time in queue
+
+Time in queue 요약 값은, 대기 중인 사용자가 애플리케이션에 들어가기 위해 얼마나 오래 기다렸는지를 보여 주므로 사용자 경험을 이해하는 데 도움이 됩니다. 선택한 기간 동안 일반적인 사용자가 기다린 시간과 가장 오래 기다린 사용자의 시간을 모두 보여 줍니다. 이 값들은 대기실 설정과 대기실로 유입된 트래픽이 대기 시간에 어떤 영향을 주었는지를 나타내는 지표입니다.
+
+대기 시간이 원하는 수준보다 높고 여유가 있다면 다음 중 일부 또는 전부를 고려할 수 있습니다.
+
+* `total_active_users` 설정값을 늘립니다.
+* `new_users_per_minute` 설정값을 늘립니다.
+* `session_duration`을 줄입니다.
+* session renewal을 비활성화합니다.
+
+:::note
+
+
+대기 시간은 대기실을 거쳐 origin으로 이동한 사용자에 대해서만 계산된다는 점에 유의하세요.
+
+
+:::
+
+### Time on origin
+
+Time on origin 요약 값은 사용자가 떠나기 전에 대기실이 적용되는 페이지에서 얼마나 오래 머물렀는지를 추정합니다. 선택한 기간 동안 일반적인 사용자의 origin 체류 시간과 사이트에 가장 오래 머문 사용자의 origin 체류 시간을 확인할 수 있습니다. session renewal이 비활성화되어 있고 active queueing이 없는 경우, 사용자는 `session_duration` 분마다 새로운 Waiting Room 세션을 발급받는다는 점을 기억하세요. 따라서 이러한 사용자는 여러 세션에 걸쳐 머물 수 있으며, 세션이 만료될 때마다 time on origin 값이 다시 시작됩니다.
+
+time on origin 값을 보고 다음과 같은 판단을 내릴 수 있습니다.
+
+다음에 해당한다면 session duration을 늘리거나 session renewal을 활성화하는 것이 좋을 수 있습니다.
+
+* session renewal이 비활성화되어 있습니다.
+* 길게 이어지는 active queueing이 자주 발생합니다.
+* 일반적인 time on origin이 설정한 session duration의 약 70% 수준입니다.
+
+이는 사용자가 사이트에서 원하는 작업을 완료하는 데 더 많은 시간이 필요하다는 신호일 수 있습니다.
+
+반대로 다음에 해당한다면 session duration을 줄이거나 session renewal을 비활성화하는 것이 좋을 수 있습니다.
+
+* 상위 5% 사용자의 time on origin이 설정한 session duration의 70%보다 낮습니다.
+* 대기 시간이 길지만 트래픽 한도는 늘리고 싶지 않습니다.
+
+이는 사용자가 사이트에서 그렇게 많은 시간을 필요로 하지 않으며 origin의 자리를 차지하고 있다는 신호일 수 있습니다.
+
+### Active users vs. queued users
+
+Active users 차트는 대기실이 적용되는 URL들에서의 최대 active users와 최대 queued users를 보여 주는 시계열 차트입니다. 이 값들은 설정된 active user 목표 임계값과 함께 표시됩니다.
+
+new user는 대기실이 적용되는 URL에 대한 새로운 요청입니다. 요청에 Waiting Room 쿠키가 묶여 있지 않으면 Waiting Room은 이를 새로운 사용자로 집계합니다. 요청이 만들어지면 Waiting Room 쿠키가 발급됩니다. 활성 대기열이 있다면 이 사용자는 queued user로 간주됩니다. 그 사용자가 대기열을 통과해 사이트에 들어가면 active user가 되며, 이후 `session_duration` 분마다 최소 한 번씩 Waiting Room URL에 HTTP 요청을 계속 보내는 한 active 상태를 유지합니다.
+
+피크 트래픽을 찾아 자세히 보려면 30일 같은 더 긴 기간을 선택하세요. 그런 다음 세부적으로 확인하고 싶은 기간의 좌우 범위를 커서로 드래그해 확대할 수 있습니다. 확대하면 각 막대가 1분 간격을 나타낼 때까지 볼 수 있습니다. 페이지의 다른 모든 지표도 선택한 기간의 데이터에 맞추어 자동으로 업데이트됩니다.
+
+특정 시점의 더 자세한 정보를 확인하려면 그래프의 막대 위에 마우스를 올리세요. 그러면 해당 막대가 나타내는 기간에 대해 다음 정보를 보여 주는 tooltip이 표시됩니다.
+
+* 도달한 최대 active users
+* 도달한 최대 queued users
+* 설정된 active user 목표값
+
+대기열은 설정한 한도보다 낮은 수준에서도 발생할 수 있고, active users는 때로 설정값을 초과할 수도 있습니다. 자세한 내용은 [Queueing activation](/waiting-room/how-to/monitor-waiting-room/#queueing-activation) 섹션을 참고하세요.
+
+### New users per minute
+
+New users per minute 차트는 설정한 New users per minute 목표 임계값과 비교해, 분당 몇 명의 새 사용자가 대기실을 통과해 origin으로 들어갔는지를 보여 줍니다. Active users 차트와 마찬가지로, 관심 있는 기간의 좌우를 강조 표시해 확대할 수 있으며 그러면 다른 차트와 요약 값도 함께 업데이트됩니다. 반대로 축소하면 각 데이터 포인트는 평균값으로 집계되므로, 확대할수록 값이 달라질 수 있습니다.
+
+### Turnstile Widget Traffic
+
+Turnstile widget traffic 차트는 분당 발급된 challenge 수와, 이 challenge에서 관찰된 트래픽 분포를 보여 줍니다. 트래픽은 세 가지 주요 범주로 나뉩니다.
+
+- Likely Human - 성공적으로 해결된 challenge 수를 나타냅니다.
+- Likely Bots - 해결되지 않은 challenge 수를 나타냅니다.
+- Bots - 실패한 challenge 수를 나타냅니다.
+
+대기실에서 infinite queue 옵션이 활성화되어 있다면 그래프에 infinite queue 안의 봇이 보내는 refresh 요청 수를 나타내는 선이 표시됩니다.
+
+## GraphQL Analytics
+
+Waiting Room analytics 데이터는 GraphQL API를 통해 조회할 수 있습니다. Waiting Room analytics는 Waiting Room에 대한 거의 실시간에 가까운 가시성을 제공하여, 애플리케이션으로 향하는 트래픽과 그 트래픽이 구성된 제한값을 존중하면서 어떻게 관리되는지를 시각화할 수 있게 해 줍니다.
+
+아래는 시작에 도움이 되는 몇 가지 쿼리 예시입니다.
+
+
+<Details header="특정 기간 동안 total active users와 new users per minute 값을 가져오기">
+
+이 쿼리는 지표 값을 단순히 가져오는 예시입니다. zone tag로 데이터를 필터링하고 `waitingRoomAnalyticsAdaptive` 데이터셋을 조회할 수 있습니다. 여기서는 두 개의 지표만 대상으로 했지만, 스키마를 탐색해 GraphQL 데이터셋에서 집계 없이 raw 값을 직접 가져올 수도 있습니다.
+
+```bash title="요청"
+{
+  viewer {
+    zones(filter: {zoneTag: "example-zone"}) {
+      waitingRoomAnalyticsAdaptive(limit: 3, filter: {datetime_gt: "2023-03-05T19:14:30Z", datetime_lt: "2023-03-07T19:13:00Z", waitingRoomId: "example-waiting-room-id"}) { 
+        totalActiveUsers
+          newUsersPerMinutes
+      }
+    }
+  }
+```
+
+```json title="응답"
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "waitingRoomAnalyticsAdaptive": [
+            {
+              "newUsersPerMinute": 77,
+              "totalActiveUsers": 1023
+            },
+            {
+              "newUsersPerMinute": 113,
+              "totalActiveUsers": 1009
+            },
+            {
+              "newUsersPerMinute": 99,
+              "totalActiveUsers": 927
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+
+</Details>
+
+
+<Details header="특정 기간 동안 total active users와 new users per minute의 평균을 구하고, 15분 단위로 집계하기">
+
+이 쿼리는 total active users와 new users per minute의 평균을 계산합니다. 쿼리의 시간 차원은 15분이므로, 선택한 기간의 데이터가 15분 단위로 집계됩니다.
+
+```bash title="요청"
+{
+  viewer {
+    zones(filter: {zoneTag: "example-zone"}) {
+      waitingRoomAnalyticsAdaptiveGroups(limit: 10, filter: {datetime_geq: "2023-03-15T04:00:00Z", datetime_leq: "2023-03-15T04:45:00Z", waitingRoomId: "example-waiting-room-id"}, orderBy: [datetimeFifteenMinutes_ASC]) {
+        avg {
+          totalActiveUsers
+          newUsersPerMinute
+        }
+        dimensions {
+          datetimeFifteenMinutes
+        }
+      }
+```
+
+```json title="응답"
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "waitingRoomAnalyticsAdaptiveGroups": [
+            {
+              "avg": {
+                "newUsersPerMinute": 119,
+                "totalActiveUsers": 1180
+              },
+              "dimensions": {
+                "datetimeFifteenMinutes": "2023-03-15T04:00:00Z"
+              }
+            },
+            {
+              "avg": {
+                "newUsersPerMinute": 146,
+                "totalActiveUsers": 961
+              },
+              "dimensions": {
+                "datetimeFifteenMinutes": "2023-03-15T04:15:00Z"
+              }
+            },
+            {
+              "avg": {
+                "newUsersPerMinute": 144,
+                "totalActiveUsers": 1015
+              },
+              "dimensions": {
+                "datetimeFifteenMinutes": "2023-03-15T04:30:00Z"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+
+</Details>
+
+
+<Details header="특정 기간 동안 time on origin의 가중 평균(50번째 백분위)과 total time waited의 가중 평균(90번째 백분위)을 구하고, 1시간 단위로 집계하기">
+
+이 쿼리는 특정 기간의 지표에 대한 가중 평균을 계산하고, 결과를 시간(hour) 단위로 집계합니다.
+
+```bash title="요청"
+{
+  viewer {
+    zones(filter: {zoneTag: "example-zone"}) {
+      waitingRoomAnalyticsAdaptiveGroups(limit: 10, filter: {datetime_geq: "2023-03-15T04:00:00Z", datetime_leq: "2023-03-15T04:45:00Z", waitingRoomId: "example-waiting-room-id"}, orderBy: [datetimeHour_ASC]) {
+        avgWeighted {
+          timeOnOriginP50
+          totalTimeWaitedP90
+        }
+        dimensions {
+          datetimeHour
+        }
+      }
+```
+
+```json title="응답"
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "waitingRoomAnalyticsAdaptiveGroups": [
+            {
+              "avgWeighted": {
+                "timeOnOriginP50": 99.19,
+                "totalTimeWaitedP90": 1625.63
+              },
+              "dimensions": {
+                "datetimeHour": "2023-03-15T04:00:00Z"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+
+</Details>
+
+## 내 대기실에 데이터가 없는 이유는 무엇인가요?
+
+대기실의 과거 데이터가 보이지 않는다면 다음 중 하나 이상이 원인일 수 있습니다.
+
+* 확인 중인 기간에 대기실로 유입된 트래픽이 없었습니다.
+* 확인 중인 기간에 대기실이 활성화되어 있지 않았습니다.

@@ -1,0 +1,123 @@
+---
+pcx_content_type: how-to
+title: iFrame에 삽입하기
+sidebar:
+  order: 5
+
+---
+
+import { Details, APIRequest } from "~/components"
+
+대기실이 [방문자 진행 상태를 추적하는 방식](#background) 때문에, 대기실을 iFrame에 올바르게 삽입하려면 [특정 쿠키 속성](#allow-cookies-to-pass-through-iframes)을 지정해야 합니다.
+
+## Background
+
+[쿠키의 `SameSite` 속성](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Set-Cookie#samesitesamesite-value)은 같은 페이지에서 로드되는 다른 도메인(광고 배너, iFrame)과 그 쿠키를 공유할 수 있는지를 지정합니다. 기본적으로 브라우저는 공격자가 쿠키 안의 정보를 훔치거나 조작하지 못하도록 교차 사이트 하위 요청에 쿠키를 보내지 않습니다.
+
+하지만 이 동작은 대기실이 iFrame 안에 삽입된 경우 사용자를 올바르게 대기열에 넣지 못하게 만들 수 있습니다. 대기실은 사용자를 대기열에서 추적하기 위해 [`__cfwaitingroom` 쿠키](/waiting-room/reference/waiting-room-cookie/)에 의존합니다. 그런데 브라우저가 기본적으로 이 쿠키가 대기실에 도달하는 것을 막기 때문에, 활성화되어 있고 실제로 대기 중인 대기실이라도 사용자를 대기열에 올릴 수 없고 애플리케이션 접근을 허용하지 않게 됩니다.
+
+## Available options
+
+대기실이 쿠키에 어떻게 반응할지 사용자 지정하려면 [대기실 생성](/api/resources/waiting_rooms/methods/create/) 시 `cookie_attributes` 객체를 포함하세요(API에서만 사용 가능).
+
+사용 가능한 옵션은 다음과 같습니다.
+
+* `samesite`: 대기실 쿠키의 `SameSite` 속성을 구성합니다.
+
+  * **auto** (기본값): 최대한 유연하게 동작하도록 설계되었으며 기본값은 **lax**이지만 [**Always Use HTTPS**](/ssl/edge-certificates/additional-options/always-use-https/)가 활성화되어 있으면 **none**으로 바뀝니다.
+  * **lax**: 일반적인 교차 사이트 하위 요청(예: 제3자 사이트에 이미지나 프레임을 로드하는 요청)에서는 쿠키가 전송되지 않지만, 사용자가 origin 사이트로 이동하는 경우에는 전송됩니다.
+  * **strict**: 쿠키는 퍼스트 파티 컨텍스트에서만 전송됩니다.
+  * **none**: 쿠키가 항상 전송됩니다.
+
+* `secure`: 대기실 쿠키의 `Secure` 속성을 구성하며, 요청이 `https`로 이루어져야 함을 의미합니다.
+
+  * **auto** (기본값): 최대한 유연하게 동작하도록 설계되었으며 기본값은 **never**지만 [**Always Use HTTPS**](/ssl/edge-certificates/additional-options/always-use-https/)가 활성화되어 있으면 **always**로 바뀝니다.
+  * **always**: 쿠키는 `https` 요청으로만 전송될 수 있습니다.
+  * **never**: 쿠키는 `http` 또는 `https` 요청으로 전송될 수 있습니다.
+
+<div id="allow-cookies-to-pass-through-iframes"></div>
+
+## 쿠키가 iFrame을 통과하도록 허용하기
+
+대기실을 iFrame에 삽입하는 경우 [대기실 생성](/api/resources/waiting_rooms/methods/create/) 시 `cookie_attributes` 객체에 다음 값을 지정하세요(API에서만 사용 가능).
+
+* `samesite`: `none`
+* `secure`: [**Always Use HTTPS**](/ssl/edge-certificates/additional-options/always-use-https/)가 활성화되어 있으면 `auto`로 설정합니다. 비활성화되어 있으면 `always`로 설정합니다.
+
+### 예시
+
+
+<Details header="요청">
+
+<APIRequest
+  path="/zones/{zone_id}/waiting_rooms"
+  method="POST"
+  json={{
+    name: "shop_waiting_room",
+    description: "Waiting room for webshop",
+    host: "shop.example.com",
+    path: "/shop",
+    queue_all: true,
+    new_users_per_minute: 200,
+    total_active_users: 300,
+    session_duration: 1,
+    disable_session_renewal: false,
+    json_response_enabled: false,
+    queueing_method: "FIFO",
+    cookie_attributes: {
+      samesite: "none",
+      secure: "auto"
+    }
+  }}
+/>
+
+
+</Details>
+
+
+<Details header="응답">
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "messages": [],
+  "result": [
+    {
+      "id": "1111111111111111111111",
+      "created_on": "2021-01-01T05:20:00.12345Z",
+      "modified_on": "2021-01-01T05:20:00.12345Z",
+      "name": "shop_waiting_room",
+      "description": "Waiting room for webshop",
+      "host": "shop.example.com",
+      "path": "/shop",
+      "queue_all": true,
+      "new_users_per_minute": 200,
+      "total_active_users": 300,
+      "session_duration": 1,
+      "disable_session_renewal": false,
+      "json_response_enabled": false,
+      "queueing_method": "FIFO",
+      "cookie_attributes": {
+        "samesite": "none",
+        "secure": "auto"
+      }
+    }
+  ]
+}
+```
+
+
+</Details>
+
+## Limitations
+
+주요 웹 브라우저는 third-party cookie에 대한 제한을 도입했는데, 이는 iFrame 안의 대기실이 사용하는 쿠키 유형과 동일합니다. Waiting Room은 이러한 제한을 우회하기 위해 [Cookies Having Independent Partitioned State (CHIPS)](https://developer.mozilla.org/en-US/docs/Web/Privacy/Privacy_sandbox/Partitioned_cookies)를 사용하지만, 몇 가지 단점이 있습니다.
+
+* 사용자가 iFrame 내부와 iFrame 외부에서 동시에 같은 대기실을 보면 서로 다른 두 사용자로 처리됩니다. 각 인스턴스는 서로 다른 시점에 대기열을 빠져나갈 수 있으며 analytics에서도 별도로 집계될 수 있습니다.
+* 대기실을 iFrame에 삽입하려면 삽입되는 페이지와 삽입하는 페이지 모두 HTTPS로 접속되어야 합니다.
+* CHIPS는 Safari 및 Orion, 대부분의 iOS 브라우저 같은 Safari 계열 브라우저에서 설정상 third-party cookie 차단을 끄지 않는 한 지원되지 않습니다. 이러한 사용자는 대기열 끝에 머무르게 되어, 대기열이 비워질 때까지 앞으로 나아가지 못하고 analytics에 여러 번 집계될 수 있습니다.
+
+일반적으로 대기실 쿠키를 설정하고 다시 읽어오는 데 문제가 있으면 사용자는 대기열 끝에 갇히고, analytics에서는 여러 사용자로 집계될 가능성이 높습니다.
+
+삽입되는 페이지와 삽입하는 페이지가 공통 도메인 이름을 공유하는 경우에는 이러한 제한이 적용되지 않을 수 있습니다. 예를 들어 `example.com`의 페이지가 `shop.example.com`의 대기실을 삽입하는 경우, 브라우저는 이를 퍼스트 파티로 간주해 third-party cookie 제한의 적용 대상이 아닐 수 있습니다.

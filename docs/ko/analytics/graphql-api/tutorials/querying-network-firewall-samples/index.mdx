@@ -1,0 +1,109 @@
+---
+pcx_content_type: example
+title: GraphQL로 Cloudflare Network Firewall 샘플 조회하기
+---
+
+이 예제에서는 GraphQL Analytics API를 사용해 지정한 기간의 Cloudflare Network Firewall 샘플을 조회합니다.
+
+다음 API 호출은 1시간 동안의 Cloudflare Network Firewall 샘플을 요청하고, 요청한 필드를 출력합니다. `<CLOUDFLARE_ACCOUNT_TAG>`와 `<API_TOKEN>`[^1]을 zone tag와 API 자격 증명으로 바꾸고, 필요에 따라 `datetime_geq` 및 `datetime_leq` 값을 조정하세요.
+
+## API 호출
+
+```bash
+echo '{ "query":
+  "query MFWActivity {
+    viewer {
+      accounts(filter: { accountTag: $accountTag }) {
+        magicFirewallSamplesAdaptiveGroups(
+          filter: $filter
+          limit: 10
+          orderBy: [datetimeFiveMinute_DESC]
+        ) {
+          sum {
+            bits
+            packets
+          }
+          dimensions {
+            datetimeFiveMinute
+            ruleId
+          }
+        }
+      }
+    }
+  }",
+  "variables": {
+    "accountTag": "<CLOUDFLARE_ACCOUNT_TAG>",
+    "filter": {
+      "datetime_geq": "2022-07-24T11:00:00Z",
+      "datetime_leq": "2022-07-24T11:10:00Z"
+    }
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @-
+```
+
+반환 값은 특정 규칙에 대해 5분 간격 동안 수신된 패킷과 비트의 총수를 나타냅니다. 결과는 JSON(요청한 형식)으로 반환되므로, 다음 예시처럼 `jq`로 파이프하면 읽기 쉬워집니다.
+
+```bash
+... | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+
+#=> {
+#=>   "data": {
+#=>     "viewer": {
+#=>       "accounts": [
+#=>         {
+#=>           "magicFirewallSamplesAdaptiveGroups": [
+#=>             {
+#=>               sum: { bits:  327680, packets: 16384 },
+#=>               dimensions: {
+#=>                 datetimeFiveMinute: '2021-05-12T22:00-00:00',
+#=>                 ruleId: 'bdfa8f8f0ae142b4a70ef15f6160e532'
+#=>               }
+#=>             },
+#=>             {
+#=>               sum: { bits:  360448, packets: 8192 },
+#=>               dimensions: {
+#=>                 datetimeFiveMinute: '2021-05-12T22:05-00:00',
+#=>                 ruleId: 'bdfa8f8f0ae142b4a70ef15f6160e532'
+#=>               }
+#=>             },
+#=>             {
+#=>               sum: { bits:  327680, packets: 8192 },
+#=>               dimensions: {
+#=>                 datetimeFiveMinute: '2021-05-12T22:05-00:00',
+#=>                 ruleId: 'bdfa8f8f0ae142b4a70ef15f6160e532'
+#=>               }
+#=>             },
+#=>             {
+#=>               sum: { bits:  360448, packets: 8192 },
+#=>               dimensions: {
+#=>                 datetimeFiveMinute: '2021-05-12T22:20-00:00',
+#=>                 ruleId: 'bdfa8f8f0ae142b4a70ef15f6160e532'
+#=>               }
+#=>             },
+#=>             {
+#=>               sum: { bits:  327680, packets: 8192 },
+#=>               dimensions: {
+#=>                 datetimeFiveMinute: '2021-05-12T22:20-00:00',
+#=>                 ruleId: 'bdfa8f8f0ae142b4a70ef15f6160e532'
+#=>               }
+#=>             }
+#=>           ]
+#=>         }
+#=>       ]
+#=>     }
+#=>   },
+#=>   "errors": null
+#=> }
+```
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

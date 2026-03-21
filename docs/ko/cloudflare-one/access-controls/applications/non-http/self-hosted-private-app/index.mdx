@@ -1,0 +1,122 @@
+---
+pcx_content_type: how-to
+title: 개인 IP 또는 호스트 이름 보안
+tags:
+  - Private networks
+sidebar:
+  order: 3
+  label: 셀프 호스팅 전용 응용 프로그램 추가
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/self-hosted-private-app/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/self-hosted-private-app/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip, } from "~/components";
+
+개인 네트워크의 특정 IP 또는 호스트 이름에 대한 액세스를 관리하기 위해 셀프 호스팅 액세스 응용 프로그램을 구성 할 수 있습니다.
+
+:::참조
+이 기능은 유산을 대체합니다.[Private Network 앱 유형](/cloudflare-one/access-controls/applications/non-http/legacy-private-network-app/).
+:::
+
+## 자주 묻는 질문
+
+- 개인 IP 및 호스트 이름은 Cloudflare WARP, Cloudflare WAN (이전 매직 WAN) 또는 브라우저 고립에 도달 할 수 있습니다. 더 자세한 내용은 참조[개인 네트워크 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/).
+- 사용자 정의 DNS 해결자에게 개인 호스트 이름 경로[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)또는[Gateway 해결사 정책](/cloudflare-one/traffic-policies/resolver-policies/).
+- 공공 IP 및 호스트 이름은 개인 응용 프로그램을 정의하는 데 사용할 수 있지만 IP 또는 호스트 이름은 Cloudflare를 통해 경로를해야합니다[Cloudflare 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/), [WARP 연결관](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/), 또는[Cloudflare 대만](/cloudflare-wan/configuration/manually/how-to/configure-routes/).
+- (선택) 켜기[Gateway TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/)Access JWT를 사용하여 관리하려는 경우[HTTPS 신청 세션](#https-applications).
+
+## 오시는 길
+
+<Render file="access/self-hosted-app/create-app" product="cloudflare-one" params={{ private: true }} />
+
+6. 개인 IP를 사용하여 응용 프로그램을 추가하려면:
+   1. 제품정보**개인 IP 추가**.
+   2. 내 계정**IP 주소**, 응용 프로그램을 나타내는 개인 IP 또는 CIDR 범위 (예를 들면,`10.0.0.1`또는`172.16.0.0/12`).
+   3. 내 계정**항구 항구**, 단일 포트 또는 응용 프로그램에 의해 사용되는 포트 범위를 입력 (예를 들어,`22`또는`8000-8099`).
+
+      포트의 Comma-separated 목록 (예 :`80, 443`)는 지원되지 않습니다. 특정 IP의 여러 포트를 추가하려면 선택할 수 있습니다.**개인 IP 추가**IP 주소를 다른 포트로 반복합니다. 또는 다른 포트에 대한 새로운 액세스 응용 프로그램을 만듭니다.
+
+7. 개인 hostname을 사용하여 응용 프로그램을 추가하려면:
+
+   1. 제품정보**개인 별명 추가**.
+   2. 내 계정**이름 \***, 응용 프로그램의 개인 호스트 이름을 입력 (예를 들어,`wiki.internal.local`). 사용 가능[야생 카드](/cloudflare-one/access-controls/policies/app-paths/)루트 경로를 공유하는 응용 프로그램의 여러 부분을 보호하는 개인 호스트 이름.
+   3. 내 계정**항구 항구**, 단일 포트 또는 응용 프로그램에 의해 사용되는 포트 범위를 입력 (예를 들어,`22`또는`8000-8099`).
+
+   :::참조
+
+   - **HTTPS 신청**: 포트에 명시된 개인 호스트명`443`(항구를 포함하지 않음)`441-444`)는 유효한 서버 이름 지시자 (SNI)가 있어야 합니다.
+   - **Non-HTTPS 신청**: 비-에 대한 개인 별명`443`포트는 유효한 SNI 값이 할당되지 않습니다<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>CGNAT 공간에서. 다음 IP 주소가 방화벽에 의해 차단되지 않거나 게이트웨이 트래픽에서 제외됨:
+
+     <Render file="gateway/egress-selector-cgnat-ips" product="cloudflare-one" />
+
+     개인 hostname 라우팅에 대한 자세한 내용은, 참조[개인 별명 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-private-hostname/#prerequisites)
+
+8. <Render file="access/add-access-policies" product="cloudflare-one" />
+
+9. 사용자가 인증하는 방법을 구성:
+
+   1. 선택하기[**Identity 공급자**](/cloudflare-one/integrations/identity-providers/)응용 프로그램을 사용할 수 있습니다.
+   2. (추천) 단일 IdP를 통해 액세스 할 수 있도록 계획하는 경우, 켜기**즉시 Auth**. 최종 사용자는 표시되지 않습니다[사이트맵 오시는 길](/cloudflare-one/reusable-components/custom-pages/access-login-page/). 대신 Cloudflare는 SSO 로그인 이벤트에 직접 사용자를 리디렉션합니다.
+   3. (추천) 켜기**WARP 인증 ID**사용자가 자신의 응용 프로그램에 인증 할 수 있도록[WARP 세션 정체성](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-sessions/). 귀하의 응용 프로그램이 브라우저에없는 경우이를 돌보는 것이 좋습니다.`302`리디렉션
+
+10. 제품정보**이름 \***.
+
+11. (선택 사항) 구성[App Launcher 설정](/cloudflare-one/access-controls/access-settings/app-launcher/)신청하기
+
+12. (선택) 켜기**clientless 접근 허용**WARP 클라이언트없이이 개인 별명 또는 IP에 액세스 할 수 있도록합니다. 액세스 정책을 통과하는 사용자는 App Launcher의 타일을 볼 수 있습니다.`https://<your-teamname>.cloudflareaccess.com/browser/https://wiki.internal.local/`. 링크를 통해 응용 프로그램에 트래픽을 경로[Clientless 웹 고립](/cloudflare-one/remote-browser-isolation/setup/clientless-browser-isolation/). 이 설정은 장치 클라이언트를 설치할 수 없는 장치 또는 계약자에 사용자에게 유용합니다.
+
+    :::참조
+    감사합니다.[원격 브라우저 권한](/cloudflare-one/remote-browser-isolation/setup/clientless-browser-isolation/)Clientless Web Isolation 링크를 엽니다.
+    주요 특징
+
+13. <Render file="access/access-block-page" product="cloudflare-one" />
+
+14. 제품정보**이름 \***.
+
+15. <Render file="access/self-hosted-app/advanced-settings" product="cloudflare-one" />
+
+    이 설정은 개인 별명으로만 적용됩니다.[Gateway TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/).
+
+16. 제품정보**제품 정보**.
+
+사용자는 Cloudflare Access로 인증한 후 개인 애플리케이션에 연결할 수 있습니다.
+
+## 인증 흐름
+
+### HTTPS 신청
+
+이름 \*[Gateway TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/)설정 및 사용자는 포트에 HTTPS 응용 프로그램에 액세스`443`· Cloudflare 액세스는 브라우저에서 로그인 페이지를 제시하고 문제점을[앱 토큰](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)당신의 근원에. 이 같은 쿠키 기반 인증 흐름에 의해 사용[자체 호스팅 공개 앱](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
+
+이름 \*[Gateway TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/)설정, 세션 관리[WARP 클라이언트에서 처리](#non-https-applications)브라우저 대신.
+
+### Non-HTTPS 신청
+
+WARP 클라이언트는 모든 non-HTTPS 응용 프로그램에 대한 세션을 관리합니다. 사용자는 받을 것이다`Authentication required`WARP 클라이언트에서 팝업 알림. 사용자가 알림을 선택하면 WARP는 액세스 로그인 페이지로 브라우저 창을 엽니다.
+
+<Render file="gateway/client-notifications-os" product="cloudflare-one" />
+
+## 우선순위
+
+### 액세스 vs Gateway 정책
+
+<Render file="access/modify-gateway-policy-precedence" product="cloudflare-one" params={{ selector: "Access Private App", protocol: "private" }} />
+
+### 개인 별명 vs 개인 IP
+
+개인 호스트 이름에 의해 정의 된 액세스 응용 프로그램은 개인 IP에 의해 정의 된 액세스 응용 프로그램에 대해 우선합니다. 예를 들어 App-1 포인트를 가정하십시오.`wiki.internal.local`App-2 포인트`10.0.0.1`, 하지만`wiki.internal.local`해결하기`10.0.0.1`. 접속한 사용자`wiki.internal.local`App-2는 결코 일치하지 않습니다; 그들은 App-1 접근 정책 (및에 근거를 둔 엄격히 금지될 것입니다)[Gateway 정책](#access-vs-gateway-policies)).
+
+## 제한 사항
+
+### Browser Isolation는 앱과 호환되지 않습니다.`443`항구 항구
+
+<Render file="access/self-hosted-app/browser-isolation-non-443" product="cloudflare-one" />
+
+### Google Chrome은 개인 호스트 이름에 대한 액세스를 제한합니다.
+
+<Render file="gateway/egress-selector-chrome-issue" product="cloudflare-one" />

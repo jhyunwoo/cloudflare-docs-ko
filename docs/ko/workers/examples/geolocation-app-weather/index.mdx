@@ -1,0 +1,262 @@
+---
+summary: Fetch weather data from an API using the user's geolocation data.
+tags:
+  - Geolocation
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 'Geolocation: 날씨 신청'
+sidebar:
+  order: 1001
+description: 사용자의 위치 데이터를 사용하여 API에서 Fetch weather data.
+reviewed: 2021-04-09T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/geolocation-app-weather/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/geolocation-app-weather/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/geolocation-app-weather)
+
+GitHub 계정의 저장소를 만들고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		let endpoint = "https://api.waqi.info/feed/geo:";
+    		const token = ""; //https://aqicn.org/api/에서 토큰 사용
+    		let html_style = `body{padding:6em; font-family: sans-serif;} h1{color:#f6821f}`;
+
+    		let html_content = "<h1>Weather 🌦</h1>";
+
+    		const latitude = request.cf.latitude;
+    		const longitude = request.cf.longitude;
+    		endpoint += `${latitude};${longitude}/?token=${token}`;
+    		const init = {
+    			headers: {
+    				"content-type": "application/json;charset=UTF-8",
+    			},
+    		};
+
+    		const response = await fetch(endpoint, init);
+    		const content = await response.json();
+
+    		html_content += `<p>This is a demo using Workers geolocation data. </p>`;
+    		html_content += `You are located at: ${latitude},${longitude}.</p>`;
+    		html_content += `<p>Based off sensor data from <a href="${content.data.city.url}">${content.data.city.name}</a>:</p>`;
+    		html_content += `<p>The AQI level is: ${content.data.aqi}.</p>`;
+    		html_content += `<p>The N02 level is: ${content.data.iaqi.no2?.v}.</p>`;
+    		html_content += `<p>The O3 level is: ${content.data.iaqi.o3?.v}.</p>`;
+    		html_content += `<p>The temperature is: ${content.data.iaqi.t?.v}°C.</p>`;
+
+    		let html = `
+          <!DOCTYPE html>
+          <head>
+            <title>Geolocation: Weather</title>
+          </head>
+          <body>
+            <style>${html_style}</style>
+            <div id="container">
+            ${html_content}
+            </div>
+          </body>`;
+
+    		return new Response(html, {
+    			headers: {
+    				"content-type": "text/html;charset=UTF-8",
+    			},
+    		});
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		let endpoint = "https://api.waqi.info/feed/geo:";
+    		const token = ""; //https://aqicn.org/api/에서 토큰 사용
+    		let html_style = `body{padding:6em; font-family: sans-serif;} h1{color:#f6821f}`;
+
+    		let html_content = "<h1>Weather 🌦</h1>";
+
+    		const latitude = request.cf.latitude;
+    		const longitude = request.cf.longitude;
+    		endpoint += `${latitude};${longitude}/?token=${token}`;
+    		const init = {
+    			headers: {
+    				"content-type": "application/json;charset=UTF-8",
+    			},
+    		};
+
+    		const response = await fetch(endpoint, init);
+    		const content = await response.json();
+
+    		html_content += `<p>This is a demo using Workers geolocation data. </p>`;
+    		html_content += `You are located at: ${latitude},${longitude}.</p>`;
+    		html_content += `<p>Based off sensor data from <a href="${content.data.city.url}">${content.data.city.name}</a>:</p>`;
+    		html_content += `<p>The AQI level is: ${content.data.aqi}.</p>`;
+    		html_content += `<p>The N02 level is: ${content.data.iaqi.no2?.v}.</p>`;
+    		html_content += `<p>The O3 level is: ${content.data.iaqi.o3?.v}.</p>`;
+    		html_content += `<p>The temperature is: ${content.data.iaqi.t?.v}°C.</p>`;
+
+    		let html = `
+          <!DOCTYPE html>
+          <head>
+            <title>Geolocation: Weather</title>
+          </head>
+          <body>
+            <style>${html_style}</style>
+            <div id="container">
+            ${html_content}
+            </div>
+          </body>`;
+
+    		return new Response(html, {
+    			headers: {
+    				"content-type": "text/html;charset=UTF-8",
+    			},
+    		});
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+    import { html } from 'hono/html';
+
+    type Bindings = {};
+
+    interface WeatherApiResponse {
+      data: {
+        aqi: number;
+        city: {
+          name: string;
+          url: string;
+        };
+        iaqi: {
+          no2?: { v: number };
+          o3?: { v: number };
+          t?: { v: number };
+        };
+      };
+    }
+
+    const app = new Hono<{ Bindings: Bindings }>();
+
+    app.get('*', async (c) => {
+      //API 엔드포인트 받기
+      let endpoint = "https://api.waqi.info/feed/geo:";
+      const token = ""; //https://aqicn.org/api/에서 토큰 사용
+
+      //스타일 정의
+      const html_style = `body{padding:6em; font-family: sans-serif;} h1{color:#f6821f}`;
+
+      //Cloudflare 요청에서 위치 이동
+      const req = c.req.raw;
+      const latitude = req.cf?.latitude;
+      const longitude = req.cf?.longitude;
+
+      //완전한 API 엔드포인트 만들기
+      endpoint += `${latitude};${longitude}/?token=${token}`;
+
+      //Fetch 날씨 데이터
+      const init = {
+        headers: {
+          "content-type": "application/json;charset=UTF-8",
+        },
+      };
+      const response = await fetch(endpoint, init);
+      const content = await response.json() as WeatherApiResponse;
+
+      //HTML 콘텐츠 구축
+      const weatherContent = html`
+        <h1>Weather 🌦</h1>
+        <p>This is a demo using Workers geolocation data.</p>
+        <p>You are located at: ${latitude},${longitude}.</p>
+        <p>Based off sensor data from <a href="${content.data.city.url}">${content.data.city.name}</a>:</p>
+        <p>The AQI level is: ${content.data.aqi}.</p>
+        <p>The N02 level is: ${content.data.iaqi.no2?.v}.</p>
+        <p>The O3 level is: ${content.data.iaqi.o3?.v}.</p>
+        <p>The temperature is: ${content.data.iaqi.t?.v}°C.</p>
+      `;
+
+      //HTML 문서 완료
+      const htmlDocument = html`
+        <!DOCTYPE html>
+        <head>
+          <title>Geolocation: Weather</title>
+        </head>
+        <body>
+          <style>${html_style}</style>
+          <div id="container">
+            ${weatherContent}
+          </div>
+        </body>
+      `;
+
+      //HTML 응답 반환
+      return c.html(htmlDocument);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            endpoint = "https://api.waqi.info/feed/geo:"
+            token = "" #https://aqicn.org/api/에서 토큰 사용
+            html_style = "body{padding:6em; font-family: sans-serif;} h1{color:#f6821f}"
+            html_content = "<h1>Weather 🌦</h1>"
+
+            latitude = request.cf.latitude
+            longitude = request.cf.longitude
+
+            endpoint += f"{latitude};{longitude}/?token={token}"
+            response = await fetch(endpoint)
+            content = await response.json()
+
+            html_content += "<p>This is a demo using Workers geolocation data. </p>"
+            html_content += f"You are located at: {latitude},{longitude}.</p>"
+            html_content += f"<p>Based off sensor data from <a href='{content['data']['city']['url']}'>{content['data']['city']['name']}</a>:</p>"
+            html_content += f"<p>The AQI level is: {content['data']['aqi']}.</p>"
+            html_content += f"<p>The N02 level is: {content['data']['iaqi']['no2']['v']}.</p>"
+            html_content += f"<p>The O3 level is: {content['data']['iaqi']['o3']['v']}.</p>"
+            html_content += f"<p>The temperature is: {content['data']['iaqi']['t']['v']}°C.</p>"
+
+            html = f"""
+            <!DOCTYPE html>
+              <head>
+                <title>Geolocation: Weather</title>
+              </head>
+              <body>
+                <style>{html_style}</style>
+                <div id="container">
+                {html_content}
+                </div>
+              </body>
+            """
+
+            headers = {"content-type": "text/html;charset=UTF-8"}
+            return Response(html, headers=headers)
+    ```
+  </TabItem>
+</Tabs>

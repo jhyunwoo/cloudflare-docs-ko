@@ -1,0 +1,75 @@
+---
+pcx_content_type: concept
+
+title: Authentication Posture
+sidebar:
+  order: 9
+---
+
+import {
+	GlossaryTooltip,
+	Render,
+	Steps,
+	Tabs,
+	TabItem,
+	DashButton,
+} from "~/components";
+
+Authentication Posture는 API의 인증 구성 오류를 식별하고, 해당 오류가 존재할 때 경고를 제공합니다.
+
+예를 들어 보안 팀 구성원은 `/api/v1/users`와 `/api/v1/orders`에 호스팅된 API가 인증된 사용자만 엔드포인트와 상호작용할 수 있다는 점으로 보호된다고 생각할 수 있습니다. 하지만 origin API의 인증 정책에 버그가 있으면 broken authentication 취약점이 생길 수 있습니다. API Shield의 Authentication Posture는 API 엔드포인트에 대한 성공한 요청의 인증 상태를 자세히 보여 주어, 잠재적인 구성 오류를 경고합니다.
+
+일반적인 전자상거래 애플리케이션을 생각해 보세요. 사용자는 로그인하지 않고도 상품과 가격을 볼 수 있습니다. 하지만 `GET /api/v1/orders/{order_id}` 엔드포인트로 주문 세부 정보를 조회하려면 사용자가 계정에 로그인하고 이후 모든 요청에 Authorization HTTP 헤더를 포함해야 합니다. <GlossaryTooltip term="session identifier">session identifiers</GlossaryTooltip>가 구성되어 있는 경우, 성공한 요청이 `GET /api/v1/orders/{order_id}` 엔드포인트나 인증 없이 접근해서는 안 되는 다른 엔드포인트로 전송되면 Cloudflare는 [Security Center Insights](/security-center/security-insights/)와 [Endpoint labels](/api-shield/management-and-monitoring/endpoint-labels/)를 통해 경고합니다.
+
+## 프로세스
+
+[session identifiers](/api-shield/get-started/#session-identifiers)를 구성한 뒤, API Shield는 인증 없는 성공 요청을 지속적으로 스캔하고 엔드포인트에 대해 매일 라벨을 지정합니다. 라벨링 방식은 아래 표를 참고하세요.
+
+<Render file="label-methodology" product="api-shield" />
+
+### 엔드포인트의 인증 세부 정보 확인
+
+{/* prettier-ignore-start */}
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="New dashboard" icon="rocket">
+    <Steps>
+      1. In the Cloudflare dashboard, go to the **Web Assets** page.
+
+          <DashButton url="/?to=/:account/:zone/security/web-assets" />
+      2. Go to the **Endpoints** tab.
+      3. Filter your endpoints by the `cf-risk-missing-auth` or `cf-risk-mixed-auth` labels.
+      4. Select an endpoint to see its authentication posture details on the endpoint details page.
+      5. Choose between the 24-hour and 7-day view options, and note any authentication changes over time.
+    </Steps>
+  </TabItem>
+  <TabItem label="Old dashboard">
+    <Steps>
+      1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/), and select your account and domain.
+      2. Go to **Security** > **API Shield** > **Endpoint Management**.
+      3. Filter Endpoint Management by the `cf-risk-missing-auth` or `cf-risk-mixed-auth` labels.
+      4. Select an endpoint to see its authentication posture details on the endpoint details page.
+      5. Choose between the 24-hour and 7-day view options, and note any authentication changes over time.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+{/* prettier-ignore-end */}
+
+기본 인증 위젯은 최근 7일 동안 성공한 요청 중 몇 개가 session identifiers를 포함했는지, 그리고 어떤 identifiers가 트래픽에 포함되었는지를 보여 줍니다.
+
+시간에 따른 인증 차트는 시간이 지나며 클라이언트가 API와 성공적으로 상호작용한 방식과 사용된 identifiers를 상세히 보여 줍니다. 인증되지 않은 트래픽이 크게 증가하면 보안 사고의 신호일 수 있습니다. 마찬가지로 100% 인증이 예상되는 엔드포인트에 인증되지 않은 성공 요청이 존재한다면 우려할 만한 상황입니다.
+
+인증되지 않은 트래픽을 차단하려면 API에서 어떤 인증 정책을 수정해야 하는지 개발 팀과 함께 확인하세요.
+
+### Cloudflare로 인증되지 않은 트래픽 차단하기
+
+[custom rules](/waf/custom-rules/)에서 `cf.api_gateway.auth_id_present` 필드를 사용하면, API Shield에 구성한 session identifiers가 요청에 존재하는지 여부를 조건으로 트리거할 수 있습니다. 이 규칙은 zone 전체를 대상으로 하므로, Cloudflare는 필요한 보호 범위를 정확히 좁히기 위해 규칙에 host와 path 매치를 추가할 것을 권장합니다.
+
+## 제한 사항
+
+Authentication Posture는 고객이 API Shield에서 session identifiers를 정확히 설정한 경우에만 적용될 수 있습니다. 다시 말해 session identifiers는 API의 인증된 최종 사용자를 고유하게 식별하도록 설계되어 있습니다. API의 session identifier가 확실하지 않다면 개발 팀과 상의하세요.
+
+## 제공 대상
+
+Authentication Posture는 API Shield를 구독한 모든 Enterprise 고객에게 제공됩니다.

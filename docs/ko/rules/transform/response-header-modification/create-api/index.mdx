@@ -1,0 +1,315 @@
+---
+title: API를 통해 응답 헤더 변형 규칙 만들기
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API를 통해 규칙 만들기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/transform/response-header-modification/create-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/transform/response-header-modification/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 응답 헤더 Transform 규칙을 만들려면. 더 알아보기[규칙 예제 갤러리](/rules/transform/examples/?operation=Response+modification)일반적인 사용 사례.
+
+Terraform을 사용하는 경우, 참조[Terraform을 사용하여 규칙 구성](/terraform/additional-configurations/transform-rules/#create-a-response-header-transform-rule).
+
+## 기본 규칙 설정
+
+응답 헤더가 API를 통해 규칙을 변환 할 때, 확인 :
+
+- 규칙 작업을 설정`rewrite`.
+- 수정하기[header 수정 매개 변수](/rules/transform/request-header-modification/reference/parameters/)내 계정`action_parameters`실행에 따라 필드 (설정, 추가, 또는 헤더 제거).
+- 규칙을 배포`http_response_headers_transform`영역 수준에서 단계.
+
+## 회사연혁
+
+<Render
+  file="rules-creation-workflow"
+  product="rules"
+  params={{
+  	ruleName: "a response header transform rule",
+  	phaseName: "http_response_headers_transform",
+  }}
+/>
+
+API 토큰이 있는지 확인하십시오.[자주 묻는 질문](#required-api-token-permissions)API 작업을 수행합니다.
+
+## 예제 요청
+
+<Details header="예: HTTP 응답 헤더를 정적 값으로 설정">
+  다음 예제는 기존 단계 규칙의 규칙을 구성 (`$RULESET_ID`) 단일 응답 헤더 변형 규칙 - HTTP 응답 헤더를 정적 값으로 설정 — 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "set_resp_header_source",
+  			expression: '(starts_with(http.request.uri.path, "/en/"))',
+  			description: "My first response header transform rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				headers: {
+  					"X-Source": {
+  						operation: "set",
+  						value: "Cloudflare",
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Response Headers Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Response Header Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "set_resp_header_source",
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"headers": {
+  						"X-Source": {
+  							"operation": "set",
+  							"value": "Cloudflare"
+  						}
+  					}
+  				},
+  				"expression": "(starts_with(http.request.uri.path, \"/en/\"))",
+  				"description": "My first response header transform rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_response_headers_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+<Details header="예제: HTTP 응답 헤더를 동적 값으로 설정">
+  다음 예제는 기존 단계 규칙의 규칙을 구성 (`$RULESET_ID`) 단일 응답 헤더 변형 규칙 - HTTP 응답 헤더를 동적 값으로 설정 — 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "set_resp_header_bot_score",
+  			expression: '(starts_with(http.request.uri.path, "/en/"))',
+  			description: "My first response header transform rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				headers: {
+  					"X-Bot-Score": {
+  						operation: "set",
+  						expression: "to_string(cf.bot_management.score)",
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Response Headers Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Response Header Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "set_resp_header_bot_score",
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"headers": {
+  						"X-Bot-Score": {
+  							"operation": "set",
+  							"expression": "to_string(cf.bot_management.score)"
+  						}
+  					}
+  				},
+  				"expression": "(starts_with(http.request.uri.path, \"/en/\"))",
+  				"description": "My first response header transform rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_response_headers_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+<Details header="예: `set-cookie` 정적 값 HTTP 응답 헤더">
+  다음 예제는 기존 단계 규칙의 규칙을 구성 (`$RULESET_ID`) 단일 응답 헤더 변형 규칙에 - 추가`set-cookie`HTTP 응답 헤더와 정적 값 — 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 규칙을 설정하여`add`당신은 어떤 기존의 유지`set-cookie`응답에 이미 존재하는 헤더. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "add_resp_header_set_mycookie",
+  			expression: '(starts_with(http.request.uri.path, "/en/"))',
+  			description: "My first response header transform rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				headers: {
+  					"set-cookie": {
+  						operation: "add",
+  						value: "mycookie=custom_value",
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Response Headers Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Response Header Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "add_resp_header_set_mycookie",
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"headers": {
+  						"set-cookie": {
+  							"operation": "add",
+  							"value": "mycookie=custom_value"
+  						}
+  					}
+  				},
+  				"expression": "(starts_with(http.request.uri.path, \"/en/\"))",
+  				"description": "My first response header transform rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_response_headers_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+<Details header="예: HTTP 응답 헤더 제거">
+  다음 예제는 기존 단계 규칙의 규칙을 설정합니다 (`$RULESET_ID`) 단일 응답 헤더 변형 규칙 - HTTP 응답 헤더 제거 - 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "remove_resp_header_cf_connecting_ip",
+  			expression: '(starts_with(http.request.uri.path, "/en/"))',
+  			description: "My first response header transform rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				headers: {
+  					"cf-connecting-ip": {
+  						operation: "remove",
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Response Headers Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Response Header Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "remove_resp_header_cf_connecting_ip",
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"headers": {
+  						"cf-connecting-ip": {
+  							"operation": "remove"
+  						}
+  					}
+  				},
+  				"expression": "(starts_with(http.request.uri.path, \"/en/\"))",
+  				"description": "My first response header transform rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_response_headers_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+***
+
+## 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 응답 헤더 Transform 규칙을 관리해야 합니다.
+
+- *Transform 규칙* > *제품정보*
+- *계정 규칙* > *...에서*

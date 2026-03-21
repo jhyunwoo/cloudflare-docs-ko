@@ -1,0 +1,173 @@
+---
+summary: Use the Cache API to store responses in Cloudflare's cache.
+tags:
+  - Middleware
+  - Caching
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: Cache API 사용
+sidebar:
+  order: 1001
+description: Cloudflare의 캐시 응답을 저장하는 Cache API를 사용하십시오.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/cache-api/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/cache-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/cache-api)
+
+GitHub 계정의 저장소를 만들고 Cloudflare Workers에 애플리케이션을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env, ctx) {
+    		const cacheUrl = new URL(request.url);
+
+    		//캐시 URL에서 캐시 키를 구성
+    		const cacheKey = new Request(cacheUrl.toString(), request);
+    		const cache = caches.default;
+
+    		//캐시에서 값을 이미 사용할 수 있는지 확인
+    		//그렇지 않은 경우, 당신은 근원에서 그것을 fetch 필요가 있고, 캐시에 저장하십시오
+    		let response = await cache.match(cacheKey);
+
+    		if (!response) {
+    			console.log(
+    				`Response for request url: ${request.url} not present in cache. Fetching and caching request.`,
+    			);
+    			//캐시가 없다면, 근원에서 그것을 얻습니다
+    			response = await fetch(request);
+
+    			//응답 생성기를 사용하여 응답의 모든 필드를 상속
+    			response = new Response(response.body, response);
+
+    			//Cache API는 Cache-Control 헤더를 존중합니다. 10에 s-maxage 조정
+    			//최대 10 초 동안 캐시에 응답을 제한합니다.
+
+    			//응답으로 만든 모든 변경은 캐시 된 값에 반영됩니다.
+    			response.headers.append("Cache-Control", "s-maxage=10");
+
+    			ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    		} else {
+    			console.log(`Cache hit for: ${request.url}.`);
+    		}
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		const cacheUrl = new URL(request.url);
+
+    		//캐시 URL에서 캐시 키를 구성
+    		const cacheKey = new Request(cacheUrl.toString(), request);
+    		const cache = caches.default;
+
+    		//캐시에서 값을 이미 사용할 수 있는지 확인
+    		//그렇지 않은 경우, 당신은 근원에서 그것을 fetch 필요가 있고, 캐시에 저장하십시오
+    		let response = await cache.match(cacheKey);
+
+    		if (!response) {
+    			console.log(
+    				`Response for request url: ${request.url} not present in cache. Fetching and caching request.`,
+    			);
+    			//캐시가 없다면, 근원에서 그것을 얻습니다
+    			response = await fetch(request);
+
+    			//응답 생성기를 사용하여 응답의 모든 필드를 상속
+    			response = new Response(response.body, response);
+
+    			//Cache API는 Cache-Control 헤더를 존중합니다. 10에 s-maxage 조정
+    			//최대 10 초 동안 캐시에 응답을 제한합니다.
+
+    			//응답으로 만든 모든 변경은 캐시 된 값에 반영됩니다.
+    			response.headers.append("Cache-Control", "s-maxage=10");
+
+    			ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    		} else {
+    			console.log(`Cache hit for: ${request.url}.`);
+    		}
+    		return response;
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import create_proxy
+    from js import Response, Request, URL, caches, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            cache_url = request.url
+
+            #캐시 URL에서 캐시 키를 구성
+            cache_key = Request.new(cache_url, request)
+            cache = caches.default
+
+            #캐시에서 값을 이미 사용할 수 있는지 확인
+            #그렇지 않은 경우, 당신은 근원에서 그것을 fetch 필요가 있고, 캐시에 저장하십시오
+            response = await cache.match(cache_key)
+
+            if response is None:
+                print(f"Response for request url: {request.url} not present in cache. Fetching and caching request.")
+                #캐시가 없다면, 근원에서 그것을 얻습니다
+                response = await fetch(request)
+                #응답 생성기를 사용하여 응답의 모든 필드를 상속
+                response = Response.new(response.body, response)
+
+                #Cache API는 Cache-Control 헤더를 존중합니다. 10에 s-max-age 조정
+                #10 초 동안 캐시에 응답을 제한합니다.
+                #응답으로 만든 모든 변경은 캐시 된 값에 반영됩니다.
+                response.headers.append("Cache-Control", "s-maxage=10")
+                self.ctx.waitUntil(create_proxy(cache.put(cache_key, response.clone())))
+            else:
+                print(f"Cache hit for: {request.url}.")
+            return response
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { cache } from "hono/cache";
+
+    const app = new Hono();
+
+    //hono 내장 캐시 헬퍼를 레버리지
+    app.get(
+    	"*",
+    	cache({
+    		cacheName: "my-cache",
+    		cacheControl: "max-age=3600", //1시간
+    	}),
+    );
+
+    //캐시가없는 경우 요청을 처리하는 경로 추가
+    app.get("*", (c) => {
+    	return c.text("Hello from Hono!");
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

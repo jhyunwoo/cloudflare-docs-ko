@@ -1,0 +1,37 @@
+---
+title: CNAME으로 도메인 검증
+pcx_content_type: troubleshooting
+sidebar:
+  order: 13
+head:
+  - tag: title
+    content: CNAME으로 도메인을 검증할 수 없음
+
+---
+
+이메일 서비스와 같은 외부 공급자의 서비스를 구성할 때, 아래와 유사한 CNAME 레코드를 zone에 배치해 도메인 소유권을 검증하도록 요구하는 경우가 있습니다.
+
+```
+<value>._domainkey.example.com CNAME <hostname>.<service provider domain>
+```
+
+이 구성이 올바르게 동작하지 않을 경우에는 아래 섹션을 참고하세요.
+
+## 원인
+
+다음 중 하나에 해당하면 문제가 생길 수 있습니다.
+
+* 도메인 검증용으로 만든 CNAME 레코드가 [**Proxied**](/dns/proxy-status/)로 설정되어 있는 경우
+* CNAME 레코드는 DNS only(비프록시)로 올바르게 설정되어 있지만, [zone settings](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings)에서 [**모든 CNAME 레코드에 대한 CNAME flattening**](/dns/cname-flattening/set-up-cname-flattening/#for-all-cname-records)이 활성화되어 있는 경우
+* CNAME 레코드는 DNS only(비프록시)로 올바르게 설정되어 있지만, [해당 레코드에 대해 개별적으로 flattening이 활성화된](/dns/cname-flattening/set-up-cname-flattening/#per-record) 경우
+* [NS 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-ns-record/)가 존재하여, 해당 서브도메인에 대해 다른 DNS 공급자가 authoritative 역할을 하는 경우
+
+## 해결 방법
+
+다음 사항을 확인하세요.
+
+* zone DNS 설정에서 [**모든 CNAME 레코드에 대한 CNAME flattening**](/dns/cname-flattening/)이 비활성화되어 있는지
+* DNS 레코드 표에서 CNAME 레코드 필드를 올바르게 채웠고, proxy status가 **DNS only**로 설정되어 있으며, **Flatten**이 비활성화되어 있는지
+* NS 구성이 올바른지, 그리고 다음 중 하나인지
+  * NS 레코드가 가리키는 DNS 공급자 쪽에서 CNAME 레코드가 예상대로 설정되어 있는지 확인합니다.
+  * NS 레코드의 영향을 받을 수 있는 다른 DNS 레코드 구성을 검토합니다. 그 영향과 필요한 조정을 모두 파악한 뒤에는 NS 레코드를 제거하여 CNAME이 Cloudflare에서 구성한 대상에 맞게 해석되도록 합니다.

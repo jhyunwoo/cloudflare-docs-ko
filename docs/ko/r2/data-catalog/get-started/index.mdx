@@ -1,0 +1,292 @@
+---
+pcx_content_type: get-started
+title: 시작하기
+head: []
+sidebar:
+  order: 2
+description: '물통에 R2 데이터 카탈로그를 활성화하고, 샘플 데이터를로드하고, 첫 번째 쿼리를 실행하는 방법을 알아보십시오.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/r2/data-catalog/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	PackageManagers,
+	Steps,
+	FileTree,
+	Tabs,
+	TabItem,
+	TypeScriptExample,
+	WranglerConfig,
+	LinkCard,
+	DashButton,
+} from "~/components";
+
+이 가이드는 당신을 통해 지시합니다:
+
+- 당신의 첫 번째[R2 물통](/r2/buckets/)그리고 그것을 가능하게[데이터 카탈로그](/r2/data-catalog/).
+- 구매하기[API 토큰](/r2/api/tokens/)귀하의 데이터 카탈로그를 인증하는 쿼리 엔진에 필요한.
+- 사용 방법[프로젝트](https://py.iceberg.apache.org/)첫 번째 Iceberg 테이블을 만들려면[인기 카테고리](https://marimo.io/)Python 노트북.
+- 사용 방법[프로젝트](https://py.iceberg.apache.org/)테이블에 샘플 데이터를로드하고 쿼리하십시오.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. R2 물통 만들기
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    <Steps>
+      1. 이미 로그인하지 않은 경우, 실행:
+
+         ```
+         npx wrangler login
+         ```
+
+      2. R2 물통을 창조하십시오:
+
+         ```
+         npx wrangler r2 bucket create r2-data-catalog-tutorial
+         ```
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. 제품정보**버킷 만들기**.
+      3. 물통 이름을 입력하십시오: r2-data-catalog-tutorial
+      4. 제품정보**버킷 만들기**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 2. 당신의 물통을 위한 자료 카탈로그를 사용
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    그런 다음 선택한 R2 버킷에 카탈로그를 활성화하십시오.
+
+    ```
+    npx wrangler r2 bucket catalog enable r2-data-catalog-tutorial
+    ```
+
+    이 명령을 실행할 때 "Warehouse"와 "Catalog URI"의 메모를 수행하십시오. 당신은 나중에 필요합니다.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+      2. 물통을 선택하십시오: r2-data-catalog-tutorial.
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 그리고 선택**이름 \***.
+      4. 일단 활성화되면, 참고**카탈로그 URI**·**창고 이름**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 3. API 토큰 생성
+
+Iceberg 클라이언트 (포함[프로젝트](https://py.iceberg.apache.org/)) 카탈로그로 인증해야 합니다.[R2 API 토큰](/r2/api/tokens/)R2 및 카탈로그 권한 모두.
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+
+  2. 제품정보**API 토큰 관리**.
+
+  3. 제품정보**API 토큰 만들기**.
+
+  4. 선택하기**R2 토큰 토큰**API 토큰 이름을 편집하는 텍스트.
+
+  5. 이름 \***제출**, 선택**관리자 읽기 및 쓰기**이름 \*
+
+  6. 제품정보**API 만들기 토큰 토큰**.
+
+  7. 이름 \***토큰 값**.
+</Steps>
+
+## 4. uv 설치
+
+Python 패키지 관리자를 설치해야합니다. 이 가이드에서 사용[사이트맵](https://docs.astral.sh/uv/). 이미 uv가 설치되어 있지 않은 경우, 따라[uv 가이드 설치](https://docs.astral.sh/uv/getting-started/installation/).
+
+## 5. marimo를 설치하고 uv로 프로젝트를 설정
+
+우리는 사용[인기 카테고리](https://github.com/marimo-team/marimo)Python 노트북으로.
+
+<Steps>
+  1. 노트북이 저장되는 디렉토리 만들기:
+
+     ```
+     mkdir r2-data-catalog-notebook
+     ```
+
+  2. 새 디렉토리로 변경:
+
+     ```
+     cd r2-data-catalog-notebook
+     ```
+
+  3. 새로운 uv 프로젝트를 초기화 (이 생성`.venv`·`pyproject.toml`):
+
+     ```
+     uv init
+     ```
+
+  4. marimo를 추가하고 필요한 의존성 :
+
+     ```py
+     uv add marimo pyiceberg pyarrow pandas
+     ```
+</Steps>
+
+## 6. 자료 창고와 상호 작용하는 Python 노트북을 창조하십시오
+
+<Steps>
+  1. 파일 만들기`r2-data-catalog-tutorial.py`.
+
+  2. 다음 코드를 붙여넣기 snippet 당신의`r2-data-catalog-tutorial.py`파일 :
+
+     ```py
+     import marimo
+
+     __generated_with = "0.11.31"
+     app = marimo.App(width="medium")
+
+
+     @app.cell
+     def _():
+     		import marimo as mo
+     		return (mo,)
+
+
+     @app.cell
+     def _():
+     		import pandas
+     		import pyarrow as pa
+     		import pyarrow.compute as pc
+     		import pyarrow.parquet as pq
+
+     		from pyiceberg.catalog.rest import RestCatalog
+
+     		#Define 카탈로그 연결 세부 사항 (replace variables)
+     		WAREHOUSE = "<WAREHOUSE>"
+     		TOKEN = "<TOKEN>"
+     		CATALOG_URI = "<CATALOG_URI>"
+
+     		#R2 데이터 카탈로그에 연결
+     		catalog = RestCatalog(
+     				name="my_catalog",
+     				warehouse=WAREHOUSE,
+     				uri=CATALOG_URI,
+     				token=TOKEN,
+     		)
+     		return (
+     				CATALOG_URI,
+     				RestCatalog,
+     				TOKEN,
+     				WAREHOUSE,
+     				catalog,
+     				pa,
+     				pandas,
+     				pc,
+     				pq,
+     		)
+
+
+     @app.cell
+     def _(catalog):
+     		#필요한 경우 기본 네임스페이스 만들기
+     		catalog.create_namespace_if_not_exists("default")
+     		return
+
+
+     @app.cell
+     def _(pa):
+     		#간단한 PyArrow 테이블 만들기
+     		df = pa.table({
+     				"id": [1, 2, 3],
+     				"name": ["Alice", "Bob", "Charlie"],
+     				"score": [80.0, 92.5, 88.0],
+     		})
+     		return (df,)
+
+
+     @app.cell
+     def _(catalog, df):
+     		#Iceberg 테이블 만들기
+     		test_table = ("default", "people")
+     		if not catalog.table_exists(test_table):
+     				print(f"Creating table: {test_table}")
+     				table = catalog.create_table(
+     						test_table,
+     						schema=df.schema,
+     				)
+     		else:
+     				table = catalog.load_table(test_table)
+     		return table, test_table
+
+
+     @app.cell
+     def _(df, table):
+     		#Append 자료
+     		table.append(df)
+     		return
+
+
+     @app.cell
+     def _(table):
+     		print("Table contents:")
+     		scanned = table.scan().to_arrow()
+     		print(scanned.to_pandas())
+     		return (scanned,)
+
+
+     @app.cell
+     def _():
+     		#옵션 정리. uncomment를 실행하고 세포를 실행
+     		#인쇄(f"Deleting table: {test table}")
+     		#카탈로그.drop table(test table)
+     		#print("Table 떨어졌다.")
+     		return
+
+
+     if __name__ == "__main__":
+     		app.run()
+     ```
+
+  3. 수정하기`CATALOG_URI`, `WAREHOUSE`·`TOKEN`섹션의 값과 변수**2**·**3**각각.
+
+  4. 브라우저에서 노트북 편집기를 실행:
+
+     ```
+     uv run marimo edit r2-data-catalog-tutorial.py
+     ```
+
+     노트북이 카탈로그에 연결되면 네임스페이스와 테이블이 marimo의 Datasources 패널에 나타납니다.
+</Steps>
+
+Python 노트북 위에, 당신은:
+
+1. 카탈로그에 연결.
+2. 이름 \*`default`네임스페이스
+3. 간단한 PyArrow 테이블을 만듭니다.
+4. 생성 (또는 로드)`people`테이블에`default`네임스페이스
+5. 표에 표본 자료를 보내십시오.
+6. 테이블의 내용을 인쇄합니다.
+7. (선택) 하락`people`이 튜토리얼을 위해 만든 테이블.
+
+## 더 알아보기
+
+<LinkCard title="카탈로그" href="/r2/data-catalog/manage-catalogs/" description="R2 귀하의 버킷에 데이터 카탈로그, 검색 구성 세부 사항, 그리고 당신의 Iceberg 엔진을 인증." />
+
+<LinkCard title="Iceberg 엔진에 연결" href="/r2/data-catalog/config-examples/" description="Apache Spark 및 기타 일반적인 쿼리 엔진에 대한 자세한 설정 지침을 찾으십시오." />

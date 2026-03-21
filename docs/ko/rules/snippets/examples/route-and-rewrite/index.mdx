@@ -1,0 +1,58 @@
+---
+summary: Reroute a request to a different origin and modify the URL path.
+tags:
+  - URL rewrite
+products:
+  - snippets
+pcx_content_type: example
+title: 변경 기원 및 경로 수정
+description: '다른 기원에 대한 경로 요청, URL 경로에 디렉토리를 prepend, 그리고 특정 세그먼트를 제거.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/route-and-rewrite/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/route-and-rewrite/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 예제는 Cloudflare Snippets를 사용하는 방법을 설명합니다.
+
+- 다른 기원에 대한 수신 요청.
+- URL 경로에 디렉토리를 Prepend.
+- URL 경로에서 특정 세그먼트를 제거.
+
+```js
+export default {
+	async fetch(request) {
+		//새로운 요청 객체를 만들려면 원래 요청을 복제
+		const newRequest = new Request(request);
+
+		//새로운 기원에 대한 rerouted 요청을 식별하는 헤더를 추가하십시오.
+		newRequest.headers.set("X-Rerouted", "1");
+
+		//복제 및 원본 URL을 파
+		const url = new URL(request.url);
+
+		//단계 1: 다른 근원에 Reroute
+		url.hostname = "example.com"; //새로운 근원에 hostname 변경
+
+		//단계 2: 경로에 디렉토리를 승인
+		url.pathname = `/new-path${url.pathname}`; //현재 경로에 Prepend "/new-path"
+
+		//단계 3: 경로에서 특정 세그먼트를 제거
+		url.pathname = url.pathname.replace("/remove-me", ""); //`/remove-me/something`를 `/something`로 바꿔 씁니다
+
+		//업데이트 된 URL에서 수정 된 요청을 Fetch
+		return await fetch(url, newRequest);
+	},
+};
+```
+
+이 구성은 다음과 같은 재 작성을 수행 할 것입니다:
+
+| URL 요청                              | rewrite 후에 URL                     |
+| ----------------------------------- | ---------------------------------- |
+| `https://subdomain.example.com/foo` | `https://example.com/new-path/foo` |
+| `https://example.com/remove-me/bar` | `https://example.com/new-path/bar` |
+| `https://example.net/remove-me`     | `https://example.com/new-path`     |

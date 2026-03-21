@@ -1,0 +1,111 @@
+---
+title: Amazon 베드락
+pcx_content_type: get-started
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/usage/providers/bedrock/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/usage/providers/bedrock/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[Amazon 베드락](https://aws.amazon.com/bedrock/)당신은 기반 모델과 유전자 AI 응용 프로그램을 구축하고 확장 할 수 있습니다.
+
+## 끝점
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/aws-bedrock`
+```
+
+## 자주 묻는 질문
+
+Amazon Bedrock에 요청을 할 때 다음을해야합니다.
+
+- AI Gateway 계정 ID.
+- AI Gateway 게이트웨이 이름.
+- 활성 Amazon Bedrock API 토큰.
+- 사용하려는 Amazon Bedrock 모델의 이름.
+
+## 자주 묻는 질문
+
+Amazon Bedrock에 요청할 때 교체`https://bedrock-runtime.us-east-1.amazonaws.com/`현재 사용중인 URL에서`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/aws-bedrock/bedrock-runtime/us-east-1/`, 다음 URL의 끝에 실행하려는 모델을 추가.
+
+Bedrock을 사용하면 AI Gateway에 요청하기 전에 URL에 서명해야합니다. 당신은 시도 할 수 있습니다[`aws4fetch`](https://github.com/mhart/aws4fetch)SDK.
+
+## 이름 \*
+
+### 제품 정보`aws4fetch`TypeScript
+
+```typescript
+import { AwsClient } from "aws4fetch";
+
+interface Env {
+	accessKey: string;
+	secretAccessKey: string;
+}
+
+export default {
+	async fetch(
+		request: Request,
+		env: Env,
+		ctx: ExecutionContext,
+	): Promise<Response> {
+		//설정으로 바꾸기
+		const cfAccountId = "{account_id}";
+		const gatewayName = "{gateway_id}";
+		const region = "us-east-1";
+
+		//비밀로 추가 (https://developers.cloudflare.com/workers/configuration/secrets/)
+		const accessKey = env.accessKey;
+		const secretKey = env.secretAccessKey;
+
+		const awsClient = new AwsClient({
+			accessKeyId: accessKey,
+			secretAccessKey: secretKey,
+			region: region,
+			service: "bedrock",
+		});
+
+		const requestBodyString = JSON.stringify({
+			inputText: "What does ethereal mean?",
+		});
+
+		const stockUrl = new URL(
+			`https://bedrock-runtime.${region}.amazonaws.com/model/amazon.titan-embed-text-v1/invoke`,
+		);
+
+		const headers = {
+			"Content-Type": "application/json",
+		};
+
+		//자주 묻는 질문
+		const presignedRequest = await awsClient.sign(stockUrl.toString(), {
+			method: "POST",
+			headers: headers,
+			body: requestBodyString,
+		});
+
+		//게이트웨이 Url
+		const gatewayUrl = new URL(
+			`https://gateway.ai.cloudflare.com/v1/${cfAccountId}/${gatewayName}/aws-bedrock/bedrock-runtime/${region}/model/amazon.titan-embed-text-v1/invoke`,
+		);
+
+		//게이트웨이 URL을 통해 요청
+		const response = await fetch(gatewayUrl, {
+			method: "POST",
+			headers: presignedRequest.headers,
+			body: requestBodyString,
+		});
+
+		if (
+			response.ok &&
+			response.headers.get("content-type")?.includes("application/json")
+		) {
+			const data = await response.json();
+			return new Response(JSON.stringify(data));
+		}
+
+		return new Response("Invalid response", { status: 500 });
+	},
+};
+```

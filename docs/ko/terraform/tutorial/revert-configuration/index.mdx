@@ -1,0 +1,132 @@
+---
+title: 6 - Revert 구성
+pcx_content_type: tutorial
+sidebar:
+  order: 7
+head:
+  - tag: title
+    content: Revert 구성
+description: >-
+  때로는 구성 변경 사항을 롤 할 수 있습니다. 당신의 윤곽을 반전하기 위하여, 원하는 분지를 검사하고 당신의 CloudflareQ 조정을
+  동시에 이동하는 Terraform를 요구하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/tutorial/revert-configuration/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/tutorial/revert-configuration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+때로는 구성 변경 사항을 롤 할 수 있습니다. 예를 들어, 새로운 구성에서 성능 테스트를 실행하거나 IP 주소를 잘못 입력하고 전체 사이트를 다운받을 수 있습니다.
+
+당신의 윤곽을 반전하기 위하여, 원하는 분지를 검사하고 당신의 CloudflareQ 조정을 동시에 이동하는 Terraform를 요구하십시오. 당신이 실수로 사이트에 가져 가면, 직접 merging 보다는 잡아당기기 요구에 대한 좋은 전략을 수립하는 것을 고려하십시오`master`brevity에 대한 튜토리얼에서 수행.
+
+<Render file="v5-code-snippets" product="terraform" />
+
+## 1. 구성 내역을 검토
+
+반전하는 방법을 결정하기 전에, 당신의 Git 역사를 검토:
+
+```sh
+git log --oneline
+```
+
+```sh output
+f1a2b3c Step 5 - Add two Page Rules
+d4e5f6g Step 4 - Create load balancer (LB) monitor, LB pool, and LB
+a7b8c9d Step 3 - Enable TLS 1.3, automatic HTTPS rewrites, and strict SSL
+e1f2g3h Step 2 - Initial Terraform v5 configuration
+```
+
+Git의 Cloudflare 구성을 저장하는 또 다른 이점은 당신이 변화를 만드는 것을 볼 수 있다는 것입니다. 당신은 또한 당신이 동료 리뷰 풀 요청시 변화를 검토하고 승인 할 수 있습니다.
+
+```sh
+git log
+```
+
+마지막 변경이 만들어진 경우 확인:
+
+```sh
+git show
+```
+
+이것은 가장 최근의 커밋과 어떤 파일이 변경되었는지 보여줍니다.
+
+## 2. 시나리오 : 페이지 규칙을 다시
+
+다음을 따라 페이지 규칙을 배포 한 후 곧 아시나요?[페이지 규칙과 예외 추가](/terraform/tutorial/add-page-rules/)튜토리얼은 URL이 더 이상 필요하지 않으며 보안 설정 및 리디렉션이 떨어질 것입니다.
+
+config 파일을 직접 편집하고 그 항목을 삭제할 수 있지만, Git을 사용하여 그 항목을 삭제할 수 있습니다.
+
+### Git를 사용하여 재생
+
+Git을 사용하여 페이지 규칙이 변경되지 않는 역동적 커밋을 만듭니다.
+
+```sh
+git revert HEAD
+```
+
+Git는 커밋 메시지로 기본 편집기를 엽니다. 기본 메시지를 받아 저장하고 닫기, 또는 그것을 사용자 정의:
+
+```sh output
+Revert "Add Page Rules for security and redirects"
+
+This reverts commit f1a2b3c4d5e6f7a8b9c0d1e2f3g4h5i6j7k8l9m0.
+```
+
+## 3. 미리보기 변경
+
+Terraform이 reverted 구성으로 무엇을 할 것인지 확인하십시오.
+
+```sh
+terraform plan
+```
+
+예상된 산출:
+
+```sh output
+Plan: 0 to add, 0 to change, 2 to destroy.
+
+Terraform will perform the following actions:
+
+  #cloudflare page rule.expensive endpoint security는 파괴될 것입니다
+  #cloudflare page rule.legacy redirect는 파괴될 것입니다
+```
+
+예상대로, Terraform은 튜토리얼 5에 추가 된 두 페이지 규칙을 제거합니다.
+
+## 4. 변경 적용
+
+Cloudflare 영역에서 페이지 규칙을 제거하는 변경 사항 :
+
+```sh
+terraform apply --auto-approve
+```
+
+```sh output
+cloudflare_page_rule.expensive_endpoint_security: Destroying...
+cloudflare_page_rule.legacy_redirect: Destroying...
+cloudflare_page_rule.expensive_endpoint_security: Destruction complete after 1s
+cloudflare_page_rule.legacy_redirect: Destruction complete after 1s
+
+Apply complete! Resources: 0 added, 0 changed, 2 destroyed.
+```
+
+두 자원이 파괴되었다, 예상대로, 당신은 이전 버전으로 돌아올.
+
+## 5. 반전을 검증
+
+페이지 규칙이 더 이상 활성화되지 않는 테스트 :
+
+```bash
+#이제는 404 (리디렉션 없음)을 반환해야합니다.
+curl -I https://www.example.com/old-location.php
+
+#이것은 정상 응답을 돌려야한다 (더 공격 모드 없음)
+curl -I https://www.example.com/expensive-db-call
+```
+
+당신의 윤곽은 성공적으로 거꾸로 했습니다. 페이지 규칙이 제거되고 영역 설정은 이전 상태로 돌아갑니다. Git의 버전 제어는 항상 복구하거나 안전하게 변경할 수 있습니다.

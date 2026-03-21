@@ -1,0 +1,250 @@
+---
+title: 지역 개발
+pcx_content_type: concept
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/best-practices/local-development/'
+translation_source_md: 'https://developers.cloudflare.com/d1/best-practices/local-development/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Render } from "~/components";
+
+D1는 CloudflareXQ로 D1XQ의 동일한 버전을 실행하는 국부적으로 발달을 위한 완전히 기능적인 지원을 전 세계적으로 실행합니다. 지역 개발[모델 번호: Wrangler](/workers/wrangler/install-and-update/)Workers의 명령행 인터페이스는 로컬 개발 세션과 상태를 관리합니다.
+
+## 현지 개발 세션 시작
+
+:::참조
+
+이 가이드는 당신이 사용하는 가정[Wrangler의 v3.0](https://blog.cloudflare.com/wrangler3/)또는 나중에.
+
+D1 및/또는 Cloudflare Workers를 방문하는 사용자[D1 튜토리얼](/d1/get-started/)설치하기`wrangler`첫 번째 데이터베이스를 배포합니다.
+
+:::
+
+로컬 개발 세션은 생산 환경 D1가 작업자와 D1XQ를 테스트 할 수 있도록 독립적이고 로컬 전용 환경을 만듭니다.*이전 다음*당신은 생산에 배치합니다.
+
+현재 위치[D1 바인딩](/workers/wrangler/configuration/#d1-databases)이름 \*`DB`로컬에서 실행할 때 작업자에게 사용할 수 있습니다.
+
+현지 개발 세션을 시작하려면:
+
+1. wrangler v3.0+를 사용하여 확인됩니다.
+
+   ```sh
+   wrangler --version
+   ```
+
+   ```sh output
+   ⛅️ wrangler 3.0.0
+   ```
+
+2. 현지 개발 세션 시작
+
+   ```sh
+   wrangler dev
+   ```
+
+   ```sh output
+   ------------------
+   wrangler dev now uses local mode by default, powered by 🔥 Miniflare and 👷 workerd.
+   To run an edge preview session for your Worker, use wrangler dev --remote
+   Your worker has access to the following bindings:
+   - D1 Databases:
+   	- DB: test-db (c020574a-5623-407b-be0c-cd192bab9545)
+   ⎔ Starting local server...
+
+   [mf:inf] Ready on http://127.0.0.1:8787/
+   [b] open a browser, [d] open Devtools, [l] turn off local mode, [c] clear console, [x] to exit
+   ```
+
+이 예에서 Worker는 로컬 D1 데이터베이스에 액세스 할 수 있습니다. 해당 D1 바인딩[Wrangler 구성 파일](/workers/wrangler/configuration/)다음과 같다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB",
+  			"database_name": "test-db",
+  			"database_id": "c020574a-5623-407b-be0c-cd192bab9545"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+주의사항`wrangler dev`로컬 및 생산 (remote) 데이터를 분리합니다. 로컬 세션은 기본적으로 생산 데이터에 액세스하지 않습니다. 생산에 액세스하려면 (remote) 데이터베이스, 설정`"remote" : true`D1 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보. 원격 데이터베이스에서 실행할 때 어떤 변경 사항도 undone이 될 수 없습니다.
+
+더 알아보기[`wrangler dev`관련 기사](/workers/wrangler/commands/#dev)로컬 개발 세션을 구성하는 방법에 대해 자세히 알아보세요.
+
+## Pages
+
+당신은 단지 개발할 수 있습니다*한국어*D1 데이터베이스 사용 시[Cloudflare Pages](/pages/)최소한의 생성[Wrangler 구성 파일](/workers/wrangler/configuration/)Pages 프로젝트의 뿌리에서. 이 스키마를 만들 때 유용 할 수 있습니다, 자료 또는 그렇지 않으면 응용 프로그램 논리에 추가하지 않고 D1 데이터베이스를 직접 관리.
+
+:::caution\[ 원격 데이터베이스를 위한 Local 개발]
+
+현재 개발할 수 없습니다.*원격 제어*D1 데이터베이스 사용 시[Cloudflare Pages](/pages/).
+:::
+
+내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/)다음을 닮아야 한다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//Pages + D1XQ를 사용하는 경우 Wrangler config 파일에서 D1 로컬로 상호 작용할 필요가 있습니다.
+  	"d1_databases": [
+  		{
+  			"binding": "DB", //미리보기 database id 일치해야 합니다.
+  			"database_name": "YOUR_DATABASE_NAME",
+  			"database_id": "the-id-of-your-D1-database-goes-here", //wrangler d1 정보 YOUR DATABASE NAME
+  			"preview_database_id": "DB" //Pages 로컬 개발 필요
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+로컬 데이터베이스에 대해 쿼리 및/또는 마이그레이션을 실행할 수 있습니다. 로컬 개발 프로세스의 일부로`--local`wrangler에 깃발:
+
+```bash
+wrangler d1 execute YOUR_DATABASE_NAME \
+  --local --command "CREATE TABLE IF NOT EXISTS users ( user_id INTEGER PRIMARY KEY, email_address TEXT, created_at INTEGER, deleted INTEGER, settings TEXT);"
+```
+
+사전 명령은 쿼리를 수행 할 것**한국어**D1 데이터베이스의 버전. 없음`--local`플래그, 명령은 Cloudflare의 네트워크에서 실행되는 QXQXQXQ 데이터베이스의 원격 버전에 대해 실행됩니다.
+
+## Persist 데이터
+
+:::참조
+
+기본적으로 Wrangler v3 이상에서 데이터는 각 실행에 따라 지속됩니다.`wrangler dev`. 로컬 개발 및 테스트가 필요하거나 빈 데이터베이스를 가정하면 시작해야 합니다.`DROP TABLE <tablename>`사용하기 전에 기존 테이블을 삭제하는 방법`CREATE TABLE`다시 만들기.
+
+:::
+
+제품 정보`wrangler dev --persist-to=/path/to/file`특정 위치에 persist 자료에. 이것은 팀에서 일할 때 유용할 수 있습니다 (당신은 공유할 수 있습니다) 동일한 사본, CI/CD를 통해 배포할 때 (같은 시작 국가를 지키기 위하여), 또는 기계의 맞출 때 자료를 지키는 방법.
+
+wrangler 사용자`2.x`자주 묻는 질문`--persist`flag: wrangler의 이전 버전은 기본값으로 persist data를 하지 않았다.
+
+## 시험 programmatically
+
+### 미니 플레어
+
+[미니 플레어](https://miniflare.dev/)D1XQXQXQXQXQXQXQXQXQ와 같은 QXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQX
+
+Miniflare를 사용할 수 있습니다.[D1를 위한 지원](https://miniflare.dev/storage/d1)D1 데이터베이스를 만들려면 테스트를 사용할 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB",
+  			"database_name": "test-db",
+  			"database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+```js
+const mf = new Miniflare({
+	d1Databases: {
+		DB: "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+	},
+});
+```
+
+다음을 사용할 수 있습니다.`getD1Database()`시뮬레이션 데이터베이스를 검색하고 실제 생산 D1 데이터베이스가있는 경우 쿼리를 실행하는 방법 :
+
+```js
+const db = await mf.getD1Database("DB");
+
+const stmt = db.prepare("SELECT name, age FROM users LIMIT 3");
+const { results } = await stmt.run();
+
+console.log(results);
+```
+
+### `unstable_dev`
+
+Wrangler는 노출합니다[`unstable_dev()`](/workers/wrangler/api/)Workers 및 D1XQ를 테스트하는 로컬 HTTP 서버를 실행할 수 있습니다. 지원하다[회사연혁](/d1/reference/migrations/)로컬 데이터베이스에 대하여`preview_database_id`당신의 Wrangler 윤곽에서.
+
+Wrangler 윤곽의 밑에 주어진:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB", //i.e. "DB"로 설정하면 `env.DB`에서 작업자에서 사용할 수 있습니다.
+  			"database_name": "your-database", //D1 데이터베이스의 이름을 만들 때 설정
+  			"database_id": "<UUID>", //D1 데이터베이스의 고유 ID는 데이터베이스를 만들거나 ``을 실행할 때 반환됩니다.
+  			"preview_database_id": "local-test-db" //로컬 테스트 데이터베이스에 대한 사용자 정의 ID.
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+미그레이션은 CI/CD 설정의 일부로 로컬로 실행할 수 있습니다.`--local`본문 바로가기`wrangler`:
+
+```sh
+wrangler d1 migrations apply your-database --local
+```
+
+### 사용법 예
+
+다음 예제는 Wrangler의 사용 방법을 보여줍니다`unstable_dev()`API에:
+
+- 로컬 테스트 데이터베이스에 대한 마이그레이션을 실행하여 정의`preview_database_id`.
+- Worker에서 정의된 endpoint에 대한 요청을 만드십시오. 이 예제는`/api/users/?limit=2`.
+- 반환된 결과 일치를 검증합니다.`Response.status`JSON은 API가 반환됩니다.
+
+```ts
+import { unstable_dev } from "wrangler";
+import type { UnstableDevWorker } from "wrangler";
+
+describe("Test D1 Worker endpoint", () => {
+	let worker: UnstableDevWorker;
+
+	beforeAll(async () => {
+		//선택 사항: `--local` 데이터베이스를 설정하는 모든 마이그레이션을 실행
+		//기본적으로, this will default to the preview database id
+		execSync(`NO_D1_WARNING=true wrangler d1 migrations apply db --local`);
+
+		worker = await unstable_dev("src/index.ts", {
+			experimental: { disableExperimentalWarning: true },
+		});
+	});
+
+	afterAll(async () => {
+		await worker.stop();
+	});
+
+	it("should return an array of users", async () => {
+		//예상 결과
+		const expectedResults = `{"results": [{"user_id": 1234, "email": "foo@example.com"},{"user_id": 6789, "email": "bar@example.com"}]}`;
+		//작업자 내에서 모든 여정을 트리거 할 수있는 옵션 URL을 전달
+		const resp = await worker.fetch("/api/users/?limit=2");
+		if (resp) {
+			//https://jestjs.io/docs/expect#tobevalue
+			expect(resp.status).toBe(200);
+			const data = await resp.json();
+			//https://jestjs.io/docs/expect#tomatchobjectobject
+			expect(data).toMatchObject(expectedResults);
+		}
+	});
+});
+```
+
+자주 묻는 질문[`unstable_dev()`](/workers/wrangler/api/#usage)테스트 내에서 API를 사용하는 방법에 대한 자세한 내용은 문서.
+
+## 관련 자료
+
+- 제품 정보[`wrangler dev`](/workers/wrangler/commands/#dev)배포하기 전에 Worker 및 D1 로컬 및 디버그 문제를 실행하십시오.
+- 지원하다[D1](/d1/observability/debug-d1/).
+- 자주 묻는 질문[접속 로그](/workers/observability/logs/)당신의 노동자 및 D1에서 생성하는.

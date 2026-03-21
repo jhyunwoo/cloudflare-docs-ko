@@ -1,0 +1,159 @@
+---
+reviewed: 2025-11-19T00:00:00.000Z
+category: Zero Trust
+difficulty: Advanced
+pcx_content_type: tutorial
+title: Gateway Fixr 정책을 통해 지역 개인 DNS 서버를 구축
+description: >-
+  Gateway fixr 정책을 구성하여 지역별 개인 DNS 서버로 DNS 쿼리를 경로를 설정하고 여러 위치에 걸쳐 내부 리소스에
+  Geo-steering을 가능하게 합니다.
+tags:
+  - DNS
+  - Geolocation
+  - Private networks
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/regional-private-dns-resolver-policies/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/regional-private-dns-resolver-policies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Gateway fixr 정책은 다양한 표준을 기반으로 사용자 정의 DNS 해결자에게 DNS 쿼리를 전달할 수 있습니다. 이 튜토리얼은 지역별 개인 DNS 서버를 구성하는 방법을 설명합니다. 사용자는 지리적 위치에 따라 가장 가까운 내부 리소스로 지시됩니다.
+
+이 접근법은 DNS 경로와 개인 네트워크 리소스에 대한 액세스를 관리하는 여러 위치에 걸쳐 내부 네트워크와 조직에 특히 유용합니다.
+
+이 튜토리얼의 끝으로, 게이트웨이 해결사 정책을 통해 사용자 위치에 따라 지역 별 개인 DNS 서버에 자동으로 DNS 쿼리를 경로를 설정하여 최적의 성능과 내부 리소스에 액세스 할 수 있습니다.
+
+이 튜토리얼은 미국 및 EU 지역 서버를 예로 개인 DNS 서버를 사용합니다.
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을 확인하십시오.
+
+- 기업 Zero Trust 계정
+- 여러 지역에서 배포되는 Private DNS 서버(예: 미국, EU 및 APAC)
+- ·[Cloudflare 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/)개인 DNS 서버를 Cloudflare에 연결
+- 해결해야 할 내부 도메인 (예를 들어,`internal.example.com`)
+
+## 1. Cloudflare 터널과 개인 DNS 서버를 연결
+
+첫째, Cloudflare 터널을 사용하여 Cloudflare에 지역 개인 DNS 서버를 연결합니다.
+
+개인 DNS 서버가 있는 각 지역에 대해,[터널 만들기](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/#1-create-a-tunnel). 각 갱도를 위해,[IP 주소 추가](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/#2-add-private-network-routes)DNS 서버. 예를 들어,`10.0.1.53/32`미국 지역 및`10.1.1.53/32`EU 지역.
+
+모든 지역 DNS 서버를 위한 이 과정을 반복합니다.
+
+## 2. 각 지역을 위한 Gateway fixr 정책을 창조하십시오
+
+개인 DNS 서버가 Cloudflare에 연결되면 게이트웨이 해결 정책을 사용자 위치에 따라 적절한 지역 DNS 서버로 변환합니다.
+
+### 각 지역의 해결사 정책 만들기
+
+개인 DNS 서버가 있는 각 지역:
+
+1. 오시는 길**교통 정책** > **Resolver 정책**.
+
+2. 제품정보**정책 추가**.
+
+3. 지역에 근거한 정책 이름 (예를 들면,`US Internal DNS`).
+
+4. 내부 도메인 및 사용자와 일치하도록 표현식을 만듭니다. 예를 들어, 미국에서 사용자와 일치:
+
+   | 옵션 정보       | 회사연혁 | 제품정보                   | 로그인   |
+   | ----------- | ---- | ---------------------- | ----- |
+   | 이름 \*       | 내 계정 | `internal.example.com` | 이름 \* |
+   | 소스 국가 IP 위치 | 내 계정 | *대한민국*                 |       |
+
+5. 내 계정**DNS 해결자 선택**, 선택*사용자 정의 DNS 해결사 구성*.
+
+6. 지역 DNS 서버의 개인 IP 주소를 입력하십시오 (예를 들어,`10.0.1.53`미국 또는`10.1.1.53`유럽 연합 (EU)
+
+7. 드롭다운 메뉴에서, 선&#xD0DD;*`<IP-address> - Private`*.
+
+8. (선택 사항) 선택**DNS 해결자 추가**백업 DNS 해결자를 추가하려면 보조 IP 주소를 입력하십시오.
+
+9. 제품정보**공지사항**.
+
+10. 개인 DNS 서버가 있는 각 지역에 대한 반복 단계 1-9. 예를 들어, EU 지역의 사용자와 일치하는 정책을 만들려면 :
+
+| 옵션 정보       | 회사연혁 | 제품정보                                 | 로그인   |
+| ----------- | ---- | ------------------------------------ | ----- |
+| 이름 \*       | 내 계정 | `internal.example.com`               | 이름 \* |
+| 소스 국가 IP 위치 | 내 계정 | *오스트리아*, *대한민국*, *한국어*, *한국어*, *한국어* |       |
+
+### fallback fixr 정책 만들기
+
+전용 DNS 서버없이 지역의 사용자를위한 catch-all 정책을 작성하거나 트래픽에 대한 정책이 일치하지 않는 경우 :
+
+1. 오시는 길**교통 정책** > **Resolver 정책**.
+
+2. 제품정보**정책 추가**.
+
+3. 귀하의 정책 (예를 들면,`Internal DNS Fallback`).
+
+4. 내부 도메인과 일치하는 표현을 만듭니다:
+
+   | 옵션 정보 | 회사연혁 | 제품정보                   |
+   | ----- | ---- | ---------------------- |
+   | 이름 \* | 내 계정 | `internal.example.com` |
+
+5. 내 계정**DNS 해결자 선택**, 선택*사용자 정의 DNS 해결사 구성*.
+
+6. 기본 DNS 서버의 개인 IP 주소를 입력하십시오.
+
+7. 제품정보**공지사항**.
+
+## 3. 정책 주문을 구성
+
+Gateway는 해결사 정책을 기반으로 합니다.[우선순위](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence). 귀하의 정책은 가장 특정한에서 최소로 주문됩니다:
+
+1. 오시는 길**교통 정책** > **Resolver 정책**.
+2. 주문 정책에 드래그 핸들을 사용합니다:
+   - 지역 적용을 위한 Resolver 정책
+   - 당신의 fallback 해결사 정책 마지막으로
+
+Gateway는 첫 번째 일치 정책을 적용합니다. 어떠한 정책도 트래픽과 일치하지 않으면 Gateway는 fallback 해결사 정책을 적용합니다. 지역 적용을 가진 해결자 정책의 순서는 사정하지 않습니다.
+
+## 4. 설정 테스트
+
+### 다른 지역에서 시험
+
+구성을 테스트하려면 WARP를 각 영역의 장치에 배치하여 개인 DNS 서버가 있고 내부 도메인에 DNS 쿼리를 실행합니다. 예를 들면, 미국 지역을 시험하기 위하여:
+
+1. [WARP 배포](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/)미국 지역에 있는 장치.
+
+2. 장치에서, 맨끝을 열고 달리십시오:
+
+   ```sh
+   nslookup internal.example.com
+   ```
+
+3. DNS 쿼리가 내부 리소스에 대한 예상 IP 주소를 반환합니다. 응답은 미국 DNS 서버가 반품하도록 설정된 IP 주소를 표시해야 합니다.`internal.example.com`.
+
+4. 다른 지역의 장치에서 테스트를 반복하여 해당 지역 DNS 서버의 응답을받습니다. 각 지역은 DNS 서버 구성에 따라 다른 IP 주소를 반환할 수 있습니다.
+
+### Gateway 로그에서 검증
+
+1. 오시는 길**관련 기사** > **로그인** > **DNS 쿼리 로그**.
+2. 쿼리 필터`internal.example.com`.
+3. 자주 묻는 질문**해결자 IP**쿼리를 확인하는 필드는 사용자 위치에 따라 올바른 지역 DNS 서버에 경로를 지정합니다.
+
+## 좋은 관행
+
+- **백업 해결자 사용**: 각 지역에 대한 보조 DNS 해설기를 구성하여 높은 가용성을 보장합니다.
+- **DNS 성능 모니터링**: 사용[Gateway 분석](/cloudflare-one/insights/analytics/gateway/)DNS 쿼리 성능을 추적하고 지역 라우팅으로 어떤 문제를 식별합니다.
+- **네트워크 정책**: 콤포넌트 해결사 정책[네트워크 정책](/cloudflare-one/traffic-policies/network-policies/)사용자 ID 및 장치 자세를 기반으로 내부 리소스에 대한 액세스를 제어합니다.
+- **가상 네트워크**: 지역 전역의 IP 주소 공백을 중복하면 사용[가상 네트워크](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/)통행을 고립시키기 위하여.
+- **실패 시나리오 테스트**: 지역 DNS 서버가 예상대로 백업 해결사 작업을 보장 할 수 없을 때 정기적으로 테스트합니다.
+
+## 관련 자료
+
+- [Resolver 정책](/cloudflare-one/traffic-policies/resolver-policies/)
+- [개인 네트워크](/cloudflare-one/networks/connectors/cloudflare-tunnel/)
+- [Gateway 분석](/cloudflare-one/insights/analytics/gateway/)
+- [가상 네트워크](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/)

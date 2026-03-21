@@ -1,0 +1,178 @@
+---
+title: 스트림 출력
+pcx_content_type: how-to
+sidebar:
+  order: 7
+description: 명령과 프로세스에서 실시간 출력을 처리합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/streaming-output/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/streaming-output/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+이 가이드는 명령, 프로세스 및 코드 실행에서 실시간 출력을 처리하는 방법을 보여줍니다.
+
+## 스트리밍을 사용할 때
+
+필요한 경우 스트리밍을 사용:
+
+- **실시간 피드백**- 쇼 진행 상황을
+- **긴 실행 작업**- 빌드, 테스트, 시간이 걸리는 설치
+- **대화 형**- 채팅봇, 코드 실행, 라이브 데모
+- **큰 산출**- 한 번에 모든 대신 공정 출력
+- **사용자 경험**- 피드백 없이 기다리는 사용자를 방지
+
+비streaming 사용 (`exec()`)를 위해:
+
+- **빠른 작업**- 몇 초 안에 완료된 명령
+- **작은 산출**- 출력이 메모리에서 쉽게 적합 할 때
+- **게시물 처리**- 처리하기 전에 완전한 산출이 필요할 때
+
+## 스트림 명령 실행
+
+제품 정보`execStream()`실시간 출력을 얻기 위하여:
+
+<TypeScriptExample>
+  ```
+  import { getSandbox, parseSSEStream, type ExecEvent } from '@cloudflare/sandbox';
+
+  const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+
+  const stream = await sandbox.execStream('npm run build');
+
+  for await (const event of parseSSEStream<ExecEvent>(stream)) {
+    switch (event.type) {
+      case 'stdout':
+        console.log(event.data);
+        break;
+
+      case 'stderr':
+        console.error(event.data);
+        break;
+
+      case 'complete':
+        console.log('Exit code:', event.exitCode);
+        break;
+
+      case 'error':
+        console.error('Failed:', event.error);
+        break;
+    }
+  }
+  ```
+</TypeScriptExample>
+
+## 고객에게
+
+Server-Sent 이벤트를 통해 사용자에게 스트리밍 출력을 반환:
+
+<TypeScriptExample>
+  ```
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  export { Sandbox } from '@cloudflare/sandbox';
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const sandbox = getSandbox(env.Sandbox, 'builder');
+
+      const stream = await sandbox.execStream('npm run build');
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache'
+        }
+      });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+클라이언트 측 소비:
+
+<TypeScriptExample>
+  ```
+  // Browser JavaScript
+  const eventSource = new EventSource('/build');
+
+  eventSource.addEventListener('stdout', (event) => {
+    const data = JSON.parse(event.data);
+    console.log(data.data);
+  });
+
+  eventSource.addEventListener('complete', (event) => {
+    const data = JSON.parse(event.data);
+    console.log('Exit code:', data.exitCode);
+    eventSource.close();
+  });
+  ```
+</TypeScriptExample>
+
+## Stream 프로세스 로그
+
+감시자 배경 과정 산출:
+
+<TypeScriptExample>
+  ```
+  import { parseSSEStream, type LogEvent } from '@cloudflare/sandbox';
+
+  const process = await sandbox.startProcess('node server.js');
+
+  const logStream = await sandbox.streamProcessLogs(process.id);
+
+  for await (const log of parseSSEStream<LogEvent>(logStream)) {
+    console.log(log.data);
+
+    if (log.data.includes('Server listening')) {
+      console.log('Server is ready');
+      break;
+    }
+  }
+  ```
+</TypeScriptExample>
+
+## 핸들 오류
+
+종료 코드 및 처리 스트림 오류 확인 :
+
+<TypeScriptExample>
+  ```
+  const stream = await sandbox.execStream('npm run build');
+
+  for await (const event of parseSSEStream<ExecEvent>(stream)) {
+    switch (event.type) {
+      case 'stdout':
+        console.log(event.data);
+        break;
+
+      case 'error':
+        throw new Error(`Build failed: ${event.error}`);
+
+      case 'complete':
+        if (event.exitCode !== 0) {
+          throw new Error(`Build failed with exit code ${event.exitCode}`);
+        }
+        break;
+    }
+  }
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+- **항상 스트림을 소비**- 스트림을 멈출 수 없습니다
+- **모든 이벤트 유형**- 프로세스 stdout, stderr, 완료 및 오류 이벤트
+- **본문 바로가기**- Non-zero 출구 부호는 실패를 나타냅니다
+- **의견 제공**- 긴 가동을 위한 사용자에게 진행 상황을 표시합니다.
+
+## 관련 자료
+
+- [명령 API reference](/sandbox/api/commands/)- 완전한 스트리밍 API
+- [명령 가이드 실행](/sandbox/guides/execute-commands/)- 명령 실행 패턴
+- [배경 프로세스 가이드](/sandbox/guides/background-processes/)- Process 로그 스트리밍
+- [Code Interpreter 가이드](/sandbox/guides/code-execution/)- 스트림 코드 실행 출력

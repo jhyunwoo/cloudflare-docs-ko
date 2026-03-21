@@ -1,0 +1,397 @@
+---
+pcx_content_type: concept
+title: 서비스 Workers에서 ES 단위로 마이그레이션
+head: []
+description: 최적화된 경험을 위한 ES 모듈 syntax에 있는 Worker 코드를 작성하세요.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/reference/migrate-to-module-workers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/reference/migrate-to-module-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample } from "~/components";
+
+이 가이드는 Workers를 마이그레이션하는 방법을 보여줍니다[서비스 노동자](https://developer.mozilla.org/en-US/docs/Web/API/Service_Worker_API)파일 형식[ES 모듈](https://blog.cloudflare.com/workers-javascript-modules/)파일 형식.
+
+## migrating의 이점
+
+Workers를 ES 모듈 형식으로 마이그레이션하는 몇 가지 이유가 있습니다.
+
+1. 당신의 노동자는 빨리 달릴 것입니다. 서비스 노동자로, 의무는 세계로 드러납니다. 즉, Workers 런타임은 새로운 JavaScript 실행 컨텍스트를 생성해야 하며, 오버 헤드와 시간을 추가합니다. ES 모듈을 사용하여 작성된 Workers는 여러 요청에 따라 동일한 실행 컨텍스트를 재사용할 수 있습니다.
+2. 회사연혁[모델 번호: Durable Objects](/durable-objects/)ES 모듈을 사용하는 Workers가 필요합니다.
+3. 관련 기사[모델 번호: D1](/d1/), [모델 번호: Workers AI](/workers-ai/), [모델 번호: Vectorize](/vectorize/), [모델 번호: Workflows](/workflows/)·[제품정보](/images/transform-images/bindings/)ES 모듈을 사용하는 Workers에서만 사용할 수 있습니다.
+4. 당신은 할 수[작업자의 변화](/workers/configuration/versions-and-deployments/gradual-deployments/)ES 모듈 형식을 사용할 때.
+5. ES 모듈을 사용하여 Workers를 쉽게 게시 할 수 있습니다.`npm`코드베이스 내에서 Workers를 가져와 재사용 할 수 있습니다.
+
+## 노동자를 마이그레이션
+
+다음 예제는 URL에 모든 들어오는 요청을 리디렉션하는 Worker를 보여줍니다.`301`상태 코드.
+
+:::카트로션\[서비스 Workers는 deprecated]
+
+서비스 Workers는, 아직도 지원됩니다. 자주 묻는 질문[단위 Workers](/workers/reference/migrate-to-module-workers/)대신. 새로운 기능은 서비스 Workers를 위해 지원되지 않을지도 모릅니다.
+
+:::
+
+서비스 노동자 구문으로, example Worker는 다음과 같습니다.
+
+```js
+async function handler(request) {
+  const base = 'https://example.com';
+  const statusCode = 301;
+
+  const destination = new URL(request.url, base);
+  return Response.redirect(destination.toString(), statusCode);
+}
+
+//Worker를 초기화
+addEventListener('fetch', event => {
+  event.respondWith(handler(event.request));
+});
+```
+
+ES 모듈 형식을 사용하는 Workers는 대체합니다`addEventListener`객체 정의와 구문, 파일의 기본 수출이어야한다 (via`export default`). 이전 예 코드가된다 :
+
+```js
+export default {
+  fetch(request) {
+    const base = "https://example.com";
+    const statusCode = 301;
+
+    const source = new URL(request.url);
+    const destination = new URL(source.pathname, base);
+    return Response.redirect(destination.toString(), statusCode);
+  },
+};
+```
+
+## 회사 소개
+
+[회사 소개](/workers/runtime-apis/bindings/)Workers를 사용하면 Cloudflare 개발자 플랫폼에 리소스와 상호 작용할 수 있습니다.
+
+ES 모듈 형식을 사용하는 Workers는 모든 글로벌 바인딩에 의존하지 않습니다. 그러나, 서비스 노동자 구문은 글로벌 범위에 바인딩합니다.
+
+바인딩을 이해하려면 다음을 참조하십시오.`TODO`KV 네임스페이스 바인딩 예제. 회사 소개`TODO`KV 네임스페이스 바인딩, 당신은:
+
+1. KV 네임스페이스 만들기`My Tasks`귀하의 바인딩에서 사용할 ID를받습니다.
+2. 작업자 만들기.
+3. 작업자의 찾기[Wrangler 구성 파일](/workers/wrangler/configuration/)그리고 KV namespace 바인딩을 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"kv_namespaces": [
+  		{
+  			"binding": "TODO",
+  			"id": "<ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+다음 섹션에서 Service Worker 및 ES 모듈 형식으로 바인딩을 사용할 수 있습니다.
+
+:::Durable Objects 및 WorkersXQXQXQ
+
+QXQX0665XQQKVXQXQXQXQXQXQXQXQXQ에 대한 자세한 내용을 보려면, 참조[KV 바인딩 문서](/kv/concepts/kv-bindings/).
+
+:::
+
+### 서비스 노동자 형식의 바인딩
+
+서비스 노동자 문법, 당신의`TODO`KV 네임스페이스 바인딩은 작업자의 글로벌 범위에서 정의됩니다. 내 계정`TODO`KV 네임스페이스 바인딩은 작업자의 코드에서 어디에서나 사용할 수 있습니다.
+
+```js
+addEventListener("fetch", async (event) => {
+  return await getTodos()
+});
+
+async function getTodos() {
+  //"to-do:123"키로 값을 가져옵니다.
+  //참고 : TODO KV 바인딩은 "My Tasks" 네임스페이스에 맵합니다.
+  let value = await TODO.get("to-do:123");
+
+  //값 반환, as 이다, 에 대한 응답
+  event.respondWith(new Response(value));
+}
+```
+
+### ES 모듈 형식의 바인딩
+
+ES 모듈 형식에서 바인딩은 내부에서만 가능합니다.`env`입력 시점에서 작업자에게 제공되는 매개 변수.
+
+오시는 길`TODO`KV namespace 작업자 코드에 바인딩,`env`모수는에서 통과되어야 합니다`fetch`작업자의 핸들링`getTodos`기능.
+
+```js
+import { getTodos } from './todos'
+
+export default {
+  async fetch(request, env, ctx) {
+    //env 매개 변수를 전달하여 다른 기능
+    //reference는 Workers 신청에서 유효한 바인딩을 할 수 있습니다
+    return await getTodos(env)
+  },
+};
+```
+
+다음 코드를 나타냅니다.`getTodos`호출 기능`get`기능에`TODO`KV 바인딩.
+
+```js
+async function getTodos(env) {
+  //참고 : TODO KV 바인딩에 의존합니다.
+  //`getTodos` 기능의 env 모수
+  let value = await env.TODO.get("to-do:123");
+  return new Response(value);
+}
+
+export { getTodos }
+```
+
+## 환경 변수
+
+[환경 변수](/workers/configuration/environment-variables/)ES 모듈 형식 versus Service Worker 형식으로 작성된 코드와 다르게 액세스됩니다.
+
+다음 예제 환경 변수 구성을 검토[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker-dev",
+  	//최고 수준의 환경 변수 정의
+  	//{"vars": "key": "value"}를 사용하여 지원하다
+  	"vars": {
+  		"API_ACCOUNT_ID": "<EXAMPLE-ACCOUNT-ID>"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+### Service Worker 형식의 환경 변수
+
+서비스 노동자 체재에서,`API_ACCOUNT_ID`Worker 애플리케이션의 글로벌 범위에서 정의됩니다. 내 계정`API_ACCOUNT_ID`환경 변수는 Worker 애플리케이션의 코드에서 어디에서든지 사용할 수 있습니다.
+
+```js
+addEventListener("fetch", async (event) => {
+  console.log(API_ACCOUNT_ID) //로그인 "<EXAMPLE-ACCOUNT-ID>"
+  return new Response("Hello, world!")
+})
+```
+
+### ES 모듈 형식의 환경 변수
+
+ES 모듈 형식에서 환경 변수는 사용할 수 있습니다.`env`당신의 노동자 신청에 Entrypoint에 제공된 모수:
+
+```js
+export default {
+  async fetch(request, env, ctx) {
+    console.log(env.API_ACCOUNT_ID) //로그인 "<EXAMPLE-ACCOUNT-ID>"
+    return new Response("Hello, world!")
+  },
+};
+```
+
+또한 가져올 수 있습니다`env`이름 \*`cloudflare:workers`환경변수에 접근하기 위해 코드의 어느 곳에서나 최고 수준의 범위를 포함:
+
+<TypeScriptExample>
+  ```ts
+  import { env } from "cloudflare:workers";
+
+  //최고 수준의 접근 환경 변수
+  const accountId = env.API_ACCOUNT_ID;
+
+  export default {
+    async fetch(request: Request): Promise<Response> {
+      console.log(accountId) //로그인 "<EXAMPLE-ACCOUNT-ID>"
+      return new Response("Hello, world!")
+    },
+  };
+  ```
+</TypeScriptExample>
+
+이 접근법은 초기 구성 또는 접근 환경 변수에 유용합니다.`env`각 함수 호출을 통해. 더 자세한 내용은 참조[관련 상품`env`글로벌](/workers/runtime-apis/bindings/#importing-env-as-a-global).
+
+## Cron 트리거
+
+처리하기[Cron 방아쇠](/workers/configuration/cron-triggers/)ES 모듈 구문으로 작성된 Worker 이벤트는 구현[`scheduled()`이벤트 핸들러](/workers/runtime-apis/handlers/scheduled/#syntax), 듣는 것과 같다`scheduled`Service Worker 구문 이벤트.
+
+이 예제 코드:
+
+```js
+addEventListener("scheduled", (event) => {
+  //· ...
+});
+```
+
+그런 다음:
+
+```js
+export default {
+  async scheduled(event, env, ctx) {
+    //· ...
+  },
+};
+```
+
+## 오시는 길`event`또는`context`자료실
+
+Workers 종종 데이터에 액세스 할 필요가 없습니다`request`객체. 예를 들면, 때때로 Workers 사용[`waitUntil`](/workers/runtime-apis/context/#waituntil)실행 지연. ES 모듈 형식을 사용하는 Workers는 액세스할 수 있습니다`waitUntil`을 통해`context`모수. 더 알아보기[ES 모듈 매개 변수](/workers/runtime-apis/handlers/fetch/#parameters)더 많은 정보.
+
+이 예제 코드:
+
+```js
+async function triggerEvent(event) {
+  //몇몇 자료
+  console.log('cron processed', event.scheduledTime);
+}
+
+//Worker를 초기화
+addEventListener('scheduled', event => {
+  event.waitUntil(triggerEvent(event));
+});
+```
+
+그런 다음:
+
+```js
+async function triggerEvent(event) {
+  //몇몇 자료
+  console.log('cron processed', event.scheduledTime);
+}
+
+export default {
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(triggerEvent(event));
+  },
+};
+```
+
+## 서비스 노동자 syntax
+
+Service Worker syntax에서 작성된 Worker는 두 부분으로 구성됩니다.
+
+1. 행사 청취자`FetchEvents`.
+2. 이벤트 핸들러[관련 기사](/workers/runtime-apis/response/)이벤트에 전달되는 객체`.respondWith()`방법.
+
+요청이 Cloudflare의 글로벌 네트워크 서버 중 하나에 수신되면, CloudflareQ의 서버는 Workers 런타임에 대한 요청을 전달합니다. 이 파견`FetchEvent`내 계정[사이트맵](/workers/reference/how-workers-works/#isolates)노동자가 실행되는 곳.
+
+```js
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  return new Response('Hello worker!', {
+    headers: { 'content-type': 'text/plain' },
+  });
+}
+```
+
+아래는 요청 응답 워크플로우의 예입니다:
+
+1. 행사 청취자`FetchEvent`작업자에게 오는 모든 요청을 듣는 스크립트를 말합니다. 이벤트 핸들러가 전달됩니다.`event`객체, 포함`event.request`·[`Request`](/workers/runtime-apis/request/)HTTP 요청의 표현은 트리거 된 객체`FetchEvent`.
+
+2. 전화 번호`.respondWith()`Workers 런타임은 사용자 지정 응답을 전송하기 위해 요청을 가로 질러줍니다 (이 예에서 일반 텍스트`'Hello worker!'`).
+
+   - 더 보기`FetchEvent`handler는 일반적으로 호출에서 메서드`.respondWith()`한국어[`Response`](/workers/runtime-apis/response/)또는`Promise<Response>`그것은 응답을 결정합니다.
+
+   - 더 보기`FetchEvent`객체도 제공[두 가지 다른 방법](/workers/runtime-apis/handlers/fetch/)응답이 반환된 후 완료될 수 있는 예기치 않은 예외 및 작업 처리.
+
+더 알아보기[Lifecycle 방법의`fetch()`회사 소개](/workers/runtime-apis/rpc/lifecycle/).
+
+### 지원되는`FetchEvent`제품정보
+
+- `event.type`이름 \*
+
+  - 이벤트의 유형. 이것은 항상 반환합니다`"fetch"`.
+
+- `event.request`제품 정보
+
+  - 수신 HTTP 요청.
+
+- <code>이벤트.respondWith(responseResponse)|<span style="margin-left:-6px">회사 소개</span>)</code>: void의
+
+  - 더 알아보기[`respondWith`](#respondwith).
+
+- <code>event.waitUntil(프로미스프로미스)</code>: void의
+
+  - 더 알아보기[`waitUntil`](#waituntil).
+
+- <code>이벤트.passThroughOnException()</code>: void의
+
+  - 더 알아보기[`passThroughOnException`](#passthroughonexception).
+
+### `respondWith`
+
+요청을 받아들이고 Worker가 맞춤 응답을 보낼 수 있습니다.
+
+이름 \*`fetch`이벤트 핸들러는 호출하지 않습니다`respondWith`, runtime은 다음 등록 이벤트를 제공합니다`fetch`이벤트 핸들러. 다른 단어에서 권장하지 않는 동안, 이것은 여러 가지를 추가 할 수 있음을 의미합니다.`fetch`작업자의 이벤트 핸들러.
+
+없음`fetch`이벤트 핸들러 호출`respondWith`, 그 때 런타임은 노동자가하지 않았다면 원산지에 요청을 전달합니다. 그러나, 기원이 없으면 - 또는 노동자 자체는 당신의 기원 서버, 항상 진실한`*.workers.dev`도메인 - 다음 호출해야합니다`respondWith`유효한 응답을 위해.
+
+```js
+//체재: 서비스 노동자
+addEventListener('fetch', event => {
+  let { pathname } = new URL(event.request.url);
+
+  //"/ignore/*" URL을 허용하여 원치 않는
+  if (pathname.startsWith('/ignore/')) return;
+
+  //그렇지 않으면 뭔가 응답
+  event.respondWith(handler(event));
+});
+```
+
+### `waitUntil`
+
+더 보기`waitUntil`명령은 일생을 확장합니다.`"fetch"`이벤트 그것은 받아들입니다`Promise`- Workers 런타임은 핸들러가 종료되기 전에 실행되지만 응답을 차단하지 않고 실행됩니다. 예를 들어, 이것은 이상적인[캐싱 응답](/workers/runtime-apis/cache/#put)또는 처리 로깅.
+
+서비스 노동자 체재로,`waitUntil`이용 가능`event`그것은 기본이기 때문에`FetchEvent`호텔 위치
+
+ES 모듈 형식으로,`waitUntil`이동 및 사용 가능`context`매개 변수 객체.
+
+```js
+//체재: 서비스 노동자
+addEventListener('fetch', event => {
+  event.respondWith(handler(event));
+});
+
+async function handler(event) {
+  //앞으로/Proxy 본래 요구
+  let res = await fetch(event.request);
+
+  //사용자 정의 헤더 추가(s)
+  res = new Response(res.body, res);
+  res.headers.set('x-foo', 'bar');
+
+  //응답을 캐시
+  //참고 : 차단되지 않음 / 대기
+  event.waitUntil(caches.default.put(event.request, res.clone()));
+
+  //이름 *
+  return res;
+}
+```
+
+### `passThroughOnException`
+
+더 보기`passThroughOnException`메서드는 worker가 unhandled 예외를 던질 때 런타임 오류 응답을 방지합니다. 대신 스크립트가[실패 개방](https://community.microfocus.com/cyberres/b/sws-22/posts/security-fundamentals-part-1-fail-open-vs-fail-closed), 어느 것이 proxy the request to the Origin server as while Worker was never invoked.
+
+JavaScript 오류를 방지하려면 전체 요청이 실패한 예외에 실패합니다.`passThroughOnException()`Workers 런타임을 발생시켜 원래 서버로 제어할 수 있습니다.
+
+서비스 노동자 체재로,`passThroughOnException`에 추가`FetchEvent`인터페이스, 그것은 내에서 사용할 수`event`.
+
+ES 모듈 형식으로,`passThroughOnException`이용 가능`context`매개 변수 객체.
+
+```js
+//체재: 서비스 노동자
+addEventListener('fetch', event => {
+  //unhandled/uncaught 예외에 근원에 프록시
+  event.passThroughOnException();
+  throw new Error('Oops');
+});
+```

@@ -1,0 +1,114 @@
+---
+pcx_content_type: how-to
+title: DNS 레코드 관리
+sidebar:
+  order: 2
+---
+
+import { GlossaryTooltip, Render, TabItem, Tabs, Details, DashButton, DirectoryListing } from "~/components";
+
+Cloudflare에서 DNS 레코드를 관리하는 단계별 안내는 아래 섹션을 참고하세요.
+
+DNS 레코드가 무엇인지 더 잘 이해하려면 [Overview](/dns/manage-dns-records/)를 참고하세요. Cloudflare 시작 시 검토해 두면 좋은 일반적인 레코드에 대한 맥락은 [DNS 레코드 검토](/dns/zone-setups/full-setup/setup/#review-dns-records)를 참고하세요.
+
+:::note
+도메인이 호스팅 파트너를 통해 Cloudflare에 추가된 경우에는 호스팅 파트너를 통해 DNS 레코드를 관리하세요.
+:::
+
+---
+
+## 기본 작업
+
+### DNS 레코드 만들기
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 DNS 레코드를 만들려면 다음 단계를 따르세요.
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. **Add record**를 선택합니다.
+3. 레코드 [**Type**](/dns/manage-dns-records/reference/dns-record-types/)을 선택합니다.
+4. 레코드마다 달라지는 필수 필드를 입력합니다. 특히 중요한 필드는 다음과 같습니다.
+   - **Proxy status**: `A`, `AAAA`, `CNAME` 레코드의 경우 호스트명 트래픽을 <GlossaryTooltip term="proxy status" link="/dns/proxy-status/">Cloudflare를 통해 프록시할지</GlossaryTooltip> 결정합니다.
+   - **TTL**: [_Time to Live_](/dns/manage-dns-records/reference/ttl/)의 약어로, 각 레코드가 얼마나 오래 유효한지와 그 결과 레코드 업데이트가 최종 사용자에게 도달하는 데 얼마나 걸리는지를 제어합니다.
+   - **Comment** 및 **Tag**: 사용자가 참고할 수 있도록 제공되는 [레코드 속성](/dns/manage-dns-records/reference/record-attributes/)입니다.
+5. **Save**를 선택합니다.
+
+</TabItem>
+
+<TabItem label="API">
+
+API로 레코드를 만들려면 [POST 요청](/api/resources/dns/subresources/records/methods/create/)을 사용하세요. 필드 정의는 요청 본문 명세 아래 원하는 레코드 유형을 선택해 확인할 수 있습니다.
+
+구체적인 API 예시는 [DNS record types](/dns/manage-dns-records/reference/dns-record-types/)를 참고하세요.
+
+</TabItem> </Tabs>
+
+### DNS 레코드 편집
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 DNS 레코드를 편집하려면 다음 단계를 따르세요.
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 특정 레코드에서 **Edit**를 선택합니다.
+3. 필요한 변경을 수행합니다.
+4. **Save**를 선택합니다.
+
+</TabItem>
+
+<TabItem label="API">
+
+API로 레코드 일부만 업데이트하려면 [PATCH 요청](/api/resources/dns/subresources/records/methods/edit/)을 사용하세요. 기존 레코드 전체를 덮어쓰려면 [PUT 요청](/api/resources/dns/subresources/records/methods/update/)을 사용합니다.
+
+</TabItem> </Tabs>
+
+### DNS 레코드 삭제
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 DNS 레코드를 삭제하려면 다음 단계를 따르세요.
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 특정 레코드에서 **Edit**를 선택합니다.
+3. **Delete**를 선택합니다.
+4. 다시 한 번 **Delete**를 선택해 확인합니다.
+
+</TabItem>
+
+<TabItem label="API">
+
+API로 레코드를 삭제하려면 [DELETE 요청](/api/resources/dns/subresources/records/methods/delete/)을 사용하세요.
+
+</TabItem> </Tabs>
+
+---
+
+## 사용 사례
+
+### 오리진 IP 주소 업데이트
+
+호스팅 공급자가 변경되었거나 오리진 IP 주소가 변경되었다면, 관련 DNS 레코드(보통 `A` 또는 `AAAA` 레코드)의 **Content** 값을 업데이트하세요.
+
+어떤 IP 주소를 사용해야 할지 확실하지 않다면 호스팅 공급자의 문서를 참고하세요.
+
+### 오리진 없는 구성
+
+오리진 없는 구성(parked domain 또는 redirect-only라고도 함)에 사용할 placeholder 주소가 필요하다면, <GlossaryTooltip term="proxy status" link="/dns/proxy-status/">proxied</GlossaryTooltip> DNS 레코드에서 예약된 IPv6 주소 `100::` 또는 예약된 IPv4 주소 `192.0.2.0`을 사용할 수 있습니다.
+
+이렇게 하면 [Redirect Rules](/rules/url-forwarding/), [Page Rules](/rules/page-rules/), [Workers](/workers/) 같은 제품을 사용해 요청을 라우팅할 수 있습니다.
+
+---
+
+## 추가 안내
+
+<DirectoryListing folder="/dns/manage-dns-records/how-to/"/>

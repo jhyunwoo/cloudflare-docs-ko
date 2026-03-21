@@ -1,0 +1,192 @@
+---
+pcx_content_type: how-to
+title: 개인 별명 연결
+tags:
+  - Private networks
+sidebar:
+  order: 2
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-private-hostname/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-private-hostname/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Details, GlossaryTooltip } from "~/components";
+
+정적 IP 목록 및 경로 관리 대신 호스트 이름(예를 들어,)을 사용하여 개인 HTTP 및 비-HTTP 애플리케이션에 연결할 수 있습니다.`wiki.internal.local`). 개인 호스트 이름 경로는 특히 유용 할 때 응용 프로그램이 알 수없는 경우 또는 ephemeral IP, 이는 종종 인프라가 제 3 자 클라우드 공급자에 의해 제공 될 때 발생합니다.
+
+사용자가 개인 호스트 이름을 요청할 때 Cloudflare Gateway가 할당됩니다.<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>CGNAT 범위에서 터널을 통과하여 올바른 개인 IP 주소로 이동합니다. 건축과 소포 교류에 깊은 다이빙을 위해, 우리의 참고[공지사항](https://blog.cloudflare.com/tunnel-hostname-routing/).
+
+## 지원되는 at-ramps/off-ramps
+
+아래 표는 Cloudflare 개인 별명 룰렛과 호환되는 제품 중 하나입니다. 테이블을 해석에 대한 안내에 대한 표 전설을 참조하십시오.
+
+✅ 제품들은 caveats 없이 작동합니다.<br />제품은 몇몇 caveats로 사용될 수 있습니다<br />✓ 제품 사용 가능<br />
+
+### 장치 연결
+
+엔드 사용자는 다음 트래픽 on-ramps를 사용하여 개인 호스트 이름에 연결할 수 있습니다.
+
+<Render file="gateway/egress-selector-onramps" product="cloudflare-one" />
+
+### 개인 네트워크 연결
+
+Private hostname routing은 응용 프로그램에만 연결됩니다.`cloudflared`. 다른 교통 off-ramps는 IP 근거한 노선을 요구합니다.
+
+| 연결하기                                                                                          | 지원하다 | 최소 버전    |
+| --------------------------------------------------------------------------------------------- | ---- | -------- |
+| [구름 많음](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/)       | ✅    | 2025.7.0 |
+| [WARP에 WARP](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-to-warp/) | ❌    |          |
+| [WARP 연결관](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/) | ❌    |          |
+| [Cloudflare 대만](/cloudflare-wan/zero-trust/cloudflare-gateway/)                               | ❌    |          |
+
+## 개인 별명 연결
+
+이 섹션은 원격 액세스를 활성화하는 방법을 다룹니다.`cloudflared`.
+
+### 자주 묻는 질문
+
+개인 호스트 이름에 연결하려면 다음 트래픽을 Cloudflare로 전달해야합니다.
+
+- 처음 해결된 IP:
+  <Render file="gateway/egress-selector-cgnat-ips" product="cloudflare-one" />
+- Private hostname의 DNS 쿼리
+
+구성 단계에 따라 다릅니다.[장치 on-ramp](#device-connectivity):
+
+<Details header="WARP 클라이언트">
+  1. <Render file="gateway/egress-selector-split-tunnels" product="cloudflare-one" />
+  2. 내 계정[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/), 개인 호스트 이름의 최상위 도메인 삭제. WARP를 구성하여 해결을 위한 Cloudflare Gateway에 DNS 쿼리를 보낼 수 있습니다.
+</Details>
+
+<Details header="WARP 연결관">
+  1. 내 계정[사이트맵 연결관 장치 단면도](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/site-to-site/#3-route-traffic-between-warp-connector-and-cloudflare), 그것을 지킵니다<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>WARP 터널을 통해 경로 위 나열.
+  2. WARP 커넥터를 설치 한 곳에 따라 WARP 커넥터를 통해 대상 IP를 통과하고 DNS 해커를 Cloudflare 게이트웨이로 포인트 할 수도 있습니다. 더 알아보기[subnet에서 WARP 연결관에 노선 교통](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/site-to-site/#4-route-traffic-from-subnet-to-warp-connector).
+</Details>
+
+<Details header="Cloudflare 대만">
+  1. 더 알아보기<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>위의 목록[Cloudflare WAN을 통해 경로](/cloudflare-wan/configuration/manually/how-to/configure-routes/)Cloudflare에.
+  2. [DNS 해설](/cloudflare-wan/zero-trust/cloudflare-gateway/#dns-filtering)Cloudflare WAN 네트워크에 Cloudflare 게이트웨이.
+</Details>
+
+### 1. Cloudflare에 신청을 연결하십시오
+
+<Render file="tunnel/create-tunnel" product="cloudflare-one" />
+
+9. 내 계정**Hostname 노선**탭, 응용 프로그램을 나타냅니다 완전히 자격이 된 도메인 이름 (FQDN)를 입력 (예를 들어,`wiki.internal.local`).
+
+   <Render file="tunnel/hostname-format-restrictions" product="cloudflare-one" />
+
+10. 제품정보**완료 설정**.
+
+### 2. DNS 해상도 구성
+
+Gateway가 개인 호스트 이름에 대한 요청을 받으면 호스트명을 개인 IP 주소로 해결해야 합니다. 네트워크 topology에 따라 구성하는 두 가지 방법이 있습니다.
+
+#### Scenario A: 시스템 해결자 (기본값) 사용
+
+기본적으로,`cloudflared`호스트 컴퓨터에 구성된 개인 DNS 해설기를 사용합니다 (예를 들어, in`/etc/resolv.conf`Linux에서
+
+기계를 달리는 경우에`cloudflared`이미 해결`wiki.internal.local`로컬 시스템 해결자를 사용하여 개인 IP에 더 많은 구성이 필요하지 않습니다. 자주 묻는 질문[단계 3](#3-recommended-filter-network-traffic-with-gateway).
+
+#### Scenario B: 특정 개인 DNS 서버를 사용 (Advanced)
+
+<Render file="tunnel/hostname-route-dns-advanced" product="cloudflare-one" params={{ hostname: "wiki.internal.local" }} />
+
+### 3. (추천) Gateway로 네트워크 트래픽 필터
+
+<Render file="tunnel/filter-network-traffic" product="cloudflare-one" />
+
+#### Gateway 프록시 활성화
+
+<Render file="tunnel/enable-gateway-proxy" product="cloudflare-one" />
+
+#### Zero Trust 정책
+
+<Render file="tunnel/catch-all-policy" product="cloudflare-one" />
+
+##### 옵션 1 : 액세스 응용 프로그램 (추천)
+
+당신은 만들 수 있습니다[셀프 호스팅 응용](/cloudflare-one/access-controls/applications/non-http/self-hosted-private-app/)개인 호스트 이름 및 구성[오시는 길](/cloudflare-one/access-controls/policies/)그 신청에서. 이 옵션은 SaaS 및 기타 웹 앱과 함께 사용자 액세스를 관리 할 수 있습니다.
+
+##### 옵션 2: 게이트웨이 방화벽 정책
+
+전통적인 방화벽 모델을 사용하여 응용 프로그램을 보안하려면 Gateway Network 정책을 사용하여 구축 할 수 있습니다.[사이트맵](/cloudflare-one/traffic-policies/network-policies/#sni)또는[SNI 도메인](/cloudflare-one/traffic-policies/network-policies/#sni-domain)옵션 정보 보호의 추가 층을 위해 Gateway DNS 정책을 추가하거나 차단할 수 있습니다.[이름 \*](/cloudflare-one/traffic-policies/dns-policies/#host)또는[이름 \*](/cloudflare-one/traffic-policies/dns-policies/#domain)해결에서.
+
+<Details header="네트워크 정책">
+  다음 예제는 두 개의 정책으로 구성되어 있습니다 : 첫 번째는 특정 사용자가 응용 프로그램에 도달 할 수 있으며 두 번째 블록은 다른 트래픽을 차단합니다.
+
+  1. 회사 직원
+
+  <Render file="gateway/policies/restrict-access-to-private-networks-allow" product="cloudflare-one" params={{ selector: "SNI", value: "wiki.internal.local" }} />
+
+  2. Catch-all 블록 정책
+
+  <Render file="gateway/policies/restrict-access-to-private-networks-block" product="cloudflare-one" />
+</Details>
+
+<Details header="DNS 정책">
+  <Render file="gateway/policies/restrict-access-to-private-networks-dns" product="cloudflare-one" />
+</Details>
+
+:::note\[SNI 선별기 제한]
+
+<Render file="gateway/selectors/sni-443" product="cloudflare-one" />
+
+또한 SNI 선별기는 WARP 클라이언트 트래픽에만 적용됩니다. 사용자가 다른 곳에서 연결되는 경우[에-램프](#device-connectivity), 당신은 허용하거나 네트워크 트래픽을 차단할 수 있습니다[대상 IP](/cloudflare-one/traffic-policies/network-policies/#destination-ip)SNI 대신 선택자.
+주요 특징
+
+### 4. 연결을 시험하십시오
+
+최종 사용자는 이제 개인 호스트 이름으로 이동하여 응용 프로그램에 도달 할 수 있습니다. 예를 들어, 개인 웹 응용 프로그램에 연결하기 위해 브라우저를 열고 이동`wiki.internal.local`.
+
+#### 문제 해결
+
+연결할 수 없는 경우, 다음을 확인합니다:
+
+1. **DNS 해상도 확인**- WARP 장치에서, 당신은 성공적으로 개인적인 hostname을 해결할 수 있다는 것을 확인하십시오:
+
+   ```sh
+   nslookup wiki.internal.local
+   ```
+
+   ```sh output
+   Server:		127.0.2.2
+   Address:	127.0.2.2#53
+
+   Non-authoritative answer:
+   Name:	wiki.internal.local
+   Address: 100.80.200.48
+   ```
+
+   자주 묻는 질문[WARP의 DNS 프록시](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/#dns-traffic)게이트웨이를 반환<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>. 쿼리가 다른 IP를 해결하거나 반환하지 못하면, 확인[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)구성 및[Gateway 해결사 정책](/cloudflare-one/traffic-policies/resolver-policies/).
+
+2. **Gateway 로그 확인**- 리뷰[Gateway 네트워크 로그](/cloudflare-one/insights/logs/gateway-logs/)연결이 정책에 의해 차단되는 경우 볼 수 있습니다.
+
+3. **터널 상태를 검증**- 터널이 건강하고 연결되도록 확인[터널 상태](/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/).
+
+4. **초기 해결 IP에 대한 연결성 테스트**- 개인 호스트명을 사용하여 응용 프로그램에 연결하면 장치가 연결해야 합니다.<GlossaryTooltip term="initial resolved IP">초기 해결 IP</GlossaryTooltip>:
+
+   ```sh
+   curl -v4 http://wiki.internal.local
+   ```
+
+   ```sh output
+   * Trying 100.80.200.48:80...
+   * Connected to wiki.internal.local (100.80.200.48) port 80
+   ...
+   ```
+
+   요청이 실패하면 초기 해결 IP를 확인합니다.[WARP 터널을 통해 경로](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/). 당신은 또한 당신의 검사할 수 있습니다[터널 로그](/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/logs/)요청이 애플리케이션의 개인 IP로 routing임을 확인합니다.
+
+## 제한 사항
+
+### Google Chrome은 개인 호스트 이름에 대한 액세스를 제한합니다.
+
+<Render file="gateway/egress-selector-chrome-issue" product="cloudflare-one" />

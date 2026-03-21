@@ -1,0 +1,337 @@
+---
+summary: >-
+  Inject [Turnstile](/turnstile/) implicitly into HTML elements using the
+  HTMLRewriter runtime API.
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: TurnstileXQXQXQ
+sidebar:
+  order: 1001
+description: '[Turnstile] (/turnstile/)를 HTMLRewriter 런타임 API를 사용하여 HTML 요소로 임의로 주사합니다.'
+reviewed: 2023-03-09T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/turnstile-html-rewriter/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/turnstile-html-rewriter/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, Render } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env) {
+    		const SITE_KEY = env.SITE_KEY; //Turnstile 위젯의 사이트 키 (Env 또는 비밀로 패스)
+    		const TURNSTILE_ATTR_NAME = "your_id_to_replace"; //요소의 ID는 Turnstile 위젯을 넣어
+    		let res = await fetch(request);
+
+    		//예를 들어, `head`, `div`
+    		let newRes = new HTMLRewriter()
+
+    			//`.on`는 요소 핸들러를 부착하고 요소 / 특성에 일치하거나 API 당 특정 방법을 사용 할 수 있습니다.
+    			.on("head", {
+    				element(element) {
+    					//이 경우 `append`XQ를 사용하여 새로운 스크립트를 `head` 요소에 추가합니다.
+    					element.append(
+    						`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`,
+    						{ html: true },
+    					);
+    				},
+    			})
+    			.on("div", {
+    				element(element) {
+    					//TURNSTILE ATTR NAME의 ID를 가진 요소가 발견되면 십자형 회전식 문 위젯 요소를 추가하십시오.
+    					if (element.getAttribute("id") === TURNSTILE_ATTR_NAME) {
+    						element.append(
+    							`<div class="cf-turnstile" data-sitekey="${SITE_KEY}"></div>`,
+    							{ html: true },
+    						);
+    					}
+    				},
+    			})
+    			.transform(res);
+    		return newRes;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request, env): Promise<Response> {
+    		const SITE_KEY = env.SITE_KEY; //Turnstile 위젯의 사이트 키 (Env 또는 비밀로 패스)
+    		const TURNSTILE_ATTR_NAME = "your_id_to_replace"; //요소의 ID는 Turnstile 위젯을 넣어
+
+    		let res = await fetch(request);
+
+    		//예를 들어, `head`, `div`
+    		let newRes = new HTMLRewriter()
+
+    			//`.on`는 요소 핸들러를 붙이고 이것은 Element/attributes에 일치하거나 API 당 특정 방법을 사용하는 것을 허용합니다
+    			.on("head", {
+    				element(element) {
+    					//이 경우 `append`를 사용하여 새로운 스크립트를 `head` 요소에 추가합니다.
+    					element.append(
+    						`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`,
+    						{ html: true },
+    					);
+    				},
+    			})
+    			.on("div", {
+    				element(element) {
+    					//TURNSTILE ATTR NAME의 ID를 가진 요소가 발견되면 십자형 회전식 문 위젯 요소를 추가하십시오.
+    					if (element.getAttribute("id") === TURNSTILE_ATTR_NAME) {
+    						element.append(
+    							`<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-theme="light"></div>`,
+    							{ html: true },
+    						);
+    					}
+    				},
+    			})
+    			.transform(res);
+    		return newRes;
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    interface Env {
+    	SITE_KEY: string;
+    	SECRET_KEY: string;
+    	TURNSTILE_ATTR_NAME?: string;
+    }
+
+    const app = new Hono<{ Bindings: Env }>();
+
+    //Turnstile 위젯을 주사하는 Middleware
+    app.use("*", async (c, next) => {
+    	const SITE_KEY = c.env.SITE_KEY; //Turnstile 환경의 Sitekey
+    	const TURNSTILE_ATTR_NAME = c.env.TURNSTILE_ATTR_NAME || "your_id_to_replace"; //대상 요소 ID
+
+    	//원래의 endpoint를 통해 요청을 처리
+    	await next();
+
+    	//HTML 응답 만 처리
+    	const contentType = c.res.headers.get("content-type");
+    	if (!contentType || !contentType.includes("text/html")) {
+    		return;
+    	}
+
+    	//modifiable을 만드는 응답을 복제
+    	const originalResponse = c.res;
+    	const responseBody = await originalResponse.text();
+
+    	//HTMLRewriter 인스턴스를 생성하여 HTML을 수정합니다.
+    	const rewriter = new HTMLRewriter()
+    		//머리에 Turnstile 스크립트 추가
+    		.on("head", {
+    			element(element) {
+    				element.append(
+    					`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`,
+    					{ html: true },
+    				);
+    			},
+    		})
+    		//대상 div에 Turnstile 위젯 추가
+    		.on("div", {
+    			element(element) {
+    				if (element.getAttribute("id") === TURNSTILE_ATTR_NAME) {
+    					element.append(
+    						`<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-theme="light"></div>`,
+    						{ html: true },
+    					);
+    				}
+    			},
+    		});
+
+    	//같은 속성으로 새로운 응답을 만듭니다.
+    	const modifiedResponse = new Response(responseBody, {
+    		status: originalResponse.status,
+    		statusText: originalResponse.statusText,
+    		headers: originalResponse.headers,
+    	});
+
+    	//HTMLRewriter
+    	c.res = rewriter.transform(modifiedResponse);
+    });
+
+    //Turnstile 유효성 검사를 위한 POST 요청 처리
+    app.post("*", async (c) => {
+    	const formData = await c.req.formData();
+    	const token = formData.get("cf-turnstile-response");
+    	const ip = c.req.header("CF-Connecting-IP");
+
+    	//토큰이 없다면 오류를 반환합니다.
+    	if (!token) {
+    		return c.text("Missing Turnstile token", 400);
+    	}
+
+    	//인증 데이터 준비
+    	const verifyFormData = new FormData();
+    	verifyFormData.append("secret", c.env.SECRET_KEY || "");
+    	verifyFormData.append("response", token.toString());
+    	if (ip) verifyFormData.append("remoteip", ip);
+
+    	//Turnstile API로 토큰을 검증
+    	const verifyResult = await fetch(
+    		"https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    		{
+    			method: "POST",
+    			body: verifyFormData,
+    		},
+    	);
+
+    	const outcome = await verifyResult.json<{ success: boolean }>;
+
+    	//인증이 실패하면 오류를 반환합니다.
+    	if (!outcome.success) {
+    		return c.text("The provided Turnstile token was not valid!", 401);
+    	}
+
+    	//인증이 성공하면, 원래 요청으로 진행
+    	//일반적으로 양식 제출 로직을 처리 할 것
+
+    	//이 예제의 경우, 우리는 단지 성공 응답을 보낼 것입니다
+    	return c.text("Form submission successful!");
+    });
+
+    //을 위한 기본 핸들러 요청
+    app.get("*", async (c) => {
+    	//원래 내용 (당신은 당신의 실제 콘텐츠 소스로 이것을 대체)
+    	return await fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import create_proxy
+    from js import HTMLRewriter, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            site_key = self.env.SITE_KEY
+            attr_name = self.env.TURNSTILE_ATTR_NAME
+            res = await fetch(request)
+
+            class Append:
+                def element(self, element):
+                    s = '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>'
+                    element.append(s, {"html": True})
+
+            class AppendOnID:
+                def __init__(self, name):
+                    self.name = name
+                def element(self, element):
+                    #요소의 `getAttribute` 메소드를 사용하여 `id` 또는 `class`XQ
+                    if element.getAttribute("id") == self.name:
+                        div = f'<div class="cf-turnstile" data-sitekey="{site_key}" data-theme="light"></div>'
+                        element.append(div, { "html": True })
+
+            #예를 들어, `head`, `div`
+            head = create_proxy(Append())
+            div = create_proxy(AppendOnID(attr_name))
+            new_res = HTMLRewriter.new().on("head", head).on("div", div).transform(res)
+
+            return new_res
+    ```
+  </TabItem>
+</Tabs>
+
+:::참조
+
+이것은 Turnstile에 대한 구현 만 절반입니다. 렌더링 된 위젯의 결과 인 해당 토큰은 또한 사용하여 확인해야합니다.[Siteverify API를](/turnstile/get-started/server-side-validation/). 이러한 구현을 위해 아래 예제를 참조하십시오.
+주요 특징
+
+<TabItem label="JavaScript" icon="seti:javascript">
+  ```js
+  async function handlePost(request, env) {
+      const body = await request.formData();
+      //Turnstile는 `cf-turnstile-response`에 있는 토큰을 주사합니다.
+      const token = body.get('cf-turnstile-response');
+      const ip = request.headers.get('CF-Connecting-IP');
+
+      //`/siteverify` API를 호출하여 토큰을 검증합니다.
+      let formData = new FormData();
+
+      //`secret_key` 여기에 Turnstile Wrangler 비밀을 사용하여 설정해야 하는 비밀 키
+      formData.append('secret', self.env.SECRET_KEY);
+      formData.append('response', token);
+      formData.append('remoteip', ip); //이것은 선택적입니다.
+
+      const url = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+      const result = await fetch(url, {
+          body: formData,
+          method: 'POST',
+      });
+
+      const outcome = await result.json();
+
+      if (!outcome.success) {
+          return new Response('The provided Turnstile token was not valid!', { status: 401 });
+      }
+      //Turnstile 토큰은 성공적으로 검증되었습니다. 당신의 응용 프로그램 논리로 Proceed.
+      //Validate 로그인, 리디렉션 사용자 등
+
+  	//새로운 몸으로 원래 요청을 복제
+      const newRequest = new Request(request, {
+          body: request.body, //몸을 재사용
+          method: request.method,
+          headers: request.headers
+      });
+
+      return await fetch(newRequest);
+  }
+
+  export default {
+  	async fetch(request, env) {
+  		const SITE_KEY = env.SITE_KEY; //Turnstile 위젯의 사이트 키 (Env 또는 비밀로 패스)
+  		const TURNSTILE_ATTR_NAME = 'your_id_to_replace'; //요소의 ID는 Turnstile 위젯을 넣어
+
+  		let res = await fetch(request)
+
+  		if (request.method === 'POST') {
+  			return handlePost(request, env)
+  		}
+
+  		//예를 들어, `head`, `div`
+  		let newRes = new HTMLRewriter()
+  			//`.on`는 요소 핸들러를 붙이고 이것은 Element/attributes에 일치하거나 API 당 특정 방법을 사용하도록 허용합니다
+  			.on('head', {
+  				element(element) {
+
+  					//이 경우 `append`를 사용하여 새로운 스크립트를 `head` 요소에 추가합니다.
+  					element.append(`<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`, { html: true });
+  				},
+  			})
+  			.on('div', {
+  				element(element) {
+  					//요소의 `getAttribute` 메소드를 사용하여 `id` 또는 `class`XQ를 검색 할 수 있습니다.
+  					if (element.getAttribute('id') === <NAME_OF_ATTRIBUTE>) {
+  						element.append(`<div class="cf-turnstile" data-sitekey="${SITE_KEY}" data-theme="light"></div>`, { html: true });
+  					}
+  				},
+  			})
+  			.transform(res);
+  		return newRes
+  	}
+  }
+  ```
+</TabItem>
+
+<Render file="request-dot-clone-warning" product="workers" />

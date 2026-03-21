@@ -1,0 +1,111 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/205359838-I-cannot-add-my-domain-to-Cloudflare
+title: 도메인을 추가할 수 없음
+head:
+  - tag: title
+    content: Cloudflare에 도메인을 추가할 수 없음
+---
+
+[도메인을 추가](/fundamentals/manage-domains/add-site/)할 때 문제가 발생하면 다음 문제 해결 단계를 따르세요.
+
+## DNSSEC 비활성화
+
+도메인 등록기관에서 **DNSSEC**가 활성화된 경우, Cloudflare는 해당 도메인에 authoritative DNS 해석을 제공할 수 없습니다. 이는 [기본 설정(전체)](/dns/zone-setups/full-setup/) 도메인에 해당합니다.
+
+네임서버를 변경하기 전에 **DNSSEC**를 비활성화하지 않으면 다음과 같은 문제가 발생할 수 있습니다.
+
+- Cloudflare 네임서버로 전환한 후 DNS가 해석되지 않습니다.
+- DNS 쿼리 응답 상태가 `SERVFAIL`입니다.
+- 도메인이 [Pending 상태](/dns/zone-setups/reference/domain-status/)에 머무릅니다.
+
+이러한 문제가 발생하면 [Configuring DNSSEC](/dns/dnssec) 및 [Troubleshooting DNSSEC](/dns/dnssec/troubleshooting/)를 참고하세요.
+
+---
+
+## 도메인 등록 여부 확인
+
+문제가 등록기관에 있는 경우 다음과 같은 오류 메시지를 볼 수 있습니다.
+
+- `exampledomain.com is not a registered domain (Code: 1049)`
+- `We were unable to identify bad.psl-example as a registered domain. Please ensure you are providing the root domain and not any subdomains (e.g., example.com, not subdomain.example.com) (Code: 1099)`
+- `Failed to lookup registrar and hosting information of exampledomain.com at this time. Please contact Cloudflare Support or try again later. (Code: 1110)`
+
+이러한 오류 메시지가 표시되면 다음을 확인하세요.
+
+- 서브도메인(`www.example.com`)이 아니라 apex 도메인(루트 도메인이라고도 하며, 예: `example.com`)을 입력하고 있는지 확인합니다.
+- 도메인이 완전히 등록되어 있으며 등록 정보에 네임서버가 포함되어 있는지 확인합니다.
+- 도메인이 검증된 [최상위 도메인(TLD)](https://publicsuffix.org/list/)을 사용하고 있는지 확인합니다.
+
+---
+
+## apex 도메인의 DNS 해석 확인
+
+도메인을 Cloudflare에 추가하려면 먼저 해당 도메인이 유효하고 동작하는 네임서버에 대한 `NS` 레코드를 반환해야 합니다. `NS` 레코드는 [https://www.whatsmydns.net](https://www.whatsmydns.net/) 같은 외부 온라인 도구나 명령줄의 `dig` 명령으로 확인할 수 있습니다.
+
+```sh
+dig +short ns cloudflare.com
+```
+
+```sh output
+
+ns3.cloudflare.com.
+ns4.cloudflare.com.
+ns5.cloudflare.com.
+ns6.cloudflare.com.
+ns7.cloudflare.com.
+```
+
+또한 해당 도메인은 질의 시 유효한 `SOA` 레코드를 반환해야 합니다. `SOA` 레코드도 [https://www.whatsmydns.net](https://www.whatsmydns.net/) 같은 외부 온라인 도구나 명령줄 터미널을 통해 확인할 수 있습니다.
+
+```sh
+dig +short soa cloudflare.com
+```
+
+```sh output
+
+ns3.cloudflare.com. dns.cloudflare.com. 2029202248 10000 2400 604800 300
+```
+
+---
+
+## Cloudflare에서 도메인이 제한되었는지 확인
+
+Cloudflare가 도메인에 임시 또는 영구 제한을 걸어 둔 경우 다음과 같은 오류를 볼 수 있습니다.
+
+- **Error 1105**
+  - **메시지**: `Error with Cloudflare request: [1105] This zone is temporarily restricted and cannot be added to Cloudflare at this time, please contact Cloudflare Support.`
+  - **원인**: 도메인을 Cloudflare에 추가하려는 시도가 너무 많이 발생했습니다.
+  - **해결 방법**: 다시 추가를 시도하기 전에 3시간 기다리세요. Support는 이 과정을 앞당길 수 없습니다.
+- **Error 1093 또는 1116**
+  - **메시지**: `This zone cannot be added to Cloudflare at this time, please contact Cloudflare Support. (Code: 1093)`
+  - **원인**: apex 도메인(예: `example.com`) 대신 서브도메인(`www.example.com`)을 입력했을 수 있습니다.
+  - **해결 방법**: apex 도메인을 입력하고 있는지 확인하세요. 맞는데도 문제가 계속되면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하세요.
+- _**Error 1097**
+  - **메시지**: `This web property cannot be added to Cloudflare at this time. If you are an Enterprise customer, contact your Customer Success Manager. Otherwise, email abusereply@cloudflare.com with a detailed explanation of your association with this zone. (Code: 1097)`
+  - **해결 방법**: 이 영역과의 관계를 자세히 설명해 [abusereply@cloudflare.com](mailto:abusereply@cloudflare.com)으로 문의하세요.
+- **Error: Cannot be found** 또는 **`<your domain>` is not a registered domain (code: 1049)**
+  - 도메인이 아직 등록되지 않은 경우 이런 현상이 발생할 수 있습니다. `.gov` 도메인처럼 먼저 수동 등록을 해야 하는 특별한 요구 사항이 있는 도메인도 있습니다.
+  - **해결 방법:** `.gov` 또는 기타 수동 등록이 필요한 도메인 추가에 도움이 필요하면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하세요.
+
+---
+
+## zone hold 오류가 발생하면 영역 소유자에게 문의
+
+Enterprise 고객은 [zone hold](/fundamentals/account/account-security/zone-holds/) 기능을 사용해 다른 계정에서 도메인을 추가하지 못하게 할 수 있습니다.
+도메인을 추가할 때 아래와 같은 오류가 나온다면 zone hold가 활성화된 것입니다.
+
+```
+The zone name provided is subject to a hold which disallows the creation of this zone.
+Please contact the owner of the Cloudflare account that manages this domain to have this hold removed.
+```
+
+이 경우 영역이 활성화된 Cloudflare 계정의 소유자라면 zone hold를 제거해야 하고, 그렇지 않다면 해당 계정의 소유자에게 연락해야 합니다.
+
+zone에 hold를 걸어 둔 Cloudflare 계정의 소유자가 아니라면, 온라인 WHOIS 도구가 웹사이트 소유자를 찾는 데 도움이 될 수 있습니다.
+
+이 [외부 WHOIS 도구](https://www.godaddy.com/whois) 또는 [다른 외부 도구](https://www.whois.com/whois/)를 사용할 수 있습니다.
+
+소유자는 호스팅 제공자일 수도 있고 SaaS 서비스 제공자일 수도 있습니다.
+
+[Cloudflare Forgot Email?](https://dash.cloudflare.com/forgot-email) 페이지를 사용하거나 [Forgot Email? 기능](/fundamentals/user-profiles/change-password-or-email/#forgot-your-email-address)에 대한 문서를 확인할 수도 있습니다.

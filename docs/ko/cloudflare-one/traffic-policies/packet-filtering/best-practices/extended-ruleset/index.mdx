@@ -1,0 +1,159 @@
+---
+title: 확장 규칙
+pcx_content_type: configuration
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 잘못된 제안된 규칙
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/packet-filtering/best-practices/extended-ruleset/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/packet-filtering/best-practices/extended-ruleset/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+확장된 통치자는[미니멀 규칙](/cloudflare-one/traffic-policies/packet-filtering/best-practices/minimal-ruleset/)네트워크의 다른 유형의 시스템을 대상으로 한 규칙을 작성하여. 이 규칙을 만들기 전에, 당신은해야합니다[IP 목록 생성](/waf/tools/lists/custom-lists/#ip-lists)각 카테고리.
+
+현재 둘레 방화벽 규칙을 내보낼 수 없는 경우 Magic Transit prefixes에 의존하는 시스템 또는 사용자 그룹을 식별하는 것을 고려하십시오. 예를 들면:
+
+- [Endpoints (사용자 장치)](#endpoints-user-devices)
+- [내부 라우터](#internal-routerfirewall-ip-addresses)
+- [웹 서버](#web-servers)
+- [웹 서버](#non-web-servers)
+
+위의 각 항목의 경우 허용 된 인터넷 액세스의 관점에서 요구 사항을 고려하십시오. 예를 들어, 합법적 인 트래픽에 필요한 것을 허용하고 나머지를 차단합니다.
+
+## Cloudflare 네트워크 방화벽 규칙을 사용하여 목록을 만듭니다.
+
+더 많은 정보를 원하시면, 참조[사용 규칙 목록](/cloudflare-one/reusable-components/use-rules-list/).
+
+대시보드에서 목록을 만들 수도 있습니다.**제품 설명** > **이름 \***&#xB0B4; 계정**계정 홈**.
+
+## Endpoints (사용자 장치)
+
+Endpoint 장치는 서버로 작동하지 않습니다. 즉, 다음과 같습니다.
+
+- 그들은 표준 일반적인 포트에서 트래픽을받습니다 — 예를 들어`80`또는`443`- 그들의 ephemeral 포트 (아웃바운드 연결을위한 OS에 의해 할당 된 임시 포트, 일반적으로 위`32768`현대 운영 체계에서.
+- 연결이 흘러나지 않고, 따라서 비공개 인바운드 TCP 연결을받지 못합니다.
+- 그들은 일반적으로 클라이언트 TCP 및 UDP 만, 진입 ICMP에 대한 요구 사항이 없습니다.
+
+예를 들어, 외부 pings 또는 traceroutes 및 기타 모든 프로토콜 및 트래픽을 허용하는 일반적인 클라이언트 TCP 및 클라이언트 UDP의 조합에 대한 목록을 만들 수 있습니다.
+
+이름 만들기**이름 \***&#xADDC;칙 내에서 참고 자료에 엔드포인트 또는 사용자 IP 주소 목록을 지정합니다.
+
+:::카트로션
+규칙 10 아래 예의 규칙은 모든 트래픽이 규칙 1-3에서 Endpoint IP 주소 목록으로 허용되지 않는 최종 규칙입니다. 이 목적지 IP 주소로 다른 트래픽을 허용하려면 새로운 규칙은 규칙 10 전에 추가해야합니다.
+주요 특징
+
+### 제안된 규칙
+
+**규칙 ID**: 1
+**이름 \***: ephemeral 포트에 반환 트래픽 (아웃바운드 요청에 응답)을 허용하고 비공개 인바운드 연결을 차단합니다. Block inbound SYN-only 트래픽 (SYN-ACKs는 허용됩니다).
+**이름 \***: `ip.proto eq "tcp" and ip.dst in $endpoints and tcp.dstport in {32768..60999} and not (tcp.flags.syn and not tcp.flags.ack)`
+**- 연혁**: 허용
+
+**규칙 ID**: 2
+**이름 \***: Endpoints (클라이언트)는 ephemeral 포트에 대한 트래픽을 수신합니다.
+**이름 \***: `ip.proto eq "udp" and ip.dst in $endpoints and udp.dstport in {32768..60999}`
+**- 연혁**: 허용
+
+**규칙 ID**: 3
+**이름 \***: 대상 IP 주소로 ICMP 트래픽 허용`$endpoints`ICMP 유형 명부:
+
+- 유형 0 = 에코 대답
+- 유형 3 = 목적지 허용
+- 타입 11 = 시간 초과
+
+**이름 \***: `ip.proto eq "icmp" and ip.dst in $endpoints and (icmp.type eq 0 or icmp.type eq 3 or icmp.type eq 11)`
+**- 연혁**: 허용
+
+**규칙 ID**: 10
+**이름 \***: 그렇지 않으면 IP에 모든 트래픽을 거부`$endpoints`이름 \*
+**이름 \***: `ip.dst in $endpoints`
+**- 연혁**: 블록
+
+## 내부 라우터 / 방화벽 IP 주소
+
+아래의 MT 접두사에서 내부 라우터 또는 방화벽 인터페이스 IP 주소에 대한 모범 사례를 따르십시오.
+
+1. 이름 \*[IP 목록](/waf/tools/lists/custom-lists/#ip-lists), **내부 라우터**예를 들어 IP 주소와 함께.
+2. 필요한 경우 블록 ICMP.
+3. GRE/ESP를 인터넷을 통해 GRE/IPsec 터널이 필요한 경우
+
+### 제안된 규칙
+
+**규칙 ID**: 1
+**이름 \***: 허가 ICMP 트래픽 인바운드 포함 :
+
+- 유형 0 - 에코 대답
+- 유형 3 - 목적지 Unreachable
+- 유형 8 - 에코
+- Type 11 - 시간 초과
+
+**이름 \***: `ip.proto eq "icmp" and ip.dst in $internal_routers and ( (icmp.type eq 0 or icmp.type eq 3) or (icmp.type eq 11) or (icmp.type eq 8) )`
+**- 연혁**: 허용
+
+**규칙 ID**: 2
+**이름 \***: 이러한 IP 주소에 따라 다른 모든 트래픽 차단
+**이름 \***: `ip.dst in $internal_routers`
+**- 연혁**: 블록
+
+## 웹 서버
+
+웹 서버는 필요한 트래픽 흐름을 주의해야 합니다. 교통수단**웹 서버**웹 서버가 클라이언트로 작동되는 트래픽 흐름 외에도 기능이 필요합니다.
+
+웹 서버에 필요한 대상 IP 주소 및 포트를 허용하고 다른 모든 것을 차단하십시오. 추가 서비스, 예를 들어 NTP / DNS, 웹 트래픽의 포트와 함께 필요할 수 있습니다.
+
+다음은 제안 된 규칙의 예이지만 특정 요구 사항에 따라 변경해야합니다. 예를 들어, Cloudflare에 의해 발음되지 않은 경우 Layer 7 Protection and you expect traffic sourced from the web 서버:
+
+1. 이름 \*[IP 목록](/waf/tools/lists/custom-lists/#ip-lists), **웹 서버**예를 들어, 웹 서버에 IP 주소를 나열합니다.
+2. 인터넷에서 웹 서버 트래픽 인바운드에 대한 허용 트래픽.
+3. 인터넷에서 인프라 또는 클라이언트 트래픽 흐름에 대한 허용 트래픽, 예를 들어 DNS 및 NTP.
+4. 웹 서버 IP 주소에 대해 다른 모든 트래픽을 차단합니다.
+
+### 제안된 규칙
+
+**규칙 ID**: 1
+**이름 \***: SYN-only 또는 ACK-only 플래그를 가진 인터넷에서 inbound HTTP/S 트래픽 허용 (SYN/ACKs)
+**이름 \***: `ip.proto eq "tcp" and tcp.srcport in {32768..60999} and ip.dst in $web_servers and tcp.dstport in {80 443} and not (tcp.flags.syn and tcp.flags.ack)`
+**- 연혁**: 허용
+
+**규칙 ID**: 2
+**이름 \***: UDP가 DNS 및 NTP를 웹 서버로 재생할 수 있음
+**이름 \***: `ip.dst in $web_servers and ip.proto eq "udp" and udp.srcport in {53 123} and udp.dstport in {1024..65535}`
+**- 연혁**: 필요한 경우 허용하지만 공격의 밑에 비활성화
+
+**규칙 ID**: 3
+**이름 \***: 웹 서버 IP 주소를 위해 다른 모든 트래픽을 차단하는 Catch-all
+**이름 \***: `ip.dst in $web_servers`
+**- 연혁**: 블록
+
+또는 Cloudflare가있는 경우 레이어 7 보호, Cloudflare 공용 IP 주소는 HTTP / HTTPS 인바운드 트래픽의 대상 IP 주소로 IP 주소로 허용 될 수 있습니다. 이 권고는 규칙을 위의 예에서 효과적으로 대체합니다.
+
+:::카트로션
+Cloudflare의 IP 범위는 변화할지도 모릅니다. 더 알아보기[Cloudflare의 IP 주소](https://www.cloudflare.com/ips/)현재 목록의 경우, 또는 사용[IP 목록](/waf/tools/lists/custom-lists/#ip-lists)당신은 규칙에 하드 코딩 범위보다 정기적으로 업데이트.
+주요 특징
+
+### Cloudflare proxied 트래픽에 대한 제안 된 규칙
+
+**이름 \***: SYN 또는 ACK를 가진 Cloudflare에서 inbound HTTP/S 소통량 허용
+**이름 \***: `ip.proto eq "tcp" and ip.dst in $web_servers and tcp.dstport in {80 443} and not (tcp.flags.syn and tcp.flags.ack) and ip.src in {173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22}`
+**- 연혁**: 허용
+
+## 웹 서버
+
+서버가 일반 인터넷 또는 특정 사용자의 트래픽을 기대하는지 여부를 기준으로 소스를 제한합니다.
+
+1. 소스 IP 또는 포트에 근거한 규칙을 적용하십시오.
+2. 해당 이용 후기에 달린 코멘트가 없습니다.
+3. 닫히는 항구에 구획 들어오는 SYN.
+
+### 제안된 규칙
+
+- `IP Destination Address { non-web server } and TCP dst port in \<valid ports> — Permit`
+- `IP Destination Address { non-web server } and UDP dst port in \<valid ports> — Permit`
+- `IP Destination Address { web server } — Block`

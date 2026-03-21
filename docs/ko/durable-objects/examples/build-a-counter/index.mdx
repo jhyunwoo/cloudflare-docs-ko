@@ -1,0 +1,254 @@
+---
+summary: Build a counter using Durable Objects and Workers with RPC methods.
+pcx_content_type: example
+title: 카운터 구축
+sidebar:
+  order: 3
+description: RPC 방법을 가진 Durable Objects 및 WorkersXQ를 사용하여 카운터를 만듭니다.
+reviewed: 2023-08-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/examples/build-a-counter/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/examples/build-a-counter/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components";
+
+이 예제는 Durable Objects 및 WorkersXQ를 사용하여 카운터를 구축하는 방법을 보여줍니다[RPC 방법](/workers/runtime-apis/rpc)그것은 인쇄, 증가 및 감소 할 수 있습니다`name`URL 쿼리 문자열 매개 변수에 의해 제공, 예를 들어,`?name=A`.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		let url = new URL(request.url);
+    		let name = url.searchParams.get("name");
+    		if (!name) {
+    			return new Response(
+    				"Select a Durable Object to contact by using" +
+    					" the `name` URL query string parameter, for example, ?name=A",
+    			);
+    		}
+
+    		//stub는 튼튼한 개체에 메시지를 보낼 수있는 클라이언트 오브젝트입니다.
+    		let stub = env.COUNTERS.getByName(name);
+
+    		//RPC 방법을 사용하여 튼튼한 개체에 요청을 보내면 응답을 기다립니다.
+    		let count = null;
+    		switch (url.pathname) {
+    			case "/increment":
+    				count = await stub.increment();
+    				break;
+    			case "/decrement":
+    				count = await stub.decrement();
+    				break;
+    			case "/":
+    				//현재값을 제공합니다.
+    				count = await stub.getCounterValue();
+    				break;
+    			default:
+    				return new Response("Not found", { status: 404 });
+    		}
+
+    		return new Response(`Durable Object '${name}' count: ${count}`);
+    	},
+    };
+
+    //튼튼한 목표
+    export class Counter extends DurableObject {
+    	async getCounterValue() {
+    		let value = (await this.ctx.storage.get("value")) || 0;
+    		return value;
+    	}
+
+    	async increment(amount = 1) {
+    		let value = (await this.ctx.storage.get("value")) || 0;
+    		value += amount;
+    		//스토리지의 가치를 수정하는 동시 요청에 대해 걱정할 필요가 없습니다.
+    		//"입력 게이트"는 원치 않는 통화에 대해 자동으로 보호합니다.
+    		//Read-modify-write는 안전합니다.
+    		await this.ctx.storage.put("value", value);
+    		return value;
+    	}
+
+    	async decrement(amount = 1) {
+    		let value = (await this.ctx.storage.get("value")) || 0;
+    		value -= amount;
+    		await this.ctx.storage.put("value", value);
+    		return value;
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+    	COUNTERS: DurableObjectNamespace<Counter>;
+    }
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		let url = new URL(request.url);
+    		let name = url.searchParams.get("name");
+    		if (!name) {
+    			return new Response(
+    				"Select a Durable Object to contact by using" +
+    					" the `name` URL query string parameter, for example, ?name=A",
+    			);
+    		}
+
+    		//stub는 튼튼한 개체에 메시지를 보낼 수있는 클라이언트 오브젝트입니다.
+    		let stub = env.COUNTERS.get(name);
+
+    		let count = null;
+    		switch (url.pathname) {
+    			case "/increment":
+    				count = await stub.increment();
+    				break;
+    			case "/decrement":
+    				count = await stub.decrement();
+    				break;
+    			case "/":
+    				//현재값을 제공합니다.
+    				count = await stub.getCounterValue();
+    				break;
+    			default:
+    				return new Response("Not found", { status: 404 });
+    		}
+
+    		return new Response(`Durable Object '${name}' count: ${count}`);
+    	},
+    } satisfies ExportedHandler<Env>;
+
+    //튼튼한 목표
+    export class Counter extends DurableObject {
+    	async getCounterValue() {
+    		let value = (await this.ctx.storage.get("value")) || 0;
+    		return value;
+    	}
+
+    	async increment(amount = 1) {
+    		let value: number = (await this.ctx.storage.get("value")) || 0;
+    		value += amount;
+    		//스토리지의 가치를 수정하는 동시 요청에 대해 걱정할 필요가 없습니다.
+    		//"입력 게이트"는 원치 않는 통화에 대해 자동으로 보호합니다.
+    		//Read-modify-write는 안전합니다.
+    		await this.ctx.storage.put("value", value);
+    		return value;
+    	}
+
+    	async decrement(amount = 1) {
+    		let value: number = (await this.ctx.storage.get("value")) || 0;
+    		value -= amount;
+    		await this.ctx.storage.put("value", value);
+    		return value;
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import DurableObject, Response, WorkerEntrypoint
+    from urllib.parse import urlparse, parse_qs
+
+    #작업자
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		parsed_url = urlparse(request.url)
+    		query_params = parse_qs(parsed_url.query)
+    		name = query_params.get('name', [None])[0]
+
+    		if not name:
+    			return Response(
+    				"Select a Durable Object to contact by using"
+    				+ " the `name` URL query string parameter, for example, ?name=A"
+    			)
+
+    		#stub는 튼튼한 개체에 메시지를 보낼 수있는 클라이언트 오브젝트입니다.
+    		stub = self.env.COUNTERS.getByName(name)
+
+    		#RPC 방법을 사용하여 튼튼한 개체에 요청을 보내면 응답을 기다립니다.
+    		count = None
+
+    		if parsed_url.path == "/increment":
+    			count = await stub.increment()
+    		elif parsed_url.path == "/decrement":
+    			count = await stub.decrement()
+    		elif parsed_url.path == "" or parsed_url.path == "/":
+    			#현재값을 제공합니다.
+    			count = await stub.getCounterValue()
+    		else:
+    			return Response("Not found", status=404)
+
+    		return Response(f"Durable Object '{name}' count: {count}")
+
+    #튼튼한 목표
+    class Counter(DurableObject):
+    	def __init__(self, ctx, env):
+    		super().__init__(ctx, env)
+
+    	async def getCounterValue(self):
+    		value = await self.ctx.storage.get("value")
+    		return value if value is not None else 0
+
+    	async def increment(self, amount=1):
+    		value = await self.ctx.storage.get("value")
+    		value = (value if value is not None else 0) + amount
+    		#스토리지의 가치를 수정하는 동시 요청에 대해 걱정할 필요가 없습니다.
+    		#"입력 게이트"는 원치 않는 통화에 대해 자동으로 보호합니다.
+    		#Read-modify-write는 안전합니다.
+    		await self.ctx.storage.put("value", value)
+    		return value
+
+    	async def decrement(self, amount=1):
+    		value = await self.ctx.storage.get("value")
+    		value = (value if value is not None else 0) - amount
+    		await self.ctx.storage.put("value", value)
+    		return value
+    ```
+  </TabItem>
+</Tabs>
+
+마지막으로, Wrangler 파일을 구성하여 튼튼한 개체를 포함[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/)이전에 선택한 네임스페이스 및 클래스 이름을 기반으로 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-counter",
+  	"main": "src/index.ts",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "COUNTERS",
+  				"class_name": "Counter"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"Counter"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+### 관련 자료
+
+- [모델 번호: Workers RPC](/workers/runtime-apis/rpc/)
+- [Durable Objects: 쉬운, 빠른, 정확한 — 3를 선택하십시오](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/).

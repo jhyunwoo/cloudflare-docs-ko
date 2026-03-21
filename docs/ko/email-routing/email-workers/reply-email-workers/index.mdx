@@ -1,0 +1,58 @@
+---
+title: Workers의 이메일에 대한 답변
+pcx_content_type: how-to
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/email-routing/email-workers/reply-email-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/email-routing/email-workers/reply-email-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+다른 새로운 메시지와 수신 이메일에 응답하고 스마트 자동 응답 프로그램을 구현할 수 있습니다. 고객 지원 이메일의 생각은 자동으로 티켓 생성 및 발송자에 대한 링크를 반환, 당신이 휴가에있을 때 지시와 아웃 사무실 대답, 또는 이메일 거부 이유의 상세한 설명.
+
+이메일에 대한 답변은 새로운 방법입니다.[`EmailMessage`기타 제품](/email-routing/email-workers/runtime-api/#emailmessage-definition)Runtime API에서. 어떻게 작동합니까?
+
+```js
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from "mimetext";
+
+export default {
+  async email(message, env, ctx) {
+
+    const ticket = createTicket(message);
+
+    const msg = createMimeMessage();
+    msg.setHeader("In-Reply-To", message.headers.get("Message-ID"));
+    msg.setSender({ name: "Thank you for your contact", addr: "<SENDER>@example.com" });
+    msg.setRecipient(message.from);
+    msg.setSubject("Email Routing Auto-reply");
+    msg.addMessage({
+      contentType: 'text/plain',
+      data: `We got your message, your ticket number is ${ ticket.id }`
+    });
+
+    const replyMessage = new EmailMessage(
+      "<SENDER>@example.com",
+      message.from,
+      msg.asRaw()
+    );
+
+    await message.reply(replyMessage);
+  }
+}
+```
+
+보안 위험과 남용을 완화하려면 수신 이메일에 대한 답변은 몇 가지 요구 사항과 제한이 있습니다.
+
+- 수신 이메일은 유효하다[사이트맵](https://www.cloudflare.com/learning/dns/dns-records/dns-dmarc-record/).
+- 이메일은 한 번에 한 번에 응답 할 수 있습니다.`EmailMessage`이벤트
+- 답변의 수신자는 수신 된 발송인과 일치해야합니다.
+- outgoing sender 도메인은 이메일을받은 동일한 도메인과 일치해야합니다.
+- 이메일은 이메일 Routing 또는 다른 MTA를 통해 전달되며, 입력은 추가됩니다.`References`이름 \* 우리는 100 개 이상의 이메일에 응답을 중지`References`남용 또는 사고 루프를 방지하는 항목.
+
+이러한 다른 내부 조건이 충족되지 않는 경우,`reply()`예외로 실패합니다. 그렇지 않으면, 당신은 당신의 대답 메시지를 자유롭게 구성할 수 있습니다, 원본 발송인에 그것을 돌려보내고, 그 후에 후에 다수 시간을 대답합니다.

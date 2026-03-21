@@ -1,0 +1,87 @@
+---
+pcx_content_type: concept
+title: 엔드포인트와 풀이 비정상이 되는 방식
+sidebar:
+  order: 5
+---
+
+import { GlossaryDefinition, GlossaryTooltip, Render } from "~/components";
+
+동적 로드 밸런싱은 로드 밸런서가 트래픽을 처리할 수 있는 엔드포인트에만 요청을 전달하는 방식을 의미합니다.
+
+그렇다면 로드 밸런서는 어떤 엔드포인트가 트래픽을 처리할 수 있는지 어떻게 _알게_ 될까요? Cloudflare는 모니터, 헬스 모니터, 풀로 이루어진 시스템을 통해 이를 판단합니다.
+
+---
+
+## 동적 로드 밸런싱
+
+동적 로드 밸런싱은 <GlossaryTooltip term="pool" link="/load-balancing/pools/">풀</GlossaryTooltip>, <GlossaryTooltip term="monitor" link="/load-balancing/monitors/">모니터</GlossaryTooltip>, <GlossaryTooltip term="health check">헬스 체크</GlossaryTooltip>의 조합으로 동작합니다.
+
+<Render file="health-check-diagram" product="load-balancing" />
+
+---
+
+<div id="how-an-endpoint-becomes-unhealthy" />
+
+## 엔드포인트가 비정상이 되는 방식
+
+<GlossaryDefinition term="health check" prepend="헬스 체크는 " />
+
+<Render file="health-check-regions" product="load-balancing" />
+
+:::note
+
+풀의 **Health Monitor Regions**가 **All Data Centers (Enterprise)**로 설정되어 있으면, 풀 상태는 데이터 센터 다수결로 결정됩니다.
+
+:::
+
+로드 밸런싱 분석과 로그에는 전역 상태 변경만 표시됩니다.
+
+엔드포인트 상태를 더 정확하고 일관되게 변경하려면 [Create Monitor API endpoint](/api/resources/load_balancers/subresources/monitors/methods/create/)를 통해 `consecutive_up` 및 `consecutive_down` 파라미터를 설정할 수도 있습니다. 정상에서 비정상으로 바뀌려면 엔드포인트가 `consecutive_down`에 지정한 횟수만큼 연속으로 비정상 판정을 받아야 합니다. 비정상에서 정상으로 바뀌는 경우에도 `consecutive_up`에 동일한 방식이 적용됩니다.
+
+---
+
+<div id="how-a-pool-becomes-unhealthy" />
+
+## 풀이 비정상이 되는 방식
+
+[개별 엔드포인트가 비정상이 되면](#how-an-endpoint-becomes-unhealthy), 연결된 풀의 상태에도 영향이 있을 수 있으며, 이 상태는 대시보드에서 확인할 수 있습니다.
+
+- **Healthy**: 모든 엔드포인트가 정상입니다.
+- **Degraded**: 하나 이상의 엔드포인트가 비정상이지만, 풀은 여전히 정상으로 간주되며 트래픽을 받을 수 있습니다.
+- **Critical**: 풀의 가용 엔드포인트 수가 **Health Threshold**에 지정된 수보다 적어졌으며, 다른 풀도 모두 비정상이어서 이 풀이 [**Fallback Pool**](#fallback-pools)로 지정된 경우를 제외하면 로드 밸런서로부터 트래픽을 받지 않습니다.
+- **Health unknown**: 풀 엔드포인트에 연결된 모니터가 없거나, 모니터가 아직 엔드포인트 상태를 판단하지 못한 상태입니다.
+- **No health**: 로드 밸런서의 [**Fallback Pool**](#fallback-pools)에 예약된 상태입니다.
+
+:::note
+
+1. 풀에 모니터가 연결되어 있지 않으면 스티어링 시 상태가 고려되지 않습니다.
+2. 모니터링이 활성화되어 있지만 상태가 아직 확인되지 않은 경우에도 오리진은 다운된 것으로 간주됩니다.
+3. 모니터가 없어도 fallback pool은 여전히 필요하지만, 이 경우에는 기본 풀이 모두 확인되지 않은 FQDN 주소의 오리진만 가지고 있을 때에만 사용됩니다.
+
+:::
+
+### 트래픽 분산
+
+<Render file="unhealthy-pool-traffic-distribution" product="load-balancing" />
+
+<div id="fallback-pools" />
+
+### Fallback 풀
+
+<Render file="fallback-pools" product="load-balancing" />
+
+---
+
+## 로드 밸런서가 비정상이 되는 방식
+
+하나 이상의 풀이 비정상이 되면 로드 밸런서도 대시보드에서 다른 상태로 표시될 수 있습니다.
+
+- **Healthy**: 모든 풀이 정상입니다.
+- **Degraded**: 하나 이상의 풀이 비정상이지만, 트래픽이 아직 [Fallback Pool](#fallback-pools)로 가지는 않습니다.
+- **Critical**: 모든 풀이 비정상이며, 트래픽이 [Fallback Pool](#fallback-pools)로 전달되고 있습니다.
+
+로드 밸런서가 **Critical** 상태에 도달했고 fallback pool 역할을 하는 풀이 비활성화되어 있는 경우:
+
+- Cloudflare가 호스트네임을 프록시하는 경우 `530 HTTP/1016 Origin DNS failure`가 표시됩니다.
+- Cloudflare가 호스트네임을 프록시하지 않는 경우 SOA 레코드가 표시됩니다.

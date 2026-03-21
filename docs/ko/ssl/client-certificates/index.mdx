@@ -1,0 +1,67 @@
+---
+pcx_content_type: concept
+title: 클라이언트 인증서(mTLS)
+sidebar:
+  order: 6
+head: []
+description: Cloudflare 공개 키 인프라(PKI)를 사용하여 클라이언트 인증서를 만들고 상호 전송 계층 보안(mTLS) 암호화를 강제합니다.
+
+---
+
+import { GlossaryDefinition, Render, DirectoryListing } from "~/components";
+
+Cloudflare의 공개 키 인프라(PKI)를 사용하여 클라이언트 인증서를 만들거나, [mTLS에 자체 CA를 가져와 사용](/ssl/client-certificates/byo-ca/)할 수 있습니다.
+
+<GlossaryDefinition term="mTLS (mutual TLS)" />
+
+:::note[Cloudflare에서의 mTLS]
+더 넓은 개요는 [Cloudflare에서의 mTLS 학습 경로](/learning-paths/mtls/concepts/)를 참고하세요.
+:::
+
+---
+
+## 작동 방식
+
+특정 CA에서 발급된 클라이언트 인증서는 접근이 허용되어야 하는 클라이언트 장치에 설치됩니다. 그런 다음 [mTLS가 활성화된](/ssl/client-certificates/enable-mtls/) 모든 호스트에 대해, 이 경우 서버 역할을 하는 Cloudflare는 해당 호스트 이름에 접근하려는 클라이언트에게 인증서를 요구합니다.
+
+인증서가 제시되면 Cloudflare는 계정 수준에 설정된 CA를 기준으로 클라이언트 인증서를 검증합니다. 이는 이러한 인증서가 동일한 Cloudflare 계정 아래에 있고 요청된 호스트(`host.example.com`)에 대해 mTLS가 활성화되어 있는 한, 여러 zone/domain(`example.com`)에 걸쳐 검증에 사용될 수 있음을 의미합니다.
+
+계정 수준 CA는 다음 중 하나일 수 있습니다.
+
+- Cloudflare 관리형 CA: 기본 옵션입니다. 인증서와 호스트 이름 연결은 [대시보드](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/client-certificates/)에 표시됩니다.
+- [BYOCA](/ssl/client-certificates/byo-ca/) 인증서: Enterprise 계정에서 사용할 수 있는 API 전용 옵션입니다. 인증서와 호스트 이름 연결은 **대시보드에 표시되지 않습니다**.
+
+그런 다음 Cloudflare는 검증 결과를 [`cf.tls_client_auth.cert_verified`](/ruleset-engine/rules-language/fields/reference/cf.tls_client_auth.cert_verified/)라는 필드에 저장합니다.
+
+- **성공**: `cf.tls_client_auth.cert_verified`는 `true`이며, [특정 mTLS 필드](/ruleset-engine/rules-language/fields/reference/?search-term=cf.tls_client_auth)에서 클라이언트 인증서 세부 정보를 확인할 수 있습니다.
+- **실패**: `cf.tls_client_auth.cert_verified`는 `false`입니다.
+
+---
+
+## 사용 사례
+
+[mTLS 학습 경로](/learning-paths/mtls/concepts/)에서 설명한 것처럼, mTLS에는 다양한 사용 사례와 구현 옵션이 있습니다. 구체적인 안내는 다음 링크를 참고하세요.
+
+- [애플리케이션 보안](/learning-paths/mtls/mtls-app-security/)
+- [Zero Trust용 mTLS](/cloudflare-one/access-controls/service-credentials/mutual-tls-authentication/) (Cloudflare Access 통합)
+- [API Shield의 mTLS](/api-shield/security/mtls/configure/)
+- [mTLS Workers 바인딩](/workers/runtime-apis/bindings/mtls/)
+
+mTLS Workers 바인딩을 제외한 위의 모든 구현은 Cloudflare 관리형 CA 대신 자체 CA를 사용할 수 있습니다. 자세한 내용은 [자체 CA 사용](/ssl/client-certificates/byo-ca/)을 참고하세요.
+
+### mTLS와 Workers
+
+worker가 외부 서비스에 클라이언트 인증서를 제시해야 한다면 [mTLS Workers 바인딩](/workers/runtime-apis/bindings/mtls/)을 사용하세요. 반대로 클라이언트에서 worker로 들어오는 요청을 인증하려면 [SSL/TLS > Client Certificates](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/client-certificates/)와 일반적인 [애플리케이션 보안을 위한 mTLS](/learning-paths/mtls/mtls-app-security/) 구현을 참고하세요.
+
+```mermaid
+flowchart LR
+        accTitle: 클라이언트에서 worker로의 mTLS와 worker에서 외부 서비스로의 mTLS
+        accDescr: Cloudflare Workers와 함께 고려할 수 있는 두 가지 서로 다른 mTLS 구현을 보여주는 다이어그램입니다.
+        A[클라이언트] <--애플리케이션 보안 mTLS--> B((Cloudflare))<--mTLS Worker 바인딩--> C[(외부 서비스)]
+```
+
+---
+
+## 추가 리소스
+
+<DirectoryListing />

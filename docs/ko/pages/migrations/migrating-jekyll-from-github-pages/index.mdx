@@ -1,0 +1,163 @@
+---
+reviewed: 2021-07-27T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: GitHub Pages에서 Jekyll 기반 사이트 마이그레이션
+tags:
+  - Ruby
+sidebar:
+  hidden: true
+description: >-
+  GitHub Pages에서 Cloudflare QXQXQXQXQXQXQXPagesXQ로 Jekyll 기반 사이트를 마이그레이션하는 방법을
+  알아보세요.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/migrations/migrating-jekyll-from-github-pages/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/migrations/migrating-jekyll-from-github-pages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이 튜토리얼에서, 당신은 기존의 마이그레이션 방법을 배울 것이다[GitHub Pages 사이트 사용 Jekyll](https://docs.github.com/en/pages/setting-up-a-github-pages-site-with-jekyll/about-github-pages-and-jekyll)Cloudflare Pages.에. Jekyll은 GitHub Pages, GitHub Pages 사이트를 PagesXQXQXQXQXQXQXPagesXQ로 사용하는 가장 인기있는 정적 현장 발전기 중 하나입니다.
+
+이 튜토리얼은 당신을 통해 안내합니다 :
+
+1. GitHub Pages에서 프로젝트 구성에 필요한 의존성을 추가합니다.
+2. 새로운 Cloudflare QXPages 사이트 만들기, 기존 GitHub 저장소에 연결.
+3. Cloudflare Pages에 귀하의 사이트를 구축하고 배포합니다.
+4. (선택 사항) 사용자 정의 도메인 마이그레이션.
+
+빌드 시간 포함,이 튜토리얼은 15 분 미만 완료해야합니다.
+
+:::참조
+
+GitHub Pages에 배포되지 않는 Jekyll 기반 사이트가 있다면, 참조[Jekyll 프레임 워크 가이드](/pages/framework-guides/deploy-a-jekyll-site/).
+
+:::
+
+## 시작하기 전에
+
+이 튜토리얼은 다음과 같다:
+
+1. 기존 GitHub Pages 사이트가 있습니다.[주 메뉴](https://jekyllrb.com/)
+2. Ruby의 command-line 도구를 실행하는 데 익숙해져 있고, 모두`gem`·`bundle`설치.
+3. 몇 가지 기본 Git 작업을 사용하는 방법을 알고 있습니다.`add`, `commit`, `push`·`pull`.
+4. 당신은 읽기[시작하기](/pages/get-started/)Cloudflare Pages를 위한 가이드.
+
+Rubygems가 없는 경우 (`gem`) 또는 뭉치 (`bundle`) 당신의 기계에 설치해, 임명 가이드를 위한 참조하십시오[루비게이션](https://rubygems.org/pages/download)·[회사 소개](https://bundler.io/).
+
+## GitHub Pages 저장소 준비
+
+:::참조
+
+GitHub Pages 저장소가 이미 있다면`Gemfile`·`Gemfile.lock`현재 이 단계를 완전히 건너 뛸 수 있습니다. GitHub Pages 환경은 명시적으로 명시되지 않은 Jekyll 플러그인의 기본 설정을 가정`Gemfile`.
+
+:::
+
+기존의 Jekyll 기반 저장소를 지정해야 합니다.`Gemfile`(Ruby's Dependency 윤곽 파일)는 Cloudflare Pages를 허용하고 그 의존성을 설치하기 위하여[단계 구축](/pages/configuration/build-configuration/).
+
+구체적으로, 당신은 만들 필요가 있을 것입니다`Gemfile`그리고 설치`github-pages`GitHub Pages 환경이 가정하는 모든 의존성을 포함하는 보석.
+
+[Pages 건축 환경의 버전 2](/pages/configuration/build-image/#languages-and-runtime)기본 Jekyll 빌드에 Ruby 3.2.2를 사용합니다. 현지 개발 환경이 호환되도록하십시오.
+
+```sh title="Set Ruby Version"
+brew install ruby@3.2
+export PATH="/usr/local/opt/ruby@3.2/bin:$PATH"
+```
+
+```sh title="Create a Gemfile"
+cd my-github-pages-repo
+bundle init
+```
+
+자주 묻는 질문`Gemfile`그것은 당신을 위해 만든, 그리고 파일의 하단에 다음 줄을 추가:
+
+```ruby title="Specifying the github-pages version"
+gem "github-pages", group: :jekyll_plugins
+```
+
+내 계정`Gemfile`아래를 닮아야 한다:
+
+```ruby
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+git_source(:github) { |repo_name| "https://github.com/#{repo_name}" }
+
+# gem "rails"
+gem "github-pages", group: :jekyll_plugins
+```
+
+지원하다`bundle update`, 설치`github-pages`당신을 위한 보석, 그리고 창조`Gemfile.lock`해결 된 의존성 버전이있는 파일.
+
+```sh title="Running bundle update"
+bundle update
+#Bundler는 많은 출력을 보여줍니다.
+```
+
+이것은 성공적으로 완료해야합니다. 그렇지 않은 경우, 당신이 복사 한 것을 확인`github-pages`정확히 위에 선, 그리고 그것을 지도로 밖으로 언급하지 않았습니다`#`.
+
+Cloudflare PagesXQ는 다음 단계에서 참고 자료XQXQXQXQ를 참고 자료XQ에 이러한 파일을 커밋해야 합니다.
+
+```sh title="Commit Gemfile and Gemfile.lock"
+git add Gemfile Gemfile.lock
+git commit -m "deps: added Gemfiles"
+git push origin main
+```
+
+## Pages 프로젝트 구성
+
+GitHub PagesXQ 프로젝트는 현재 의존성을 지정하여 Cloudflare QXPagesXQQ를 구성할 수 있습니다. 프로세스는 거의 동일합니다.[Jekyll 사이트 배포](/pages/framework-guides/deploy-a-jekyll-site/).
+
+:::참조
+
+Cloudflare Pages 사이트를 처음 설정하면 참조[Git 통합 가이드](/pages/get-started/git-integration/)Cloudflare Pages에 기존 Git 저장소를 연결하는 방법을 설명합니다.
+
+:::
+
+Pages에 사이트를 배포하려면:
+
+1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 제품정보**회사연혁** > **모델 번호: Pages** > **기존 Git 저장소 가져 오기**.
+
+3. 만든 새로운 GitHub 저장소를 선택하고,**빌드 및 배포 설정**단면도는, 뒤에 오는 정보를 제공합니다:
+
+<div>
+  | 구성 옵션 | 제품정보           |
+  | ----- | -------------- |
+  | 생산 지점 | `main`         |
+  | 명령 실행 | `jekyll build` |
+  | 연락처   | `_site`        |
+</div>
+
+사이트를 구성 한 후 첫 번째 배포를 시작할 수 있습니다. 당신은 Cloudflare Pages 설치를 참조하십시오`jekyll`, 당신의 프로젝트 의존성 및 사이트를 구축하기 전에, 배포하기 전에.
+
+:::참조
+
+Cloudflare QXPages에 첫 번째 사이트를 배포하는 완벽한 가이드를 위해, 참조[자주 묻는 질문](/pages/get-started/).
+
+:::
+
+사이트를 배포 한 후, 프로젝트에 대한 독특한 하위 도메인을 받게됩니다.`*.pages.dev`. 때마다 Jekyll 사이트에 새로운 코드를 커밋합니다. Cloudflare Pages는 프로젝트를 자동으로 재구성하고 배포합니다. 당신은 또한 접근을 얻을 것이다[관련 기사](/pages/configuration/preview-deployments/)새로운 풀 요청에, 그래서 당신은 생산에 배치하기 전에 사이트로 변경 사항을 볼 수 있습니다.
+
+## 사용자 정의 도메인 마이그레이션
+
+사용중인 경우[GitHub Pages와 사용자 정의 도메인](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site), 당신은 당신의 새로운 Cloudflare QXPages 배포 시점에 DNS 레코드(s)를 업데이트해야합니다. 이것은 당신을 업데이트해야합니다`CNAME`도메인의 DNS 공급자에 기록하여 도메인에 대한 포인트`<your-pages-site>.pages.dev`, 교체`<your-username>.github.io`.
+
+DNS 캐시가 만료될 때 DNS TTL (time-to-live) 값에 따라 이러한 변경을 위해 DNS 캐시를 사용할 수 있습니다.
+
+더 알아보기[사용자 정의 도메인 추가](/pages/configuration/custom-domains/#add-a-custom-domain)Get의 섹션은 상세 단계 목록을 위한 가이드를 시작했습니다.
+
+## 다음은 무엇입니까?
+
+- 자주 묻는 질문[HTTP 응답 헤더를 사용자 정의](/pages/how-to/add-custom-http-headers/)Pages 사이트에 대한 Cloudflare Workers.
+- 자주 묻는 질문[롤백 잠재적으로 부서지는 배포](/pages/configuration/rollbacks/)이전 버전으로.
+- [리디렉션](/pages/configuration/redirects/)그래서 방문자는 항상 'canonical' 사용자 정의 도메인에 지시.

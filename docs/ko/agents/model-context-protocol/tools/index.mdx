@@ -1,0 +1,187 @@
+---
+pcx_content_type: concept
+title: 회사 소개
+tags:
+  - MCP
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/model-context-protocol/tools/'
+translation_source_md: 'https://developers.cloudflare.com/agents/model-context-protocol/tools/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+MCP 도구는 기능입니다[MCP 서버](/agents/model-context-protocol/)고객을위한 노출. LLM이 작업을 수행하는 데 필요한 것을 결정할 때 - 데이터를 보면 계산을 실행하고, API를 호출합니다. - 그것은 도구를 호출합니다. MCP 서버는 도구를 실행하고 결과를 반환합니다.
+
+도구는 정의된다`@modelcontextprotocol/sdk`패키지. Agents SDK는 운송 및 수명주기를 처리합니다. 도구 정의는 사용 여부와 동일합니다.[`createMcpHandler`](/agents/api-reference/mcp-handler-api/)또는[`McpAgent`](/agents/api-reference/mcp-agent-api/).
+
+## Defining 도구
+
+제품 정보`server.tool()`도구 등록하기`McpServer`예. 각 도구는 이름, 설명 (LLM에 의해 사용하는 경우 호출 할 때 결정), 입력 스키마 정의[사이트맵](https://zod.dev), 그리고 핸들러 기능.
+
+<TypeScriptExample>
+  ```ts
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  function createServer() {
+  	const server = new McpServer({ name: "Math", version: "1.0.0" });
+
+  	server.tool(
+  		"add",
+  		"Add two numbers together",
+  		{ a: z.number(), b: z.number() },
+  		async ({ a, b }) => ({
+  			content: [{ type: "text", text: String(a + b) }],
+  		}),
+  	);
+
+  	return server;
+  }
+  ```
+</TypeScriptExample>
+
+도구 핸들러는 검증된 입력을 받고 객체를 반환해야 합니다.`content`배열. 각 내용 항목에는`type`(일반적으로`"text"`) 및 해당 데이터.
+
+## 공구 결과
+
+툴 결과가 콘텐츠 부품의 배열로 반환됩니다. 가장 일반적인 유형은`text`또한 이미지와 임베디드 리소스를 반환할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  server.tool(
+  	"lookup",
+  	"Look up a user by ID",
+  	{ userId: z.string() },
+  	async ({ userId }) => {
+  		const user = await db.getUser(userId);
+
+  		if (!user) {
+  			return {
+  				isError: true,
+  				content: [{ type: "text", text: `User ${userId} not found` }],
+  			};
+  		}
+
+  		return {
+  			content: [{ type: "text", text: JSON.stringify(user, null, 2) }],
+  		};
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+설치하기`isError: true`도구 호출이 실패한 신호에. LLM은 오류 메시지를 수신하고 진행하는 방법을 결정할 수 있습니다.
+
+## 도구 설명
+
+더 보기`description`매개변수는 중요합니다 — LLM이 당신의 도구를 호출할 때 결정하는 것을 읽습니다. 설명 쓰기:
+
+- **제품정보**도구가 무엇인지에 대해 : "도시의 현재 날씨를 얻으십시오"보다 더 나은 "Weather 도구"
+- **자주 묻는 질문**: "문자로 도시 이름을 요구합니다"는 LLM 형식을 올바르게 돕습니다.
+- **제한에 대해 정직**: "미국 도시 만 지원"은 지원되지 않은 입력으로 호출에서 LLM을 방지
+
+## Zod와 입력 검증
+
+도구 입력은 Zod 스키마로 정의되며 핸들러가 실행하기 전에 자동으로 검증됩니다. Zod의 사용`.describe()`각 매개 변수에 대한 LLM 컨텍스트를주는 방법.
+
+<TypeScriptExample>
+  ```ts
+  server.tool(
+  	"search",
+  	"Search for documents by query",
+  	{
+  		query: z.string().describe("The search query"),
+  		limit: z
+  			.number()
+  			.min(1)
+  			.max(100)
+  			.default(10)
+  			.describe("Maximum number of results to return"),
+  		category: z
+  			.enum(["docs", "blog", "api"])
+  			.optional()
+  			.describe("Filter by content category"),
+  	},
+  	async ({ query, limit, category }) => {
+  		const results = await searchIndex(query, { limit, category });
+  		return {
+  			content: [{ type: "text", text: JSON.stringify(results) }],
+  		};
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+## 도구 사용`createMcpHandler`
+
+stateless MCP 서버를 위해, 공장 기능 안쪽에 공구를 정의하고 서버에 전달하십시오[`createMcpHandler`](/agents/api-reference/mcp-handler-api/):
+
+<TypeScriptExample>
+  ```ts
+  import { createMcpHandler } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  function createServer() {
+  	const server = new McpServer({ name: "My Tools", version: "1.0.0" });
+
+  	server.tool("ping", "Check if the server is alive", {}, async () => ({
+  		content: [{ type: "text", text: "pong" }],
+  	}));
+
+  	return server;
+  }
+
+  export default {
+  	fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+  		const server = createServer();
+  		return createMcpHandler(server)(request, env, ctx);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 도구 사용`McpAgent`
+
+stateful MCP 서버를 위해, 도구 정의`init()`방법의[`McpAgent`](/agents/api-reference/mcp-agent-api/). 도구는 에이전트 인스턴스에 액세스해야`this`, 그들은 읽고 쓰기 국가를 의미한다.
+
+<TypeScriptExample>
+  ```ts
+  import { McpAgent } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  export class MyMCP extends McpAgent {
+  	server = new McpServer({ name: "Stateful Tools", version: "1.0.0" });
+
+  	async init() {
+  		this.server.tool(
+  			"incrementCounter",
+  			"Increment and return a counter",
+  			{},
+  			async () => {
+  				const count = (this.state?.count ?? 0) + 1;
+  				this.setState({ count });
+  				return {
+  					content: [{ type: "text", text: `Counter: ${count}` }],
+  				};
+  			},
+  		);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 다음 단계
+
+<LinkCard title="원격 MCP 서버 구축" href="/agents/guides/remote-mcp-server/" description="Cloudflare에서 MCP 서버를 배포하는 단계별 가이드." />
+
+<LinkCard title="createMcpHandler API 생성" href="/agents/api-reference/mcp-handler-api/" description="stateless MCP 서버에 대한 참조." />
+
+<LinkCard title="McpAgent API를" href="/agents/api-reference/mcp-agent-api/" description="MCP 서버의 참조." />
+
+<LinkCard title="MCP 인증" href="/agents/model-context-protocol/authorization/" description="MCP 서버에 OAuth 인증을 추가하십시오." />

@@ -1,0 +1,177 @@
+---
+pcx_content_type: how-to
+title: Deploy 주문 인증서
+sidebar:
+  order: 3
+head: []
+description: WARP를 구성하여 Cloudflare 인증서 대신 사용자 정의 루트 인증서를 사용합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, APIRequest } from "~/components";
+
+:::참조
+Enterprise 플랜에서만 사용할 수 있습니다.
+주요 특징
+
+설치하지 않는 기업 고객[Cloudflare 인증서](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/)Cloudflare에 자신의 루트 인증서를 업로드 할 수있는 옵션이 있습니다. 이 기능은 때로는 자신의 공공 키 인프라 (BYOPKI)를 가져 오는 것으로 간주됩니다. Gateway는 최종 사용자와 게이트웨이 사이의 모든 세션을 암호화하기 위해 업로드 된 인증서를 사용하고 이전에 Cloudflare 인증서를 필요로하는 모든 HTTPS 검사 기능을 가능하게합니다. 계정에 여러 인증서를 업로드 할 수 있지만 주어진 시간에 한 번만 활성화 할 수 있습니다. JIT 인증서를 사용하여 도메인을 가로 질러 개인 키를 업로드하고 활성화해야합니다.[블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/).
+
+루트 인증서 또는 전체 인증서 체인 (루트 인증서 플러스 중간 인증서)를 업로드 할 수 있습니다. 인증서 체인을 업로드하면 더 큰 기업을위한 인증서 관리를 단순화 할 수있는 루트 인증서 만 설치 할 수 있습니다.
+
+5개의 주문 루트 인증서로 업로드할 수 있습니다. 조직이 5 개 이상의 인증서를 필요로한다면 계정 팀에 문의하십시오.
+
+:::카트로션
+사용자 및 게이트웨이 프록시를 사용할 수 있습니다. Gateway는 공개적으로 신뢰할 수있는 인증서를 사용하여 Origin 서버에 연결하여 브라우저가 안전한 웹 사이트를 검증하는 방법.
+
+사용자가 자기 서명 된 소스 서버에 연결해야하는 경우, HTTP 허용 정책은 원래 서버에서[untrusted 인증서 작업](/cloudflare-one/traffic-policies/http-policies/#untrusted-certificates)설정하기*오시는 길*.
+:::
+
+## 사용자 정의 루트 CA 생성
+
+사용자 정의 루트 CA를 생성하기 전에, 당신이 가지고 있는지 확인[열린SSL](https://www.openssl.org/)설치.
+
+1. 터미널을 엽니다.
+
+2. 루트 CA에 대한 디렉토리를 만들고 그것을 변경합니다.
+
+   ```sh
+   mkdir -p /root/customca
+   cd /root/customca
+   ```
+
+3. 루트 CA의 개인 키를 생성.
+
+   ```sh
+   openssl genrsa -out <CUSTOM-ROOT-PRIVATE-KEY>.pem 2048
+   ```
+
+4. 자체 서명 된 루트 인증서 생성.
+
+   ```sh
+   openssl req -x509 -sha256 -new -nodes -key <CUSTOM-ROOT-PRIVATE-KEY>.pem -days 365 -out <CUSTOM-ROOT-CERT>.pem
+   ```
+
+인증서 및 개인 키를 준비 할 때, 인증서의 일반적인 이름의 mismatching subdomains와 같은 원치 않는 문자를 제거해야합니다. 개인 키를 검토하려면 다음 명령을 실행하십시오.
+
+```sh
+openssl rsa -in <CUSTOM-ROOT-PRIVATE-KEY>.pem -text
+```
+
+인증서를 검토하려면 다음 명령을 실행하십시오.
+
+```sh
+openssl x509 -in <CUSTOM-ROOT-CERT>.pem -text
+```
+
+## 사용자 정의 루트 인증서 배포
+
+단일 루트 인증서 또는 전체 인증서 체인을 업로드 할 수 있습니다. 대시보드, API, 또는 Terraform을 통해 인증서 체인을 업로드하면 루트 인증서와 PEM 형식의 중간 인증서를 먼저 포함합니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정** > **인증서**.
+    2. 제품정보**비밀번호**.
+    3. 개인 키와 SSL 인증서를 입력하거나 선택**파일에서 Paste 인증서**파일에서 업로드합니다. 인증서 체인을 업로드하면 PEM 형식의 모든 인증서 (뿌리 및 중간)를 먼저 붙여 넣습니다.
+    4. 제품정보**사용자 정의 인증서**.
+
+       지금 할 수 있습니다[생성 된 사용자 정의 루트 인증서 사용](#use-a-custom-root-certificate)검사를 위해.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    1. <Render file="upload-mtls-cert" params={{ key: " ", cert: "root CA or certificate chain" }} product="cloudflare-one" />
+
+       인증서 체인 업로드시,`certificates`필드는 PEM 형식의 모든 인증서를 포함해야합니다. 이 필드를 포맷하려면 루트 인증서를 먼저 주문하면 중간 인증서를 수집합니다.
+
+    2. 검사에서 사용할 수 있는 인증서를 설정[Zero Trust 인증서 엔드포인트 활성화](/api/resources/zero_trust/subresources/gateway/subresources/certificates/methods/activate/). Cloudflare 글로벌 네트워크를 통해 인증서를 배포합니다.
+
+       <APIRequest path="/accounts/{account_id}/gateway/certificates/{certificate_id}/activate" method="POST" />
+
+       응답은 인증서를 반환하고`pending_deployment`바인딩 상태. 예를 들면:
+
+       ```json {12}
+       {
+       	"errors": [],
+       	"messages": [],
+       	"success": true,
+       	"result": {
+       		"in_use": false,
+       		"id": "f174e90a-fafe-4643-bbbc-4a0ed4fc8415",
+       		"certificate": "-----BEGIN CERTIFICATE-----\\n ... \\n-----END CERTIFICATE-----\\n",
+       		"issuer_org": "Example Inc.",
+       		"issuer_raw": "O=Example Inc.,L=California,ST=San Francisco,C=US",
+       		"fingerprint": "E9:19:49:AA:DD:D8:1E:C1:20:2A:D8:22:BF:A5:F8:FC:1A:F7:10:9F:C7:5B:69:AB:0:31:91:8B:61:B4:BF:1C",
+       		"binding_status": "pending_deployment",
+       		"type": "custom",
+       		"updated_at": "2014-01-01T05:20:00.12345Z",
+       		"uploaded_on": "2014-01-01T05:20:00.12345Z",
+       		"created_at": "2014-01-01T05:20:00.12345Z",
+       		"expires_on": "2014-01-01T05:20:00.12345Z"
+       	}
+       }
+       ```
+
+    3. 사용 방법[Zero Trust 인증서 세부 사항 종료](/api/resources/zero_trust/subresources/gateway/subresources/certificates/methods/get/)인증서의 바인딩 상태를 확인합니다.`available`.
+
+       <APIRequest path="/accounts/{account_id}/gateway/certificates/{certificate_id}" method="GET" />
+
+       ```json {12}
+       {
+       	"errors": [],
+       	"messages": [],
+       	"success": true,
+       	"result": {
+       		"in_use": false,
+       		"id": "f174e90a-fafe-4643-bbbc-4a0ed4fc8415",
+       		"certificate": "-----BEGIN CERTIFICATE-----\\n ... \\n-----END CERTIFICATE-----\\n",
+       		"issuer_org": "Example Inc.",
+       		"issuer_raw": "O=Example Inc.,L=California,ST=San Francisco,C=US",
+       		"fingerprint": "E9:19:49:AA:DD:D8:1E:C1:20:2A:D8:22:BF:A5:F8:FC:1A:F7:10:9F:C7:5B:69:AB:0:31:91:8B:61:B4:BF:1C",
+       		"binding_status": "available",
+       		"type": "custom",
+       		"updated_at": "2014-01-01T05:20:00.12345Z",
+       		"uploaded_on": "2014-01-01T05:20:00.12345Z",
+       		"created_at": "2014-01-01T05:20:00.12345Z",
+       		"expires_on": "2014-01-01T05:20:00.12345Z"
+       	}
+       }
+       ```
+
+    4. (선택 사항) 인증서가 사용자의 장치에 설치됩니다.[WARP로](/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/)또는[수동으로](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/).
+
+    5. 사용 방법[패치 Zero Trust 계정 구성 엔드포인트](/api/resources/zero_trust/subresources/gateway/subresources/configurations/methods/edit/)검사에 있는 사용을 위한 증명서에 돌기 위하여. 예를 들면:
+
+    <APIRequest
+      path="/accounts/{account_id}/gateway/configuration"
+      method="PATCH"
+      json={{
+  	settings: {
+  		certificate: {
+  			id: "{certificate_id}",
+  			in_use: true,
+  		},
+  	},
+  }}
+    />
+
+    1시간`in-use`설정`true`, Gateway는 사용자 정의 루트 인증서 및 개인 키를 사용하여 트래픽을 서명합니다. 사용자 지정 인증서를 끄거나 비활성화하면 게이트웨이는 Zero Trust 계정에서 생성된 다음 Cloudflare 인증서로 돌아갑니다.
+  </TabItem>
+</Tabs>
+
+:::caution\[개인 키 가시성]
+Zero Trust에 개인 키를 업로드하면 Cloudflare는 키를 암호화하고 나머지에 저장합니다. 위임된 앱만이 개인 키를 해독하는 데 필요한 해독 키가 있습니다. 업로드 후 개인 키를 검색 할 수 없습니다.
+주요 특징
+
+## 사용자 정의 루트 인증서 사용
+
+Cloudflare에 생성 및 업로드 한 사용자 정의 루트 인증서를 사용하려면, 참조[루트 인증서 활성화](/cloudflare-one/team-and-resources/devices/user-side-certificates/#activate-a-root-certificate).
+
+## 문제 해결 HTTP 오류
+
+Gateway가 반환되면**HTTP 응답 코드: 526**사용자 정의 인증서를 배포 한 후, 당신은 할 수 있습니다[문제 해결 오류 우리의 FAQ](/cloudflare-one/faq/troubleshooting/#i-see-error-526-when-browsing-to-a-website).

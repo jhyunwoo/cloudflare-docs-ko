@@ -1,0 +1,145 @@
+---
+summary: Learn how to query D1 from a Python Worker
+tags:
+  - Python
+pcx_content_type: example
+title: QXD1XQXQXQXQXWorkers
+sidebar:
+  order: 10
+description: D1XQ를 PythonQQ로 쿼리하는 방법 알아보기 작업자
+reviewed: 2024-04-02T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/examples/query-d1-from-python-workers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/examples/query-d1-from-python-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Cloudflare QXQX0365XQ 플랫폼 지원[여러 언어](/workers/languages/)TypeScript, JavaScript, Rust 및 Python를 포함하여,. 이 가이드는 D1 데이터베이스를 쿼리하는 방법을 보여줍니다.[모델 번호: Python](/workers/languages/python/)글로벌 애플리케이션을 배포합니다.
+
+:::참조
+
+PythonXQXQXQXQXQXWorkersXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQX 자주 묻는 질문[Python 지원 문서](/workers/languages/python/)PythonXQ가 Workers 플랫폼 내에서 어떻게 작동했는지 이해할 수 있습니다.
+
+:::
+
+## 자주 묻는 질문
+
+시작하기 전에:
+
+1. 자주 묻는 질문[D1 튜토리얼](/d1/get-started/)TypeScript 및 JavaScript에 대한 자세한 내용은**D1 데이터베이스를 만들고 Workers 프로젝트 구성**.
+2. 더 알아보기[Python 언어 가이드](/workers/languages/python/)Python 지원이 Workers 플랫폼에서 작동하는지 이해하기 위해.
+3. Python 언어와 기본 친숙함이 있습니다.
+
+Cloudflare Workers에 새로운 경우, 참조[자주 묻는 질문](/workers/get-started/guide/)이 예제를 계속하기 전에 먼저.
+
+## Python에서 조회
+
+이 예제는 기존 D1 데이터베이스가 있습니다. Python 데이터베이스를 쿼리하는 노동자, 당신은 먼저 만들 필요가[관련 제품](/workers/runtime-apis/bindings/)당신의 노동자와 당신의 D1 데이터베이스 사이 그리고 당신의에서 이것을 정의하십시오[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+당신은 필요`database_name`·`database_id`D1 데이터베이스 당신은 사용할 수 있습니다`wrangler`새로운 데이터베이스를 만들거나 기존 데이터베이스에 ID를 가져오려면 다음과 같습니다.
+
+```sh title="Create a database"
+npx wrangler d1 create my-first-db
+```
+
+```sh title="Retrieve a database ID"
+npx wrangler d1 info some-existing-db
+```
+
+```sh output
+#-───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#│ c89db32e-83f4-4e62-8cd7-7c8f97659029 │
+#───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#│ 이름 │ db-enam │
+#───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#│ 생성 at │ 2023-06-12T16:52:03.071Z │
+#└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+```
+
+### 1. 바인딩 구성
+
+Wrangler 파일에서 새로운 생성`[[d1_databases]]`구성 블록 및 설정`database_name`·`database_id`쿼리하려는 D1 데이터베이스의 이름과 ID (respectively)에:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "python-and-d1",
+  	"main": "src/entry.py",
+  	"compatibility_flags": [ //Python Workers
+  		"python_workers"
+  	],
+  	"compatibility_date": "$today",
+  	"d1_databases": [
+  		{
+  			"binding": "DB", //이 작업자의 데이터베이스를 참조하는 방법
+  			"database_name": "YOUR_DATABASE_NAME",
+  			"database_id": "YOUR_DATABASE_ID"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+가치의`binding`작업자 내에서 데이터베이스를 참조하는 방법. 이것을 변경하면 Worker 스크립트에서 이것을 변경해야 합니다.
+
+### 2. Python 작업자
+
+Python Worker, 빈 파일 만들기`src/entry.py`, 값 일치`main`아래 내용을 가진 Wrangler 파일에:
+
+```python
+from workers import Response, WorkerEntrypoint
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        #여기에 요청하고 싶습니다!
+
+        try:
+            #질문 D1 - 우리는이 예제에서 우리의 데이터베이스에서 모든 테이블을 나열합니다.
+            results = await self.env.DB.prepare("PRAGMA table_list").run()
+            #JSON 응답을 반환
+            return Response.json(results)
+        except Exception as e:
+            return Response.json({"error": "Database query failed"}, status=500)
+
+```
+
+가치의`binding`Wrangler 파일에서 Python 코드에서 변수의 이름을 정확히 일치해야합니다. 이 예제는 데이터베이스를 통해 나타냅니다.`DB`바인딩 및 이 바인딩을 통해 쿼리`await env.DB.prepare(...)`.
+
+Python를 배포할 수 있습니다. 직접 노동자:
+
+```sh
+npx wrangler deploy
+```
+
+```sh output
+#예제 출력
+#
+#당신의 노동자는 뒤에 오는 의무에 접근합니다:
+#- D1 데이터베이스:
+#- DB: db-enam (c89db32e-83f4-4e62-8cd7-7c8f97659029)
+#총 업로드: 0.18 KiB / gzip: 0.17 KiB
+#업로드 python-and-d1 (4.93 초)
+#게시 python-and-d1 (0.51 초)
+#https://python-and-d1.YOUR_SUBDOMAIN.workers.dev
+#현재 배포 ID: 80b72e19-da82-4465-83a2-c12fb11ccc72
+```
+
+당신의 노동자는 유효합니다`https://python-and-d1.YOUR_SUBDOMAIN.workers.dev`.
+
+오류 배포를 받는 경우:
+
+- 당신이 당신의 설정했는지 확인[Wrangler 구성 파일](/workers/wrangler/configuration/)이름 \*`database_id`·`database_name`유효한 D1 데이타베이스의.
+- 이름 \*`compatibility_flags = ["python_workers"]`설정하기[Wrangler 구성 파일](/workers/wrangler/configuration/)Python.에 필요한 경우
+- 자주 묻는 질문[오류 코드 목록](/workers/observability/errors/), 그리고 당신의 코드를 uncaught 예외를 던지지 않습니다.
+
+## 다음 단계
+
+- 더 알아보기[Workers Python 문서](/workers/languages/python/)PythonXQXQXQXQ를 사용하는 방법에 대해 자세히 알아보세요.
+- 자주 묻는 질문[D1 Workers 바인딩 API](/d1/worker-api/)그리고 D1 데이터베이스를 쿼리하는 방법.
+- 지원하다[데이터 가져오기](/d1/best-practices/import-export-data/)D1 데이터베이스에.

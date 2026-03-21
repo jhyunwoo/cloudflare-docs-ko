@@ -1,0 +1,191 @@
+---
+title: Enable S3-compatible 엔드포인트
+pcx_content_type: how-to
+sidebar:
+  order: 57
+head:
+  - tag: title
+    content: S3-compatible endpoints에 가능한 Logpush
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/s3-compatible-endpoints/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/s3-compatible-endpoints/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+모델 번호: Cloudflare Logpush는 Cloudflare 대시보드 또는 API를 통해 S3- 호환 대상에 로그를 밀어 지원 :
+
+- [Alibaba 클라우드 OSS](https://www.alibabacloud.com/help/doc-detail/64919.htm#title-37m-7gl-xy2)
+- [백조 B2](https://www.backblaze.com/b2/docs/s3_compatible_api.html)
+- [DigitalOcean 공간](https://www.digitalocean.com/docs/spaces/)
+- [IBM 클라우드 개체 저장](https://cloud.ibm.com/apidocs/cos/cos-compatibility)
+- [JD Cloud Object Storage 서비스](https://docs.jdcloud.com/en/object-storage-service/introduction-2)
+- [Linode 개체 저장](https://www.linode.com/products/object-storage/)
+- [Oracle Cloud Object 스토리지](https://docs.cloud.oracle.com/en-us/iaas/Content/Object/Tasks/s3compatibleapi.htm)
+- 회사 소개[Ceph 개체 게이트웨이](https://docs.ceph.com/en/latest/radosgw/s3/)
+
+Logpush 및 현재 생산 API에 대한 자세한 내용은 참조[Cloudflare Logpush의](/logs/logpush/)문서.
+
+## Cloudflare 대시보드를 통해 관리
+
+<Render file="enable-logpush-job" product="logs" />
+
+4. 내 계정**자주 묻는 질문**, 선택**S3 호환**.
+
+5. 다음 목적지 정보 입력 또는 선택:
+   - **제품정보**- S3 호환성 물통 이름
+   - **오시는 길**- 저장 용기 안에 물통 위치
+   - **로그인을 일일 폴더로 구성**(추천)
+   - **엔드포인트 URL**- 버킷 이름 또는 경로없이 URL. 예제,`sfo2.digitaloceanspaces.com`.
+   - **물통 지역**
+   - **액세스 키 ID**
+   - **비밀 액세스 키**
+
+목적지 정보를 입력할 때, 선택**계속하기**.
+
+6. Dataset을 선택하여 저장 서비스로 밀어줍니다.
+
+7. 다음 단계에서, 당신은 당신의 logpush 작업을 구성해야:
+   - 이름 \***이름 \***.
+   - 이름 \***로그인**, 당신은 이벤트를 선택하고 / 또는 로그에서 제거 할 수 있습니다. 더 알아보기[필터링](/logs/logpush/logpush-job/filters/)더 많은 정보. 모든 datasets에는 이 선택권이 있습니다.
+   - 내 계정**다음 필드를 보내십시오**, 당신은 당신의 저장 목적지에 모든 로그를 밀어 또는 선택적으로 당신이 밀어하려는 로그를 선택할 수 있습니다.
+
+8. 내 계정**고급 옵션**, 당신은 할 수 있습니다:
+   - 로그인의 타임스탬프 필드의 형식을 선택하십시오 (`RFC3339`(과태)`Unix`, 또는`UnixNano`).
+   - 선택하기[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)로그인 또는 로그의 무작위 샘플 비율을 밀어.
+   - 사용 가능한 적색`CVE-2021-44228`. 이 선택권은 각 발생을 대체할 것입니다`${`이름 \*`x{`.
+
+9. 제품정보**제출하기**일단 당신이 당신의 logpush 일을 구성하고 있습니다.
+
+## API를 통해 관리
+
+S3-compatible 엔드포인트를 설정하려면:
+
+1. 적절한 엔드포인트 URL 및 인증 매개 변수로 작업을 만듭니다.
+2. 로그를 푸는 작업을 활성화합니다.
+
+:::주\[주]
+
+Amazon S3에 Logpush 작업과는 달리 S3-compatible API와 소유권이 없습니다.
+
+:::
+
+<Render file="enable-read-permissions" product="logs" />
+
+### 1. 작업 만들기
+
+일을 만들려면,`POST`다음 필드에 Logpush 작업 엔드 포인트에 요청:
+
+- **이름 \***(optional) - 도메인 이름을 작업 이름으로 사용하십시오.
+- **대상 conf**- 엔드포인트 이름, 버킷 이름, 버킷 경로, 지역, 액세스 키 ID 및 다음 문자열 형식의 secret-access-key로 구성된 로그 대상:
+
+```bash
+"s3://<BUCKET_NAME>/<BUCKET_PATH>?region=<REGION>&access-key-id=<ACCESS_KEY_ID>&secret-access-key=<SECRET_ACCESS_KEY>&endpoint=<ENDPOINT_URL>"
+```
+
+:::주\[주]
+
+`<ENDPOINT_URL>`버킷 이름이나 경로없이 URL입니다. 예를 들면:`endpoint=sfo2.digitaloceanspaces.com`.
+
+:::
+
+- **데이터셋**- 수신하려는 로그의 범주. 더 알아보기[데이터셋](/logs/logpush/logpush-job/datasets/)지원된 datasets의 전체 목록을 위해.
+- **output 옵션**(선택 사항) - 필드, 샘플 속도 및 타임스탬프 형식을 구성하려면, 참조[로그 출력 옵션](/logs/logpush/logpush-job/log-output-options/).
+
+cURL을 사용한 예시 요청:
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  	name: "<DOMAIN_NAME>",
+  	destination_conf:
+  		"s3://<BUCKET_NAME>/<BUCKET_PATH>?region=<REGION>&access-key-id=<ACCESS_KEY_ID>&secret-access-key=<SECRET_ACCESS_KEY>&endpoint=<ENDPOINT_URL>",
+  	output_options: {
+  		field_names: [
+  			"ClientIP",
+  			"ClientIP",
+  			"ClientRequestHost",
+  			"ClientRequestMethod",
+  			"ClientRequestURI",
+  			"EdgeEndTimestamp",
+  			"EdgeResponseBytes",
+  			"EdgeResponseStatus",
+  			"EdgeStartTimestamp",
+  			"RayID",
+  		],
+  		timestamp_format: "rfc3339",
+  	},
+  	dataset: "http_requests",
+  }}
+/>
+
+응답:
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": false,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_NAME>/<BUCKET_PATH>?region=<REGION>&access-key-id=<ACCESS_KEY_ID>&secret-access-key=<SECRET_ACCESS_KEY>&endpoint=<ENDPOINT_URL>",
+    "last_complete": null,
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```
+
+### 2. 직업 (업데이트)
+
+일을 할 수 있도록,`PUT`Logpush 작업 엔드 포인트에 요청. URL에서 이전 단계에서 반환된 작업 ID를 사용하고 전송합니다.`{"enabled": true}`요청 몸에서.
+
+cURL을 사용한 예시 요청:
+
+```bash
+curl --request PUT \
+https://api.cloudflare.com/client/v4/zones/{zone_id}/logpush/jobs/{job_id} \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data '{
+  "enabled": true
+}'
+```
+
+응답:
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "dataset": "http_requests",
+    "enabled": true,
+    "name": "<DOMAIN_NAME>",
+    "output_options": {
+      "field_names": ["ClientIP", "ClientRequestHost", "ClientRequestMethod", "ClientRequestURI", "EdgeEndTimestamp","EdgeResponseBytes", "EdgeResponseStatus", "EdgeStartTimestamp", "RayID"],
+      "timestamp_format": "rfc3339"
+    },
+    "destination_conf": "s3://<BUCKET_NAME>/<BUCKET_PATH>?region=<REGION>&access-key-id=<ACCESS_KEY_ID>&secret-access-key=<SECRET_ACCESS_KEY>&endpoint=<ENDPOINT_URL>",
+    "last_complete": null,
+    "last_error": null,
+    "error_message": null
+  },
+  "success": true
+}
+```

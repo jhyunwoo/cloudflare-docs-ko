@@ -1,0 +1,58 @@
+---
+pcx_content_type: how-to
+title: 기타 제품
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/middleware/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/middleware/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Middleware는 당신의 앞에 달릴 수 있는 재사용할 수 있는 논리입니다[`onRequest`](/pages/functions/api-reference/#onrequests)기능. Middlewares는 일반적으로 유틸리티 기능입니다. 오류 처리, 사용자 인증 및 로깅은 애플리케이션 내에서 미들웨어의 전형적인 후보입니다.
+
+## 다운로드
+
+Middleware는 표준 Pages와 유사합니다 기능하지만 미들웨어는 항상 정의됩니다.`_middleware.js`프로젝트의 파일`/functions`디렉토리. ·`_middleware.js`파일 수출[`onRequest`](/pages/functions/api-reference/#onrequests)기능. 미들웨어는 Pages 같은 기능`/functions`subdirectories를 포함한 디렉토리. 예를 들어,`functions/users/_middleware.js`파일은 요청에 일치합니다.`/functions/users/nevi`, `/functions/users/nevi/123`·`functions/users`.
+
+정적 파일 앞을 포함한 전체 응용 프로그램에 미들웨어를 실행하려면,`functions/_middleware.js`파일.
+
+내 계정`_middleware.js`파일, 당신은 수출할 수 있습니다`onRequest`핸들러 또는 그 방법의 어떤 변형. 다음은 프로젝트의 Pages 기능에서 어떤 오류를 처리하는 예 미들웨어입니다. 이 예제는`next()`요청 핸들러의 컨텍스트 객체에서 사용할 수있는 방법:
+
+```js
+export async function onRequest(context) {
+	try {
+		return await context.next();
+	} catch (err) {
+		return new Response(`${err.message}\n${err.stack}`, { status: 500 });
+	}
+}
+```
+
+## 체인 미들웨어
+
+당신은 당신의 미들웨어 핸들러로 Pages 기능의 배열을 수출할 수 있습니다. 이것은 당신이 실행하고 싶은 다수 미들웨어를 함께 사슬을 할 수 있습니다. 다음 예제에서 프로젝트의 기능에서 생성 된 오류를 처리 할 수 있으며 사용자가 인증 된 경우 확인 할 수 있습니다.
+
+```js
+async function errorHandling(context) {
+	try {
+		return await context.next();
+	} catch (err) {
+		return new Response(`${err.message}\n${err.stack}`, { status: 500 });
+	}
+}
+
+function authentication(context) {
+	if (context.request.headers.get("x-email") != "admin@example.com") {
+		return new Response("Unauthorized", { status: 403 });
+	}
+
+	return context.next();
+}
+
+export const onRequest = [errorHandling, authentication];
+```
+
+위의 예에서,`errorHandling`기능은 첫째로 달릴 것입니다. 어떤 오류를 캡처합니다.`authentication`다른 어떤 후에 Pages 기능에 있는 기능 그리고 어떤 과실.

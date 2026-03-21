@@ -1,0 +1,128 @@
+---
+title: 지역 개발
+pcx_content_type: concept
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/configuration/local-development/'
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/configuration/local-development/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Hyperdrive는 국부적으로 WorkersXQ를 개발하고 시험할 때 사용될 수 있습니다.[Wrangler](/workers/wrangler/install-and-update/), Workers를 위한 명령 선 공용영역은, 국부적으로 발달을 위한 2개의 선택권을 제공합니다:
+
+- **`wrangler dev`**(과태): 당신의 기계에 국부적으로 당신의 노동자 부호를 달립니다. 당신은 구성`localConnectionString`데이터베이스에 직접 연결하기 (이더 로컬 또는 원격). Hyperdrive 쿼리 캐싱은이 모드에서 영향을받지 않습니다.
+- **`wrangler dev --remote`**: 배치 된 Hyperdrive 구성을 사용하여 CloudflareQ의 작업자를 실행합니다. Hyperdrive의 연결 풀링 및 쿼리 캐싱을 사용하여 테스트에 유용합니다.
+
+## 제품 정보`wrangler dev`
+
+기본적으로,`wrangler dev`당신의 기계에 국부적으로 당신의 노동자 부호를 실행하십시오. 로컬 개발 중에 데이터베이스에 연결하려면 구성`localConnectionString`그것은 당신의 데이터베이스에 직접 점.
+
+더 보기`localConnectionString`로컬 및 원격 데이터베이스와 함께 작동 :
+
+- **지역 데이터베이스**: 컴퓨터에서 실행되는 데이터베이스 인스턴스에 연결 (예를 들면,`postgres://user:password@localhost:5432/database`)
+- **원격 데이터베이스**: TLS 이상 원격 데이터베이스에 직접 연결 (예를 들어,`postgres://user:password@remote-host.example.com:5432/database?sslmode=require`또는`mysql://user:password@remote-host.example.com:3306/database?sslMode=required`). SSL/TLS 모드를 지정해야 합니다.
+
+:::참조
+
+사용 방법`localConnectionString`, Hyperdrive의 연결 풀고 질문 캐싱은 효력을 가지고 있지 않습니다. 당신의 노동자는 Hyperdrive를 통해서 갈 필요없는 데이타베이스에 직접 연결합니다.
+
+:::
+
+### 환경 변수 설정
+
+권장된 접근법은 소스 제어에 credentials를 강제하기 위해 환경 변수를 사용한다:
+
+```sh
+#구성 된 Hyperdrive 바인딩은 "HYPERDRIVE"입니다.
+export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgres://user:password@your-database-host:5432/database"
+npx wrangler dev
+```
+
+환경 변수 형식은`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING_NAME>`, 어디`<BINDING_NAME>`Hyperdrive에 할당된 바인딩의 이름은[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+환경 변수를 설정하려면:`unset CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_<BINDING_NAME>`
+
+예를 들어, 로컬 데이터베이스에 대한 연결 문자열을 설정하려면:
+
+```sh
+export CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE="postgres://user:password@localhost:5432/databasename"
+npx wrangler dev
+```
+
+### Wrangler 설정 파일 구성
+
+대안으로, 당신은 놓을 수 있습니다`localConnectionString`내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"hyperdrive": [
+  		{
+  			"binding": "HYPERDRIVE",
+  			"id": "c020574a-5623-407b-be0c-cd192bab9545",
+  			"localConnectionString": "postgres://user:password@localhost:5432/databasename"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+환경 변수와`localConnectionString`Wrangler 설정 파일에서 환경 변수는 우선순위가 걸립니다.
+
+## 제품 정보`wrangler dev --remote`
+
+당신이 실행할 때`wrangler dev --remote`, 당신의 노동자는 Cloudflare의 네트워크에서 실행하고 당신의 배치한 Hyperdrive 윤곽을 이용합니다. 이 수단:
+
+- 작업자 코드는 Cloudflare의 생산 환경에서 로컬로 실행됩니다.
+- Hyperdrive의 연결 풀링 및 쿼리 캐싱은 활성
+- Hyperdrive 설정에서 구성 된 데이터베이스에 연결하십시오.`wrangler hyperdrive create`)
+- 세션 중 변경은 원격 리소스와 상호 작용
+
+이 모드는 배포하기 전에 Hyperdrive의 기능이 활성화된 방법을 테스트하는 데 유용합니다.
+
+Hyperdrive 바인딩 구성`wrangler.jsonc`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"hyperdrive": [
+  		{
+  			"binding": "HYPERDRIVE",
+  			"id": "your-hyperdrive-id",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+원격 개발 세션을 시작하려면:
+
+```sh
+npx wrangler dev --remote
+```
+
+:::참조
+
+더 보기`localConnectionString`필드는 사용되지 않습니다`wrangler dev --remote`. 대신, 당신의 노동자는 배치된 Hyperdrive 윤곽에서 형성된 데이타베이스에 연결합니다.
+
+:::
+
+:::카트로션
+
+제품 정보`wrangler dev --remote`caution로. 당신의 노동자가 Cloudflare의 생산 환경에서 실행되기 때문에, 어떤 데이타베이스 쓰기 또는 부작용은 당신의 생산 자료에 영향을 미칠 것입니다.
+
+:::
+
+더 알아보기[`wrangler dev`관련 기사](/workers/wrangler/commands/#dev)로컬 개발 세션을 구성하는 방법에 대해 자세히 알아보세요.
+
+## 관련 자료
+
+- 제품 정보[`wrangler dev`](/workers/wrangler/commands/#dev)배포하기 전에 Worker 및 Hyperdrive 로컬 및 디버그 문제를 실행하십시오.
+- 지원하다[Hyperdrive는 어떻게 작동합니까?](/hyperdrive/concepts/how-hyperdrive-works/).
+- 자주 묻는 질문[Hyperdrive에서 쿼리 캐싱 구성](/hyperdrive/concepts/query-caching/).

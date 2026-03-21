@@ -1,0 +1,210 @@
+---
+title: 규칙 만들기
+pcx_content_type: reference
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/create/'
+translation_source_md: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/create/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Description, Type, MetaInfo, Render, APIRequest } from "~/components";
+
+지정된 단계에서 주어진 종류의 규칙을 만듭니다. 단계 항목 포인트 규칙을 만들 수 있습니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 만들기](/api/resources/rulesets/methods/create/)<br />
+  `POST /accounts/{account_id}/rulesets`
+- [지역 규칙 만들기](/api/resources/rulesets/methods/create/)<br />
+  `POST /zones/{zone_id}/rulesets`
+
+## 매개 변수
+
+·`POST`request to create a ruleet support the following parameter in the request body:
+
+- `name` <Type text="String" />
+  - 룰렛의 인간적인 이름.
+  - 이름은 immutable입니다. 규칙의 일생에 따라 변경할 수 없습니다.
+- `description` <Type text="String" /> <MetaInfo text="Optional" />
+  - 규칙에 대한 옵션 설명.
+  - 규칙의 일생에 대한 설명을 변경할 수 있습니다.
+- `kind` <Type text="String" />
+  - JSON 객체의 종류는 나타냅니다.
+  - 허용된 값:
+    - `custom`: 사용자 정의 규칙 만들기
+    - `root`: 단계 만들기[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)계정 수준에서
+    - `zone`: 영역 수준에서 단계 진입점 규칙 생성
+- `phase` <Type text="String" />
+  - 이름의[단계별](/ruleset-engine/about/phases/)규칙이 생성됩니다.
+  - 자주 묻는 질문[단계 목록](/ruleset-engine/reference/phases-list/)또는 특정 Cloudflare 제품 문서는 해당 제품에 대한 규칙을 만들 수있는 단계에 대한 자세한 내용은.
+- `rules` <Type text="Array<Rule>" /> <MetaInfo text="Optional" />
+  - 이름 \*[【특전】](/ruleset-engine/rulesets-api/json-object/#rule-object-structure-and-properties)규칙에 포함.
+
+이 매개 변수에 대한 자세한 내용은 참조[JSON 객체](/ruleset-engine/rulesets-api/json-object/).
+
+## 예제 - 사용자 정의 규칙 만들기
+
+다음 것`POST`요청은 사용자 정의 규칙을 만듭니다.`http_request_firewall_custom`단일 규칙을 포함하는 계정 수준에서 단계.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Example custom ruleset",
+  	kind: "custom",
+  	description: "Example ruleset description",
+  	rules: [
+  		{
+  			action: "log",
+  			expression: 'cf.zone.name eq "example.com"',
+  		},
+  	],
+  	phase: "http_request_firewall_custom",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Example custom ruleset",
+		"description": "Example ruleset description",
+		"kind": "custom",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "1",
+				"action": "log",
+				"expression": "cf.zone.name eq \"example.com\"",
+				"last_updated": "2025-03-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2025-03-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 예제 - 영역 수준 단계 항목 포인트 규칙 만들기
+
+다음 것`POST`요청은 zone-level phase Entry point 규칙을 작성합니다.`http_request_firewall_managed`관리된 규칙을 실행하는 단일 규칙을 가진 단계.
+
+:::참조
+이 방법을 사용하여 단계 항목 포인트 규칙을 만들 필요가 없습니다. Cloudflare는 당신이 그것에 규칙을 추가할 때 입력 점 규칙을 자동적으로 창조합니다, 존재하지 않는 경우에. 더 알아보기[단계 항목 포인트 규칙에 규칙을 추가](/ruleset-engine/basic-operations/add-rule-phase-rulesets/)더 많은 정보.
+주요 특징
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Zone-level phase entry point",
+  	kind: "zone",
+  	description: "This ruleset executes a managed ruleset.",
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  			},
+  		},
+  	],
+  	phase: "http_request_firewall_managed",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point",
+		"description": "This ruleset executes a managed ruleset.",
+		"kind": "zone",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2025-03-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2025-03-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 예제 - 계정 수준 단계 항목 포인트 규칙 만들기
+
+다음 것`POST`요청은 계정 수준의 단계 항목 포인트 규칙을 만듭니다.`http_ratelimit`계정의 모든 엔터프라이즈 영역에 대한 제한 규칙을 실행하는 단일 규칙으로 단계.
+
+:::참조
+이 방법을 사용하여 단계 항목 포인트 규칙을 만들 필요가 없습니다. Cloudflare는 당신이 그것에 규칙을 추가할 때 입력 점 규칙을 자동적으로 창조합니다, 존재하지 않는 경우에. 더 알아보기[단계 항목 포인트 규칙에 규칙을 추가](/ruleset-engine/basic-operations/add-rule-phase-rulesets/)더 많은 정보.
+주요 특징
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Account-level phase entry point",
+  	kind: "root",
+  	description: "This ruleset executes a rate limiting ruleset.",
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: '(cf.zone.plan eq "ENT")',
+  			action_parameters: {
+  				id: "<RATE_LIMITING_RULESET_ID>",
+  			},
+  		},
+  	],
+  	phase: "http_ratelimit",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Account-level phase entry point",
+		"description": "This ruleset executes a rate limiting ruleset.",
+		"kind": "root",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "(cf.zone.plan eq \"ENT\")",
+				"action_parameters": {
+					"id": "<RATE_LIMITING_RULESET_ID>"
+				},
+				"last_updated": "2024-09-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2024-09-17T15:42:37.917815Z",
+		"phase": "http_ratelimit"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+<Render file="account-enterprise-zones-only-api" product="waf" />

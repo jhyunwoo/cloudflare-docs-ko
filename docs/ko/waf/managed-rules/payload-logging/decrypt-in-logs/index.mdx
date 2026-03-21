@@ -1,0 +1,92 @@
+---
+title: 로그에 매각된 매각을 저장
+pcx_content_type: how-to
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/payload-logging/decrypt-in-logs/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/payload-logging/decrypt-in-logs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, RuleID } from "~/components";
+
+암호화 된 일치 된 페이로드를 포함 할 수 있습니다.[다운로드](/logs/logpush/)작업 추가**주요사업** > [**메타데이터**](/logs/logpush/logpush-job/datasets/zone/firewall_events/#metadata)방화벽 이벤트 데이터셋에서 작업에 이르기까지 현장.
+
+Payload는 암호화 된 형태로 사용할 수 있습니다.[`encrypted_matched_data`이름 \*](#structure-of-encrypted_matched_data-property-in-logpush)이름 \*`Metadata`이름 \*
+
+그러나 로그인을 저장하기 전에 일치하는 페이로드를 해독 할 수 있습니다.<GlossaryTooltip term="SIEM">SIEM 시스템</GlossaryTooltip>선택의. Cloudflare는[표본 노동자 프로젝트](https://github.com/cloudflare/matched-data-worker)다음을 수행하는 GitHub의:
+
+1. Logpush에서 로그를 수신하는 S3-compatible 스토리지로 Behaves. 이 로그는 암호화된 페이로드 데이터를 포함합니다.
+2. 개인 키를 사용하여 일치한 페이로드 데이터를 해독합니다.
+3. 암호화된 페이로드 데이터를 사용하여 최종 로그 저장 시스템에 로그를 보냅니다.
+
+로그인 저장 시스템에 암호화 된 페이로드 데이터를 포함하는 로그를 밀어하기 위해 샘플 프로젝트에 약간의 변경을해야합니다.
+
+Worker 프로젝트의 참조[읽기](https://github.com/cloudflare/matched-data-worker/blob/main/README.md)이 Worker 프로젝트를 구성하고 배포하는 데 더 많은 정보를 제공합니다.
+
+## 구조의`encrypted_matched_data`Logpush의 호텔
+
+일치된 페이로드 정보는 규칙을 트리거 한 특정 문자열을 포함, 즉시 나타나는 일부 텍스트와 일치 문자열 후.
+
+그 가치를 해독하면`encrypted_matched_data`호텔 위치`Metadata`Logpush의 필드는 다음과 같은 구조가 있습니다.
+
+```json
+{
+	// for fields with only one match (such as URI or user agent fields):
+	"<match_location>": {
+		"before": "<text_before_match>",
+		"content": "<matched_text>",
+		"after": "<text_after_match>"
+	},
+	// for fields with possible multiple matches (such as form, header, or body fields):
+	"<match_location>": [
+		{
+			"before": "<text_before_match_1>",
+			"content": "<matched_text_1>",
+			"after": "<text_after_match_1>"
+		},
+		{
+			"before": "<text_before_match_2>",
+			"content": "<matched_text_2>",
+			"after": "<text_after_match_2>"
+		}
+	]
+}
+```
+
+더 보기`before`·`after`속성은 선택 사항입니다 (합성된 텍스트 후의 내용이 없을 수 있습니다) 그리고 일치하기 전에 나타나는 내용의 15 바이트에 포함 됩니다.
+
+아래는 payload 일치의 몇 가지 예입니다:
+
+```json title="URI match"
+{
+	"http.request.uri": {
+		"before": "/admin",
+		"content": "/.git/",
+		"after": "config"
+	}
+}
+```
+
+```json title="Header value match"
+{
+	"http.request.headers.values[3]": [
+		{ "content": "phar://", "after": "example" }
+	]
+}
+```
+
+```json title="Raw body content match"
+{
+	"http.request.body.raw": {
+		"before": "NY>",
+		"content": "<!ENTITY xxe SYSTEM \"file:///dev/random\">] > ",
+		"after": "<foo>&xxe;</foo>"
+	}
+}
+```

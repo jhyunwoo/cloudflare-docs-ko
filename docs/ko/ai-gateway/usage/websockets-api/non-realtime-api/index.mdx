@@ -1,0 +1,137 @@
+---
+pcx_content_type: configuration
+title: 웹소켓 API
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/usage/websockets-api/non-realtime-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/usage/websockets-api/non-realtime-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Non-realtime WebSockets API를 사용하면 반복적인 Handhakes를 필요로 하지 않고 AI 요청에 대한 지속적인 연결을 설정할 수 있습니다. 이 접근법은 실시간 상호 작용을 필요로 하지 않는 신청에 대하 이상적 그러나 아직도 감소된 대기권 및 지속적인 커뮤니케이션에서 이득.
+
+## WebSockets API 설정
+
+1. 적절한 AI Gateway Run을 사용하여 AI Gateway 토큰을 생성하고 인증 된 게이트웨이를 사용하여 선택합니다.
+2. 대체로 Universal Endpoint URL을 수정`https://`이름 \*`wss://`WebSocket 연결 시작:
+   ```
+   wss://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
+   ```
+3. AI Gateway Run 권한을 가진 Cloudflare 토큰으로 인증된 WebSocket 연결을 엽니다.
+
+:::참조
+또는, 우리는 또한 인증을 통해 지원`sec-websocket-protocol`브라우저 WebSocket을 사용하는 경우 헤더.
+주요 특징
+
+## 예제 요청
+
+```javascript
+import WebSocket from "ws";
+
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/my-account-id/my-gateway/",
+	{
+		headers: {
+			"cf-aig-authorization": "Bearer AI_GATEWAY_TOKEN",
+		},
+	},
+);
+
+ws.on("open", () => {
+	ws.send(
+		JSON.stringify({
+			type: "universal.create",
+			request: {
+				eventId: "my-request",
+				provider: "workers-ai",
+				endpoint: "@cf/meta/llama-3.1-8b-instruct",
+				headers: {
+					Authorization: "Bearer WORKERS_AI_TOKEN",
+					"Content-Type": "application/json",
+				},
+				query: {
+					prompt: "tell me a joke",
+				},
+			},
+		}),
+	);
+})
+
+ws.on("message", (message) => {
+	console.log(message.toString());
+});
+```
+
+## 예제 응답
+
+```json
+{
+	"type": "universal.created",
+	"metadata": {
+		"cacheStatus": "MISS",
+		"eventId": "my-request",
+		"logId": "01JC3R94FRD97JBCBX3S0ZAXKW",
+		"step": "0",
+		"contentType": "application/json"
+	},
+	"response": {
+		"result": {
+			"response": "Why was the math book sad? Because it had too many problems. Would you like to hear another one?"
+		},
+		"success": true,
+		"errors": [],
+		"messages": []
+	}
+}
+```
+
+## 예제 스트리밍 요청
+
+스트리밍 요청의 경우, AI Gateway는 스트림을 나타내는 요청 메타데이터와 초기 메시지를 보냅니다:
+
+```json
+{
+	"type": "universal.created",
+	"metadata": {
+		"cacheStatus": "MISS",
+		"eventId": "my-request",
+		"logId": "01JC40RB3NGBE5XFRZGBN07572",
+		"step": "0",
+		"contentType": "text/event-stream"
+	}
+}
+```
+
+이 초기 메시지 후, 모든 스트리밍 펑크는 WebSocket 연결에 실시간에 릴레이됩니다. 한국어`eventId`이 스트리밍 펑크에 대한 메타데이터에 포함되어 있습니다. 더 보기`eventId`AI Gateway는 WebSocket 환경에서도 각 메시지와 클라이언트 정의 ID를 포함하도록 합니다.
+
+```json
+{
+	"type": "universal.stream",
+	"metadata": {
+		"eventId": "my-request"
+	},
+	"response": {
+		"response": "would"
+	}
+}
+```
+
+요청이 스트림되면 AI Gateway는 요청 완료 시 최종 메시지를 보냅니다. 추가 유연성을 위해, 이 메시지에는 스트리밍 프로세스의 시작에 처음 제공되었더라도 모든 메타데이터가 다시 포함되어 있습니다.
+
+```json
+{
+	"type": "universal.done",
+	"metadata": {
+		"cacheStatus": "MISS",
+		"eventId": "my-request",
+		"logId": "01JC40RB3NGBE5XFRZGBN07572",
+		"step": "0",
+		"contentType": "text/event-stream"
+	}
+}
+```

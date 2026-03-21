@@ -1,0 +1,143 @@
+---
+title: 실행 시간 API
+pcx_content_type: configuration
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/email-routing/email-workers/runtime-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/email-routing/email-workers/runtime-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 이름 \*
+
+이름 \*`EmailEvent`이 이벤트 유형은 프로그래머와 함께 이메일을 처리하는 것입니다. 당신은 당신의 노동자에 건설한 논리에 따라, 앞으로, 또는 하락 이메일 할 수 있습니다.
+
+***
+
+## Syntax: ES 모듈
+
+`EmailEvent`Workers 기능에서 처리될 수 있습니다[ES 모듈 형식](/workers/reference/migrate-to-module-workers/)더 보기`email`당신의 단위의 수출한 Handlers에 기능:
+
+```js
+export default {
+  async email(message, env, ctx) {
+    await message.forward("<YOUR_EMAIL>");
+  },
+};
+```
+
+### 매개 변수
+
+- `message`이메일:
+
+  - ·[`ForwardableEmailMessage`기타 제품](#forwardableemailmessage-definition).
+
+- `env`기타 제품
+
+  - KV 네임스페이스 및 Durable Objects와 같은 ES 모듈 형식을 사용하여 작업자와 관련된 바인딩을 포함하는 객체.
+
+- `ctx`기타 제품
+  - ES 모듈 형식을 사용하여 Worker와 관련된 컨텍스트를 포함하는 객체. 현재,이 객체는 단지 포함`waitUntil`기능.
+
+***
+
+## Syntax: 서비스 노동자
+
+:::caution\[서비스 Workers는 deprecated]
+
+서비스 Workers는 deprecated 그러나 아직도 지원됩니다. 자주 묻는 질문[단위 Workers](/workers/reference/migrate-to-module-workers/)대신. 새로운 기능은 서비스 WorkersXQ를 위해 지원되지 않을지도 모릅니다.
+
+:::
+
+`EmailEvent`WorkersXQ 기능에서 핸들링 할 수 있습니다.`email`이벤트`addEventListener`:
+
+```js
+addEventListener("email", async (event) => {
+  await event.message.forward("<YOUR_EMAIL>");
+});
+```
+
+### 제품 정보
+
+- `event.message`이메일:
+
+  - 이름 \*[`ForwardableEmailMessage`기타 제품](#forwardableemailmessage-definition).
+
+***
+
+## `ForwardableEmailMessage`이름 \*
+
+```ts
+ interface ForwardableEmailMessage<Body = unknown> {
+  readonly from: string;
+  readonly to: string;
+  readonly headers: Headers;
+  readonly raw: ReadableStream;
+  readonly rawSize: number;
+
+  public constructor(from: string, to: string, raw: ReadableStream | string);
+
+  setReject(reason: string): void;
+  forward(rcptTo: string, headers?: Headers): Promise<void>;
+  reply(message: EmailMessage): Promise<void>;
+}
+```
+
+소비자 노동자에게 보내진 이메일 메시지는 거부 / 금지 될 수 있습니다.
+
+- `from`이름 \*
+
+  - `Envelope From`이메일 메시지의 속성.
+
+- `to`이름 \*
+
+  - `Envelope To`이메일 메시지의 속성.
+
+- `headers`기타 제품
+
+  - ·[`Headers`기타 제품](https://developer.mozilla.org/en-US/docs/Web/API/Headers).
+
+- `raw`읽을 수 있는Stream
+
+  - [사이트 맵](/workers/runtime-apis/streams/readablestream)이메일 메시지 내용.
+
+- `rawSize`이름 \*
+
+  - 이메일 메시지 내용의 크기.
+
+- <code>setReject (거슨 문자열)</code>: void의
+
+  - 이 이메일 메시지를 거부하여 영구 SMTP 오류를 다시 연결 클라이언트로 돌려주십시오.
+
+- <code>앞으로 (rcptTostring, headersHeadersoptional)</code>: 약속
+
+  - 계정의 확인된 목적지 주소로 이 이메일 메시지를 전달하십시오. 원하는 경우, 추가 헤더를 이메일 메시지에 추가할 수 있습니다. 한국어`X-*`헤더가 허용됩니다.
+  - 약속이 해결되면 메시지가 확인 된 목적지 주소로 전달됩니다.
+
+- <code>답변(이메일메시지)</code>: 약속
+
+  - 새 EmailMessage 객체와 함께 이 이메일 메시지의 sender에 응답합니다.
+  - 약속이 해결될 때, 메시지는 대답될 것으로 확인됩니다.
+
+## `EmailMessage`이름 \*
+
+```ts
+interface EmailMessage {
+    readonly from: string;
+    readonly to: string;
+}
+```
+
+Worker에서 보낼 수있는 이메일 메시지.
+
+- `from`이름 \*
+
+  - `Envelope From`이메일 메시지의 속성.
+
+- `to`이름 \*
+
+  - `Envelope To`이메일 메시지의 속성.

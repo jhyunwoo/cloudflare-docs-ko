@@ -1,0 +1,128 @@
+---
+title: SSH 프록시 및 명령 로그 (legacy)
+tags:
+  - SSH
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: SSH 프록시 및 명령 로그 (legacy)
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/network-policies/ssh-logging/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/network-policies/ssh-logging/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+:::caution\[Legacy 기능 — 새로운 배포를 권장하지 않음]
+이 SSH 프록시 및 명령 로깅 방법은 deprecated입니다. 새로운 배포를 위해, use[접근성 준수](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/)SSH 세션을 관리하고 SSH 명령을 로그합니다.
+주요 특징
+
+모델 번호: Cloudflare 보안 웹 게이트웨이와 WARP 클라이언트를 사용하여 SSH 프록시 및 명령 로깅을 지원합니다.
+
+SSH 액세스 관리 및 모니터링 할 수있는 네트워크 정책을 만들 수 있습니다. 장치가 SSH를 통해 Origin 서버에 연결하면 세션 로그는 사용자가 연결되는 표시, 세션 기간 및 세션 기간 동안 실행되는 모든 명령의 전체 재생이 표시됩니다.
+
+## 자주 묻는 질문
+
+- [WARP 클라이언트 설치](/cloudflare-one/team-and-resources/devices/warp/set-up-warp/)end-user 장치에서.
+- [Cloudflare 루트 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/)end-user 장치에서.
+
+## 1. 사용자 SSO 식별자를 보장
+
+모델 번호: Cloudflare 게이트웨이는 토큰의 정체성을 가지고 있으며, 짧은 인증서를 사용하여 대상 인프라에서 사용자를 승인합니다.
+
+<Render file="ssh/usernames" product="cloudflare-one" />
+
+## 2. Gateway SSH 프록시 CA 생성
+
+기존 SSH 키 대신 게이트웨이는 Cloudflare와 당신의 기원 사이의 트래픽을 정통하기 위해 짧은 라이브 인증서를 사용합니다.
+
+<Render file="ssh/ssh-proxy-ca-note" product="cloudflare-one" />
+
+Gateway SSH 프록시 CA를 생성하고 공공 키를 얻을:
+
+<Render file="ssh/ssh-proxy-ca" product="cloudflare-one" />
+
+## 3. 공개 키 저장
+
+<Render file="ssh/public-key" product="cloudflare-one" />
+
+## 4. 수정`sshd_config`이름 \*
+
+<Render file="ssh/modify-sshd" product="cloudflare-one" />
+
+## 5. SSH 포트 번호 확인
+
+Cloudflare의 SSH 프록시는 기본 포트 22에서 실행되는 서버와 함께 작동합니다. 자주 묻는 질문`sshd_config`파일 및 기타 인증`Port`값이 지정됩니다.
+
+```sh
+cat /etc/ssh/sshd_config
+```
+
+## 6. SSH 서버를 재시작
+
+<Render file="ssh/restart-server" product="cloudflare-one" />
+
+## 7. 감사 SSH 정책을 작성
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **방화벽 정책**.
+
+2. 내 계정**회사연혁**탭, 선택**네트워크 정책 추가**.
+
+3. 성명 정책 및 지정[대상 IP](/cloudflare-one/traffic-policies/network-policies/#destination-ip)당신의 근원 서버를 위해.
+
+   공공 또는 개인 IP 중 하나를 입력 할 수 있습니다. 개인 IP를 사용하려면, 참조[개인 네트워크](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/).
+
+4. 귀하의 정책에 다른 조건을 추가하십시오. 사용자가 기준을 충족하지 않으면 기본적으로 차단됩니다.
+
+5. 내 계&#xC815;**- 연혁**dropdown, 선택*감사 SSH*.
+
+6. (선택) 사용**SSH 명령 로깅**. 이미 SSH 암호화 공개 키를 업로드하지 않은 경우, 단계에 따라[SSH 명령 로깅 구성](#optional-configure-ssh-command-logging).
+
+7. 자주 묻는 질문
+
+## 8. 사용자로 연결
+
+사용자는 장치에서 WARP 클라이언트에 로그인 한 것과 같은 대상 리소스에 연결할 SSH 클라이언트를 사용할 수 있습니다. 모델 번호: Cloudflare 하나가 인증, 프록시 및 선택적으로 암호화하고 게이트웨이를 통해 모든 SSH 트래픽을 기록합니다.
+
+사용자는 SSH 명령의 일부로 연결하는 원하는 사용자 이름을 지정해야 합니다.
+
+```sh
+ssh <username>@<hostname>
+```
+
+:::참조
+
+대상 자원이 이미 사용자의 경우`.ssh/known_hosts`파일, 사용자는 먼저 연결 시도하기 전에 기존 SSH 키를 제거해야합니다 :
+
+```sh
+ssh-keygen -R <targetIP or hostname>
+```
+
+:::
+
+## (선택) SSH 명령 로깅 구성
+
+<Render
+  file="ssh/upload-ssh-key"
+  product="cloudflare-one"
+  params={{
+  	note: "Note that this a different public key from the `ca.pub` file you used to configure the SSH server.",
+  }}
+/>
+
+## SSH 로그 보기
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**관련 기사** >**로그인** > **SSH 명령 로그**.
+
+2. 당신이 활성화한 경우**SSH 명령 로깅**특징, 당신은 할 수 있습니다**다운로드**세션의 명령 로그.
+
+3. <Render file="ssh/decrypt-ssh-log" product="cloudflare-one" />
+
+## 제한 사항
+
+SSH 명령 로깅은 SFTP를 지원하지 않기 때문에 검사 및 로그가 될 수 없습니다.

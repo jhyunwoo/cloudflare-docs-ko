@@ -1,0 +1,99 @@
+---
+title: IDS 사용
+pcx_content_type: how-to
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: Enable 침입 검출 시스템 (IDS)
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/enable-ids/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/enable-ids/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, DashButton } from "~/components";
+
+Cloudflare의 IDS는 글로벌 네트워크에 의해 구동되는 위협 인텔리전스를 활용하고 Cloudflare 방화벽의 기능을 확장하여 악성 행위자로부터 네트워크를 모니터링하고 보호합니다.
+
+대시보드 또는 API를 통해 IDS를 활성화할 수 있습니다.
+
+:::참조
+이 기능은 Cloudflare Advanced Network Firewall 사용자에게 제공됩니다. 접근을 위해, 당신의 계정 팀을 접촉하십시오.
+주요 특징
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. Cloudflare 대시보드에서[방화벽 정책](https://dash.cloudflare.com/?to=/:account/network-security/magic_firewall)사이트 맵
+
+    2. 제품정보**이름 \***&#xAD00;련 기사**이름 \***.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    API를 통해 IDS를 사용하려면 먼저 새로운 규칙을 만듭니다.`magic-transit-ids-managed`가능한 규칙을 가진 단계.
+
+    1. 자주 묻는 질문[Rulesets 엔진 페이지](/ruleset-engine/basic-operations/view-rulesets/)계정의 모든 규칙을 볼 수 있습니다. 당신은 단계와 규칙을 참조해야합니다`magic-transit-ids-managed`그리고 종류`managed`. 그렇지 않으면 계정 팀에 문의하십시오. 관리된 규칙 ID는 다음 단계에서 사용됩니다.
+
+    2. 새로운 루트 규칙을 단일 규칙으로 만들기`magic_transit_ids_managed`실행하여 단계:
+
+    ```bash
+    curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets \
+    --header "Authorization: Bearer <API_TOKEN>" \
+    --header "Content-Type: application/json" \
+    --data '{
+      "name": "IDS Execute ruleset",
+      "description": "Ruleset to enable IDS",
+      "kind": "root",
+      "phase": "magic_transit_ids_managed",
+      "rules": [
+        {
+          "enabled": true,
+          "expression": "true",
+          "action": "execute",
+          "description": "enable ids",
+          "action_parameters": {
+            "id": "${managed_ruleset_id}"
+          }
+        }
+      ]
+    }'
+    ```
+
+    이 규칙이 추가된 상태에서 IDS는 패킷을 검사하고 어떤 anomalous 트래픽을보고 시작합니다. 다음, 당신은 할 수 있습니다[Logpush 설정](/cloudflare-network-firewall/how-to/use-logpush-with-ids/)anomalous 트래픽에 대한 세부 정보를 얻기 위해.
+
+    3. 이전 단계에서 생성 된 규칙을 사용하여 IDS를 활성화하거나 비활성화하십시오. Rulesets API 문서 설명[규칙을 패치하는 방법](/ruleset-engine/rulesets-api/update-rule/). <br /><br />예를 들어, 다음과 같은 패치 요청을 설정`enabled`관련 제품`false`IDS를 비활성화합니다. 이전 단계에서 만든 규칙의 규칙과 규칙 ID는 아래에 사용됩니다.
+
+    ```bash
+    curl --request PATCH \
+    https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/{root_ruleset_id}/rules/{rule_id} \
+    --header "Authorization: Bearer <API_TOKEN>" \
+    --header "Content-Type: application/json" \
+    --data '{
+      "enabled": false,
+      "expression": "true",
+      "action": "execute",
+      "action_parameters": {
+        "id": "${managed_ruleset_id}"
+      }
+    }'
+    ```
+
+    마찬가지로 패치 요청을 전송`enabled`현장 설정`true`IDS를 활성화합니다.
+  </TabItem>
+</Tabs>
+
+## IDS 규칙
+
+IDS 규칙은 패킷의 하위 설정에서 실행됩니다. IDS는 또한 현재 교류를 지원합니다:
+
+- Cloudflare WAN에 Cloudflare WAN.
+- Magic Transit ingress 트래픽 (egress 트래픽이 직접 서버 반환을 통해 처리됩니다).
+- Magic Transit ingress 및 egress 트래픽이 있을 때 Magic Transit이 있습니다.[Egress 옵션 활성화](/reference-architecture/architectures/magic-transit/#magic-transit-with-egress-option-enabled).
+
+## 다음 단계
+
+Logpush를 구성해야 합니다. 더 알아보기[Logpush 목적지 구성](/cloudflare-network-firewall/how-to/use-logpush-with-ids/)더 많은 정보. 또한 분석 된 모든 트래픽은 통해 액세스 할 수 있습니다.[네트워크 분석](/analytics/network-analytics/). 참고[GraphQL 분석](/cloudflare-network-firewall/tutorials/graphql-analytics/)분석 데이터를 쿼리합니다.

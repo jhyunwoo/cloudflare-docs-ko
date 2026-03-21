@@ -1,0 +1,73 @@
+---
+pcx_content_type: how-to
+title: Public traffic to Tunnel을 위한 Private Network Load Balancing 설정
+sidebar:
+  order: 2
+---
+
+import { Render, TabItem, Tabs, APIRequest } from "~/components";
+
+[Cloudflare Tunnel](/cloudflare-one/networks/connectors/cloudflare-tunnel/)을 오프램프로 사용해 프라이빗 또는 내부 서비스에 안전하게 연결하는 Private Network Load Balancing 솔루션을 어떻게 구성하는지 아래 단계를 통해 알아보세요.
+
+## 1. 할당된 virtual network가 있는 Cloudflare tunnel 구성
+
+구체적인 구성 단계는 인프라와 연결하려는 서비스에 따라 달라질 수 있습니다. Cloudflare Tunnel이 익숙하지 않다면, 각 단계에 연결된 문서 페이지에서 더 자세한 안내를 확인할 수 있습니다.
+
+1. 데이터 센터를 Cloudflare에 연결하기 위해 [터널 생성](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/#1-create-a-tunnel)을 수행합니다.
+2. [virtual network](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/)를 생성하고 이전 단계에서 구성한 터널에 할당합니다.
+
+<Tabs> <TabItem label="대시보드">
+
+virtual network를 생성하려면 다음과 같이 하세요.
+
+1. [Zero Trust dashboard](https://one.dash.cloudflare.com)에서 **Settings** > **WARP Client**로 이동한 뒤 **Virtual networks** 설정을 찾습니다.
+2. **Add new** 또는 **Manage** > **Create virtual network**를 선택해 virtual network를 생성합니다.
+3. virtual network 이름을 정의하고 **Save**를 선택합니다.
+
+virtual network를 터널에 할당하려면 다음과 같이 하세요.
+
+1. **Networks** > **Tunnels**로 이동합니다.
+2. 이전 단계에서 만든 터널을 선택하고 **Configure**를 선택합니다.
+3. **Private Network**에서 **Add a private network**를 선택합니다.
+4. **CIDR** 아래에 IP 범위를 지정하고, **Additional settings**에서 virtual network를 선택합니다.
+5. **Save private network**를 선택합니다.
+
+</TabItem> <TabItem label="CLI">
+
+virtual network를 생성하려면:
+
+```sh
+cloudflared tunnel vnet add <VNET_NAME>
+```
+
+virtual network를 터널에 할당하려면:
+
+```sh
+cloudflared tunnel route ip add --vnet <VNET_NAME> <IP_RANGE> <TUNNEL_NAME>
+```
+
+</TabItem> </Tabs>
+
+## 2. Cloudflare Load Balancing 구성
+
+연결된 virtual network(VNet)가 포함된 Cloudflare tunnel이 구성되면, [풀 생성 또는 수정](/load-balancing/pools/create-pool/#create-a-pool) 시 각 엔드포인트마다 VNet을 지정할 수 있습니다. 이렇게 하면 Cloudflare load balancer가 올바른 터널을 사용해 프라이빗 IP 엔드포인트에 안전하게 도달할 수 있습니다.
+
+구체적인 구성은 사용 사례에 따라 달라집니다. 아래 단계를 참고해 전체 워크플로우를 이해하세요.
+
+1. 필요에 따라 [Load Balancing monitor](/load-balancing/monitors/create-monitor/)를 생성합니다.
+2. 프라이빗 IP 주소와 해당 virtual network를 지정하여 [풀 생성](/load-balancing/pools/create-pool/)을 수행합니다.
+
+:::note
+
+- 현재 Cloudflare는 서로 다른 virtual network를 사용하더라도 동일한 엔드포인트 IP 주소를 두 번 이상 입력하는 것을 지원하지 않습니다.
+- 프라이빗 IP를 사용하는 모든 엔드포인트에는 `virtual_network_id`를 지정해야 합니다.
+
+:::
+
+3. 이전 단계에서 생성한 풀과 모니터, 원하는 [global traffic steering policies](/load-balancing/understand-basics/traffic-steering/steering-policies/), [custom rules](/load-balancing/additional-options/load-balancing-rules/)를 지정하여 [로드 밸런서 생성](/load-balancing/load-balancers/create-load-balancer/)을 수행합니다.
+
+:::caution[Spectrum 제한 사항]
+
+[Spectrum](/spectrum/)과 함께 로드 밸런서를 사용할 예정이라면, 로드 밸런싱 및 모니터링 옵션에 대한 해당 [limitations](/load-balancing/additional-options/spectrum/#limitations)을 확인하세요.
+
+:::

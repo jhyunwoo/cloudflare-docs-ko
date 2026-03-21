@@ -1,0 +1,144 @@
+---
+title: 소비자 concurrency
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/configuration/consumer-concurrency/'
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/configuration/consumer-concurrency/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, DashButton } from "~/components";
+
+소비자 concurrency는[소비자 노동자](/queues/reference/how-queues-works/#consumers)queue에서 메시지 처리는 메시지가 큐에 기록되는 비율로 수평으로 유지하도록 자동으로 확장합니다.
+
+많은 시스템에서 큐에 메시지를 작성하는 속도는 단일 소비자가 읽고 같은 메시지를 처리 할 수있는 속도로 쉽게 속도를 초과 할 수 있습니다. 소비자가 메시지 내용, 저장 또는 데이터베이스에 쓰기, 또는 제 3 자 (upstream) API 호출을 파싱 할 수 있기 때문에 종종입니다.
+
+queue 프로듀서가 항상 확장되고, 최대[최대 지원된 메시지당](/queues/platform/limits/)(queue당) 제한.
+
+## 계정 관리
+
+기본적으로 모든 queues에는 concurrency가 활성화되어 있습니다. Queue 소비자는 자동으로 확장됩니다.[최대 동시 invocations에](/queues/platform/limits/)queue의 backlog 및/또는 오류율을 관리해야 합니다.
+
+## concurrency 작업 방법
+
+메시지의 배치를 처리 한 후, Queues는 동시 소비자의 수가 조정되어야하는지 확인 할 것입니다. 수의 동시 소비자는 다음과 같은 몇 가지 요인을 기반으로 할 수 있습니다 :
+
+- queue (backlog) 및 성장률에 메시지의 수.
+- 실패의 비율 (근육 성공) invocations. 실패한 주장은 때`queue()`핸들러 대신 uncaught 예외를 반환`void`(없음).
+- 가치의`max_concurrency`그 소비자를 위한 세트.
+
+가능한 경우, Queues는 잠재적으로 성장하여 백 로그를 유지하도록 최적화 될 것이며, 큐에 메시지의 백 로그가 포인트로 성장하는 시나리오를 최소화하기 위해[메시지 유지 제한](/queues/platform/limits/)처리되기 전에.
+
+:::노트\[소모자 통화 및 재생 메시지]
+
+[메시지 복원`retry()`](/queues/configuration/batching-retries/#explicit-acknowledgement-and-retries)또는 전화`retryAll()`배치에**아니다.**&#xC2E4;패한 주장으로 계산.
+
+:::
+
+### 이름 \*
+
+100 메시지 / 초를 작성하는 경우 단일 동시 소비자로 큐에 100 메시지의 배치를 처리하기 위해 5 초가 걸립니다. 메시지의 숫자는 소비자가 유지할 수있는 것보다 더 빠른 속도로 성장할 것입니다.
+
+이 시나리오에서, Queues는 성장 백 로그를 통지하고 동시 소비자 Workers의 수를 일정한 상태까지 (대략) 5 (5) 들어오는 메시지의 비율이 감소될 때까지, 소비자 공정 메시지는, 또는 소비자가 오류를 생성하는 것을 시작합니다.
+
+### 왜 내 소비자가 autoscaling하지 않습니까?
+
+소비자가 autoscaling하지 않는 경우, 몇 가지 가능성이 발생합니다.
+
+- `max_concurrency`1로 설정되었습니다.
+- 소비자 노동자는 메시지 처리 보다는 오히려 과실을 반환합니다. 소비자를 검사하여 건강합니다.
+- 메시지의 배치가 처리됩니다. Queues는 메시지의 전체 배치를 가공한 후에 autoscale 소비자가, 그래서 배치가 가공되는 동안 autoscale하지 않을 것입니다. 일괄 크기를 줄이고 소비자를 신속하게 처리할 수 있습니다.
+
+## 제한 통화
+
+:::caution\[추천 통화 설정]
+
+Cloudflare는 가능한 한 많이 확장 할 수 있도록 최대 concurrency unset을 떠나는 것이 좋습니다. 고정 번호를 설정하면 소비자는 Queues로 최대로 늘릴 수 있다는 것을 의미합니다.
+
+:::
+
+업스트림 API 및/또는 시스템에 의해 제한되는 작업 흐름을 가지고 있다면, 업스트림 시스템을 압도적으로 피하기 위해 전반적인 대기 시간을 늘릴 수 있습니다.
+
+소비자 노동자의 통화를 두 가지 방법으로 구성할 수 있습니다.
+
+1. Cloudflare dashboard
+2. concurrency 설정[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+### Cloudflare dashboard
+
+dashboard에서 소비자 노동자를 위한 concurrency 설정을 구성하려면:
+
+1. Cloudflare dashboard에서, 가십시오**모델 번호: Queues**사이트 맵
+
+   <DashButton url="/?to=/:account/workers/queues" />
+
+2. 선택하기 >**계정 설정**.
+
+3. 제품정보**고객 사례**소비자 세부사항의 밑에.
+
+4. 설치하기**최대 소비자 봉사**값으로`1`·`250`. 이 값은 수표에 사용할 수있는 동시 소비자 봉사의 최대 번호를 나타냅니다.
+
+고정 된 최대 값을 제거하려면, 선택**자동 (추천)**.
+
+당신이 그들을 처리 할 수있는 것보다 더 빠른 큐에 메시지를 작성하는 경우, 메시지는 결국 도달 할 수있다[최대 보유 기간](/queues/platform/limits/)그 큐에 대한 설정. 제한에 도달하는 개인 메시지는 큐에서 만료되고 삭제됩니다.
+
+### concurrency 설정 설정[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+:::참조
+
+최신 버전의 유지[채용정보](/workers/wrangler/install-and-update/). queue 소비자의 최대 통화 구성에 대한 지원은 wrangler에서만 지원됩니다.[`2.13.0`](https://github.com/cloudflare/workers-sdk/releases/tag/wrangler%402.13.0)또는 더 큰.
+
+:::
+
+지정된 큐에 대한 동시 소비자 봉사의 고정 최대 수를 설정하려면, 구성`max_concurrency`Wrangler 파일에서:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "my-queue",
+  				"max_concurrency": 1
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+제한을 제거하려면 제거`max_concurrency`설정에서`[[queues.consumers]]`주어진 큐와 통화에 대한 구성`npx wrangler deploy`설정 업데이트를 밀어.
+
+{/* Not yet available but will be very soon
+
+    ### wrangler CLI
+
+    ```sh
+    # where `N` is a positive integer between 1 and 250
+    wrangler queues consumer update <script-name> --max-concurrency=N
+    ```
+
+    To remove the limit and allow Queues to scale your consumer to the maximum number of invocations, call `consumer update` without any flags:
+
+    ```sh
+    # Call update without passing a flag to allow concurrency to scale to the maximum
+    wrangler queues consumer update <script-name>
+    ``` */}
+
+## 계정 관리
+
+다수 소비자 Workers가 부각될 때, 각 노동자 incurs[CPU 시간 비용](/workers/platform/pricing/#workers).
+
+- queue에 작성된 모든 메시지를 처리하려는 경우,*효과적인 전반적인 비용은 동일합니다*, 심지어 concurrency 활성화.
+- concurrency를 활성화하면 그 비용을 전달하고 메시지를 방지 할 수 있습니다.[메시지 유지 제한](/queues/platform/limits/).
+
+소비자의 청구는 다음과 같습니다.[Workers 표준 사용 모델](/workers/platform/pricing/#example-pricing)개발자가 요청을 청구하고 요청에 사용되는 CPU 시간.
+
+### 이름 \*
+
+2 초가 걸리는 소비자 노동자는 메시지의 배치를 처리하기 위해 50 백만 (50,000,000) 메시지를 처리하기 위해 동일한 전반적인 비용을 처리 할 것입니다. 따라서 동시 (빠른) 또는 개별적으로 (더 낮은).

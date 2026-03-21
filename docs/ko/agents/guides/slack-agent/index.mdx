@@ -1,0 +1,474 @@
+---
+pcx_content_type: concept
+title: Slack 에이전트 구축
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/slack-agent/'
+translation_source_md: 'https://developers.cloudflare.com/agents/guides/slack-agent/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	Details,
+	Render,
+	PackageManagers,
+	WranglerConfig,
+	LinkCard,
+} from "~/components";
+
+## 첫 번째 슬랙 에이전트 배포
+
+이 가이드는 'Cloudflare\`\`Workers에서 AI-powered Slack bot을 구축하고 배포하는 방법을 보여줍니다.
+
+- 직접 메시지에 응답
+- 채널에서 언급 될 때 응답
+- 스레드에서 대화 컨텍스트 유지
+- AI를 사용하여 지능형 응답을 생성
+
+Slack Agent는 멀티텐트 애플리케이션이 될 것이며 단일 배포를 의미하는 것은 여러 Slack workspaces를 사용할 수 있습니다. 각 workspace는 자체 격리된 에이전트 인스턴스를 전용 저장소로 가져옵니다.[에이전트 SDK](/agents/).
+
+이 예제의 전체 코드를 볼 수 있습니다.[이름 \*](https://github.com/cloudflare/awesome-agents/tree/69963298b359ddd66331e8b3b378bb9ae666629f/agents/slack).
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을해야합니다.
+
+- ·[Cloudflare 계정](https://dash.cloudflare.com/sign-up)
+- [Node.js\`\`\`\`\`\`\`](https://nodejs.org/)설치 (v18 이상)
+- ·[Slack 작업 공간](https://slack.com/create)앱 설치 권한이 있는 곳
+- 이름 \*[OpenAI API 키](https://platform.openai.com/api-keys)(또는 다른 LLM 공급자)
+
+## 1. Slack 앱 만들기
+
+먼저 에이전트가 Slack과 상호 작용하는 새로운 Slack 앱을 만듭니다.
+
+1. 오시는 길[api.slack.com/앱](https://api.slack.com/apps)선택하기**새 앱 만들기**.
+2. 제품정보**처음부터**.
+3. 앱 이름(예를 들어, "My AI Assistant")를 입력하고 작업 공간을 선택하십시오.
+4. 제품정보**앱 만들기**.
+
+### OAuth 및 권한 구성
+
+Slack 앱 설정에서 이동**OAuth 및 권한**다음을 추가하십시오.**Bot 토큰 범위**:
+
+- `chat:write`— 봇으로 메시지 보내기
+- `chat:write.public`— 가입없이 채널에 메시지 보내기
+- `channels:history`— 공용 채널에서 메시지 보기
+- `app_mentions:read`— 언급 받기
+- `im:write`— 직접 메시지 보내기
+- `im:history`— 직접 메시지 내역 보기
+
+### 자주 묻는 질문
+
+나중에 에이전트를 배포 한 후 이벤트 구독 URL을 구성합니다. 그러나 지금, 이동**이벤트 구독**Slack 앱 설정에서 사용 가능
+
+다음 봇 이벤트에 가입:
+
+- `app_mention`- 봇이 @mentioned 때
+- `message.im`— 봇에 직접 메시지
+
+아직 활성화하지 마십시오. 배포 후 사용할 수 있습니다.
+
+### Slack 자격 취득
+
+Slack App 설정에서 이러한 값을 수집합니다.
+
+1. **기본 정보** > **앱 Credentials**:
+   - **고객 ID**
+   - **고객 비밀**
+   - **비밀번호**
+
+이 핸디를 유지 — 당신은 다음 단계에 그들을 필요로 할 것입니다.
+
+## 2. Slack Agent 프로젝트 만들기
+
+1. Slack Agent에 대한 새로운 프로젝트 만들기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"my-slack-agent"} />
+
+2. 프로젝트에 Navigate:
+
+```sh
+cd my-slack-agent
+```
+
+3. 필요한 의존도를 설치하십시오:
+
+```sh
+npm install agents openai
+```
+
+## 3. 환경 변수 설정
+
+1. 이름 \*`.env`로컬 개발 비밀에 대한 프로젝트 루트에 파일:
+
+```sh
+touch .env
+```
+
+2. 자격 증명을 추가`.env`:
+
+```sh
+SLACK_CLIENT_ID="your-slack-client-id"
+SLACK_CLIENT_SECRET="your-slack-client-secret"
+SLACK_SIGNING_SECRET="your-slack-signing-secret"
+OPENAI_API_KEY="your-openai-api-key"
+OPENAI_BASE_URL="https://gateway.ai.cloudflare.com/v1/YOUR_ACCOUNT_ID/YOUR_GATEWAY/openai"
+```
+
+:::참조
+더 보기`OPENAI_BASE_URL`옵션이지만 권장. 사용 방법[Cloudflare AI 게이트웨이](/ai-gateway/)당신의 AI 요청에 대한 캐싱, 속도 제한 및 분석을 제공합니다.
+주요 특징
+
+3. 업데이트`wrangler.jsonc`에이전트를 구성하려면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-slack-agent",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "MyAgent",
+  				"class_name": "MyAgent",
+  				"script_name": "my-slack-agent"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_classes": [
+  				"MyAgent"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 4. Slack 에이전트 만들기
+
+1. 첫째, 기초를 만듭니다`SlackAgent`수업시간`src/slack.ts`. 이 클래스는 OAuth, 요청 검증 및 이벤트 라우팅을 처리합니다. 당신은 볼 수 있습니다[GitHub에서 전체 구현](https://github.com/cloudflare/awesome-agents/blob/69963298b359ddd66331e8b3b378bb9ae666629f/agents/slack/src/slack.ts).
+
+2. 이제 에이전트 구현을 만듭니다.`src/index.ts`:
+
+```ts
+import { env } from "cloudflare:workers";
+import { SlackAgent } from "./slack";
+import { OpenAI } from "openai";
+
+const openai = new OpenAI({
+	apiKey: env.OPENAI_API_KEY,
+	baseURL: env.OPENAI_BASE_URL,
+});
+
+type SlackMsg = {
+	user?: string;
+	text?: string;
+	ts: string;
+	thread_ts?: string;
+	subtype?: string;
+	bot_id?: string;
+};
+
+function normalizeForLLM(msgs: SlackMsg[], selfUserId: string) {
+	return msgs.map((m) => {
+		const role = m.user && m.user !== selfUserId ? "user" : "assistant";
+		const text = (m.text ?? "").replace(/<@([A-Z0-9]+)>/g, "@$1");
+		return { role, content: text };
+	});
+}
+
+export class MyAgent extends SlackAgent {
+	async generateAIReply(conversation: SlackMsg[]) {
+		const selfId = await this.ensureAppUserId();
+		const messages = normalizeForLLM(conversation, selfId);
+
+		const system = `You are a helpful AI assistant in Slack.
+Be brief, specific, and actionable. If you're unsure, ask a single clarifying question.`;
+
+		const input = [{ role: "system", content: system }, ...messages];
+
+		const response = await openai.chat.completions.create({
+			model: "gpt-4o-mini",
+			messages: input,
+		});
+
+		const msg = response.choices[0].message.content;
+		if (!msg) throw new Error("No message from AI");
+
+		return msg;
+	}
+
+	async onSlackEvent(event: { type: string } & Record<string, unknown>) {
+		//Ignore bot 메시지 및 하위 유형 (편집, 가입 등)
+		if (event.bot_id || event.subtype) return;
+
+		//핸들 직접 메시지
+		if (event.type === "message") {
+			const e = event as unknown as SlackMsg & { channel: string };
+			const isDM = (e.channel || "").startsWith("D");
+			const mentioned = (e.text || "").includes(
+				`<@${await this.ensureAppUserId()}>`,
+			);
+
+			if (!isDM && !mentioned) return;
+
+			const conversation = await this.fetchConversation(e.channel);
+			const content = await this.generateAIReply(conversation);
+			await this.sendMessage(content, { channel: e.channel });
+			return;
+		}
+
+		//채널에서 @mentions 핸들
+		if (event.type === "app_mention") {
+			const e = event as unknown as SlackMsg & {
+				channel: string;
+				text?: string;
+			};
+			const thread = await this.fetchThread(e.channel, e.thread_ts || e.ts);
+			const content = await this.generateAIReply(thread);
+			await this.sendMessage(content, {
+				channel: e.channel,
+				thread_ts: e.thread_ts || e.ts,
+			});
+			return;
+		}
+	}
+}
+
+export default MyAgent.listen({
+	clientId: env.SLACK_CLIENT_ID,
+	clientSecret: env.SLACK_CLIENT_SECRET,
+	slackSigningSecret: env.SLACK_SIGNING_SECRET,
+	scopes: [
+		"chat:write",
+		"chat:write.public",
+		"channels:history",
+		"app_mentions:read",
+		"im:write",
+		"im:history",
+	],
+});
+```
+
+## 5. 로컬 테스트
+
+개발 서버 시작:
+
+```sh
+npm run dev
+```
+
+당신의 대리인은 지금 실행됩니다`http://localhost:8787`.
+
+### Slack 이벤트 구독 구성
+
+이제 에이전트가 로컬로 실행되어 Slack에 노출해야합니다. 제품 정보[Cloudflare 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/)안전한 갱도를 창조하기 위하여:
+
+```sh
+npx cloudflared tunnel --url http://localhost:8787
+```
+
+이것은 같은 공개 URL을 출력합니다.`https://random-subdomain.trycloudflare.com`.
+
+Slack 앱 설정으로 돌아가기:
+
+1. 오시는 길**이벤트 구독**.
+
+2. 제품정보**자주 묻는 질문**으로**이름 \***.
+
+3. 요청 URL을 입력하십시오:`https://random-subdomain.trycloudflare.com/slack`.
+
+4. Slack은 인증 요청을 보낼 것입니다 - 에이전트가 올바르게 실행되면 표시해야합니다**견적 요청**.
+
+5. 이름 \***봇 이벤트에 가입**, 추가:
+   - `app_mention`
+   - `message.im`
+
+6. 제품정보**저장 변화**.
+
+:::참조
+Cloudflare 터널 URL은 임시입니다. 로컬 테스트 할 때, 당신은 당신이 터널을 다시 시작 때마다 요청 URL을 업데이트해야합니다.
+주요 특징
+
+### Slack에 앱 설치
+
+기타`http://localhost:8787/install`당신의 브라우저. 이것은 Slack의 권한화 페이지로 이동합니다. 제품정보**지원하다**작업 공간에 앱을 설치합니다.
+
+승인 후 브라우저에서 "Successfully registered!"를 참조하십시오.
+
+### 당신의 대리인을 시험하십시오
+
+Slack을 엽니다. 다음 :
+
+1. DM을 봇으로 보내십시오. AI-generated 메시지로 응답해야합니다.
+2. 채널에 봇을 언급 (예 :,`@My AI Assistant hello`) — 그것은 실에서 대답해야 합니다.
+
+모든 작업이 끝나면 생산에 배포 할 준비가되었습니다!
+
+## 6. 생산에 배포
+
+1. 배포하기 전에 비밀을 Cloudflare에 추가하십시오.
+
+```sh
+npx wrangler secret put SLACK_CLIENT_ID
+npx wrangler secret put SLACK_CLIENT_SECRET
+npx wrangler secret put SLACK_SIGNING_SECRET
+npx wrangler secret put OPENAI_API_KEY
+npx wrangler secret put OPENAI_BASE_URL
+```
+
+:::참조
+건너뛰기`OPENAI_BASE_URL`AI Gateway를 사용하지 않는 경우.
+주요 특징
+
+2. 에이전트를 배포:
+
+```sh
+npx wrangler deploy
+```
+
+배포 후, 당신은 같은 생산 URL을 얻을 것이다:
+
+```
+https://my-slack-agent.your-account.workers.dev
+```
+
+### Slack 이벤트 구독 업데이트
+
+Slack 앱 설정으로 돌아가기:
+
+1. 오시는 길**이벤트 구독**.
+2. 귀하의 생산 URL에 요청 URL을 업데이트:`https://my-slack-agent.your-account.workers.dev/slack`.
+3. 제품정보**저장 변화**.
+
+### 앱을 분산
+
+이제 에이전트가 배포되어 다른 사람들과 공유 할 수 있습니다.
+
+- **단일 작업 공간**: 설치`https://my-slack-agent.your-account.workers.dev/install`.
+- **회사연혁**: 앱 제출[Slack 앱 디렉토리](https://api.slack.com/start/distributing).
+
+앱을 설치한 각 작업 공간은 전용 저장소로 자체 격리된 에이전트 인스턴스를 얻을 수 있습니다.
+
+## 어떻게 작동합니까?
+
+### 'Durable Objects'를 가진 다 강렬
+
+Slack 에이전트 사용[Durable 개체](/durable-objects/)격리된, 각 Slack 작업 공간에 대한 stateful 인스턴스를 제공:
+
+- 각 작업 공간의`team_id`튼튼한 개체 ID로 사용됩니다.
+- 각 에이전트 인스턴스는 KV 저장에 자체 Slack 액세스 토큰을 저장합니다.
+- 대화는 Slack의 API에서 주문할 수 있습니다.
+- 모든 대리인 논리는 고립된, 일관된 환경에서 실행합니다.
+
+### OAuth 흐름
+
+대리인은 Slack의 OAuth 2.0 교류를 취급합니다:
+
+1. 사용자 방문`/install`> Slack 권한으로 리디렉션.
+2. 사용자 선택**지원하다**> 슬랙 리디렉션`/accept`인증 코드로.
+3. 액세스 토큰에 대한 에이전트 교환 코드.
+4. Workspace의 튼튼한 목표에 있는 Agent Store 토큰.
+
+### 이벤트 처리
+
+Slack이 이벤트를 보낼 때:
+
+1. 자주 묻는 질문`/slack`끝점.
+2. 에이전트는 HMAC-SHA256을 사용하여 요청 서명을 확인합니다.
+3. 에이전트는 올바른 작업 공간의 튼튼한 개체에 이벤트를 경로.
+4. `onSlackEvent`방법은 이벤트를 처리하고 응답을 생성합니다.
+
+## 당신의 대리인을 주문화
+
+### AI 모델 변경
+
+모델 업데이트`src/index.ts`:
+
+```ts
+const response = await openai.chat.completions.create({
+	model: "gpt-4o", //또는 다른 어떤 모형
+	messages: input,
+});
+```
+
+### 대화 기억
+
+내구재 목표 저장에 있는 상점 대화 역사:
+
+```ts
+async storeMessage(channel: string, message: SlackMsg) {
+  const history = await this.ctx.storage.kv.get(`history:${channel}`) || [];
+  history.push(message);
+  await this.ctx.storage.kv.put(`history:${channel}`, history);
+}
+```
+
+### React 특정 키워드
+
+사용자 정의 로직을 추가`onSlackEvent`:
+
+```ts
+async onSlackEvent(event: { type: string } & Record<string, unknown>) {
+  if (event.type === "message") {
+    const e = event as unknown as SlackMsg & { channel: string };
+
+    if (e.text?.includes("help")) {
+      await this.sendMessage("Here's how I can help...", {
+        channel: e.channel
+      });
+      return;
+    }
+  }
+
+  //... 이벤트 처리의 나머지
+}
+```
+
+### 다른 LLM 공급자 사용
+
+OpenAI를[\`Workers AI\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`](/workers-ai/):
+
+```ts
+import { Ai } from "@cloudflare/ai";
+
+export class MyAgent extends SlackAgent {
+	async generateAIReply(conversation: SlackMsg[]) {
+		const ai = new Ai(this.ctx.env.AI);
+		const response = await ai.run("@cf/meta/llama-3-8b-instruct", {
+			messages: normalizeForLLM(conversation, await this.ensureAppUserId()),
+		});
+		return response.response;
+	}
+}
+```
+
+## 다음 단계
+
+- 더 보기[Slack Interactive 부품](https://api.slack.com/interactivity)(버튼, 모드)
+- 에이전트를 연결[MCP 서버](/agents/api-reference/mcp-client-api/)
+- 학대를 방지하는 비율을 추가
+- 대화 상태 관리
+- 제품 정보[Workers 분석 엔진](/analytics/analytics-engine/)관련 제품
+- 더 보기[일정표](/agents/api-reference/schedule-tasks/)예정된 업무
+
+## 관련 자료
+
+<LinkCard title="에이전트 문서" href="/agents/" description="에이전트 프레임 워크 문서." />
+
+<LinkCard title="Durable 개체" href="/durable-objects/" description="기본 인프라에 대해 알아보기." />
+
+<LinkCard title="슬랙 API" href="https://api.slack.com/" description="공식 Slack API 문서." />
+
+<LinkCard title="오픈AI API" href="https://platform.openai.com/docs/" description="공식 OpenAI API 문서." />

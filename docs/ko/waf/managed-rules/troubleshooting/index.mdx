@@ -1,0 +1,69 @@
+---
+pcx_content_type: troubleshooting
+title: 문제 관리 규칙
+sidebar:
+  order: 4
+  label: 문제 해결
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/managed-rules/troubleshooting/'
+translation_source_md: 'https://developers.cloudflare.com/waf/managed-rules/troubleshooting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { RuleID } from "~/components";
+
+기본적으로 WAF의 관리 규정은 대부분의 웹 사이트 및 웹 애플리케이션과 호환됩니다. 그러나, 거짓 긍정과 거짓 부정적인 발생할 수 있습니다:
+
+- **False 긍정적**: Legitimate 요청은 악의로 감지하고 mitigated.
+- **부정 행위**: 미묘한 요청은 미묘한 서버에 도달하지 않았습니다.
+
+## 문제 해결 false 긍정적
+
+사용 가능[보안 이벤트](/waf/analytics/security-events/)법적인 요청이 차단된 것을 식별하는 데 도움이 됩니다. 필터를 추가하고 필요할 때 보고서 기간을 조정합니다.
+
+관리 규칙에 기인 한 거짓 긍정적 인 경우 다음 중 하나를 수행하십시오.
+
+- **예외 추가**: [이름 \*](/waf/managed-rules/waf-exceptions/)WAF 관리 규칙 또는 특정 요청에 대한 규칙의 실행을 건너 뛸 수 있습니다.
+
+- **OWASP 관리 규정을 조정**: ID를 가진 규칙에 의해 차단되는 요청<RuleID id="6179ae15870a4bb7b2d480d4843b323c" />및 설명`949110: Inbound Anomaly Score Exceeded`이름 \*[Cloudflare OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/). 문제를 해결하기 위해,[OWASP 관리 규칙 구성](/waf/managed-rules/reference/owasp-core-ruleset/configure-dashboard/).
+
+- **해당 관리 규칙(s) 비활성화**: 특정 규칙을 비활성화하는 override를 만듭니다. 이것은 거짓 긍정을 피할 수 있지만 전체 사이트 보안을 줄일 수 있습니다. 더 알아보기[대시보드 지침](/waf/managed-rules/deploy-zone-dashboard/#configure-a-managed-ruleset)관리된 규칙을 구성하거나[API 지침](/ruleset-engine/managed-rulesets/override-managed-ruleset/)오버라이드 만들기.
+
+:::참조
+Cloudflare 지원에 연락하면 WAF 관리 규칙이 예상되는지 확인할 수 있습니다.[HAR 파일 제공](/support/troubleshooting/general-troubleshooting/gathering-information-for-troubleshooting-sites/#generate-a-har-file)특정 요청을 보내는 동안 캡처.
+주요 특징
+
+### 추가 권장 사항
+
+- 특정 규칙이 false 긍정적 인 경우 특정 규칙과 전체 규칙이 아닙니다.
+
+- 웹 사이트의 관리자 영역과 거짓 긍정적 인 경우, 추가[기타 제품](/waf/managed-rules/waf-exceptions/)사이트 리소스의 관리자 섹션에 대한 관리 규칙을 해제. 다음과 같은 표현식을 사용할 수 있습니다:
+
+  `http.host eq "example.com" and starts_with(http.request.uri.path, "/admin")`
+
+## 거짓 부정 행위
+
+false 부정을 식별하려면, 당신의 Origin 서버에 HTTP 로그를 검토하십시오.
+
+잘못된 부정을 줄이기 위해, 다음 체크리스트를 사용합니다:
+
+- HTTP 트래픽을 제공하는 DNS 레코드[Cloudflare를 통해 proxied](/dns/proxy-status/)?<br />Cloudflare는 Proxied 트래픽에서 요청을 미화합니다.
+
+- 모든 것을 배포했습니다.[WAF 관리 규칙](/waf/managed-rules/#available-managed-rulesets)귀하의 영역에서?<br />당신은[관리 규칙을 배치](/waf/managed-rules/deploy-zone-dashboard/#deploy-a-managed-ruleset)규칙을 적용하십시오.
+
+- 관리 규칙은 건너 뛰기[기타 제품](/waf/managed-rules/waf-exceptions/)?<br />제품 정보[보안 이벤트](/waf/analytics/security-events/)채용 정보 필요한 경우 예외 표현을 조정하여 차단 된 공격 트래픽과 일치합니다.
+
+- 당신은 기본적으로 활성화되지 않는 필요한 관리 규칙을 활성화?<br />WAF 관리 규칙의 모든 규칙은 기본적으로 활성화되어 있으므로 개별 관리 규칙을 검토해야합니다.
+
+  - 예를 들어 Cloudflare는 기본으로 빈 사용자 에이전트와 요청할 수 있습니다. 빈 사용자 에이전트와 요청을 차단하려면 ID와 규칙을 활성화<RuleID id="b57df4f17f7f4ea4b8db33e20a6dbbd3" />Cloudflare 관리 규칙 세트에서.
+  - 또 다른 예: unmitigated SQL injection (SQLi) 공격을 차단하려는 경우 관련 관리 규칙 태그를 확인하십시오`sqli`Cloudflare Managed Ruleset에서 사용할 수 있습니다.
+
+  자주 묻는 질문[관리 규칙 구성](/waf/managed-rules/deploy-zone-dashboard/#configure-a-managed-ruleset).
+
+- 사용자 정의 규칙 일치하는 공격 교통[모든 관리 규칙 건너뛰기](/waf/custom-rules/skip/)?<br />필요한 경우, 사용자 정의 규칙 표현을 조정하여 공격 트래픽에 적용되지 않습니다.
+
+- 허용되는 ASN, IP 범위 또는 IP 주소와 일치하는 공격 트래픽입니다.[IP 접근 규칙](/waf/tools/ip-access-rules/)?<br />IP를 검토 액세스 규칙과 규칙이 공격 트래픽과 일치하지 않는 것을 확인합니다.
+
+- 악의적 인 트래픽은 원래 IP 주소에 직접 도달하므로 Cloudflare 보호를 우회합니까?<br />모든 트래픽을 차단[Cloudflare의 IP 주소](/fundamentals/concepts/cloudflare-ip-addresses/)당신의 근원 서버에서.

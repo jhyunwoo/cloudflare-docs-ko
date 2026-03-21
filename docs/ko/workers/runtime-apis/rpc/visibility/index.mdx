@@ -1,0 +1,74 @@
+---
+pcx_content_type: configuration
+title: 가시성 및 보안 모델
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: Workers RPC - 가시성과 보안 모델
+description: 어떤 특성과 RPC를 통해 노동자 또는 튼튼한 목표와 통신하는 클라이언트에 노출되지 않습니다
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/visibility/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/visibility/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 보안 모델
+
+Workers RPC 시스템은 서로를 신뢰하지 않는 WorkersXQ 사이의 안전한 통신을 허용하는 것입니다. 시스템은 RPC 세션의 양쪽을 허용하지 않습니다. 다른 쪽의 임의 개체에 액세스하려면, 훨씬 적은 임의 코드. 대신 각 측면은 객체와 함수를 호출하여 이전 통화를 통해 명시적으로 stubs를 수신할 수 있습니다.
+
+이 보안 모델은 Object Capabilities 또는 Capability 기반 보안으로 일반적으로 알려져 있습니다. Workers RPC는 위에 건축됩니다[모자'n Proto RPC](https://capnproto.org/rpc.html), 턴은 CapTP에 근거하여, 사용된 목표 수송 의정서[분산 프로그래밍 언어 E](https://www.crockford.com/ec/etut.html).
+
+## 방법 및 속성의 가시성
+
+### 개인 재산
+
+[개인 재산](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_properties)클래스는 RPC에 직접 노출되지 않습니다.
+
+### Class 인스턴스 속성
+
+응용 프로그램 정의 클래스의 인스턴스를 보낼 때 수신자는 클래스에 선언 된 접근 방법 및 속성 만 할 수 있으며 인스턴스의 속성이 아닙니다. 예를 들면:
+
+```js
+class Foo extends RpcTarget {
+  constructor() {
+    super();
+
+    //나는 RPC에 접근될 수 없습니다
+    this.i = 0;
+
+    //funcProp CANNOT는 RPC에 호출됩니다
+    this.funcProp = () => {}
+  }
+
+  //가치는 RPC에 접근될 수 있습니다
+  get value() {
+    return this.i;
+  }
+
+  //방법은 RPC에 호출될 수 있습니다
+  method() {}
+}
+```
+
+이 행동은 의도적이다 — 그것은 실수로 개인 클래스 내부를 탐험에서 당신을 보호하는 것입니다. 일반적으로, 인스턴스 속성은 개인을 선언해야합니다,[으로 그들과`#`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Classes/Private_properties). 그러나, 개인 재산은 JavaScript의 상대적으로 새로운 특징이고, 아직 생태계에서 널리 이용되지 않습니다.
+
+WorkersXQ의 두 사이 RPC 공용영역은 보안 경계일지도 모르다, 그래서 예를들면 재산은 항상 RPC를 사용하여 WorkersXQXQ 사이에서 communicating 때, 또는 그들이 가지고 있는지 여부 또는`#`연락처 위와 같이 속성을 노출하려는 경우 클래스 레벨에서 명시된 getter를 선언할 수 있습니다.
+
+이 가시적 규칙은 확장하는 객체에만 적용됩니다.`RpcTarget`, `WorkerEntrypoint`, 또는`DurableObject`, 그리고 일반 개체에 적용 하지 않습니다. 일반 개체는 "값"으로 전달되며, 모든 "own" 속성을 전송합니다.
+
+### "Own"기능의 특성
+
+RPC에서 함수를 전달할 때, 콜러는 함수 객체의 "own" 속성에 접근할 수 있습니다.
+
+```js
+someRpcMethod() {
+  let func = () => {};
+  func.prop = 123;  //`prop`는 RPC에 눈에 보입니다
+  return func;
+}
+```
+
+함수의 이러한 속성은 RpcTarget의 클래스 속성과 같은 비동기적으로 접근됩니다. 그러나, 달리`RpcTarget`위의 예, 콜러에 접근 할 수있는 기능의 인스턴스 속성. 연습에서 속성은 거의 기능에 추가됩니다.

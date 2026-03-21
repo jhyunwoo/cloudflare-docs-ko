@@ -1,0 +1,51 @@
+---
+pcx_content_type: concept
+title: AI 검색 작업
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/concepts/how-ai-search-works/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-search/concepts/how-ai-search-works/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+AI 검색은 Cloudflare의 관리 검색 서비스입니다. 웹 사이트 또는 unstructured 콘텐츠와 같은 데이터를 연결할 수 있으며 응용 프로그램 또는 AI 에이전트에서 자연 언어를 쿼리 할 수있는 지속적으로 업데이트 인덱스를 자동으로 생성합니다.
+
+AI Search는 2개의 핵심 과정으로 이루어져 있습니다:
+
+- **색인:**&#xB370;이터 소스를 변경하고 검색에 대한 벡터로 데이터를 변환하는 비동기 배경 프로세스.
+- **질문:**&#xC0AC;용자 쿼리에 의해 트리거 된 동기 프로세스. 가장 관련 콘텐츠를 검색하고 context-aware 응답을 생성합니다.
+
+## 색인 작업
+
+Indexing은 AI Search 인스턴스를 만들 때 자동으로 시작되며 데이터 소스를 연결합니다.
+
+인덱스 중 어떤 일이 일어나는지:
+
+1. **자료 ingestion:**&#x41;I Search는 연결된 데이터 소스에서 읽습니다.
+2. **Markdown 변환:**&#x41;I 검색 용도[Workers AI의 Markdown 변환](/workers-ai/features/markdown-conversion/)변환하기[지원된 자료 유형](/ai-search/configuration/data-source/)구조화된 Markdown로. 다양한 파일 형식의 일관성을 보장합니다. 이미지의 경우 Workers AI는 Markdown 텍스트로 이미지를 변환하기 위해 Vision-to-language 변환에 따라 객체 감지를 수행하기 위해 사용됩니다.
+3. **공급 업체:**&#xCD94;출된 텍스트는[뚱 베어](/ai-search/configuration/chunking/)retrieval granularity를 개량하는 더 작은 조각으로.
+4. **공급 능력:**&#xAC01; 척은 Workers AI의 embedding 모델을 사용하여 벡터로 콘텐츠를 변환합니다.
+5. **벡터 저장:**&#xACB0;과 벡터, 파일 이름과 같은 메타 데이터와 함께, 저장됩니다[Vectorize](/vectorize/)Cloudflare 계정에 생성 된 데이터베이스.
+
+초기 데이터 세트가 색인된 후, AI Search는 정기적으로 데이터 소스 (예를 들어, 업데이트, 삭제) 및 벡터 데이터베이스가 최신 상태로 유지되도록 인덱스 변경을 확인합니다.
+
+![회사연혁](~/assets/images/ai-search/indexing.png)
+
+## 자주 묻는 질문
+
+일단 색인이 완료되면, AI Search는 즉시 최종 사용자 쿼리에 응답 할 준비가되어 있습니다.
+
+다음은 쿼리 파이프라인의 작동 방식입니다:
+
+1. **AI Search API에서 쿼리를 수신:**&#xCFFC;리 워크플로는 AI Search의 요청을 보낼 때 시작됩니다.[AI 검색](/ai-search/usage/rest-api/#ai-search)또는[이름 \*](/ai-search/usage/rest-api/#search)끝점.
+2. **(선택) 질문 rewriting:**&#x41;I Search 옵션을 제공합니다[입력 쿼리를 다시 작성](/ai-search/configuration/query-rewriting/)Workers AI의 LLM 중 하나를 사용하여 원래 쿼리를 더 효과적인 검색 쿼리로 변환하여 검색 품질을 향상시킬 수 있습니다.
+3. **쿼리를 Embedding:**&#x72;ewritten (또는 원래) 쿼리는 데이터를 embedding에 사용되는 동일한 embedding 모델을 통해 벡터로 변환되므로 가장 관련적인 일치를 찾을 수 있습니다.
+4. **질문 Vectorize 색인:**&#xCFFC;리 벡터는[이름 \*](/vectorize/best-practices/query-vectors/)관련 Vectorize 데이터베이스에서 저장된 벡터에 대하여
+5. **내용 retrieval:**&#x56;ectorize는 가장 관련 펑크의 메타 데이터를 반환하고 원본 콘텐츠는 R2 물통에서 재생됩니다. Search endpoint를 사용하는 경우, 이 시점에서 내용이 반환됩니다.
+6. **응답 발생:**&#x41;I Search endpoint를 사용하는 경우 Workers AI의 텍스트 생성 모델은 retrieved 콘텐츠 및 원래 사용자 쿼리를 사용하여 응답을 생성하는 데 사용됩니다.[시스템 프롬프트](/ai-search/configuration/system-prompt/). 모델의 context-aware 응답은 반환됩니다.
+
+![글쓰기](~/assets/images/ai-search/querying.png)

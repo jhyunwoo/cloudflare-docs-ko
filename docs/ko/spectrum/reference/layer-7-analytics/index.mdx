@@ -1,0 +1,42 @@
+---
+pcx_content_type: reference
+title: Spectrum 사용 호스트명이 Layer 7 Analytics에 표시될 수 있는 이유
+---
+
+import { GlossaryTooltip } from "~/components"
+
+Spectrum이 Layer 4 트래픽(예: TCP/UDP 연결)을 처리하도록 활성화되어 있어도 Layer 7(L7) 분석 대시보드에서 트래픽이 보일 수 있습니다. 이는 Cloudflare의 Layer 7 <GlossaryTooltip term="content delivery network (CDN)">CDN</GlossaryTooltip>
+과 Spectrum이 고객 식별을 처리하는 방식이 서로 다르기 때문입니다.
+
+## Spectrum이 사용자를 식별하는 방법(Layer 4)
+
+Spectrum에서 고객 hostname의 식별은 클라이언트가 엣지에 연결할 때 사용하는 Cloudflare IP 주소를 기반으로 합니다. 일반적인 과정은 다음과 같습니다.
+
+1. Spectrum은 고객 zone에 Spectrum 엣지 IP를 가리키는 DNS hostname을 설정하고, 이 엣지 IP와 포트를 고객 구성에 연결합니다.
+2. 클라이언트는 Spectrum hostname에 대해 DNS 조회를 수행하고 Spectrum 엣지 IP를 가져온 다음, 해당 IP와 포트에 연결합니다.
+3. Spectrum은 이 엣지 IP와 포트를 사용해 연결을 고객 구성과 매칭하고 고객을 식별합니다.
+
+이 과정은 IP 주소와 포트를 기준으로 hostname과 고객 구성을 Layer 4에서 연관 짓는 데 초점을 둡니다.
+
+## CDN이 사용자를 식별하는 방법(Layer 7)
+
+1. 고객은 자신의 zone에 origin 서버로 트래픽을 보내는 DNS hostname을 설정합니다.
+2. 클라이언트는 CDN hostname에 대해 DNS 조회를 수행하고, DNS 서버는 CDN 엣지 IP를 응답합니다. Spectrum과 달리 CDN 엣지 IP는 고객 식별보다 트래픽 관리 목적이 더 크며, 여러 고객이 동일한 CDN 엣지 IP를 공유할 수 있습니다.
+
+CDN에서 고객 식별은 TLS 핸드셰이크(SNI)와 HTTP 요청(`Host` 헤더)에서 hostname을 확인하는 데 크게 의존합니다. 특히 CDN은 특정 Layer 7 DNS 매칭이 없더라도 고객 zone에 일치하는 모든 hostname(예: `*.example.com`)을 허용하도록 설계되어 있습니다. 즉, Spectrum 또는 Load Balancer hostname도 `*.example.com` 아래에서는 유효한 것으로 받아들여집니다.
+
+## 겹치는 지점: Spectrum을 통해 프록시되는 Layer 7 트래픽
+
+CDN은 zone 아래의 모든 hostname(예: `spectrum.example.com`)을 허용하도록 설계되어 있기 때문에, 원래는 Spectrum이 먼저 프록시해야 하는 HTTP 트래픽이나 Layer-4 전용 Spectrum 앱을 대상으로 한 HTTP 트래픽도 때때로 Layer 7 CDN 시스템에서 직접 처리될 수 있습니다. 과정은 다음과 같습니다.
+
+1. 클라이언트는 TLS 핸드셰이크와 HTTP 요청 모두에서 Spectrum 애플리케이션의 hostname(예: `spectrum.example.com`)을 사용하면서 Layer 7 CDN 엣지 IP에 연결합니다. 본질적으로 이는 잘못된 IP에서 `spectrum.example.com`에 접근하려는 시도입니다.
+2. CDN은 TLS 단계와 HTTP 단계 모두에서 이 hostname을 고객 zone의 일부로 받아들입니다. `*.example.com` 아래의 모든 hostname을 인식하도록 설계되어 있기 때문입니다. 그 결과 요청은 해당 zone의 식별값으로 CDN을 통과합니다.
+3. 그러나 CDN이 origin 서버에 연결하려 할 때 HTTP hostname에 대해 내부 DNS 조회를 수행하면, 이 hostname은 Spectrum IP로 해석됩니다(`spectrum.example.com`에서 Spectrum 엣지 IP로). 그 결과 CDN은 Spectrum에 대한 origin 연결을 수립하고, Spectrum 구성 로드를 수행한 다음 요청을 Spectrum origin으로 전달합니다.
+
+즉, 이 hostname에 대한 트래픽은 Analytics와 로그를 포함한 표준 Layer 7 CDN 제품 경로를 거치게 됩니다.
+
+## 원치 않는 L7 트래픽 차단
+
+Layer-4 전용 Spectrum hostname으로 향하는 트래픽이 Layer 7을 통해 origin으로 프록시되는 것을 막고 싶다면(원치 않는 스캔이나 요청 포함), Layer 7 WAF(Web Application Firewall) 규칙을 구현할 것을 권장합니다. 이 규칙은 특정 hostname이나 포트로 향하는 트래픽을 차단하여 정상 트래픽만 Spectrum 서비스에 도달하도록 보장할 수 있습니다.
+
+예를 들어, Spectrum IP 또는 고객의 Spectrum BYOIP에서 시작된 것이 아닌 한 `spectrum.example.com`으로 가는 요청을 차단하는 WAF 규칙을 만들 수 있습니다. 이 트래픽은 WAF Security Events를 포함해 Layer 7 Analytics에는 계속 기록되지만, 잘못된 주소에 도달해 CDN을 두 번째로 순환하는 일은 막을 수 있습니다.

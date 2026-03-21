@@ -1,0 +1,303 @@
+---
+title: 문제 해결 가이드
+pcx_content_type: concept
+tags:
+  - SQL
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2-sql/troubleshooting/'
+translation_source_md: 'https://developers.cloudflare.com/r2-sql/troubleshooting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 R2 SQL을 사용할 때 발생할 수있는 잠재적 인 오류 및 제한을 다룹니다. R2 SQL은 오픈 베타에 있으며 지원된 기능은 시간이 지남에 따라 진화하고 변화합니다.
+
+## Query 구조 오류
+
+### 필수 항목
+
+<div className="error-box">
+  **오류 수정**: `expected exactly 1 table in FROM clause`
+</div>
+
+**이름 \***: R2 SQL은 쿼리에 특정 항목이 필요합니다.
+
+```sql
+-- Invalid - Missing FROM clause
+SELECT user_id WHERE status = 200;
+
+-- Valid
+SELECT user_id
+FROM http_requests
+WHERE status = 200 AND timestamp BETWEEN '2025-09-24T01:00:00Z' AND '2025-09-25T01:00:00Z';
+```
+
+**제품정보**: 항상 포함`FROM`당신의 쿼리에.
+
+***
+
+## SELECT 항목 문제
+
+### 지원되지 않은 SQL 기능
+
+<div className="error-box">**오류 수정**: `Function not supported`</div>
+
+**이름 \***: SELECT의 집계 또는 SQL 함수를 사용할 수 없습니다.
+
+```sql
+-- Invalid - Aggregate functions not supported
+SELECT COUNT(*) FROM events WHERE timestamp > '2025-09-24T01:00:00Z'
+SELECT AVG(response_time) FROM http_requests WHERE status = 200
+SELECT MAX(timestamp) FROM logs WHERE user_id = '123'
+```
+
+**제품정보**: 기본 열 선택 및 응용 프로그램 코드에서 집계를 처리하십시오.
+
+### JSON 필드 액세스
+
+<div className="error-box">**오류 수정**: `Cannot access nested fields`</div>
+
+**이름 \***: JSON 객체에서 개별 필드를 쿼리할 수 없습니다.
+
+```sql
+-- Invalid - JSON field access not supported
+SELECT metadata.user_id FROM events
+SELECT json_field->>'property' FROM logs
+
+-- Valid - Select entire JSON field
+SELECT metadata FROM events
+SELECT json_field FROM logs
+```
+
+**제품정보**: 전체 JSON 열을 선택하고 응용 프로그램에서 파싱하십시오.
+
+### 합성 자료
+
+<div className="error-box">**오류 수정**: `aliases (AS) are not supported`</div>
+
+**이름 \***: 리터 값과 합성 열을 만들 수 없습니다.
+
+```sql
+-- Invalid - Synthetic data not supported
+SELECT user_id, 'active' as status, 1 as priority FROM users
+
+-- Valid
+SELECT user_id, status, priority FROM users WHERE status = 'active'
+```
+
+**제품정보**: 테이블 스키마에 필요한 데이터를 추가하거나 포스트 처리에서 처리하십시오.
+
+***
+
+## Clause 문제에서
+
+### 다수 테이블
+
+<div className="error-box">
+  **오류 수정**: `Multiple tables not supported`또는`JOIN operations not allowed`
+</div>
+
+**이름 \***: 여러 테이블을 쿼리하거나 가입을 사용할 수 없습니다.
+
+```sql
+-- Invalid - Multiple tables not supported
+SELECT a.*, b.* FROM table1 a, table2 b WHERE a.id = b.id
+SELECT * FROM events JOIN users ON events.user_id = users.id
+
+-- Valid - Separate queries
+SELECT * FROM table1 WHERE id IN ('id1', 'id2', 'id3')
+-- Then in application code, query table2 separately
+SELECT * FROM table2 WHERE id IN ('id1', 'id2', 'id3')
+```
+
+**제품정보**:
+
+- 단일 테이블에 필요한 필드를 포함해서 데이터를 정의합니다.
+- 여러 쿼리를 수행하고 응용 프로그램에 데이터를 가입하십시오.
+
+### 이름 \*
+
+<div className="error-box">
+  **오류 수정**: `only table name is supported in FROM clause`
+</div>
+
+**이름 \***: 항목에서 하위 쿼리를 사용할 수 없습니다.
+
+```sql
+-- Invalid - Subqueries not supported
+SELECT * FROM (SELECT user_id FROM events WHERE status = 200) as active_users
+
+-- Valid - Use direct query with appropriate filters
+SELECT user_id FROM events WHERE status = 200
+```
+
+**제품정보**: 쿼리 논리를 Flatten하거나 여러 순차적 쿼리를 사용합니다.
+
+***
+
+## WHERE Clause 문제
+
+### 배열 필터링
+
+<div className="error-box">
+  **오류 수정**: `This feature is not implemented: GetFieldAccess`
+</div>
+
+**이름 \***: 배열 필드에 필터 할 수 없습니다.
+
+```sql
+-- Invalid - Array filtering not supported
+SELECT * FROM logs WHERE tags[0] = 'error'
+SELECT * FROM events WHERE 'admin' = ANY(roles)
+
+-- Valid alternatives - denormalize or use string contains
+SELECT * FROM logs WHERE tags_string LIKE '%error%'
+-- Or restructure data to avoid arrays
+```
+
+**제품정보**:
+
+- 배열 데이터를 별도의 열로 구분합니다.
+- 문자열 concatenation of array value for pattern matching.
+- 배열 유형을 피하기 위해 스키마를 재구성합니다.
+
+### JSON 개체 필터링
+
+<div className="error-box">
+  **오류 수정**: `unsupported binary operator`또는`Error during planning: could not
+  	parse compound`
+</div>
+
+**이름 \***: JSON 객체 안에 필드에 필터링할 수 없습니다.
+
+```sql
+-- Invalid - JSON field filtering not supported
+SELECT * FROM requests WHERE metadata.country = 'US'
+SELECT * FROM logs WHERE json_data->>'level' = 'error'
+
+-- Valid alternatives
+SELECT * FROM requests WHERE country = 'US'  -- If denormalized
+-- Or filter entire JSON field and parse in application
+SELECT * FROM logs WHERE json_data IS NOT NULL
+```
+
+**제품정보**:
+
+- 자주 JSON 필드를 별도의 열로 정정합니다.
+- 전체 JSON 필드에 필터링하고 애플리케이션에서 파싱을 처리합니다.
+
+### 열 비교
+
+<div className="error-box">
+  **오류 수정**: `right argument to a binary expression must be a literal`
+</div>
+
+**이름 \***: WHERE 항목에서 다른 한 열을 비교할 수 없습니다.
+
+```sql
+-- Invalid - Column comparisons not supported
+SELECT * FROM events WHERE start_time < end_time
+SELECT * FROM logs WHERE request_size > response_size
+
+-- Valid - Use computed columns or application logic
+-- Add a computed column 'duration' to your schema
+SELECT * FROM events WHERE duration > 0
+```
+
+**제품정보**: 적용층의 핸들 비교.
+
+***
+
+## LIMIT 항목 문제
+
+### 잘못된 제한 값
+
+<div className="error-box">**오류 수정**: `maximum LIMIT is 10000`</div>
+
+**이름 \***: LIMIT 값을 사용할 수 없습니다.
+
+```sql
+-- Invalid - Out of range limits
+SELECT * FROM events LIMIT 50000  -- Maximum is 10,000
+
+-- Valid
+SELECT * FROM events LIMIT 1
+SELECT * FROM events LIMIT 10000
+```
+
+**제품정보**: 1 \~ 10,000 사이 LIMIT 값을 사용합니다.
+
+### 질 attempts
+
+<div className="error-box">**오류 수정**: `OFFSET not supported`</div>
+
+**이름 \***: pagination 구문을 사용할 수 없습니다.
+
+```sql
+-- Invalid - Pagination not supported
+SELECT * FROM events LIMIT 100 OFFSET 200
+SELECT * FROM events LIMIT 100, 100
+
+-- Valid alternatives - Use ORDER BY with conditional filters
+-- Page 1
+SELECT * FROM events WHERE timestamp >= '2024-01-01' ORDER BY timestamp LIMIT 100
+
+-- Page 2 - Use last timestamp from previous page
+SELECT * FROM events WHERE timestamp > '2024-01-01T10:30:00Z' ORDER BY timestamp LIMIT 100
+```
+
+**제품정보**: ORDER BY 및 WHERE 조건을 사용하여 커서 기반 pagination 구현.
+
+***
+
+## Schema 문제
+
+### Dynamic Schema 변화
+
+<div className="error-box">
+  **오류 수정**: `invalid SQL: only top-level SELECT clause is supported`
+</div>
+
+**이름 \***: 테이블 스키마 또는 reference 비선형 열을 수정할 수 없습니다.
+
+```sql
+-- Invalid - Schema changes not supported
+ALTER TABLE events ADD COLUMN new_field STRING
+UPDATE events SET status = 200 WHERE user_id = '123'
+```
+
+**제품정보**:
+
+- data ingestion 전에 schema를 조심스럽게 계획하십시오.
+- 현재 schema에 있는 모든 열 이름은 존재합니다.
+
+***
+
+## 성능 최적화
+
+### Query 성능 문제
+
+쿼리가 천천히 실행되는 경우:
+
+1. **항상 파티션 (timestamp) 필터 포함**: 이것은 가장 중요한 최적화입니다.
+
+   ```sql
+   -- Good
+   WHERE timestamp BETWEEN '2024-01-01' AND '2024-01-02'
+   ```
+
+2. **선택 필터링**: 결과 세트를 줄이기위한 특정 조건을 포함.
+
+   ```sql
+   -- Good
+   WHERE status = 200 AND country = 'US' AND timestamp > '2024-01-01'
+   ```
+
+3. **제한 결과 크기**: 적절한 LIMIT 값을 사용합니다.
+   ```sql
+   -- Good for exploration
+   SELECT * FROM events WHERE timestamp > '2024-01-01' LIMIT 100
+   ```

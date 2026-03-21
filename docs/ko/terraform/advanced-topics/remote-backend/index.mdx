@@ -1,0 +1,81 @@
+---
+pcx_content_type: reference
+title: 먼 R2 백엔드
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/advanced-topics/remote-backend/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/advanced-topics/remote-backend/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+[CloudflareR2](/r2/)·[Terraform 먼 백엔드](https://developer.hashicorp.com/terraform/language/settings/backends/remote)Terraform state 관리에 대한 원활한 경험을 제공하기 위해 서로 상호 작용할 수 있습니다.
+
+Cloudflare R2는 이미지, 영상 및 정체되는 웹사이트와 같은 정적 자산을 저장하고 봉사하는 높게 유효한, 확장가능한 및 안전한 방법을 제공하는 물체 저장 서비스입니다. R2는 가지고 있습니다[S3 API 호환성](/r2/api/s3/api/)기존 클라우드 인프라와 애플리케이션을 쉽게 통합할 수 있습니다.
+
+## 자주 묻는 질문
+
+### R2 버킷 만들기
+
+사용 방법[모델 번호: Wrangler](/workers/wrangler/install-and-update/), [사이트맵](/api/resources/r2/subresources/buckets/methods/create/), 또는[계정 보기 Dashboard](https://dash.cloudflare.com/?to=/:account/r2/new)더 보기[R2 물통](/r2/buckets/create-buckets/).
+
+<Render file="create-r2-buckets" product="terraform" />
+
+:::참조
+Bucket 이름은 Lowercase 문자를 포함 할 수 있습니다 (`a-z`), 숫자 (`0-9`), 그리고 하이픈 (`-`).
+:::
+
+### 범위 버킷 API 키 만들기
+
+다음을 만들 필요가[물통은 R2 API 토큰을 배열했습니다](/r2/api/tokens/)이름 \*`Object Read & Write`이름 \* API 토큰을 만들려면 다음을 수행하십시오.
+
+1. 내 계정**계정 홈**, 선택**모델 번호: R2**.
+2. 이름 \***계정 정보**, 선택**R2 API 토큰 관리**.
+3. 제품정보[**API 토큰 만들기**](https://dash.cloudflare.com/?to=/:account/r2/api-tokens).
+4. 선택하기**모델 번호: R2 토큰 토큰**API 토큰 이름을 편집하는 텍스트.
+5. 이름 \***제출**, 선택**개체 읽기 및 쓰기**권한, 그런 다음 토큰을 토큰으로 구성하십시오.`<YOUR_BUCKET_NAME>`물통.
+6. 제품정보**API 만들기 토큰 토큰**.
+
+토큰이 성공적으로 생성 된 후 리뷰를 검토하십시오.**비밀 액세스 키**·**액세스 키 ID**가치.
+
+## R2 백엔드 정의
+
+업데이트[`cloudflare.tf`](/terraform/tutorial/initialize-terraform/)파일 포함[이름 \*](https://developer.hashicorp.com/terraform/language/backend)제품정보`<YOUR_BUCKET_NAME>`위에서 만든 물통.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+terraform {
+  backend "s3" {
+    bucket = "<YOUR_BUCKET_NAME>"
+    key    = "/some/key/terraform.tfstate"
+    region                      = "auto"
+    skip_credentials_validation = true
+    skip_metadata_api_check     = true
+    skip_region_validation      = true
+    skip_requesting_account_id  = true
+    skip_s3_checksum            = true
+    use_path_style              = true
+    access_key = "<YOUR_R2_ACCESS_KEY>"
+    secret_key = "<YOUR_R2_ACCESS_SECRET>"
+    endpoints = { s3 = "https://<YOUR_ACCOUNT_ID>.r2.cloudflarestorage.com" }
+  }
+  required_providers {
+    cloudflare = {
+      source = "cloudflare/cloudflare"
+      version = "~> 4"
+    }
+  }
+}
+provider "cloudflare" {
+  # token pulled from $CLOUDFLARE_API_TOKEN
+}
+variable "account_id" { default = "<YOUR_ACCOUNT_ID>" }
+```
+
+## R2 백엔드로 마이그레이션
+
+당신의 위로`cloudflare.tf`파일을 만들 수 있습니다`terraform init -reconfigure`로컬 상태에서 마이그레이션 명령[원격 상태](https://developer.hashicorp.com/terraform/language/state/remote).

@@ -1,0 +1,278 @@
+---
+reviewed: 2024-10-01T00:00:00.000Z
+pcx_content_type: tutorial
+difficulty: Intermediate
+title: Pages 기능을 사용하여 정면 끝을 위한 API를 건설하십시오
+tags:
+  - JavaScript
+description: 이 튜토리얼은 React 프레임 워크를 사용하여 전체 스택 Pages 응용 프로그램을 구축합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/tutorials/build-an-api-with-pages-functions/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/tutorials/build-an-api-with-pages-functions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { YouTube, PackageManagers, DashButton } from "~/components";
+
+이 튜토리얼에서 전체 스택 Pages 응용 프로그램을 구축 할 수 있습니다. 당신의 신청은 다음을 포함합니다:
+
+- Cloudflare Pages 및[React 프레임 워크](/pages/framework-guides/deploy-a-react-site/).
+- JSON API, 내장[모델 번호: Pages 제품정보](/pages/functions/get-started/), 그것은 블로그 게시물을 반환하고 당신의 프런트 끝에 렌더링 할 수 있습니다.
+
+블로그 콘텐츠를 렌더링하기 위해 API가 아닌 헤드리스 CMS와 함께 작동하려면, 참조[headless CMS 튜토리얼](/pages/tutorials/build-a-blog-using-nuxt-and-sanity/).
+
+## 비디오 자습서
+
+<YouTube id="3zTJL3M57rE" />
+
+## 1. 당신의 정면 끝을 건설하십시오
+
+시작하려면 React 프레임 워크를 사용하여 새로운 PagesXQ 응용 프로그램을 만듭니다.
+
+### 새로운 React 프로젝트 만들기
+
+터미널에서 새로운 React 프로젝트를 호출합니다.`blog-frontend`사용 방법`create-vite`명령. 새로 만들기`blog-frontend`디렉토리 및 로컬 개발 서버를 시작:
+
+```sh title="Create a new React application"
+npx create-vite -t react blog-frontend
+cd blog-frontend
+npm install
+npm run dev
+```
+
+### React 프로젝트 설정
+
+React 프로젝트를 설정하려면:
+
+1. 설치하기[모델 번호: React 관련 링크](https://reactrouter.com/en/main/start/tutorial)당신의 뿌리에서`blog-frontend`디렉토리.
+
+<PackageManagers pkg="react-router-dom@6" />₢ 킹
+
+2. 자주 묻는 질문`src/App.js`. React 라우터를 가져올 다음 코드를 복사 및 붙여넣기`App.js`, 그리고 두 개의 노선과 새로운 라우터를 설정:
+
+```js
+import { Routes, Route } from "react-router-dom";
+
+import Posts from "./components/posts";
+import Post from "./components/post";
+
+function App() {
+	return (
+		<Routes>
+			<Route path="/" element={<Posts />} />
+			<Route path="/posts/:id" element={<Post />} />
+		</Routes>
+	);
+}
+
+export default App;
+```
+
+3. 내 계정`src`디렉토리는 새 폴더를 만듭니다.`components`.
+4. 내 계정`components`디렉토리, 두 파일을 만듭니다:`posts.js`·`post.js`. 이 파일은 API에서 블로그 게시물을로드하고 렌더링합니다.
+5. 관련 기사`posts.js`다음 코드로:
+
+```js
+import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+
+const Posts = () => {
+	const [posts, setPosts] = useState([]);
+
+	useEffect(() => {
+		const getPosts = async () => {
+			const resp = await fetch("/api/posts");
+			const postsResp = await resp.json();
+			setPosts(postsResp);
+		};
+
+		getPosts();
+	}, []);
+
+	return (
+		<div>
+			<h1>Posts</h1>
+			{posts.map((post) => (
+				<div key={post.id}>
+					<h2>
+						<Link to={`/posts/${post.id}`}>{post.title}</Link>
+					</h2>
+				</div>
+			))}
+		</div>
+	);
+};
+
+export default Posts;
+```
+
+6. 관련 기사`post.js`다음 코드로:
+
+```js
+import React, { useEffect, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+
+const Post = () => {
+	const [post, setPost] = useState({});
+	const { id } = useParams();
+
+	useEffect(() => {
+		const getPost = async () => {
+			const resp = await fetch(`/api/post/${id}`);
+			const postResp = await resp.json();
+			setPost(postResp);
+		};
+
+		getPost();
+	}, [id]);
+
+	if (!Object.keys(post).length) return <div />;
+
+	return (
+		<div>
+			<h1>{post.title}</h1>
+			<p>{post.text}</p>
+			<p>
+				<em>Published {new Date(post.published_at).toLocaleString()}</em>
+			</p>
+			<p>
+				<Link to="/">Go back</Link>
+			</p>
+		</div>
+	);
+};
+
+export default Post;
+```
+
+## 2. API 구축
+
+이제 Pages를 만들 것입니다 블로그 콘텐츠를 저장하고 JSON API를 통해 검색하는 기능.
+
+### Pages 제품정보
+
+JSON API로 동작하는 Pages 기능을 만들려면:
+
+1. 이름 \*`functions`내 계정`blog-frontend`디렉토리.
+2. 내 계정`functions`, 디렉토리 이름을 생성`api`.
+3. 내 계정`api`, 만들기`posts.js`파일에`api`디렉토리.
+4. 관련 기사`posts.js`다음 코드로:
+
+```js
+import posts from "./post/data";
+
+export function onRequestGet() {
+	return Response.json(posts);
+}
+```
+
+이 코드는 블로그 데이터를 가져옵니다 (from)`data.js`, 당신은 단계 8에 만들 것이다) 그리고 경로에서 JSON 응답으로 반환`/api/posts`.
+
+5. 내 계정`api`디렉토리를 만들려면`post`.
+6. 내 계정`post`디렉토리, 생성`data.js`파일.
+7. 관련 기사`data.js`다음 코드로. 블로그 콘텐츠, 블로그 제목 및 블로그 생활에 대한 기타 정보가 어디에 있습니다.
+
+```js
+const posts = [
+	{
+		id: 1,
+		title: "My first blog post",
+		text: "Hello world! This is my first blog post on my new Cloudflare Workers + Pages blog.",
+		published_at: new Date("2020-10-23"),
+	},
+	{
+		id: 2,
+		title: "Updating my blog",
+		text: "It's my second blog post! I'm still writing and publishing using Cloudflare Workers + Pages :)",
+		published_at: new Date("2020-10-26"),
+	},
+];
+
+export default posts;
+```
+
+8. 내 계정`post`디렉토리, 생성`[[id]].js`파일.
+9. 관련 기사`[[id]].js`다음 코드로:
+
+```js title="[[id]].js"
+import posts from "./data";
+
+export function onRequestGet(context) {
+	const id = context.params.id;
+
+	if (!id) {
+		return new Response("Not found", { status: 404 });
+	}
+
+	const post = posts.find((post) => post.id === Number(id));
+
+	if (!post) {
+		return new Response("Not found", { status: 404 });
+	}
+
+	return Response.json(post);
+}
+```
+
+`[[id]].js`한국어[동적인 노선](/pages/functions/routing#dynamic-routes)블로그 게시물을 수락하는 데 사용되는`id`.
+
+## 3. 배포
+
+Pages 응용 프로그램 및 Pages 기능을 구성 한 후 WranglerXQ 또는 대시보드XQ를 통해 프로젝트를 배포하십시오.
+
+### Wrangler
+
+내 계정`blog-frontend`디렉토리, run[`wrangler pages deploy`](/workers/wrangler/commands/#deploy-1)Cloudflare 대시보드에 프로젝트를 배포합니다.
+
+```sh
+wrangler pages deploy blog-frontend
+```
+
+### 대시보드를 통해 배포
+
+Cloudflare 대시보드XQ를 통해 배포하려면 Pages 프로젝트에 대한 새로운 Git 저장소를 만들고 Cloudflare에 Git 저장소를 연결합니다. 이 튜토리얼은 GitHub를 Git 공급자로 사용합니다.
+
+#### 새로운 저장소 만들기
+
+새로운 GitHub 저장소 만들기[최근 업데이트](https://repo.new). 새 저장소를 생성한 후, 다음 명령을 터미널에서 실행하여 GitHub에 로컬 응용 프로그램을 준비하고 밀어:
+
+```sh
+git init
+git remote add origin https://github.com/<YOUR-GH-USERNAME>/<REPOSITORY-NAME>
+git add .
+git commit -m "Initial commit"
+git branch -M main
+git push -u origin main
+```
+
+#### Cloudflare Pages
+
+Pages에 응용 프로그램을 배포:
+
+1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 제품정보**회사연혁** > **Pages** > **기존 Git 저장소 가져 오기**.
+
+3. 만든 새로운 GitHub 저장소를 선택하고,**빌드 및 배포 설정**단면도는, 뒤에 오는 정보를 제공합니다:
+
+<div>
+  | 구성 옵션 | 제품정보            |
+  | ----- | --------------- |
+  | 생산 지점 | `main`          |
+  | 명령 실행 | `npm run build` |
+  | 연락처   | `build`         |
+</div>
+
+사이트 구성 후 첫 번째 배포를 시작합니다. 당신은 Cloudflare PagesXQ 설치를 참조하십시오`blog-frontend`, 당신의 프로젝트 의존성 및 당신의 사이트를 구축.
+
+이 튜토리얼을 완료하면 전체 스택 Pages 응용 프로그램을 만들었습니다.
+
+## 관련 자료
+
+- 자세히 알아보기[Pages 기능 라우팅](/pages/functions/routing)

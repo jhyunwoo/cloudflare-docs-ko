@@ -1,0 +1,147 @@
+---
+pcx_content_type: concept
+title: 꼬리 Workers
+head: []
+description: 트랙 및 로그 Workers 당신의 프로젝트에 꼬리 노동자를 할당하여 invocation.
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/logs/tail-workers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/logs/tail-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+꼬리 노동자는 다른 WorkersXQ의 실행에 대한 정보를받습니다 (제작자 Workers), HTTP 상태와 같은 데이터 전달`console.log()`또는 부정한 예외. 꼬리 Workers는 경고, 디버깅, 분석을위한 로그를 처리 할 수 있습니다.
+
+꼬리 Workers는 Workers Paid와 기업 층에 모든 고객에게 유효합니다. 꼬리 Workers는에 의해 청구됩니다[CPU 시간](/workers/platform/pricing/#workers), 요청의 수에 의해.
+
+![꼬리 노동자 도표](~/assets/images/workers/platform/tail-workers.png)
+
+꼬리 노동자는 생산자 노동자의 직업 후에 자동적으로 보복됩니다 (일러 꼬리 노동자는) 신청 논리를 포함하는. 그것은 제작자가 실행을 완료 한 후 이벤트를 캡처합니다. 요청 수명주기 전반에 걸쳐 이벤트, 잠재적 잠수함 포함[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)·[동적인 Dispatch](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/), 포함될 것입니다. 데이터의 형식을 필터링하고, 이벤트를 HTTP 엔드포인트로 보낼 수 있습니다. 빠른 디버깅을 위해, 꼬리 Workers는 로그를 보낼 수 있습니다[모델 번호: KV](/kv/api/)또는 어떤 데이터베이스.
+
+:::노트\[노트북의 배치 및 추적 센트리, Grafana, Honeycomb 등]
+당신은 테일 Workers를 사용 하 여 로그와 오류를 수출 하 여 Sentry, Grafana, Honeycomb 및 더 많은 것 같은 관찰성 도구에 대 한 - 당신은 테일 WorkersXQ를 사용할 필요가 없습니다.
+
+대신 Worker를 구성할 수 있습니다.[OpenTelemetry (OTEL) 형식 로그 및 추적](/workers/observability/exporting-opentelemetry-data/)이 도구에. 꼬리 Workers와는 달리, 당신은 OTEL 목적지, 통나무 및 추적을 구성할 때 당신의 목적지에 배치에서 보내집니다, 오히려 노동자의 각 invocation 후에 보내진 보다는 오히려.
+
+당신은 고급 모드 옵션으로 꼬리 Workers의 생각해야한다, 당신은 Workers 관측 플랫폼에 내장되지 않는 뭔가 사용자 정의를해야 할 때.
+주요 특징
+
+## 꼬리 Workers
+
+꼬리 노동자를 구성하려면:
+
+1. [작업자 만들기](/workers/get-started/guide)꼬리 노동자 역할을합니다.
+2. 추가하기[`tail()`](/workers/runtime-apis/handlers/tail/)작업자에게 핸들링. 더 보기`tail()`핸들러는 매번 생산자 노동자에게 꼬리 노동자가 연결되어 있습니다. 다음 작업자 코드는 HTTP 엔드포인트에 데이터를 보내는 Tail Worker입니다.
+
+```js
+export default {
+	async tail(events) {
+		fetch("https://example.com/endpoint", {
+			method: "POST",
+			body: JSON.stringify(events),
+		});
+	},
+};
+```
+
+다음 Worker 코드는 다음과 같습니다.`events`객체는 다음과 같습니다:
+
+```json
+[
+	{
+		"scriptName": "Example script",
+		"outcome": "exception",
+		"eventTimestamp": 1587058642005,
+		"event": {
+			"request": {
+				"url": "https://example.com/some/requested/url",
+				"method": "GET",
+				"headers": {
+					"cf-ray": "57d55f210d7b95f3",
+					"x-custom-header-name": "my-header-value"
+				},
+				"cf": {
+					"colo": "SJC"
+				}
+			}
+		},
+		"logs": [
+			{
+				"message": ["string passed to console.log()"],
+				"level": "log",
+				"timestamp": 1587058642005
+			}
+		],
+		"exceptions": [
+			{
+				"name": "Error",
+				"message": "Threw a sample exception",
+				"timestamp": 1587058642005
+			}
+		],
+		"diagnosticsChannelEvents": [
+			{
+				"channel": "foo",
+				"message": "The diagnostic channel message",
+				"timestamp": 1587058642005
+			}
+		]
+	}
+]
+```
+
+3. 제작자 노동자의 Wrangler 파일에 뒤에 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"tail_consumers": [
+  		{
+  			"service": "<TAIL_WORKER_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+
+Workers 추가`tail_consumers`배열은 있어야 합니다`tail()`정의 된 핸들.
+
+:::
+
+## 집계된 미터를 위한 Analytics Engine 사용
+
+개별 로그 이벤트보다는 집계 된 분석이 필요한 경우, 쓰기를 고려하십시오.[Workers Analytics 엔진](/analytics/analytics-engine/)당신의 꼬리 노동자에서. Analytics Engine은 SQL과 쿼리할 수 있는 high-cardinality, time-series data에 최적화되어 있습니다.
+
+예를 들어, Endpoint에 의해 오류를 계산하기 위해 Tail Worker를 사용할 수 있으며, 고객별 응답 시간을 추적하거나 사용 통계를 구축하고, 쿼리 및 시각화를 위한 Analytics Engine에 해당 집계를 작성할 수 있습니다.
+
+```js
+export default {
+	async tail(events, env) {
+		for (const event of events) {
+			env.ANALYTICS.writeDataPoint({
+				blobs: [event.scriptName, event.outcome],
+				doubles: [1],
+				indexes: [event.event?.request?.cf?.colo ?? "unknown"],
+			});
+		}
+	},
+};
+```
+
+더 알아보기[Analytics Engine 문서](/analytics/analytics-engine/)쓰기 및 쿼리 데이터에 대한 자세한 내용은.
+
+## 관련 자료
+
+- [`tail()`](/workers/runtime-apis/handlers/tail/)Handler API docs - 설정 방법 알아보기`tail()`작업자의 핸들링.
+- [Analytics 엔진](/analytics/analytics-engine/)- High-cardinality, time-series 쿼리에 대한 Worker에서 사용자 정의 분석 쓰기.
+- [오류 및 예외](/workers/observability/errors/)- 일반적인 Workers 오류 검토.
+- [지역 개발 및 테스트](/workers/development-testing/)- 로컬 Workers 개발 및 테스트.
+- [소스 맵 및 스택 추적](/workers/observability/source-maps)- 소스 맵을 활성화하고 Workers에 대한 스택 추적을 생성합니다.

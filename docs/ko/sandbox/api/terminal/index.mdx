@@ -1,0 +1,212 @@
+---
+title: 이름 *
+pcx_content_type: concept
+sidebar:
+  order: 7
+description: 웹소켓을 통해 샌드박스 쉘에 브라우저 기반 터미널 UI를 연결합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/terminal/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/terminal/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+웹소켓을 통해 샌드박스 쉘에 브라우저 기반 터미널 UI를 연결합니다. 서버 측`terminal()`메소드 프록시 WebSocket 연결과 클라이언트 측`SandboxAddon`xterm.js와 터미널 렌더링에 통합합니다.
+
+## 서버 측 방법
+
+### `terminal()`
+
+WebSocket 업그레이드 요청을 프록시하여 터미널 연결을 만듭니다.
+
+```ts
+const response = await sandbox.terminal(request: Request, options?: PtyOptions): Promise<Response>
+```
+
+**매개 변수**:
+
+- `request`- 브라우저에서 WebSocket 업그레이드 요청 (음악 포함)`Upgrade: websocket`헤더)
+- `options`(선택):
+  - `cols`- 열에 있는 맨끝 폭 (과태:`80`)
+  - `rows`- 행에 있는 맨끝 고도 (과태:`24`)
+
+**기타 제품**: `Promise<Response>`— WebSocket 업그레이드 응답
+
+<TypeScriptExample>
+  ```ts
+  //작업자의 fetch 핸들러에서
+  return await sandbox.terminal(request, { cols: 120, rows: 30 });
+  ```
+</TypeScriptExample>
+
+둘 다에[기본 및 명시적으로 만든 세션](/sandbox/concepts/sessions/):
+
+<TypeScriptExample>
+  ```ts
+  //기본 세션
+  return await sandbox.terminal(request);
+
+  //특정 세션
+  const session = await sandbox.getSession('dev');
+  return await session.terminal(request);
+
+  ```
+</TypeScriptExample>
+
+## 고객 측 addon
+
+더 보기`@cloudflare/sandbox/xterm`모듈 제공`SandboxAddon`WebSocket 연결, 재연결 및 터미널 크기 전달을 처리하는 xterm.js를 위해.
+
+### `SandboxAddon`
+
+```ts
+import { SandboxAddon } from '@cloudflare/sandbox/xterm';
+
+const addon = new SandboxAddon(options: SandboxAddonOptions);
+```
+
+**옵션 정보**:
+
+- `getWebSocketUrl(params)`- 각 연결 시도에 대한 WebSocket URL 구축. 이름:
+  - `sandboxId`- 타겟 샌드박스 ID
+  - `sessionId`(옵션) - 타겟 세션 ID
+  - `origin`- WebSocket의 기원`window.location`(예:`wss://example.com`)
+- `reconnect`- exponential backoff (과태:`true`)
+- `onStateChange(state, error?)`- 연결 상태 변경을 위한 Callback
+
+<TypeScriptExample>
+  ```ts
+  import { Terminal } from '@xterm/xterm';
+  import { SandboxAddon } from '@cloudflare/sandbox/xterm';
+
+  const terminal = new Terminal({ cursorBlink: true });
+  terminal.open(document.getElementById('terminal'));
+
+  const addon = new SandboxAddon({
+    getWebSocketUrl: ({ sandboxId, sessionId, origin }) => {
+      const params = new URLSearchParams({ id: sandboxId });
+      if (sessionId) params.set('session', sessionId);
+      return `${origin}/ws/terminal?${params}`;
+    },
+    onStateChange: (state, error) => {
+      console.log(`Terminal ${state}`, error);
+    }
+  });
+
+  terminal.loadAddon(addon);
+  addon.connect({ sandboxId: 'my-sandbox' });
+
+  ```
+</TypeScriptExample>
+
+### `connect()`
+
+sandbox 터미널에 연결하기.
+
+```ts
+addon.connect(target: ConnectionTarget): void
+```
+
+**매개 변수**:
+
+- `target`:
+  - `sandboxId`- Sandbox 연결
+  - `sessionId`(옵션) - sandbox 내에서 세션
+
+전화 번호`connect()`새로운 타겟이 현재 목표에서 분리하고 새로운 것을 연결합니다. 이미 연결되는 동안 동일한 표적으로 그것을 호출하는 것은 no-op입니다.
+
+### `disconnect()`
+
+연결과 연결 시도를 중지합니다.
+
+```ts
+addon.disconnect(): void
+```
+
+### 제품 정보
+
+| 회사 정보       | 제품정보                                            | 이름 \*         |
+| ----------- | ----------------------------------------------- | ------------- |
+| `state`     | `'disconnected' \| 'connecting' \| 'connected'` | 현재 연결 상태      |
+| `sandboxId` | `string \| undefined`                           | 현재 sandbox ID |
+| `sessionId` | `string \| undefined`                           | 현재 세션 ID      |
+
+## WebSocket 프로토콜
+
+더 보기`SandboxAddon`WebSocket 프로토콜을 자동으로 처리합니다. 이 세부사항은 addon 없이 주문 맨끝 클라이언트를 건축하기 위한 것입니다. 완전한 예시를 위해, 참조[xterm.js 없이 연결](/sandbox/guides/browser-terminals/#connect-without-xtermjs).
+
+### 연결 수명주기
+
+1. 클라이언트는 Worker endpoint에 WebSocket을 엽니다. 설치하기`binaryType`으로`arraybuffer`.
+2. 서버가 재생합니다.**공급 능력**이전 연결에서 바이너리 프레임. 이 도착하기 전에`ready`이름 \*
+3. 서버는 보냅니다`ready`상태 메시지 - 터미널은 이제 입력을 수락합니다.
+4. 이진 프레임은 두 방향으로 흐릅니다. UTF-8은 서버에서 클라이언트, 터미널 출력 (ANSI 탈출 시퀀스 포함)에서 키 입력을 인코딩했습니다.
+5. 클라이언트가 차단되면 PTY는 살아있다. 동일한 세션 리플레이 버퍼 출력에 연결하기 때문에 터미널이 변경되지 않습니다.
+
+### 제어 메시지 (서버에 클라이언트)
+
+JSON 텍스트 프레임을 전송하여 터미널을 제어합니다.
+
+**제품 정보**— 갱신 맨끝 차원 (both)`cols`·`rows`필수):
+
+```json
+{ "type": "resize", "cols": 120, "rows": 30 }
+```
+
+### 상태 메시지 (server to client)
+
+서버는 Lifecycle 이벤트에 JSON 텍스트 프레임을 보냅니다.
+
+**지원하다**- PTY는 초기화됩니다. 버퍼 출력 (모든 경우) 이미 전송 된:
+
+```json
+{ "type": "ready" }
+```
+
+**오시는 길**— 포탄 과정은 종결했습니다:
+
+```json
+{ "type": "exit", "code": 0, "signal": "SIGTERM" }
+```
+
+**오류 수정**— 오류가 발생했습니다 (예를 들어, 잘못된 제어 메시지 또는 세션을 찾을 수 없습니다):
+
+```json
+{ "type": "error", "message": "Session not found" }
+```
+
+## 제품정보
+
+```ts
+interface PtyOptions {
+	cols?: number;
+	rows?: number;
+}
+
+type ConnectionState = "disconnected" | "connecting" | "connected";
+
+interface ConnectionTarget {
+	sandboxId: string;
+	sessionId?: string;
+}
+
+interface SandboxAddonOptions {
+	getWebSocketUrl: (params: {
+		sandboxId: string;
+		sessionId?: string;
+		origin: string;
+	}) => string;
+	reconnect?: boolean;
+	onStateChange?: (state: ConnectionState, error?: Error) => void;
+}
+```
+
+## 관련 자료
+
+- [터미널 연결](/sandbox/concepts/terminal/)— 어떻게 터미널 연결 작업
+- [브라우저 터미널](/sandbox/guides/browser-terminals/)- Step-by-step 설정 가이드
+- [세션 API](/sandbox/api/sessions/)— 세션 관리
+- [명령 API](/sandbox/api/commands/)- Non-interactive 명령 실행

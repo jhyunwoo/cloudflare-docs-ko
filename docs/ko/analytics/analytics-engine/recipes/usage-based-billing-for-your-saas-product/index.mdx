@@ -1,0 +1,104 @@
+---
+title: 사용량 기반 과금
+pcx_content_type: how-to
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 사용량 기반 과금
+description: Workers Analytics Engine을 사용해 SaaS 제품에 사용량 기반 과금을
+  구축하는 방법
+
+---
+
+많은 Cloudflare 고객이 여러 고객을 대상으로 하는 서비스형 소프트웨어(SaaS) 제품을 운영합니다. 이런 회사의 큰 관심사 중 하나는 고객별 비용을 이해하고, 더 넓게는 고객 행동을 파악하는 것입니다.
+
+고객이 사용하는 모든 웹 요청에 대한 데이터를 유지하는 일은 비용이 많이 들 수 있으며, 페이지 뷰를 고객별로 귀속하는 것도 마찬가지입니다. Cloudflare는 이제 Analytics Engine을 통해 여러분도 사용할 수 있는 동일한 사내 기술로 이 문제를 해결해 왔습니다.
+
+## 사용량 데이터 기록하기
+
+Analytics Engine은 Cloudflare Workers와 함께 사용하도록 설계되었습니다. 이미 Cloudflare Workers로 요청을 처리하고 있다면, 몇 줄의 코드만으로 Analytics Engine에 데이터를 보내기 시작할 수 있습니다.
+
+```javascript
+  [...]
+
+  // This examples assumes you give a unique ID to each of your SaaS customers, and the Worker has
+  // assigned it to the variable named `customer_id`
+  const { pathname } = new URL(request.url);
+  env.USAGE_INDEXED_BY_CUSTOMER_ID.writeDataPoint({
+    "indexes": [customer_id],
+    "blobs": [pathname]
+  });
+```
+
+SaaS 고객 활동은 종종 지수적인 패턴을 보입니다. 어떤 고객은 초당 1억 건의 요청을 보낼 수 있지만, 다른 고객은 하루 100건만 보낼 수도 있습니다. 모든 데이터를 한데 모아 샘플링하면 큰 고객의 사용량 때문에 작은 고객의 데이터가 0으로 샘플링될 수 있습니다. Analytics Engine은 이를 방지할 수 있게 해줍니다. 위 코드 예시에서는 고객의 고유 ID를 인덱스로 제공하여 고객별 활동이 개별적으로 샘플링되도록 합니다.
+
+## 사용량 보기
+
+고객 데이터는 Grafana(시각화용) 또는 JSON(자체 도구용)으로 보기 시작할 수 있습니다. Analytics Engine 문서의 다른 영역에서 이를 더 자세히 설명합니다.
+
+모든 엔드포인트에 대한 고객 사용량을 살펴보세요.
+
+```sql
+SELECT
+  index1 AS customer_id,
+  sum(_sample_interval) AS count
+FROM
+  usage_indexed_by_customer_id
+GROUP BY customer_id
+```
+
+Grafana에서 이 쿼리를 실행하면 각 고객의 사용량을 요약한 그래프가 반환됩니다. `sum(_sample_interval)`은 샘플링을 반영하기 위한 것으로, 자세한 내용은 Analytics Engine의 다른 문서를 참고하세요. 이 쿼리는 "가장 활발한 고객은 누구인가?"라는 질문에 답을 줍니다.
+
+위의 `writeDataPoint` 예시는 엔드포인트 이름도 함께 기록합니다. 이렇게 하면 고객 활동을 엔드포인트별로 나눠서 볼 수 있습니다.
+
+```sql
+SELECT
+  index1 AS customer_id,
+  blob1 AS request_endpoint,
+  sum(_sample_interval) AS count
+FROM
+  usage_indexed_by_customer_id
+GROUP BY customer_id, request_endpoint
+```
+
+이를 통해 고객마다 어떤 엔드포인트를 사용하는지 인사이트를 얻을 수 있습니다. 이는 비즈니스 관점(예: 고객 요구 파악)뿐 아니라, 엔지니어가 활동과 동작을 관찰하는 데도 유용합니다(observability).
+
+## 고객에게 과금하기
+
+Analytics Engine은 신뢰할 수 있는 사용량 근사치를 바탕으로 고객에게 과금하는 데 사용할 수 있습니다. 가장 좋은 근사치를 얻으려면 청구서를 생성할 때 고객당 하나의 쿼리를 실행하는 것을 권장합니다. 여러 고객을 한 번에 조회하는 것보다 샘플링이 덜 일어날 수 있습니다.
+
+```sql
+SELECT
+  index1 AS customer_id,
+  blob1 AS request_endpoint,
+  sum(_sample_interval) AS usage_count
+FROM
+  usage_indexed_by_customer_id
+WHERE
+  customer_id = 'substitute_customer_id_here'
+  AND timestamp >= toDateTime('2023-03-01 00:00:00')
+  AND timestamp < toDateTime('2023-04-01 00:00:00')
+GROUP BY customer_id, request_endpoint
+```
+
+이 쿼리를 매달 말 각 고객에 대해 한 번씩 실행하면 청구서를 생성하는 데 필요한 데이터를 얻을 수 있습니다. 이는 단지 예시일 뿐이며, 실제로는 여러분의 과금 방식에 맞게 조정할 가능성이 높습니다.
+
+청구서를 만들 때는 일별 비용도 함께 제공하고 싶을 가능성이 큽니다. 다음 쿼리는 사용량을 일 단위로 나눕니다.
+
+```sql
+SELECT
+  index1 AS customer_id,
+  toStartOfInterval(timestamp, INTERVAL '1' DAY) AS date,
+  blob1 AS request_endpoint,
+  sum(_sample_interval) AS request_count
+FROM
+  usage_indexed_by_customer_id
+WHERE
+  customer_id = 'x'
+  AND timestamp >= toDateTime('2023-03-01 00:00:00')
+  AND timestamp < toDateTime('2023-04-01 00:00:00')
+GROUP BY customer_id, date, request_endpoint
+```
+
+위 사용량 쿼리를 바탕으로 여러분의 과금 방식에 맞게 조정한 뒤, 반환된 데이터를 기반으로 고객 요금을 계산하는 백엔드 시스템에서 해당 쿼리를 실행하도록 구성하면 됩니다.

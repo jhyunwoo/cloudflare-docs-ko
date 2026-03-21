@@ -1,0 +1,132 @@
+---
+pcx_content_type: configuration
+title: 회사연혁
+head: []
+description: Scheduler.wait() API를 사용하여 Workers에서 실행을 지연시킵니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/scheduler/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/scheduler/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+## 이름 \*
+
+더 보기`scheduler`글로벌은 작업 스케줄링 API를 기반으로 합니다.[WICG 스케줄링 APIs 제안](https://github.com/WICG/scheduling-apis). 현재 Workers는 실행합니다`scheduler.wait()`방법.
+
+`scheduler.wait()`주어진 수 밀리 초 후에 해결하는 약속을 반환합니다. 그것은`await`-able 대안`setTimeout()`콜백이 필요하지 않습니다.
+
+다른 것[Workers의 타이머](/workers/runtime-apis/web-standards/#timers), `scheduler.wait()`Cloudflare에 배치될 때 CPU 실행 도중 전진하지 마십시오. 이것은[Spectre 공격에 대한 mitigate 보안 측정](/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading). 현지 개발에서, I/O가 발생 여부에 관계없이 타이머 전진.
+
+## 옵션 정보
+
+```js
+await scheduler.wait(delay);
+await scheduler.wait(delay, options);
+```
+
+## 매개 변수
+
+- `delay`이름 \*
+  - 반환된 약속 전에 기다리는 밀리 초 수.
+
+- `options`선택 사항
+  - 대기 작동을위한 옵션 구성.
+
+  - `signal`AbortSignal 옵션
+    - 이름 \*[`AbortSignal`](/workers/runtime-apis/web-standards/#abortcontroller-and-abortsignal)그것은 대기를 취소. 신호가 낙관되면, 반환된 약속은`AbortError`.
+
+## 반환 값
+
+·`Promise<void>`그 후 해결`delay`밀리 초. 이름 \*`AbortSignal`지연 탈출 전에 제공되고 낙태됩니다.`AbortError`.
+
+## 이름 \*
+
+### 기본 지연
+
+제품 정보`scheduler.wait()`지정된 기간 동안 일시적으로 실행합니다.
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request): Promise<Response> {
+  		//대기 1 초
+  		await scheduler.wait(1000);
+  		return new Response("Delayed response");
+  	},
+  } satisfies ExportedHandler;
+  ```
+</TypeScriptExample>
+
+### exponential 백오프를 가진 Retry
+
+제품 정보`scheduler.wait()`retry 시도 사이의 지연을 구현합니다. 이 예제는 jitter에서 exponential backoff를 사용합니다.
+
+<TypeScriptExample>
+  ```ts
+  async function fetchWithRetry(url: string, maxAttempts = 3): Promise<Response> {
+  	const baseBackoffMs = 100;
+  	const maxBackoffMs = 10000;
+
+  	for (let attempt = 0; attempt < maxAttempts; attempt++) {
+  		try {
+  			return await fetch(url);
+  		} catch (err) {
+  			if (attempt + 1 >= maxAttempts) {
+  				throw err;
+  			}
+  			const backoffMs = Math.min(
+  				maxBackoffMs,
+  				baseBackoffMs * Math.random() * Math.pow(2, attempt),
+  			);
+  			await scheduler.wait(backoffMs);
+  		}
+  	}
+  	throw new Error("unreachable");
+  }
+
+  export default {
+  	async fetch(request): Promise<Response> {
+  		const response = await fetchWithRetry("https://example.com/api");
+  		return new Response(response.body, response);
+  	},
+  } satisfies ExportedHandler;
+  ```
+</TypeScriptExample>
+
+### AbortSignal으로 취소
+
+이름 \*[`AbortController`](/workers/runtime-apis/web-standards/#abortcontroller-and-abortsignal)자주 묻는 질문
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request): Promise<Response> {
+  		const controller = new AbortController();
+
+  		//500ms 후 대기 취소
+  		setTimeout(() => controller.abort(), 500);
+
+  		try {
+  			await scheduler.wait(5000, { signal: controller.signal });
+  			return new Response("Wait completed");
+  		} catch (err) {
+  			if (err instanceof DOMException && err.name === "AbortError") {
+  				return new Response("Wait was cancelled", { status: 408 });
+  			}
+  			throw err;
+  		}
+  	},
+  } satisfies ExportedHandler;
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+- [계정 정보](/workers/runtime-apis/web-standards/#timers) — `setTimeout()`·`setInterval()`API를
+- [성과 및 타이머](/workers/runtime-apis/performance/) — `performance.now()`and timer 보안 행동
+- [AbortController 및 AbortSignal](/workers/runtime-apis/web-standards/#abortcontroller-and-abortsignal)— 비동기 운영 취소
+- [WICG 스케줄링 APIs 제안](https://github.com/WICG/scheduling-apis)— 이 API를 기반으로 합니다.

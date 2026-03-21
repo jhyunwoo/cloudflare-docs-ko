@@ -1,0 +1,65 @@
+---
+pcx_content_type: reference
+title: Cloudflare 계정 간 도메인 이동
+description: 원활한 마이그레이션을 위해 요구 사항, DNS 설정, SSL/TLS 인증서 관리를 포함하여 Cloudflare 계정 간에 도메인을 이전하는 방법을 알아보세요.
+
+---
+
+다음과 같은 경우 도메인을 한 Cloudflare 계정에서 다른 계정으로 이동하거나 이전해야 합니다.
+
+- 다중 사용자 조직을 관리하며 사용자별로 도메인 접근 권한을 분리해야 하는 경우
+- `Cloudflare is already hosting under a different account` 오류가 발생한 경우
+- 이메일 주소나 Cloudflare 계정에 대한 접근 권한을 잃어버린 경우(단, 2단계 인증이 활성화되어 있다면 [백업 코드](/fundamentals/user-profiles/2fa/#use-a-backup-code)를 사용할 수도 있음)
+- 이메일 주소를 오타로 입력한 채 Cloudflare 계정을 등록한 경우
+
+:::caution
+도메인이 Cloudflare Registrar에 등록되어 있다면, 도메인과 해당 등록 정보를 새 계정으로 이전하기 위해 수동 요청을 제출해야 합니다.
+
+이 절차를 완료하려면 [계정 간 Cloudflare Registrar 도메인 등록 이전](/registrar/account-options/inter-account-transfer/)을 참고하세요.
+:::
+
+## 요구 사항
+
+도메인을 한 Cloudflare 계정에서 다른 계정으로 이전하려면 다음이 필요합니다.
+
+- 도메인 등록기관에 대한 접근 권한. 도메인이 Cloudflare Registrar를 사용 중이라면 [계정 간 Cloudflare Registrar 도메인 등록 이전](/registrar/account-options/inter-account-transfer/)을 참고하세요.
+- 해당 도메인과 연결된 Cloudflare 계정이 최소 1개 이상
+
+## 도메인 이전
+
+:::caution
+
+
+활성 상태인 Cloudflare 도메인을 다른 Cloudflare 계정으로 이전하기 전에 모든 [DNSSEC 구성](/dns/dnssec/)과 [부가 기능 또는 구독](/billing/cancel-subscription/)을 제거해야 합니다.
+
+또한 도메인이 이전 계정에 있는 동안 영역의 DNS 레코드를 [내보내기](/dns/manage-dns-records/how-to/import-and-export/#export-records)하는 것도 권장합니다. 그런 다음 새 계정으로 올바른 DNS 레코드를 [가져오기](/dns/manage-dns-records/how-to/import-and-export/#import-records)할 수 있습니다.
+이 단계를 놓치면 Cloudflare가 프록시된 DNS 레코드를 가져오게 되어 도메인에 [1000 오류](/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/)가 발생할 수 있습니다.
+
+
+:::
+
+이전 Cloudflare 계정에 계속 접근할 수 있다면 Cloudflare 계정 설정을 수동으로 복사할 수 있습니다. Cloudflare 계정 간에 도메인을 이전할 때는 [SSL/TLS 인증서 재발급](#issue-new-certificates)과 [DNS 레코드 재생성 및 검증](/dns/manage-dns-records/how-to/create-dns-records/)이 필요합니다.
+
+Cloudflare 계정에 연결된 이메일 주소에 접근할 수 없고 백업 코드도 없다면, 다른 이메일 주소에 연결된 새 Cloudflare 계정으로 도메인을 수동 이전해야 합니다.
+
+도메인 이전 절차는 DNS 설정에 따라 달라집니다. Cloudflare가 권한 있는 DNS 제공업체인 경우(즉, 도메인 네임서버가 Cloudflare를 가리키는 경우) 다음을 수행해야 합니다.
+
+1. [새 Cloudflare 계정 만들기](/fundamentals/account/create-account/) 또는 기존 Cloudflare 계정에 로그인합니다.
+2. 해당 계정에 [도메인을 추가](/fundamentals/manage-domains/add-site/)합니다(처음 추가하는 것과 동일한 방식).
+3. 도메인 등록기관 계정에 로그인하고 제공된 Cloudflare 네임서버로 [네임서버를 업데이트](/dns/zone-setups/full-setup/setup/)합니다.
+4. 대시보드에서 도메인을 선택한 뒤 **Overview** > **Re-check now**를 눌러 네임서버 업데이트를 마무리합니다.
+
+Cloudflare 네트워크가 네임서버 변경을 인식하면 새 계정의 도메인은 **Active**로 표시됩니다. 새 계정의 도메인이 **Pending** 상태인 동안에는 Cloudflare를 통해 트래픽을 프록시할 수 없으며, 도메인이 **Active**가 될 때까지 원본 IP 주소가 반환됩니다.
+
+기존 계정에서는 도메인이 **Moved Away**로 표시됩니다. **Moved Away** 상태로 7일이 지나면 도메인은 **Deleted**로 표시됩니다. 이후 **Deleted** 상태로 7일이 지나면 영구적으로 제거됩니다.
+
+자세한 내용은 [영역 상태](/dns/zone-setups/reference/domain-status/)를 참고하세요.
+
+<a id="issue-new-certificates"></a>
+## 새 인증서 발급
+
+이전 Cloudflare 계정과 연결된 SSL/TLS 인증서는 새 계정으로 이전되지 않습니다. 사이트가 도메인 이전 전에 SSL/TLS 인증서를 필요로 한다면 [다운타임 최소화](/ssl/edge-certificates/universal-ssl/enable-universal-ssl/#minimize-downtime)를 참고하세요.
+
+[사용자 지정 인증서](/ssl/edge-certificates/custom-certificates/)를 사용 중이었다면 이전 영역에서 삭제하고 새 영역에 업로드해야 합니다. 새 영역이 **Pending** 상태일 때도 인증서를 업로드할 수 있으며, 이 경우 인증서는 [**Holding Deployment**](/ssl/reference/certificate-statuses/#custom-certificates) 상태가 되고 영역이 활성화되면 활성 상태가 됩니다.
+
+도메인을 이전하기 전에 [고급 인증서](/ssl/edge-certificates/advanced-certificate-manager/)를 주문할 수 있습니다. ACM 인증서는 활성 도메인에 자동으로 배포됩니다.

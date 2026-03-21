@@ -1,0 +1,130 @@
+---
+pcx_content_type: concept
+title: 레코드 빠른 스캔
+
+---
+
+import { Details, Example } from "~/components"
+
+모든 고객이 새 영역을 만들 때 빠르게 시작할 수 있도록, Cloudflare는 DNS 레코드 빠른 스캔 기능을 제공합니다.
+
+:::note[빠른 스캔 위치]
+대시보드에서는 새 도메인을 온보딩하는 동안에만 빠른 스캔을 사용할 수 있습니다. API에서는 [Trigger DNS Records Scan 엔드포인트](/api/resources/dns/subresources/records/methods/scan_trigger/)를 사용해 빠른 스캔을 수동으로 실행할 수 있습니다.
+:::
+
+## 빠른 스캔의 동작 방식
+
+이 스캔은 Cloudflare가 기존 활성 영역에서 사용 중이라고 식별한, DNS 레코드의 **Type**과 **Name** 조합에 대한 반복 패턴 목록을 기반으로 합니다.
+
+DNS 레코드 이름에는 레코드가 설정된 도메인이 자동으로 붙기 때문에, `example.com`과 `domain.test`처럼 전혀 다른 두 도메인도 각 영역의 DNS 레코드 목록을 나란히 비교하면서 **Type**/**Name** 조합만 기준으로 삼으면 몇 가지 일치 항목이 나올 가능성이 높습니다.
+
+<Details header="예시">
+
+<Example>
+**example.com**의 DNS 관리:
+
+| Type | Name     | Content                 |
+| ---- | -------- | ----------------------- |
+| **A**   | **@**     | `192.0.2.0`  |
+| **CNAME**   | **www**     | `example.com`  |
+| **A**        | **mail**   | `192.0.2.100`      |
+| **MX**        | **@**   | `mail.example.com`      |
+| *CNAME*   | *my-store1900*     | `example-shop.saas.test`  |
+
+</Example>
+
+<Example>
+**domain.test**의 DNS 관리:
+
+| Type | Name     | Content                 |
+| ---- | -------- | ----------------------- |
+| **A**   | **@**     | `192.0.2.8`  |
+| **CNAME**   | **www**     | `domain.test`  |
+| *CNAME*   | *specific-internal-name*     | `services.test.dev`  |
+| **A**        | **mail**   | `192.0.2.20`      |
+| **MX**        | **@**   | `mail.domain.test`      |
+
+
+</Example>
+
+</Details>
+
+DNS 레코드의 **Content** 값은 영역마다 다르지만, 레코드의 **Type**과 **Name**을 기준으로 Cloudflare는 반복 패턴을 식별하고 새 도메인이 추가될 때 동일한 조합이 있을 것이라고 예상할 수 있습니다.
+
+아래 [사용 사례 예시](#사용-사례-예시) 섹션에서는 스캔이 일반적으로 찾는 DNS 레코드 **Type**/**Name** 조합의 예시를 소개합니다.
+
+## 제한 사항
+
+DNS 레코드 빠른 스캔은 Cloudflare에 추가하는 특정 영역에 맞춘 기능이 아니기 때문에, 모든 레코드를 완벽히 찾아내지 못하는 경우가 있을 수 있습니다.
+
+예를 들어 `store.example.com` 대신 `my-store1900.example.com`처럼 매우 특수한 호스트명을 사용하거나, `default._domainkey` 대신 `this._domainkey`처럼 보다 사용자 지정된 이름의 [DKIM 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-dkim-record/)를 사용한 경우, 스캔이 그런 특정 DNS 레코드를 찾지 못하는 것은 자연스러운 동작입니다.
+
+:::caution[중요]
+
+네임서버를 변경하기 전에 항상 [DNS 레코드를 검토](/dns/zone-setups/full-setup/setup/#2-dns-레코드-검토)하고, 누락된 레코드는 수동으로 추가해야 합니다.
+
+:::
+
+## 사용 사례 예시
+
+### 주소 레코드
+
+<Example>
+
+| Type       | Name | Content  | TTL     |
+| ---------- | ---- | -------- | ------- |
+| `A`        | `@`  | `<IPv4>` | `<TTL>` |
+
+</Example>
+
+`@` 값은 도메인 apex를 의미합니다. 위 예시에서는 `domain.test` 또는 `example.com`에 해당합니다.
+
+[기본 설정(전체)](/dns/zone-setups/full-setup/) 영역의 거의 모든 경우에, 웹사이트나 애플리케이션이 호스팅되는 IP 주소를 가리키는 최소 하나의 [주소 레코드](https://www.cloudflare.com/learning/dns/dns-records/dns-a-record/)가 있을 것으로 예상됩니다.
+
+### www 레코드
+
+<Example>
+
+| Type       | Name  | Content    | TTL     |
+| ---------- | ----- | ---------- | ------- |
+| `CNAME`    | `www` | `<TARGET>` | `<TTL>` |
+
+</Example>
+
+<Example>
+
+| Type       | Name  | Content  | TTL     |
+| ---------- | ----- | -------- | ------- |
+| `A`        | `www` | `<IPv4>` | `<TTL>` |
+
+</Example>
+
+방문자가 여전히 `www.<DOMAIN>`을 입력해도 도메인에 접속되기를 기대하는 경우가 많기 때문에, 일반적으로 영역에는 `www`라는 이름의 [CNAME](/dns/manage-dns-records/reference/dns-record-types/#cname) 또는 [A](/dns/manage-dns-records/reference/dns-record-types/#a-and-aaaa) 레코드가 존재합니다. 이를 통해 `www.<DOMAIN>`에 대한 쿼리가 기대한 결과를 반환할 수 있습니다.
+
+### 이메일 레코드
+
+<Example>
+
+| Type       | Name | Mail server        | TTL     | Priority     |
+| ---------- | ---- | ------------------ | ------- | ------------ |
+| `MX`       | `@`  | `webmail.<DOMAIN>` | `<TTL>` | `<PRIORITY>` |
+
+</Example>
+
+<Example>
+
+| Type       | Name   | Content    | TTL     |
+| ---------- | ------ | ---------- | ------- |
+| `CNAME`    | `mail` | `<TARGET>` | `<TTL>` |
+
+</Example>
+
+<Example>
+
+| Type       | Name      | Content  | TTL     |
+| ---------- | --------- | -------- | ------- |
+| `A`        | `webmail` | `<IPv4>` | `<TTL>` |
+
+</Example>
+
+메일 교환기(`MX`) 레코드와 `mail`, `webmail`, `smtp` 같은 이름의 다른 레코드 유형도 자주 발견됩니다. [이메일 레코드 설정 페이지](/dns/manage-dns-records/how-to/email-records/)에서 설명하듯, 이메일이 메일 서버에 제대로 도달하게 하고 다른 발신자가 도메인을 스푸핑하지 못하게 하기 위해 여러 DNS 레코드를 사용할 수 있습니다.

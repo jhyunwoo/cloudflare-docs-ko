@@ -1,0 +1,137 @@
+---
+title: Workers 바인딩 API
+pcx_content_type: reference
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/api/'
+translation_source_md: 'https://developers.cloudflare.com/workers-vpc/api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem } from "~/components";
+
+VPC 서비스 바인딩은 당신의 노동자에게서 VPC 서비스 접근을 위한 편리한 API를 제공합니다. 각 바인딩은 Cloudflare 터널을 통해 개인 네트워크에서 서비스에 대한 연결을 나타냅니다.
+
+묶음에 만들어진 각 요청은 VPC 서비스에 구성 된 특정 서비스로 전달되며 개인 네트워크의 나머지에 대한 액세스를 제한합니다.
+
+:::참조
+
+Workers VPC는 현재 베타에 있습니다. 특징 및 API는 일반적인 가용성의 앞에 변화할지도 모릅니다. 베타에서, Workers VPC는 모든 Workers 계획에 무료로 사용할 수 있습니다.
+
+:::
+
+## VPC 서비스 바인딩
+
+VPC 서비스 바인딩은 접근됩니다`env`작업자의 fetch 핸들러의 매개 변수. 그것은 제공합니다`fetch()`개인 서비스에 HTTP 요청을 만드는 방법.
+
+:::노트\[필수 역할]
+Worker에서 VPC 서비스를 바인딩하려면 사용자 요구`Connectivity Directory Bind`(주)`Connectivity Directory Admin`). 역할 정의를 위해, 참조[제품정보](/fundamentals/manage-members/roles/#account-scoped-roles).
+:::
+
+## 뚱 베어()
+
+설정된 터널을 통해 개인 서비스에 HTTP 요청을 지정합니다.
+
+```js
+const response = await env.VPC_SERVICE_BINDING.fetch(resource, options);
+```
+
+:::참조
+더 보기[VPC 서비스 구성](/workers-vpc/configuration/vpc-services/#vpc-service-configuration)다른 URL 또는 호스트가 실제적으로 존재하는 경우에도 외부 네트워크에서 귀하의 서비스에 연결 및 경로 요청을 항상 사용할 수 있습니다`fetch()`Worker 코드의 작동.
+
+호스트는`fetch()`작업은 요청을 경로에 사용되지 않으며, 대신 만 교황`Host`서버로 파싱할 수 있는 HTTP 요청 필드와 Server Name Indication(SNI)에 사용`https`계획은 지정됩니다.
+
+항구에서 제공`fetch()`작업은 무시됩니다 - VPC 서비스 구성에 지정된 포트가 사용됩니다.
+주요 특징
+
+### 매개 변수
+
+- `resource`(string | URL | 요청) - URL to fetch. 이것은 프로토콜, 호스트 및 경로 (예를 들어,`http://internal-api/api/users`)
+- `options`(optional RequestInit) - 표준 fetch 옵션 :
+  - `method`- HTTP 방법 (GET, POST, PUT, DELETE 등)
+  - `headers`- 요청 헤더
+  - `body`- 요청 몸
+  - `signal`- 요청 취소에 대한 AbortSignal
+
+:::note\[필수]
+VPC 서비스 fetch 요청은 프로토콜을 포함한 절대 URL을 사용해야합니다 (`http`/`https`), 주인 및 경로. 상대 경로는 지원되지 않습니다.
+주요 특징
+
+### 반환 값
+
+구매하기`Promise<Response>`그 해결[표준 Fetch API 응답 객체](https://developer.mozilla.org/en-US/docs/Web/API/Response).
+
+### 이름 \*
+
+#### Basic GET 요청
+
+```js
+export default {
+	async fetch(request, env) {
+		const privateRequest = new Request(
+			"http://internal-api.company.local/users",
+		);
+		const response = await env.VPC_SERVICE_BINDING.fetch(privateRequest);
+		const users = await response.json();
+
+		return new Response(JSON.stringify(users), {
+			headers: { "Content-Type": "application/json" },
+		});
+	},
+};
+```
+
+#### 몸에 POST 요청
+
+```js
+export default {
+	async fetch(request, env) {
+		const privateRequest = new Request(
+			"http://internal-api.company.local/users",
+			{
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${env.API_TOKEN}`,
+				},
+				body: JSON.stringify({
+					name: "John Doe",
+					email: "john@example.com",
+				}),
+			},
+		);
+
+		const response = await env.VPC_SERVICE_BINDING.fetch(privateRequest);
+
+		if (!response.ok) {
+			return new Response("Failed to create user", { status: response.status });
+		}
+
+		const user = await response.json();
+		return new Response(JSON.stringify(user), {
+			headers: { "Content-Type": "application/json" },
+		});
+	},
+};
+```
+
+#### HTTPS 및 IP 주소 요청
+
+```js
+export default {
+	async fetch(request, env) {
+		const privateRequest = new Request("https://10.0.1.50/api/data");
+		const response = await env.VPC_SERVICE_BINDING.fetch(privateRequest);
+
+		return response;
+	},
+};
+```
+
+## 다음 단계
+
+- 설정하기[Wrangler 윤곽 파일에 있는 서비스 바인딩](/workers-vpc/configuration/vpc-services/)
+- 더 알아보기[사용 예제](/workers-vpc/examples/)

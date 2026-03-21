@@ -1,0 +1,156 @@
+---
+title: aws-sdk 네트워크
+pcx_content_type: example
+reviewed: 2022-10-21T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-net/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-net/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+이 예제는 버전 3을 사용합니다.[aws-sdk 네트워크](https://www.nuget.org/packages/AWSSDK.S3)패키지. R2XQ 구성 자격 증명을 즉시 전달해야 합니다.`S3`서비스 클라이언트:
+
+## 고객 설정
+
+이 예제에서 명시적으로 credentials를 전달합니다.`IAmazonS3`초기화. 만약 당신이 원하는 경우, 공유 AWS 자격 증명 파일 또는 다른 AWS SDK와 SDK 저장소를 사용. 더 알아보기[AWS 자격 구성](https://docs.aws.amazon.com/sdk-for-net/v3/developer-guide/net-dg-config-creds.html)더 많은 정보.
+
+```csharp
+private static IAmazonS3 s3Client;
+
+public static void Main(string[] args)
+{
+	// Retrieve your S3 API credentials for your R2 bucket via API tokens (see: https://developers.cloudflare.com/r2/api/tokens)
+	var accessKey = "<ACCESS_KEY_ID>";
+	var secretKey = "<SECRET_ACCESS_KEY>";
+	var credentials = new BasicAWSCredentials(accessKey, secretKey);
+	s3Client = new AmazonS3Client(credentials, new AmazonS3Config
+		{
+			// Provide your Cloudflare account ID
+			ServiceURL = "https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+		});
+}
+```
+
+## 물통 및 물체 목록
+
+더 보기[ListBucketsAsync의 장점](https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/S3/MIS3ListBucketsAsyncListBucketsRequestCancellationToken.html)·[ListObjectsAsync의 장점](https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/S3/MIS3ListObjectsV2AsyncListObjectsV2RequestCancellationToken.html)계정의 밑에 물통을 목록으로 만들 수 있고 그 물통의 내용은 각각 사용될 수 있습니다.
+
+```csharp
+static async Task ListBuckets()
+{
+	var response = await s3Client.ListBucketsAsync();
+
+	foreach (var s3Bucket in response.Buckets)
+	{
+		Console.WriteLine("{0}", s3Bucket.BucketName);
+	}
+}
+```
+
+```sh output
+sdk-example
+my-bucket
+```
+
+```csharp
+static async Task ListObjectsV2()
+{
+	var request = new ListObjectsV2Request
+	{
+		BucketName = "my-bucket"
+	};
+
+	var response = await s3Client.ListObjectsV2Async(request);
+
+	foreach (var s3Object in response.S3Objects)
+	{
+		Console.WriteLine("{0}", s3Object.Key);
+	}
+}
+```
+
+```sh output
+dog.png
+cat.png
+```
+
+## 업로드 및 검색 개체
+
+더 보기[PutObjectAsync의 장점](https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/S3/MIS3PutObjectAsyncPutObjectRequestCancellationToken.html)·[GetObjectAsync에 대해서](https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/S3/MIS3GetObjectAsyncStringStringCancellationToken.html)방법은 각각 R2 버킷에서 개체 및 다운로드 개체를 업로드 할 수 있습니다.
+
+:::카트로션
+`DisablePayloadSigning = true`·`DisableDefaultChecksumValidation = true`QXQX0605XQ QXQXR2는 현재 AWSSDK에 의해 사용되는 스트리밍 SigV4 구현을 지원하지 않습니다. 사이트맵
+주요 특징
+
+```csharp
+static async Task PutObject()
+{
+	var request = new PutObjectRequest
+	{
+		FilePath = @"/path/file.txt",
+		BucketName = "my-bucket",
+		DisablePayloadSigning = true,
+		DisableDefaultChecksumValidation = true
+	};
+
+	var response = await s3Client.PutObjectAsync(request);
+
+	Console.WriteLine("ETag: {0}", response.ETag);
+}
+```
+
+```sh output
+ETag: "186a71ee365d9686c3b98b6976e1f196"
+```
+
+```csharp
+static async Task GetObject()
+{
+	var bucket = "my-bucket";
+	var key = "file.txt";
+
+	var response = await s3Client.GetObjectAsync(bucket, key);
+
+	Console.WriteLine("ETag: {0}", response.ETag);
+}
+```
+
+```sh output
+ETag: "186a71ee365d9686c3b98b6976e1f196"
+```
+
+## 사전 서명된 URL 생성
+
+더 보기[시작하기](https://docs.aws.amazon.com/sdkfornet/v3/apidocs/items/S3/MIS3GetPreSignedURLGetPreSignedUrlRequest.html)메소드는 시간 전에 서명 할 수 있으며 특정 작업에 임시 액세스를 제공합니다. 이 경우, 선임`PutObject`요청사항`sdk-example/file.txt`.
+
+```csharp
+static string? GeneratePresignedUrl()
+{
+	AWSConfigsS3.UseSignatureVersion4 = true;
+	var presign = new GetPreSignedUrlRequest
+	{
+		BucketName = "my-bucket",
+		Key = "file.txt",
+		Verb = HttpVerb.GET,
+		Expires = DateTime.Now.AddDays(7),
+	};
+
+	var presignedUrl = s3Client.GetPreSignedURL(presign);
+
+	Console.WriteLine(presignedUrl);
+
+	return presignedUrl;
+}
+```
+
+```sh output
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/file.txt?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-Date=<timestamp>&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature>
+```

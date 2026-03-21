@@ -1,0 +1,48 @@
+---
+pcx_content_type: configuration
+title: 성과 및 타이머
+head: []
+description: 'subrequests 및 기타 작업의 타이밍, 성능 및 타이밍을 측정합니다.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/performance/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/performance/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 이름 \*
+
+Workers 런타임은 서브셋을 지원합니다.[`Performance`사이트맵](https://developer.mozilla.org/en-US/docs/Web/API/Performance)타이밍 및 성능을 측정하는 데 사용되며, subrequests 및 기타 작업의 타이밍.
+
+### `performance.now()`
+
+더 보기[`performance.now()`제품 설명](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now)밀리 초에 타임 스탬프를 반환, 이후 시간 탈출`performance.timeOrigin`.
+
+Workers가 Cloudflare에 배포되면 보안 측정으로[Spectre 공격에 대한 mitigate](/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading), APIs that return timers, 포함[`performance.now()`](https://developer.mozilla.org/en-US/docs/Web/API/Performance/now)·[`Date.now()`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date/now), I/O가 발생한 후에 단지 전진 또는 증가. 다음 예제를 고려:
+
+```typescript title="Time is frozen — start will have the exact same value as end."
+const start = performance.now();
+for (let i = 0; i < 1e6; i++) {
+  //비싼 일
+}
+const end = performance.now();
+const timing = end - start; //0 댓글
+```
+
+```typescript title="Time advances, because a subrequest has occurred between start and end."
+const start = performance.now();
+const response = await fetch("https://developers.cloudflare.com/");
+const end = performance.now();
+const timing = end - start; //개발자에게 잠수함의 내구.cloudflare.com
+```
+
+호출에서 subrequest를 감싸기`performance.now()`또는`Date.now()`APIs, 당신은 R2, 또는 당신의 노동자에 있는 I/O의 다른 모양에서 R2X0664XQXQXQXQ, 또는 I/O의 타이밍을 측정할 수 있습니다.
+
+현지 개발에서, 그러나, 타이머는 I/O가 발생하거나 아닙니다. 이것은 CPU 집중되는 코드의 조각의 타이밍을 측정 할 필요가 있다는 것을 의미합니다. I/O를 포함하지 않는 경우, 로컬로 작업자를 실행할 수 있습니다.[모델 번호: Wrangler](/workers/wrangler/)오픈 소스 Workers 런타임을 사용하는 경우[채용 정보](https://github.com/cloudflare/workerd)- Cloudflare에 배포 될 때 작업자가 실행되는 동일한 실행 시간.
+
+### `performance.timeOrigin`
+
+더 보기[`performance.timeOrigin`](https://developer.mozilla.org/en-US/docs/Web/API/Performance/timeOrigin)API는 기본 타임스탬프를 기본으로 돌려주는 read-only 속성입니다.
+
+Workers 런타임에서,`timeOrigin`속성 반환 0.

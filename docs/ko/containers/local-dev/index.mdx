@@ -1,0 +1,107 @@
+---
+pcx_content_type: reference
+title: 지역 개발
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/containers/local-dev/'
+translation_source_md: 'https://developers.cloudflare.com/containers/local-dev/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+컨테이너와 직장인 모두 쉽게 실행할 수 있습니다.[`npx wrangler dev`](/workers/wrangler/commands/#dev)(주)`vite dev`Vite 프로젝트를 위해[모델 번호: Cloudflare Vite 플러그인](/workers/vite-plugin/)) 프로젝트의 디렉토리에.
+
+컨테이너 사용 가능한 WorkersXQ를 로컬로 개발하려면 먼저 해야 합니다.
+Docker 호환 CLI 도구 및 엔진 설치. 예를 들어, 사용할 수 있습니다.[Docker 데스크탑](https://docs.docker.com/desktop/)또는[콜롬비아](https://github.com/abiosoft/colima).
+
+dev 세션을 시작할 때 컨테이너 이미지가 내장되거나 다운로드됩니다. 이름 \*
+[Wrangler 구성](/workers/wrangler/configuration/#containers)세트
+이름 \*`image`로컬 경로에 속성, 이미지는 로컬 Dockerfile을 사용하여 구축됩니다.
+만약에`image`속성은 URL로 설정되며, 이미지는 Cloudflare 레지스트리에서 끌어올릴 것입니다.
+
+:::참조
+현재 Cloudflare Vite-plugin은 지역 개발의 레지스트리 링크를 지원하지 않습니다.`wrangler dev`·
+workaround로, 사용하는 최소 Dockerfile을 만들 수 있습니다.`FROM <registry-link>`. 확인`EXPOSE`로컬 dev를 위한 포트 뿐만 아니라.
+주요 특징
+
+컨테이너 인스턴스는 로컬로 시작될 때 작업자 코드 호출
+새로운 콘테이너. 요청은 자동으로 올바른 로컬 실행 컨테이너로 이동합니다.
+
+dev 세션이 종료되면 모든 관련 컨테이너 인스턴스가 중지되어야하지만,
+로컬 이미지는 제거되지 않습니다, 그래서 그들은 이후 빌드에서 재사용 될 수 있습니다.
+
+:::참조
+작업자가 앱이 많은 컨테이너 인스턴스를 생성하면 로컬 머신은 Cloudflare에 배포할 때 동시 많은 컨테이너로 실행할 수 없습니다.
+
+또한,`max_instances`구성 옵션은 로컬 개발 중에 적용되지 않습니다.
+
+또한, 정기적으로 컨테이너를 로컬로 재구성하면, 당신은 명확하게 할 수 있습니다
+오래된 컨테이너 이미지 (using)`docker image prune`또는 유사한) 디스크를 사용.
+
+:::
+
+## 컨테이너 코드에 저장
+
+Wrangler 또는 Vite와 함께 개발할 때, 작업자의 코드는 변경을 저장할 때마다 자동으로 다시로드됩니다.
+컨테이너 내에서 실행되는 코드는 없습니다.
+
+새로운 코드 변경으로 컨테이너를 재구성하려면, 당신은 할 수 있습니다`[r]`키보드의 키,
+재건을 트리거합니다. 컨테이너 인스턴스는 새로 내장 된 이미지로 다시 시작합니다.
+
+자신의 코드 watchers 및 재로드 메커니즘을 설정하거나 로컬 디렉토리를 마운트 할 수 있습니다.
+로컬 컨테이너 이미지로 코드 변경을 동기화합니다. 이것은 할 수 있지만 내장이 없습니다.
+그렇게 할 메커니즘, 최고의 전술은 언어와 프레임 워크에 따라 달라집니다
+컨테이너 코드에서 사용할 수 있습니다.
+
+## 문제 해결
+
+### 수출 항구
+
+생산에서, 당신의 콘테이너의 항구 전부는 노동자에 의해 접근될 것입니다, 그래서 당신은 특별히 항구를 사용하여 드러낼 필요가 없습니다[`EXPOSE`이름 \*](https://docs.docker.com/reference/dockerfile/#expose)당신의 Dockerfile에서.
+
+그러나 로컬 개발의 경우, 당신은 EXPOSE 명령으로 Dockerfile에 액세스해야 할 포트를 선언해야합니다; 예를 들어:`EXPOSE 4000`포트 4000에 액세스 할 경우.
+
+어떤 포트를 노출하지 않은 경우, 현지 개발에서 다음 오류를 볼 수 있습니다:
+
+```txt
+The container "MyContainer" does not expose any ports. In your Dockerfile, please expose any ports you intend to connect to.
+```
+
+그리고 어떤 포트에 연결하려고 하는 경우 당신은 당신의에 노출 되지 않은`Dockerfile`다음 오류를 볼 수 있습니다:
+
+```txt
+connect(): Connection refused: container port not found. Make sure you exposed the port in your container definition.
+```
+
+컨테이너가 시작되고 포트가 아직 사용할 수 없습니다 동안도 볼 수 있습니다. 포트가 사용할 때까지 다시 시도해야합니다.
+이 재량 논리는 당신이 사용하는 경우에 당신을 위해 취급되어야 합니다[컨테이너 패키지](https://github.com/cloudflare/containers/tree/main/src).
+
+### 소켓 구성 -`internal error`
+
+opaque를 볼 경우`internal error`컨테이너에 연결하려고 할 때, 당신은 설정해야 할 수 있습니다`DOCKER_HOST`컨테이너 엔진이 듣는 소켓 경로에 환경 변수. Wrangler 또는 Vite는 컨테이너 엔진과 통신하기 위해 올바른 소켓을 자동으로 찾을 수 있지만 작동하지 않는 경우 적절한 소켓 경로에 이 환경 변수를 설정해야합니다.
+
+### Cloudflare WARP 또는 VPN의 SSL 오류
+
+Cloudflare WARP 또는 TLS 검사를 수행하는 VPN을 실행하면 Docker 빌드 과정에서 만든 HTTPS 요청은 SSL 또는 인증서 오류로 실패 할 수 있습니다. 이 VPN은 HTTPS 트래픽을 차단하고 자체 인증 기관과 재 서명하므로 Docker는 기본적으로 신뢰하지 않습니다.
+
+이것을 해결하기 위해, 당신은 할 수 있습니다:
+
+- 실행 중에 WARP 또는 VPN을 비활성화`wrangler dev`또는`wrangler deploy`, 그 후에 re-enable 그 후에.
+- Docker 빌드 컨텍스트에 인증서를 추가합니다. Cloudflare WARP는 증명서를 통해 드러냅니다`NODE_EXTRA_CA_CERTS`·`SSL_CERT_FILE`호스트 기계에 환경 변수. Docker 빌드를 환경 변수로 전달할 수 있으므로 최종 이미지로 구워지지 않고 빌드 중에 사용할 수 있습니다.
+
+  ```dockerfile
+  RUN if [ -n "$SSL_CERT_FILE" ]; then \
+      cp "$SSL_CERT_FILE" /usr/local/share/ca-certificates/Custom_CA.crt && \
+      update-ca-certificates; \
+      fi
+  ```
+
+  :::참조
+  위의 Dockerfile snippet은 예입니다. 기본 이미지에 따라 인증서를 설치하는 명령은 다를 수 있습니다 (예를 들어, Alpine 용도`apk add ca-certificates`다른 인증서 경로).
+
+  이 스니펫은 이미지로 인증서를 저장합니다. 생산 환경이 인증서를 필요로하는지 여부에 따라 개발 중에이 작업을 수행하거나 생산에서 사용할 수 있습니다.
+  주요 특징
+
+  당신이 실행할 때 Wrangler invokes 도커 자동적으로`wrangler dev`또는`wrangler deploy`, 그래서 당신이 빌드 비밀을 통과해야하는 경우, 당신은 수동으로 이미지를 구축하고 밀어해야합니다`wrangler containers images push`.

@@ -1,0 +1,97 @@
+---
+pcx_content_type: reference
+title: 첫 번째 API 요청 보내기
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 첫 번째 Radar API 요청 보내기
+
+---
+
+Cloudflare Radar API에 첫 요청을 보내려면 먼저 [API token](/fundamentals/api/get-started/create-token/)을 발급받아야 합니다. Custom Token을 생성하고 **Permissions** 그룹에서 *Account* > *Radar*를 선택한 뒤, 접근 수준으로 *Read*를 선택하세요.
+
+토큰을 준비했다면 `https://api.cloudflare.com/client/v4/radar/`에서 Radar API로 첫 요청을 보낼 수 있습니다.
+
+## cURL 예시
+
+다음 예제에서는 지난 7일 동안의 기기 유형(예: 모바일 및 데스크톱 트래픽) 전 세계 비율 분포를 조회합니다. 자세한 내용은 [Get device types summary](/api/resources/radar/subresources/http/subresources/summary/methods/device_type/) endpoint를 참고하세요.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/summary/device_type?dateRange=7d&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+성공적인 응답은 다음과 비슷합니다.
+
+```json
+{
+	"success": true,
+	"errors": [],
+	"result": {
+		"summary_0": {
+			"desktop": "58.223483",
+			"mobile": "41.725833",
+			"other": "0.050684"
+		},
+		"meta": {
+			"dateRange": {
+				"startTime": "2022-10-26T14:00:00Z",
+				"endTime": "2022-11-02T14:00:00Z"
+			},
+			"normalization": "PERCENTAGE",
+			...
+		}
+	}
+}
+```
+
+이 응답은 요청의 41%가 모바일 기기에서, 58%가 데스크톱 트래픽에서 발생한 것으로 분류되었음을 의미합니다.
+
+:::note
+Cloudflare Radar는 Cloudflare 인프라를 통과하는 트래픽을 바탕으로 일반적인 인터넷 사용 동향과 인사이트를 제공하려고 합니다. 따라서 별도 명시가 없는 한 Cloudflare Radar는 최종 사용자로부터 발생한 트래픽 데이터만 제공합니다. 예를 들어 origin fetch는 제외됩니다.
+:::
+
+앞선 예제는 봇과 사람의 모든 트래픽을 반환합니다. 하지만 `botClass=LIKELY_HUMAN`을 추가하면 사람에서 발생한 것으로 분류된 트래픽만 조회할 수 있습니다([Cloudflare Radar](https://radar.cloudflare.com)의 기본값). `botClass=LIKELY_AUTOMATED`를 사용하면 봇 트래픽만 조회할 수도 있습니다. 자세한 내용은 [bot classes](/radar/concepts/bot-classes)를 참고하세요. 예를 들면 다음과 같습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/summary/device_type?dateRange=7d&botClass=LIKELY_AUTOMATED&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+위 명령을 실행해 보면, 모바일 대 데스크톱 트래픽 분포에 어떤 차이가 있는지 확인할 수 있습니다.
+
+:::note[The <code>result.meta</code> property]
+
+응답의 `result.meta` 속성에는 현재 요청에 대한 메타데이터가 포함됩니다. 위 예제에서 `meta.dateRange`는 쿼리에서 지정한 날짜 범위를 반환하고, `meta.normalization`은 데이터에 적용된 정규화 유형을 반환합니다. 자세한 내용은 [Normalization methods](/radar/concepts/normalization)를 참고하세요.
+
+시계열을 조회할 때는 `result.meta`에 반환된 [aggregation interval](/radar/concepts/aggregation-intervals)도 `meta.aggInterval`로 포함됩니다.
+
+`meta.confidenceInfo.level`이 존재하는 경우, Cloudflare가 해당 데이터를 얼마나 신뢰하는지도 함께 나타냅니다. 신뢰 수준은 데이터 품질에 영향을 주는 내부 문제나, 특정 위치 또는 Autonomous System (AS)에 대해 Cloudflare가 충분한 데이터를 보유하지 못한 경우에 영향을 받습니다. 이런 경우 신뢰 수준은 `5` 미만이 됩니다. 자세한 내용은 [Confidence levels](/radar/concepts/confidence-levels)를 참고하세요.
+:::
+
+## Python 사용
+
+[Python](https://www.python.org/)은 데이터 분석에서 표준 언어 중 하나가 되었습니다. 아래는 [Requests](https://pypi.org/project/requests/)와 [Pandas](https://pandas.pydata.org/) 라이브러리를 사용해 같은 데이터를 차트로 그리는 간단한 예제입니다. 여기서는 Pandas에서 더 쉽게 불러올 수 있도록 매개변수에 `format=csv`를 사용합니다.
+
+```python
+import io
+import requests
+import pandas as pd
+
+cf_api_url = "https://api.cloudflare.com/client/v4"
+params = "dateRange=7d&format=csv"
+my_token = "xxx" # TODO replace
+r = requests.get(f"{cf_api_url}/radar/http/summary/device_type?{params}",
+                 headers={"Authorization": f"Bearer {my_token}"})
+df = pd.read_csv(io.StringIO(r.text))
+df.plot(kind="bar", stacked=True)
+```
+
+### Notebook
+
+[notebook](https://jupyter.org/)은 텍스트, 코드, 그리고 차트 같은 코드 출력 결과를 하나의 문서에 함께 담을 수 있는 웹 기반 대화형 컴퓨팅 애플리케이션입니다. API를 자신의 프로젝트에서 어떻게 활용할 수 있는지 더 많은 예제를 보려면 Radar의 companion [colaboratory notebook](https://colab.research.google.com/github/cloudflare/radar-notebooks/blob/main/notebooks/example.ipynb)을 참고하세요.
+
+## 다음 단계
+
+데이터를 비교하는 방법은 [Make comparisons](/radar/get-started/making-comparisons/)를 참고하세요.

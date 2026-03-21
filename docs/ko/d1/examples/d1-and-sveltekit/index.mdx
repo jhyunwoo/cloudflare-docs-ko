@@ -1,0 +1,98 @@
+---
+summary: Query a D1 database from a SvelteKit application.
+tags:
+  - SvelteKit
+  - Svelte
+pcx_content_type: example
+title: QXD1XQXQXQXQ
+sidebar:
+  order: 3
+description: 질문 D1 데이터베이스에서 SvelteKit 응용 프로그램.
+reviewed: 2023-07-07T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/examples/d1-and-sveltekit/'
+translation_source_md: 'https://developers.cloudflare.com/d1/examples/d1-and-sveltekit/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+[SvelteKit](https://kit.svelte.dev/)서버 측 기능 및 렌더링을위한 Vite와 Svelte front-end 프레임 워크를 결합하는 풀 스택 프레임 워크입니다. D1XQ를 SvelteKit에서 구성하여 쿼리할 수 있습니다.[서버 엔드포인트](https://kit.svelte.dev/docs/routing#server)D1 데이터베이스에 바인딩.
+
+CloudflareQXQXQXQXQXQXQXQXPagesXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ
+
+1. **더 알아보기[SvelteKit 가이드](/pages/framework-guides/deploy-a-svelte-kit-site/)그리고 Svelte의[Cloudflare 접합기](https://kit.svelte.dev/docs/adapter-cloudflare)**.
+2. Cloudflare 어댑터를 SvelteKit 프로젝트에 설치하십시오.`npm i -D @sveltejs/adapter-cloudflare`.
+3. D1 데이터베이스[당신의 Pages 기능에](/pages/functions/bindings/#d1-databases).
+4. 패스워드`--d1 BINDING_NAME=DATABASE_ID`본문 바로가기`wrangler dev`현지 개발`BINDING_NAME`코드에 어떤 통화를 일치해야하며,`DATABASE_ID`일치해야`database_id`사용자 정의[Wrangler 구성 파일](/workers/wrangler/configuration/): 예를 들어,`--d1 DB=xxxx-xxxx-xxxx-xxxx-xxxx`.
+
+다음 예제는 D1를 쿼리하도록 구성된 서버 엔드포인트를 만드는 방법을 보여줍니다.
+
+- Bindings는 유효합니다`platform`각 endpoint에 전달되는 모수, via`platform.env.BINDING_NAME`.
+- SvelteKit's로[파일 기반 routing](https://kit.svelte.dev/docs/routing), 서버 엔드포인트 정의`src/routes/api/users/+server.ts`이용 가능`/api/users`SvelteKit 앱 내.
+
+예를 들어 앱 전체 유형을 구성하는 방법을 보여줍니다.`src/app.d.ts`당신의 의견을`D1Database`바인딩, 수입`@sveltejs/adapter-cloudflare`어댑터로`svelte.config.js`, 모든 경로에 적용 할 수 있도록 구성.
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import type { RequestHandler } from "@sveltejs/kit";
+
+    export async function GET({ request, platform }) {
+    	try {
+    		let result = await platform.env.DB.prepare(
+    			"SELECT * FROM users LIMIT 5",
+    		).run();
+    		return new Response(JSON.stringify(result), {
+    			headers: { "Content-Type": "application/json" },
+    		});
+    	} catch (error) {
+    		return Response.json({ error: "Failed to fetch users" }, {
+    			status: 500
+    		});
+    	}
+    }
+    ```
+
+    ```ts
+    //참조 https://kit.svelte.dev/docs/types#app
+    //이 인터페이스에 대한 정보
+    declare global {
+    	namespace App {
+    		//인터페이스 오류 {}
+    		//인터페이스 로컬 {}
+    		//인터페이스 PageData {}
+    		interface Platform {
+    			env: {
+    				DB: D1Database;
+    			};
+    			context: {
+    				waitUntil(promise: Promise<any>): void;
+    			};
+    			caches: CacheStorage & { default: Cache };
+    		}
+    	}
+    }
+
+    export {};
+    ```
+
+    ```js
+    import adapter from "@sveltejs/adapter-cloudflare";
+
+    export default {
+    	kit: {
+    		adapter: adapter({
+    			//이 옵션의 설명 아래 참조
+    			routes: {
+    				include: ["/*"],
+    				exclude: ["<all>"],
+    			},
+    		}),
+    	},
+    };
+    ```
+  </TabItem>
+</Tabs>

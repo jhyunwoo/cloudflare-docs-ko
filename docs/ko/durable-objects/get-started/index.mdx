@@ -1,0 +1,383 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	TabItem,
+	Tabs,
+	PackageManagers,
+	WranglerConfig,
+	TypeScriptExample,
+	DashButton
+} from "~/components";
+
+이 가이드는 당신을 통해 지시합니다:
+
+- 튼튼한 개체를 정의하는 JavaScript 클래스를 작성합니다.
+- Durable Objects SQL API를 사용하여 견고한 오브젝트의 개인, 임베디드 SQLite 데이터베이스를 쿼리합니다.
+- 다른 노동자에서 튼튼한 목표와 즉시 그리고 communicating.
+- 튼튼한 개체를 배포하고 튼튼한 개체와 통신하는 노동자.
+
+Durable Objects에 대한 자세한 내용을 원하시면, 참조[Durable Objects는 무엇입니까?](/durable-objects/concepts/what-are-durable-objects/).
+
+## 빠른 시작
+
+단계와 시작하기XQ를 신속하게 건너려면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/hello-world-do-template)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare Workers에 응용 프로그램을 배포합니다. Cloudflare WorkersXQ에 익숙한 경우 이 옵션을 사용하고 단계별 지도를 건너 뛰기를 바랍니다.
+
+Cloudflare Workers로 새로운 단계로 수동으로 수행 할 수 있습니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker 프로젝트 만들기
+
+당신은 당신의 튼튼한 목표에 접근할 것입니다[작업자](/workers/). 당신의 노동자 신청은 당신의 튼튼한 목표와 상호 작용하는 공용영역입니다.
+
+Worker 프로젝트를 만들려면, 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"durable-object-starter"} />
+
+(주)`create cloudflare@latest`설치하기[모델 번호: Wrangler](/workers/wrangler/install-and-update/), Workers 클립. Wrangler를 사용하여 프로젝트를 테스트하고 배포합니다.
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker + Durable Objects",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새 디렉토리를 만들 것입니다.`src/index.js`또는`src/index.ts`코드를 작성하는 파일 및[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.
+
+새 디렉토리로 이동:
+
+```sh
+cd durable-object-starter
+```
+
+:::노트\[인테인 노동자에게 튼튼한 목표를 추가]
+
+기존 Worker에 튼튼한 개체를 추가하려면 다음을해야합니다.
+
+- 다음을 포함하는 기존 노동자의 코드를 수정:
+
+  ```ts
+  export class MyDurableObject extends DurableObject<Env> {
+    constructor(ctx: DurableObjectState, env: Env) {
+      //필수, 기본 클래스를 확장하고 있습니다.
+      super(ctx, env)
+    }
+
+    {/*당신의 튼튼한 개체 방법을 정의 여기에*/}
+
+  }
+
+  export default {
+    async fetch(request, env, ctx): Promise<Response> {
+      const stub = env.MY_DURABLE_OBJECT.getByName(new URL(request.url).pathname);
+
+      {/*여기에서 튼튼한 개체 방법을 액세스*/}
+
+    },
+  } satisfies ExportedHandler<Env>;
+  ```
+
+- 기존 작업자의 Wrangler 구성 파일을 업데이트하여 작업자에게 내구성 있는 개체를 바인딩합니다.
+
+:::
+
+## 2. SQL API를 사용하는 튼튼한 목표 종류 쓰기
+
+당신이 창조하고 접근하기 전에 튼튼한 목표, 그것의 행동은 보통 수출한 JavaScript 종류에 의해 정의되어야 합니다.
+
+:::참조
+JavaScript 또는 TypeScriptXQ를 사용하지 않는 경우에, 당신은 필요로 할 것입니다[·](https://developer.mozilla.org/en-US/docs/Glossary/Shim)JavaScript 클래스에 클래스 정의를 번역하기 위해.
+주요 특징
+
+내 계정`MyDurableObject`클래스는 두 가지 매개 변수를 가지고 있습니다. 첫번째 모수,`ctx`class constructor에 전달된 , 저장에 접근하는 방법을 포함하여 튼튼한 목표에 특정한 국가를 포함합니다. 두번째 모수,`env`, 당신이 업로드 할 때 노동자와 관련된 어떤 바인딩을 포함.
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample omitTabs={true}>
+    ```ts
+    export class MyDurableObject extends DurableObject<Env> {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		//필수, 기본 클래스를 확장하고 있습니다.
+    		super(ctx, env)
+    	}
+    }
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import DurableObject
+
+    class MyDurableObject(DurableObject):
+        def __init__(self, ctx, env):
+            super().__init__(ctx, env)
+    ```
+  </TabItem>
+</Tabs>
+
+Workers는 튼튼한 목표와 호환됩니다[원격 관리 전화](/workers/runtime-apis/rpc/#_top). 튼튼한 목표 종류에 공공 방법은 노출됩니다[RPC 방법](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)다른 노동자에 의해 호출됩니다.
+
+당신의 파일은 지금 같이 보입니다:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample omitTabs={true}>
+    ```ts
+    export class MyDurableObject extends DurableObject<Env> {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		//필수, 기본 클래스를 확장하고 있습니다.
+    		super(ctx, env)
+    	}
+
+        async sayHello(): Promise<string> {
+        	let result = this.ctx.storage.sql
+        		.exec("SELECT 'Hello, World!' as greeting")
+        		.one();
+        	return result.greeting;
+        }
+
+    }
+
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import DurableObject
+
+    class MyDurableObject(DurableObject):
+        async def say_hello(self):
+            result = self.ctx.storage.sql.exec(
+                "SELECT 'Hello, World!' as greeting"
+            ).one()
+
+            return result.greeting
+    ```
+  </TabItem>
+</Tabs>
+
+위의 코드에서, 당신은:
+
+1. RPC 방법을 정의,`sayHello()`, 그것은 Worker가 튼튼한 목표와 소통 할 수 있습니다.
+2. 개체에 접근할 수 있는 전용 SQLite 데이터베이스인 튼튼한 개체의 첨부 스토리지에 액세스[SQL API를](/durable-objects/api/sqlite-storage-api/#exec)방법 (`sql.exec()`)에 유효한`ctx.storage` .
+3. 단일 행 쿼리 결과를 나타내는 객체를 반환`one()`쿼리 결과가 정확히 한 줄을 확인하는 .
+4. 구매하기`greeting`행 객체 결과에서 열.
+
+## 3. 즉시 및 내구재 목표와 교통
+
+:::참조
+
+Durable Objects는 인터넷에서 직접 요청을받지 않습니다. Durable Objects는 Workers 또는 다른 Durable ObjectsQ에서 요구에 응합니다.
+이것은 당신이 대화할 수 있을 것 같이 할 수 있을 것 같이 각 튼튼한 목표 종류를 위한 호출 노동자에 있는 바인딩을 구성해서 달성됩니다. 이 바인딩은 업로드 시간에 구성해야합니다. 바인딩에 의해 노출되는 방법은 특정 Durable Objects와 통신하기 위하여 사용될 수 있습니다.
+주요 특징
+
+노동자는에 사용됩니다[액세스 Durable Objects](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/).
+
+튼튼한 개체와 의사 소통하기 위해 Worker의 fetch 핸들러는 다음과 같습니다.
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample omitTabs={true}>
+    ```ts
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+        	const stub = env.MY_DURABLE_OBJECT.getByName(new URL(request.url).pathname);
+
+        	const greeting = await stub.sayHello();
+
+        	return new Response(greeting);
+        },
+
+    } satisfies ExportedHandler<Env>;
+
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import handler, Response, WorkerEntrypoint
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+        async def fetch(request):
+            url = urlparse(request.url)
+            stub = self.env.MY_DURABLE_OBJECT.getByName(url.path)
+            greeting = await stub.say_hello()
+            return Response(greeting)
+    ```
+  </TabItem>
+</Tabs>
+
+위의 코드에서, 당신은:
+
+1. 작업자의 주요 이벤트 핸들러를 수출`fetch()`HTTP 요청을 수신하기위한 핸들러.
+2. 패스워드`env`이름 \*`fetch()`핸들러. Bindings는 이벤트 핸들러 또는 클래스 생성기가 호출 될 때 두 번째 매개 변수로 전달 된 환경 객체의 속성으로 전달됩니다.
+3. 제공된 이름에 근거를 둔 튼튼한 목표 인스턴스를 위한 stub를 건설했습니다. stub는 튼튼한 개체에 메시지를 보낼 수있는 클라이언트 객체입니다.
+4. RPC 방법을 호출하여 튼튼한 개체를 호출,`sayHello()`, 튼튼한 목표에, 이는 반환 a`Hello, World!`문자열 인사.
+5. HTTP 응답을 HTTP 응답으로 구성하여 클라이언트로 다시 HTTP 응답을 수신`return new Response()`.
+
+더 알아보기[Worker에서 튼튼한 개체 접근](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)더 많은 것을 알아보세요.
+
+## 4. 튼튼한 목표 바인딩을 구성하십시오
+
+[회사 소개](/workers/runtime-apis/bindings/)Workers는 Cloudflare 개발자 플랫폼에 리소스와 상호 작용할 수 있습니다. Worker 프로젝트의 튼튼한 목표 바인딩[Wrangler 구성 파일](/workers/wrangler/configuration/)바인딩 이름 (이 가이드를 위해, 사용`MY_DURABLE_OBJECT`) 클래스 이름 (`MyDurableObject`).
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "MY_DURABLE_OBJECT",
+  				"class_name": "MyDurableObject"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+더 보기`bindings`단면도는 뒤에 오는 분야를 포함합니다:
+
+- `name`- 필수. 당신의 노동자 안에 사용을 위한 바인딩 이름.
+- `class_name`- 필수. 묶고 싶은 클래스 이름.
+- `script_name`- 옵션. 현재에 기본값[환경의](/durable-objects/reference/environments/)작업자 코드.
+
+## 5. SQLite 저장 백엔드를 가진 튼튼한 목표 종류 형성
+
+migration는 class name에서 runtime state로 매핑 프로세스입니다. 새로운 튼튼한 개체 클래스를 만들 때 마이그레이션을 수행하거나, 이름을 바꾸거나 기존의 튼튼한 개체 클래스를 전송할 때.
+
+Migrations는 수행`[[migrations]]`Wrangler 파일에 키 구성.
+
+SQLite 저장 백엔드를 가진 새로운 튼튼한 목표 종류를 창조하는 튼튼한 목표 마이그레이션은 당신의 노동자의 Wrangler 파일에서 뒤에 같이 보일 것입니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1", //각 항목에 고유해야합니다
+  			"new_sqlite_classes": [ //새로운 클래스의 배열
+  				"MyDurableObject"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+더 알아보기[Durable Objects 마이그레이션](/durable-objects/reference/durable-objects-migrations/)마이그레이션 프로세스에 대해 자세히 알아보세요.
+
+## 6. Locally 튼튼한 목표 노동자를 개발하십시오
+
+로컬로 튼튼한 개체를 테스트하려면 실행[`wrangler dev`](/workers/wrangler/commands/#dev):
+
+```sh
+npx wrangler dev
+```
+
+콘솔에서, 당신은 볼 수`Hello world`문자열은 튼튼한 개체에 의해 반환.
+
+## 7. 당신의 튼튼한 목표 노동자를 배치하십시오
+
+튼튼한 Object Worker를 배포하려면:
+
+```sh
+npx wrangler deploy
+```
+
+배포되면 Cloudflare 대시보드에 새로 생성 된 튼튼한 개체 노동자를 볼 수 있어야합니다.
+
+<DashButton url="/?to=/:account/workers-and-pages" />
+
+튼튼한 Object Worker를 미리보기`<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev`.
+
+## 요약 및 최종 코드
+
+마지막 코드는 다음과 같습니다:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample omitTabs={true}>
+    ```ts title="index.ts"
+    import { DurableObject } from "cloudflare:workers";
+    export class MyDurableObject extends DurableObject<Env> {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		//필수, 기본 클래스를 확장하고 있습니다.
+    		super(ctx, env)
+    	}
+
+        async sayHello():Promise<string> {
+        	let result = this.ctx.storage.sql
+        		.exec("SELECT 'Hello, World!' as greeting")
+        		.one();
+        	return result.greeting;
+        }
+
+    }
+    export default {
+    async fetch(request, env, ctx): Promise<Response> {
+    const stub = env.MY_DURABLE_OBJECT.getByName(new URL(request.url).pathname);
+
+        	const greeting = await stub.sayHello();
+
+        	return new Response(greeting);
+        },
+
+    } satisfies ExportedHandler<Env>;
+
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import DurableObject, handler, Response
+    from urllib.parse import urlparse
+
+    class MyDurableObject(DurableObject):
+        async def say_hello(self):
+            result = self.ctx.storage.sql.exec(
+                "SELECT 'Hello, World!' as greeting"
+            ).one()
+
+            return result.greeting
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            url = urlparse(request.url)
+            stub = self.env.MY_DURABLE_OBJECT.getByName(url.path)
+            greeting = await stub.say_hello()
+            return Response(greeting)
+    ```
+  </TabItem>
+</Tabs>
+
+이 튜토리얼을 끝내면 다음이 있습니다.
+
+- Successfully 만든 튼튼한 개체
+- invoking에 의해 튼튼한 목표를 호출[RPC 방법](/workers/runtime-apis/rpc/)
+- Globally의 튼튼한 개체 배포
+
+## 관련 자료
+
+- [튼튼한 Object stubs 만들기](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)
+- [접근 Durable Objects 제품 정보](/durable-objects/best-practices/access-durable-objects-storage/)
+- [미니 플레어](https://github.com/cloudflare/workers-sdk/tree/main/packages/miniflare)- Durable Objects를 모는 데 도움이되는 도구.

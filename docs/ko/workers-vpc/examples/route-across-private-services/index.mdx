@@ -1,0 +1,114 @@
+---
+title: Workers
+pcx_content_type: example
+reviewed: 2025-11-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-vpc/examples/route-across-private-services/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-vpc/examples/route-across-private-services/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, WranglerConfig } from "~/components";
+
+이 예제는 Workers VPC를 사용하여 URL 경로에 따라 요청하는 중앙 게이트웨이를 만들고, 인증 및 속도 제한을 제공하고, 내부 서비스 전반에 걸쳐 로드 밸런스를 제공합니다.
+
+## 자주 묻는 질문
+
+- VPC/virtual 네트워크에서 실행되는 다수 개인 APIs 또는 서비스 (우리는 사용자 서비스 및 순서 서비스를 이용할 것입니다)
+- Cloudflare 구성 및 실행 (follow)[자주 묻는 질문](/workers-vpc/get-started/#2-set-up-cloudflare-tunnel)설정 또는[dashboard에서 갱도를 창조하십시오](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels))
+- Workers 계정 Workers VPC 액세스
+
+## 1. VPC 서비스 만들기
+
+첫째, 호스트 이름을 사용하여 내부 API에 대한 서비스를 만듭니다.
+
+```bash
+#사용자 서비스
+npx wrangler vpc service create user-service \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --hostname user-api.internal.example.com
+
+#주문 제작
+npx wrangler vpc service create order-service \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --hostname orders-api.internal.example.com
+```
+
+서비스 ID를 다음 단계로 반환합니다.
+
+## 2. 작업자 구성
+
+Wrangler 설정 파일을 업데이트:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "api-gateway",
+  	"main": "src/index.js",
+  	"compatibility_date": "$today",
+  	"vpc_services": [
+  		{
+  			"binding": "USER_SERVICE",
+  			"service_id": "<YOUR_USER_SERVICE_ID>"
+  		},
+  		{
+  			"binding": "ORDER_SERVICE",
+  			"service_id": "<YOUR_ORDER_SERVICE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 3. 노동자를 구현
+
+Workers 코드에서 VPC 서비스 바인딩을 사용하여 적절한 서비스에 대한 요청을 전달합니다.
+
+```js title="index.js"
+export default {
+	async fetch(request, env, ctx) {
+		const url = new URL(request.url);
+
+		//내부 서비스
+		if (url.pathname.startsWith('/api/users')) {
+			const response = await env.USER_SERVICE.fetch("https://user-api.internal.example.com" + url.pathname);
+			return response;
+		} else if (url.pathname.startsWith('/api/orders')) {
+			const response = await env.ORDER_SERVICE.fetch("https://orders-api.internal.example.com" + url.pathname);
+			return response;
+		}
+
+		return new Response('Not Found', { status: 404 });
+	},
+};
+```
+
+## 4. 배포 및 테스트
+
+이제 노동자를 배포하고 테스트 할 수 있습니다 :
+
+```bash
+npx wrangler deploy
+```
+
+```bash
+#Test 사용자 서비스 요청
+curl https://api-gateway.workers.dev/api/users
+
+#Test 주문 서비스 요청
+curl https://api-gateway.workers.dev/api/orders
+```
+
+## 다음 단계
+
+- 더 보기[인증 및 인증](/workers/examples/auth-with-headers/)
+- 회사연혁[비율 제한](/durable-objects/api/)
+- 설치하기[모니터링 및 경고](/analytics/analytics-engine/)
+- 여행 정보[다른 예](/workers-vpc/examples/)

@@ -1,0 +1,53 @@
+---
+pcx_content_type: how-to
+title: Workers가 Cache Rules와 상호작용하는 방식
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Workers가 Cache Rules와 상호작용하는 방식
+
+---
+
+Workers 스크립트는 [Cache Rules](/cache/how-to/cache-rules/) 동작을 재정의할 수 있으며, 이 동작은 Cloudflare를 사용하는 존에 적용되든 Cloudflare를 통해 프록시되지 않는 존에 적용되든 동일합니다.
+
+예를 들어 `example.com/foo`에 대해 캐시를 우회하도록 cache rule이 구성되어 있어도, Workers 스크립트가 `cacheEverything: true`를 설정하면 스크립트의 설정이 우선하며 요청은 캐시됩니다. 요청이 Cloudflare가 아닌 존으로 향하는 경우에도 마찬가지로 Worker의 `cacheEverything` 설정이 여전히 우선 적용됩니다.
+
+## 우선순위
+
+캐시 동작은 다음 우선순위 순서로 결정됩니다.
+
+1. [Workers](/workers/) 스크립트 설정
+2. [Cache rules](/cache/how-to/cache-rules/)
+3. [Page rules](/rules/page-rules/)
+
+Cache rules는 page rule 설정을 재정의하고, Workers 스크립트는 cache rules를 재정의합니다. 같은 수준의 규칙끼리는 가장 구체적인 규칙이 우선합니다.
+
+## Compatibility flags
+
+이 재정의 동작은 [compatibility flags](/workers/configuration/compatibility-flags/)로 제어됩니다.
+
+- [Fetch API](/workers/runtime-apis/fetch/)의 경우: `request_cf_overrides_cache_rules`
+- [Cache API](/workers/runtime-apis/cache/)의 경우: `cache_api_request_cf_overrides_cache_rules`
+
+Workers 스크립트가 cache rules를 재정의할 수 있도록 하려면 이 플래그들을 활성화해야 합니다.
+
+### Compatibility date 동작
+
+이 플래그들이 기본적으로 활성화되는지는 Worker의 compatibility date에 따라 달라집니다.
+
+- **Fetch API (`request_cf_overrides_cache_rules`)**
+  - compatibility date가 **2025-04-02 이후 또는 해당 날짜**인 경우 기본 활성화됩니다.
+- **Cache API (`cache_api_request_cf_overrides_cache_rules`)**
+  - compatibility date가 **2025-05-19 이후 또는 해당 날짜**인 경우 기본 활성화됩니다.
+  - **중요:** `cache_api_request_cf_overrides_cache_rules`가 인식되려면 `cache_api_compat_flags`도 함께 활성화해야 합니다.
+    - `cache_api_compat_flags`는 Workers에서 compatibility flag 기능을 활성화합니다. `cache_api_compat_flags`가 설정되지 않으면 구성되어 있더라도 어떤 compatibility flag도 Cache API에서 인식되지 않습니다.
+    - `cache_api_compat_flags`는 compatibility date가 **2025-04-19 이후 또는 해당 날짜**인 경우 기본 활성화됩니다.
+
+Worker의 compatibility date가 위 날짜보다 이전이라면 해당 플래그를 수동으로 활성화해야 하며, 그렇지 않으면 캐시 동작은 Worker 설정이 아닌 원래의 cache rules를 따릅니다.
+
+### 예시(이전 compatibility date)
+
+`example.com/foo`에 대해 캐시를 우회하도록 cache rule이 구성되어 있고, compatibility date가 `2025-04-02` 이하인 Worker가 `cacheEverything: true`를 설정하려 하면 cache rule이 적용되어 응답은 캐시되지 않습니다.
+
+마찬가지로 `cache_api_compat_flags`를 활성화하지 않은 상태에서 Cache API를 사용하면, `cache_api_request_cf_overrides_cache_rules`를 활성화하더라도 Cache API는 적용되지 않습니다.

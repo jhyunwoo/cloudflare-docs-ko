@@ -1,0 +1,71 @@
+---
+pcx_content_type: troubleshooting
+title: 문제 해결
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: 문제 해결 | 인증서 검증
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/troubleshooting/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/troubleshooting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## High-risk 도메인
+
+Occasionally, 도메인은 Cloudflare의 CA 파트너가 "높은 위험"으로 끌어올릴 것입니다. 일반적으로 이것은 Google의 Safe Browsing 서비스에 의해 phishing 또는 악성 코드에 대한 파쇄 된 1-1,000 및 도메인의 Alexa 순위와 도메인에만 수행됩니다.
+
+도메인이 CA에 의해 파고되면 유효성 검사 전에 지원에 연락해야합니다. API 호출이 실패를 나타내는 것입니다, 티켓이 파일 될 수있는 링크와 함께.
+
+***
+
+## 인증 기관 인증 (CAA) 기록
+
+CAA는 정의된 DNS 자원 기록 유형입니다[RFC 6844년](https://datatracker.ietf.org/doc/html/rfc6844)도메인 소유자가 CA가 그들을 위해 인증서를 발급 할 수 있음을 나타냅니다.
+
+### SaaS 공급자
+
+고객이 자신의 도메인에 설정 한 CAA 레코드를 가지고 있다면, 그들은 다음을 추가하거나 완전히 CAA를 제거해야합니다 :
+
+```txt
+example.com. IN CAA 0 issue "pki.goog"
+example.com. IN CAA 0 issue "letsencrypt.org"
+example.com. IN CAA 0 issue "ssl.com"
+```
+
+CAA 레코드에 대 한 사용할 수 있는 동안 하위 도메인에 설정할 수 있습니다 귀하의 서비스 사용 하 여, 그것은 일반적으로 도메인 apex에 설정 됩니다. 그들은 하위 도메인에 CAA 레코드를 가지고 있다면, 그들은 제거해야합니다.
+
+### SaaS 고객
+
+어떤 경우에는 CAA 레코드가 정의된 CNAME 대상에 호스트 이름 포인트가 CNAME 대상으로 인해 검증이 막을 수 있습니다.
+
+이 경우 CAA 레코드가 대상에 존재하는 인증서 기관을 선택하거나 대상을 소유하는 서비스 제공 업체와 구성을 검토해야합니다.
+
+***
+
+## 현재 위치
+
+인증서 발급 시간이 지남에 따라 오류 메시지가 발생했을 경우:
+
+- 시간 (Initializing)
+- 시간 (Validation)
+- 시간 (수)
+- 타임 아웃 (Deployment)
+- 시간 (감정)
+
+이 오류를 수정하려면[PATCH 요청](/api/resources/custom_hostnames/methods/edit/)API를 통해 선택**지원하다**대시보드의 특정 사용자 정의 호스트 이름. API를 사용하는 경우, 확인`--data`필드 포함`ssl`같은 객체`method`·`type`원래 요청으로.
+
+이 오류를 반환하면, 삭제 및 사용자 정의 hostname을 재구성합니다.
+
+***
+
+## 즉각적인 유효성 검사
+
+당신은 보낼 수 있습니다[PATCH 요청](/api/resources/custom_hostnames/methods/edit/)모든 인증서에 즉각적인 유효성 검사를 요청하려면. PATCH 데이터는 동일해야 합니다.`ssl`원래 요청으로 객체.
+
+***

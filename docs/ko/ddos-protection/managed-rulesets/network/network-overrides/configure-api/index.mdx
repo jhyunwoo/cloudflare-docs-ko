@@ -1,0 +1,133 @@
+---
+title: API를 통해 구성
+pcx_content_type: concept
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: API를 통해 Network-layer DDoS 공격 보호 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/network/network-overrides/configure-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/network/network-overrides/configure-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+'Cloudflare' Network-layer DDoS 공격 보호는 계정 수준에서 overrides를 정의하여 규칙을 관리[규칙 세트 API](/ruleset-engine/rulesets-api/).
+
+각 계정에는 기본적으로 활성화된 Network-layer DDoS 공격 보호 관리 규칙이 있습니다. 관리 규칙을 배포 할 필요가 없다는 것을 의미합니다.`ddos_l4`단계 항목 포인트 규칙은 명시적으로. 당신은 당신이 overrides를 구성해야하는 경우 관리 규칙을 배치하는 단계 항목 포인트에 규칙을 만들 필요가있다.
+
+Terraform을 사용하는 경우, 참조[Terraform을 이용한 DDoS 관리 규정](/terraform/additional-configurations/ddos-managed-rulesets/#example-configure-network-layer-ddos-attack-protection).
+
+## Network-layer DDoS 공격 보호 관리 규정에 대한 override 구성
+
+모든 관리 규칙에 대한 규칙, 태그 및 규칙 수준에서 과도하게 정의 할 수 있습니다.
+
+Network-layer DDoS 공격 보호 관리 규칙을 구성할 때, overrides를 사용하여 서로 정의합니다.**이름 \***&#xB610;는**감도:**&#xAE30;본 값에서. 이러한 규칙 매개 변수와 허용 된 값에 대한 자세한 내용은 참조[관리된 통치자 모수](/ddos-protection/managed-rulesets/network/override-parameters/).
+
+:::카ution\[중요]
+
+- Network-layer DDoS 공격 보호 관리 규정은 항상 활성화됩니다. 과도한 규칙을 무시할 수 없습니다.`"enabled": false`.
+- <Render file="managed-rulesets/read-only-rules-note" product="ddos-protection" />
+- 계정 수준에서 Network-layer DDoS 공격 보호 관리 규칙에 대한 overrides만 정의할 수 있습니다.
+
+:::
+
+## 이름 \*
+
+다음 것`PUT`예제는 새로운 단계 규칙 (또는 기존의 것을 업데이트)을 만듭니다.`ddos_l4`계정 수준에서 단계. 요청은 Network-layer DDoS 공격 보호 관리 규정의 기본 동작을 조정하기 위해 여러 overrides를 포함합니다. 이 overrides는 다음과 같습니다.
+
+- Network-layer DDoS 공격 보호 관리 규정의 모든 규칙은 그들의 감도가 설정 될 것입니다`medium`.
+- 모든 규칙 태그`<TAG_NAME>`그들의 감도 세트가 있을 것입니다`low`.
+- ID를 가진 규칙`<MANAGED_RULESET_RULE_ID>`이용안내`block`활동.
+
+overrides는 규칙 표현과 일치하는 모든 패킷에 적용합니다:`ip.dst in { 1.1.1.0/24 }`.
+
+```bash title="Request"
+curl --request PUT \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/phases/ddos_l4/entrypoint \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "description": "Define overrides for the Network-layer DDoS Attack Protection managed ruleset",
+  "rules": [
+    {
+      "action": "execute",
+      "expression": "ip.dst in { 1.1.1.0/24 }",
+      "action_parameters": {
+        "id": "<MANAGED_RULESET_ID>",
+        "overrides": {
+          "sensitivity_level": "medium",
+          "categories": [
+            {
+              "category": "<TAG_NAME>",
+              "sensitivity_level": "low"
+            }
+          ],
+          "rules": [
+            {
+              "id": "<MANAGED_RULESET_RULE_ID>",
+              "action": "block"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}'
+```
+
+응답은 생성 (또는 업데이트) 단계 항목 포인트 규칙을 반환합니다.
+
+<Details header="관련 기사">
+  ```json
+  {
+  	"result": {
+  		"id": "<PHASE_ENTRY_POINT_RULESET_ID>",
+  		"name": "default",
+  		"description": "Define overrides for the Network-layer DDoS Attack Protection managed ruleset",
+  		"kind": "root",
+  		"version": "1",
+  		"rules": [
+  			{
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "execute",
+  				"action_parameters": {
+  					"id": "<MANAGED_RULESET_ID>",
+  					"version": "latest",
+  					"overrides": {
+  						"categories": [
+  							{
+  								"category": "<TAG_NAME>",
+  								"sensitivity_level": "low"
+  							}
+  						],
+  						"rules": [
+  							{
+  								"id": "<MANAGED_RULESET_RULE_ID>",
+  								"action": "block"
+  							}
+  						],
+  						"sensitivity_level": "medium"
+  					}
+  				},
+  				"expression": "ip.dst in { 1.1.1.0/24 }",
+  				"last_updated": "2021-08-16T04:14:47.977741Z",
+  				"ref": "<RULE_REF>",
+  				"enabled": true
+  			}
+  		],
+  		"last_updated": "2021-08-16T04:14:47.977741Z",
+  		"phase": "ddos_l4"
+  	}
+  }
+  ```
+</Details>
+
+Rulesets API를 사용하여 관리 된 규칙에 대한 자세한 내용은 참조[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/).

@@ -1,0 +1,103 @@
+---
+pcx_content_type: how-to
+title: 사용자 정의 영역에서 이미지
+sidebar:
+  order: 22
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/manage-images/serve-images/serve-from-custom-domains/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/manage-images/serve-images/serve-from-custom-domains/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이미지 납품은 동일한 Cloudflare 계정의 밑에 모든 고객 지역에서 지원됩니다. 사용자 정의 도메인을 통해 이미지를 제공하려면 다음 형식으로 이미지 URL을 조정해야합니다.
+
+```txt
+https://example.com/cdn-cgi/imagedelivery/<ACCOUNT_HASH>/<IMAGE_ID>/<VARIANT_NAME>
+```
+
+사용자 정의 도메인의 예 :
+
+```txt
+https://example.com/cdn-cgi/imagedelivery/ZWd9g1K7eljCn_KDTu_MWA/083eb7b2-5392-4565-b69e-aff66acddd00/public
+```
+
+이 예제에서,`<ACCOUNT_HASH>`, `<IMAGE_ID>`·`<VARIANT_NAME>`동일하지만 hostname과 prefix 경로는 다릅니다.
+
+- `example.com`: Cloudflare는 Cloudflare 이미지와 같은 계정에서 도메인을 인용했습니다.
+- `/cdn-cgi/imagedelivery`: 방아쇠의 길`cdn-cgi`이미지 프록시.
+- `ZWd9g1K7eljCn_KDTu_MWA`: 이미지 계정 해시. 이것은 Cloudflare 이미지 대시보드에서 찾아낼 수 있습니다.
+- `083eb7b2-5392-4565-b69e-aff66acddd00`: 이미지 ID.
+- `public`: 변형 이름.
+
+## 주문 경로
+
+기본적으로 Images는`/cdn-cgi/imagedelivery/`경로. URL을 다시 작성하고 사용자 정의 경로에서 이미지를 제공합니다.
+
+### 기본 버전
+
+무료 및 Pro 계획은 정규 표현식을 필요로하지 않는 문자열 일치하는 규칙 ( 와일드 카드 작업 포함)을 지원합니다.
+
+이 예제에서 요청을 다시 쓰기`example.com/images`으로`example.com/cdn-cgi/imagedelivery/<ACCOUNT_HASH>`.
+
+규칙을 만들려면:
+
+1. Cloudflare 대시보드에서, 가십시오**규칙 개요**사이트 맵
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. 이름 \***URL Rewrite 규칙**, 선택**규칙 만들기**.
+
+3. 이름 \***자주 묻는 질문**, 선택**Wildcard 패턴**다음을 입력**URL 요청**(당신의 자신의 도메인으로 업데이트):
+
+   ```txt
+   https://example.com/images/*
+   ```
+
+4. 이름 \***그런 다음 경로 및 / 또는 쿼리를 다시 작성** > **오시는 길**, 다음 값을 입력합니다 (당신의 계정 해시 사용):
+
+   - **대상 경로**: \[`/`] `images/*`
+   - **자주 묻는 질문**: \[`/`] `cdn-cgi/imagedelivery/<ACCOUNT_HASH>/${1}`
+
+5. 제품정보**계정 만들기**당신이 할 때.
+
+### 고급 버전
+
+:::참조
+이 기능은 Transform 규칙에서 정규 표현식을 가능하게 하는 사업 또는 기업 계획이 필요합니다. Cloudflare에 Refer[Transform 규칙 가용성](/rules/transform/#availability)더 많은 정보.
+주요 특징
+
+이 예제에서 요청을 다시 쓰기`example.com/images/some-image-id/w100,h300`으로`example.com/cdn-cgi/imagedelivery/<ACCOUNT_HASH>/some-image-id/width=100,height=300`그리고 유연한 변형 기능을 가정한다.
+
+규칙을 만들려면:
+
+1. Cloudflare 대시보드에서, 가십시오**규칙 개요**사이트 맵
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. 이름 \***URL Rewrite 규칙**, 선택**규칙 만들기**.
+
+3. 이름 \***자주 묻는 질문**, 선택**사용자 정의 필터 표현**다음 선택**본문 바로가기**.
+
+4. 본문 영역에서 입력`(http.request.uri.path matches "^/images/.*$")`.
+
+5. 이름 \***오시는 길**, 선택**자주 묻는 질문**.
+
+6. 제품정&#xBCF4;*·*&#xD14D;스트 필드에 다음을 입력합니다.
+
+```txt
+regex_replace(
+  http.request.uri.path,
+  "^/images/(.*)\\?w([0-9]+)&h([0-9]+)$",
+  "/cdn-cgi/imagedelivery/<ACCOUNT_HASH>/${1}/width=${2},height=${3}"
+)
+```
+
+## 제한 사항
+
+사용자 정의 도메인을 사용할 때 직접 WAF 규칙을 설정할 수 없습니다`/cdn-cgi/imagedelivery/`경로. WAF 규칙을 설정하려면 CloudflareXQ를 사용할 수 있습니다. 작업자가 이미지를 액세스하고 도메인을 사용하여 경로가 작업자를 실행합니다. 예를 들면 worker를 위해, 참고하십시오[서명된 URL 토큰을 사용하여 개인 이미지 제공](/images/manage-images/serve-images/serve-private-images/).

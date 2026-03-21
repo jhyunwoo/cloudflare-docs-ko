@@ -1,0 +1,113 @@
+---
+pcx_content_type: concept
+title: 실시간 로그
+head: []
+description: >-
+  Cloudflare dashboard 또는 `wrangler tail`XQXQXQXQXQ를 통해 로그 및 예외에 액세스하여 근로자 응용
+  프로그램을 디버그하십시오.
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/logs/real-time-logs/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/logs/real-time-logs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, DashButton } from "~/components";
+
+실시간 로그를 통해 로그 이벤트가 전 세계적으로 일어나는 순간에 모든 로그 이벤트에 액세스할 수 있습니다. 실시간 로그는 새로운 배포 상태와 같은 즉각적인 피드백에 도움이 됩니다.
+
+실시간 로그 캡처[비밀번호](/workers/observability/logs/workers-logs/#invocation-logs), [사용자 정의 로그](/workers/observability/logs/workers-logs/#custom-logs), 오류 및 uncaught 예외. 높은-traffic 응용 프로그램에 대 한, 실시간 로그는 샘플링 모드를 입력할 수 있습니다, 어떤 메시지가 떨어지고 경고는 귀하의 로그에 나타납니다.
+
+:::카트로션
+
+실시간 로그는 영역에서 사용할 수 없습니다[Cloudflare 중국 네트워크](/china-network/).
+
+:::
+
+## dashboard에서 로그보기
+
+QXQX0463XQQ dashboard를 사용하여 배포 된 노동자와 관련된 실시간 로그를 볼 수:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**제품정보**, 당신의 선택**작업자**.
+
+3. 제품정보**로그인**.
+
+4. 오른쪽 내비게이션 바에서, 선택**한국어**.
+
+## 로그 보기`wrangler tail`
+
+Wrangler를 사용하여 배포 된 노동자와 관련된 실시간 로그를 볼 수 있습니다:
+
+1. Worker 프로젝트 디렉토리로 이동합니다.
+2. 지원하다[`npx wrangler tail`](/workers/wrangler/commands/#tail).
+
+귀하의 지역 터미널에서 사용할 수있는 응용 프로그램에 들어오는 요청을 기록합니다.
+
+각 출력`wrangler tail`log는 구조화된 JSON 객체입니다:
+
+```json
+{
+	"outcome": "ok",
+	"scriptName": null,
+	"exceptions": [],
+	"logs": [],
+	"eventTimestamp": 1590680082349,
+	"event": {
+		"request": {
+			"url": "https://www.bytesized.xyz/",
+			"method": "GET",
+			"headers": {},
+			"cf": {}
+		}
+	}
+}
+```
+
+출력을 배관하여 같은 도구로[`jq`](https://stedolan.github.io/jq/), 당신은 특정 정보를 찾기 위해 요청을 쿼리하고 조작 할 수 있습니다 :
+
+```sh
+npx wrangler tail | jq .event.request.url
+```
+
+```sh output
+"https://www.bytesized.xyz/"
+"https://www.bytesized.xyz/component---src-pages-index-js-a77e385e3bde5b78dbf6.js"
+"https://www.bytesized.xyz/page-data/app-data.json"
+```
+
+당신은 방법을 사용자 정의 할 수 있습니다`wrangler tail`당신의 필요를 적합하기 위하여 일. 더 알아보기[이름 \*`wrangler tail`관련 기사](/workers/wrangler/commands/#tail)유효한 윤곽 선택권을 위해.
+
+## 제한 사항
+
+:::참조
+
+dashboardXQ 또는 사용에서 실시간 로그를 필터링할 수 있습니다.[`wrangler tail`](/workers/wrangler/commands/#tail). 작업자가 메시지의 높은 볼륨을 가지고 있다면, 실시간 로그를 필터링하면 떨어질 때 메시지가 떨어질 수 있습니다.
+
+:::
+
+- 실시간 로그는 Workers 로그를 저장하지 않습니다. 로그 저장, 사용[모델 번호: Workers 로그인](/workers/observability/logs/workers-logs).
+- 작업자가 트래픽의 높은 볼륨을 가지고 있다면 실시간 로그는 샘플링 모드를 입력 할 수 있습니다. 이 메시지의 일부가 떨어지고 경고가 귀하의 로그에 나타납니다.
+- 로그인[모델 번호: Durable Objects](/durable-objects/)당신의 노동자는 dashboard에서 위로 보여줄 것입니다.
+- 최대 10명의 클라이언트는 노동자의 로그를 한꺼번에 볼 수 있습니다. dashboard 세션 또는`wrangler tail`전화.
+- 사용 방법`wrangler tail`이름 \*[WebSocket 이벤트 핸들러](/workers/runtime-apis/websockets/), 어떤`console.log`WebSocket 클라이언트가 연결을 닫을 때까지 해당 핸들러 내의 문이 숨겨져 있습니다. 한 번에`close`수신, 모든 메시지는 플러시, 한 번에 터미널에 모든 것을 인쇄.
+
+## Persist 로그
+
+로그는 지속, 필터링 및 분석 할 수 있습니다.[Workers 로그인](/workers/observability/logs/workers-logs). 제3자에게 로그를 보내려면, 사용[Workers Logpush의](/workers/observability/logs/logpush/)또는[꼬리 Workers](/workers/observability/logs/tail-workers/).
+
+## 관련 자료
+
+- [오류 및 예외](/workers/observability/errors/)- 일반적인 Workers 오류 검토.
+- [지역 개발 및 테스트](/workers/development-testing/)- 로컬 Workers 개발 및 테스트.
+- [Workers 로그인](/workers/observability/logs/workers-logs)- 수집, 저장, 필터 및 분석 로깅 데이터는 Cloudflare Workers에서 방출.
+- [다운로드](/workers/observability/logs/logpush/)- 지원되는 목적지에 Workers Trace 이벤트 로그를 밀어하는 방법을 알아보세요.
+- [꼬리 Workers](/workers/observability/logs/tail-workers/)- 테일 Workers를 연결하고 HTTP 엔드포인트로 전송하는 방법을 알아보세요.
+- [소스 맵 및 스택 추적](/workers/observability/source-maps)- 소스 맵을 활성화하고 Workers에 대한 스택 추적을 생성합니다.

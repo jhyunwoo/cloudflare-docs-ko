@@ -1,0 +1,122 @@
+---
+pcx_content_type: how-to
+title: 분할 터널
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="warp/split-tunnel-intro" product="cloudflare-one" />
+
+## 분할 터널 모드 변경
+
+<Render file="warp/change-split-tunnels-mode" product="cloudflare-one" />
+
+## 경로 추가
+
+<Render file="warp/add-split-tunnels-route" product="cloudflare-one" />
+
+### Split Tunnel을 사용할 때
+
+Split Tunnels를 사용하면 사이트로 게이트웨이를 우회하거나 트래픽을 허용할 수 있습니다.[WARP가 생성하는 방화벽](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/#system-firewall). 일반적인 시나리오는 다음과 같습니다 :
+
+- 최종 사용자 장치의 실제 IP 주소를 필요로하는 타사 응용 프로그램에 연결 (예를 들어,[마이크로 소프트 365](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#directly-route-microsoft-365-traffic)).
+- 음성 및 비디오 최적화.
+- 연결하기[제3자 VPN](/cloudflare-one/team-and-resources/devices/warp/deployment/vpn/)끝점.
+
+### 분할 터널을 사용하지 않을 때
+
+당신은 게이트웨이 로그에 트래픽을보고 싶다면 Split Tunnels에서 사이트를 제외하지 마십시오. 특히 Split Tunnels를 사용하여 권장하지 않습니다.
+
+- 특정 웹 사이트와 연결 문제 해결. 구성 지침에 따라, 참조[문제 해결 가이드](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/common-issues/#cannot-connect-to-a-specific-app-or-website).
+- 특정 웹 사이트에 대한 성능 문제 해결. Cloudflare는 인터넷 연결 인구의 95 %의 50 밀리 초 이내에 작동하기 때문에, 우리가 통해 트래픽을 전송하는 것이 보통 빠릅니다. 성능 관련 문제가 발생하면 게이트웨이 정책을 먼저 탐색하거나 지원에 도달하는 것이 좋습니다.
+
+## Split Tunnels의 루트 포함 모드
+
+많은 Cloudflare Zero Trust 서비스는 WARP를 통해서 교통에 의존합니다[장치 자세 검사](/cloudflare-one/reusable-components/posture-checks/)·[WARP 세션 기간](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-sessions/). 당신은 형태를 포함해 쪼개지는 갱도를 사용하고 있는 경우에, 당신은 수동으로 Cloudflare Zero Trust 도메인 및 IPs를 기능에 이 특징을 위한 순서에 추가할 필요가 있을 것입니다.
+
+### Cloudflare Zero Trust 도메인
+
+분할 터널을 사용하여 모드를 포함하면 다음 도메인을 포함해야합니다.
+
+- Cloudflare Zero Trust에 정통하는 IdP
+- `<your-team-name>.cloudflareaccess.com`
+- 액세스 또는 Gateway 정책에 의해 보호 된 응용 프로그램
+- `edge.browser.run`이름 \*[브라우저 고립](/cloudflare-one/remote-browser-isolation/)
+
+### Cloudflare Zero Trust IP 주소
+
+#### 블록 페이지
+
+Split Tunnels를 사용하여 모드를 포함하고 있습니다.[DNS 정책](/cloudflare-one/traffic-policies/dns-policies/)이름 \*[블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/)활성화된 도메인을 차단하는 IP를 포함해야 합니다. 사용 안 함[전용 또는 BYOIP 결심자 IP](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/dns-resolver-ips/#dns-resolver-ip)블록 페이지가 해결됩니다:
+
+- `162.159.36.12`
+- `162.159.46.12`
+
+#### 팀 도메인
+
+내 계정[교통 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#traffic-only-mode)WARP 모드, 당신은 할 수 없습니다[도메인 추가](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/#cloudflare-zero-trust-domains)분할 터널. 스플릿 터널을 사용하여 모드를 포함하면 해결하는 IP를 포함해야 합니다.`<your-team-name>.cloudflareaccess.com`대신:
+
+- `104.19.194.29`
+- `104.19.195.29`
+
+## 도메인 기반 분할 터널
+
+도메인 기반 분할 터널링은 조직에서 배포하기 전에 몇 가지 램션을 가지고 있어야합니다.
+
+- WARP 및 Gateway 가시성에서 제외되거나 포함 된 루트는 하루를 변경할 수 있으며 어디에 따라 각 사용자에 대해 다를 수 있습니다.
+- IP 주소를 공유할 수 있는 추가 호스트 이름이 포함될 수 있습니다. 일반적으로 CDN 또는 Cloudflare, AWS 또는 Azure와 같은 대형 인터넷 제공 업체에 의해 호스팅 된 도메인을 추가하면 발생합니다. 예를 들어, AWS에서 호스팅되는 VPN을 제외한 경우 추가하지 마십시오.`*.amazonaws.com`AWS에서 모든 트래픽에 장치를 엽니다. 대신 특정 VPN 엔드포인트를 추가하십시오 (`*.cvpn-endpoint-<UUID>.prod.clientvpn.us-west-2.amazonaws.com`).
+- 대부분의 서비스는 호스트 이름의 컬렉션입니다. Split Tunnels 모드 지원[앱 유형](/cloudflare-one/traffic-policies/application-app-types/), 당신은 수동으로 특정 응용 프로그램 또는 서비스에 의해 사용되는 모든 도메인을 추가해야합니다.
+- WARP는 도메인에 대한 DNS 조회 요청을 처리해야합니다. DNS 결과가 이전에 운영 체제에 의해 캐시되었거나 (예를 들어 브라우저의 보안 DNS 설정을 통해), IP 주소는 Split Tunnel에 동적 추가되지 않습니다.
+
+### 유효한 도메인
+
+| Split Tunnel 도메인      | 이름 \*                                               | 일치하지 않음                                             |
+| --------------------- | --------------------------------------------------- | --------------------------------------------------- |
+| `example.com`         | 정확한 일치`example.com`                                 | 하위 도메인과 같은`www.example.com`                         |
+| `example.example.com` | 정확한 일치`example.example.com`                         | `example.com`또는 하위 도메인과 같은`www.example.example.com` |
+| `*.example.com`       | 하위 도메인과 같은`www.example.com`·`sub2.sub1.example.com` | `example.com`                                       |
+
+### 플랫폼 차이
+
+도메인 기반 분할 터널은 데스크톱 클라이언트보다 모바일 클라이언트에서 다르게 작동합니다. 모바일 및 데스크톱 클라이언트 모두 조직에 연결되면 모든 플랫폼에서 동일한 작업을 수행하는 IP 주소 또는 CIDR을 기반으로 분할 터널을 사용하는 것이 좋습니다.
+
+#### Windows, 리눅스 및 macOS
+
+이 플랫폼에서 클라이언트는 역동적으로 분할을위한 라우팅 테이블에 해결 된 후 도메인의 IP 주소를 즉시 삽입하여 작동합니다. 이 데스크톱 클라이언트가 와일드 카드 도메인 접두사를 지원할 수 있습니다 (예를 들어,`*.example.com`), 단지 단 하나 도메인 (like)`example.com`또는`www.example.com`).
+
+#### iOS, Android 및 ChromeOS
+
+플랫폼 차이로 인해 모바일 클라이언트는 터널이 처음 시작될 때 Split Tunnels 규칙만 적용할 수 있습니다. 이 수단:
+
+- Domain-based Split Tunnels rules are created when the tunnel is based on the IP address for that domain at that time. 터널은 각 시간마다 새로 고침됩니다.
+- Wildcard 도메인 접두사 (예를 들어,`*.example.com`)는 와일드카드 DNS 레코드를 유효하게 하는 경우에만 지원됩니다. 다른 와일드카드 도메인은 클라이언트가 터널을 시작할 때 와일드카드 도메인과 일치할 수 없기 때문에 지원되지 않습니다. 지원되지 않은 와일드 카드 도메인 접두사는 여전히 구성에 존재 할 수 있지만 모바일 플랫폼에서 무시됩니다.
+
+## 경로 제거
+
+:::카트로션
+기본적으로 Split Tunnel 항목 제거는 사용자가 인터넷 연결을 잃거나 로컬 리소스에 대한 액세스를 차단할 수 있습니다.
+주요 특징
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보** > **회사소개** > **일반 프로필**.
+2. 자주 묻는 질문[회사소개](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)수정 및 선택**제품정보**.
+3. 이름 \***분할 터널**, 선택**계정 관리**.
+4. 목록의 IP 주소 또는 호스트 이름 찾기 및 선&#xD0DD;**- 연혁**버튼. 드롭다운에서, 선택*이름 \**.
+
+<Render file="warp/client-notification-lag" product="cloudflare-one" />
+
+Cloudflare에 의해 권장되는 기본 분할 터널 항목에 반환해야하는 경우, 선택**기본 항목 복원**.
+
+## 관련 자료
+
+- [지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)- Cloudflare Gateway 대신 로컬 DNS를 통해 선택한 도메인을 해결합니다.
+- [WARP 방화벽](/cloudflare-one/team-and-resources/devices/warp/deployment/firewall/)- IP, 도메인 및 포트를 통해 사용자가 방화벽 뒤에 WARP를 성공적으로 배포하고 연결할 수 있습니다.

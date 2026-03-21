@@ -1,0 +1,163 @@
+---
+title: 개인 S3 버킷 액세스
+pcx_content_type: example
+reviewed: 2025-11-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/examples/private-s3-bucket/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-vpc/examples/private-s3-bucket/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, WranglerConfig } from "~/components";
+
+이 예제는 공공 인터넷에 노출되지 않는 개인 S3 버킷에 액세스하는 방법을 보여줍니다. 이 가이드에서, 우리는 내부 S3-compatible 저장 서비스를 위한 Workers VPC 서비스를 구성하고, 그 물통에 요청을 만드는 노동자를 만들고, 우리의 변화를 검증하기 위하여 노동자를 배치할 것입니다.
+
+## 자주 묻는 질문
+
+- VPC/virtual 네트워크에서 실행되는 개인적인 S3-compatible 저장 서비스 (AWS S3 VPC 엔드포인트, MinIO, 또는 이와 같은)
+- S3 VPC 엔드포인트와 같은 VPC에서 실행되는 가상 머신/EC2 인스턴스
+- Workers 계정 Workers VPC 액세스
+
+## 1. Cloudflare를 설치하십시오 관련 제품
+
+Cloudflare 터널은 개인 네트워크에서 Cloudflare에 안전한 연결을 만듭니다. 이 갱도는 Workers를 허용하여 개인 자원에 안전하게 접근할 수 있습니다.
+
+1. 탐색하기[Workers VPC dashboard](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels)그리고 선택**연락처**탭.
+
+2. 제품정보**이름 \***&#xC0C8;로운 터널을 만듭니다.
+
+3. 터널의 이름을 입력합니다 (예를 들어,`s3-tunnel`) 및 선택**저장 터널**.
+
+4. 운영 체제 및 아키텍처를 선택하십시오. dashboard는 당신의 환경을 위한 특정한 임명 지시를 제공할 것입니다.
+
+5. 지정된 명령을 따라 다운로드 및 설치`cloudflared`VM에서 서비스 설치 명령을 고유한 토큰으로 실행합니다.
+
+dashboard는 당신의 갱도가 성공적으로 연결될 때 확인합니다. 다음 단계의 터널 ID를 참고하십시오.
+
+## 2. Workers VPC 서비스를 창조하십시오
+
+첫째로, 당신의 내부 S3 저장을 위한 QXQX0059XQVPC 서비스를 창조하십시오:
+
+```bash
+npx wrangler vpc service create s3-storage \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --hostname s3.us-west-2.amazonaws.com
+```
+
+IP 주소를 사용하여 Workers VPC 서비스를 만들 수도 있습니다 (예를 들면, MinIO를 사용하는 경우):
+
+```bash
+npx wrangler vpc service create s3-storage \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --ipv4 10.0.1.60 \
+  --http-port 9000
+```
+
+서비스 ID가 다음 단계로 반환됩니다.
+
+## 3. S3 물통 정책을 구성하십시오
+
+S3 Bucket을 구성하여 익명 액세스를 VPC 엔드포인트에서 허용하십시오. 암호화되지 않은 S3 개체에 대한이 작품 :
+
+```json
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Sid": "AllowAnonymousAccessFromVPCE",
+			"Effect": "Allow",
+			"Principal": "*",
+			"Action": ["s3:GetObject", "s3:ListBucket"],
+			"Resource": [
+				"arn:aws:s3:::your-bucket-name",
+				"arn:aws:s3:::your-bucket-name/*"
+			],
+			"Condition": {
+				"StringEquals": {
+					"aws:sourceVpce": "vpce-your-endpoint-id"
+				}
+			}
+		}
+	]
+}
+```
+
+### 시험 S3 접근 직접
+
+Cloudflare 터널이 버킷 정책을 확인하기 위해 실행되는 VM에서 S3 액세스를 직접 테스트 할 수 있습니다. 이 명령은 AWS 자격 증명 없이 작동해야 합니다:
+
+```bash
+#시험 listing 물통 내용
+curl -i https://s3.us-west-2.amazonaws.com/your-bucket-name/
+
+#특정 파일 다운로드 테스트
+curl -i https://your-bucket-name.s3.us-west-2.amazonaws.com/test-file.txt
+```
+
+## 4. 당신의 노동자를 구성하십시오
+
+Wrangler 구성 파일을 업데이트하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "private-s3-gateway",
+  	"main": "src/index.js",
+  	"compatibility_date": "$today",
+  	"vpc_services": [
+  		{
+  			"binding": "S3_STORAGE",
+  			"service_id": "<YOUR_SERVICE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 5. 노동자를 구현
+
+Workers 코드에서, QXQX0063XQVPC 서비스 바인딩을 사용하여 서비스에 요청을 보낼 수 있습니다.
+
+```js title="index.js"
+export default {
+	async fetch(request, env, ctx) {
+		try {
+			//VPC 엔드포인트를 통해 개인 S3 버킷에서 파일을 가져 오기
+			const response = await env.S3_STORAGE.fetch("https://s3.us-west-2.amazonaws.com/my-bucket/data.json");
+
+			//S3에서 응답을 사용하여 Workers에서 더 논리를 수행하기 위해 최종 응답을 반환하기 전에
+			return response;
+		} catch (error) {
+			return new Response("Storage unavailable", { status: 503 });
+		}
+	},
+};
+```
+
+이 가이드는 Workers에서 개인 객체 저장에 액세스 할 수있는 방법을 보여줍니다. Workers VPC 서비스를 사용하여 직접 파일을 태치하고 WorkersXQ에 더 가득 차있을 수 있도록 응답을 조작 할 수 있습니다.
+
+## 6. 배포 및 테스트
+
+지금, 당신은 당신이 만든 작업자를 배치하고 테스트 할 수 있습니다:
+
+```bash
+npx wrangler deploy
+```
+
+```bash
+#시험 요청
+curl https://private-s3-gateway.workers.dev
+```
+
+## 다음 단계
+
+- 더 보기[인증 및 인증](/workers/examples/auth-with-headers/)
+- 회사연혁[비율 제한](/durable-objects/api/)
+- 설치하기[모니터링 및 경고](/analytics/analytics-engine/)
+- 여행 정보[다른 예](/workers-vpc/examples/)

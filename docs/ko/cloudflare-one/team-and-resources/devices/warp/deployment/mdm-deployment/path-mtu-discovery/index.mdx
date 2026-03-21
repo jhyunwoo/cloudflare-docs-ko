@@ -1,0 +1,141 @@
+---
+pcx_content_type: concept
+title: 경로 MTU Discovery (PMTUD)
+sidebar:
+  order: 5
+  label: 경로 MTU Discovery
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/path-mtu-discovery/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/path-mtu-discovery/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 형태](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | <ul><li>교통 및 DNS 모드</li><li>교통 모드</li></ul>                                           | 모든 계획                                                      |
+
+  | 시스템   | 적용분야 | 최소 WARP 버전   |
+  | ----- | ---- | ------------ |
+  | 윈도우   | ✅    | 2025.9.173.1 |
+  | 맥 OS  | ✅    | 2025.9.173.1 |
+  | 리눅스   | ✅    | 2025.9.173.1 |
+  | iOS 앱 | ❌    |              |
+  | 다운로드  | ❌    |              |
+  | 크롬 OS | ❌    |              |
+</Details>
+
+더 보기[최대 전송 단위 (MTU)](https://www.cloudflare.com/learning/network-layer/what-is-mtu/)장치가 파편없이 네트워크를 통해 보낼 수있는 가장 큰 데이터 패킷 크기입니다. WARP를 통해 서비스에 연결할 때 데이터가 캡슐화되어 추가 헤더를 추가하고 전반적인 패킷 크기를 증가시킵니다. 일부 네트워크에서, 특히 셀룰러 또는 게스트 Wi-Fi 네트워크, 네트워크의 MTU는 WARP의보다 작을 수있다[기본 패킷 크기](#recommended-mtu). 이 잡기 힘 소포는 파편되거나 완전히 떨어질, 연결 불안정성 또는 완전한 연결 실패에 지도하.
+
+WARP의 경로 MTU 발견 (PMTUD) 특징은 장치와 Cloudflare 사이 전체 네트워크 경로에 따라서 최소한 MTU를 위해 능동적으로 견인해서 이 문제를 해결합니다. WARP는 그 때 동적인 조정할 것입니다[터널 인터페이스](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/#virtual-interface)조사 결과에 근거를 두는 MTU. 이것은 WARP가 낮은 MTU 네트워크에 안정적인 연결을 유지하고 사용할 때 높은 MTU를 활용할 수 있습니다.
+
+:::참조
+특정 기능은 낮은 MTU 임계 값에서 비활성화 될 수 있습니다. 자주 묻는 질문[최소 MTU](#minimum-mtus).
+:::
+
+## 자주 묻는 질문
+
+- WARP는 사용하도록 구성되어야 합니다[MASQUE 터널 프로토콜](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#device-tunnel-protocol).
+
+## Enable Path MTU 발견
+
+PMTUD는 기본적으로 비활성화됩니다. 기기에서 PMTUD를 활성화하려면[MDM 파일을 배치](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/#windows)이름 \*`enable_pmtud`키 설정`true`. 예를 들면:
+
+```xml
+<dict>
+	<key>organization</key>
+	<string>your-team-name</string>
+	<key>warp_tunnel_protocol</key>
+  <string>masque</string>
+	<key>enable_pmtud</key>
+  <true/>
+</dict>
+```
+
+이 구성은 PMTUD 기능을 활성화하고 명시적으로 MASQUE 터널 프로토콜을 구성합니다.
+
+WARP는 지금 네트워크 경로 MTU를 검출하기 위하여 활동적인 조사를 보내고 그것의 갱도 공용영역 MTU를 그러므로 업데이트할 것입니다. PMTUD 프로브가 장치에서 오는 트래픽의 25 Mb / day를 생성 할 수 있습니다.
+
+## PMTUD를 검증
+
+PMTUD가 장치에서 활성화되면 터미널을 열고 다음 명령을 실행하십시오.
+
+```sh
+warp-cli settings | grep -i pmtu
+```
+
+```sh output
+(local policy)	PMTUD enabled: true
+```
+
+PMTUD가 활성화되면 출력이 표시됩니다.`PMTUD enabled: true`.
+
+## 최소 MTU
+
+### 권장 MTU
+
+WARP는 완전한 기능 및 성과를 위한 뒤에 오는 MTUs를 요구합니다:
+
+| 장치 터널 프로토콜 | IPv4 지원  | IPv6를    |
+| ---------- | -------- | -------- |
+| 와이어 가드     | 1340 바이트 | 1360 바이트 |
+| 이름 \*      | 1361 바이트 | 1381 바이트 |
+
+### 경로 MTU Discovery
+
+PMTUD 기능을 위해 네트워크 경로는 적어도 1281 바이트의 MTU를 지원해야합니다. 1281 바이트는 다음과 같습니다.
+
+- 1200 바이트: 최소 QUIC datagram
+- 53 바이트 : WARP MASQUE 캡슐화
+- 28 바이트: IP/UDP 우두머리
+
+### IPv6를
+
+WARP를 통해 IPv6 트래픽을 보내려면 네트워크 경로는 적어도 1361 바이트의 MTU를 지원해야합니다. 1361 바이트는 다음과 같습니다.
+
+- 1280 바이트: 최소 IPv6 패킷 크기
+- 53 바이트 : WARP MASQUE 캡슐화
+- 28 바이트: IP/UDP 우두머리
+
+PMTUD가 활성화되고 MTU가 1361 바이트 미만이라면 WARP는 터널 인터페이스에서 자동으로 IPv6를 비활성화합니다.
+
+### 웹RTC
+
+WARP를 통해 WebRTC 트래픽을 보내려면 네트워크 경로는 적어도 1361 바이트의 MTU를 지원해야합니다. 1361 바이트의 밑에, WebRTC 연결은 점차적으로 degraded 성과를 경험할 것입니다. 이 최소 MTU 충격[Cloudflare 브라우저 고립](/cloudflare-one/remote-browser-isolation/)WebRTC를 사용하는 다른 웹 사이트 (비디오 conferencing 및 미디어 스트리밍 서비스와 같은).
+
+## MTU를 확인
+
+현재 네트워크 경로 MTU를 수집하여 확인할 수 있습니다.[WARP 진단 로그](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/warp-logs/).
+
+1. 시작하기`warp-diag`장치에 명령 또는[대시보드를 통해 로그 수집](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/warp-logs/#collect-logs-via-the-dashboard).
+2. 결과 열기`warp-debugging-info-<date>-<time>.zip`파일.
+3. 기타`connectivity.txt`자주 묻는 질문`PMTU`.
+
+   ```txt title="connectivity.txt" {16-17}
+   ====================================================================
+   H3 Quic Connect
+   ====================================================================
+
+   Testing H3 QUIC connectivity to 'https://cloudflare-quic.com/cdn-cgi/l4-stats' result: Successful
+   IPv4:
+   "
+   Headers:
+   	server address=104.18.26.14:443
+   	...
+
+   Body:
+   	transport=TCP
+   	...
+
+   PMTU:
+   	1500 bytes
+   "
+   ```
+
+위의 예는 1500 바이트의 MTU를 보여줍니다.[권장 MTU 요구 사항](#recommended-mtu)WARP를 위해. MTU가 권장되는 임계값 아래에서 떨어지면 고려해야 합니다.[Path MTU Discovery 지원](#enable-path-mtu-discovery)연결 성능을 최적화합니다.

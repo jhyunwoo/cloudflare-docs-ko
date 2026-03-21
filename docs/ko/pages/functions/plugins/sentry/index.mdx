@@ -1,0 +1,84 @@
+---
+pcx_content_type: concept
+title: 회사 소개
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/sentry/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/sentry/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+:::참조
+
+Sentry는 이제 Cloudflare Workers 및 PagesXQXQ에 대한 공식 지원을 제공합니다. 더 알아보기[관련 문서](https://docs.sentry.io/platforms/javascript/guides/cloudflare/)더 많은 정보.
+
+:::
+
+Sentry Pages 플러그인 캡처 및 QXQX1600XQ 기능의 실행 체인에서 발생하는 모든 예외를 기록합니다. 이 플러그인을 설치하는 것이 좋습니다.`functions/_middleware.ts`첫 번째 플러그인으로.
+
+## 설치하기
+
+<PackageManagers pkg="@cloudflare/pages-plugin-sentry" />
+
+## 제품 정보
+
+```typescript
+import sentryPlugin from "@cloudflare/pages-plugin-sentry";
+
+export const onRequest: PagesFunction = sentryPlugin({
+	dsn: "https://sentry.io/welcome/xyz",
+});
+```
+
+플러그인 사용[토우칸](https://github.com/robertcepa/toucan-js). Toucan README에 참조[그것을 얻을 수있는 옵션을 검토](https://github.com/robertcepa/toucan-js#other-options). `context`, `request`·`event`자동으로 팝업되고 수동으로 구성되지 않아야합니다.
+
+이름 \*[사이트맵](https://docs.sentry.io/product/sentry-basics/dsn-explainer/)KV에서 환경변수 또는 같이 접근할 수 있습니다:
+
+```typescript
+import sentryPlugin from "@cloudflare/pages-plugin-sentry";
+
+export const onRequest: PagesFunction<{
+	SENTRY_DSN: string;
+}> = (context) => {
+	return sentryPlugin({ dsn: context.env.SENTRY_DSN })(context);
+};
+```
+
+```typescript
+import sentryPlugin from "@cloudflare/pages-plugin-sentry";
+
+export const onRequest: PagesFunction<{
+	KV: KVNamespace;
+}> = async (context) => {
+	return sentryPlugin({ dsn: await context.env.KV.get("SENTRY_DSN") })(context);
+};
+```
+
+### 추가 상황
+
+Sentry에 대한 추가 컨텍스트를 설정해야 하는 경우 (예: 사용자 정보 또는 추가 로그), 사용`data.sentry`실행 체인의 플러그인 아래에서 어떤 기능에서 인스턴스.
+
+예를 들어, 액세스 할 수 있습니다.`data.sentry`그리고 같은 사용자 정보를 설정:
+
+```typescript
+import type { PluginData } from "@cloudflare/pages-plugin-sentry";
+
+export const onRequest: PagesFunction<unknown, any, PluginData> = async ({
+	data,
+	next,
+}) => {
+	//요청 및 추출 사용자의 이메일 주소를 인증
+	const email = await getEmailFromRequest(request);
+
+	data.sentry.setUser({ email });
+
+	return next();
+};
+```
+
+다시, 기능의 전체 목록에서 찾을 수 있습니다[Toucan의 문서](https://github.com/robertcepa/toucan-js#features).

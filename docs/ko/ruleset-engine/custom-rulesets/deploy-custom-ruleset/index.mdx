@@ -1,0 +1,201 @@
+---
+pcx_content_type: how-to
+title: 사용자 정의 규칙 배포
+sidebar:
+  order: 4
+description: CloudflareQ 계정에 맞춤 규칙을 배치하는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/custom-rulesets/deploy-custom-ruleset/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/custom-rulesets/deploy-custom-ruleset/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest, Render } from "~/components";
+
+사용자 정의 규칙을 배포하려면 규칙을 추가하십시오.`execute`단계의 규칙의 목록에 작용[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)계정 또는 영역 수준에서. 새로운 규칙의 표현은 사용자 정의 규칙이 실행될 때 정의됩니다.
+
+동일한 범위의 항목 포인트 규칙에 사용자 정의 규칙 만 배치 할 수 있습니다. 예를 들어, 계정 수준에서 정의된 사용자 정의 규칙은 계정 수준에서만 배포할 수 있습니다.
+
+<Render file="custom-rulesets-terraform" product="ruleset-engine" />
+
+<Render file="custom-rulesets-dashboard" product="ruleset-engine" />
+
+<Render file="custom-ruleset-zone-limitation" product="ruleset-engine" />
+
+## 시작하기 전에
+
+1. 이름 얻기[단계별](/ruleset-engine/reference/phases-list/)사용자 정의 규칙을 배포하고 싶은 곳.
+2. [사용자 정의 규칙 만들기](/ruleset-engine/custom-rulesets/create-custom-ruleset/)새로운 사용자 정의 규칙의 ID를 유지.
+3. [규칙은 이미 단계 항목 포인트 규칙에 제시](/ruleset-engine/basic-operations/view-rulesets/#view-the-rules-included-in-a-ruleset). 당신은 포함해야`PUT`계속하려면 모든 기존 규칙을 요청하십시오.
+
+## 예제 A - 계정 수준 배치
+
+다음 것`PUT`request adds a 규칙 that performs a custom ruleet when the zone name match`example.com`.
+
+내 계정`PUT`요청, 당신은 유지하려는 모든 기존 규칙의 ID를 포함해야합니다. 응답은 업데이트 후 단계 항목 포인트 규칙의 모든 규칙을 포함합니다.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_custom",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			description: "Execute custom ruleset",
+  			expression: '(cf.zone.name == "example.com") and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<CUSTOM_RULESET_ID>",
+  			},
+  		},
+  		{
+  			id: "<EXISTING_PHASE_RULE_ID_1>",
+  		},
+  		{
+  			id: "<EXISTING_PHASE_RULE_ID_2>",
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<ACCOUNT_PHASE_RULESET_ID>",
+		"name": "http_request_firewall_custom phase entry point ruleset for my account",
+		"description": "Execute several rulesets",
+		"kind": "root",
+		"version": "3",
+		"rules": [
+			{
+				"id": "<PHASE_RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"description": "Execute custom ruleset",
+				"action_parameters": {
+					"id": "<CUSTOM_RULESET_ID>",
+					"version": "latest"
+				},
+				"expression": "(cf.zone.name == \"example.com\") and cf.zone.plan eq \"ENT\"",
+				"last_updated": "2021-03-18T18:35:14.135697Z",
+				"ref": "<PHASE_RULE_REF>",
+				"enabled": true
+			},
+			{
+				"id": "<EXISTING_PHASE_RULE_ID_1>",
+				"version": "1",
+				"action": "execute",
+				"action_parameters": {
+					"id": "<EXECUTED_RULESET_ID_1>",
+					"version": "latest"
+				},
+				"expression": "(cf.zone.name eq \"example.com\") and cf.zone.plan eq \"ENT\"",
+				"last_updated": "2021-03-16T15:51:49.180378Z",
+				"ref": "<EXISTING_PHASE_RULE_REF_1>",
+				"enabled": true
+			},
+			{
+				"id": "<EXISTING_PHASE_RULE_ID_2>",
+				"version": "1",
+				"action": "execute",
+				"action_parameters": {
+					"id": "<EXECUTED_RULESET_ID_2>",
+					"version": "latest"
+				},
+				"expression": "(cf.zone.name eq \"example.com\") and cf.zone.plan eq \"ENT\"",
+				"last_updated": "2021-03-16T15:50:29.861157Z",
+				"ref": "<EXISTING_PHASE_RULE_REF_2>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2021-03-18T18:35:14.135697Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+:::카트로션
+계정 수준에서 사용자 정의 규칙을 배치 할 때, 당신은 어떤 사용자 정의 조건을 둘러싸고 당신의 표현을 종료하기 위해 모체를 사용해야합니다`and cf.zone.plan eq "ENT"`위의 예시와 같은 API 작업이 실패합니다.
+주요 특징
+
+## 예제 B - Zone-level 배포
+
+다음 것`PUT`요청은 ID와 사용자 정의 규칙을 실행하는 영역 수준의 항목 포인트 규칙에 규칙을 추가`"<CUSTOM_RULESET_ID>"`요청 대상`/login`URI 경로.
+
+당신은 포함해야`PUT`유지하려는 모든 기존 규칙의 ID를 요청합니다. 응답은 업데이트 후 단계 항목 포인트 규칙의 모든 규칙을 포함합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_custom",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			description: "Execute custom ruleset (zone)",
+  			expression: '(http.request.uri.path eq "/login")',
+  			action_parameters: {
+  				id: "<CUSTOM_RULESET_ID>",
+  			},
+  		},
+  		{
+  			id: "<EXISTING_PHASE_RULE_ID_1>",
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<ZONE_PHASE_RULESET_ID>",
+		"name": "http_request_firewall_custom phase entry point ruleset for my zone",
+		"description": "",
+		"kind": "zone",
+		"version": "3",
+		"rules": [
+			{
+				"id": "<PHASE_RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"description": "Execute custom ruleset (zone)",
+				"action_parameters": {
+					"id": "<CUSTOM_RULESET_ID>",
+					"version": "latest"
+				},
+				"expression": "(http.request.uri.path eq \"/login\")",
+				"last_updated": "2025-08-18T18:35:14.135697Z",
+				"ref": "<PHASE_RULE_REF>",
+				"enabled": true
+			},
+			{
+				"id": "<EXISTING_PHASE_RULE_ID_1>",
+				"version": "1",
+				"action": "managed_challenge",
+				"expression": "(cf.waf.score lt 20 and http.request.uri.path wildcard \"/admin/*\")",
+				"last_updated": "2025-08-16T15:51:49.180378Z",
+				"ref": "<EXISTING_PHASE_RULE_REF_1>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2025-08-18T18:35:14.135697Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+<Render file="custom-ruleset-zone-limitation" product="ruleset-engine" />

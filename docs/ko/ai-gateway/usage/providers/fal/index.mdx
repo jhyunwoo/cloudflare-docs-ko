@@ -1,0 +1,101 @@
+---
+title: 랄 AI
+pcx_content_type: get-started
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/usage/providers/fal/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/usage/providers/fal/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[랄 AI](https://fal.ai/)단일, 통합된 API를 통해 600개 이상의 생산 관련 미디어 모델에 대한 액세스를 제공합니다. 이 서비스는 오픈 이미지, 비디오, 음성 및 오디오 생성 모델의 세계 최대 컬렉션을 제공하며, 코드의 한 줄에 모두 접근 할 수 있습니다.
+
+## 끝점
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/fal
+```
+
+## URL 구조
+
+Fal AI에 요청을 할 때, 대체`https://fal.run`현재 사용중인 URL에서`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/fal`.
+
+## 자주 묻는 질문
+
+Fal AI에 대한 요청을 만들 때 다음이 있습니다.
+
+- AI Gateway 계정 ID.
+- AI Gateway 게이트웨이 이름.
+- 활성 Fal AI API 토큰.
+- 사용하려는 팔 AI 모델의 이름.
+
+## 기본 동시 API
+
+기본적으로 Fal AI 엔드포인트 요청은 비동기 API를 켜집니다.`https://fal.run/<path>`.
+
+### cURL 예제
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/fal/fal-ai/fast-sdxl \
+  --header 'Authorization: Key {fal_ai_token}' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "prompt": "Make an image of a cat flying an aeroplane"
+  }'
+```
+
+## 사용자 정의 대상 URL
+
+다른 대상 URL을 입력해야 하는 경우, 전체 Fal 대상 URL을 공급할 수 있습니다.`x-fal-target-url`헤더.
+
+### cURL 예제 사용자 정의 대상 URL
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/fal \
+  --header 'Authorization: Bearer {fal_ai_token}' \
+  --header 'x-fal-target-url: https://queue.fal.run/fal-ai/bytedance/seedream/v4/edit' \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "prompt": "Dress the model in the clothes and hat. Add a cat to the scene and change the background to a Victorian era building.",
+    "image_urls": [
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_1.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_2.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_3.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_4.png"
+    ]
+  }'
+```
+
+## 웹소켓 API
+
+Fal AI는 WebSockets를 통해 실시간 상호 작용을 지원합니다. WebSocket 연결 및 예제의 경우, 참조[Realtime WebSockets API 문서](/ai-gateway/usage/websockets-api/realtime-api/#fal-ai).
+
+## JavaScript SDK 통합
+
+더 보기`x-fal-target-url`형식은 Fal SDK와 호환되므로 AI Gateway는 쉽게 통과 할 수 있습니다.`proxyUrl`SDK에서.
+
+### JavaScript SDK 예제
+
+```js
+import { fal } from "@fal-ai/client";
+
+fal.config({
+  credentials: "{fal_ai_token}", //AI Gateway에서 BYOK를 사용하는 경우 Cloudflare api 토큰을 전달합니다.
+  proxyUrl: "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/fal"
+});
+
+const result = await fal.subscribe("fal-ai/bytedance/seedream/v4/edit", {
+  "input": {
+    "prompt": "Dress the model in the clothes and hat. Add a cat to the scene and change the background to a Victorian era building.",
+    "image_urls": [
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_1.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_2.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_3.png",
+      "https://storage.googleapis.com/falserverless/example_inputs/seedream4_edit_input_4.png"
+    ]
+  }
+});
+
+console.log(result.data.images[0]);
+```

@@ -1,0 +1,203 @@
+---
+title: Terraform 구성
+pcx_content_type: how-to
+description: Cloudflare Terraform 공급자를 사용하여 VPC 서비스를 관리하는 방법을 알아보세요.
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/terraform/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/terraform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+VPC 서비스는 인프라로 관리할 수 있습니다.[`cloudflare_connectivity_directory_service`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/connectivity_directory_service)자원에[모델 번호: Cloudflare Terraform 공급자](/terraform/).
+
+이 지도에 직접[관련 링크](/api/resources/connectivity/subresources/directory/subresources/services/)— dashboard 및 Wrangler CLI는 또한 VPC 서비스를 생성하고 관리하기 위하여 API를 이용합니다. 같은[VPC 서비스 구성 분야](/workers-vpc/configuration/vpc-services/#vpc-service-configuration)(유형, 호스트, 포트, 터널 ID)는 서비스가 생성되는 방식에 관계없이 적용됩니다.
+
+:::참조
+필요 Cloudflare Terraform 공급자 v5.13.0 또는 나중에.
+주요 특징
+
+## VPC 서비스 자원
+
+더 보기`cloudflare_connectivity_directory_service`리소스는 연결 디렉토리에 VPC 서비스를 만듭니다. 각 자원은 노동자가 묶을 수 있는 1개의 VPC 서비스 입장에 대응합니다.
+
+### Hostname 기반 구성
+
+호스트명을 사용할 때, 제공`host.hostname`한국어`resolver_network`블록. 이 평행한 hostname 기반[JSON 구성 예](/workers-vpc/configuration/vpc-services/#configuration-example).
+
+```tf
+resource "cloudflare_connectivity_directory_service" "my_private_api" {
+  account_id = var.account_id
+  name       = "my-private-api"
+  type       = "http"
+  http_port  = 80
+  https_port = 443
+
+  host = {
+    hostname = "internal-api.example.com"
+    resolver_network = {
+      tunnel_id = var.tunnel_id
+    }
+  }
+}
+```
+
+개인 네트워크 내에서 사용자 정의 DNS 해커를 사용하려면 추가`resolver_ips`:
+
+```tf
+resource "cloudflare_connectivity_directory_service" "my_private_api" {
+  account_id = var.account_id
+  name       = "my-private-api"
+  type       = "http"
+
+  host = {
+    hostname = "internal-api.example.com"
+    resolver_network = {
+      tunnel_id    = var.tunnel_id
+      resolver_ips = ["10.0.0.53"]
+    }
+  }
+}
+```
+
+### IP 기반 구성
+
+IP 주소를 사용할 때, 제공`host.ipv4`및/또는`host.ipv6`한국어`network`블록. IP 기반 병렬[JSON 구성 예](/workers-vpc/configuration/vpc-services/#configuration-example).
+
+```tf
+resource "cloudflare_connectivity_directory_service" "my_private_api" {
+  account_id = var.account_id
+  name       = "my-private-api"
+  type       = "http"
+  http_port  = 8080
+  https_port = 8443
+
+  host = {
+    ipv4 = "10.0.1.50"
+    ipv6 = "fe80::1"
+    network = {
+      tunnel_id = var.tunnel_id
+    }
+  }
+}
+```
+
+### 항구 윤곽
+
+포트는 80 (HTTP) 및 443 (HTTPS)에 옵션 및 기본입니다. 단일 계획을 시행하기 위해, 하나의 제공`http_port`또는`https_port`. 참고[VPC 서비스 구성](/workers-vpc/configuration/vpc-services/#vpc-service-configuration)계획 시행 및 항구 행동 작업에 대해.
+
+## Workers 바인딩 윤곽
+
+VPC 서비스가 존재하면 Worker에 바인딩됩니다.`vpc_service`바인딩 유형에`bindings`의 배열`cloudflare_worker_version`자료실 이것은 동등한 것[`vpc_services`Wrangler 설정 배열](/workers-vpc/configuration/vpc-services/#workers-binding-configuration).
+
+```tf
+resource "cloudflare_worker_version" "my_worker_version" {
+  account_id         = var.account_id
+  worker_id          = cloudflare_worker.my_worker.id
+  compatibility_date = "2025-02-21" # Set this to today's date
+  main_module        = "worker.js"
+
+  modules = [{
+    name         = "worker.js"
+    content_type = "application/javascript+module"
+    content_file = "build/worker.js"
+  }]
+
+  bindings = [{
+    type       = "vpc_service"
+    name       = "PRIVATE_API"
+    service_id = cloudflare_connectivity_directory_service.my_private_api.service_id
+  }]
+}
+```
+
+다수 VPC 서비스 바인딩은 동일한 노동자에 추가될 수 있습니다:
+
+```tf
+bindings = [
+  {
+    type       = "vpc_service"
+    name       = "PRIVATE_API"
+    service_id = cloudflare_connectivity_directory_service.api.service_id
+  },
+  {
+    type       = "vpc_service"
+    name       = "PRIVATE_DATABASE"
+    service_id = cloudflare_connectivity_directory_service.database.service_id
+  }
+]
+```
+
+Worker 코드는 각 바인딩에 접근합니다`env.PRIVATE_API.fetch()`·`env.PRIVATE_DATABASE.fetch()`, 에 설명 된대로[Workers 바인딩 API](/workers-vpc/api/).
+
+Workers 관리 및 Terraform과의 바인딩에 대한 자세한 내용은 참조[모델 번호: Workers Code로서의 인프라](/workers/platform/infrastructure-as-code/).
+
+## 데이터 소스
+
+Terraform 공급자는 자신의 라이프사이클을 관리하지 않고 기존 VPC 서비스에 대한 데이터 소스를 포함합니다.
+
+### 단일 VPC 서비스 보기
+
+```tf
+data "cloudflare_connectivity_directory_service" "existing" {
+  account_id = var.account_id
+  service_id = "182bd5e5-6e1a-4fe4-a799-aa6d9a6ab26e"
+}
+```
+
+이것은 당신의 Terraform 윤곽 (예를 들면, dashboard 또는 WranglerXQ CLI를 통해서 창조된)의 외부 관리되는 VPC 서비스에 바인딩을 위해 유용합니다.
+
+### VPC 서비스 목록
+
+```tf
+data "cloudflare_connectivity_directory_services" "all_http" {
+  account_id = var.account_id
+  type       = "http"
+}
+```
+
+## 자원 스키마 reference
+
+```tf
+resource "cloudflare_connectivity_directory_service" "example" {
+  # Required
+  account_id = "your-account-id"        # Account identifier
+  name       = "my-private-api"         # Human-readable name
+  type       = "http"                   # Service type (only "http" supported)
+
+  # Optional
+  http_port  = 80                       # HTTP port (default: 80)
+  https_port = 443                      # HTTPS port (default: 443)
+
+  host = {
+    # Use hostname OR ipv4/ipv6, not both
+
+    # Option A: Hostname-based
+    hostname = "internal-api.example.com"
+    resolver_network = {
+      tunnel_id    = "tunnel-uuid"      # Required — Cloudflare Tunnel ID
+      resolver_ips = ["10.0.0.53"]      # Optional — custom DNS resolver IPs
+    }
+
+    # Option B: IP-based
+    # ipv4 = "10.0.1.50"               # IPv4 address
+    # ipv6 = "fe80::1"                 # IPv6 address
+    # network = {
+    #   tunnel_id = "tunnel-uuid"      # Required — Cloudflare Tunnel ID
+    # }
+  }
+
+  # Read-only (computed by the API)
+  # id         — Terraform resource ID
+  # service_id — VPC Service ID (use this for Worker bindings)
+  # created_at — Creation timestamp
+  # updated_at — Last update timestamp
+}
+```
+
+전체 스키마의 경우, 참조[Terraform 등록 문서](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/connectivity_directory_service).

@@ -1,0 +1,84 @@
+---
+title: Cloudflare 갱도
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/configuration/tunnel/'
+translation_source_md: 'https://developers.cloudflare.com/workers-vpc/configuration/tunnel/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Tabs, TabItem, Example } from "~/components";
+
+Cloudflare 터널은 인프라에서 Cloudflare의 글로벌 네트워크에 대한 보안 연결을 생성하여 WorkersXQ를 사용하여 개인 리소스에 액세스 할 수 있습니다.
+
+VPC 서비스를 만들 때 터널 ID 및 대상 서비스를 지정합니다. Workers VPC 다음 지정된 터널에 Worker에서 요청을 경로로 지정 된 호스트 이름 또는 IP 주소에 연결을 설정하여 대상 서비스는 요청을 수신하고 작업자에게 응답을 반환합니다.
+
+VPC 서비스를 만들려면, 당신은 그들을 지정해야**Connectivity Directory 관리자**역할. 회원은**Connectivity 디렉토리 Bind**worker에서 기존 VPC 서비스에 바인딩하는 역할.
+
+터널은 Cloudflare, 인바운드 방화벽 규칙 또는 공공 IP 주소에 대한 필요성을 제거하기 위해 지속적인 연결을 유지합니다.
+
+:::참조
+이 단면도는 Workers VPC 사용 케이스에 구체적인 갱도 윤곽을 제공합니다. 모니터링 및 고급 구성을 포함한 포괄적 인 터널 문서의 경우, 참조[가득 차있는 Cloudflare 비밀번호](/cloudflare-one/networks/connectors/cloudflare-tunnel/).
+:::
+
+## 생성 및 실행 갱도 (`cloudflared`)
+
+Cloudflare 터널은 경량과 높은 확장 가능한 서버 측 daemon의 임명을 요구합니다,`cloudflared`Cloudflare에 인프라를 연결하려면
+
+:::note\[버전 및 구성]
+실행 중`cloudflared`버전 2025.7.0 이상 (최신 버전 권장) 적절한 DNS 해상도와 연결성을 보장합니다. 이전 버전은 지원되지 않습니다.
+
+Workers VPC는 또한 CloudflareXQ를 요구합니다 터널을 사용하여 연결[QUIC 수송 의정서](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#protocol)이름 \*`auto`또는`quic`. 포트 7844에 아웃바운드 UDP 트래픽은 QUIC 연결을 위해 방화벽을 통해 허용됩니다.
+주요 특징
+
+Cloudflare 터널은 두 가지 방법 중 하나를 만들 수 있습니다 :
+
+1. **원격 관리 터널 (추천):**&#xC6D0;격 관리 구성은 Cloudflare에 저장되며 dashboard, API 또는 Terraform을 사용하여 어떤 기계에서 터널을 관리 할 수 있습니다.
+2. **로컬 관리 터널:**&#xB85C;컬 관리 터널은 실행에 의해 만들어집니다`cloudflared tunnel create <NAME>`명령줄에. Tunnel 구성은 로컬 Cloudflared 디렉토리에 저장됩니다.
+
+Workers VPC를 위해, 우리는 dashboardXQ를 통해서 원격 관리한 갱도를 창조하는 것을 추천합니다. 자주 묻는 질문[Workers VPC dashboard 설치 가이드를 위한 갱도](/workers-vpc/get-started/)dashboard에 표시된 설치 명령을 사용하여 터널을 만듭니다.
+
+로컬 관리 터널의 경우, 참조[`cloudflared`로컬 관리 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/)관련 기사 수동 임명을 위해, 참조하십시오[`cloudflared`다운로드](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)플랫폼 별 설치 지침.
+
+:::주\[주]
+모델 번호: Cloudflare 터널은 사용할 수 있습니다.[CloudflareZero Trust](/cloudflare-one/)또는[Workers의 VPC](/workers-vpc/).
+
+Zero TrustXQ를 사용하여 내부 응용 프로그램을 CloudflareXQ 액세스 및 호스트 이름으로 안전하게 사용할 수 있습니다.
+
+Workers VPC와 터널을 사용하여 개인 API, 개인 데이터베이스, 내부 서비스 또는 클라우드 또는 WorkersXQXQXQ에서 개인 네트워크에 액세스 할 수 있습니다.
+
+같은`cloudflared`인스턴스는 Zero Trust 및 Workers VPC 사용 케이스를 동시에 커버하는 데 사용될 수 있습니다.
+
+:::
+
+:::참조
+
+[Ingress 구성](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/)로컬 관리 터널은 터널을 사용하여 공공 인터넷에 서비스를 노출 할 때뿐만 아니라 VPC 서비스 구성으로 Workers VPC에 필요하지 않습니다.
+
+:::
+
+## Cloud 플랫폼 설정 가이드
+
+플랫폼 별 터널 배포 지침에 대한 생산 작업 부하:
+
+- [사이트맵](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/aws/)- Amazon 웹 서비스에서 배포 터널
+- [Azure 클라우드](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/azure/)- Microsoft Azure의 배포 터널
+- [Google 클라우드](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/google-cloud-platform/)- Google Cloud Platform의 배포 터널
+- [쿠버네티스](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/kubernetes/)- Kubernetes 클러스터의 배포 터널
+- [옵션 정보](/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/terraform/)- Infrastructure as Code를 사용하여 배포 터널
+
+전체 Cloudflare 터널 문서 참조[높은 가용성과 복제를 위한 터널 설정 방법](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/).
+
+:::참조
+자주 묻는 질문`cloudflared`downscaling (removing replicas)로 인해 autoscaling 설정에서 기존의 사용자 연결을 복제합니다. 또한,`cloudflared`복제를 통해 잔액을 적재하지 않습니다. 복제는 높은 가용성과 요청을 위해 엄격하게 가장 가까운 복제로 변환됩니다.
+주요 특징
+
+## 다음 단계
+
+- 설정하기[VPC 서비스](/workers-vpc/configuration/vpc-services/)Workers
+- 이름 \*[하드웨어 요구 사항](/workers-vpc/configuration/tunnel/hardware-requirements/)용량 계획
+- 자주 묻는 질문[완전한 Cloudflare 비밀번호](/cloudflare-one/networks/connectors/cloudflare-tunnel/)고급 기능

@@ -1,0 +1,70 @@
+---
+title: 일시 및 퍼지
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/configuration/pause-purge/'
+translation_source_md: 'https://developers.cloudflare.com/queues/configuration/pause-purge/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Type, MetaInfo } from "~/components";
+
+## Pause 납품
+
+당신은 어떤 연결된 소비자에게 큐에서 메시지의 배송을 일시 중지 할 수 있습니다. queue를 파싱하면 다운타임을 관리할 때 유용합니다 (예를 들어, 소비자 노동자가 건강하지 않은 경우) 어떤 메시지를 잃지 않고.
+
+Queues는 배달이 일시적으로 일시적으로 메시지를 수신하고 저장합니다. 일시적인 큐의 메시지는 여전히 만료 될 수 있습니다, 메시지가 큐 메시지 유지 기간보다 이전되는 경우.
+
+Pausing는 둘 다에 영향을 미칩니다[푸시 기반 소비자 Workers](/queues/reference/how-queues-works#consumers)·[기반 소비자](/queues/configuration/pull-consumers).
+
+### 일시 중지 및 Wrangler를 사용하여 배송 재개
+
+다음 명령은 큐에서 메시지 전달을 일시 중지합니다:
+
+```sh
+$ npx wrangler queues pause-delivery <QUEUE-NAME>
+```
+
+- `queue-name` <Type text="string" /> <MetaInfo text="required" />
+  - 어떤 납품을 위해 큐의 이름은 일시적이어야한다.
+
+다음 명령은 메시지 전달을 다시 시작합니다 :
+
+```sh
+$ npx wrangler queues resume-delivery <QUEUE-NAME>
+```
+
+- `queue-name` <Type text="string" /> <MetaInfo text="required" />
+  - 납품이 재개되어야 하는 큐의 이름.
+
+### HTTP Pull 소비자에게 일시적으로 사용 가능한가요?
+
+큐가 일시 중지되면 메시지가 당겨지지 않습니다.[HTTP 끌어 기반 소비자](/queues/configuration/pull-consumers). 메시지를 당기는 요청은 수신됩니다`409`응답, 과 함께 오류 메시지 stating`queue_delivery_paused`.
+
+## 퍼지 큐
+
+영구적으로 Queue에 저장된 모든 메시지를 삭제합니다. Purging은 새로운 응용 프로그램을 개발하는 동안 유용하며 특히 테스트 데이터를 삭제합니다. 그것은 또한 생산에서 유용 할 수 있습니다. 시나리오를 처리 할 때 나쁜 메시지의 배치가 Queue로 보내졌다.
+
+현재 소비자가 처리하고 있는 항공편 메시지는 여전히 처리될 수 있습니다. 메시지는 퍼지 작업 중에 큐에 전송 될 수 없습니다. 어떤 지연된 메시지도 큐에서 삭제됩니다.
+
+:::카트로션
+queue를 제거 할 수없는 작업입니다. 이 작업을 주의 깊게 사용하십시오.
+주요 특징
+
+### Wrangler를 사용하는 퍼지 큐
+
+다음 명령은 큐에서 메시지를 퍼지게 됩니다. 작동을 확인하기 위해 큐 이름을 입력 할 수 있습니다.
+
+```sh
+$ npx wrangler queues purge <QUEUE-NAME>
+
+This operation will permanently delete all the messages in Queue <QUEUE-NAME>. Type <QUEUE-NAME> to proceed.
+```
+
+### Queue가 내 청구서에 영향을 미치는가?
+
+여러 메시지가 삭제되는 방법에 관계없이 한 번 청구 가능한 작업으로 계산을 취소합니다. 예를 들어, 100 메시지가 있는 큐를 퍼지는 경우, 모든 100 메시지는 영구적으로 삭제되며 1개의 청구 가능한 작업에 대해 청구됩니다. 더 알아보기[가격 책정](/queues/platform/pricing)Queues가 청구되는 방법에 대한 자세한 내용은 페이지.

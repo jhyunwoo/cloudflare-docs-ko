@@ -1,0 +1,250 @@
+---
+summary: >-
+  Create a modified request with edited properties based off of an incoming
+  request.
+tags:
+  - Middleware
+  - Headers
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: Modify 요청 속성
+sidebar:
+  order: 1001
+description: 수정된 요청을 작성하여 수신 요청을 기반으로 합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/modify-request-property/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/modify-request-property/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/modify-request-property)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare Workers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * example someHost는 raw JSON을 반환하기 위해 설정됩니다.
+    * @param {string} someUrl URL을 사용하여 요청을 보낼 수 있으므로 hostname을 설정하므로 경로 만 적용됩니다.
+    * @param {string} someHost 호스트 요청이 너무 해결됩니다.*/
+    		const someHost = "example.com";
+    		const someUrl = "https://foo.example.com/api.js";
+
+    		/** 이름
+    * 가장 좋은 연습은 새로운 RequestInit 속성을 할당하는 것입니다
+    * 방법 또는 constructor를 사용하여 요청 객체에*/
+    		const newRequestInit = {
+    			//변경 방법
+    			method: "POST",
+    			//본문 바로가기
+    			body: JSON.stringify({ bar: "foo" }),
+    			//리디렉션 모드를 변경합니다.
+    			redirect: "follow",
+    			//변경 헤더, 이 방법은 기존의 헤더를 지우게됩니다.
+    			headers: {
+    				"Content-Type": "application/json",
+    			},
+    			//아웃바운드 응답에 Cloudflare 기능을 변경
+    			cf: { apps: false },
+    		};
+
+    		//호스트 변경
+    		const url = new URL(someUrl);
+
+    		url.hostname = someHost;
+
+    		//최고의 연습은 항상 새로운 요청을 구성하는 원래의 요청을 사용합니다.
+    		//모든 속성을 복제합니다. URL을 적용하면 생성자가 필요합니다.
+    		//한 번의 요청이 건설되었기 때문에 URL은 immutable입니다.
+    		const newRequest = new Request(
+    			url.toString(),
+    			new Request(request, newRequestInit),
+    		);
+
+    		//메서드를 사용하여 headers 설정
+    		newRequest.headers.set("X-Example", "bar");
+    		newRequest.headers.set("Content-Type", "application/json");
+    		try {
+    			return await fetch(newRequest);
+    		} catch (e) {
+    			return new Response(JSON.stringify({ error: e.message }), {
+    				status: 500,
+    			});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * example someHost는 raw JSON을 반환하기 위해 설정됩니다.
+    * @param {string} someUrl URL을 사용하여 요청을 보낼 수 있으므로 hostname을 설정하므로 경로 만 적용됩니다.
+    * @param {string} someHost 호스트 요청이 너무 해결됩니다.*/
+    		const someHost = "example.com";
+    		const someUrl = "https://foo.example.com/api.js";
+
+    		/** 이름
+    * 가장 좋은 연습은 새로운 RequestInit 속성을 할당하는 것입니다
+    * 방법 또는 constructor를 사용하여 요청 객체에*/
+    		const newRequestInit = {
+    			//변경 방법
+    			method: "POST",
+    			//본문 바로가기
+    			body: JSON.stringify({ bar: "foo" }),
+    			//리디렉션 모드를 변경합니다.
+    			redirect: "follow",
+    			//변경 헤더, 이 방법은 기존의 헤더를 지우게됩니다.
+    			headers: {
+    				"Content-Type": "application/json",
+    			},
+    			//아웃바운드 응답에 Cloudflare 기능을 변경
+    			cf: { apps: false },
+    		};
+
+    		//호스트 변경
+    		const url = new URL(someUrl);
+
+    		url.hostname = someHost;
+
+    		//최고의 연습은 항상 새로운 요청을 구성하는 원래의 요청을 사용합니다.
+    		//모든 속성을 복제합니다. URL을 적용하면 생성자가 필요합니다.
+    		//한 번의 요청이 건설되었기 때문에 URL은 immutable입니다.
+    		const newRequest = new Request(
+    			url.toString(),
+    			new Request(request, newRequestInit),
+    		);
+
+    		//메서드를 사용하여 headers 설정
+    		newRequest.headers.set("X-Example", "bar");
+    		newRequest.headers.set("Content-Type", "application/json");
+    		try {
+    			return await fetch(newRequest);
+    		} catch (e) {
+    			return new Response(JSON.stringify({ error: e.message }), {
+    				status: 500,
+    			});
+    		}
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    import json
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import to_js as _to_js
+    from js import Object, URL, Request, fetch, Response
+
+    def to_js(obj):
+        return _to_js(obj, dict_converter=Object.fromEntries)
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            some_host = "example.com"
+            some_url = "https://foo.example.com/api.js"
+
+            #가장 좋은 연습은 new request init 속성을 할당하는 것입니다.
+            #메서드 또는 constructor를 사용하는 요청 객체에
+            new_request_init = {
+              "method": "POST", #변경 방법
+              "body": json.dumps({ "bar": "foo" }), #본문 바로가기
+              "redirect": "follow", #리디렉션 모드 변경
+              #변경 헤더, 이 방법은 기존의 헤더를 지우게됩니다.
+              "headers": {
+                "Content-Type": "application/json",
+              },
+              #아웃바운드 응답에 Cloudflare 기능을 변경
+              "cf": { "apps": False },
+            }
+
+            #호스트 변경
+            url = URL.new(some_url)
+            url.hostname = some_host
+
+            #최고의 연습은 항상 새로운 요청을 구성하는 원래의 요청을 사용합니다.
+            #모든 속성을 복제합니다. URL을 적용하면 생성자가 필요합니다.
+            #한 번의 요청이 건설되었기 때문에 URL은 immutable입니다.
+            org_request = Request.new(request, new_request_init)
+            new_request = Request.new(url.toString(),org_request)
+
+            new_request.headers["X-Example"] =  "bar"
+            new_request.headers["Content-Type"] = "application/json"
+
+            try:
+                return await fetch(new_request)
+            except Exception as e:
+                return Response.new({"error": str(e)}, status=500)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    const app = new Hono();
+
+    app.all("*", async (c) => {
+    	/** 이름
+    * example someHost는 raw JSON을 반환하기 위해 설정됩니다.*/
+    	const someHost = "example.com";
+    	const someUrl = "https://foo.example.com/api.js";
+
+    	//hostname을 수정하는 URL 객체 만들기
+    	const url = new URL(someUrl);
+    	url.hostname = someHost;
+
+    	//새 요청 만들기
+    	//첫번째는 새로운 재산을 가진 본래 요구의 복제를 창조합니다
+    	const requestClone = new Request(c.req.raw, {
+    		//변경 방법
+    		method: "POST",
+    		//본문 바로가기
+    		body: JSON.stringify({ bar: "foo" }),
+    		//리디렉션 모드 변경
+    		redirect: "follow" as RequestRedirect,
+    		//변경 헤더, 이 방법은 기존의 헤더를 지우게됩니다.
+    		headers: {
+    			"Content-Type": "application/json",
+    			"X-Example": "bar",
+    		},
+    		//아웃바운드 응답에 Cloudflare 기능을 변경
+    		cf: { apps: false },
+    	});
+
+    	//그런 다음 수정 된 URL과 새로운 요청을 만듭니다.
+    	const newRequest = new Request(url.toString(), requestClone);
+
+    	//수정된 요청 보내기
+    	const response = await fetch(newRequest);
+
+    	//응답을 반환
+    	return response;
+    });
+
+    //핸들 오류
+    app.onError((err, c) => {
+    	return err.getResponse();
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

@@ -1,0 +1,79 @@
+---
+title: Durable Objects를 위한 통제와 자료 비행기 건축 본
+pcx_content_type: reference-architecture-diagram
+products:
+  - durable-objects
+sidebar:
+  order: 1
+  label: Durable Objects를 위한 통제와 자료 비행기 건축 본
+reviewed: 2024-11-20T00:00:00.000Z
+description: 애플리케이션의 데이터 비행기에서 제어 비행기를 분리하여 기능과 비교 없이 성능과 신뢰성을 얻을 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/durable-object-control-data-plane-pattern/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/durable-object-control-data-plane-pattern/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+[모델 번호: Durable Objects](/durable-objects/)내장되어 있습니다.[Cloudflare Workers](/workers/)글로벌 인프라 네트워크를 통해 여러 곳을 돌파.
+각 튼튼한 목표 인스턴스에는 요청, in-memory 국가, 단일 스레드 실행에 따라 자체 튼튼한 스토리지가 있으며 특정 지역에서 배치 될 수 있습니다.
+
+단일 튼튼한 객체 인스턴스는 특정[성과 및 저장 기능](/durable-objects/platform/limits/)·
+따라서, 단일 인스턴스의 한계에 의해 제한되지 않고 응용 프로그램을 확장하기 위해 우리는 가능한 한 많은 응용 프로그램 데이터를 shard해야합니다, 그리고 활용[Cloudflare 인프라](https://www.cloudflare.com/en-gb/network/)우리의 튼튼한 개체 인스턴스를 세계 전역에 확산함으로써 데이터 모두 이동하고 가능한 한 사용자에 가깝습니다.
+
+이 문서는 기능에 손상 없이 중대한 성과 및 신뢰성을 달성하기 위하여 당신의 신청의 자료 비행기에서 통제 비행기를 분리하는 유용한 건축 본을 설명합니다.
+
+- 더 보기**연락처**리소스 메타데이터를 관리하기 위해 사용되는 관리 API를 제공합니다. 예를 들어, wiki를 생성하고 삭제하거나 사용자의 모든 위키를 나열합니다.
+- 더 보기**데이터 비행기**응용 프로그램의 기본 기능을 제공하고 리소스 데이터에 직접 작업을 처리합니다. 예를 들어, fetching and updating the content of the wiki, 또는 공동 문서의 내용을 업데이트. 데이터 비행기는 의도적으로 덜 복잡하며 일반적으로 많은 양의 요청을 처리합니다.
+- 더 보기**회사 소개**제어 평면보다 높은 수준의 상호 작용을 제공하는 시스템의 선택적 구성 요소는 구성과 작업을 단순화합니다. 이 문서에서, 우리는 같은 원칙이 제어 비행기에 적용하는 것과 같이 이것에 초점을 맞추지 않을 것입니다.
+
+## 통제와 자료 비행기 별거 본
+
+이 패턴에서, 우리의 응용 프로그램은 자원 유형 당 적어도 하나의 튼튼한 개체 인스턴스로 구성되어 모든 제어 평면 작업을 처리, 그리고 우리가 필요로하는 많은 튼튼한 개체 인스턴스 데이터 평면 작업, 응용 프로그램에서 만든 각 리소스 인스턴스에 대해 하나.
+
+SoftLayer Object 인스턴스의 수백만으로 확장할 수 있습니다.
+
+이 건축 본의 주요 이점은 우리의 자료 비행기 가동, 보통 통제 비행기 가동 보다는 요구의 더 큰 양으로, 통제 비행기 내구재 목표 인스턴스를 통해서 가는 없이 자원 자료를 붙드는 튼튼한 목표 인스턴스에 의해 직접 취급됩니다.
+따라서 애플리케이션의 성능 및 가용성은 단일 내구성 객체 인스턴스에 의해 제한되지 않지만 Durable Objects의 수천 또는 수백만의 공유됩니다.
+
+일반적인 자원 유형의 예를 고려`XYZ`, 어디`XYZ`wiki, 협업 문서, 각 사용자에 대한 데이터베이스 또는 응용 프로그램에 다른 리소스 유형이 될 수 있습니다.
+
+![그림 1: Durable Objects를 위한 통제와 자료 비행기 건축 본](~/assets/images/reference-architecture/durable-objects-control-data-plane-pattern/diagram.svg "Figure 1: Control and data plane architectural pattern for Durable Objects")
+
+1. London (LHR)의 사용자 자원 시작`XYZ`생성 요청. 이 요청은 가장 가까운 Cloudflare 데이터 센터로 전달되며 애플리케이션 API를 제공하는 Workers 함대에 의해 수신됩니다.
+2. Worker 코드는 적절한 제어 평면 내구재 Object 인스턴스에 대한 요청을 처리합니다.`XYZ`. 우리는 사용할 것입니다`idFromName`참고 자료에 접근하십시오 이름에 의하여 튼튼한 목표 인스턴스 (`control-plane-xyz`). 이로 인해 mapping을 유지해야 할 필요없는 Control plane 내구재 Object 인스턴스에 즉시 액세스 할 수 있습니다.
+   - 제어 평면 내구성 개체의 위치는 첫 번째 요청에 액세스하거나, 또는 우리가 사용하는 명시적 영역에 가깝습니다[위치 힌트](/durable-objects/reference/data-location/#provide-a-location-hint).
+3. 제어 평면 내구성 객체 인스턴스 (Control plane 내구재 Object 인스턴스)`control-plane-xyz`) 요청을 수신하고 즉시 다른 튼튼한 개체 인스턴스를 만듭니다 (`data-plane-xyz-03`) user request's location (using Location Hints) 근처에는 실제 튼튼한 Object 인스턴스가 리소스의 콘텐츠를 생성하는 사용자 근처에 있습니다. - 우리는 관례를 부릅니다`init(...)`만든 튼튼한 Object 인스턴스에 함수 (`data-plane-xyz-03`) 사용자 요청을 처리하기 위해 필요한 모든 메타데이터 정보를 전달합니다.
+   튼튼한 Object 인스턴스는 로컬 저장소에 이 정보를 저장하고 필요한 초기화를 수행합니다.
+   이 단계는 생성 된 자원에 각 후속 요청이 요청을 처리하는 데 필요한 모든 정보를 포함 할 수 있습니다. 예를 들어, 요청 URL이 경로와 쿼리 매개 변수로 모든 정보를 포함하면 됩니다. - - - 우리는 사용[`idFromName`](/durable-objects/api/namespace/#idfromname)참고 자료에 접근 튼튼한 목표 (`data-plane-xyz-03`) name-based resource 식별자의 사용을 허용한다. - 대안으로, 우리는 사용할 수 있습니다[`newUniqueId`](/durable-objects/api/namespace/#newuniqueid)참고 자료에 대한 접근은 이름 기반 하나 대신 사용할 수있는 랜덤 리소스 식별자를 제공 할 수있는 튼튼한 개체입니다. 이 임의 식별자는 사용자가 다시 통신해야합니다 그래서 그들은 리소스에 액세스 할 때 자신의 후속 요청에 제공.
+4. 제어 평면 내구성 객체 인스턴스 (Control plane 내구재 Object 인스턴스)`control-plane-xyz`) 생성 된 식별자를 저장 (`data-plane-xyz-03`) 로컬 저장소에, 목록/모든 생성 된 리소스를 나열 할 수 있도록, 다음 작업자에게 반환.
+5. 사용자는 자원 및 해당 식별자의 생성에 대한 성공적인 응답을받습니다. (선택적으로) 자원 자체로 리디렉션됩니다.
+6. 사용자는 이전 단계에서 반환된 리소스 식별자에 대한 API에 서면 요청을 보냅니다. 리소스의 내용을 업데이트하려면.
+7. Worker 코드는 참고 자료에 직접 제공된 리소스 식별자를 사용하므로 데이터 비행기 내구성 객체 인스턴스는 해당 리소스 (`data-plane-xyz-03`). 튼튼한 Object 인스턴스는 로컬 내구성의 지속성 스토리지에 콘텐츠를 작성하여 적절한 요청을 처리하고 이에 따라 응답을 반환합니다.
+8. Portland (PDX)의 또 다른 사용자는 이전에 생성 된 리소스에 대한 읽힌 요청을 전송합니다 (`data-plane-xyz-01`).
+9. Worker 코드는 주어진 리소스 식별자(`data-plane-xyz-01`)의 데이터를 보유한 Durable Object 인스턴스를 직접 참조하고, 해당 Durable Object 인스턴스는 로컬 스토리지를 읽어 그 콘텐츠를 반환합니다.
+
+애플리케이션 데이터 모델은 리소스 수준에서 sharding을 허용하므로 원하는만큼 스케일링 할 수 있으며 리소스에 액세스 할 수있는 사용자 근처의 데이터 로컬라이제이션을 활용합니다.
+
+동일한 본은 성과가 요구되는 것과 같이 많은 시간 적용될 수 있습니다.
+
+예를 들면, 우리의 짐에 따라서, 우리는 몇몇 Durable Objects로 우리의 통제 비행기 튼튼한 목표 더 shard 할 수 있었습니다.
+유형의 모든 리소스에 대한 단일 튼튼한 개체 인스턴스를 가지고 대신`XYZ`, 우리는 각 지역을 위해 하나가 있을 수 있었습니다.
+참고 자료에 대한 이름 기반 접근은 튼튼한 객체 인스턴스가 적절하게 대상을 단순화합니다.
+
+결론적으로, 당신이 자기 포함 된 미세 곡물 자원에 응용 프로그램의 데이터 모델을 스윙하는 방법을 찾을 때, 당신은 각 리소스에 적어도 하나의 튼튼한 개체 인스턴스를 분리 할 수 있습니다.
+
+## 관련 자료
+
+- [모델 번호: Durable Objects Namespace 문서](/durable-objects/api/namespace/)
+- [Durable Objects: 쉬운, 빠른, 정확한 — 3를 선택하십시오](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/)
+- [Zero-latency SQLite 스토리지는 모든 튼튼한 개체에서](https://blog.cloudflare.com/sqlite-in-durable-objects/)
+- [자료, 통제, 관리: 3개의 계획, 다른 고도](https://thenewstack.io/data-control-management-three-planes-different-altitudes/)
+- 이 건축 패턴의 예 :
+  - [Durable Objects는 다만 튼튼하지 않습니다, 그들은 빨리 입니다: Cloudflare Queues를 위한 10x speedup](https://blog.cloudflare.com/how-we-built-cloudflare-queues/)
+  - [Cloudflare Durable Objects와 Workers로 글로벌 TiddlyWiki 호스팅 플랫폼 구축 - Tiddlyflare](https://www.lambrospetrou.com/articles/tiddlyflare/)

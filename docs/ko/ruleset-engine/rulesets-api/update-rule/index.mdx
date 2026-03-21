@@ -1,0 +1,170 @@
+---
+title: 규칙을 업데이트
+pcx_content_type: reference
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/update-rule/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/rulesets-api/update-rule/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+계정 또는 영역 수준에서 규칙의 기존 규칙에 하나 이상의 변경을 적용합니다.
+
+다음 API 엔드포인트 중 하나를 사용하십시오:
+
+- [계정 규칙 업데이트](/api/resources/rulesets/subresources/rules/methods/edit/)<br />
+  `PATCH /accounts/{account_id}/rulesets/{ruleset_id}/rules/{rule_id}`
+- [지역 규칙 규칙 업데이트](/api/resources/rulesets/subresources/rules/methods/edit/)<br />
+  `PATCH /zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}`
+
+규칙의 정의를 업데이트 할 수 있습니다, 그것의 필드를 변경, 또는 규칙의 순서를 변경. 이 방법을 호출하면 규칙의 새로운 버전을 만듭니다.
+
+## 규칙의 정의를 업데이트
+
+규칙의 정의를 업데이트하려면 요청 신체의 새로운 규칙 정의가 포함되어 있습니다. 새로운 규칙 정의의 일부가되고 싶은 모든 규칙 필드를 포함해야 합니다.
+
+응답은 규칙을 업데이트 한 후 완전한 규칙을 포함합니다.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  parameters={{
+  	rule_id: "$RULE_ID_1",
+  }}
+  json={{
+  	action: "js_challenge",
+  	expression:
+  		'(ip.src.country in {"GB" "FR"} and cf.bot_management.score < 20 and not cf.bot_management.verified_bot)',
+  	description: "challenge GB and FR based on bot score",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Custom Ruleset 1",
+		"description": "My first custom ruleset",
+		"kind": "custom",
+		"version": "11",
+		"rules": [
+			{
+				"id": "<RULE_ID_1>",
+				"version": "2",
+				"action": "js_challenge",
+				"expression": "(ip.src.country in {\"GB\" \"FR\"} and cf.bot_management.score < 20 and not cf.bot_management.verified_bot)",
+				"description": "challenge GB and FR based on bot score",
+				"last_updated": "2023-03-22T12:54:58.144683Z",
+				"ref": "<RULE_REF_1>",
+				"enabled": true
+			},
+			{
+				"id": "<RULE_ID_2>",
+				"version": "1",
+				"action": "challenge",
+				"expression": "not http.request.uri.path matches \"^/api/.*$\"",
+				"last_updated": "2022-11-23T11:36:24.192361Z",
+				"ref": "<RULE_REF_2>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2023-03-22T12:54:58.144683Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 규칙의 순서를 변경
+
+규칙의 목록에서 규칙을 재주문하려면 다음을 포함합니다.`position`요청의 객체, 다음 중 하나를 포함:
+
+<Render file="rule-position-values" product="ruleset-engine" />
+
+정의를 변경하지 않고 규칙을 재주문`position`객체의`PATCH`요청 몸. 당신은 또한 규칙 정의를 업데이트하고 동일한에서 그것을 다시 주문할 수 있습니다`PATCH`둘 다를 포함하여 요청`rule`객체와`position`객체.
+
+### 이름 \*
+
+다음 예제는 다음과 같습니다 (약어) 규칙 :
+
+```json
+{
+	"rules": [
+		{ "id": "<RULE_ID_1>" },
+		{ "id": "<RULE_ID_2>" },
+		{ "id": "<RULE_ID_3>" },
+		{ "id": "<RULE_ID_4>" }
+	]
+}
+```
+
+#### 예제 1
+
+다음 요청으로`position`객체 장소 규칙`$RULE_ID_2`첫번째 규칙으로:
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  parameters={{
+  	rule_id: "$RULE_ID_2",
+  }}
+  json={{
+  	position: {
+  		before: "",
+  	},
+  }}
+/>
+
+이 경우, 새로운 규칙 순서는:
+
+`<RULE_ID_2>`, `<RULE_ID_1>`, `<RULE_ID_3>`, `<RULE_ID_4>`
+
+#### 예제 2
+
+다음 요청으로`position`객체 장소 규칙`$RULE_ID_2`규칙 3 후:
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  parameters={{
+  	rule_id: "$RULE_ID_2",
+  }}
+  json={{
+  	position: {
+  		after: "<RULE_ID_3>",
+  	},
+  }}
+/>
+
+이 경우, 새로운 규칙 순서는:
+
+`<RULE_ID_1>`, `<RULE_ID_3>`, `<RULE_ID_2>`, `<RULE_ID_4>`
+
+#### 예제 3
+
+다음 요청으로`position`객체 장소 규칙`$RULE_ID_1`위치 3, 규칙에 세 번째 규칙이 :
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  parameters={{
+  	rule_id: "$RULE_ID_1",
+  }}
+  json={{
+  	position: {
+  		index: 3,
+  	},
+  }}
+/>
+
+이 경우, 새로운 규칙 순서는:
+
+`<RULE_ID_2>`, `<RULE_ID_3>`, `<RULE_ID_1>`, `<RULE_ID_4>`

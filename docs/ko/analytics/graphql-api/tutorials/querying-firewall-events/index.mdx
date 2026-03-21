@@ -1,0 +1,186 @@
+---
+pcx_content_type: example
+title: GraphQL로 Firewall Events 조회하기
+
+---
+
+이 예제에서는 GraphQL Analytics API를 사용해 지정한 기간의 Firewall Events를 조회합니다.
+
+다음 API 호출은 1시간 동안의 Firewall Events를 요청하고, 요청한 필드를 출력합니다. `<CLOUDFLARE_ZONE_TAG>`, `<EMAIL>`, `<API_TOKEN>`[^1]을 zone tag와 API 자격 증명으로 바꾸고, 원하는 대로 `datetime_geq` 및 `datetime_leq` 값을 조정하세요.
+
+## API 호출
+
+```bash
+echo '{ "query":
+  "query ListFirewallEvents($zoneTag: string, $filter: FirewallEventsAdaptiveFilter_InputObject) {
+    viewer {
+      zones(filter: { zoneTag: $zoneTag }) {
+        firewallEventsAdaptive(
+          filter: $filter
+          limit: 10
+          orderBy: [datetime_DESC]
+        ) {
+          action
+          clientAsn
+          clientCountryName
+          clientIP
+          clientRequestPath
+          clientRequestQuery
+          datetime
+          source
+          userAgent
+        }
+      }
+    }
+  }",
+  "variables": {
+    "zoneTag": "<CLOUDFLARE_ZONE_TAG>",
+    "filter": {
+      "datetime_geq": "2022-07-24T11:00:00Z",
+      "datetime_leq": "2022-07-24T12:00:00Z"
+    }
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @-
+```
+
+반환 결과는 JSON(요청한 형식)으로 제공되므로, 예를 들어 다음처럼 `jq`로 파이프하면 읽기 쉬워집니다.
+
+```bash
+... | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+
+#=> {
+#=>   "data": {
+#=>     "viewer": {
+#=>       "zones": [
+#=>         {
+#=>           "firewallEventsAdaptive": [
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "block",
+#=>               "clientAsn": "5089",
+#=>               "clientCountryName": "GB",
+#=>               "clientIP": "203.0.113.69",
+#=>               "clientRequestPath": "/%3Cscript%3Ealert()%3C/script%3E",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:11:24Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "58224",
+#=>               "clientCountryName": "IR",
+#=>               "clientIP": "2.183.175.37",
+#=>               "clientRequestPath": "/api/v2",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:00:54Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+#=>             },
+#=>             {
+#=>               "action": "log",
+#=>               "clientAsn": "58224",
+#=>               "clientCountryName": "IR",
+#=>               "clientIP": "2.183.175.37",
+#=>               "clientRequestPath": "/api/v2",
+#=>               "clientRequestQuery": "",
+#=>               "datetime": "2020-04-24T10:00:54Z",
+#=>               "source": "waf",
+#=>               "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36"
+#=>             }
+#=>           ]
+#=>         }
+#=>       ]
+#=>     }
+#=>   },
+#=>   "errors": null
+#=> }
+```
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

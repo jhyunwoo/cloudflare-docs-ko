@@ -1,0 +1,276 @@
+---
+pcx_content_type: concept
+title: '모델 번호: Pages 플러그인'
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DirectoryListing, Render } from "~/components";
+
+Cloudflare는 공식 Pages의 수를 유지합니다 Pages 프로젝트에 사용하기 위한 플러그인:
+
+<DirectoryListing />
+
+***
+
+## 저자 Pages 다운로드
+
+Pages 플러그인은 Pages 내장 라우팅 및 기능을 포함하는 기능 배포 개발자는 선택한 Pages 프로젝트의 일부로 플러그인을 포함 할 수 있으며 일부 구성 옵션을 통과 할 수 있습니다. 기능의 전체 전력은 중간웨어, 매개 변수 경로 및 정적 자산을 포함하여 플러그인에 사용할 수 있습니다.
+
+예를 들어, Pages 플러그인 수:
+
+- HTML 페이지를 삽입하고 타사 스크립트에 주입합니다.
+- 제3자 서비스 API 프록시.
+- 승인 헤더를 검증합니다.
+- 전체 관리자 웹 앱 경험을 제공합니다.
+- KV 또는 Durable ObjectsXQ에 있는 자료 저장.
+- Server-side 렌더링 (SSR) CMS의 데이터가있는 웹 페이지.
+- 오류 및 트랙 성능 보고서.
+
+Pages 플러그인은 기본적으로 개발자들이 기존 Pages 프로젝트에 사용할 수 있는 라이브러리입니다.
+
+## Pages 플러그인 사용
+
+개발자는 Pages 플러그인을 설치하여 프로젝트를 향상시킬 수 있습니다. 플러그인은 일반적으로 장착해야 할 곳의 지침을 제공 할 것입니다 (예를 들어, 관리자 인터페이스가 장착 될 수 있음)`functions/admin/[[path]].ts`, 과 오류 로그에 장착 될 수 있습니다`functions/_middleware.ts`). 또한 각 플러그인은 일부 구성을 취할 수 있습니다 (예를 들어, API 토큰).
+
+***
+
+## 정체되는 모양 예
+
+이 예제에서 Pages 플러그인을 빌드하고 프로젝트에 포함 할 것입니다.
+
+첫 번째 플러그인은:
+
+- HTML 형식을 구별합니다.
+- 본문내용 바로가기[모델 번호: KV](/kv/api/).
+- 개발자의 맞춤 응답으로 제출에 응답합니다.
+
+### 1. 새로운 Pages를 창조하십시오 다운로드
+
+이름 \*`package.json`다음으로:
+
+```json
+{
+	"name": "@cloudflare/static-form-interceptor",
+	"main": "dist/index.js",
+	"types": "index.d.ts",
+	"files": ["dist", "index.d.ts", "tsconfig.json"],
+	"scripts": {
+		"build": "npx wrangler pages functions build --plugin --outdir=dist",
+		"prepare": "npm run build"
+	}
+}
+```
+
+:::참조
+
+더 보기`npx wrangler pages functions build`명령은 다음과 같은 인수의 수를 지원합니다:
+
+- `--plugin`Pages 플러그인을 빌드하는 명령을 알려줍니다. (Pages 기능보다 Pages 프로젝트의 일부로)
+- `--outdir`내장 된 플러그인을 출력 할 수있는 위치를 지정 할 수 있습니다.
+- `--external`플러그인에서 외부 모듈을 묶는 데 사용할 수 있습니다.
+- `--watch`인수는 소스 파일에 대한 변경을보고 플러그인을 자동으로 재구성합니다.
+
+사용 가능한 인수에 대한 자세한 내용은 실행`npx wrangler pages functions build --help`.
+
+:::
+
+우리의 예제에서,`dist/index.js`플러그인에 엔트리 포인트가 될 것입니다. 이것은 Wrangler에 의해 건축된 생성한 파일입니다`npm run build`명령. 추가하기`dist/`로그인`.gitignore`.
+
+다음, 생성`functions`디렉토리 및 시작 coding your Plugin. 더 보기`functions`폴더는 개발자에 의해 몇 가지 경로에 장착됩니다, 그래서 당신은 당신의 파일을 구조하려는 방법을 고려. 일반적으로:
+
+- 개발자의 선택의 단일 경로에서 실행하려면 플러그인을 원한다면 (예를 들어,`/foo`), 창조`functions/index.ts`파일.
+- 플러그인을 설치하고 특정 경로 (예를 들어,`/admin/login`·`/admin/dashboard`), 창조`functions/[[path]].ts`파일.
+- 요청을 가로지르는 플러그인을 원하면 다른 기능이나 프로젝트의 정적 자산에 떨어지게 됩니다.`functions/_middleware.ts`파일.
+
+:::note\[앱에 탑재된 경로 포함]
+
+플러그인은 파일 구조에서 마운트 경로를 사용할 수 없습니다 (예를 들어,`/foo`또는`/admin`). 개발자는 선택한 플러그인을 마운트하기 위해 무료입니다. 그러나이 작업을 기대하는 방법을 추천 할 수 있습니다.`README.md`.
+
+:::
+
+당신은 당신이 필요로 한 많은 다른 파일로 자유롭게 사용할 수 있습니다. 플러그인의 구조는 오늘 Pages 프로젝트의 기능과 정확히 동일하며 핸들러가 매개 변수 객체의 새로운 속성을받습니다.`pluginArgs`. 이 속성은 개발자가 플러그인을 장착할 때 전달되는 초기화 매개 변수입니다. API 토큰, KV/Durable Object 네임스페이스, 또는 플러그인이 작동해야 하는 다른 것들을 받을 수 있습니다.
+
+HTML 양식의 동작을 가로지르는 경우, 요청을 가로지르고 HTML 양식의 동작을 무시할 경우,`functions/_middleware.ts`. 개발자는 다음 단일 경로 또는 전체 프로젝트에 플러그인을 마운트 할 수 있습니다.
+
+```typescript
+class FormHandler {
+	element(element) {
+		const name = element.getAttribute("data-static-form-name");
+		element.setAttribute("method", "POST");
+		element.removeAttribute("action");
+		element.append(
+			`<input type="hidden" name="static-form-name" value="${name}" />`,
+			{ html: true },
+		);
+	}
+}
+
+export const onRequestGet = async (context) => {
+	//우리는 첫번째 프로젝트에서 본래 응답을 얻습니다
+	const response = await context.next();
+
+	//그런 다음 HTMLRewriter를 사용하여 `form` 요소를 `data-static-form-name` 속성으로 변환하여 POST를 현재 페이지에 알리십시오.
+	return new HTMLRewriter()
+		.on("form[data-static-form-name]", new FormHandler())
+		.transform(response);
+};
+
+export const onRequestPost = async (context) => {
+	//양식을 파기
+	const formData = await context.request.formData();
+	const name = formData.get("static-form-name");
+	const entries = Object.fromEntries(
+		[...formData.entries()].filter(([name]) => name !== "static-form-name"),
+	);
+
+	//개발자가 Plugin에 주어진 인수를 가져옵니다.
+	const { kv, respondWith } = context.pluginArgs;
+
+	//키 `form-name:YYYY-MM-DDTHH:MM:SSZ`XQ의 QXQXQXQXQXQ의 QXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQX
+	const key = `${name}:${new Date().toISOString()}`;
+	context.waitUntil(kv.put(name, JSON.stringify(entries)));
+
+	//개발자가 원하는 모든 응답
+	const response = await respondWith({ formData });
+	return response;
+};
+```
+
+### 2. Pages를 타자를 치십시오 다운로드
+
+좋은 개발자 경험을 만들려면 플러그인에 TypeScript 타이핑을 추가해야합니다. 이것은 개발자가 autocompletion에 대한 IDE 기능을 사용할 수 있으며 예상되는 모든 매개 변수를 포함합니다.
+
+내 계정`index.d.ts`, 당신의 기능을 가지고 가는 수출`pluginArgs`그리고 반환`PagesFunction`. 당신의 정체되는 모양 예를 들면, 당신은 2개의 재산을 가지고 갑니다,`kv`KV 네임스페이스 및`respondWith`, 객체를 가지고하는 함수`formData`호텔 ()`FormData`) 그리고 반환`Promise`한국어`Response`:
+
+```typescript
+export type PluginArgs = {
+	kv: KVNamespace;
+	respondWith: (args: { formData: FormData }) => Promise<Response>;
+};
+
+export default function (args: PluginArgs): PagesFunction;
+```
+
+### 3. Pages 플러그인 테스트
+
+우리는 여전히 Pages 플러그인 작성자를위한 훌륭한 테스트 경험을 만들기 위해 노력하고 있습니다. 모든 조각이 함께 올 때까지 환자가 되십시오. 반면에, 당신은 예를 만들 수 있습니다 프로젝트와 테스트를 위해 플러그인을 수동으로 포함.
+
+### 4. Pages를 발행하십시오 다운로드
+
+플러그인을 배포할 수 있습니다. 인기 옵션은 게시에 포함[₢ 킹](https://www.npmjs.com/), 우리의 #what-i-build 또는 #pages-discussions 채널에서 그것을 보여줍니다[개발자 Discord](https://discord.com/invite/cloudflaredev), 그리고 열려있는 sourcing에[프로젝트](https://github.com/).
+
+생성을 포함한 확인`dist/`디렉토리, 입력`index.d.ts`, 뿐 아니라`README.md`개발자가 플러그인을 사용할 수있는 방법에 대한 지침.
+
+***
+
+### 5. Pages를 설치하십시오 다운로드
+
+응용 프로그램에 Pages 플러그인을 포함 하려는 경우 먼저 프로젝트에 플러그인을 설치해야합니다.
+
+아직 사용되지 않은 경우`npm`프로젝트에서 실행`npm init`더 보기`package.json`파일. 플러그인`README.md`일반적으로 설치 명령 (예를 들어,`npm install --save @cloudflare/static-form-interceptor`).
+
+### 6. Pages를 거치하십시오 다운로드
+
+더 보기`README.md`플러그인의 경우 응용 프로그램에 플러그인을 마운트하는 방법에 대한 지침이 포함될 것입니다. 당신은 필요:
+
+1. 이름 \*`functions`디렉토리, 이미 하나가없는 경우.
+2. 이 플러그인을 실행하고 해당 파일을 만들려면 Decide`functions`디렉토리.
+3. 플러그인 및 내보내기 가져오기`onRequest`이 파일의 방법, 어떤 인수와 플러그인을 초기화.
+
+정적 형태 예에서, 플러그인은 이미 미들웨어로 만들어졌습니다. 이것은 단일 경로 중 하나 또는 전체 프로젝트에 실행할 수 있습니다. 웹 사이트에 단일 연락처 양식이 있다면`/contact`, 당신은 창조할 수 있었습니다`functions/contact.ts`그 루트를 구별하는 파일. 또한 만들 수 있습니다`functions/_middleware.ts`다른 모든 노선과 다른 미래의 형태를 교차하는 파일이 생성 될 수 있습니다. 개발자로서, 이 플러그인이 실행될 수 있는 위치를 선택할 수 있습니다.
+
+플러그인의 기본 수출은 일반 Pages 기능 핸들러가 주어집니다.
+
+```typescript
+import staticFormInterceptorPlugin from "@cloudflare/static-form-interceptor";
+
+export const onRequest = (context) => {
+	return staticFormInterceptorPlugin({
+		kv: context.env.FORM_KV,
+		respondWith: async ({ formData }) => {
+			//이메일/공지사항이 있을 수 있습니다.
+			const name = formData.get("name");
+			return new Response(`Thank you for your submission, ${name}!`);
+		},
+	})(context);
+};
+```
+
+### 7. Pages 플러그인 테스트
+
+사용 가능`wrangler pages dev`Pages 프로젝트를 테스트하려면 설치한 모든 플러그인을 포함하여. 플러그인이 기대되는 KV 바인딩 및 환경 변수를 포함하는 것을 기억하십시오.
+
+플러그인을 사용하여`/contact`해당 HTML 파일 경로는 다음과 같습니다:
+
+```html
+<!DOCTYPE html>
+<html>
+	<body>
+		<h1>Contact us</h1>
+		<!--`data-static-form-name` 속성을 포함-->
+		<form data-static-form-name="contact">
+			<label>
+				<span>Name</span>
+				<input type="text" autocomplete="name" name="name" />
+			</label>
+			<label>
+				<span>Message</span>
+				<textarea name="message"></textarea>
+			</label>
+		</form>
+	</body>
+</html>
+```
+
+플러그인을 선택해야`data-static-form-name="contact"`속성, 설정`method="POST"`, 주사`<input type="hidden" name="static-form-name" value="contact" />`요소 및 캡처`POST`제출.
+
+### 8. Pages 프로젝트 배포
+
+새로운 플러그인이 추가되었는지 확인합니다.`package.json`그리고 그 모든 것은 당신이 기대할 것만큼 현지에서 작동합니다. 다음을 할 수 있습니다`git commit`·`git push`Cloudflare Pages 배포를 트리거합니다.
+
+하나 개의 플러그인으로 문제가 발생하면 해당 플러그인의 버그 트래커에 문제가 발생합니다.
+
+일반적으로 플러그인으로 문제가 발생하면 #pages-discussions 채널에서 피드백을 평가할 것입니다.[공지사항](https://discord.com/invite/cloudflaredev)! 우리는 당신이 플러그인을 구축하고 승인 또는 개발자 경험에 대한 피드백을 환영합니다 무엇을 볼 흥분. Discord 채널에서 알고 있다면 플러그인을 더 강력하게 만들 필요가 없습니다.
+
+***
+
+## 플러그인
+
+마지막으로, Pages로 일반적으로, 그것은 서로 다른 기능을 결합하기 위해 플러그인을 함께 체인 할 수있다. Middleware는 파일 시스템에 더 높은 정의는 다른 핸들러 전에 실행되며, 개별 파일은 같은 배열에서 기능을 함께 체인 할 수 있습니다.
+
+```typescript
+import sentryPlugin from "@cloudflare/pages-plugin-sentry";
+import cloudflareAccessPlugin from "@cloudflare/pages-plugin-cloudflare-access";
+import adminDashboardPlugin from "@cloudflare/a-fictional-admin-plugin";
+
+export const onRequest = [
+	//센트리 플러그인을 초기화하여 오류를 캡처
+	sentryPlugin({ dsn: "https://sentry.io/welcome/xyz" }),
+
+	//Cloudflare를 초기화 액세스 플러그인 관리자 만이 보호 경로에 액세스 할 수 있도록
+	cloudflareAccessPlugin({
+		domain: "https://test.cloudflareaccess.com",
+		aud: "4714c1358e65fe4b408ad6d432a5f878f08194bdb4752441fd56faefa9b2b6f2",
+	}),
+
+	//현재 사용자에 대한 추가 정보와 Sentry 플러그인을 Populate
+	(context) => {
+		const email =
+			context.data.cloudflareAccessJWT.payload?.email || "service user";
+
+		context.data.sentry.setUser({ email });
+
+		return next();
+	},
+
+	//마지막으로, admin 대시보드 플러그인을 제공하며 오류가 캡처되고 모든 수신 요청이 인증되었습니다.
+	adminDashboardPlugin(),
+];
+```

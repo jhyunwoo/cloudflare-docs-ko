@@ -1,0 +1,89 @@
+---
+pcx_content_type: concept
+title: FTP
+weight: 0
+
+---
+
+프로토콜 구현 방식 때문에 FTP에 대해 Spectrum을 활성화하는 일은 단순하지 않습니다. 이 가이드는 FTP의 복잡한 동작 방식과 어떤 상황에서 FTP 서비스에 Spectrum을 활성화할 수 있는지에 대한 개요를 제공합니다.
+
+:::note
+
+
+이 기능을 사용하려면 Enterprise 요금제가 필요합니다. 업그레이드하려면 계정 팀에 문의하세요.
+
+
+:::
+
+## FTP 작동 방식
+
+FTP는 두 개의 서로 다른 소켓을 사용합니다. 하나는 명령을 전송하기 위한 것이고, 다른 하나는 실제 데이터 전송을 위한 것입니다. 제어 소켓은 사용자의 로그인과 명령 전송을 처리하고, 데이터 소켓은 디렉터리 목록과 파일이 실제로 전송되는 곳입니다.
+
+클라이언트와 서버가 데이터 소켓을 설정하는 방식에는 active와 passive 두 가지가 있습니다. active 모드에서는 서버가 클라이언트가 지정한 포트로 다시 연결하는데, 이로 인해 클라이언트가 NAT 뒤에 있을 때 문제가 생길 수 있습니다. 대안은 passive 모드로, 서버가 추가 포트를 열고 클라이언트가 그 포트로 연결하는 방식입니다. Active FTP와 Passive FTP의 차이에 대한 개요는 [Active FTP vs. Passive FTP, a Definitive Explanation](http://slacksite.com/other/ftp.html)을 참고하세요.
+
+passive 모드에서는 FTP 서버가 클라이언트가 연결해야 할 포트를 전달하는데, 이는 제어 소켓에서 PASV 명령을 통해 수행됩니다. 기본적으로 FTP 서버는 자신이 수신 중인 IP 주소를 응답합니다. 이 시나리오는 공개 IP에서 직접 실행되는 서버에는 문제가 없지만, 서버가 NAT, 방화벽 또는 Cloudflare Spectrum 뒤에 있을 때는 문제가 발생합니다.
+
+대안으로, 보다 현대적인 FTP 서버 소프트웨어는 [FTP 확장](https://tools.ietf.org/html/rfc2428)을 지원하며, 여기에는 클라이언트가 연결해야 할 IP 주소를 생략하는 EPSV 명령이 포함됩니다. 대신 클라이언트는 제어 채널에 연결할 때 사용한 동일한 IP로 연결합니다.
+
+## 지원되는 것과 지원되지 않는 것
+
+Spectrum은 *passive mode에서만* FTP 트래픽을 제공하는 서버를 보호할 수 있습니다. active 모드는 지원되지 않는데, 오리진 서버는 실제 클라이언트가 아니라 Spectrum IP를 클라이언트로 보게 되기 때문입니다. 클라이언트가 자신의 IP와 함께 PORT 명령을 보내면 FTP 서버는 두 주소가 일치하지 않으므로 이를 거부합니다.
+
+EPSV와 함께 사용하는 passive 모드는 오리진 측 추가 설정 없이 바로 동작합니다. 이를 사용하려면 클라이언트도 EPSV를 지원해야 한다는 점에 유의하세요. 전통적인 PASV 기반 passive 모드는 오리진 측에서 최소한의 설정으로 사용할 수 있습니다(아래 `Spectrum으로 FTP 서버 보호` 참고).
+
+## Spectrum으로 FTP 서버 보호
+
+FTP 서버를 보호하도록 Spectrum을 구성하려면 오리진을 가리키는 Spectrum 애플리케이션 집합을 만들고 FTP 서버 측에서 일부 설정을 해야 합니다.
+
+### 제어 포트 보호
+
+제어 채널은 기본적으로 포트 21에서 동작하며, FTP 서버의 이 부분을 보호하기 위해 특별히 해야 할 일은 없습니다. 아래 예시에서는 `198.51.100.1`을 오리진 서버의 IP로 바꾸세요.
+
+![IP 주소와 포트가 21로 설정된 애플리케이션 추가 대화상자](~/assets/images/spectrum/ftp-control-plane-app.png)
+
+이 구성은 들어오는 연결을 오리진으로 프록시합니다. 그러나 클라이언트가 PASV 명령을 보내면 데이터 연결용으로 여전히 실제 오리진 IP를 받게 됩니다. 이렇게 되면 오리진 IP가 Spectrum 뒤에 숨겨지지 않고 클라이언트에 노출되므로 바람직하지 않습니다. 이를 방지하는 단계는 아래 섹션에 설명되어 있습니다.
+
+### 데이터 포트 보호
+
+대부분의 FTP 서버는 서버가 데이터 연결을 열 때 사용할 포트 범위를 구성할 수 있습니다. 서버의 다른 포트가 실수로 노출되지 않도록 포트 범위를 명시하는 것이 좋습니다. 범위 내 각 포트마다, 해당 포트로 매핑되는 Spectrum 애플리케이션을 하나씩 만드세요.
+
+또한 클라이언트가 PASV 명령을 보낼 때 FTP 서버가 올바른 IP를 노출하도록 구성해야 합니다. 이 IP는 Spectrum 앱의 IP와 일치해야 합니다.
+
+일부 FTP 서버는 hostname 동적 해석도 지원합니다. 이 경우 IP 대신 Spectrum 앱 URL을 사용하는 것이 좋습니다.
+
+[vsftpd](https://security.appspot.com/vsftpd.html) 예시 구성:
+
+> ```bash
+> pasv_min_port=20000
+> pasv_max_port=20020
+>
+> pasv_enable=YES
+> pasv_address=ftp.example.com
+> pasv_addr_resolve=YES
+> pasv_promiscuous=YES
+> ```
+
+### Spectrum FTPS (ProFTPD) 설정 안내
+
+FTPS, 특히 ProFTPD를 프록시하고 보호하기 위해 Spectrum TCP를 사용하려면 다음 예시 구성을 권장합니다.
+
+* **제어 포트**: 포트 21
+* **데이터 포트**: 포트 범위 50000-50500
+
+ProFTPD 서버 측에서는 다음 예시 구성을 사용하세요.
+
+* `MasqueradeAddress`: `www.example.com`
+* `AllowForeignAddress`: 모든 IP를 허용하려면 `on` 옵션을 사용할 수 있지만, [Cloudflare IP](/fundamentals/concepts/cloudflare-ip-addresses/#allow-cloudflare-ip-addresses)만 허용하는 것을 권장합니다.
+* `PassivePorts`: `50000-50500`
+
+자세한 내용은 [ProFTPD documentation](http://www.proftpd.org/docs/modules/mod_core.html)을 참고하세요.
+
+## SFTP
+
+FTP나 FTPS와 달리, SFTP에 대해 Spectrum을 활성화하는 데는 추가 설정이 필요하지 않습니다. SSH용 Spectrum 애플리케이션을 설정할 때 포트 22와 TCP를 선택하면 됩니다.
+
+## Microsoft Windows IIS FTP
+
+정적 데이터 포트 범위와 Spectrum 애플리케이션에 맞는 외부 IP를 구성하려면 [Microsoft Windows IIS documentation](https://docs.microsoft.com/en-us/iis/publish/using-the-ftp-service/configuring-ftp-firewall-settings-in-iis-7#step-1-configure-the-passive-port-range-for-the-ftp-service)을 참고하세요.
+
+또한 IIS는 FTP 제어 연결과 데이터 연결 모두에 대해 소스 IP가 동일해야 한다고 요구합니다. 하지만 Spectrum을 사용할 경우 두 연결이 서로 다른 고유 egress IP를 가진 서버에서 종료되는 경우가 많아 이 요구사항이 충족되지 않을 수 있습니다. 올바르게 동작하도록 하려면 `dataChannelSecurity/matchClientAddressForPasv = false`도 설정하세요. 자세한 내용은 [Microsoft Windows IIS FTP Official Guide](https://learn.microsoft.com/en-us/iis/configuration/system.applicationhost/sites/site/ftpserver/security/datachannelsecurity)를 참고하세요.

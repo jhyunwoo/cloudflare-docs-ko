@@ -1,0 +1,113 @@
+---
+pcx_content_type: configuration
+title: 주문 metadata
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/observability/custom-metadata/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/observability/custom-metadata/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+AI Gateway의 사용자 정의 메타 데이터는 사용자 ID 또는 기타 식별자와의 요청을 태그 할 수 있으므로 요청의 더 나은 추적 및 분석이 가능합니다. Metadata 값은 문자열, 숫자, 또는 booleans가 될 수 있으며 로그에 표시되며 데이터를 통해 검색 및 필터를 쉽게 만들 수 있습니다.
+
+## 핵심 특징
+
+- **사용자 정의 Tagging**: 사용자 ID, 팀 이름, 테스트 지표 및 기타 관련 정보를 귀하의 요청에 추가하십시오.
+- **향상된 로깅**: Metadata는 로그에 나타나며, 상세한 검사 및 문제 해결을 허용한다.
+- **검색 및 필터**: metadata를 사용하여 효율적으로 검색 및 필터를 통해 로그인 요청합니다.
+
+:::참조
+
+AI Gateway는 요청당 최대 5개의 맞춤 메타데이터 항목을 전달할 수 있습니다. 5 개 이상의 항목이 제공되면 첫 번째 5 만 저장됩니다. 추가 항목은 무시됩니다. 사용자 정의 메타데이터가 처리되지 않거나 손실된 데이터를 피하기 위해 5 항목으로 제한됩니다.
+
+:::
+
+## 지원된 Metadata 유형
+
+- 스트레이트
+- 이름 \*
+- 스낵 바
+
+:::참조
+
+Objects는 metadata 값으로 지원되지 않습니다.
+
+:::
+
+## 회사연혁
+
+### cURL 사용
+
+cURL을 사용하여 요청에서 사용자 정의 메타 데이터를 포함 :
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header 'Authorization: Bearer {api_token}' \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-metadata: {"team": "AI", "user": 12345, "test":true}' \
+  --data '{"model": "gpt-4o", "messages": [{"role": "user", "content": "What should I eat for lunch?"}]}'
+```
+
+### SDK 사용
+
+OpenAI SDK를 사용하여 요청에서 사용자 정의 메타 데이터를 포함:
+
+```javascript
+import OpenAI from "openai";
+
+export default {
+ async fetch(request, env, ctx) {
+   const openai = new OpenAI({
+     apiKey: env.OPENAI_API_KEY,
+     baseURL: "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai",
+   });
+
+   try {
+     const chatCompletion = await openai.chat.completions.create(
+       {
+         model: "gpt-4o",
+         messages: [{ role: "user", content: "What should I eat for lunch?" }],
+         max_tokens: 50,
+       },
+       {
+         headers: {
+           "cf-aig-metadata": JSON.stringify({
+             user: "JaneDoe",
+             team: 12345,
+             test: true
+           }),
+         },
+       }
+     );
+
+     const response = chatCompletion.choices[0].message;
+     return new Response(JSON.stringify(response));
+   } catch (e) {
+     console.log(e);
+     return new Response(e);
+   }
+ },
+};
+```
+
+### Binding 사용
+
+사용자 정의 메타 데이터 포함[회사 소개](/workers/runtime-apis/bindings/):
+
+```javascript
+export default {
+ async fetch(request, env, ctx) {
+   const aiResp = await env.AI.run(
+       '@cf/mistral/mistral-7b-instruct-v0.1',
+       { prompt: 'What should I eat for lunch?' },
+       { gateway: { id: 'gateway_id', metadata: { "team": "AI", "user": 12345, "test": true} } }
+   );
+
+   return new Response(aiResp);
+ },
+};
+```

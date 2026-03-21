@@ -1,0 +1,280 @@
+---
+title: 방화벽 규칙 업그레이드
+pcx_content_type: reference
+sidebar:
+  order: 5
+  label: 방화벽 규칙 업그레이드
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/reference/legacy/firewall-rules-upgrade/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/reference/legacy/firewall-rules-upgrade/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare 업그레이드[방화벽 규칙](/firewall/)로그인[주문 규칙](/waf/custom-rules/). 사용자 정의 규칙으로, 당신은 보호의 동일한 수준을 얻을 몇 가지 추가 기능. 주문 규칙은 다음 위치에 Cloudflare 대시보드에서 유효합니다:
+
+- 오래된 대시보드:**보안 보안** > **사이트맵** > **주문 규칙**.
+- 새로운 안전 대시보드:**보안 보안** > **보안 규칙**.
+
+:::caution\[조정안내]
+
+**사이트맵 방화벽 규칙은 이제 비활성화됩니다.**&#xBC29;화벽 규칙 API 및 필터 API뿐만 아니라`cloudflare_firewall_rule`·`cloudflare_filter`Terraform 자원은 2025-06-15 이후 더 이상 지원되지 않습니다. 이 API 및 리소스를 기반으로 한 모든 자동화가 있다면 새로운 API 및 리소스로 마이그레이션해야 합니다.
+
+WAF 맞춤 규칙을 아직 업그레이드하지 않은 경우 업그레이드를 방지하는 일부 잘못된 구성이있을 수 있습니다. 이 경우, 귀하의 계정 팀이 WAF 맞춤 규칙으로 업그레이드하는 데 도움이됩니다.
+
+:::
+
+## 주요 차이점
+
+방화벽 규칙과 WAF의 주요 차이점은 다음과 같습니다.
+
+- [Block Action에 대한 향상된 응답](#improved-response-for-block-action)
+- [차단된 요청에 대한 다른 오류 페이지](#different-error-page-for-blocked-requests)
+- [새로운 Skip 행동 교체 모두 허용 및 우회 행동](#new-skip-action-replacing-both-allow-and-bypass-actions)
+- [주문 규칙은 순서에서 평가됩니다](#custom-rules-are-evaluated-in-order)
+- [로그 및 이벤트](#logs-and-events)
+- [새로운 API 및 Terraform 리소스](#new-api-and-terraform-resources)
+
+### Block Action에 대한 향상된 응답
+
+WAF 사용자 정의 규칙에서[응답을 사용자 정의*제품정보*이름 \*](/waf/custom-rules/create-dashboard/#configure-a-custom-response-for-blocked-requests).
+
+기본 블록 응답은 Cloudflare 표준 HTML 페이지입니다. 사용자 지정 응답을 보낼 필요가 있다면*제품정보*작업, 사용자 정의 규칙을 구성하여 사용자 정의 응답 코드 (403, 기본적으로) 및 사용자 정의 바디 (HTML, JSON, XML 또는 일반 텍스트)와 고정 응답을 반환합니다.
+
+:::참조
+사용자 정의 블록 응답 구성은 방화벽 규칙 API에 의해 반환되지 않습니다. 당신은 사용해야[규칙 세트 API](/waf/custom-rules/create-api/#example-b)이 새로운 기능을 관리합니다.
+주요 특징
+
+### 차단된 요청에 대한 다른 오류 페이지
+
+방화벽 규칙에 의해 차단 요청*제품정보*작용은 Cloudflare를 얻을 것입니다[1020 오류 코드](/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1020/)응답. Cloudflare 사용자는 영역의 오류 페이지를 사용자 정의 할 수 있습니다**오류 Pages** > **1000 클래스 오류**.
+
+WAF 주문 규칙에 의해 차단된 요청은 다른 응답을 얻을 것입니다: WAF 구획 응답. 기본 블록 응답을 사용자 정의하려면:
+
+- 사용자 정의 WAF 블록 응답을 정의[**오류 Pages**](https://dash.cloudflare.com/?to=/:account/:zone/error-pages) > **WAF 블록**. 이 오류 페이지는 항상 HTML 콘텐츠 유형이 있습니다.
+- [사용자 정의 응답 정의](/waf/custom-rules/create-dashboard/#configure-a-custom-response-for-blocked-requests)특정 WAF 사용자 정의 규칙에 의해 차단 된 요청. 이 주문 응답은 HTML 옆에 다른 내용 유형을 지원합니다.
+
+오류 Pages에서 1XXX 오류 페이지를 사용자 정의하면 방화벽 규칙에 의해 차단 된 요청을 위해 새로운 응답 페이지를 만들 필요가 있습니다. 위의 방법 중 하나를 사용하여 차단 된 요청에 대한 새로운 응답 페이지를 만들 수 있습니다.
+
+Error Pages에 대한 자세한 내용은 여기를 참조하십시오.[사용자 정의 오류](/rules/custom-errors/).
+
+### 새로운 Skip 행동 교체 모두 허용 및 우회 행동
+
+방화벽 규칙 지원*지원하다*·*비밀번호*작업, 종종 함께 사용. 이 작업은 일반적으로 알려진 합법적 인 요청을 처리하는 데 사용되었습니다. 예를 들어 신뢰할 수있는 IP 주소에서 요청.
+
+요청이 트리거되면*지원하다*, 모든 나머지 방화벽 규칙은 평가되지 않았다, 효과적으로 다음 보안 제품에 계속 요청을 허용. 더 보기*비밀번호*작업은 보안 제품을 지정하기 위해 설계되었다 (예 : WAF 관리 규칙, 제한 규칙, 사용자 에이전트 차단) 작업 트리거 요청에 실행하지 않아야한다.
+
+방화벽 규칙으로, 주어진 요청에 대한 모든 보안 제품을 실행하려는 경우, 당신은 두 가지 규칙을 만들 것입니다:
+
+- 하나의 규칙*비밀번호*액션 (모든 보안 제품을 선택).
+- 하나의 규칙*지원하다*동작 (다른 방화벽 규칙을 실행 중지).
+
+이 일반적인 시나리오를 더 이상 WAF 사용자 정의 규칙에 적용하지 않는 두 가지 규칙을 가지고의 요구 사항. 지금 해야[이용안내*팟캐스트*이름 \*](/waf/custom-rules/skip/), 결합하는*지원하다*·*비밀번호*작업. 더 보기*팟캐스트*작업은 완전히 대체합니다*지원하다*·*비밀번호*WAF 사용자 정의 규칙에서 지원되지 않는 작업.
+
+이름 \**팟캐스트*다음 작업을 수행 할 수 있습니다:
+
+- 나머지 모든 사용자 정의 규칙을 실행 중지 (필수*지원하다*활동)
+- 다른 보안 제품을 실행하지 마십시오 (필수*비밀번호*활동)
+- 위의 조합.
+
+사용자 정의 규칙과 일치하는 이벤트를 로그인 할 수도 있습니다.*팟캐스트*활동 또는 아닙니다. 긍정 보안 모델을 만들 때 특히 유용합니다.
+
+:::참조
+방화벽 규칙 API는 지원하지 않습니다.*팟캐스트*활동. 사용자 정의 규칙을 만들 때*팟캐스트*행동, 그것은 번역*지원하다*·*비밀번호*방화벽 규칙 API에서. 당신은 사용해야[규칙 세트 API](/waf/custom-rules/skip/api-examples/)완전히 새로운 사용*팟캐스트*활동 기능.
+주요 특징
+
+### 주문 규칙은 순서에서 평가됩니다
+
+방화벽 규칙 작업은 특정[우선순위](/firewall/cf-firewall-rules/actions/)사용시[회사 소개](/firewall/cf-firewall-rules/order-priority/#managing-rule-evaluation-by-priority-order). 대조에서는, 주문 규칙 행동은 그런 순서가 없습니다. 주문 규칙은 항상 순서에서 평가되고, 몇몇 행동은 좋아합니다*제품정보*다른 규칙의 평가를 중지합니다.
+
+예를 들어, 우선순위 순서를 사용하고 들어오는 요청과 동일한 우선순위에 다음과 같은 방화벽 규칙이있었습니다.
+
+- 방화벽 규칙 #1 - 우선순위: 2 / 활동:*제품정보*
+- 방화벽 규칙 #2 - 우선 순위: 2 / 활동:*지원하다*
+
+요청은 허용됩니다.*지원하다*방화벽 규칙의 작업은 전례가 있을 것입니다.*제품정보*활동.
+
+콘트라스트에서 두 가지 맞춤 규칙을 만들면, 두 가지 규칙이 들어오는 요청과 일치합니다.
+
+- 사용자 정의 규칙 #1 - 동작:*제품정보*
+- 사용자 정의 규칙 #2 — 동작:*팟캐스트*(모든 나머지 사용자 정의 규칙을 건너 뛰기 위해 구성)
+
+요청은 사용자 정의 규칙이 순서대로 평가되기 때문에 차단됩니다.*제품정보*행동은 다른 규칙의 평가를 중지합니다.
+
+:::참조
+기존 방화벽 규칙에서 변환 된 사용자 정의 규칙을 위해 Cloudflare는 현재 실행의 순서를 보존합니다.
+주요 특징
+
+### 로그 및 이벤트
+
+사용자 정의 규칙에 의해 기록 된 이벤트는[보안 이벤트](/waf/analytics/security-events/)이름 \*`Custom Rules`그들의 근원으로.
+
+방화벽 규칙에 의해 생성 된 이벤트를 찾을 수 있습니다 보안 이벤트 페이지 당신은 사용자 정의 규칙에 전환이 발생했을 때 일 프레임을 선택할 때. 마찬가지로 여전히 이벤트를 찾을 수 있습니다.*팟캐스트*·*지원하다*전환 기간 동안 같은 관점에서 작업.
+
+### 새로운 API 및 Terraform 리소스
+
+WAF 사용자 정의 규칙을 관리하기위한 선호 된 API는[규칙 세트 API](/waf/custom-rules/create-api/). Rulesets API는 우리의 API와 상호 작용할 때 모든 최근 Cloudflare 보안 제품에 사용됩니다. Rulesets API에 대한 자세한 내용은 참조[API 사용자를 위한 관련 변화](#relevant-changes-for-api-users).
+
+방화벽 규칙 API 및 필터 API는 2025-06-15 이후 더 이상 지원되지 않습니다. 이제 방화벽 규칙과 WAF 사용자 정의 규칙에 대한 규칙의 단일 목록이 있으며이 목록에는 WAF 사용자 정의 규칙이 포함되어 있습니다. 내부 변환 프로세스 덕분에 방화벽 규칙 API 및 필터 API 반환 방화벽 규칙 / 필터는 APIs 일몰 날짜까지 이러한 WAF 사용자 정의 규칙에서 변환.
+
+Terraform을 사용 중인 경우, 구성을 업데이트해야 합니다.[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)자원과`http_request_firewall_custom`사용자 정의 규칙을 관리하는 단계. Terraform 구성을 업데이트에 대한 자세한 내용은 참조[Terraform 사용자의 관련 변화](#relevant-changes-for-terraform-users).
+
+## 대시보드 사용자 관련 변경
+
+**Cloudflare 대시보드의 방화벽 규칙 탭은 이제 공개되었습니다.**. 방화벽 규칙은 다음과 같이 표시됩니다.[주문 규칙](/waf/custom-rules/)Cloudflare 대시보드에.
+
+둘 다 제품에 접근하는 사용자를 위해,**방화벽 규칙**탭은 오래된 대시보드에서만 사용할 수 있습니다.**보안 보안** > **사이트맵**.
+
+## API 사용자를 위한 관련 변화
+
+**더 보기[방화벽 규칙 API](/firewall/api/cf-firewall-rules/)그리고 관련[Cloudflare 필터 API](/firewall/api/cf-filters/)지금 deprecated.**&#xC774; API는 2025-06-15 이후 더 이상 지원되지 않습니다. 방화벽 규칙 API 또는 Cloudflare 필터 API를 기반으로 한 모든 자동화를 수동으로 업데이트해야 합니다.[규칙 세트 API](/waf/custom-rules/create-api/)어떤 문제를 방지하기 위해. 규칙 ID는 방화벽 규칙과 사용자 정의 규칙과 다릅니다. 이는 특정 규칙 ID를 다루는 자동화 프로세스에 영향을 미칠 수 있습니다.
+
+APIs 일몰 날짜 전에 Cloudflare는 내부로 변환됩니다[방화벽 규칙 API](/firewall/api/cf-firewall-rules/)·[필터 API](/firewall/api/cf-filters/)해당 호출[규칙 세트 API](/waf/custom-rules/create-api/)전화. Firewall Rules API/Filters API와 Rulesets API 사이의 변환된 API 호출은 Cloudflare에 의해 생성된 감사 로그에 나타나고 실제 사용자에 의해 요청을 작성합니다. 방화벽 규칙과 WAF 사용자 정의 규칙에 대한 규칙의 단일 목록이 있습니다.
+
+WAF 사용자 정의 규칙의 일부 새로운 기능, 차단 된 요청에 대한 사용자 정의 응답과 같은*팟캐스트*행동은 방화벽 규칙 API에서 지원되지 않습니다. 이러한 기능을 활용하려면 Cloudflare Cloudflare 대시보드 또는 Rulesets API에서 사용자 정의 규칙 페이지를 사용하는 것이 좋습니다.
+
+WAF 문서 참조[Rulesets API를 사용하여 WAF 사용자 정의 규칙 관리의 예](/waf/custom-rules/create-api/).
+
+## Terraform 사용자의 관련 변화
+
+**Cloudflare 공급자의 뒤에 오는 Terraform 자원은 지금 deprecated 입니다:**
+
+- [`cloudflare_firewall_rule`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/firewall_rule)
+- [`cloudflare_filter`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/filter)
+
+이 자료는 2025-06-15 이후 더 이상 지원되지 않습니다. 방화벽 규칙 구성을 관리하기 위해 이러한 리소스를 사용하는 경우, 테라폼 구성을 수동으로 업데이트해야 합니다.[`cloudflare_ruleset`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/ruleset)어떤 문제를 방지하기 위해 자원.
+
+방화벽 규칙과 WAF 사용자 정의 규칙에 대한 규칙의 단일 목록이 있습니다.
+
+WAF 주문 규칙의 몇몇 새로운 특징은 deprecated Terraform 자원에서 지원되지 않습니다. 이러한 기능을 활용하려면 Cloudflare는 당신이 사용하는 것이 좋습니다`cloudflare_ruleset`자료실
+
+Terraform에 대한 문서 참조[Terraform을 사용하여 WAF 사용자 정의 규칙을 구성하는 예](/terraform/additional-configurations/waf-custom-rules/).
+
+### 설정 바꾸기`cf-terraforming`
+
+당신은 사용할 수 있습니다[`cf-terraforming`](https://github.com/cloudflare/cf-terraforming)현재 WAF 사용자 정의 규칙에 대한 Terraform 구성을 생성하는 도구 (당신의 방화벽 규칙에서 Cloudflare로 전환). 그런 다음 Terraform 상태로 새로운 리소스를 가져옵니다.
+
+방화벽 규칙 (및 필터) 구성을 새로운 규칙 구성으로 대체하기위한 권장 단계는 다음과 같습니다.
+
+1. 다음 명령을 실행하여 영역의 모든 규칙 구성을 생성합니다.
+
+   ```sh
+   cf-terraforming generate --zone <ZONE_ID> --resource-type "cloudflare_ruleset"
+   ```
+
+   ```txt output {1,4}
+   resource "cloudflare_ruleset" "terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31" {
+     kind    = "zone"
+     name    = "default"
+     phase   = "http_request_firewall_custom"
+     zone_id = "<ZONE_ID>"
+     rules {
+       [...]
+     }
+     [...]
+   }
+   [...]
+   ```
+
+2. 이전 명령은 다른 Cloudflare 제품에 대한 추가 규칙 구성을 반환 할 수도 있습니다.[Ruleset 엔진](/ruleset-engine/). 사용자 정의 규칙에 방화벽 규칙을 마이그레이션하고 있기 때문에 Terraform 리소스 만 유지하십시오.`http_request_firewall_custom`단계 및 저장 그것 에 a`.tf`구성 파일. 다음 단계에 전체 리소스 이름을 필요로합니다.
+
+3. 구매하기`cloudflare_ruleset`이전에 Terraform state로 확인된 리소스`terraform import`명령. 예를 들면:
+
+   ```sh
+   terraform import cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31 zone/<ZONE_ID>/3c0b456bc2aa443089c5f40f45f51b31
+   ```
+
+   ```txt output
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Importing from ID "zone/<ZONE_ID>/3c0b456bc2aa443089c5f40f45f51b31"...
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Import prepared!
+     Prepared cloudflare_ruleset for import
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+
+   Import successful!
+
+   The resources that were imported are shown above. These resources are now in
+   your Terraform state and will henceforth be managed by Terraform.
+   ```
+
+4. 지원하다`terraform plan`Terraform이 이제 새로운 상태를 확인합니다.`cloudflare_ruleset`다른 기존 리소스 외에도 Terraform이 이미 관리했습니다. 예를 들면:
+
+   ```sh
+   terraform plan
+   ```
+
+   ```txt output
+
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+   [...]
+   cloudflare_filter.my_filter: Refreshing state... [id=14a2524fd75c419f8d273116815b6349]
+   cloudflare_firewall_rule.my_firewall_rule: Refreshing state... [id=0580eb5d92e344ddb2374979f74c3ddf]
+   [...]
+   ```
+
+5. Terraform 상태의 방화벽 규칙 및 필터와 관련된 모든 국가 제거:
+
+   :::카트로션
+   Terraform state에서 방화벽 규칙과 필터를 제거해야 합니다.`.tf`문제를 방지하기 위해 구성 파일.
+   주요 특징
+
+   1. 다음 명령을 실행하여 방화벽 규칙과 필터와 관련된 모든 리소스를 찾을 수 있습니다:
+
+      ```sh
+      terraform state list | grep -E '^cloudflare_(filter|firewall_rule)\.'
+      ```
+
+      ```txt output
+      cloudflare_filter.my_filter
+      cloudflare_firewall_rule.my_firewall_rule
+      ```
+
+   2. 시작하기`terraform state rm ...`건조한 실행 모드에서 명령은 어떤 변경을 수행하지 않고 그 리소스를 제거의 영향을 이해합니다.
+
+      ```sh
+      terraform state rm -dry-run cloudflare_filter.my_filter cloudflare_firewall_rule.my_firewall_rule
+      ```
+
+      ```txt output
+      Would remove cloudflare_filter.my_filter
+      Would remove cloudflare_firewall_rule.my_firewall_rule
+      ```
+
+   3. 충격이 정확하면 동일한 명령을 실행합니다.`-dry-run`실제로 Terraform 국가의 리소스를 제거하는 매개 변수 :
+
+      ```sh
+      terraform state rm cloudflare_filter.my_filter cloudflare_firewall_rule.my_firewall_rule
+      ```
+
+      ```txt output
+      Removed cloudflare_filter.my_filter
+      Removed cloudflare_firewall_rule.my_firewall_rule
+      Successfully removed 2 resource instance(s).
+      ```
+
+6. Terraform state에서 방화벽 규칙 및 필터 리소스 제거 후 삭제`cloudflare_filter`·`cloudflare_firewall_rule`계정 관리`.tf`구성 파일.
+
+7. 지원하다`terraform plan`구성 파일에서 삭제 된 리소스는 더 이상 나타납니다. 당신은 어떤 말썽도 없다.
+
+   ```sh
+   terraform plan
+   ```
+
+   ```txt output
+   cloudflare_ruleset.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+   [...]
+
+   No changes. Your infrastructure matches the configuration.
+
+   Terraform has compared your real infrastructure against your configuration and found no differences, so no changes are needed.
+   ```
+
+Cloudflare 리소스를 Terraform에 가져오고`cf-terraforming`도구, 다음 리소스를 참조 :
+
+- [Cloudflare 리소스 가져 오기](/terraform/advanced-topics/import-cloudflare-resources/)
+- [`cf-terraforming`GitHub 저장소](https://github.com/cloudflare/cf-terraforming)
+
+## 최종 알림
+
+사용되지 않은 방화벽 규칙[제품정보](/firewall/api/cf-filters/what-is-a-filter/)사용자 정의 규칙으로 변환 할 때 활성화됩니다.

@@ -1,0 +1,89 @@
+---
+pcx_content_type: troubleshooting
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/360038470312-Understanding-SameSite-cookie-interaction-with-Cloudflare
+title: Cloudflare와 같은 사이트 쿠키 상호 작용
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/troubleshooting/samesite-cookie-interaction/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/troubleshooting/samesite-cookie-interaction/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components";
+
+[Google Chrome은 SameSite 쿠키 행동을 적용합니다](https://www.chromium.org/updates/same-site)사용자 및 크로스 사이트 요청 Forgery (CSRF)를 추적하는 마케팅 쿠키에 대한 보호는 공격자가 쿠키를 훔치고 조작 할 수 있습니다.
+
+더 보기`SameSite`쿠키 속성에는 세 가지 다른 모드가 있습니다.
+
+- **사이트맵**: 쿠키는 First Party (방문 도메인)에 의해 작성됩니다. 예를 들어, 첫 번째 쿠키는 Cloudflare에 의해 설정됩니다.`cloudflare.com`.
+- **프로젝트**: 쿠키는 만 전송됩니다.<GlossaryTooltip term="apex domain">사이트맵</GlossaryTooltip>도메인 (예 :`example.com`). 예를 들어, 누군가가 있다면 (`blog.example.net`) hotlinked 이미지 (`img.example.com/bar.png`), 클라이언트는 쿠키를 보내지 않습니다`img.example.com`첫 번째 파티 또는 apex 컨텍스트가 없기 때문에.
+- **이름 \***: 쿠키는 모든 요청으로 전송됩니다.
+
+`SameSite`설정하기[Cloudflare 쿠키](/fundamentals/reference/policies-compliances/cloudflare-cookies/)다음:
+
+| Cloudflare 쿠키  | SameSite 설정             | HTTPS 만 |
+| -------------- | ----------------------- | ------- |
+| `__cf_bm`      | `SameSite=None; Secure` | 이름 \*   |
+| `cf_clearance` | `SameSite=None; Secure` | 이름 \*   |
+| `__cflb`       | `SameSite=Lax`          | 이름 \*   |
+
+## Session affinity Cookies의 SameSite 속성
+
+현재 구성`SameSite`이름 \*[세션 친화 쿠키](/load-balancing/understand-basics/session-affinity/)Cloudflare API를 사용해야 합니다.[Load Balancer 만들기](/api/resources/load_balancers/methods/create/)가동).
+
+값을 설정하려면`SameSite`쿠키 속성은 다음과 같습니다.`samesite`·`secure`HTTP 요청에 JSON 속성, 내부`session_affinity_attributes`객체.
+
+이 두 속성의 사용 가능한 값은 다음과 같습니다.
+
+**`samesite`특성:**
+
+- 유효 값:`Auto`(과태)`Lax`, `None`, `Strict`.
+
+**`secure`특성:**
+
+- 유효 값:`Auto`(과태)`Always`, `Never`.
+
+더 보기`Auto`가치에 대한`samesite`속성은 다음과 같은 동작을 가질 것이다:
+
+- 이름 \*[**항상 HTTPS 사용**](/ssl/edge-certificates/additional-options/always-use-https/)활성화, 세션 친화 쿠키 사용`Lax`SameSite 모드.
+- 이름 \***항상 HTTPS 사용**장애인, 세션 친화 쿠키 사용`None`SameSite 모드.
+
+더 보기`Auto`가치에 대한`secure`속성은 다음과 같은 동작을 가질 것이다:
+
+- 이름 \***항상 HTTPS 사용**활성화, 세션 친화 쿠키 포함`Secure`SameSite 속성에서.
+- 이름 \***항상 HTTPS 사용**장애인, 세션 친화 쿠키는 포함되지 않습니다`Secure`SameSite 속성에서.
+
+설정하기`samesite`으로`None`API 요청에 따라 설정할 수 없습니다.`secure`으로`Never`.
+
+특정한 경우`SameSite`세션 친화 쿠키의 구성, Cloudflare는 가치를 제공하는 것이 좋습니다`samesite`·`secure`다른 것에서`Auto`, 대신 기본 동작에 의존. 이 방법, 가치의`SameSite`쿠키 속성은 구성 변경으로 인해 변경되지 않습니다 (namely)[**항상 HTTPS 사용**](/ssl/edge-certificates/additional-options/always-use-https/)).
+
+***
+
+## SameSite와 관련된 문제`cf_clearance`제품 정보
+
+방문자가 해결할 때[- 연혁](/cloudflare-challenges/)현재 위치[주문 규칙](/waf/custom-rules/)또는[IP 접근 규칙](/waf/tools/ip-access-rules/)·`cf_clearance`쿠키는 방문자의 브라우저에서 설정됩니다. 더 보기`cf_clearance`쿠키는 30 분의 기본 수명을 가지고 있으며, 이를 통해 구성할 수 있습니다.[도전 통행](/cloudflare-challenges/challenge-types/challenge-pages/challenge-passage/).
+
+Cloudflare 사용`SameSite=None`내 계정`cf_clearance`다른 호스트 이름의 방문자 요청은 나중에 문제 또는 오류와 함께 충족되지 않습니다. 시간 :`SameSite=None`사용됩니다, 그것은 함께 설정해야합니다`Secure`플래그.
+
+사용 방법`Secure`flag는 HTTPS 연결을 통해 쿠키를 전송해야 합니다. 웹 사이트의 일부에 HTTP를 사용하는 경우,`cf_clearance`쿠키 기본 설정`SameSite=Lax`귀하의 웹 사이트를 제대로 작동하지 않을 수 있습니다.
+
+문제를 해결하려면 웹 사이트 트래픽을 HTTPS로 이동하십시오. Cloudflare는 이 목적을 위한 2개의 특징을 제안합니다:
+
+- [자동 HTTPS 리깅](/ssl/edge-certificates/additional-options/automatic-https-rewrites/)
+- [항상 HTTPS 사용](/ssl/edge-certificates/additional-options/always-use-https/)
+
+***
+
+## 관련 자료
+
+- [SameSite 쿠키 설명](https://web.dev/samesite-cookies-explained/)
+- [Cloudflare 쿠키](/fundamentals/reference/policies-compliances/cloudflare-cookies/)
+- [Cloudflare SSL 인증서](/ssl/faq/)
+- [자동 HTTPS 리깅](/ssl/edge-certificates/additional-options/automatic-https-rewrites/)
+- [항상 HTTPS 사용](/ssl/edge-certificates/additional-options/always-use-https/)

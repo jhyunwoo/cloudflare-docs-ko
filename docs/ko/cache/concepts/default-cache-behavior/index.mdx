@@ -1,0 +1,103 @@
+---
+title: 기본 캐시 동작
+pcx_content_type: concept
+head:
+  - tag: title
+    content: 기본 캐시 동작
+
+---
+
+import { FeatureTable, GlossaryTooltip, Render, DashButton } from "~/components"
+
+Cloudflare는 [Edge Cache TTL 캐시 규칙](/cache/how-to/cache-rules/settings/#edge-ttl)이 헤더를 재정의하지 않는 한, 다음 순서대로 오리진 웹 서버의 캐시 헤더를 따릅니다. 기본 TTL 동작에 대한 자세한 내용은 [Edge TTL](/cache/how-to/configure-cache-status-code/#edge-ttl) 섹션을 참고하세요.
+
+* 다음 경우 Cloudflare는 리소스를 캐시하지 **않습니다**.
+  * `Cache-Control` 헤더가 `private`, `no-store`, `no-cache`, 또는 `max-age=0`으로 설정된 경우
+  * [Set-Cookie 헤더](/cache/concepts/cache-behavior/#interaction-of-set-cookie-response-header-with-cache)가 존재하는 경우
+  * HTTP 요청 메서드가 `GET`이 아닌 경우
+* 다음 경우 Cloudflare는 리소스를 캐시합니다.
+  * `Cache-Control` 헤더가 `public`으로 설정되어 있고 `max-age`가 0보다 큰 경우
+  * `Expires` 헤더가 미래 시점의 날짜로 설정된 경우
+
+:::note
+`Cache-Control` 헤더가 없더라도 Cloudflare는 [상태 코드](/cache/how-to/configure-cache-status-code/#edge-ttl)를 기준으로 리소스를 캐시합니다.
+:::
+
+:::note
+`max-age`와 `Expires` 헤더가 모두 설정되어 있으면 Cloudflare는 `max-age`를 사용합니다.
+:::
+
+Enterprise 고객 웹사이트에서 [Origin Cache Control](/cache/concepts/cache-control/)이 활성화되어 있으면 Cloudflare가 오리진 서버에서 받은 `Cache-Control` 지시어를 엄격히 준수해야 함을 의미합니다. Free, Pro, Business 고객은 이 기능이 기본적으로 활성화되어 있습니다. Origin Cache-Control이 활성화되었을 때와 비활성화되었을 때의 지시어 및 동작 목록은 [Cache-Control directives](/cache/concepts/cache-control/#cache-control-directives)를 참고하세요.
+
+## 클라이언트 측 range 요청
+
+클라이언트는 `Range` 헤더를 사용해 캐시에서 제공되는 range 요청을 보낼 수 있습니다. 다음 사항에 유의하세요.
+
+ - 오리진 응답에 `Content-Length` 헤더가 포함되어 있으면 지정된 바이트 범위가 [HTTP 206](/support/troubleshooting/http-status-codes/2xx-success/#206-partial-content) 응답과 함께 반환됩니다.
+ - 오리진 응답에 `Content-Length` 헤더가 포함되어 있지 않으면 캐시는 전체 콘텐츠를 HTTP 200 응답과 함께 반환합니다.
+
+## 요청 병합
+
+동일한 Cloudflare 데이터 센터에 캐시되지 않은 동일 자산(캐시 미스)에 대한 요청이 동시에 여러 개 도착하면, Cloudflare는 중복 요청이 오리진으로 전달되지 않도록 <GlossaryTooltip term="cache lock">cache lock</GlossaryTooltip>을 사용합니다. 첫 번째 요청만 자산을 가져오기 위해 오리진으로 전달되고, 나머지 요청은 첫 번째 요청이 끝날 때까지 기다린 다음 응답이 모든 대기 요청에 [streamed](https://blog.cloudflare.com/introducing-concurrent-streaming-acceleration/)됩니다.
+
+캐시 락은 Cloudflare가 Cloudflare 네트워크의 단일 위치에서 특정 자산에 대해 한 번에 하나의 요청만 오리진으로 보내도록 보장하여, 오리진이 과도한 트래픽을 받지 않도록 합니다.
+
+<div id="default-cached-file-extensions"></div>
+
+## 기본적으로 캐시되는 파일 확장자
+
+Cloudflare는 MIME 형식이 아니라 파일 확장자를 기준으로만 캐시합니다. Cloudflare CDN은 기본적으로 HTML이나 JSON을 캐시하지 않습니다. 추가로, 기본적으로 웹사이트의 robots.txt는 캐시합니다.
+
+|       |      |      |      |      |       |     |
+| ----- | ---- | ---- | ---- | ---- | ----- | --- |
+| 7Z    | CSV  | GIF  | MIDI | PNG  | TIF   | ZIP |
+| AVI   | DOC  | GZ   | MKV  | PPT  | TIFF  | ZST |
+| AVIF  | DOCX | ICO  | MP3  | PPTX | TTF   |     |
+| APK   | DMG  | ISO  | MP4  | PS   | WEBM  |     |
+| BIN   | EJS  | JAR  | OGG  | RAR  | WEBP  |     |
+| BMP   | EOT  | JPG  | OTF  | SVG  | WOFF  |     |
+| BZ2   | EPS  | JPEG | PDF  | SVGZ | WOFF2 |     |
+| CLASS | EXE  | JS   | PICT | SWF  | XLS   |     |
+| CSS   | FLAC | MID  | PLS  | TAR  | XLSX  |     |
+
+추가 콘텐츠를 캐시하려면 [Cache Rules](/cache/how-to/cache-rules/)에서 모든 항목을 캐시하도록 규칙을 만드세요.
+
+<Render
+  file="edge-ttl"
+	product="cache"
+	params={{
+		conditional: "dedicated-cache-tile"
+	}}
+/>
+
+## 사용자 지정 옵션과 한도
+
+Cloudflare CDN은 여러 캐시 사용자 지정 옵션을 제공합니다.
+
+* [Cache Rules](/cache/how-to/cache-rules/)을 통한 개별 URL의 캐싱 동작
+
+ <DashButton url="/?to=/:account/:zone/caching/cache-rules" />
+
+* [Cloudflare Workers](/workers/reference/how-the-cache-works/)로 캐싱 사용자 지정
+* Cloudflare 대시보드의 Caching 페이지에서 캐싱 수준, 캐시 TTL 등을 조정:
+
+ <DashButton url="/?to=/:account/:zone/caching/configuration" />
+
+### 업로드 한도
+
+<FeatureTable id="network.max_upload_size" />
+
+고객은 영역의 **Network** 페이지에서 **Maximum Upload Size**를 줄일 수 있습니다.
+
+더 큰 업로드가 필요하면 요청을 더 작은 청크로 나누거나, 전체 리소스를 [프록시되지 않은(회색 구름) DNS 레코드](/dns/proxy-status/)를 통해 업로드하거나, [요금제를 업그레이드](/billing/change-plan/)할 수 있습니다.
+
+### 캐시 가능 크기 한도
+
+Cloudflare의 캐시 가능 파일 한도는 다음과 같습니다.
+
+* Free, Pro, Business 고객의 한도는 512MB입니다.
+* Enterprise 고객의 기본 최대 캐시 가능 파일 크기는 5GB입니다. 한도 상향을 요청하려면 계정 팀에 문의하세요.
+
+## Cloudflare는 언제 성공적으로 캐시하나요?
+
+방문자와 Cloudflare 사이의 연결 상태는 달라질 수 있으며, 이에 따라 Cloudflare가 콘텐츠를 캐시하는지 여부도 달라집니다. Cloudflare가 이미 오리진과 연결을 수립하고 콘텐츠 가져오기를 시작했다면, 방문자가 중간에 연결을 끊더라도 전체 콘텐츠를 계속 가져와 캐시합니다. 반대로, 방문자가 오리진이 Cloudflare 요청에 응답하기 전에 연결을 끊으면 아직 어떤 콘텐츠도 가져오지 않은 상태이므로 Cloudflare는 해당 콘텐츠 캐싱을 시작하지 않습니다.

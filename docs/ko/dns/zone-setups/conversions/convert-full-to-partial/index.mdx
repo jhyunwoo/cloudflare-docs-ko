@@ -1,0 +1,70 @@
+---
+pcx_content_type: tutorial
+title: 전체 설정을 부분 설정으로 전환
+sidebar:
+  order: 1
+  label: 전체에서 부분으로
+---
+
+import { Tabs, TabItem, Render, GlossaryTooltip, DashButton, Details, APIRequest } from "~/components";
+
+처음에 [기본 설정(전체)](/dns/zone-setups/full-setup/)으로 구성했다면, 나중에 영역을 CNAME 설정(부분 설정이라고도 함)으로 전환할 수 있습니다.
+
+CNAME 설정을 사용하면 다른 authoritative DNS 공급자를 사용하면서도 개별 서브도메인에서 [Cloudflare 리버스 프록시](/fundamentals/concepts/how-cloudflare-works/)를 사용할 수 있습니다.
+
+## 시작하기 전에
+
+다음 사항을 고려했는지 확인하세요.
+
+- Cloudflare 리버스 프록시는 영역 apex(`example.com`)에서는 사용할 수 없고, 서브도메인에서만 사용할 수 있습니다.
+- 대시보드에서는 [프록시 가능](/dns/proxy-status/)한 DNS 레코드 유형인 A, AAAA, CNAME 레코드만 생성할 수 있습니다.
+- SSL/TLS 인증서를 계획해야 합니다. 전환 전에 [Universal SSL](/ssl/edge-certificates/universal-ssl/)만 사용 중이었다면, 각 DNS 레코드가 프록시 처리된 후에야 서브도메인용 인증서가 발급됩니다. 도메인이 다운타임에 민감하다면 Universal SSL 대신 [고급 인증서](/ssl/edge-certificates/advanced-certificate-manager/)와 [delegated DCV](/ssl/edge-certificates/changing-dcv-method/methods/delegated-dcv/#setup)를 고려하세요.
+
+## 1. DNS 레코드 준비
+
+1. 영역 파일을 내보냅니다.
+
+   <Render file="export-dns-records" product="dns" />
+
+2. 영역 파일을 새 기본 DNS 공급자로 가져옵니다.
+3. Cloudflare를 통해 프록시하려는 각 호스트명에 대해 `{your-hostname}.cdn.cloudflare.net`을 가리키는 CNAME 레코드를 생성하거나 업데이트합니다.
+
+   <Details header="authoritative DNS 공급자의 예시 CNAME 레코드">
+
+   `www.example.com`에 대한 CNAME 레코드는 다음과 같습니다.
+
+   ```txt
+   www.example.com CNAME www.example.com.cdn.cloudflare.net
+   ```
+
+   </Details>
+
+4. Cloudflare를 통해 프록시하려는 호스트명을 참조하는 기존 A, AAAA, CNAME 레코드를 모두 제거합니다. 이러한 호스트명에 대해서는 `{your-hostname}.cdn.cloudflare.net`을 가리키는 레코드만 남겨 두세요.
+
+5. Cloudflare를 통해 프록시되어야 하는 모든 서브도메인에 대해 올바른 레코드가 있는지 확인합니다.
+
+## 2. 영역 전환
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+
+	  1. Cloudflare 대시보드에서 해당 영역의 **Overview** 페이지로 이동합니다.
+		2. **Convert to CNAME DNS Setup**을 선택한 다음, 확인을 위해 **Convert**를 선택합니다.
+		3. **Verification TXT Record**의 정보를 저장합니다. 이 정보를 잃어버린 경우 [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지의 **Verification TXT Record** 아래에서도 확인할 수 있습니다.
+
+	</TabItem>
+  <TabItem label="API">
+
+	  1. [Edit Zone 엔드포인트](/api/resources/zones/methods/edit/)에서 `type`을 `partial`로 설정해 영역 유형을 전환합니다.
+		2. API 응답의 `verification_key` 값은 다음 단계에서 사용되므로 기록해 둡니다.
+
+	</TabItem>
+</Tabs>
+
+## 3. 소유권 확인
+
+<Render file="partial-setup-verification-record" product="dns" />
+
+## 4. 네임서버 업데이트
+
+검증이 완료되면 도메인 등록기관에서 네임서버를 새 authoritative DNS 공급자로 변경합니다. Cloudflare 네임서버는 반드시 제거하세요.

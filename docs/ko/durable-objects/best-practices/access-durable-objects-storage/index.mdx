@@ -1,0 +1,191 @@
+---
+title: 접근 Durable Objects 제품 정보
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/access-durable-objects-storage/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/access-durable-objects-storage/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip, WranglerConfig } from "~/components";
+
+<GlossaryTooltip term="Durable Object">Durable Objects</GlossaryTooltip>이름 \*
+스토리지 빌딩 블록을 준수하는 강력한 compute API. 각 각
+튼튼한 개체는 자체 개인, 거래, 강력하고 일관성
+저장. Durable Objects
+<GlossaryTooltip term="Storage API">저장 API</GlossaryTooltip>제품정보
+튼튼한 개체의 붙어있는 저장에 접근.
+
+튼튼한 목표[in-memory 상태](/durable-objects/reference/in-memory-state/)내구재 목표가 기억에서 evicted 되지 않기 때문에 보존됩니다. 들어오는 요청 트래픽을 가진 Inactive Durable Objects는 evicted 할 수 있습니다. 정상적인 가동은 같이 있습니다[비밀번호](/workers/configuration/versions-and-deployments/)Durable Objects를 트리거하여 재시작하고 인 메모리 상태를 잃습니다. 이러한 이유로, 당신은 Durable Objects의 생존 또는 재시작해야하는 디스크에 persist 상태에 저장 API를 사용해야합니다.
+
+## 오시는 길
+
+<Render file="recommend-sqlite-do" product="durable-objects" />
+
+<Render file="do-sqlite-storage-no-bill-note" product="durable-objects" />
+
+[스토리지 API 방법](/durable-objects/api/sqlite-storage-api/)이용안내`ctx.storage`튼튼한 목표 constructor에 통과된 모수. 스토리지 API에는 SQL, Point-in-time Recovery (PITR), 키 값 (KV) 및 알람 API를 포함한 여러 가지 방법이 있습니다.
+
+SQLite 저장 백엔드를 가진 튼튼한 목표 종류만 SQL API에 접근할 수 있습니다.
+
+### SQLite-backed 튼튼한 개체 클래스 만들기
+
+제품 정보`new_sqlite_classes`노동자의 Wrangler 파일에서 마이그레이션:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1", //각 항목에 고유해야합니다
+  			"new_sqlite_classes": [ //새로운 클래스의 배열
+  				"MyDurableObject"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+[SQL API를](/durable-objects/api/sqlite-storage-api/#exec)이용안내`ctx.storage.sql`튼튼한 목표 constructor에 통과된 모수.
+
+SQLite 백업 Durable Objects 또한 제안[point-in-time 회복 API](/durable-objects/api/sqlite-storage-api/#pitr-point-in-time-recovery-api), 사용<GlossaryTooltip term="bookmark">책갈피</GlossaryTooltip>튼튼한 개체의 임베디드 SQLite 데이터베이스를 과거 30 일 동안 언제든지 복원 할 수 있습니다.
+
+### 저장에서 인스턴스 변수를 초기화
+
+일반적인 패턴은 튼튼한 개체를 초기화하는 것입니다.[persistent 저장](/durable-objects/api/sqlite-storage-api/)그리고 인스턴스 변수를 첫번째로 설정한다. 향후 액세스는 동일한 내구성 개체로 경로를 지정하므로, 기존 스토리지에 더 많은 통화를 하지 않고 초기화 된 값을 반환할 수 있습니다.
+
+```ts
+import { DurableObject } from "cloudflare:workers";
+
+export class Counter extends DurableObject {
+	value: number;
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+
+		//`blockConcurrencyWhile()`는 아무 요구도 배달되지 않습니다
+		//초기화 완료.
+		ctx.blockConcurrencyWhile(async () => {
+			//초기화 후, 미래는 스토리지에 액세스 할 필요가 없습니다.
+			this.value = (await ctx.storage.get("value")) || 0;
+		});
+	}
+
+	async getCounterValue() {
+		return this.value;
+	}
+}
+```
+
+### 튼튼한 개체의 저장 제거
+
+튼튼한 개체는 완전히 존재하지 않는 경우에, 그것을 폐쇄할 때, 그것의 저장은 비쌉니다. 튼튼한 Object의 저장을 전혀 쓰지 않는 경우 (설정 포함)<GlossaryTooltip term="alarm">공지사항</GlossaryTooltip>), 그 후에 저장은 빈 남아 있고, 그래서 튼튼한 목표는 일단 그것을 폐쇄하는 더 이상 존재하지 않을 것입니다.
+
+그러나 당신이 쓰는 경우[저장 API](/durable-objects/api/sqlite-storage-api/), 설정 알람을 포함, 다음 명시적으로 호출해야합니다[`storage.deleteAll()`](/durable-objects/api/sqlite-storage-api/#deleteall)빈 저장 및[`storage.deleteAlarm()`](/durable-objects/api/sqlite-storage-api/#deletealarm)알람을 설정하면 됩니다. 그것은 단순히 당신이 쓴 특정 데이터를 삭제하는 것이 충분하지 않습니다, 같은 키 삭제 또는 테이블을 드롭, 일부 메타 데이터 남아 있을 수 있습니다. 모든 저장을 제거하는 유일한 방법은 호출하는 것입니다`deleteAll()`. 전화`deleteAll()`튼튼한 개체가 저장을 위해 청구되지 않을 것이라는 점을 보증하십시오.
+
+```ts
+export class MyDurableObject extends DurableObject<Env> {
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+	}
+
+	//Clears 튼튼한 목표 저장
+	async clearDo(): Promise<void> {
+		//튼튼한 개체 알람을 구성하면
+		await this.ctx.storage.deleteAlarm();
+
+		//이 튼튼한 Object 인스턴스와 관련된 모든 저장을 삭제합니다.
+		//이것은 내구성 객체 인스턴스 자체를 삭제합니다.
+		await this.ctx.storage.deleteAll();
+	}
+}
+```
+
+## SQL API 예제
+
+<Render file="durable-objects-sql" product="durable-objects" />
+
+## TypeScript 및 쿼리 결과
+
+TypeScript[유형 모수](https://www.typescriptlang.org/docs/handbook/2/generics.html#working-with-generic-type-variables)결과에 대한 유형을 제공하려면 유형 힌트에서 혜택을 누릴 수 있으며 쿼리의 결과에 따라 결정할 수 있습니다.
+
+:::카트로션
+
+type 매개변수 제공*아니다.*&#xCFFC;리 결과가 유형 정의에 일치한다는 것을 검증합니다. TypeScript에서 결과 유형에 존재하지 않는 속성 (필드)는 침묵적으로 떨어질 것입니다.
+
+:::
+
+입력은 TypeScript의 모양에 따라야 합니다[이름 \*](https://www.typescriptlang.org/docs/handbook/utility-types.html#recordkeys-type)이름을 나타내는 유형 (`string`) 열과 열의 유형. 열 유형은 유효합니다`SqlStorageValue`: 1명`ArrayBuffer | string | number | null`.
+
+예를 들어,
+
+```ts
+type User = {
+	id: string;
+	name: string;
+	email_address: string;
+	version: number;
+};
+```
+
+이 유형은 그 때 유형 모수로 전달될 수 있습니다`sql.exec()`전화:
+
+```ts
+//type 매개변수는 함수 인자의 앞에 각 부류 사이에서 통과됩니다:
+const result = this.ctx.storage.sql
+	.exec<User>(
+		"SELECT id, name, email_address, version FROM users WHERE id = ?",
+		user_id,
+	)
+	.one();
+//결과는 이제 "User"의 유형이 있습니다.
+
+//대체적으로, 당신이 커서를 사용하여 결과를 통해 iterating하는 경우
+let cursor = this.sql.exec<User>(
+	"SELECT id, name, email_address, version FROM users WHERE id = ?",
+	user_id,
+);
+for (let row of cursor) {
+	//각 행 객체는 유형 사용자의 것입니다.
+}
+
+//또는 Raw()을 사용하여 결과를 배열로 변환하는 경우 배열 유형을 정의합니다.
+type UserRow = [
+	id: string,
+	name: string,
+	email_address: string,
+	version: number,
+];
+
+//... 그리고 그 후에 원시() 메소드에 type 인수로 전달합니다.
+let cursor = sql
+	.exec(
+		"SELECT id, name, email_address, version FROM users WHERE id = ?",
+		user_id,
+	)
+	.raw<UserRow>();
+
+for (let row of cursor) {
+	//행은 유형 사용자의
+}
+```
+
+더 복잡한 유형을 포함하여 원하는 결과를 표현할 수 있습니다. 수행중인 경우
+`JOIN`여러 테이블에 걸쳐, 당신은 당신의 쿼리의 결과를 반영하는 유형을 구성 할 수 있습니다.
+
+## SQLite의 인덱스
+
+대부분의 queried 테이블에 대한 인덱스를 작성하고 필터링 된 열은 얼마나 많은 데이터가 스캔되고 같은 시간에 쿼리 성능을 향상시킵니다. read-heavy workload (대부분 공통)이 있다면, 특히 유용 할 수 있습니다. 색인에 있는 열 참고 자료d에 쓰기는 색인을 새롭게 하기를 위한 계정으로 적어도 1개의 추가 줄을 추가할 것입니다, 그러나 이것은 색인의 이익 때문에 줄에 있는 감소에 의해 전형적으로 상쇄됩니다.
+
+<Render file="durable-objects-vs-d1" product="durable-objects" />
+
+## 관련 자료
+
+- [Zero-latency SQLite 저장소에 모든 튼튼한 개체 블로그 게시물](https://blog.cloudflare.com/sqlite-in-durable-objects)

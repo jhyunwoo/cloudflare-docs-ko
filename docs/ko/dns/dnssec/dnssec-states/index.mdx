@@ -1,0 +1,30 @@
+---
+pcx_content_type: reference
+title: DNSSEC 상태
+sidebar:
+  order: 4
+
+---
+
+이 페이지는 여러 DNSSEC 상태와, [DNSSEC details API endpoint](/api/resources/dns/subresources/dnssec/methods/get/)에서 받는 응답이 각각 어떻게 연결되는지를 설명합니다.
+
+| 상태 | API 응답 | 설명 |
+| ---------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Pending | `"status":"pending"`<br /> `"modified_on":<TIME_STAMP>` | DNSSEC는 활성화되었지만 Cloudflare DS 레코드가 아직 등록기관에 추가되지 않았습니다. |
+| Active | `"status":"active"`<br /> `"modified_on":<TIME_STAMP>` | DNSSEC가 활성화되었고 Cloudflare DS 레코드가 등록기관에 존재합니다. |
+| Pending-disabled | `"status":"pending-disabled"`<br /> `"modified_on":<TIME_STAMP>` | DNSSEC는 비활성화되었지만 Cloudflare DS 레코드는 아직 등록기관에 남아 있습니다. |
+| Disabled | `"status":"disabled"`<br /> `"modified_on":<TIME_STAMP>` | DNSSEC가 비활성화되었고 Cloudflare DS 레코드가 등록기관에서 제거되었습니다. |
+| Deleted | `"status":"disabled"`<br /> `"modified_on": null` | 영역에 대해 DNSSEC가 한 번도 활성화된 적이 없거나, DNSSEC를 비활성화한 뒤 [Delete DNSSEC records endpoint](/api/resources/dns/subresources/dnssec/methods/delete/)를 사용해 삭제되었습니다. |
+
+:::caution
+
+한 영역에서 DNSSEC를 처음 활성화한 이후에는 `active` 상태에서 `deleted` 상태로 직접 전환할 수 없습니다. 영역 DNSSEC가 `disabled` 상태일 때만 [DNSSEC 레코드 삭제](/api/resources/dns/subresources/dnssec/methods/delete/)가 가능합니다. Cloudflare는 DNS 해석 문제를 방지하기 위해 등록기관에서 DS 레코드를 제거하기 전에 DNSSEC 레코드를 삭제하지 못하도록 막습니다.
+:::
+
+`pending`과 `active` 상태에서는 Cloudflare가 영역에 서명하고 RRSIG, NSEC, DNSKEY, CDS, CDNSKEY 레코드 유형으로 응답합니다.
+
+`pending-disabled`와 `disabled` 상태에서는 Cloudflare가 여전히 영역에 서명하고 RRSIG, NSEC, DNSKEY 레코드 유형을 제공하지만, CDS와 CDNSKEY 레코드는 0으로 설정되어([RFC 8078](https://www.rfc-editor.org/rfc/rfc8078.html#section-4)) 등록기관에 DNSSEC를 비활성화해야 한다는 신호를 보냅니다.
+
+`deleted` 상태에서는 Cloudflare가 영역에 **서명하지 않으며**, RRSIG, NSEC, DNSKEY, CDS, CDNSKEY 레코드 유형으로도 응답하지 않습니다.
+
+인증 과정과 관련 레코드에 대해 더 알아보려면 [DNSSEC 동작 방식](https://www.cloudflare.com/dns/dnssec/how-dnssec-works/)을 참고하세요.

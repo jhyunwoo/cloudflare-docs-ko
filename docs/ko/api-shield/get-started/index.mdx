@@ -1,0 +1,127 @@
+---
+title: API Shield 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+  label: 시작하기
+---
+
+import { GlossaryTooltip, Render, Steps } from "~/components";
+
+이 가이드는 API 보안 모범 사례를 식별하고 해결하기 위해 API Shield를 설정하는 과정을 안내합니다.
+
+:::note
+API Shield 기능을 활성화해도 설정을 `log`에서 `block` 모드로 변경하기 전까지는 트래픽에 영향을 주지 않습니다.
+:::
+
+<div id="session-identifiers"></div>
+
+## 세션 식별자
+
+<Render file="session-identifiers" product="api-shield" />
+
+<Render file="required-session-identifiers" product="api-shield" />
+
+### 세션 식별자 설정 방법
+
+<Render file="set-up-session-identifiers" product="api-shield" />
+
+## Schema validation으로 스키마 업로드하기(선택 사항)
+
+Schema validation은 요청이 <GlossaryTooltip term="API schema">API schema</GlossaryTooltip>와 일치하는 경우에만 origin과 통신하도록 허용하여 API를 보호합니다.
+
+엄격히 필수는 아니지만, 기존 스키마를 업로드하면 Endpoint Management에 엔드포인트를 자동으로 추가할 기회를 얻을 수 있습니다. 이미 스키마가 있다면 [Schema validation](/api-shield/security/schema-validation/)에 업로드할 수 있습니다.
+
+:::note
+기록된 요청을 [Security Events](/waf/analytics/security-events/)에서 검토할 수 있도록 Schema validation 규칙을 처음에는 `log`로 설정해 시작하는 것이 좋습니다. 올바른 요청만 기록된다는 확신이 들면 규칙을 `block`으로 전환하세요.
+:::
+
+업로드할 스키마가 없다면, API Shield로 스키마를 생성하는 방법을 알아보기 위해 이 가이드를 계속 읽어보세요.
+
+## Sensitive Data Detection ruleset 및 관련 규칙 활성화
+
+API Shield는 Cloudflare WAF의 [Sensitive Data Detection](/api-shield/management-and-monitoring/endpoint-management/#sensitive-data-detection) ruleset과 함께 동작하여, HTTP 응답에 주민등록번호나 신용카드 번호 같은 민감한 데이터를 반환하는 <GlossaryTooltip term="API endpoint">API endpoints</GlossaryTooltip>를 식별합니다. 이러한 엔드포인트를 모니터링하는 것은 민감한 데이터가 예상될 때만 반환되도록 보장하는 데 매우 중요할 수 있습니다.
+
+:::note
+Sensitive Data Detection을 사용하려면 구독이 필요합니다. 권한이 없다면 계정 팀에 문의하세요.
+:::
+
+행에서 경로 옆 아이콘을 선택하면 민감한 데이터를 반환하는 엔드포인트를 식별할 수 있습니다. 엔드포인트를 펼치면 어떤 규칙이 트리거되었는지 자세히 볼 수 있으며, **Firewall Events**를 탐색해 더 많은 정보를 확인할 수 있습니다.
+
+## 발견된 엔드포인트를 Endpoint Management에 추가
+
+Cloudflare의 머신 러닝 모델은 이미 기존 트래픽을 검사하여 API 엔드포인트의 존재를 파악했습니다. API Discovery에서 Endpoint Management로 엔드포인트를 추가하면 플랫폼의 추가 보안, 가시성, 관리 기능을 사용할 수 있습니다. Endpoint Management는 API 엔드포인트를 저장, 업데이트하고 성능 메트릭을 모니터링하여 상태를 추적합니다.
+
+:::note
+Schema validation, schema learning, JWT validation, Sequence Analytics, sequence mitigation, rate limit recommendations은 모두 Endpoint Management에 저장된 엔드포인트에 대해서만 실행됩니다.
+:::
+
+엔드포인트는 메서드, 경로, 호스트 기준으로 [API Discovery](/api-shield/management-and-monitoring/endpoint-management/#add-endpoints-from-api-discovery), [Schema validation](/api-shield/management-and-monitoring/endpoint-management/#add-endpoints-from-schema-validation), 또는 [수동 추가](/api-shield/management-and-monitoring/endpoint-management/#add-endpoints-manually) 방식으로 직접 저장할 수 있습니다.
+
+이렇게 하면 지정한 엔드포인트가 관리 대상 엔드포인트 목록에 추가됩니다. 저장된 엔드포인트 목록은 **Endpoint Management** 페이지에서 확인할 수 있습니다.
+
+엔드포인트가 저장되면 Cloudflare가 해당 엔드포인트의 [성능 데이터](/api-shield/management-and-monitoring/endpoint-management/#endpoint-analysis)와 보안 데이터를 집계합니다.
+
+### 시스템이 트래픽 패턴을 학습하도록 두기
+
+Cloudflare는 엔드포인트를 추가한 뒤 24시간 동안 API 트래픽을 검사하며 그 스키마를 학습하기 시작합니다. 개별 엔드포인트가 받는 트래픽 양에 따라 생성된 스키마에 대한 신뢰도는 달라질 수 있습니다.
+
+또한 Cloudflare는 구성된 세션 식별자를 사용해 엔드포인트별 rate limit을 제안합니다.
+
+최상의 결과를 위해, 다음 단계로 진행하기 전에 엔드포인트 추가 후 최소 24시간은 기다리는 것을 권장합니다.
+
+API Shield를 처음 설정하고 Endpoint Management에 첫 API 엔드포인트를 추가했다면 [추가 구성](/api-shield/get-started/#additional-configuration)으로 진행하는 것이 좋습니다.
+
+## 가장 민감한 엔드포인트에 rate limit 추가
+
+[Rate limiting rules](/waf/rate-limiting-rules/)를 사용하면 식과 일치하는 요청에 대해 rate limit을 정의하고, 해당 한도에 도달했을 때 수행할 작업을 선택할 수 있습니다.
+
+세션 식별자를 사용하는 엔드포인트에 대해 Endpoint Management에서 Cloudflare가 제안한 rate limit을 확인할 수 있습니다. 많은 보안 도구와 달리, 이러한 권장 rate limit은 사이트 전체나 IP 주소 기준이 아니라 엔드포인트별, 세션별입니다. 규칙을 만들면 특정 엔드포인트에 대한 특정 세션의 고유 방문자 트래픽만을 기준으로 작동합니다. 이 기능을 사용하면 rate limit 적용을 매우 구체적이고 정밀하게 할 수 있어, 광범위한 규칙으로 인한 오탐을 줄이면서 악성 트래픽을 낮출 수 있습니다.
+
+## 학습된 스키마를 Schema validation으로 가져오기
+
+Cloudflare는 Endpoint Management에 저장된 모든 엔드포인트에 대해 트래픽을 검사해 스키마 파라미터를 학습합니다. OpenAPI 스키마는 호스트명 기준으로 OpenAPI v3.0.0 형식으로 내보낼 수 있습니다.
+
+학습된 스키마를 가져오면, API Discovery로 발견되었지만 그 존재나 스키마를 모르기 때문에 이전에는 보호할 수 없었던 API 엔드포인트를 보호할 수 있습니다.
+
+[Cloudflare dashboard](/api-shield/security/schema-validation/#add-validation-by-applying-a-learned-schema-to-an-entire-hostname)에서 전체 호스트명의 학습된 스키마를 가져오거나, [개별 엔드포인트에 학습된 스키마를 적용](/api-shield/security/schema-validation/#add-validation-by-applying-a-learned-schema-to-a-single-endpoint)할 수 있습니다. 적용하기 전에, 어떤 규칙이 트래픽을 검증하게 될지 검토하기 위해 먼저 스키마를 export하는 것을 권장합니다.
+
+## Endpoint Management에서 학습된 스키마 내보내기
+
+학습된 스키마에는 항상 servers 섹션의 호스트명, 호스트·메서드·경로 기준의 모든 엔드포인트, 감지된 path variables가 포함됩니다. 여기에 감지된 query parameters와 그 형식도 포함될 수 있습니다. 선택적으로 API Shield의 rate limit 임계값 권장치도 포함할 수 있습니다.
+
+[Cloudflare dashboard](/api-shield/management-and-monitoring/endpoint-management/schema-learning/#export-a-schema) 또는 [API](/api/resources/api_gateway/subresources/schemas/methods/list/)를 통해 학습된 스키마를 export할 수 있습니다.
+
+## Sequence Analytics 보기 및 구성
+
+[Sequence Analytics](/api-shield/security/sequence-analytics/)는 일정 기간 동안 API 트래픽에서 발견된 중요한 API 요청 시퀀스의 일부를 보여줍니다.
+
+Endpoint Management에 저장된 엔드포인트가 포함된 API 트래픽의 주요 시퀀스를 확인할 수 있습니다. 우리는 Correlation Score 기준으로 시퀀스를 정렬합니다. 점수가 높은 시퀀스는 순서대로 함께 발생할 가능성이 큰 API 요청들로 구성됩니다.
+
+[Sequence mitigation](/api-shield/security/sequence-mitigation/)을 사용하면 API와 통신하는 인증된 클라이언트에 대해 요청 패턴을 강제할 수 있습니다. API 클라이언트가 사용하는 요청 시퀀스를 더 잘 이해하려면 Sequence Analytics를 활용하세요.
+
+애플리케이션의 핵심 요청 흐름을 구성하는 높은 상관 점수 시퀀스에서 발견된 API 엔드포인트에는 가능한 한 모든 API Shield 보호 기능(rate limiting suggestions, Schema validation, JWT validation, mTLS)을 적용해야 합니다. 또한 개발 팀과 함께 실제 엔드포인트 순서가 맞는지도 점검해야 합니다.
+
+자세한 내용은 [Detecting API abuse automatically using sequence analysis](https://blog.cloudflare.com/api-sequence-analytics) 블로그 글을 참고하세요.
+
+<div id="additional-configuration"></div>
+
+## 추가 구성
+
+### JSON Web Tokens (JWT) validation 설정
+
+Cloudflare API를 사용해 [JSON Web Tokens validation](/api-shield/security/jwt-validation/)을 구성할 수 있습니다. 이 기능은 클라이언트가 API 또는 웹 애플리케이션에 보내는 JWT의 무결성과 유효성을 검증합니다.
+
+### GraphQL Malicious Query Protection 설정
+
+origin에서 GraphQL을 사용한다면 GraphQL 쿼리의 크기와 깊이에 제한을 둘 수 있습니다.
+
+[GraphQL malicious query protection](/api-shield/security/graphql-protection/api/)은 origin에 과부하를 줄 수 있고 서비스 거부를 유발할 수 있는 쿼리를 찾기 위해 GraphQL 트래픽을 검사합니다. 고객은 들어오는 GraphQL 쿼리의 깊이와 크기를 제한하는 규칙을 만들어, 의심스럽게 크거나 복잡한 쿼리를 차단할 수 있습니다.
+
+자세한 내용은 [블로그 글](https://blog.cloudflare.com/protecting-graphql-apis-from-malicious-queries/)을 참고하세요.
+
+### Mutual TLS (mTLS) authentication
+
+추가적인 보호 계층이 필요하거나 도움이 되는 API를 운영한다면 Mutual TLS (mTLS)를 고려할 수 있습니다.
+
+[Mutual TLS (mTLS) authentication](/api-shield/security/mtls/)은 클라이언트 인증서를 사용해 클라이언트와 서버 간 트래픽이 양방향으로 안전하고 신뢰되도록 보장합니다. mTLS는 또한 IoT 장치처럼 identity provider를 통해 인증하지 않는 요청도 특정 리소스에 도달할 수 있음을 증명할 수 있게 해 줍니다.

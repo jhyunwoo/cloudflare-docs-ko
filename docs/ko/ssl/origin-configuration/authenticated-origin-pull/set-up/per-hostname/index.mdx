@@ -1,0 +1,74 @@
+---
+pcx_content_type: how-to
+title: 호스트명별
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 호스트명별 Authenticated Origin Pulls
+---
+
+import { AvailableNotifications, Render, Details } from "~/components";
+
+hostname별로 Authenticated Origin Pulls를 활성화하면, 지정된 hostname으로 가는 모든 프록시 트래픽이 오리진 웹 서버에서 인증됩니다. Private PKI의 클라이언트 인증서를 사용해 Cloudflare에서 오는 연결을 인증할 수 있습니다.
+
+## Before you begin
+
+:::caution[Warning]
+
+<Render file="aop-per-hostname-cert-requirement" product="ssl" />
+:::
+
+아래 단계에는 OpenSSL로 커스텀 인증서를 생성하는 예시가 포함되어 있습니다. 커스텀 인증서를 발급하는 데 사용하는 CA 루트 인증서는 [오리진에 업로드](#2-configure-origin-to-accept-client-certificates)할 CA와 동일해야 합니다.
+
+<Details header="OpenSSL 예시">
+	<Render file="custom-cert-openssl-commands" product="ssl" />
+</Details>
+
+## 1. Upload custom certificate
+
+[Upload A Hostname Client Certificate](/api/resources/origin_tls_client_auth/subresources/hostname_certificates/methods/create/) endpoint를 사용해 커스텀 인증서를 업로드합니다.
+
+:::note
+
+[leaf certificate](/ssl/concepts/#chain-of-trust)를 업로드해야 합니다. 루트 CA를 업로드하면 API는 `missing leaf certificate` 오류를 반환합니다.
+:::
+
+<Render file="aop-per-hostname-upload-cert" product="ssl" />
+
+API 응답에서 인증서 `id`를 저장해 두세요. 4단계에서 필요합니다.
+
+## 2. Configure origin to accept client certificates
+
+<Render
+	file="aop-configure-origin"
+	params={{ one: " ", two: " " }}
+	product="ssl"
+/>
+
+## 3. Enable Authenticated Origin Pulls for the hostname
+
+Cloudflare API에 [`PUT`](/api/resources/origin_tls_client_auth/subresources/hostnames/methods/update/) 요청을 보내 특정 hostname에 대해 Authenticated Origin Pulls를 활성화합니다.
+
+2단계에서 오리진에 로깅을 설정했다면, 테스트를 수행하여 Authenticated Origin Pulls가 정상적으로 동작하는지 확인하세요.
+
+## 4. Enforce validation check on your origin
+
+<Render file="aop-enforce-validation" product="ssl" />
+
+## 5. (Optional) Set up expiration alerts
+
+AOP 인증서가 만료되기 전에 알림을 받도록 경고를 구성할 수 있습니다.
+
+<AvailableNotifications
+	product="SSL/TLS"
+	notificationFilter="Hostname-level Authenticated Origin Pulls Certificate Expiration Alert"
+/>
+
+<Render file="get-started" product="notifications" />
+
+## Further options
+
+추가 옵션은 [Manage certificates](/ssl/origin-configuration/authenticated-origin-pull/set-up/manage-certificates/)를 참고하세요.
+
+설정을 제거하는 방법은 [Rollback](/ssl/origin-configuration/authenticated-origin-pull/set-up/rollback/)을 참고하세요.

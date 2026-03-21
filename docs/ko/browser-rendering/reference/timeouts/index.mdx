@@ -1,0 +1,52 @@
+---
+pcx_content_type: reference
+title: REST API 타임아웃
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/reference/timeouts/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/reference/timeouts/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem } from "~/components";
+
+브라우저 렌더링은 몇 가지 독립적 인 타이머를 사용하여 요청의 긴 다른 부품을 처리 할 수 있습니다.
+이 타이머가 한계를 초과하는 경우, 요청은 타임아웃 오류를 반환합니다.
+
+각 타이머는 렌더링 수명주기의 특정 부분을 제어합니다. - 페이지 부하에서, selector 부하로 동작합니다.
+
+| 시간                      | 관련 상품                                                                                  | 기본 정보              | 최대.   |
+| ----------------------- | -------------------------------------------------------------------------------------- | ------------------ | ----- |
+| `goToOptions.timeout`   | Time to wait for the page to load 전에 timeout.                                          | 30 분               | 60 년대 |
+| `goToOptions.waitUntil` | 페이지로드가 완료되면 결정합니다. 더 알아보기[`waitUntil`옵션 정보](#waituntil-options)상세 정보                   | `domcontentloaded` | —     |
+| `waitForSelector`       | 페이지에 표시되는 특정 요소 (모든 CSS selector)를 기다릴 시간.                                             | 한국어                | 60 년대 |
+| `waitForTimeout`        | 페이지가 작업을 진행하기 위해로드 된 후 기다리는 시간의 추가 금액.                                                 | 한국어                | 60 년대 |
+| `actionTimeout`         | 작업을 기다립니다 (예 : 스크린 샷, PDF 또는 스크랩) 페이지가로드 한 후 완료.                                       | 한국어                | 5 분   |
+| `PDFOptions.timeout`    | 같은 것과`actionTimeout`, 하지만에만 적용[/pdf 엔드포인트](/browser-rendering/rest-api/pdf-endpoint/). | 30 분               | 5 분   |
+
+### `waitUntil`옵션 정보
+
+더 보기`goToOptions.waitUntil`브라우저가 페이지 내비게이션을 고려할 때 매개 변수 제어. 이것은 JavaScript-heavy 페이지에 중요한 내용이 처음 페이지 짐 후에 역동적으로 렌더링됩니다.
+
+| 제품정보               | 채용 정보                                     |
+| ------------------ | ----------------------------------------- |
+| `load`             | 대기 중`load`이미지 및 스타일시트와 같은 모든 리소스를 포함한 이벤트 |
+| `domcontentloaded` | DOM 내용이 완전히 로드될 때까지 기다립니다.`load`이벤트 (기본)  |
+| `networkidle0`     | 적어도 500 ms를 위한 네트워크 연결이 없을 때까지 기다리십시오     |
+| `networkidle2`     | 적어도 500 ms를 위한 2개의 네트워크 연결이 없을 때까지 기다리십시오 |
+
+내용을 렌더링하는 JavaScript에 의존하는 페이지, 사용`networkidle0`또는`networkidle2`페이지가 완전히 추출하기 전에 렌더링됩니다.
+
+## 노트 및 권장 사항
+
+여러 타이머를 설정할 수 있습니다. 즉, 요청이 완료됩니다.
+
+예상 출력을 받지 않는 경우:
+
+- 더 보기`goToOptions.timeout`(60 s까지).
+- 특정 요소를 기다리면 사용`waitForSelector`. 그렇지 않으면, 사용`goToOptions.waitUntil`설정하기`networkidle2`페이지가 동적 콘텐츠를로드 완료되도록합니다.
+- 당신이 얻는 경우에`422`, 그것은 작업 자체가 될 수 있습니다 (예 : 스크린 샷을 복용, HTML 콘텐츠를 추출) 긴 시간이 걸립니다. 더 보기`actionTimeout`대신.

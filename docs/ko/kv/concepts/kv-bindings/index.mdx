@@ -1,0 +1,108 @@
+---
+pcx_content_type: concept
+title: KV 바인딩
+tags:
+  - Bindings
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/kv/concepts/kv-bindings/'
+translation_source_md: 'https://developers.cloudflare.com/kv/concepts/kv-bindings/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+모델 번호: KV[관련 제품](/workers/runtime-apis/bindings/)노동자와 KV 네임스페이스 간의 통신을 허용한다.
+
+KV 바인딩 구성[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+## 액세스 KV에서 QXQXQXQXQ
+
+·[KV 네임스페이스](/kv/concepts/kv-namespaces/)Cloudflare의 글로벌 네트워크에 복제된 핵심 가치 데이터베이스입니다.
+
+작업자 내에서 KV 네임스페이스에 연결하려면 네임스페이스의 ID에 대한 바인딩을 정의해야 합니다.
+
+바인딩의 이름은 KV 네임스페이스의 이름과 일치할 필요가 없습니다. 대신, 바인딩은 유효한 JavaScript 식별자이어야 합니다, 식별자가 당신의 노동자 안에 글로벌 변수로 존재하기 때문에.
+
+KV 네임스페이스는 당신이 선택하는 이름 (예를 들면,`My tasks`), 할당된 ID (예를 들면,`06779da6940b431db6e566b4846d64db`).
+
+Worker를 실행하려면 바인딩을 정의합니다.
+
+다음 예제에서 바인딩은 호출됩니다.`TODO`. 에서`kv_namespaces`WranglerXQ 윤곽 파일의 부분, 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "worker",
+  	//· ...
+  	"kv_namespaces": [
+  		{
+  			"binding": "TODO",
+  			"id": "06779da6940b431db6e566b4846d64db"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이로 인해 배포 된 노동자는`TODO`환경 객체의 필드 (두 번째 매개 변수)`fetch()`요청 핸들러). 어떤 방법`TODO`바인딩은 KV namespace에 ID를 가진 지도할 것입니다`06779da6940b431db6e566b4846d64db`– 당신은 호출`My Tasks`이전.
+
+```js
+export default {
+  async fetch(request, env, ctx) {
+    //"to-do:123"키로 값을 가져옵니다.
+    //참고 : `TODO` KV 바인딩은 "내 작업" 네임스페이스에 맵을 붙입니다.
+    let value = await env.TODO.get("to-do:123");
+
+    //값 반환, as 이다, 에 대한 응답
+    return new Response(value);
+  },
+};
+```
+
+## 로컬로 개발할 때 KV 바인딩을 사용하십시오
+
+Wrangler를 사용하여 로컬로 개발할 때`wrangler dev`명령, Wrangler는 기본적으로 KV의 로컬 버전을 사용하여 KV의 라이브 프로덕션 데이터와 인터퍼링을 방지합니다. 이것은 로컬로 작성하지 않은 키를 읽는 것을 의미한다.`null`.
+
+이름 \*`wrangler dev`Cloudflare QXKVQ 네임스페이스에 연결하여 Cloudflare의 글로벌 네트워크, 설정`"remote" : true`KV 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "worker",
+  	//· ...
+  	"kv_namespaces": [
+  		{
+  			"binding": "TODO",
+  			"id": "06779da6940b431db6e566b4846d64db"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## KVXQ는 Durable Objects와 WorkersXQ에서 ES 모듈 형식을 사용하여 접근합니다
+
+[Durable Objects](/durable-objects/)ES 모듈 형식을 사용합니다. 글로벌 변수 대신, 바인딩은 속성으로 사용할 수 있습니다`env`이름 \*[constructor에 전달](/durable-objects/get-started/#2-write-a-durable-object-class).
+
+예는 다음과 같습니다.
+
+```js
+import { DurableObject } from "cloudflare:workers";
+
+export class MyDurableObject extends DurableObject {
+  constructor(ctx, env) {
+    super(ctx, env);
+  }
+
+  async fetch(request) {
+    const valueFromKV = await this.env.NAMESPACE.get("someKey");
+    return new Response(valueFromKV);
+  }
+}
+```

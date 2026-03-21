@@ -1,0 +1,222 @@
+---
+title: Invoke 방법
+pcx_content_type: concept
+tags:
+  - RPC
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, GlossaryTooltip } from "~/components";
+
+## 튼튼한 개체에 Invoking 방법
+
+모든 새로운 프로젝트 및 기존 프로젝트는 호환성 날짜보다 크거나 동등합니다.[`2024-04-03`](/workers/configuration/compatibility-flags/#durable-object-stubs-and-service-bindings-support-rpc)invoke에 선호[원격 절차 통화 (RPC)](/workers/runtime-apis/rpc/)정의된 방법<GlossaryTooltip term="Durable Object class">튼튼한 목표 종류</GlossaryTooltip>.
+
+HTTP 요청 / 응답 흐름 또는 레거시 프로젝트를 요구하는 프로젝트는 계속 invoke`fetch()`튼튼한 개체 클래스에 핸들러.
+
+### Invoke RPC 방법
+
+내장형에서 상속되는 튼튼한 개체 클래스를 작성함으로써`DurableObject`Durable Objects 클래스의 공개 방법[RPC 방법](/workers/runtime-apis/rpc/)전화할 수 있는 ,[튼튼한ObjectStub](/durable-objects/api/stub)작업자에서.
+
+모든 RPC 통화는[비동기](/workers/runtime-apis/rpc/lifecycle/), 수락 및 반환[serializable 유형](/workers/runtime-apis/rpc/)·[propagate 예외](/workers/runtime-apis/rpc/error-handling/)stack trace가 없는 콜러에. 더 알아보기[모델 번호: Workers RPC](/workers/runtime-apis/rpc/)완전한 세부사항.
+
+<Render file="example-rpc" product="durable-objects" />
+
+:::참조
+
+RPC로,`DurableObject`superclass 정의`ctx`·`env`클래스 속성으로. 이전에 호출 된 것`state`지금 호출`ctx`당신이 늘릴 때`DurableObject`수업. 이름 \*`ctx`보다는 오히려 채택됩니다`state`제품정보`DurableObjectState`사이 일관되게 하기 위하여 공용영역`DurableObject`·`WorkerEntrypoint`기타 제품
+
+:::
+
+더 알아보기[카운터 구축](/durable-objects/examples/build-a-counter/)완전한 예입니다.
+
+### 자주 묻는 질문`fetch`회사 소개
+
+프로젝트가 호환성 날짜에 붙어 있다면[`2024-04-03`](/workers/configuration/compatibility-flags/#durable-object-stubs-and-service-bindings-support-rpc), 또는 보낼 필요가 있다[`Request`](/workers/runtime-apis/request/)객체와 반환`Response`객체, 다음 fetch 핸들러를 통해 튼튼한 개체에 요청을 보내야합니다.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+    	constructor(ctx, env) {
+    		super(ctx, env);
+    	}
+
+    	async fetch(request) {
+    		return new Response("Hello, World!");
+    	}
+    }
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		//stub는 튼튼한 목표에 invoke 방법에 사용된 클라이언트입니다
+    		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+
+    		//튼튼한 개체의 방법은 스텁을 통해 호출됩니다
+    		const response = await stub.fetch(request);
+
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+    	MY_DURABLE_OBJECT: DurableObjectNamespace<MyDurableObject>;
+    }
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		super(ctx, env);
+    	}
+
+    	async fetch(request: Request): Promise<Response> {
+    		return new Response("Hello, World!");
+    	}
+    }
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		//stub는 튼튼한 목표에 invoke 방법에 사용된 클라이언트입니다
+    		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+
+    		//튼튼한 개체의 방법은 스텁을 통해 호출됩니다
+    		const response = await stub.fetch(request);
+
+    		return response;
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`URL`관련 기사[`Request`](/workers/runtime-apis/request/)대상에 전달`fetch()`튼튼한 개체의 핸들러는 잘 만들어진 URL이어야하지만 공개적으로 신뢰할 수있는 호스트 이름이어야합니다.
+
+RPC 없이, 고객은 수시로 튼튼한 목표에 개인적인 방법 및 파견 요구에 대응한 요구를 건설합니다`fetch`핸들러. RPC는 이 예에서 명백하게 더 인체 공학적입니다.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		super(ctx, env);
+    	}
+
+    	private hello(name) {
+    		return new Response(`Hello, ${name}!`);
+    	}
+
+    	private goodbye(name) {
+    		return new Response(`Goodbye, ${name}!`);
+    	}
+
+    	async fetch(request) {
+    		const url = new URL(request.url);
+    		let name = url.searchParams.get("name");
+    		if (!name) {
+    			name = "World";
+    		}
+
+    		switch (url.pathname) {
+    			case "/hello":
+    				return this.hello(name);
+    			case "/goodbye":
+    				return this.goodbye(name);
+    			default:
+    				return new Response("Bad Request", { status: 400 });
+    		}
+    	}
+    }
+
+    //작업자
+    export default {
+    	async fetch(_request, env, _ctx) {
+    		//stub는 튼튼한 목표에 invoke 방법에 사용된 클라이언트입니다
+    		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+
+    		//튼튼한 Object stub에서 fetch 핸들러를 호출
+    		let response = await stub.fetch("http://do/hello?name=World");
+
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+    	MY_DURABLE_OBJECT: DurableObjectNamespace<MyDurableObject>;
+    }
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		super(ctx, env);
+    	}
+
+    	private hello(name: string) {
+    		return new Response(`Hello, ${name}!`);
+    	}
+
+    	private goodbye(name: string) {
+    		return new Response(`Goodbye, ${name}!`);
+    	}
+
+    	async fetch(request: Request): Promise<Response> {
+    		const url = new URL(request.url);
+    		let name = url.searchParams.get("name");
+    		if (!name) {
+    			name = "World";
+    		}
+
+    		switch (url.pathname) {
+    			case "/hello":
+    				return this.hello(name);
+    			case "/goodbye":
+    				return this.goodbye(name);
+    			default:
+    				return new Response("Bad Request", { status: 400 });
+    		}
+    	}
+    }
+
+    //작업자
+    export default {
+    	async fetch(_request, env, _ctx) {
+    		//stub는 튼튼한 목표에 invoke 방법에 사용된 클라이언트입니다
+    		const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+
+    		//튼튼한 Object stub에서 fetch 핸들러를 호출
+    		let response = await stub.fetch("http://do/hello?name=World");
+
+    		return response;
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>

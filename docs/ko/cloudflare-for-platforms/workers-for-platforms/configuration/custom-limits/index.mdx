@@ -1,0 +1,46 @@
+---
+pcx_content_type: concept
+title: 주문 제한
+sidebar:
+  order: 99
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+사용자 정의 제한은 고객의 Workers의 자원 사용에 프로그래밍적으로 제한을 시행 할 수 있습니다. 최대 CPU 시간의 제한을 설정할 수 있으며 invocation 당 subrequests 수를 설정할 수 있습니다. 사용자 작업자가 이러한 제한 중 하나를 표시하면 사용자 작업자는 즉시 예외를 던집니다.
+
+## 사용자 지정 제한 설정
+
+관례 한계는 동적인 파견 노동자에서 놓일 수 있습니다:
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			//URL을 파, subdomain을 읽으십시오
+			let workerName = new URL(request.url).host.split(".")[0];
+			let userWorker = env.dispatcher.get(
+				workerName,
+				{},
+				{
+					//설정 제한
+					limits: { cpuMs: 10, subRequests: 5 },
+				},
+			);
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				//우리는 우리의 파견 namespace에 존재하지 않는 노동자를 얻기 위해 시도
+				return new Response("", { status: 404 });
+			}
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```

@@ -1,0 +1,178 @@
+---
+title: 제품 정보
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/storage/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/storage/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+마운트 S3- 호환 스토리지 버킷 (R2, S3, GCS) 영구 데이터 액세스를위한 샌드 박스 파일 시스템에.
+
+## 제품 설명
+
+### `mountBucket()`
+
+샌드박스의 로컬 경로에 S3-compatible Bucket을 장착합니다.
+
+```ts
+await sandbox.mountBucket(
+  bucket: string,
+  mountPath: string,
+  options: MountBucketOptions
+): Promise<void>
+```
+
+**매개 변수**:
+
+- `bucket`- 버킷 이름 (예 :`"my-r2-bucket"`)
+- `mountPath`- 로컬 파일시스템 경로(e.g.,`"/data"`)
+- `options`- 마운트 구성 (see)[`MountBucketOptions`](#mountbucketoptions))
+
+<TypeScriptExample>
+  ```
+  // Mount R2 bucket to /data
+  await sandbox.mountBucket('my-bucket', '/data', {
+    endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+    provider: 'r2'
+  });
+
+  // Read/write files directly
+  const data = await sandbox.readFile('/data/config.json');
+  await sandbox.writeFile('/data/results.json', JSON.stringify(data));
+
+  // Mount with explicit credentials
+  await sandbox.mountBucket('my-bucket', '/storage', {
+    endpoint: 'https://s3.amazonaws.com',
+    credentials: {
+      accessKeyId: env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+    }
+  });
+
+  // Read-only mount
+  await sandbox.mountBucket('datasets', '/datasets', {
+    endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+    readOnly: true
+  });
+
+  // Mount a subdirectory within the bucket
+  await sandbox.mountBucket('shared-bucket', '/user-data', {
+    endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+    prefix: '/users/user-123/'
+  });
+  ```
+</TypeScriptExample>
+
+**한국어**:
+
+- `InvalidMountPointError`- 기존 마운트 경로 또는 충돌
+- `BucketAccessError`- 버킷은 존재하지 않습니다.
+
+:::표\[본]
+Credentials는 통해 제공될 수 있습니다:
+
+1. 회사 소개`credentials`옵션 정보
+2. 환경 변수 (Environment variables)`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+3. 경계 R2 물통에서 자동적인 탐지
+
+이름 \*[마운트 버킷 가이드](/sandbox/guides/mount-buckets/)상세한 인증 옵션.
+주요 특징
+
+### `unmountBucket()`
+
+이전에 장착 된 물통을 거치지 마십시오.
+
+```ts
+await sandbox.unmountBucket(mountPath: string): Promise<void>
+```
+
+**매개 변수**:
+
+- `mountPath`- 물통이 장착 된 경로 (예 :,`"/data"`)
+
+<TypeScriptExample>
+  ```
+  // Mount, process, unmount
+  await sandbox.mountBucket('data', '/data', { endpoint: '...' });
+  await sandbox.exec('python process.py');
+
+  // Unmount
+  await sandbox.unmountBucket('/data');
+  ```
+</TypeScriptExample>
+
+:::노트\[자동정화]
+거치된 물통은 콘테이너가 파괴될 때 자동적으로 unmounted.
+주요 특징
+
+## 제품정보
+
+### `MountBucketOptions`
+
+```ts
+interface MountBucketOptions {
+	endpoint?: string;
+	localBucket?: boolean;
+	provider?: BucketProvider;
+	credentials?: BucketCredentials;
+	readOnly?: boolean;
+	prefix?: string;
+	s3fsOptions?: Record<string, string>;
+}
+```
+
+**제품정보**:
+
+- `endpoint`(필수)`localBucket`이름 \*`false`또는 unset) - S3-compatible 엔드포인트 URL
+  - R2:`'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'`
+  - 모델 번호:`'https://s3.amazonaws.com'`
+  - GCS:`'https://storage.googleapis.com'`
+
+- `localBucket`(선택) - 노동자의 R2 물통을 사용하여 R2XQ 바인딩을 국부적으로 발달 도중 거치하십시오`wrangler dev`
+  - 시간 :`true`, SDK는 S3 엔드포인트를 사용하는 대신 R2 바인딩을 직접 동기화합니다
+  - `endpoint`·`credentials`이 때에는 필요하지 않습니다.`true`
+    - `provider`·`s3fsOptions`이 때 사용할 수 없습니다`true`
+  - 기본 정보:`false`
+
+- `provider`(선택) - 저장 공급자 hint
+  - Enables 공급자 별 최적화
+  - 가치:`'r2'`, `'s3'`, `'gcs'`
+
+- `credentials`(선택 사항) - API 자격
+  - 제품정보`accessKeyId`·`secretAccessKey`
+  - 제공하지 않는 경우 환경 변수를 사용합니다.
+
+- `readOnly`(옵션) - 읽기 전용 모드에서 마운트
+  - 기본 정보:`false`
+
+- `prefix`(옵션) - 물통 내의 Subdirectory
+  - 지정할 때, 이 접두사의 내용만 마운트 포인트에 표시됩니다.
+  - 시작 및 종료`/`(예:`/data/uploads/`)
+  - 과태: 산 전체 물통
+
+- `s3fsOptions`(옵션) - 고급 s3fs 마운트 플래그
+  - 예:`{ 'use_cache': '/tmp/cache' }`
+
+### `BucketProvider`
+
+자동 s3fs 깃발 최적화를 위한 저장 공급자 hint.
+
+```ts
+type BucketProvider = "r2" | "s3" | "gcs";
+```
+
+- `'r2'`- Cloudflare R2 (추천, 적용`nomixupload`플래그)
+- `'s3'`- 아마존 S3
+- `'gcs'`- Google 클라우드 스토리지
+
+## 관련 자료
+
+- [마운트 버킷 가이드](/sandbox/guides/mount-buckets/)- 완전한 물통 설치 walkthrough
+- [파일 API](/sandbox/api/files/)- 파일 읽기 및 쓰기

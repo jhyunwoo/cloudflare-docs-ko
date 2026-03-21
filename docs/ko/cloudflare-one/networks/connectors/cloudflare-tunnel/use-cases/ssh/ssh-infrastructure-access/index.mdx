@@ -1,0 +1,472 @@
+---
+pcx_content_type: how-to
+title: 인프라에 대한 액세스 SSH
+tags:
+  - SSH
+sidebar:
+  order: 3
+  label: 인프라에 대한 액세스 SSH
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Badge, Render, APIRequest } from "~/components";
+
+[접근성 준수](/cloudflare-one/access-controls/applications/non-http/infrastructure-apps/)SSH 서버에 연결할 수 있는 방법을 통해 과립 제어를 제공합니다. 이 기능은 동일한 배포 모델을 사용합니다.[WARP에 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-warp-to-tunnel/)하지만 더 많은 정책 옵션과 명령 로깅 기능을 잠금 해제.
+
+<Render file="access/short-lived-certs-intro" product="cloudflare-one" params={{ intro: "Furthermore, Access for Infrastructure replaces" }} />
+
+## 1. Cloudflare에 서버를 연결합니다
+
+<Render file="tunnel/connect-private-network" product="cloudflare-one" />
+
+<Render file="tunnel/connect-private-network-infra-access" product="cloudflare-one" />
+
+## 2. 클라이언트 설정
+
+Cloudflare에 장치를 연결하려면:
+
+1. [WARP 클라이언트 배포](/cloudflare-one/team-and-resources/devices/warp/deployment/)트래픽 및 DNS 모드에서 기기에.
+2. [TCP를 위한 Gateway 프록시 활성화](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy).
+3. [장치 등록 규칙](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/)어떤 기기가 Zero Trust 조직에 등록할 수 있는지 결정하십시오.
+
+## 3. WARP를 통해 루트 서버 IP
+
+<Render file="tunnel/warp-to-tunnel-route-ips" params={{ one: "SSH server" }} product="cloudflare-one" />
+
+## 4. 대상 추가
+
+<Render file="access/add-target" params={{ protocol: "generic" }} product="cloudflare-one" />
+
+## 5. 인프라 신청 추가
+
+<Render file="access/add-infrastructure-app" product="cloudflare-one" />
+
+## 6. (추천) 네트워크 정책을 구성
+
+WARP 클라이언트의 트래픽은 인프라 대상에 의해 필터링됩니다.[Gateway 네트워크 정책](/cloudflare-one/traffic-policies/get-started/network/)신청자별 액세스 정책
+
+### Catch-all 블록 정책
+
+<Render file="tunnel/catch-all-policy" product="cloudflare-one" />
+
+### 액세스 인프라 대상 허용
+
+<Render file="access/modify-gateway-policy-precedence" product="cloudflare-one" params={{ selector: "Access Infrastructure Target", protocol: "ssh" }} />
+
+## 7. SSH 서버 구성
+
+다음, Cloudflare SSH CA를 신뢰하기 위해 SSH 서버를 구성합니다. 기존 SSH 키 대신 짧은 인증서를 사용하여 인증 할 수 있습니다.
+
+### Cloudflare SSH CA 생성
+
+<Render file="ssh/ssh-proxy-ca-note" product="cloudflare-one" />
+
+Cloudflare SSH CA를 생성하고 대중적인 열쇠를 얻으십시오:
+
+<Render file="ssh/ssh-proxy-ca" product="cloudflare-one" />
+
+### 공공 키를 저장
+
+<Render file="ssh/public-key" product="cloudflare-one" />
+
+### 수정하기`sshd_config`이름 \*
+
+<Render file="ssh/modify-sshd" product="cloudflare-one" />
+
+:::참조
+Amazon Linux 1 (RHEL 기반)과 같은 특정 배포를 위해 인증서 파일 권한은 설정해야합니다.`600`. 다음 명령으로 파일 권한을 설정할 수 있습니다:
+
+```sh
+chmod 600 /etc/ssh/ca.pub
+```
+
+:::
+
+### SSH 서버를 다시로드
+
+<Render file="ssh/restart-server" product="cloudflare-one" />
+
+## 8. 사용자로 연결
+
+사용자는 장치에서 WARP 클라이언트에 로그인되어 있기 때문에 대상에 연결할 SSH 클라이언트를 사용할 수 있습니다. 대상이 특정 가상 네트워크 안에 있는 경우 WARP 클라이언트가 있다는 것을 보증합니다.[가상 네트워크에 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/#connect-to-a-virtual-network)연결하기 전에. 사용자는 장치에서 SSH 구성을 수정할 필요가 없습니다. 예를 들면, 맨끝에서 SSH에:
+
+```sh
+ssh <username>@<target IP>
+```
+
+인프라에 대한 접근도 지원`scp`, `sftp`·`rsync`명령. 더 알아보기[Known 제한](#known-limitations)지원되지 않은 SSH 명령 및 기능 목록.
+
+사용자 연결에 대한 자세한 내용을 보려면, 참조[인프라 문서](/cloudflare-one/access-controls/applications/non-http/infrastructure-apps/#4-connect-as-a-user).
+
+## SSH 명령 로그
+
+SSH 명령 로그는 실제 SSH 명령을 포함하고 사용자가 대상에 ran. Cloudflare에 SSH 로그를 저장하고 대시보드에서 로그를 다운로드 할 수 있습니다.[다운로드](#download-encrypted-ssh-logs)고객이 제공 한 공공 키를 사용하여 암호화되며 Cloudflare에 볼 수 없습니다. 다운로드 가능한 SSH 로그의 납품은 제일 노력입니다; 보장된 납품을 위해, 기업 고객은 할 수 있습니다[Logpush 작업 구성](#export-ssh-logs-with-logpush)SSH 로그를 저장 목적지에 보냅니다. Logpush 페이로드는 고객 제공 공개 키로 암호화되지 않습니다.
+
+### 암호화된 SSH 로그 다운로드
+
+이 지침을 따르고 Zero Trust에서 SSH 명령 로그를 다운로드하십시오.
+
+#### SSH 명령 로깅 사용
+
+<Render file="ssh/upload-ssh-key" params={{ note: "" }} product="cloudflare-one" />
+
+#### SSH 명령 로깅 사용
+
+SSH 명령 로깅을 해제하려면 업로드 된 공공 키를 삭제하십시오.
+
+<Tabs>
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **교통 설정** > **SSH 로그 암호화 공개 키**.
+    2. 제품정보**기타 제품**.
+    3. 제품정보**키 제거**확인하기.
+
+    Cloudflare는 대상에 SSH 명령을 멈출 것이며, 어떤 명령도[게이트웨이 감사 SSH](/cloudflare-one/traffic-policies/network-policies/ssh-logging/)정책.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    SSH 암호화 공개 키를 삭제하려면[사이트맵](/api/resources/zero_trust/subresources/gateway/subresources/audit_ssh_settings/methods/update/):
+
+    <APIRequest
+      path="/accounts/{account_id}/gateway/audit_ssh_settings"
+      method="PUT"
+      json={{
+  	public_key: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+#### SSH 로그 보기
+
+SSH 명령 로그는 대시보드 자체에서 볼 수 없으며 수출 및 해독해야합니다.
+
+수동으로 검색하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**관련 기사** > **로그인**.
+2. 제품정보**SSH 명령 로그**.
+3. 로그인을 필터링하여 이름의[SSH 응용](#5-add-an-infrastructure-application).
+4. SSH 세션을 선택하면 명령 로그를 내보내고 싶습니다.
+5. 측면 패널에서 아래로 스크롤**SSH 로그**선택하기**다운로드**.
+6. <Render file="ssh/decrypt-ssh-log" product="cloudflare-one" />
+
+### SSH 로그 내보내기
+
+:::노트\[Availability]
+Enterprise 플랜에서만 사용할 수 있습니다.
+주요 특징
+
+Cloudflare를 사용하면 SSH 명령 로그를 저장 대상에 보냅니다.[다운로드](/logs/logpush/)제삼자 목적지를 포함하여. 사용 가능한 데이터 필드의 목록은 참조[SSH 로그 데이터 세트](/logs/logpush/logpush-job/datasets/account/ssh_logs/).
+
+Logpush 작업을 설정하려면, 참조[Logpush 통합](/cloudflare-one/insights/logs/logpush/).
+
+## Known 제한
+
+### SSH 특징
+
+다음 SSH 기능은 지원되지 않습니다.
+
+- 국부적으로와 먼 항구 운송
+- SSH 에이전트 운송
+- X11 운송
+
+### 세션 기간
+
+SSH 세션은 최대 10 시간 동안 지속됩니다. 더 많은 정보를 원하시면, 참조[문제 해결 FAQ](/cloudflare-one/faq/troubleshooting/#long-lived-ssh-sessions-frequently-disconnect).
+
+## 문제 해결
+
+SSH 엔드 포인트에 연결 실패는 여러 변수의 결과가 될 수 있습니다. 다음 단계를 사용하여 연결 실패의 소스를 조사하고 해결하십시오.
+
+1. [귀하의 액세스 정책 확인](#1-review-access-policies)사용자가 대상에 액세스 할 수 있습니다.
+2. [Cloudflare 터널 검사](#2-check-target-machine-connection)건강.
+3. [사용자 정의](#3-confirm-user-existence-on-the-target-server)서버에서.
+4. [자주 묻는 질문`sshd_config`이름 \*](#4-debug-sshd_config-file-misconfiguration)misconfiguration의 경우.
+
+### 1. 리뷰 액세스 정책
+
+사용자는 액세스 정책이 존재하지 않기 때문에 서버에 도달하는 액세스 정책에 의해 차단 될 수 있으며 액세스는 기본적으로 사용자를 deny로 설정됩니다.
+
+:::note\[액세스 정책 및 인프라 신청]
+
+액세스 인프라 애플리케이션 (created in[단계 5](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#5-add-an-infrastructure-application)) SSH 서버의 정책 컨테이너입니다. Cloudflare는 SSH와 연결하여 서버가 나타납니다.[이름 \*](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#4-add-a-target).
+
+[오시는 길](/cloudflare-one/access-controls/policies/policy-management/)이 액세스 인프라 응용 프로그램에 첨부 된 규칙, 연결 할 수있는 결정 및 서버에 로그인 할 수있는 UNIX 사용자 이름. Cloudflare는 대상에서 새로운 사용자를 만들지 않습니다. UNIX 사용자는 이미 서버에 존재해야합니다.
+
+당신은 당신의 목표에 대한 액세스 정책을 만들려고 안내했다[substep 9 단계 5: 인프라 응용 프로그램 추가](#5-add-an-infrastructure-application).
+
+:::
+
+#### 사용자 정의
+
+최종 사용자로서, 실행[`warp-cli target list`](/cloudflare-one/access-controls/applications/non-http/infrastructure-apps/#display-available-targets)대상에 접근할 수 있는지 확인합니다.
+
+<Render file="tunnel/warp-cli-target-list" product="cloudflare-one" />
+
+- 대상이 목록에서 나타나면, 사용자 이름이 출력에 표시되어 있는 것을 확인합니다. 사용자 이름이 표시되지 않은 경우, 관리자는 대상과 관련된 액세스 정책을 찾아 액세스 정책에 추가해야합니다. 관리자는 액세스 정책을 작성해야[substep 9 단계 5: 인프라 응용 프로그램 추가](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#5-add-an-infrastructure-application). 사용자 이름이 표시된 경우, 액세스 정책은 액세스 권한을 부여해야하며 터널이 건강하다는 것을 보증해야 합니다.[단계 2](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#2-check-target-machine-connection).
+
+- 대상이 목록에 나타나지 않는 경우 관리자는 Cloudflare의 대상에 대한 액세스 정책을 감사해야합니다. 연결 차단할 수 있는 잠재적인 misconfiguration를 위한 1개.
+
+#### 관리자
+
+관리자로, 대신 실행`warp-cli target list`최종 사용자 장치에서 액세스 로그를 사용하여 액세스 정책이 연결 문제를 일으킬 경우 검토 할 수 있습니다. 최종 사용자를 대신하여 연결 문제를 해결하는 데 유용합니다.
+
+:::참조
+
+Cloudflare 대시보드 액세스 및 로그보기가 필요합니다.[이름 \*](/cloudflare-one/roles-permissions/)이 단계로 진행합니다.
+
+:::
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**관련 기사** > **로그인**.
+
+2. 제품정보**Access 인증 로그**.
+
+3. 테스트 또는 필터가 있는 응용 프로그램을 선택*회사연혁*앱 유형으로.
+
+4. 자주 묻는 질문**12 월**. 만약**12 월**이름 \*`Access denied`, 응용 프로그램을 선택하고 앱 아래에 이름을 복사합니다.
+
+   결정이 있다면`Access granted`, 액세스 정책은 연결 시도와 연결 문제가 Cloudflare 터널로 인해 방해하지 않습니다 ([단계 2](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#2-check-target-machine-connection)), SSH 서버 ([단계 3](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#3-confirm-user-existence-on-the-target-server)), 또는`sshd_config`파일 ([단계 4](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#4-debug-sshd_config-file-misconfiguration)).
+
+5. 오시는 길**액세스 제어** > **이름 \***.
+
+6. 검색창에 앱 이름을 입력하고 응용 프로그램을 선택합니다.
+
+7. 제품정보**설정하기**.
+
+8. 오시는 길[**회사연혁**](/cloudflare-one/access-controls/policies/policy-management/#test-your-policies)사용자를 차단할 수 있는 어떤 기준을 검토하기 위하여.
+
+오시는 길[- 연혁](/cloudflare-one/access-controls/policies/)사용자를 허용하기 위해 연결 문제가 해결되어야합니다. 정책 변경을 저장 한 후 서버에 연결하려고합니다.
+
+액세스 정책 감사 후 연결 문제가 발생하면 다음 단계의 터널 건강을 검토하십시오.
+
+### 2. 대상 연결 확인
+
+최종 사용자가 대상에 연결할 수 없다면, 터널을 설정[단계 1: Cloudflare에 서버 연결](#1-connect-the-server-to-cloudflare)또는 비활성이 될 수 있습니다.
+
+터널의 상태를 확인하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**네트워크** > **오시는 길**.
+
+2. IP와 관련된 터널을 찾기 위해 IP 검색.
+
+   이 IP는 볼 수 있습니다`warp-cli target list`산출에서[이전 단계](#1-review-access-policies). 당신은 admin인 경우에, 당신은 또한 갈 수 있습니다**네트워크** > **제품정보**호스트 이름 옆에 IP를 찾습니다.
+
+3. 터널 이름을 복사합니다.
+
+4. 오시는 길**네트워크** > **연결관** > **사이트맵 연락처**터널 이름으로 검색합니다.
+
+5. 리뷰 그[터널 상태](/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/notifications/#available-notifications)이름 \*`Active`·`Down`, `Degraded`, 또는`Inactive`.
+
+<Render file="tunnel/tunnel-status" product="cloudflare-one" />
+
+문제 해결에 대한 자세한 단계, 참조[Troubleshooting 터널 문서](/cloudflare-one/networks/connectors/cloudflare-tunnel/troubleshoot-tunnels/). 리뷰[방화벽 문서](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/#test-connectivity)네트워크가 올바르게 구성되도록`cloudflared`연결.
+
+터널의 건강에 문제가 없다는 것을 확인한 후, 다음 단계에서 서버에서 사용자의 존재를 확인합니다.
+
+### 3. 서버에서 사용자 존재 확인
+
+UNIX 서버에서 사용자의 존재를 확인하려면, 실행`id <USERNAME>`서버의 명령은 사용자의 존재를 확인한다. 사용자 이름이 존재하지 않는 경우, 서버에 사용자를 추가해야합니다.
+
+사용자가 서버에 존재하는 경우, 벌레`sshd_config`다음 단계의 파일.
+
+### 4. 디버그`sshd_config`파일 misconfiguration
+
+SSH 엔드포인트에 연결하지 않는 한 사용자는 잘못 구성의 결과가 될 수 있습니다.`sshd_config`파일. 아래 단계를 따르십시오.`sshd_config`misconfigurations 파일.
+
+#### 자주 묻는 질문`sshd`로그아웃
+
+`sshd`로그는 사용자가 서버로 만들지 여부를 확인할 수 있습니다. 당신의 위치`sshd`로그는 사용자 정의`sshd_config`. 로그 위치는 가능성이`journalctl -u ssh`우분투와`tail /var/log/auth.log`Red Hat에 대해
+
+당신의 이름`sshd`로그, SSH 연결 시도가 서버에 도착하는 것을 검증.
+
+#### 자주 묻는 질문`sshd_config`misconfigurations 파일
+
+당신의 질문에 대한 답변`sshd_config`파일, 기존 비교`sshd_config`아래 예제를 사용하여 인증 문제를 일으킬 수 있습니다. 다음 예제`sshd_config`파일은 성공적인 인증 결과 :
+
+<details>
+  <summary>이름 \*`sshd_config`이름 \*</summary>
+
+  ```
+  # This is the sshd server system-wide configuration file.  See
+  # sshd_config(5) for more information.
+
+  # The strategy used for options in the default sshd_config shipped with
+  # OpenSSH is to specify options with their default value where
+  # possible, but leave them commented.  Uncommented options override the
+  # default value.
+
+  PubkeyAuthentication yes
+  TrustedUserCAKeys /etc/ssh/ca.pub
+
+  Include /etc/ssh/sshd_config.d/*.conf
+
+  # When systemd socket activation is used (the default), the socket
+  # configuration must be re-generated after changing Port, AddressFamily, or
+  # ListenAddress.
+  #
+  # For changes to take effect, run:
+  #
+  #   systemctl daemon-reload
+  #   systemctl restart ssh.socket
+  #
+  #Port 22
+  #AddressFamily any
+  #ListenAddress 0.0.0.0
+  #ListenAddress ::
+
+  #HostKey /etc/ssh/ssh_host_rsa_key
+  #HostKey /etc/ssh/ssh_host_ecdsa_key
+  #HostKey /etc/ssh/ssh_host_ed25519_key
+
+  # Ciphers and keying
+  #RekeyLimit default none
+
+  # Logging
+  #SyslogFacility AUTH
+  LogLevel DEBUG3
+
+  # Authentication:
+
+  #LoginGraceTime 2m
+  PermitRootLogin yes
+  #StrictModes yes
+  #MaxAuthTries 6
+  #MaxSessions 10
+
+
+
+  # Expect .ssh/authorized_keys2 to be disregarded by default in future.
+  #AuthorizedKeysFile    .ssh/authorized_keys .ssh/authorized_keys2
+
+  #AuthorizedPrincipalsFile none
+
+  #AuthorizedKeysCommand none
+  #AuthorizedKeysCommandUser nobody
+
+  # For this to work you will also need host keys in /etc/ssh/ssh_known_hosts
+  #HostbasedAuthentication no
+  # Change to yes if you don't trust ~/.ssh/known_hosts for
+  # HostbasedAuthentication
+  #IgnoreUserKnownHosts no
+  # Don't read the user's ~/.rhosts and ~/.shosts files
+  #IgnoreRhosts yes
+
+  # To disable tunneled clear text passwords, change to no here!
+  #PasswordAuthentication yes
+  #PermitEmptyPasswords no
+
+  # Change to yes to enable challenge-response passwords (beware issues with
+  # some PAM modules and threads)
+  KbdInteractiveAuthentication no
+
+  # Kerberos options
+  #KerberosAuthentication no
+  #KerberosOrLocalPasswd yes
+  #KerberosTicketCleanup yes
+  #KerberosGetAFSToken no
+
+  # GSSAPI options
+  #GSSAPIAuthentication no
+  #GSSAPICleanupCredentials yes
+  #GSSAPIStrictAcceptorCheck yes
+  #GSSAPIKeyExchange no
+
+  # Set this to 'yes' to enable PAM authentication, account processing,
+  # and session processing. If this is enabled, PAM authentication will
+  # be allowed through the KbdInteractiveAuthentication and
+  # PasswordAuthentication.  Depending on your PAM configuration,
+  # PAM authentication via KbdInteractiveAuthentication may bypass
+  # the setting of "PermitRootLogin yes
+  # If you just want the PAM account and session checks to run without
+  # PAM authentication, then enable this but set PasswordAuthentication
+  # and KbdInteractiveAuthentication to 'no'.
+  UsePAM yes
+
+  #AllowAgentForwarding yes
+  #AllowTcpForwarding yes
+  #GatewayPorts no
+  X11Forwarding yes
+  #X11DisplayOffset 10
+  #X11UseLocalhost yes
+  #PermitTTY yes
+  PrintMotd no
+  #PrintLastLog yes
+  #TCPKeepAlive yes
+  #PermitUserEnvironment no
+  #Compression delayed
+  #ClientAliveInterval 0
+  #ClientAliveCountMax 3
+  #UseDNS no
+  #PidFile /run/sshd.pid
+  #MaxStartups 10:30:100
+  #PermitTunnel no
+  #ChrootDirectory none
+  #VersionAddendum none
+
+  # no default banner path
+  #Banner none
+
+  # Allow client to pass locale environment variables
+  AcceptEnv LANG LC_*
+
+  # override default of no subsystems
+  Subsystem    sftp    /usr/lib/openssh/sftp-server
+
+  # Example of overriding settings on a per-user basis
+  #Match User anoncvs
+  #    X11Forwarding no
+  #    AllowTcpForwarding no
+  #    PermitTTY no
+  #    ForceCommand cvs server
+  ```
+</details>
+
+#### 예를 들어 설정과 테스트
+
+다음 단계는 문제 해결 요법을 통해 걸어갈 것입니다. 당신은 일시적으로 기존의 교체 할 것`sshd_config`지정된 예로 파일하여 구성 문제를 룰 수 있습니다. 계속하기 전에, 신중하게[리뷰 및 비교 모두 파일](#review-your-sshd_config-file-for-misconfigurations)어떤 분쟁 해결 지침을 식별합니다.
+
+:::caution\[서버에 접속할 수 있음]
+
+이러한 문제 해결 단계는 현재 SSH 세션이 기존 구성에 의존하지 않기 때문에 SSH 서버에서 잠겨있을 수 있습니다.[예제 파일](#review-your-sshd_config-file-for-misconfigurations). 최대 caution로 Proceed.
+
+:::
+
+1. 현재 백업`sshd_config`파일.
+
+   ```sh
+   mv /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
+   ```
+
+2. 새로운 기능`sshd_config`파일.
+
+   ```sh
+   vi /etc/ssh/sshd_config
+   ```
+
+3. 삽입 모드를 입력하여`i`키보드의 열쇠.
+
+4. 과거에[예제 파일](#review-your-sshd_config-file-for-misconfigurations).
+
+5. 탈출을 눌러 삽입 모드를 종료 (`esc`) 열쇠.
+
+6. 이름 \*`:x`저장 및 출구.
+
+7. [관련 상품](#reload-your-ssh-server)SSH 서버.
+
+   :::caution\[시작하지 않음]
+   당신의 시작`sshd`서비스는 현재 SSH 연결의 종료에서 발생합니다. SSH 세션을 종료하지 않도록 재시작 대신 다시로드하십시오.
+   주요 특징
+
+   <Render file="ssh/restart-server" product="cloudflare-one" />
+
+모든 4가지 문제 해결 단계를 완료하면 SSH 서버의 잘못 구성에 의해 발생하는 모든 연결 문제를 해결해야 합니다. 문제가 발생하면[재확인`sshd`로그아웃](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#review-your-sshd-logs). 예[`sshd_config`공유하기](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/#review-your-sshd_config-file-for-misconfigurations)디버그 로깅을 활성화하고 더 구체적인 문제를 노출 할 수 있습니다.
+
+### 5. 도움 받기
+
+<Render file="warp/support-ticket-best-practices" product="cloudflare-one" params={{ sshMode: true }} />

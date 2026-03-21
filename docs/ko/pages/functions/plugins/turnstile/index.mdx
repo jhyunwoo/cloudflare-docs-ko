@@ -1,0 +1,65 @@
+---
+pcx_content_type: concept
+title: '모델 번호: Turnstile'
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/turnstile/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/turnstile/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+[Turnstile](/turnstile/)Cloudflare의 똑똑한 CAPTCHA 대안입니다.
+
+Turnstile Pages 플러그인은 Cloudflare Turnstile 토큰을 유효하게 합니다.
+
+## 설치하기
+
+<PackageManagers pkg="@cloudflare/pages-plugin-turnstile" />
+
+## 제품 정보
+
+```typescript
+import turnstilePlugin from "@cloudflare/pages-plugin-turnstile";
+
+/** 이름
+* POST /api/submit-with-plugin*/
+
+export const onRequestPost = [
+	turnstilePlugin({
+		//이것은 데모 비밀 키입니다. prod에서, 우리는 당신이 저장하는 것을 추천합니다
+		//당신의 비밀 열쇠 (s) 안전하게.
+		secret: "0x4AAAAAAASh4E5cwHGsTTePnwcPbnFru6Y",
+	}),
+	//대안으로, 이것은 당신이 환경 변수로 저장 된 비밀 키를 사용할 수있는 방법입니다
+	//(async) => {
+	//반환 turnstilePlugin ({secret: context.env.SECRET KEY}) (콘텍스트)
+	//사이트 맵
+	async (context) => {
+		//요청은 인간에서 오는 것으로 검증되었습니다.
+		const formData = await context.request.formData();
+		//추가 해결 메타데이터 데이터는 context.data.turnstile에서 사용할 수 있습니다.
+		return new Response(
+			`Successfully verified! ${JSON.stringify(context.data.turnstile)}`,
+		);
+	},
+];
+```
+
+이 플러그인은 들어오는 Turnstile 응답을 확인하는 단일 경로 만 노출`POST`으로`cf-turnstile-response`모수. 그것은 거치되는 곳에 유효할 것입니다. 위의 예에서, 그것은 안으로 거치됩니다`functions/register.ts`. 결과적으로, 그것은 요청을 유효하게 할 것이다`/register`.
+
+## 제품 정보
+
+플러그인은 다음과 같은 속성을 가진 단일 객체 매개 변수로 장착되어 있습니다.
+
+[`secret`](https://dash.cloudflare.com/login)필수이며 Turnstile 대시보드에서 모두 찾을 수 있습니다.
+
+`response`·`remoteip`옵션 문자열입니다.`response`Turnstile 토큰입니다. 제공되지 않은 경우, 플러그인은 기본적으로 추출`cf-turnstile-response`값에서`multipart/form-data`요청).`remoteip`requester의 IP 주소입니다. 이 기본값은`CF-Connecting-IP`요청의 헤더.
+
+`onError`Pages 기능 컨텍스트 객체를 취하고 반환하는 옵션 기능입니다.`Promise`한국어`Response`. 기본적으로, 그것은 인간의 읽기 쉬운 오류를 반환합니다`Response`.
+
+`context.data.turnstile`다음 Pages에서 대중화될 것입니다 기능 (를 포함하여`onError`기능)와[Turnstile Siteverify 응답 객체](/turnstile/get-started/server-side-validation/).

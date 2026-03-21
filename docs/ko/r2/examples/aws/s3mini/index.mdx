@@ -1,0 +1,128 @@
+---
+title: s3 미니
+pcx_content_type: example
+reviewed: 2026-02-06T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/s3mini/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/s3mini/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+[`s3mini`](https://www.npmjs.com/package/s3mini)경량 (\~20 KB 분량) TypeScript AWS SigV4 서명을 사용하는 S3 클라이언트. Node.js, Bun 및 Cloudflare WorkersXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ
+
+AWS SDK와 달리 s3mini는 기대합니다.**양동이 endpoint**- 버킷 이름은 엔드 포인트 URL의 일부이므로 별도의 패스를하지 않습니다.`bucket`각 가동에 모수.
+
+:::참조
+s3mini는 사전 서명 된 URL 생성을 지원하지 않습니다. 사전 서명된 URL이 필요한 경우, 참조[aws-sdk-js-v3의](/r2/examples/aws/aws-sdk-js-v3/#generate-presigned-urls)또는[추천 동영상](/r2/examples/aws/aws4fetch/#generate-presigned-urls)대신 예제.
+주요 특징
+
+## 설치하기
+
+```sh
+npm install s3mini
+```
+
+## Node.js/분
+
+```ts
+import { S3mini } from "s3mini";
+
+const s3 = new S3mini({
+	accessKeyId: process.env.R2_ACCESS_KEY_ID!,
+	secretAccessKey: process.env.R2_SECRET_ACCESS_KEY!,
+	//Bucket-scoped endpoint — 경로에 있는 물통 이름을 포함합니다
+	endpoint: `https://${process.env.ACCOUNT_ID}.r2.cloudflarestorage.com/my-bucket`,
+	region: "auto",
+});
+
+//개체를 업로드
+await s3.putObject("hello.txt", "Hello from s3mini!");
+
+//문자열로 객체를 다운로드
+const text = await s3.getObject("hello.txt");
+console.log(text);
+
+//prefix를 가진 객체 목록
+const objects = await s3.listObjects("/", "hello");
+console.log(objects);
+
+//객체 삭제
+await s3.deleteObject("hello.txt");
+```
+
+## Cloudflare Workers
+
+:::노트\[프리퍼 R2XWorkers]
+당신의 노동자 및 R2 물통이 동일한 Cloudflare 계정에 살 때,[R2 바인딩](/r2/api/workers/workers-api-reference/)API 자격 관리 없이 Zero-latency 액세스를 제공합니다. S3 API를 사용하면 크로스 계정 액세스 또는 S3- 호환 툴링과 상호 운용성을 필요로 합니다.
+주요 특징
+
+s3mini는 Workers에서 기본적으로 작동합니다`nodejs_compat`호환성 깃발.
+
+```ts
+import { S3mini } from "s3mini";
+
+interface Env {
+	R2_ACCESS_KEY_ID: string;
+	R2_SECRET_ACCESS_KEY: string;
+	ACCOUNT_ID: string;
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		const s3 = new S3mini({
+			accessKeyId: env.R2_ACCESS_KEY_ID,
+			secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+			endpoint: `https://${env.ACCOUNT_ID}.r2.cloudflarestorage.com/my-bucket`,
+			region: "auto",
+		});
+
+		const url = new URL(request.url);
+		const key = url.pathname.slice(1); //지구 지도 "/"
+
+		if (!key) {
+			return new Response("Missing object key", { status: 400 });
+		}
+
+		switch (request.method) {
+			case "PUT": {
+				const data = await request.arrayBuffer();
+				const contentType =
+					request.headers.get("content-type") ?? "application/octet-stream";
+				await s3.putObject(key, new Uint8Array(data), contentType);
+				return new Response("Created", { status: 201 });
+			}
+
+			case "GET": {
+				const response = await s3.getObjectResponse(key);
+				if (!response) {
+					return new Response("Not Found", { status: 404 });
+				}
+				return new Response(response.body, {
+					headers: {
+						"content-type":
+							response.headers.get("content-type") ??
+							"application/octet-stream",
+						etag: response.headers.get("etag") ?? "",
+					},
+				});
+			}
+
+			case "DELETE": {
+				await s3.deleteObject(key);
+				return new Response(null, { status: 204 });
+			}
+
+			default:
+				return new Response("Method Not Allowed", { status: 405 });
+		}
+	},
+};
+```

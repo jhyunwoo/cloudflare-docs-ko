@@ -1,0 +1,175 @@
+---
+pcx_content_type: configuration
+title: 프로젝트
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/turso/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/turso/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+[프로젝트](https://turso.tech/)Edge-hosted, 분산 데이터베이스 기반[라이브러리](https://libsql.org/)SQLite의 오픈 소스 포크. Turso는 세계 어느 곳에서나 쿼리 대기 시간을 최소화하도록 설계되었습니다.
+
+## Turso와의 통합 설정
+
+Turso와의 통합을 설정하려면:
+
+1. Turso CLI를 설치하고 데이터베이스를 작성해야합니다. 터미널에서 다음 두 개의 명령 중 하나를 사용하여 Turso CLI를 설치하십시오.
+
+   ```sh
+   #macOS 및 Linux에서 homebrew로
+   brew install tursodatabase/tap/turso
+
+   #수동 scripted 임명
+   curl -sSfL https://get.tur.so/install.sh | bash
+   ```
+
+   다음 명령을 실행하여 Turso CLI가 설치되어 있는지 확인합니다.
+
+   ```sh
+   turso --version
+   ```
+
+2. 첫 번째 Turso 데이터베이스를 생성하기 전에 GitHub 계정으로 인증해야 합니다.
+
+   ```sh
+   turso auth login
+   ```
+
+   ```sh output
+   Waiting for authentication...
+   ✔  Success! Logged in as <YOUR_GITHUB_USERNAME>
+   ```
+
+   인증받은 후, 명령을 사용하여 데이터베이스를 만들 수 있습니다.`turso db create <DATABASE_NAME>`. Turso는 데이터베이스를 생성하고 자동으로 위치에 가까운 위치를 선택합니다.
+
+   ```sh
+   turso db create my-db
+   ```
+
+   ```sh output
+
+   #예:
+   Creating database my-db in Amsterdam, Netherlands (ams)
+
+   #성공하면:
+   Created database my-db in Amsterdam, Netherlands (ams) in 13 seconds.
+   ```
+
+   만든 첫 번째 데이터베이스를 사용하면 이제 직접 연결하고 SQL 쿼리를 실행할 수 있습니다.
+
+   ```sh
+   turso db shell my-db
+   ```
+
+3. 다음과 같은 SQL 쿼리를 쉘에 복사하면 방금 열립니다.
+
+   ```sql
+   CREATE TABLE elements (
+     id INTEGER NOT NULL,
+     elementName TEXT NOT NULL,
+     atomicNumber INTEGER NOT NULL,
+     symbol TEXT NOT NULL
+   );
+
+   INSERT INTO elements (id, elementName, atomicNumber, symbol)
+   VALUES (1, 'Hydrogen', 1, 'H'),
+     (2, 'Helium', 2, 'He'),
+     (3, 'Lithium', 3, 'Li'),
+     (4, 'Beryllium', 4, 'Be'),
+     (5, 'Boron', 5, 'B'),
+     (6, 'Carbon', 6, 'C'),
+     (7, 'Nitrogen', 7, 'N'),
+     (8, 'Oxygen', 8, 'O'),
+     (9, 'Fluorine', 9, 'F'),
+     (10, 'Neon', 10, 'Ne');
+   ```
+
+4. 작업자의 Turso 데이터베이스 자격 구성 :
+
+   Turso 데이터베이스 URL 및 인증 토큰을 작업자에게 비밀로 추가해야합니다. 먼저 데이터베이스 URL을 얻고 인증 토큰을 만듭니다.
+
+   ```sh
+   #데이터베이스 URL을 가져옵니다
+   turso db show my-db --url
+
+   #인증 토큰 만들기
+   turso db tokens create my-db
+   ```
+
+   그런 다음 Wrangler를 사용하여 노동자에게 비밀을 추가하십시오.
+
+   ```sh
+   #데이터베이스 URL을 비밀로 추가
+   npx wrangler secret put TURSO_URL
+   #신속한 경우 데이터베이스 URL을 붙여넣기
+
+   #인증 토큰을 비밀으로 추가
+   npx wrangler secret put TURSO_AUTH_TOKEN
+   #신속한 경우 인증 토큰을 붙여넣기
+   ```
+
+5. 작업자에서 Turso 클라이언트 라이브러리를 설치하십시오.
+
+   <PackageManagers pkg="@libsql/client" />
+
+6. 다음 예제는 작업자의 Turso 데이터베이스에 쿼리를 만드는 방법을 보여줍니다. Turso에 연결하는 자격 증명이 추가되었습니다.[이름 \*](/workers/configuration/secrets/)당신의 노동자에.
+
+   ```ts
+   import { Client as LibsqlClient, createClient } from "@libsql/client/web";
+
+   export interface Env {
+   	TURSO_URL?: string;
+   	TURSO_AUTH_TOKEN?: string;
+   }
+
+   export default {
+   	async fetch(request, env, ctx): Promise<Response> {
+   		const client = buildLibsqlClient(env);
+
+   		try {
+   			const res = await client.execute("SELECT * FROM elements");
+   			return new Response(JSON.stringify(res), {
+   				status: 200,
+   				headers: { "Content-Type": "application/json" },
+   			});
+   		} catch (error) {
+   			console.error("Error executing SQL query:", error);
+   			return new Response(
+   				JSON.stringify({ error: "Internal Server Error" }),
+   				{
+   					status: 500,
+   				},
+   			);
+   		}
+   	},
+   } satisfies ExportedHandler<Env>;
+
+   function buildLibsqlClient(env: Env): LibsqlClient {
+   	const url = env.TURSO_URL?.trim();
+   	if (url === undefined) {
+   		throw new Error("TURSO_URL env var is not defined");
+   	}
+
+   	const authToken = env.TURSO_AUTH_TOKEN?.trim();
+   	if (authToken == undefined) {
+   		throw new Error("TURSO_AUTH_TOKEN env var is not defined");
+   	}
+
+   	return createClient({ url, authToken });
+   }
+   ```
+
+   - libSQL 클라이언트 라이브러리 가져오기`@libsql/client/web`Cloudflare WorkersXQ로 일할 때 보자마자 정확하게 수입되어야 합니다. 비 웹 수입은 Workers 환경에서 작동하지 않습니다.
+   - 더 보기`Env`공용영역은 포함합니다[환경 변수](/workers/configuration/environment-variables/)·[이름 \*](/workers/configuration/secrets/)단계 4에서 Turso 통합을 추가하면 정의됩니다.
+   - 더 보기`Env`인터페이스도 libSQL 클라이언트 객체와 라우터를 캐시합니다. 이는 작업자에게 첫 번째 요청에 생성되었습니다.
+   - Worker 사용`buildLibsqlClient`자주 묻는 질문`elements`데이터베이스와 JSON 객체로 응답을 반환합니다.
+
+설정된 환경과 코드를 준비하면 이제 배포하기 전에 작업자를 로컬로 테스트할 수 있습니다.
+
+Turso에 대해 더 알아보기 위해, 참조[Turso의 공식 문서](https://docs.turso.tech).

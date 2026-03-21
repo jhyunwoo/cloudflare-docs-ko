@@ -1,0 +1,244 @@
+---
+title: Rust
+pcx_content_type: concept
+sidebar:
+  order: 4
+  badge:
+    text: Beta
+head:
+  - tag: title
+    content: Cloudflare Workers — Rust 언어 지원
+description: >-
+  작성 Workers 100% RustXQ [`workers-rs`
+  크레이트](https://github.com/cloudflare/workers-rs)
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/languages/rust/'
+translation_source_md: 'https://developers.cloudflare.com/workers/languages/rust/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Cloudflare Workers는 Rust를 위한 지원을 제공합니다[`workers-rs`뚱 베어](https://github.com/cloudflare/workers-rs), 만드는[런타임 API](/workers/runtime-apis)·[관련 제품](/workers/runtime-apis/bindings/)개발자 플랫폼 제품 등[QXQX0389XQQKV](/kv/concepts/how-kv-works/), [모델 번호: R2](/r2/)·[모델 번호: Queues](/queues/)Rust 코드에서 직접 사용할 수 있습니다.
+
+이 가이드를 따라 RustXQ 프로그래밍 언어에서 노동자를 완전히 구축하는 방법을 배울 것입니다.
+
+## 자주 묻는 질문
+
+이 가이드를 시작하기 전에, 당신이 가지고 있는지 확인:
+
+- 최근 버전의[`Rust`](https://rustup.rs/)
+- [`npm`](https://docs.npmjs.com/getting-started)
+- Rust`wasm32-unknown-unknown`툴체인:
+
+```sh
+rustup target add wasm32-unknown-unknown
+```
+
+- 이름 \*`cargo-generate`실행에 의해 sub-command:
+
+```sh
+cargo install cargo-generate
+```
+
+## 1. Wrangler를 가진 새로운 프로젝트를 만드십시오
+
+터미널 창을 열고 다음 명령을 실행하여 Rust의 Worker 프로젝트 템플릿을 생성합니다.
+
+```sh
+cargo generate cloudflare/workers-rs
+```
+
+프로젝트는 다음과 같은 파일과 폴더를 찾을 수있는 새로운 디렉토리에서 생성됩니다.
+
+- `Cargo.toml`- Rust의 표준 프로젝트 구성 파일[`Cargo`](https://doc.rust-lang.org/cargo/)패키지 관리자. 템플릿은 Workers에 Wasm 구축을위한 최고의 전술 설정을 전합니다.
+- `wrangler.toml`- Wrangler 윤곽은, invoke에 주문 구조 명령으로 전 채워집니다`worker-build`(참고)[Wrangler 번들링](/workers/languages/rust/#bundling-worker-build)).
+- `src`- Rust 소스 디렉토리, Hello World Worker로 사전 판매.
+
+## 2. 현지 개발
+
+첫 번째 노동자를 만든 후, 실행[`wrangler dev`](/workers/wrangler/commands/#dev)Worker 개발을위한 로컬 서버를 시작합니다. 이것은 당신에게 개발에서 노동자를 테스트 할 수 있습니다.
+
+```sh
+npx wrangler dev
+```
+
+이전에 WranglerXQXQ를 사용하지 않은 경우, Cloudflare 계정으로 로그인하여 웹 브라우저를 열 수 있습니다.
+
+:::참조
+이 단계에서 문제가 있거나 브라우저 인터페이스에 액세스 할 수없는 경우, 참조[`wrangler login`](/workers/wrangler/commands/#login)더 많은 정보를 위한 문서.
+주요 특징
+
+오시는 길[http://localhost:8787](http://localhost:8787)Worker 실행을 검토합니다. 코드를 만들면 다시 빌드를 트리거하고 페이지를 다시로드하면 작업자의 최신 출력을 보여줍니다.
+
+## 3. 작업 코드를 작성
+
+생성 된 새로운 프로젝트로 Worker 코드를 작성하십시오. 직장인에게 입장하기`src/lib.rs`:
+
+```rust
+use worker::*;
+
+#[event(fetch)]
+async fn main(req: Request, env: Env, ctx: Context) -> Result<Response> {
+    Response::ok("Hello, World!")
+}
+```
+
+:::참조
+
+여기에가는 몇 가지 합법적 행동이 있습니다:
+
+1. `workers-rs`제품정보`event`QXQX0406XQQ Workers와 같은 핸들러 기능 서명을 기대하는 매크로.
+2. `async`일반적으로 Wasm에 의해 지원되지 않습니다, 그러나 당신은 사용할 수 있습니다`async`로그인`workers-rs`프로젝트 (refer to[`async`](/workers/languages/rust/#async-wasm-bindgen-futures)).
+   :::
+
+### 관련 런타임 API
+
+`workers-rs`Worker의 JavaScript API와 밀접하게 일치하며 Worker의 플랫폼 기능과 통합을 가능하게 합니다. API의 상세한 문서는 참조[`docs.rs/worker`](https://docs.rs/worker/latest/worker/).
+
+#### `event`기본 정보
+
+이 매크로는 작업자에게 엔트리포인트를 정의할 수 있습니다. 더 보기`event`매크로는 다음 이벤트를 지원합니다:
+
+- `fetch`- 수신된 HTTP 요청에 의해 호출됩니다.
+- `scheduled`- 에 의해 호출[`Cron Triggers`](/workers/configuration/cron-triggers/).
+- `queue`- 수신 메시지 배치에 의해 호출[Queues](/queues/)(필수)`queue`제품정보`Cargo.toml`, 참조[`workers-rs`GitHub 저장소 및`queues`기능 플래그](https://github.com/cloudflare/workers-rs#queues)).
+- `start`- 노동자가 처음 출시 될 때 Invoked (예 : panic Hooks 설치).
+
+#### `fetch`이름 \*
+
+더 보기`fetch`핸들러는 JavaScript API와 일치하는 세 가지 인수를 제공합니다.
+
+1. **[`Request`](https://docs.rs/worker/latest/worker/struct.Request.html)**
+
+수신 요청을 나타내는 객체. 이것은 헤더, 방법, 경로, Cloudflare 속성 및 신체에 액세스하는 방법을 포함합니다 (동시성 스트리밍 및 JSON deserialization에 대한 지원과 함께[사이트맵](https://serde.rs/)).
+
+2. **[`Env`](https://docs.rs/worker/latest/worker/struct.Env.html)**
+
+Worker에 대한 액세스 제공[관련 제품](/workers/runtime-apis/bindings/).
+
+- [`Secret`](https://docs.rs/worker/latest/worker/struct.Secret.html)- Cloudflare dashboard 또는 사용으로 구성된 비밀 값`wrangler secret put`.
+- [`Var`](https://docs.rs/worker/latest/worker/type.Var.html)- 환경 변수 정의`wrangler.toml`.
+- [`KvStore`](https://docs.rs/worker/latest/worker/kv/struct.KvStore.html)- Workers[KV](/kv/api/)namespace 바인딩.
+- [`ObjectNamespace`](https://docs.rs/worker/latest/worker/durable/struct.ObjectNamespace.html) - [튼튼한 목표](/durable-objects/)바인딩.
+- [`Fetcher`](https://docs.rs/worker/latest/worker/struct.Fetcher.html) - [서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)다른 노동자에게.
+- [`Bucket`](https://docs.rs/worker/latest/worker/struct.Bucket.html) - [R2](/r2/)물통 바인딩.
+- [`D1Database`](https://docs.rs/worker/latest/worker/d1/struct.D1Database.html) - [모델 번호: D1](/d1/)데이터베이스 바인딩.
+- [`Queue`](https://docs.rs/worker/latest/worker/struct.Queue.html) - [Queues](/queues/)생산 라인
+- [`Ai`](https://docs.rs/worker/latest/worker/struct.Ai.html) - [Workers AI](/workers-ai/)바인딩.
+- [`Hyperdrive`](https://docs.rs/worker/latest/worker/struct.Hyperdrive.html) - [Hyperdrive](/hyperdrive/)바인딩.
+- [`AnalyticsEngineDataset`](https://docs.rs/worker/latest/worker/struct.AnalyticsEngineDataset.html) - [Analytics 엔진](/analytics/analytics-engine/)바인딩.
+- [`DynamicDispatcher`](https://docs.rs/worker/latest/worker/struct.DynamicDispatcher.html) - [동적인 Dispatch](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/)바인딩.
+- [`SecretStore`](https://docs.rs/worker/latest/worker/struct.SecretStore.html) - [비밀번호](/secrets-store/)바인딩.
+- [`RateLimiter`](https://docs.rs/worker/latest/worker/struct.RateLimiter.html) - [비율 제한](/workers/runtime-apis/bindings/rate-limit/)바인딩.
+
+3. **[`Context`](https://docs.rs/worker/latest/worker/struct.Context.html)**
+
+액세스 제공[`waitUntil`](/workers/runtime-apis/context/#waituntil)(시동적 작업 제외) 및[`passThroughOnException`](/workers/runtime-apis/context/#passthroughonexception)(fail open) 기능.
+
+#### [`Response`](https://docs.rs/worker/latest/worker/struct.Response.html)
+
+더 보기`fetch`핸들러가 기대한다[`Response`](https://docs.rs/worker/latest/worker/struct.Response.html)반환 유형, 이는 클라이언트에게 스트리밍 응답에 대한 지원을 포함. 이것은 또한 당신의 노동자에게서 한 어떤 subrequests의 반환 유형입니다. 상태 코드 및 헤더에 액세스하는 방법뿐만 아니라 신체를 비동기적으로 스트리밍하거나 JSON을 사용하여 deserializing[사이트맵](https://serde.rs/).
+
+#### `Router`
+
+편리한 구현[API 여정](https://docs.rs/worker/latest/worker/struct.Router.html)한 노동자의 여러 경로를 제공합니다. 더 알아보기[`Router`예제에서`worker-rs`GitHub 저장소](https://github.com/cloudflare/workers-rs#or-use-the-router).
+
+## 4. Worker 프로젝트를 배포
+
+프로젝트 구성으로, 이제 Worker를 배포할 수 있습니다.`*.workers.dev`하위 도메인 또는[주문 영역](/workers/configuration/routing/custom-domains/), 당신이 하나 형성한 경우에. 하위 도메인 또는 도메인을 구성하지 않은 경우 Wrangler는 배포 프로세스 중에 하나 설정합니다.
+
+```sh
+npx wrangler deploy
+```
+
+작업자 미리보기`<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev`.
+
+:::참조
+
+당신의 것에 밀어 때`*.workers.dev`처음으로 하위 도메인, 당신은 볼 수 있습니다[`523`오류 수정](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-523/)DNS는 전파 중입니다. 이 오류는 분 후에 스스로 해결해야 합니다.
+
+:::
+
+이 단계를 완료 한 후 기본 Rust 기반 Worker가 배포됩니다. 여기에서, 당신은 크레이트를 추가할 수 있습니다
+Rust에 의존하고 코드를 작성하여 작업자 응용 프로그램을 구현합니다. 당신이 Wasm에 컴파일 된 Rust의 내부 작업에 대해 더 알고 싶다면 Workers에 의해 지원됩니다, 다음 섹션은 라이브러리 및 도구를 통합.
+
+## 이 배포 작업 방법
+
+Wasm Workers는 JavaScript 엔트리포인트 스크립트에서 사용시 자동으로 생성됩니다.`workers-rs`.
+
+### 모델 번호: JavaScript 배관공사 (`wasm-bindgen`)
+
+바인딩과 같은 플랫폼 특징에, Wasm WorkersXQ는 JavaScript 런타임 API에서 접근할 수 있어야 합니다.
+
+이 상호 운용성은[`wasm-bindgen`](https://rustwasm.github.io/wasm-bindgen/), runtime APIs를 가져올 필요가 있는 접착제 코드를 제공 하 고, Wasm 모듈에서 이벤트 핸들러를 수출.`wasm-bindgen`또한 제공[`js-sys`](https://docs.rs/js-sys/latest/js_sys/)JavaScript 객체와 상호 작용하는 유형을 구현하는 . 연습에서, 이것은 구현 세부 사항입니다.`workers-rs`'s API는 JavaScript 객체에서 변환을 처리하고, 수입 JavaScript 런타임 API와 상호 작용합니다.
+
+:::참조
+
+자주 묻는 질문`wasm-bindgen`없음`workers-rs` / `worker-build`다음 JavaScript를 패치해야합니다. 이것은 당신이 가져올 때`wasm`Workers의 파일, 당신은 얻을`WebAssembly.Module`대신에`WebAssembly.Instance`성능 및 보안상의 이유로.
+
+JavaScript를 패치하려면`wasm-bindgen`방출:
+
+1. 지원하다`wasm-pack build --target bundler`당신은 일반적으로 할 것입니다.
+2. JavaScript 파일을 패치하여 생성 (다음 코드 블록은 파일이 호출됩니다)`mywasmlib.js`):
+
+```js
+import * as imports from "./mywasmlib_bg.js";
+
+//노드의 구문과 workerd의 전환
+import wkmod from "./mywasmlib_bg.wasm";
+import * as nodemod from "./mywasmlib_bg.wasm";
+if (typeof process !== "undefined" && process.release.name === "node") {
+	imports.__wbg_set_wasm(nodemod);
+} else {
+	const instance = new WebAssembly.Instance(wkmod, {
+		"./mywasmlib_bg.js": imports,
+	});
+	imports.__wbg_set_wasm(instance.exports);
+}
+
+export * from "./mywasmlib_bg.js";
+```
+
+3. Worker Entrypoint에서 함수를 가져오고 직접 사용합니다:
+
+```js
+import { myFunction } from "path/to/mylib.js";
+```
+
+:::
+
+### 동기화 (Async)`wasm-bindgen-futures`)
+
+[`wasm-bindgen-futures`](https://rustwasm.github.io/wasm-bindgen/api/wasm_bindgen_futures/)(일부)`wasm-bindgen`프로젝트)는 Rust
+선물 및 JavaScript 약속.`workers-rs`전체 이벤트 핸들러 기능을 호출`spawn_local`Rust를 사용하여 프로그래밍 할 수있는 의미
+단일 JavaScript Promise로 JavaScript 이벤트 루프에서 실행합니다. JavaScript 런타임 API를 가져올 수 있는 Rust 선물로 자동 변환되어 동기화 Rust 기능에서 호출될 수 있습니다.
+
+### 번들링 (Bundling)`worker-build`)
+
+Workers에 결과를 실행하려면,`workers-rs`build 도구가 포함된다.[`worker-build`](https://github.com/cloudflare/workers-rs/tree/main/worker-build)유형:
+
+1. JavaScript 엔트리포인트 스크립트를 생성하여 모듈을 올바르게 호출합니다.`wasm-bindgen`JavaScript API는
+2. 뚱 베어`web-pack`JavaScript 코드 축소 및 번들.
+3. Wrangler가 번들을 사용하고 최종 작업자를 배치할 수 있는 디렉토리 구조를 출력합니다.
+
+`worker-build`템플릿 프로젝트에서 기본적으로 invoked by custom build command 지정된 in`wrangler.toml`파일.
+
+### 바이너리 크기 ( Binary Size)`wasm-opt`)
+
+채택 Rust Wasm binaries는 크게 될 수 있으며 Worker 번들 크기 제한 또는 긴 시작 시간을 경험할 수 있습니다. 템플릿 프로젝트 사전 구성 몇 가지 유용한 크기 최적화`Cargo.toml`파일 :
+
+```toml
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+```
+
+마지막으로,`worker-bundle`자동 호출[`wasm-opt`](https://github.com/brson/wasm-opt-rs)업로드하기 전에 바이너리 크기를 더 최적화합니다.
+
+## 관련 자료
+
+- [Rust Wasm 책](https://rustwasm.github.io/docs/book/)

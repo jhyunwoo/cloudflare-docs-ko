@@ -1,0 +1,246 @@
+---
+summary: >-
+  Use Workers KV to as a geo-distributed, low-latency configuration store for
+  your Workers application
+pcx_content_type: example
+title: 분산 설정 저장소 구축
+sidebar:
+  order: 5
+description: Workers KV를 사용하는 방법의 예는 배부된 신청 윤곽 상점을 건설하기 위하여 저장합니다.
+reviewed: 2025-03-27T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/kv/examples/distributed-configuration-with-workers-kv/
+translation_source_md: >-
+  https://developers.cloudflare.com/kv/examples/distributed-configuration-with-workers-kv/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Tabs, TabItem } from "~/components";
+
+Storing 신청 윤곽 자료는 Workers KV를 위한 이상적인 사용 케이스입니다. 구성 데이터는 각 사용자 또는 tenant에 대한 응용 프로그램을 개인화 할 수있는 데이터를 포함 할 수 있으며, 사용자 그룹에 대한 기능을 사용할 수 있으며, 허용 목록 / 데니 목록 등을 제한 할 수 있습니다. 이 사용 케이스는 Workers QXKVXQXQXQXQ에 의해 높게 캐시할 수 있는 높은 읽힌 양이 있을 수 있습니다, 당신의 Workers 신청에서 낮은 경도 읽을 수 있는.
+
+이 예제에서 애플리케이션 구성 데이터는 각 사용자의 Workers 응용 프로그램을 개인화하는 데 사용됩니다. 구성 데이터는 외부 애플리케이션 및 데이터베이스에 저장되며 REST API를 사용하여 Workers KVXQ로 작성되었습니다.
+
+## Workers KV
+
+어떤 경우, 구성 데이터에 대한 소스 -of-truth는 Workers KV보다 다른 곳에서 저장 될 수 있습니다.
+이 경우 Workers KV REST API를 사용하여 구성 데이터를 Workers QXKV 네임스페이스로 작성합니다.
+
+뒤에 오는 외부 Node.js 신청은 데이터베이스에서 사용자 데이터를 읽는 간단한 스크립트를 설명하고 REST API 도서관을 사용하여 Workers KV에 그것을 쓴다.
+
+<Tabs>
+  <TabItem label="프로젝트">
+    ```js title="index.js"
+    const postgres = require('postgres');
+    const { Cloudflare } = require('cloudflare');
+    const { backOff } = require('exponential-backoff');
+
+    if(!process.env.DATABASE_CONNECTION_STRING || !process.env.CLOUDFLARE_EMAIL || !process.env.CLOUDFLARE_API_KEY || !process.env.CLOUDFLARE_WORKERS_KV_NAMESPACE_ID || !process.env.CLOUDFLARE_ACCOUNT_ID) {
+    console.error('Missing required environment variables.');
+    process.exit(1);
+    }
+
+    //Setup Postgres 연결
+    const sql = postgres(process.env.DATABASE_CONNECTION_STRING);
+
+    //설치 Cloudflare REST API 클라이언트
+    const client = new Cloudflare({
+    apiEmail: process.env.CLOUDFLARE_EMAIL,
+    apiKey: process.env.CLOUDFLARE_API_KEY,
+    });
+
+    //Workers QXKV
+    async function syncPreviewStatus() {
+    console.log('Starting sync of user preview status...');
+
+        try {
+        	//모든 사용자와 그들의 미리보기 상태를 가져옵니다
+        	const users = await sql`SELECT id, preview_features_enabled FROM users`;
+
+        	console.log(users);
+
+        	//대량 업데이트 몸 만들기
+        	const bulkUpdateBody = users.map(user => ({
+        		key: user.id,
+        		value: JSON.stringify({
+        			preview_features_enabled: user.preview_features_enabled
+        		})
+        	}));
+
+        	const response = await backOff(async () => {
+        		console.log("trying to update")
+        		try{
+        			const response = await client.kv.namespaces.bulkUpdate(process.env.CLOUDFLARE_WORKERS_KV_NAMESPACE_ID, {
+        				account_id: process.env.CLOUDFLARE_ACCOUNT_ID,
+        				body: bulkUpdateBody
+        			});
+        		}
+        		catch(e){
+        			//오류 처리 및 로깅을 구현하십시오.
+        			console.log(e);
+        			throw e; //retry에 오류를 수정
+        		}
+        	});
+
+        	console.log(`Sync complete. Updated ${users.length} users.`);
+        } catch (error) {
+        	console.error('Error syncing preview status:', error);
+        }
+
+    }
+
+    //동기화 기능을 실행
+    syncPreviewStatus()
+    .catch(console.error)
+    .finally(() => process.exit(0));
+
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```md title=".env"
+    DATABASE_CONNECTION_STRING = <DB_CONNECTION_STRING_HERE>
+    CLOUDFLARE_EMAIL = <CLOUDFLARE_EMAIL_HERE>
+    CLOUDFLARE_API_KEY = <CLOUDFLARE_API_KEY_HERE>
+    CLOUDFLARE_ACCOUNT_ID = <CLOUDFLARE_ACCOUNT_ID_HERE>
+    CLOUDFLARE_WORKERS_KV_NAMESPACE_ID = <CLOUDFLARE_WORKERS_KV_NAMESPACE_ID_HERE>
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sql title="db.sql"
+    -- Create users table with preview_features_enabled flag
+    CREATE TABLE users (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      username VARCHAR(100) NOT NULL,
+      email VARCHAR(255) NOT NULL,
+      preview_features_enabled BOOLEAN DEFAULT false
+    );
+
+    -- Insert sample users
+    INSERT INTO users (username, email, preview_features_enabled) VALUES
+    ('alice', 'alice@example.com', true),
+    ('bob', 'bob@example.com', false),
+    ('charlie', 'charlie@example.com', true);
+
+    ```
+  </TabItem>
+</Tabs>
+
+이 코드 스 니펫에서 Node.js 응용 프로그램은 Postgres 데이터베이스에서 사용자 데이터를 읽고 Workers 응용 프로그램 QXWorkersQXQXQX0301XQ REST API QXNode.js 라이브러리를 사용하여 사용자 데이터를 작성합니다.
+이 응용 프로그램은 오류의 경우 retries를 처리하는 exponential backoff를 사용합니다.
+
+## 당신의 노동자 신청에 있는 Workers KVXQ에서 윤곽 자료를 사용하십시오
+
+QXQX0312XQQ KV 네임스페이스에서 설정 데이터로 각 사용자의 애플리케이션을 개인화하기 위해 WorkersXQ 애플리케이션에서 사용할 수 있습니다.
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```js title="index.ts"
+    //Workers KV에 저장된 윤곽 자료:
+    //키: "user-id-abc" | 값: {"preview features enabled": false}
+    //키: "user-id-def" | 값: {"preview features enabled": true}
+
+    interface Env {
+      USER_CONFIGURATION: KVNamespace;
+    }
+
+    export default {
+      async fetch(request, env) {
+        //쿼리 매개 변수에서 사용자 ID를 가져옵니다
+        const url = new URL(request.url);
+        const userId = url.searchParams.get('userId');
+
+        if (!userId) {
+          return new Response('Please provide a userId query parameter', {
+            status: 400,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        }
+
+
+    		const userConfiguration = await env.USER_CONFIGURATION.get<{
+    			preview_features_enabled: boolean;
+    		}>(userId, {type: "json"});
+
+    		console.log(userConfiguration);
+
+        //HTML 응답 작성
+        const html = `
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>My App</title>
+              <style>
+                body {
+                  font-family: Arial, sans-serif;
+                  max-width: 800px;
+                  margin: 0 auto;
+                  padding: 20px;
+                }
+                .preview-banner {
+                  background-color: #ffeb3b;
+                  padding: 10px;
+                  text-align: center;
+                  margin-bottom: 20px;
+                  border-radius: 4px;
+                }
+              </style>
+            </head>
+            <body>
+              ${userConfiguration?.preview_features_enabled ? `
+                <div class="preview-banner">
+                  🎉 You have early access to preview features! 🎉
+                </div>
+              ` : ''}
+              <h1>Welcome to My App</h1>
+              <p>This is the regular content everyone sees.</p>
+            </body>
+          </html>
+        `;
+
+        return new Response(html, {
+    			headers: { "Content-Type": "text/html; charset=utf-8" }
+        });
+      }
+    } satisfies ExportedHandler<Env>;
+
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    ```json
+    {
+    	"$schema": "node_modules/wrangler/config-schema.json",
+    	"name": "<ENTER_WORKER_NAME>",
+    	"main": "src/index.ts",
+    	"compatibility_date": "2025-03-03",
+    	"observability": {
+    		"enabled": true
+    	},
+    	"kv_namespaces": [
+    		{
+    			"binding": "USER_CONFIGURATION",
+    			"id": "<YOUR_BINDING_ID>"
+    		}
+    	]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+이 코드는 URL 내의 경로를 사용하고 KV 상점 내의 경로에 관련된 파일을 찾을 수 있습니다. 또한 응답에 적절한 MIME 유형을 설정하여 응답을 처리하는 방법을 알려줍니다. KV 스토어에서 값을 검색하려면, 이 코드 사용`arrayBuffer`제대로 이미지, 문서 및 비디오/오디오 파일과 같은 바이너리 데이터를 처리한다.
+
+## 구성에 최적화된 성능
+
+성능을 최적화하려면 몇 키 값 쌍에 값을 통합 할 수 있습니다. 이렇게하면 더 높은 캐싱 효율과 낮은 대기 시간에서 혜택을 누릴 수 있습니다.
+
+예를 들어, 별도의 키값 쌍에서 각 사용자의 구성을 저장하는 대신 단일 키 값 쌍의 모든 사용자의 구성을 저장할 수 있습니다. 이 접근법은 구성 데이터가 작고 쉽게 단일 키 가치 쌍에서 관리 할 수있는 사용 케이스에 적합 할 수있다 ([Workers KV 값의 크기 제한은 25 MiB입니다](/kv/platform/limits/)).
+
+## 관련 자료
+
+- [Rust 지원 Workers](/workers/languages/rust/)
+- [KVXQ를 사용하여 QXQXQXQXQ](/kv/get-started/)

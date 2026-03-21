@@ -1,0 +1,128 @@
+---
+title: GraphQL로 Workers 메트릭 조회하기
+pcx_content_type: example
+products: [workers]
+---
+
+이 예제에서는 GraphQL Analytics API를 사용해 지정한 기간의 Workers 메트릭을 조회합니다. 최대 3개월 전까지의 날짜에 대해 최대 1개월치 데이터를 조회할 수 있습니다.
+
+다음 API 호출은 Worker 스크립트의 메트릭을 1일 기간에 대해 요청하고, 요청한 필드를 출력합니다. `<CLOUDFLARE_ACCOUNT_TAG>`와 `<API_TOKEN>`[^1]을 API 자격 증명으로 바꾸고, 필요에 따라 `datetimeStart`, `datetimeEnd`, `scriptName` 변수를 조정하세요.
+
+## API 호출
+
+```bash
+echo '{ "query":
+  "query GetWorkersAnalytics($accountTag: string, $datetimeStart: string, $datetimeEnd: string, $scriptName: string) {
+    viewer {
+      accounts(filter: {accountTag: $accountTag}) {
+        workersInvocationsAdaptive(limit: 100, filter: {
+          scriptName: $scriptName,
+          datetime_geq: $datetimeStart,
+          datetime_leq: $datetimeEnd
+        }) {
+          sum {
+            subrequests
+            requests
+            errors
+          }
+          quantiles {
+            cpuTimeP50
+            cpuTimeP99
+          }
+          dimensions{
+            datetime
+            scriptName
+            status
+          }
+        }
+      }
+    }
+  }",
+  "variables": {
+    "accountTag": "<CLOUDFLARE_ACCOUNT_TAG>",
+    "datetimeStart": "2022-08-04T00:00:00.000Z",
+    "datetimeEnd": "2022-08-04T01:00:00.000Z",
+    "scriptName": "worker-subrequest-test-client"
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @-
+```
+
+반환 결과는 JSON(요청한 형식)으로 제공되므로, 다음 예시처럼 `jq`로 파이프하면 읽기 쉬워집니다.
+
+```bash
+... | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+
+#=> {
+#=>   "data": {
+#=>     "viewer": {
+#=>       "accounts": [
+#=>         {
+#=>           "workersInvocationsAdaptive": [
+#=>             {
+#=>               "dimensions": {
+#=>                 "datetime": "2020-05-04T18:10:35Z",
+#=>                 "scriptName": "worker-subrequest-test-client",
+#=>                 "status": "success"
+#=>               },
+#=>               "quantiles": {
+#=>                 "cpuTimeP50": 206,
+#=>                 "cpuTimeP99": 206
+#=>               },
+#=>               "sum": {
+#=>                 "errors": 0,
+#=>                 "requests": 1,
+#=>                 "subrequests": 0
+#=>               }
+#=>             },
+#=>             {
+#=>               "dimensions": {
+#=>                 "datetime": "2020-05-04T18:10:34Z",
+#=>                 "scriptName": "worker-subrequest-test-client",
+#=>                 "status": "success"
+#=>               },
+#=>               "quantiles": {
+#=>                 "cpuTimeP50": 291,
+#=>                 "cpuTimeP99": 291
+#=>               },
+#=>               "sum": {
+#=>                 "errors": 0,
+#=>                 "requests": 1,
+#=>                 "subrequests": 0
+#=>               }
+#=>             },
+#=>             {
+#=>               "dimensions": {
+#=>                 "datetime": "2020-05-04T18:10:49Z",
+#=>                 "scriptName": "worker-subrequest-test-client",
+#=>                 "status": "success"
+#=>               },
+#=>               "quantiles": {
+#=>                 "cpuTimeP50": 212.5,
+#=>                 "cpuTimeP99": 261.19
+#=>               },
+#=>               "sum": {
+#=>                 "errors": 0,
+#=>                 "requests": 4,
+#=>                 "subrequests": 0
+#=>               }
+#=>             }
+#=>           ]
+#=>         }
+#=>       ]
+#=>     }
+#=>   },
+#=>   "errors": null
+#=> }
+```
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

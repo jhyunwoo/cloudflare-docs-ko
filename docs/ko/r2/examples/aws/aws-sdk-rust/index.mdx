@@ -1,0 +1,208 @@
+---
+title: aws-sdk 녹슬지 않는
+pcx_content_type: example
+reviewed: 2025-03-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-rust/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-rust/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+이 예제는[추천 동영상](https://crates.io/crates/aws-sdk-s3)의 crate[Rust](https://github.com/awslabs/aws-sdk-rust). 당신은 R2 윤곽 credentials에서 당신의 순간을 순간에 전달해야 합니다`S3`클라이언트:
+
+## 기본 사용
+
+```rust
+use aws_sdk_s3 as s3;
+use aws_smithy_types::date_time::Format::DateTime;
+
+#[tokio::main]
+async fn main() -> Result<(), s3::Error> {
+    let bucket_name = "sdk-example";
+    // Provide your Cloudflare account ID
+    let account_id = "<ACCOUNT_ID>";
+    // Retrieve your S3 API credentials for your R2 bucket via API tokens
+    // (see: https://developers.cloudflare.com/r2/api/tokens)
+    let access_key_id = "<ACCESS_KEY_ID>";
+    let access_key_secret = "<SECRET_ACCESS_KEY>";
+
+    // Configure the client
+    let config = aws_config::from_env()
+        .endpoint_url(format!("https://{}.r2.cloudflarestorage.com", account_id))
+        .credentials_provider(aws_sdk_s3::config::Credentials::new(
+            access_key_id,
+            access_key_secret,
+            None, // session token is not used with R2
+            None,
+            "R2",
+        ))
+        .region("auto") // Required by SDK but not used by R2
+        .load()
+        .await;
+
+    let client = s3::Client::new(&config);
+
+    // List buckets
+    let list_buckets_output = client.list_buckets().send().await?;
+
+    println!("Buckets:");
+    for bucket in list_buckets_output.buckets() {
+        println!("  - {}: {}",
+            bucket.name().unwrap_or_default(),
+            bucket.creation_date().map_or_else(
+                || "Unknown creation date".to_string(),
+                |date| date.fmt(DateTime).unwrap()
+            )
+        );
+    }
+
+    // List objects in a specific bucket
+    let list_objects_output = client
+        .list_objects_v2()
+        .bucket(bucket_name)
+        .send()
+        .await?;
+
+    println!("\nObjects in {}:", bucket_name);
+    for object in list_objects_output.contents() {
+        println!("  - {}: {} bytes, last modified: {}",
+            object.key().unwrap_or_default(),
+            object.size().unwrap_or_default(),
+            object.last_modified().map_or_else(
+                || "Unknown".to_string(),
+                |date| date.fmt(DateTime).unwrap()
+            )
+        );
+    }
+
+    Ok(())
+}
+```
+
+## 오브젝트 업로드
+
+R2에 객체를 업로드하려면:
+
+```rust
+use aws_sdk_s3::primitives::ByteStream;
+use std::path::Path;
+
+async fn upload_object(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    file_path: &str,
+) -> Result<(), s3::Error> {
+    let body = ByteStream::from_path(Path::new(file_path)).await.unwrap();
+
+    client
+        .put_object()
+        .bucket(bucket)
+        .key(key)
+        .body(body)
+        .send()
+        .await?;
+
+    println!("Uploaded {} to {}/{}", file_path, bucket, key);
+    Ok(())
+}
+```
+
+## 다운로드 Objects
+
+R2의 객체를 다운로드하려면:
+
+```rust
+use std::fs;
+use std::io::Write;
+
+async fn download_object(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    output_path: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let resp = client
+        .get_object()
+        .bucket(bucket)
+        .key(key)
+        .send()
+        .await?;
+
+    let data = resp.body.collect().await?;
+    let bytes = data.into_bytes();
+
+    let mut file = fs::File::create(output_path)?;
+    file.write_all(&bytes)?;
+
+    println!("Downloaded {}/{} to {}", bucket, key, output_path);
+    Ok(())
+}
+```
+
+## 할당된 URL 생성
+
+일시적으로 공유 공개 읽거나 버킷에 액세스 할 수있는 사전 서명 된 링크도 생성 할 수 있습니다.
+
+```rust
+use aws_sdk_s3::presigning::PresigningConfig;
+use std::time::Duration;
+
+async fn generate_get_presigned_url(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    expires_in: Duration,
+) -> Result<String, s3::Error> {
+    let presigning_config = PresigningConfig::expires_in(expires_in)?;
+
+    // Generate a presigned URL for GET (download)
+    let presigned_get_request = client
+        .get_object()
+        .bucket(bucket)
+        .key(key)
+        .presigned(presigning_config)
+        .await?;
+
+    Ok(presigned_get_request.uri().to_string())
+}
+
+async fn generate_upload_presigned_url(
+    client: &s3::Client,
+    bucket: &str,
+    key: &str,
+    expires_in: Duration,
+) -> Result<String, s3::Error> {
+    let presigning_config = PresigningConfig::expires_in(expires_in)?;
+
+    // Generate a presigned URL for PUT (upload)
+    let presigned_put_request = client
+        .put_object()
+        .bucket(bucket)
+        .key(key)
+        .presigned(presigning_config)
+        .await?;
+
+    Ok(presigned_put_request.uri().to_string())
+}
+```
+
+이 예시된 URL을 HTTP 클라이언트로 사용할 수 있습니다. 예를 들어, PUT URL을 사용하여 파일을 업로드:
+
+```bash
+curl -X PUT "https://<your-presigned-put-url>" -H "Content-Type: application/octet-stream" --data-binary "@local-file.txt"
+```
+
+GET URL을 사용하여 파일을 다운로드하려면:
+
+```bash
+curl -X GET "https://<your-presigned-get-url>" -o downloaded-file.txt
+```

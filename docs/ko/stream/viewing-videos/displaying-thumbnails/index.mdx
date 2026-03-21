@@ -1,0 +1,85 @@
+---
+pcx_content_type: how-to
+title: 디스플레이 thumbnails
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/viewing-videos/displaying-thumbnails/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/viewing-videos/displaying-thumbnails/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::참조
+
+Stream thumbnails는 Non-square 화소를 가진 영상을 위해 지원되지 않습니다.
+
+:::
+
+## 사용 케이스 1: 엄지나일 on-the-fly 생성
+
+비디오에서 엄지나일을 생성 할 수 있습니다 특별한 링크에서 시간을 지정하는 비디오에서 엄지나일을 얻을.
+
+`https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.jpg?time=1s&height=270`
+
+<img src="https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.jpg?time=1s&height=270" alt="example video에서 생성된 썸네일 이미지의 예" />
+
+사용 방법`poster`지정된 URL에서 쿼리 매개 변수, 당신은 당신의 비디오에서 언제든지 엄밀하게 설정할 수 있습니다. 이름 \*[URL 서명](/stream/viewing-videos/securing-your-stream/)필요한 경우 비디오 UID 대신 서명 URL을 사용해야합니다.
+
+```html
+<iframe
+  src="https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/iframe?poster=https%3A%2F%2Fcustomer-f33zs165nr7gyfy4.cloudflarestream.com%2F6b9e68b07dfee8cc2d116e4c51d6a957%2Fthumbnails%2Fthumbnail.jpg%3Ftime%3D%26height%3D600"
+  style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;"
+  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+  allowfullscreen="true"
+></iframe>
+```
+
+지원된 URL 속성은:
+
+- **`time`**(과태)`0s`, configurable) 예제의 비디오에서 시간`8m`, `5m2s`
+- **`height`**(과태)`640`)
+- **`width`**(과태)`640`)
+- **`fit`**(과태)`crop`) 요청된 고도 및 폭이 원본 업로드와 일치하지 않을 때 할 것을 명확하게 하기 위하여:
+  - **`crop`**&#xC8FC;어진 크기에 맞지 않는 영상의 커트 부속
+  - **`clip`**&#xC804;체 프레임을 보존하고 주어진 크기 내에서 이미지의 크기를 감소
+  - **`scale`**&#xC8FC;어진 크기에 맞게 이미지를 찡그림
+  - **`fill`**&#xC804;체 프레임을 보존하고 검은 배경으로 요청된 크기의 나머지를 채우십시오.
+
+## Case 2: API를 사용하여 기본 썸네일 타임스탬프 설정
+
+기본적으로 스트림 플레이어는 비디오의 첫 번째 프레임에 엄밀하게 설정합니다. API를 사용하여 "thumbnailTimestampPct"값을 설정하여 per-video에 이것을 변경할 수 있습니다.
+
+```bash
+curl -X POST \
+-H "Authorization: Bearer <API_TOKEN>" \
+-d '{"thumbnailTimestampPct": 0.5}' \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/<VIDEO_UID>
+```
+
+`thumbnailTimestampPct`0.0 (비디오의 첫 번째 프레임)과 1.0 (비디오의 마지막 프레임) 사이의 값입니다. 예를 들어, 동영상의 절반 지점에서 프레임이 될 썸네일을 원하면 설정할 수 있습니다.`thumbnailTimestampPct`0.5에 가치. 이 방법의 상대적 가치를 사용하면 기본 썸네일을 설정할 수 있습니다. 또는 사용자의 동영상이 지속될 수 있습니다.
+
+## 사용 케이스 3 : 애니메이션 thumbnails 생성
+
+스트림은 썸네일로 애니메이션 GIF를 지원합니다. Animated thumbnails는 결제된 분으로 계산되지 않습니다.[스트림 분석](/stream/getting-analytics/).
+
+### 애니메이션 GIF 썸네일
+
+` https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.gif?time=1s&height=200&duration=4s`
+
+<img src="https://customer-f33zs165nr7gyfy4.cloudflarestream.com/6b9e68b07dfee8cc2d116e4c51d6a957/thumbnails/thumbnail.gif?time=1s&height=200&duration=4s" alt="Animated gif 예제, Cloudflare 스트림에서 생성 된 on-demand" />
+
+animated thumbnails에 대한 지원 URL 속성은 다음과 같습니다.
+
+- **`time`**(과태)`0s`) 예를 들어 비디오에서 시간`8m`, `5m2s`
+- **`height`**(과태)`640`)
+- **`width`**(과태)`640`)
+- **`fit`**(과태)`crop`) 요청된 고도 및 폭이 원본 업로드와 일치하지 않을 때 할 것을 명확하게 하기 위하여:
+  - **`crop`**&#xC8FC;어진 크기에 맞지 않는 영상의 커트 부속
+  - **`clip`**&#xC804;체 프레임을 보존하고 주어진 크기 내에서 이미지의 크기를 감소
+  - **`scale`**&#xC8FC;어진 크기에 맞게 이미지를 찡그림
+  - **`fill`**&#xC804;체 프레임을 보존하고 검은 배경으로 요청된 크기의 나머지를 채우십시오.
+- **`duration`**(과태)`5s`)
+- **`fps`**(과태)`8`)

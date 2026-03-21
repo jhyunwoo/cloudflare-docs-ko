@@ -1,0 +1,125 @@
+---
+pcx_content_type: concept
+title: Worker 스크립트
+description: Worker 스크립트의 존재는 정적 자산 라우팅 및 관련 구성 옵션에 영향을 미칩니다.
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/static-assets/routing/worker-script/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/static-assets/routing/worker-script/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample } from "~/components";
+
+정적 자산과 Worker 스크립트를 구성한 경우 Cloudflare는 1개의 수신 요청을 일치하면 정적 자산을 먼저 시도할 것입니다. 우리는 자산을 어떻게 일치시킬 수 있습니까?[HTML 처리 문서](/workers/static-assets/routing/advanced/html-handling/).
+
+Cloudflare는 여러분의 작업자 스크립트를 호출합니다.
+
+이 두 가지 기능을 결합하여 강력한 응용 프로그램을 만들 수 있습니다 (예 :[Full-stack 응용](/workers/static-assets/routing/full-stack-application/), 또는[단일 페이지 응용 프로그램 (SPA)](/workers/static-assets/routing/single-page-application/)또는[정체되는 위치 발생 (SSG) 신청](/workers/static-assets/routing/static-site-generation/)API로.
+
+## 작업자 스크립트를 먼저 실행
+
+구성할 수 있습니다.[`assets.run_worker_first`설치하기](/workers/static-assets/binding/#run_worker_first)당신의 Worker 스크립트가 정적 자산 봉사에 상대를 실행할 때 제어합니다. 이러한 자산이 제공되고 요청을 위해 "middleware"를 구현하는 데 사용할 수있는 방법을 정확하게 제어합니다.
+
+:::카트로션
+자주 묻는 질문[스마트 배치](/workers/configuration/placement/)함께`assets.run_worker_first`, 당신은 배치 결정이 제대로 최적화되지 않다는 것을 찾을 수 있습니다, 현재, 전체 노동자 스크립트는 단일 단위로 배치됩니다. 이것은 정확하게 당신의 신청을 위한 가장자리 첫번째 대의 행동에서 원한 "split"를 반영할지도 모릅니다. 이것은 현재 해결하기 위해 노력하고 있는 제한입니다.
+주요 특징
+
+### 각 요구의 앞에 노동자를 달리십시오
+
+항상 정적 자산을 봉사하기 전에 노동자 스크립트를 실행해야하는 경우 (예를 들어, 당신은 로그 요청을하고, 일부 인증 체크를 수행, 사용[모델 번호: HTMLRewriter](/workers/runtime-apis/html-rewriter/), 또는 그렇지 않으면 서빙하기 전에 자산을 변환), 설정`run_worker_first`으로`true`:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./worker/index.ts",
+  	"assets": {
+  		"directory": "./dist/",
+  		"binding": "ASSETS",
+  		"run_worker_first": true
+  	}
+  }
+  ```
+</WranglerConfig>
+
+<TypeScriptExample filename="./worker/index.ts">
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export default class extends WorkerEntrypoint<Env> {
+  	async fetch(request: Request) {
+  		//자산을 태칭하기 전에 검사를 수행 할 수 있습니다.
+  		const user = await checkIfRequestIsAuthenticated(request);
+
+  		if (!user) {
+  			return new Response("Unauthorized", { status: 401 });
+  		}
+
+  		//그런 다음 자산을 정상으로 가져갈 수 있습니다. 또는 다른 특정 자산을 태워하려는 경우 여기에서 사용자 지정 요청 개체에 전달할 수 있습니다.
+  		const assetResponse = await this.env.ASSETS.fetch(request);
+
+  		//정적 자산 응답 as-is 또는 HTMLRewriter와 같은 무언가로 변환 할 수 있습니다.
+  		return new HTMLRewriter()
+  			.on("#user", {
+  				element(element) {
+  					element.setInnerContent(JSON.stringify({ name: user.name }));
+  				},
+  			})
+  			.transform(assetResponse);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 선택적 경로에 대한 Worker를 먼저 실행
+
+또한 경로 패턴의 배열을 사용하여 selective Worker-first routing을 구성할 수 있습니다.[`single-page-application`설치하기](/workers/static-assets/routing/single-page-application/#advanced-routing-control). 이것은 다른 요청이 기본 자산 첫 번째 행동을 따르는 동안 특정 경로에 대한 노동자를 먼저 실행 할 수 있습니다 :
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./worker/index.ts",
+  	"assets": {
+  		"directory": "./dist/",
+  		"not_found_handling": "single-page-application",
+  		"binding": "ASSETS",
+  		"run_worker_first": ["/oauth/callback"]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+<TypeScriptExample filename="./worker/index.ts">
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export default class extends WorkerEntrypoint<Env> {
+  	async fetch(request: Request) {
+  		//이 Worker 스크립트는 OAuth 콜백을 처리한다.
+  		//다른 모든 요청은이 코드를 타격하지 않고 일치하거나 index.html fallback을 제공합니다.
+  		const url = new URL(request.url);
+  		const code = url.searchParams.get("code");
+  		const state = url.searchParams.get("state");
+
+  		const accessToken = await exchangeCodeForToken(code, state);
+  		const sessionIdentifier = await storeTokenAndGenerateSession(accessToken);
+
+  		//인덱스로 다시 이동하지만, 프런트 엔드가 사용할 쿠키를 설정합니다.
+  		return new Response(null, {
+  			headers: {
+  				Location: "/",
+  				"Set-Cookie": `session_token=${sessionIdentifier}; HttpOnly; Secure; SameSite=Lax; Path=/`,
+  			},
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>

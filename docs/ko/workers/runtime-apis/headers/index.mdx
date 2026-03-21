@@ -1,0 +1,76 @@
+---
+pcx_content_type: configuration
+title: 기타 제품
+head: []
+description: HTTP 요청 및 응답 헤더에 액세스.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/headers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/headers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 이름 \*
+
+모든 HTTP 요청 및 응답 헤더를 통해 사용할 수 있습니다[헤더 API](https://developer.mozilla.org/en-US/docs/Web/API/Headers).
+
+헤더 이름은 여러 값을 소유할 때, 그 값은 단일, comma-delimited string 값으로 concatenated 됩니다. 즉,`Headers.get`항상 문자열을 반환하거나`null`가치. 이 모든 헤더 이름에 적용됩니다.`Set-Cookie`, 필요한`Headers.getAll`. 아래 문서[기타](#differences).
+
+```js
+let headers = new Headers();
+
+headers.get('x-foo'); //=> 오류
+
+headers.set('x-foo', '123');
+headers.get('x-foo'); //=> "123"'실제 이름입
+
+headers.set('x-foo', 'hello');
+headers.get('x-foo'); //=> "안녕하세요"
+
+headers.append('x-foo', 'world');
+headers.get('x-foo'); //=> "hello, 세계"
+```
+
+## 기타
+
+Workers 구현`Headers`API는 여러 가지 방법으로 웹 표준과 다릅니다. 이러한 차이는 의도적이며 Workers 런타임의 서버 측 성격을 반영합니다.
+
+:::노트\[TypeScript 사용자]
+Workers 유형 정의 (에서`@cloudflare/workers-types`또는 생성[`wrangler types`](/workers/wrangler/commands/#types)) 정의`Headers`Workers-specific 메소드를 포함하는 유형`getAll()`. 이 유형은 표준과 직접 호환되지 않습니다`Headers`유형에서`lib.dom.d.ts`. Workers 유형과 표준 웹 유형 둘 다를 사용하는 부호로 일하는 경우에, 당신은 유형 assertions를 사용할 필요가 있을지도 모릅니다.
+주요 특징
+
+### `getAll()`제품 설명
+
+사실에도 불구하고`Headers.getAll`방법은 웹 브라우저에서 사용되지 않았습니다. Workers는 여전히이 방법을 제공합니다.`Set-Cookie`헤더. 이것은 쿠키가 종종 날짜 문자열을 포함하기 때문에, commas 포함. 여러 값을 파싱할 수 있습니다.`Set-Cookie`더 열심히.
+
+어떤 시도를 사용`Headers.getAll`다른 헤더 이름은 오류를 던질 것입니다. 간단한 역사`Headers.getAll`이용 가능[GitHub 문제](https://github.com/whatwg/fetch/issues/973).
+
+### `Set-Cookie`제품정보
+
+이름 \*[RFC 6265 시리즈](https://www.rfc-editor.org/rfc/rfc6265)다수 접히는 prohibiting`Set-Cookie`헤더는 단일 헤더로,`Headers.append`메소드를 설정할 수 있습니다.`Set-Cookie`응답 헤더 대신 기존 헤더에 값을 appending.
+
+```js
+const headers = new Headers();
+
+headers.append("Set-Cookie", "cookie1=value_for_cookie_1; Path=/; HttpOnly;");
+headers.append("Set-Cookie", "cookie2=value_for_cookie_2; Path=/; HttpOnly;");
+
+console.log(headers.getAll("Set-Cookie"));
+//배열(2) [ Cookies1=value for cookie 1; Path=/; HttpOnly;, cookie2=value for cookie 2; Path=/; HttpOnly; ]
+```
+
+### `USVString`반환 유형
+
+Cloudflare Workers에서,`Headers.get`방법 반환[`USVString`](https://mdn2.netlify.app/en-us/docs/web/api/usvstring/)대신에[`ByteString`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String)웹 표준에 의해 지정되는 ,. 대부분의 시나리오를 위해, 이것은 눈에 띄는 효력이 있어야 합니다. 이 두 문자열 클래스의 차이를 비교하려면, 이 참조[놀이터 예](https://workers.cloudflare.com/playground#LYVwNgLglgDghgJwgegGYHsHALQBM4RwDcABAEbogB2+CAngLzbMutvvsCMALAJx-cAzAHZeANkG8AHAAZOU7t2EBWAEy9eqsXNWdOALg5HjbHv34jxk2fMUr1m7Z12cAsACgAwuioQApr7YACJQAM4w6KFQ0D76JBhYeATEJFRwwH4MAERQNH4AHgB0AFahWaSoUGAB6Zk5eUWlWR7evgEQ2AAqdDB+cXAwMGBQAMYEUD7IxXAAbnChIwiwEADUwOi44H4eHgURSCS4fqhw4BAkAN7uAJDzdFQj8X4QIwAWABQIfgCOIH6hEAAlJcbtdqucxucGCQsoBeDcAXHtZUHgkggCCoKSeAgkaFUPwAdxInQKEAAog8Nn4EO9AYUAiNKe9IYDkc8SPTKbgsVCSABlCBLKgAc0KqAQ6GAnleiG8R3ehQVaIx3JZoIZVFC6GqhTA6CF7yynVeYRIJrgJAAqryAGr8wVCkj46KvEjmyH6LIAGhIzLVPk12t1+sNxtCprD5oAQnR-Hbcg6nRAXW7sT5LZ0AGLYKQe70co5cgiq67XZDIEgACT8cCOCAjXxIoRAg0iflwJAg6EdmAA1iQfGA6I7nSRo7GBfHQt6yGj+yAEKCy6bgEM-BlfOM0yBQv9LTa48LQoUiaHUiSSMM8cOwGASDBBec4Ivy-jEFR466KLOk2FCqzzq81a1mGuIEpWQFUqE7wXDC+ZttgkJZHEcGFucAC+xbXF8EDzlQZ6EgASv8EQan4BpSn4Ix9pQ5xJn4JAAAatAGfgMa6NAdoBJBEeE-r0YBNaQR2XY7vRdFzhAMCzgyK6IGE-qFF6lwkAJwEkBhNxoe4aEeCYelGGYAiWBI0hyAoShqBoWg6HoLQ+P4gQhLxUQxFQcQJDg+CEKQaQZNkGSEF5cDlPEVQ1H5WRkLqZDNF49ntF0PR9K6gzDJCExUFMmpUDs7gXFkwBwLkAD66ybNUSH1EcjRlDp7j6Q1rCGRYogmTY5n2FZTguMwHhAA).
+
+## Cloudflare 헤더
+
+Cloudflare는 들어오는 요구에 그것의 자신의 주문 우두머리의 수를 놓고 응답을 나가. 몇몇은 그것의 자신의 추적 및 bookkeeping를 위해 사용될지도 모르지만, 몇몇은 당신의 자신의 신청에 유용한 수 있습니다 – 또는 Workers – 너무.
+
+문서화 된 Cloudflare 요청 헤더의 목록은 참조[Cloudflare HTTP 헤더](/fundamentals/reference/http-headers/).
+
+## 관련 자료
+
+- [콘솔 로깅 헤더](/workers/examples/logging-headers/)- 콘솔에서 헤더를 로그하는 방법을 검토합니다.
+- [Cloudflare HTTP 헤더](/fundamentals/reference/http-headers/)- Cloudflare가 추가되는 특정 헤더 목록을 포함합니다.

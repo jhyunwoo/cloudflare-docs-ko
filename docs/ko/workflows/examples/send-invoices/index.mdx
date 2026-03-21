@@ -1,0 +1,236 @@
+---
+summary: Send invoice when shopping cart is checked out and paid for
+products:
+  - d1
+  - email-routing
+tags:
+  - TypeScript
+pcx_content_type: example
+title: 결제 카트 및 송장 전송
+sidebar:
+  order: 3
+description: 쇼핑 카트가 체크 아웃되고 지불될 때 청구서를 보내십시오
+reviewed: 2024-10-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/examples/send-invoices/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/examples/send-invoices/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig, Render } from "~/components";
+
+이 예에서, 우리는 쇼핑 카트가 생성 된 때마다 트리거 된 전자 상거래 웹 사이트의 Workflow를 구현합니다.
+
+Workflow 인스턴스가 트리거되면 오염을 시작합니다.[D1](/d1)체크 아웃 할 때까지 카트 ID 데이터베이스. 쇼핑 카트가 체크 아웃되면 외부 공급자로 결제를 진행합니다. 마지막으로, 모든 것을 잘 어울리고, 우리는 이메일을 사용하여 보내려고[이메일 Workers](/email-routing/email-workers/)고객에게 청구서로.
+
+당신이 볼 수 있듯이, Workflows는 모든 다른 서비스 응답 및 실패를 취급합니다; 그것은 D1를 카트가 검사될 때까지 재시동할 것입니다, 어떤 이유로 실패하면 지불 가공업자를 재시동하고, 그것을 할 수 없는 경우에 청구서를 가진 이메일을 보낼 것입니다. 개발자는 논리에 대해 걱정할 필요가 없으며, 워크플로우는 시간 동안 실행할 수 있으며, 완료될 때까지 가능한 모든 조건을 처리할 수 있습니다.
+
+쇼핑 카트를 처리하는 간단한 예입니다. 우리는 실제 생활 시나리오에서 더 많은 단계와 추가 논리를 가정하지만이 예는 Workflows로 할 수있는 좋은 아이디어를 제공합니다.
+
+```ts
+import {
+	WorkflowEntrypoint,
+	WorkflowStep,
+	WorkflowEvent,
+} from "cloudflare:workers";
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from "mimetext";
+
+//우리는 우리의 손수레 데이타베이스를 위한 이메일과 D1를 보내는 이메일 Routing를 사용하고 있습니다
+type Env = {
+	CART_WORKFLOW: Workflow;
+	SEND_EMAIL: any;
+	DB: any;
+};
+
+//작업 흐름 매개 변수: 우리는 cartId를 기대
+type Params = {
+	cartId: string;
+};
+
+//이메일 Routing을 사용하여 Cloudflare 영역에 이것을 조정하십시오
+const merchantEmail = "merchant@example.com";
+
+//mimetext npm을 사용하여 이메일 생성
+const genEmail = (email: string, amount: number) => {
+	const msg = createMimeMessage();
+	msg.setSender({ name: "Pet shop", addr: merchantEmail });
+	msg.setRecipient(email);
+	msg.setSubject("You invoice");
+	msg.addMessage({
+		contentType: "text/plain",
+		data: `Your invoice for ${amount} has been paid. Your products will be shipped shortly.`,
+	});
+
+	return new EmailMessage(merchantEmail, email, msg.asRaw());
+};
+
+//작업 흐름 논리
+export class cartInvoicesWorkflow extends WorkflowEntrypoint<Env, Params> {
+	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+		await step.sleep("sleep for a while", "10 seconds");
+
+		//D1 데이터베이스에서 카트 검색
+		//카트가 아직 다시 시도되지 않은 경우 2 분, 10 번, 그렇지 않으면 포기
+		const cart = await step.do(
+			"retrieve cart",
+			{
+				retries: {
+					limit: 10,
+					delay: 2000 * 60,
+					backoff: "constant",
+				},
+				timeout: "30 seconds",
+			},
+			async () => {
+				const { results } = await this.env.DB.prepare(
+					`SELECT * FROM cart WHERE id = ?`,
+				)
+					.bind(event.payload.cartId)
+					.run();
+				//{checkOut: true, 금액: 250, 계정: { 이메일: "celsomartinho@gmail.com" }};
+				if (results[0].checkedOut === false) {
+					throw new Error("cart hasn't been checked out yet");
+				}
+				return results[0];
+			},
+		);
+
+		//지불에, retry 10배 각 분 또는 주어서
+		const payment = await step.do(
+			"payment",
+			{
+				retries: {
+					limit: 10,
+					delay: 1000 * 60,
+					backoff: "constant",
+				},
+				timeout: "30 seconds",
+			},
+			async () => {
+				let resp = await fetch("https://payment-processor.example.com/", {
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json; charset=utf-8",
+					},
+					body: JSON.stringify({ amount: cart.amount }),
+				});
+
+				if (!resp.ok) {
+					throw new Error("payment has failed");
+				}
+
+				return { success: true, amount: cart.amount };
+			},
+		);
+
+		//고객에게 송장 보내기, 5 분마다 10 배를 재 발송하거나 포기하십시오
+		//cart.account.email이 이전에 이메일 Routing에서 검증된 것을 요구합니다.
+		//https://developers.cloudflare.com/email-routing/email-workers/를 보십시오
+		await step.do(
+			"send invoice",
+			{
+				retries: {
+					limit: 10,
+					delay: 5000 * 60,
+					backoff: "constant",
+				},
+				timeout: "30 seconds",
+			},
+			async () => {
+				const message = genEmail(cart.account.email, payment.amount);
+				try {
+					await this.env.SEND_EMAIL.send(message);
+				} catch (e) {
+					throw new Error("failed to send invoice");
+				}
+			},
+		);
+	}
+}
+
+//admin의 기본 페이지
+//관련 제품
+
+export default {
+	async fetch(req: Request, env: Env): Promise<Response> {
+		let url = new URL(req.url);
+
+		let id = new URL(req.url).searchParams.get("instanceId");
+
+		//기존 인스턴스의 상태를 확인하면 제공된 경우
+		if (id) {
+			let instance = await env.CART_WORKFLOW.get(id);
+			return Response.json({
+				status: await instance.status(),
+			});
+		}
+
+		if (url.pathname.startsWith("/new")) {
+			let instance = await env.CART_WORKFLOW.create({
+				params: {
+					cartId: "123",
+				},
+			});
+			return Response.json({
+				id: instance.id,
+				details: await instance.status(),
+			});
+		}
+
+		return new Response(
+			`<html><body><a href="/new">new instance</a> or add ?instanceId=...</body></html>`,
+			{
+				headers: {
+					"content-type": "text/html;charset=UTF-8",
+				},
+			},
+		);
+	},
+};
+```
+
+최소 package.json은 다음과 같습니다.
+
+```json
+{
+	"devDependencies": {
+		"wrangler": "^3.83.0"
+	},
+	"dependencies": {
+		"mimetext": "^3.0.24"
+	}
+}
+```
+
+그리고 마지막으로[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "cart-invoices",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"workflows": [
+  		{
+  			"name": "cart-invoices-workflow",
+  			"binding": "CART_WORKFLOW",
+  			"class_name": "cartInvoicesWorkflow"
+  		}
+  	],
+  	"send_email": [
+  		{
+  			"name": "SEND_EMAIL"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+<Render file="wrangler-typegen" product="workers" />

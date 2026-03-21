@@ -1,0 +1,118 @@
+---
+pcx_content_type: how-to
+title: 필터링
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/logpush/logpush-job/filters/'
+translation_source_md: 'https://developers.cloudflare.com/logs/logpush/logpush-job/filters/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest, DashButton } from "~/components";
+
+다음 표는 지원되고 예값인 비교 연산자를 나타냅니다. 필터는 JSON 문자열로 포맷 된 탈출 된 JSON 문자열로 추가됩니다.`{"key":"<field>","operator":"<comparison_operator>","value":"<value>"}`.
+
+- 더 알아보기[데이터셋](/logs/logpush/logpush-job/datasets/)각 dataset과 관련된 필드 목록의 페이지.
+
+- Navigation: 엠에디터 도움말 > 플러그인 참조 > 인라인 함수
+
+- Values는 필드와 관련된 데이터를 나타냅니다.
+
+| 이름 \*             | 운영자 표기        | 스트레이트 | 지원하다 | 로그아웃 | 지원하다 | 계정 만들기 | 이름 \*                                                                  |
+| ----------------- | ------------- | ----- | ---- | ---- | ---- | ------ | ---------------------------------------------------------------------- |
+| 본부                | `eq`          | ✅     | ✅    | ✅    | ❌    | ❌      | `{"key":"ClientRequestHost","operator":"eq","value":"example.com"}`    |
+| 이름 \*             | `!eq`         | ✅     | ✅    | ✅    | ❌    | ❌      | `{"key":"ClientCountry","operator":"!eq","value":"ca"}`                |
+| 더 적은 보다는          | `lt`          | ❌     | ✅    | ❌    | ❌    | ❌      | `{"key":"BotScore","operator":"lt","value":"30"}`                      |
+| 또는 동등한 것 보다는 더 적은 | `leq`         | ❌     | ✅    | ❌    | ❌    | ❌      | `{"key":"BotScore","operator":"leq","value":"30"}`                     |
+| 더 큰               | `gt`          | ❌     | ✅    | ❌    | ❌    | ❌      | `{"key":"BotScore","operator":"gt","value":"30"}`                      |
+| 더 중대한 또는 동등한 것    | `geq`         | ❌     | ✅    | ❌    | ❌    | ❌      | `{"key":"BotScore","operator":"geq","value":"30"}`                     |
+| 시작하기              | `startsWith`  | ✅     | ❌    | ❌    | ❌    | ❌      | `{"key":"ClientRequestPath","operator":"startsWith","value":"/foo"}`   |
+| 함께 종료             | `endsWith`    | ✅     | ❌    | ❌    | ❌    | ❌      | `{"key":"ClientRequestPath","operator":"endsWith","value":"/foo"}`     |
+| 시작하기              | `!startsWith` | ✅     | ❌    | ❌    | ❌    | ❌      | `{"key":"ClientRequestPath","operator":"!startsWith","value":"/foo"}`  |
+| 끝이 없습니다.          | `!endsWith`   | ✅     | ❌    | ❌    | ❌    | ❌      | `{"key":"ClientRequestPath","operator":"!endsWith","value":"/foo"}`    |
+| 제품정보              | `contains`    | ✅     | ❌    | ❌    | ✅    | ❌      | `{"key":"ClientRequestPath","operator":"contains","value":"/static"}`  |
+| 포함되지 않음           | `!contains`   | ✅     | ❌    | ❌    | ✅    | ❌      | `{"key":"ClientRequestPath","operator":"!contains","value":"/static"}` |
+| 값은 값의 설정에 있습니다.   | `in`          | ✅     | ✅    | ❌    | ❌    | ❌      | `{"key":"EdgeResponseStatus","operator":"in","value":[200,201]}`       |
+| 값은 값의 세트에 없습니다.   | `!in`         | ✅     | ✅    | ❌    | ❌    | ❌      | `{"key":"EdgeResponseStatus","operator":"!in","value":[200,201]}`      |
+
+필터 필드는 약 30 연산자와 1000 바이트의 제한이 있습니다. 이 값을 초과하는 것은 오류를 반환합니다.
+
+<Render file="filtering-limitations" product="logs" />
+
+## Logical 연산자
+
+- 필터를 사용하여 연결 가능`AND`, `OR`논리 연산자.
+
+- Logical 연산자는 배열 될 수 있습니다.
+
+논리 연산자가 구현 될 수있는 몇 가지 예입니다.`X`, `Y`·`Z`필터 기준을 나타내기 위하여 사용됩니다:
+
+- X와 Y와 Z -`{"where":{"and":[{X},{Y},{Z}]}}`
+
+- X 또는 Y 또는 Z`{"where":{"or":[{X},{Y},{Z}]}}`
+
+- X와 (Y 또는 Z) -`{"where":{"and":[{X}, {"or":[{Y},{Z}]}]}}`
+
+- (X와 Y) 또는 Z -`{"where":{"or":[{"and": [{X},{Y}]},{Z}]}}`
+
+Logpush 필터는 패스 스루 게이트로 작동하며 예외 목록이 아닙니다. 여러 조건이 참여할 때:
+
+- 모든 조건은 로그에 대한 TRUE를 평가해야합니다.
+- 단일 조건이 FALSE인 경우 로그가 제외됩니다.
+
+일반적인 misconception은 필터를`exclude logs matching ALL conditions`그러나`include logs matching ALL conditions`.
+
+## API 또는 대시보드를 통해 필터 설정
+
+여과기는 API 또는 Cloudflare 대시보드를 통해 놓일 수 있습니다. 필터를 사용하는 노트는 선택 사항이지만 사용 된 경우, 그것은 포함해야합니다`where`주요.
+
+### 사이트맵
+
+API를 통해 cURL을 사용하는 예 요청은 다음과 같습니다.
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  	name: "static-assets",
+  	output_options: {
+  		field_names: ["ClientIP", "EdgeStartTimestamp", "RayID"],
+  		sample_rate: 0.1,
+  		timestamp_format: "rfc3339",
+  		"CVE-2021-44228": true,
+  	},
+  	dataset: "http_requests",
+  	filter: JSON.stringify({
+  		where: {
+  			and: [
+  				{ key: "ClientRequestPath", operator: "contains", value: "/static" },
+  				{ key: "ClientRequestHost", operator: "eq", value: "example.com" },
+  			],
+  		},
+  	}),
+  	destination_conf: "s3://<BUCKET_PATH>?region=us-west-2/",
+  }}
+/>
+
+### 모델 번호: 대시보드
+
+대시보드를 통해 필터를 설정하려면:
+
+1. Cloudflare 대시보드에서, 갑니다**다운로드**계정 또는 도메인의 페이지 (도 영역으로 알려진) 수준.
+
+   계정:<DashButton url="/?to=/:account/logs" />
+
+   도메인 (지역으로도 알려져 있음) :<DashButton url="/?to=/:account/:zone/analytics/logs" />
+
+2. 저장 서비스로 푸시하려는 dataset를 선택하십시오. 당신의 선택에 따라, 당신은 접근해야[account-scoped 데이터 세트](/logs/logpush/logpush-job/datasets/account/)·[Zone-scoped 데이터셋](/logs/logpush/logpush-job/datasets/zone/)각각.
+
+3. 이름 \***데이터 필드 선택**, 에서**제품정보**섹션, 필터를 설정할 수 있습니다.
+
+4. 당신은 선택해야[dataset 필드](/logs/logpush/logpush-job/datasets/)·[회사연혁](/logs/logpush/logpush-job/filters/#logical-operators), 그리고**제품정보**.
+
+5. 더 많은 필터를 연결할 수 있습니다.`AND`·`OR`논리 연산자.
+
+6. 제품정보**이름 \***&#x4C;ogpush 작업의 설정을 계속하려면.

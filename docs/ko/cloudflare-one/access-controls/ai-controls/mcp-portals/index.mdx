@@ -1,0 +1,217 @@
+---
+pcx_content_type: how-to
+title: MCP 서버 포털
+tags:
+  - MCP
+sidebar:
+  order: 1
+  label: MCP 서버 포털
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip } from "~/components";
+
+MCP 서버 포털은 여러 가지를 중앙화[모형 Context 의정서 (MCP) 서버](https://www.cloudflare.com/learning/ai/what-is-model-context-protocol-mcp/)단일 HTTP 엔드포인트에.
+
+![MCP 클라이언트는 MCP 포털을 통해 내부 MCP 서버 및 SaaS MCP 서버에 액세스합니다.](~/assets/images/cloudflare-one/applications/mcp-portal.png)
+
+주요 이점은 다음을 포함합니다:
+
+- **여러 MCP 서버에 대한 간소화 된 액세스**: MCP 서버 포털은 OAuth (예를 들면, via[SaaS에 대한 접근](/cloudflare-one/access-controls/ai-controls/saas-mcp/)또는[제3자 OAuth 공급자](/agents/model-context-protocol/authorization/)). Cloudflare 액세스를 통해 포털 URL에 로그인하고 OAuth를 요구하는 각 서버에 별도로 인증됩니다.
+
+- **포털 당 사용자 정의 도구**: Admins는 MCP 포털을 특정 도구와 포털을 통해 사용자가 사용할 수있는 신속한 템플릿을 선택할 수 있습니다. 이것은 사용자가 도구와 프롬프트의 curated 세트에 액세스 할 수 있습니다 - AI 모델에 노출 된 덜 외부 컨텍스트, 더 나은 AI 응답은 경향이있다.
+
+- **옵션 정보**: 사용자가 AI 에이전트가 포털에 연결되면 Cloudflare Access는 포털에서 도구를 사용하여 만든 개별 요청을 기록합니다.
+
+이 가이드는 MCP 서버를 Cloudflare Access에 추가하는 방법을 설명하고 MCP 포털을 사용자 정의 도구 및 정책으로 만들고 MCP 클라이언트를 사용하여 포털에 연결합니다.
+
+## 자주 묻는 질문
+
+- 이름 \*[Cloudflare의 활성 도메인](/fundamentals/manage-domains/add-site/)
+- 도메인은[전체 설정](/dns/zone-setups/full-setup/)또는[부분 (`CNAME`) 설정](/dns/zone-setups/partial-setup/)
+- 이름 \*[회사 소개](/cloudflare-one/integrations/identity-providers/)Cloudflare Zero Trust에 구성
+
+## MCP 서버 추가
+
+중앙 관리에 따라 개별 MCP 서버를 Cloudflare Access에 추가하십시오.
+
+MCP 서버를 추가하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **AI 제어**.
+
+2. 오시는 길**MCP 서버**탭.
+
+3. 제품정보**MCP 서버 추가**.
+
+4. 서버의 이름을 입력합니다.
+
+5. (선택 사항) 사용자 정의 문자열을 입력**서버 ID**.
+
+6. 내 계정**HTTP URL**, MCP 서버의 전체 URL을 입력합니다. 예를 들어, 추가하려는 경우[사이트맵 문서 MCP 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/docs-vectorize), 입력`https://docs.mcp.cloudflare.com/mcp`.
+
+7. 더 보기[오시는 길](/cloudflare-one/access-controls/policies/)서버에 표시하거나 숨기기[MCP 서버 포털](#create-a-portal). MCP 서버 링크는 허용 정책과 일치하는 사용자를위한 포털에만 표시됩니다. 허용 정책을 통과하지 않는 사용자는이 서버를 통해 볼 수 없습니다.
+
+   :::카트로션
+   차단된 사용자는 직접 URL을 사용하여 서버 (및 액세스 정책을 우회)에 연결할 수 있습니다. Cloudflare Access를 통해 인증을 시행하려면[서버의 OAuth 공급자로 접근을 구성하십시오](/cloudflare-one/access-controls/ai-controls/saas-mcp/).
+   :::
+
+8. 제품정보**서버 저장 및 연결**.
+
+9. MCP 서버가 OAuth를 지원한다면, OAuth 공급자에 로그인하여 리디렉션됩니다. MCP 서버에 로그인할 수 있습니다. 인증된 계정은 MCP 서버에 대한 관리자 자격으로 제공됩니다. 당신은 할 수[MCP 포털 구성](#create-a-portal)이 admin credential을 사용하여 요청을 만들 수 있습니다.
+
+사이트맵 액세스는 서버 연결과 도구 및 프롬프트의 목록을 가져다줍니다. 서버가 성공적으로 연결되면,[서버 상태](#server-status)변경 사항**지원하다**. 이제 MCP 서버를 MCP 서버에 추가할 수 있습니다.[MCP 서버 포털](#create-a-portal).
+
+### Server 상태
+
+MCP 서버 상태는 MCP 서버의 동기화 상태를 Cloudflare Access로 나타냅니다.
+
+| 주요연혁  | 이름 \*                                                                                            |
+| ----- | ------------------------------------------------------------------------------------------------ |
+| 오류 수정 | 서버의 인증은 만료되거나 잘못된 자격으로 인해 실패했습니다. 문제를 해결하려면,[서버 reauthenticate](#reauthenticate-the-mcp-server). |
+| 뚱 베어  | 서버의 도구, 프롬프트 및 리소스는 동기화됩니다.                                                                      |
+| 지원하다  | 서버는 성공적으로 동기화 및 모든 도구, 프롬프트 및 리소스를 사용할 수 있었습니다.                                                  |
+
+### MCP 서버 재조립
+
+Cloudflare 액세스에서 MCP 서버를 재조정하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **AI 제어**.
+2. 오시는 길**MCP 서버**탭.
+3. reauthenticate를 원하는 서버 선택, 다음 선택**제품정보**.
+4. 제품정보**서버 인증**.
+
+OAuth 공급자에 로그인하여 리디렉션됩니다. 인증된 계정은 이 MCP 서버에 대한 새로운 관리자 자격으로 제공됩니다.
+
+### MCP 서버 동기화
+
+사이트맵 MCP 서버로 자동으로 동기화됩니다. 24 시간. 수동으로 Zero Trust에서 MCP 서버를 새로 고침하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **AI 제어**.
+2. 오시는 길**MCP 서버**탭을 찾아서 새로워진 서버를 찾습니다.
+3. 3 점 선택 >**Sync 기능**.
+
+MCP 서버 페이지는 도구와 프롬프트의 업데이트 목록을 표시합니다. 새로운 도구와 프롬프트는 MCP 서버 포털에서 자동으로 활성화됩니다.
+
+## 포털 만들기
+
+MCP 서버 포털을 만들려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **AI 제어**.
+
+2. 제품정보**MCP 서버 포털 추가**.
+
+3. 포털의 이름을 입력합니다.
+
+4. 이름 \***회사 소개**, 포털 URL의 도메인을 선택합니다. 도메인은 Cloudflare 계정의 활성 영역에 속해야 합니다. 하위 도메인을 선택적으로 지정할 수 있습니다.
+
+5. [MCP 서버 추가](#add-an-mcp-server)포털에.
+
+6. (선택) 밑에**MCP 서버**, 포털을 통해 사용할 수있는 도구와 프롬프트를 구성합니다.
+
+7. (선택 사항) 구성**사용자 문의**OAuth를 지원하는 서버: -`Enabled`: (과태) 사용자는 MCP 서버와의 연결을 설정하기 위해 자신의 로그인 자격 증명을 활용하기 위해 신속하게됩니다. -`Disabled`: 포털에 연결되는 사용자는 MCP 서버에 액세스 할 수 있습니다.[관리자 자격](#reauthenticate-the-mcp-server).
+
+8. 더 보기[오시는 길](/cloudflare-one/access-controls/policies/)포털 URL에 연결할 수 있는 사용자 정의.
+
+9. 제품정보**MCP 서버 포털 추가**.
+
+10. (선택)[로그인 경험을 사용자 정의](#customize-login-settings)포털을 위해.
+
+사용자는 지금 할 수 있습니다[포털에 연결](#connect-to-a-portal)에 의해`https://<subdomain>.<domain>/mcp`MCP 클라이언트를 사용하여.
+
+### 로그인 설정
+
+사이트맵 액세스는 각 MCP 서버 포털에 대한 액세스 응용 프로그램을 자동으로 만듭니다. 액세스 응용 프로그램 설정을 업데이트하여 포털 로그인 경험을 사용자 정의 할 수 있습니다 :
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **이름 \***.
+2. 구성하려는 포털을 찾아, 다음 세 가지 점을 선택 >**제품정보**.
+3. 포털의 ID 공급자를 구성하려면:
+   1. 오시는 길**로그인 방법**탭.
+   2. 선택하기[ID 공급자](/cloudflare-one/integrations/identity-providers/)응용 프로그램을 사용할 수 있습니다.
+   3. (추천) 단일 정체 공급자를 통해 액세스 할 수있는 계획이라면, 켜기**즉시 Auth**. 최종 사용자는 표시되지 않습니다[사이트맵 오시는 길](/cloudflare-one/reusable-components/custom-pages/access-login-page/). 대신 Cloudflare는 SSO 로그인 이벤트에 직접 사용자를 리디렉션합니다.
+4. 블록 페이지를 사용자 정의하려면:
+   1. 오시는 길**경험 설정**탭.
+   2. <Render file="access/access-block-page" product="cloudflare-one" />
+5. 제품정보**자주 묻는 질문**.
+
+## 포털에 연결
+
+사용자는 MCP 서버에 연결할 수 있습니다`https://<subdomain>.<domain>/mcp`이름 \*[사이트맵 회사연혁](https://playground.ai.cloudflare.com/), [MCP 검사기](https://github.com/modelcontextprotocol/inspector), 또는[다른 MCP 클라이언트](/agents/guides/remote-mcp-server/#connect-your-mcp-server-to-claude-and-other-mcp-clients)원격 MCP 서버를 지원합니다.
+
+Workers AI 운동장 시험에:
+
+1. 오시는 길[사이트맵 회사연혁](https://playground.ai.cloudflare.com/).
+2. 이름 \***MCP 서버**, 입력`https://<subdomain>.<domain>/mcp`포털 URL을 위해.
+3. 제품정보**연결하기**.
+4. 팝업 창에서 Cloudflare 액세스 ID 공급자에 로그인하십시오.
+5. 팝업 창은 인증이 필요한 포털에서 MCP 서버를 나열합니다. 이 MCP 서버의 각각을 위해, 선택**연결하기**로그인 프롬프트를 따르십시오.
+6. 제품정보**이름 \***&#xD3EC;털 인증 프로세스를 완료합니다.
+
+사이트맵 놀이터는 표시됩니다**연결하기**상태 및 사용 가능한 도구를 나열합니다. AI 모델을 요청할 수 있습니다. MCP 서버에 요청하면[포털 로그](#view-portal-logs).
+
+MCP 클라이언트에 대한 서버 구성 파일, 우리는 사용하는 것이 좋습니다`npx`명령과`mcp-remote@latest`인자:
+
+```json title= "MCP client configuration for MCP portals"
+{
+	"mcpServers": {
+		"example-mcp-server": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"mcp-remote@latest",
+				"https://<subdomain>.<domain>.com/mcp"
+			]
+		}
+	}
+}
+```
+
+우리는 사용하지 않습니다.`serverURL`그것은 포털 세션 생성 및 관리와 문제가 발생할 수 있기 때문에 매개 변수.
+
+MCP 클라이언트를 reauthenticate에 강제하려는 경우 대부분의 MCP 클라이언트는 기존 MCP OAuth 세션 제거 후 세션을 새로 고침합니다. MCP 클라이언트가 사용하는 인증 자격 증명을 취소하려면 터미널을 열고 다음 명령을 실행하십시오.
+
+:::참조
+이 명령은 모든 MCP 서버를 사용하여 트리거합니다.`mcp-remote@latest`reauthenticate를 강제로, 그냥 MCP 포털.
+주요 특징
+
+```sh
+rm -rf ~/.mcp-auth
+```
+
+## 포털 로그 보기
+
+포털 로그는 MCP 서버 포털을 통해 사용자 활동을 모니터링 할 수 있습니다. per-portal 또는 per-server에 로그를 볼 수 있습니다.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **AI 제어**.
+2. 로그인을보고 싶은 포털 또는 서버 찾기, 다음 세 가지 점을 선택 >**제품정보**.
+3. 제품정보**로그인**.
+
+### 공지사항
+
+| 제품정보  | 이름 \*               |
+| ----- | ------------------- |
+| (주)   | 요청의 날짜 및 시간         |
+| 주요연혁  | 서버가 성공적으로 응답을 반환 여부 |
+| 계정 관리 | MCP 서버의 이름 요청 처리    |
+| 공급 능력 | 요청을 처리하는 데 사용되는 도구  |
+| 이름 \* | 밀리 초 요청에 대한 처리 시간   |
+
+## 문제 해결
+
+### 포털에 정통한 후, 내 사용자는 오류를받습니다.`No allowed servers available, check your Zero Trust Policies`.
+
+1. MCP 포털 및 서버 모두 첨부 된 액세스 정책을해야합니다. 포털에 할당된 모든 MCP 서버가 자신의 관련 정책이 있는지 확인하십시오.
+2. 서버의 관리자 인증이 만료될 수 있습니다. 확인하기[서버의 상태](#server-status)이름 \***지원하다**. 상태가 오류를 보여줍니다 경우,[서버 reauthenticate](#reauthenticate-the-mcp-server).
+
+### 포털 URL은 MCP 클라이언트에 추가될 때 인증에 대해 프롬프트하지 않습니다.
+
+1. 포털은 지정된 액세스 정책을 가지고 있는지 확인합니다.
+2. 포털 URL이 적용되지 않는 것을 검증[사이트맵](/workers/configuration/routing/custom-domains/), [페이지 규칙](/rules/page-rules/manage/), [주문 hostname](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/)정의, 또는 MCP 클라이언트에 연결할 수있는 능력과 방해 할 수있는 다른 구성.

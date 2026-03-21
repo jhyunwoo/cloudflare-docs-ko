@@ -1,0 +1,413 @@
+---
+pcx_content_type: how-to
+title: Connectivity 사전 검사
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/troubleshoot-tunnels/connectivity-prechecks/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/troubleshoot-tunnels/connectivity-prechecks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs } from "~/components";
+
+이 가이드는 환경과의 연결을 검증하는 데 도움이[사이트맵 터널 엔드포인트](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/)배포하기 전에[Cloudflare 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/). 당신은 달릴 동일한 주인 기계에서 DNS와 네트워크 체크를 달릴 것입니다`cloudflared`예방할 수 있는 문제를 식별할 수 있도록`cloudflared`Cloudflare 터널 엔드 포인트에 연결.
+
+설치하기 전에이 체크를 실행`cloudflared`성공에 대한 배포를 설정하고 나중에 연결 문제의 원인을 축소합니다.
+
+이 가이드는 다음과 같이 구조화됩니다:
+
+1. [시작하기 전에](#before-you-start): 사전 문의 및 용어를 읽으십시오.
+
+2. [dg와 DNS 테스트](#2-dns-test-with-dig): DNS가 예상 IP에 Cloudflare 터널 엔드포인트를 해결한다.
+
+3. [테스트 네트워크 연결](#3-test-network-connectivity): 방화벽이 포트에 아웃바운드 트래픽을 허용하도록 검증`7844`(TCP 및 UDP).
+
+4. [도움 받기](/cloudflare-one/networks/connectors/cloudflare-tunnel/troubleshoot-tunnels/connectivity-prechecks/#4-get-help): 테스트가 실패한 경우 수집 및 연락하는 것이 무엇입니까.
+
+## 1. 시작하기 전에
+
+### 자주 묻는 질문
+
+당신은해야:
+
+- 실행 계획하는 인터넷에 연결된 호스트 기계`cloudflared`. 시험은 동일한 환경에서 실행되어야 합니다`cloudflared`실행 (same 네트워크, 같은 방화벽 경로).
+
+- 실행 권한을 가진 터미널 세션`dig`·`nc`(netcat), 또는 유사한 소프트웨어.
+
+`cloudflared`platform-agnostic이며 다양한 운영 체제를 지원합니다. 자주 묻는 질문[터널 시스템 요구 사항](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/system-requirements/).
+
+### 용어 정의
+
+Cloudflare에 연결 문제를 해결할 때, 그것은 사이를 구별하는 것이 중요합니다:
+
+- 호스트 기계: 서버 또는 가상 머신 (VM) 어디 실행`cloudflared`.
+
+- 환경 : 호스트 기계 (network 및 방화벽 구성)을 포함하는 더 넓은 설정.
+
+사이트맵 터널 오류는 환경 (예를 들어, DNS 또는 방화벽 정책)에서 발생할 수 있습니다.`cloudflared`호스트 기계에 오류. 이 가이드는 환경에 초점을 맞추고, 위에`cloudflared`이름 \*
+
+`cloudflared`제품정보[아웃바운드 전용 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/#outbound-only-connection)Cloudflare의 글로벌 네트워크`7844`. 특정 목적지와 항구는 문서화됩니다[방화벽과 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/).
+
+## 2. dig를 가진 DNS 시험
+
+사이트맵 Tunnel은 아웃바운드 연결을 요구합니다.`region1.v2.argotunnel.com`·`region2.v2.argotunnel.com`(또는 해당)`us-region1`·`us-region2`사용할 때 endpoints[미국 지역](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/#region-us), 또는`fed-region1`·`fed-region2`사용시[파일 형식 높은 지역](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/#region-fedramp-high)).
+
+성공적이고 건강한 배포를 위해,`cloudflared`한국어[4개의 활성 복제](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/)두 영역 모두에 연결 (그는, 둘 다`region1.v2.argotunnel.com`·`region2.v2.argotunnel.com`또는 둘 다`us-region1`·`us-region2`).
+
+먼저 DNS 해결자가 Cloudflare 터널 엔드포인트에 대한 예상 IP 주소를 반환한다는 것을 확인해야합니다.
+
+### 2.1. 현재 해결사로 DNS 테스트
+
+지구 또는 미국 지역을 테스트하는지 여부에 따라 다음 명령 중 하나를 실행하십시오.
+
+<Tabs>
+  <TabItem label="글로벌 지역">
+    ```sh
+    dig A region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.167
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.67
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.57
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.107
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.27
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.7
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.227
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.47
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.37
+    region1.v2.argotunnel.com. 86400 IN	A	198.41.192.77
+    ...
+    ```
+
+    ```sh
+    dig AAAA region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::1
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::2
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::3
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::4
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::5
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::6
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::7
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::8
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::9
+    region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::10
+    ...
+    ```
+
+    ```sh
+    dig A region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.13
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.193
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.33
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.233
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.53
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.63
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.113
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.73
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.43
+    region2.v2.argotunnel.com. 86400 IN	A	198.41.200.23
+    ...
+    ```
+
+    ```sh
+    dig AAAA region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::1
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::2
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::3
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::4
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::5
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::6
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::7
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::8
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::9
+    region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::10
+    ...
+    ```
+  </TabItem>
+
+  <TabItem label="미국 지역">
+    ```sh
+    dig A us-region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.1
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.2
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.3
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.4
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.5
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.6
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.7
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.8
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.9
+    us-region1.v2.argotunnel.com. 86400 IN	A	198.41.218.10
+    ...
+    ```
+
+    ```sh
+    dig AAAA us-region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::1
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::2
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::3
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::4
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::5
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::6
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::7
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::8
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::9
+    us-region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a1::10
+    ...
+    ```
+
+    ```sh
+    dig A us-region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.1
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.2
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.3
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.4
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.5
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.6
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.7
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.8
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.9
+    us-region2.v2.argotunnel.com. 86400 IN	A	198.41.219.10
+    ...
+    ```
+
+    ```sh
+    dig AAAA us-region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::1
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::2
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::3
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::4
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::5
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::6
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::7
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::8
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::9
+    us-region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a9::10
+    ...
+    ```
+  </TabItem>
+
+  <TabItem label="파일 형식 높은 지역">
+    ```sh
+    dig A fed-region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.1
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.2
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.3
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.4
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.5
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.6
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.7
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.8
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.9
+    fed-region1.v2.argotunnel.com. 300 IN	A	162.159.234.10
+    ...
+    ```
+
+    ```sh
+    dig AAAA fed-region1.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::1
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::2
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::3
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::4
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::5
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::6
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::7
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::8
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::9
+    fed-region1.v2.argotunnel.com. 300 IN	AAAA	2a06:98c1:4d::10
+    ...
+    ```
+
+    ```sh
+    dig A fed-region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.1
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.2
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.3
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.4
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.5
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.6
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.7
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.8
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.9
+    fed-region2.v2.argotunnel.com. 300 IN	A	172.64.234.10
+    ...
+    ```
+
+    ```sh
+    dig AAAA fed-region2.v2.argotunnel.com
+    ```
+
+    ```sh output
+    ;; ANSWER SECTION:
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::1
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::2
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::3
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::4
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::5
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::6
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::7
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::8
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::9
+    fed-region2.v2.argotunnel.com. 300 IN	AAAA	2606:4700:f6::10
+    ...
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`ANSWER SECTION`Cloudflare 터널 엔드포인트의 예상 IP 주소를 포함해야 합니다.
+
+당신이 받은 경우:
+
+- 주요연혁`NOERROR`유효한 IP 주소로 - DNS 해결자는 터널 호스트 이름에 대한 주소를 성공적으로 반환합니다. 계속하기[테스트 네트워크 연결](#3-test-network-connectivity).
+
+- 주요연혁`SERVFAIL`, `NXDOMAIN`, 또는 빈 대답 - DNS 해결자는 터널 엔드포인트를 해결할 수 없습니다. 계속하기[관련 기사`1.1.1.1`](#compare-against-1111).
+
+### 2.2. 비교`1.1.1.1`
+
+당신의 원본을`dig`응답은 비어 있거나 문서화 된 IP와 일치하지 않으며 Cloudflare의 공개 해결자를 사용하여 다시 테스트합니다.`1.1.1.1`:
+
+```sh
+dig A region1.v2.argotunnel.com @1.1.1.1
+```
+
+#### 계정 만들기`1.1.1.1`(주)
+
+이름 \*`1.1.1.1`올바른 IP를 반환하지만 원래의 해결자는 아닙니다. 로컬 DNS 해결자는 잘못 구성되거나 차단됩니다.
+
+해결하기:
+
+- 호스트 기계를 구성`1.1.1.1`그것의 결실로.
+- 기존의 해결자를 사용해야 하는 경우, 시스템 관리자 또는 ISP로 조사하면 다른 IP를 반환합니다. recursive fixr는 권한이 있는 DNS 서버와 동일한 응답을 반환해야 합니다. 이 고정 될 수없는 경우, 문제는 로컬 환경에서 속하며 Cloudflare 터널을 배포하기 전에 해결되어야합니다.
+
+#### 해결자가 작동하지 않는 경우
+
+당신의 본래 결심자도 없는 경우`1.1.1.1`응답을 반환하면 방화벽은 Cloudflare 터널 엔드포인트에 DNS 쿼리를 차단할 수 있습니다.
+
+해결하기:
+
+- DNS 트래픽 altogether 차단 방화벽 규칙에 대한 확인 (UDP on port)`53`) 또는 Cloudflare와 관련된 특정 DNS 쿼리.
+- 관리된 DNS 또는 보안 기구 뒤에 있는 경우에, 공급자가 왜 쿼리를 이해하는 접촉`region1.v2.argotunnel.com`그리고 다른 Cloudflare 갱도 끝점은 막힙니다.
+
+DNS 해상도가 DNS 해결자에서 예상 IP를 반환하면 연결 테스트를 단계 3로 진행합니다.
+
+## 3. 테스트 네트워크 연결
+
+DNS 해결자가 올바른 IP를 반환 한 후 호스트 기계가 포트에 Cloudflare에 패킷을 보낼 수 있는지 테스트`7844`UDP 및 TCP 모두 사용.
+
+IP 중 하나를 선택하십시오.`dig`산출 (예를 들면,`198.41.192.167`) 다음 테스트를 실행합니다.
+
+### 3.1. UDP 연결을 시험하십시오
+
+```sh
+nc -uvz -w 3 198.41.192.167 7844
+```
+
+출력되는 예:
+
+```sh
+Connection to 198.41.192.167 port 7844 [udp/*] succeeded!
+```
+
+### 3.2. TCP 연결 테스트
+
+```sh
+nc -vz -w 3 198.41.192.167 7844
+```
+
+출력되는 예:
+
+```sh
+Connection to 198.41.192.167 port 7844 [tcp/*] succeeded!
+```
+
+### 3.3 결과
+
+이 시험은 2개의 중요한 질문에 대답합니다:
+
+- 호스트 기계는 Cloudflare 터널 엔드 포인트에 UDP 패킷을 보낼 수 있습니까?
+- 호스트 기계는 TCP 패킷을 Cloudflare 터널 엔드포인트에 보낼 수 있습니까?
+
+프로토콜이 성공하면,`cloudflared`터널을 설치하는 프로토콜을 사용할 수 있습니다.
+
+이미 DNS를 확인했습니다. 이전 단계에서 작동합니다. 이러한 연결 테스트는 이제 환경이 포트에 Cloudflare에 트래픽을 허용하는지 확인합니다.`7844`. 기본적으로,`cloudflared`모든 프로토콜을 사용할 수 있습니다.
+
+이름 \*[인증 및 인증](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#protocol)차단하지만 당신은 힘`cloudflared`UDP가 차단될 때 (예를 들어, QUIC를 강제로) 터널을 연결하지 못합니다.
+
+#### UDP 및 TCP 모두 성공
+
+방화벽은 아웃바운드 트래픽을 허용하고 Cloudflare의 포트에 터널 엔드포인트를 반환합니다.`7844`. `cloudflared`연결 가능`quic`(UDP) 또는`http2`(TCP). UDP와 TCP 모두 성공하면 이전 섹션에서 DNS 테스트가 성공했습니다. Cloudflare 터널을 이 환경에서 성공적으로 배포할 수 있습니다.
+
+#### UDP 성공, TCP 실패
+
+Outbound UDP는 허용되지만 포트에 TCP`7844`차단되거나 검사됩니다.
+
+`cloudflared`연결만 가능`quic`. 힘이 있다면`http2`TCP가 차단되는 동안 구성에서 터널이 실패합니다.
+
+해결: 포트에 로컬 네트워크 방화벽에서 TCP를 허용`7844`또는 정지`http2`수 있습니다.`cloudflared`연결하기`QUIC`대신. 더 알아보기[프로젝트](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#protocol)더 많은 정보를 위한 매개변수 문서.
+
+#### TCP 성공, UDP 실패
+
+아웃바운드 TCP는 허용되지만 포트에 UDP`7844`차단됩니다.
+
+`cloudflared`연결만 가능`http2`. 힘이 있다면`quic`UDP가 차단되는 동안 터널은 실패합니다.
+
+해결하려면: 포트에 로컬 네트워크 방화벽에서 UDP를 허용`7844`또는 QUIC를 중지하여 허용`cloudflared`대신 HTTP/2에 연결하십시오. 더 알아보기[프로젝트](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#protocol)더 많은 정보를 위한 매개변수 문서.
+
+#### UDP 및 TCP 모두 실패
+
+패킷은 호스트와 함께 떨어졌다[사이트맵 터널 엔드포인트](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/).
+
+일반적으로 포트에 아웃바운드 트래픽 (또는 반환 트래픽)을 허용하지 않는 방화벽 정책 또는 업스트림 보안 제어를 나타냅니다`7844`.
+
+해결: 포트에 모든 트래픽을 허용`7844`로컬 네트워크 방화벽에. 이 문제를 해결하지 않으면 ISP 또는 서비스 제공 업체와 문제 해결.
+
+## 4. 도움 받기
+
+DNS 또는 네트워크 테스트가 실패하면 로컬 환경에서 문제가 될 것입니다. 관리자, ISP 또는 클라우드 공급자와 디버그가 필요합니다. Cloudflare에 문제가 있다고 믿으면 지원에 문의할 때 자세한 정보를 제공하십시오.
+
+<Render file="warp/support-ticket-best-practices" product="cloudflare-one" params={{ tunnelMode: true }} />

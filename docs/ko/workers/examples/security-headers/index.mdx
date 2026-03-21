@@ -1,0 +1,338 @@
+---
+summary: >-
+  Set common security headers (X-XSS-Protection, X-Frame-Options,
+  X-Content-Type-Options, Permissions-Policy, Referrer-Policy,
+  Strict-Transport-Security, Content-Security-Policy).
+tags:
+  - Security
+  - Middleware
+  - JavaScript
+  - TypeScript
+  - Python
+  - Rust
+pcx_content_type: example
+title: 보안 헤더 설정
+sidebar:
+  order: 1001
+description: >-
+  일반 보안 헤더 설정 (X-XSS-Protection, X-Frame-Options, X-Content-Type-Options,
+  Permissions-Policy, Referrer-Policy, Strict-Transport-Security,
+  Content-Security-Policy).
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/security-headers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/security-headers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/security-headers)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+CSP nonces를 인라인으로 주입`<script>`HTMLRewriter를 사용하여 태그,이 참조[CSP 비례 예](/workers/examples/spa-shell/#add-csp-nonces).
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		const DEFAULT_SECURITY_HEADERS = {
+    			/*Content-Security-Policy 헤더를 사용하여 응용 프로그램을 보호합니다.
+    이 헤더를 활성화하면 신뢰할 수있는 도메인과 모든 하위 도메인에서 콘텐츠를 허용합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy를 보십시오
+    "Content-Security-Policy": "default-src 'self' 예제.com *.example.com",*/
+    			/*Strict-Transport-Security 헤더를 설정할 수 있습니다.
+    이 웹 사이트가 Chrome의 HSTS 사전로드 목록에 추가되기 때문에 자동으로 설정되지 않습니다.
+    적용하려는 경우 코드는 다음과 같습니다.
+    "Strict-Transport-Security" : "max-age=63072000; includeSubDomains; 사전 로드",*/
+    			/*Permissions-Policy Header는 FLoC에서 선택과 같은 브라우저 기능의 사용을 허용하거나 거부 할 수있는 능력을 제공합니다.
+    "Permissions-Policy": "interest-cohort=()",*/
+    			/*X-XSS-Protection 헤더는 XSS 공격이 감지되면 로딩에서 페이지를 방지합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection를 보십시오*/
+    			"X-XSS-Protection": "0",
+    			/*X-Frame-Options 헤더는 click-jacking 공격을 방지합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options를 보십시오*/
+    			"X-Frame-Options": "DENY",
+    			/*X-Content-Type-Options 헤더는 MIME-sniffing을 방지합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options를 보십시오*/
+    			"X-Content-Type-Options": "nosniff",
+    			"Referrer-Policy": "strict-origin-when-cross-origin",
+    			"Cross-Origin-Embedder-Policy": 'require-corp; report-to="default";',
+    			"Cross-Origin-Opener-Policy": 'same-site; report-to="default";',
+    			"Cross-Origin-Resource-Policy": "same-site",
+    		};
+    		const BLOCKED_HEADERS = [
+    			"Public-Key-Pins",
+    			"X-Powered-By",
+    			"X-AspNet-Version",
+    		];
+
+    		let response = await fetch(request);
+    		let newHeaders = new Headers(response.headers);
+
+    		const tlsVersion = request.cf.tlsVersion;
+    		console.log(tlsVersion);
+    		//이것은 HTML 응답을위한 헤더를 설정합니다 :
+    		if (
+    			newHeaders.has("Content-Type") &&
+    			!newHeaders.get("Content-Type").includes("text/html")
+    		) {
+    			return new Response(response.body, {
+    				status: response.status,
+    				statusText: response.statusText,
+    				headers: newHeaders,
+    			});
+    		}
+
+    		Object.keys(DEFAULT_SECURITY_HEADERS).map((name) => {
+    			newHeaders.set(name, DEFAULT_SECURITY_HEADERS[name]);
+    		});
+
+    		BLOCKED_HEADERS.forEach((name) => {
+    			newHeaders.delete(name);
+    		});
+
+    		if (tlsVersion !== "TLSv1.2" && tlsVersion !== "TLSv1.3") {
+    			return new Response("You need to use TLS version 1.2 or higher.", {
+    				status: 400,
+    			});
+    		} else {
+    			return new Response(response.body, {
+    				status: response.status,
+    				statusText: response.statusText,
+    				headers: newHeaders,
+    			});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		const DEFAULT_SECURITY_HEADERS = {
+    			/*Content-Security-Policy 헤더를 사용하여 응용 프로그램을 보호합니다.
+    이 헤더를 활성화하면 신뢰할 수있는 도메인과 모든 하위 도메인에서 콘텐츠를 허용합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy를 보십시오
+    "Content-Security-Policy": "default-src 'self' 예제.com *.example.com",*/
+    			/*Strict-Transport-Security 헤더를 설정할 수 있습니다.
+    이 웹 사이트가 Chrome의 HSTS 사전로드 목록에 추가되기 때문에 자동으로 설정되지 않습니다.
+    적용하려는 경우 코드는 다음과 같습니다.
+    "Strict-Transport-Security" : "max-age=63072000; includeSubDomains; 사전 로드",*/
+    			/*Permissions-Policy Header는 FLoC에서 선택과 같은 브라우저 기능의 사용을 허용하거나 거부 할 수있는 능력을 제공합니다.
+    "Permissions-Policy": "interest-cohort=()",*/
+    			/*X-XSS-Protection 헤더는 XSS 공격이 감지되면 로딩에서 페이지를 방지합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection를 보십시오*/
+    			"X-XSS-Protection": "0",
+    			/*X-Frame-Options 헤더는 click-jacking 공격을 방지합니다.
+    @https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options를 보십시오*/
+    			"X-Frame-Options": "DENY",
+    			/*X-Content-Type-Options 헤더는 MIME-sniffing을 방지합니다.
+    https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options를 보십시오*/
+    			"X-Content-Type-Options": "nosniff",
+    			"Referrer-Policy": "strict-origin-when-cross-origin",
+    			"Cross-Origin-Embedder-Policy": 'require-corp; report-to="default";',
+    			"Cross-Origin-Opener-Policy": 'same-site; report-to="default";',
+    			"Cross-Origin-Resource-Policy": "same-site",
+    		};
+    		const BLOCKED_HEADERS = [
+    			"Public-Key-Pins",
+    			"X-Powered-By",
+    			"X-AspNet-Version",
+    		];
+
+    		let response = await fetch(request);
+    		let newHeaders = new Headers(response.headers);
+
+    		const tlsVersion = request.cf.tlsVersion;
+    		console.log(tlsVersion);
+    		//이것은 HTML 응답을위한 헤더를 설정합니다 :
+    		if (
+    			newHeaders.has("Content-Type") &&
+    			!newHeaders.get("Content-Type").includes("text/html")
+    		) {
+    			return new Response(response.body, {
+    				status: response.status,
+    				statusText: response.statusText,
+    				headers: newHeaders,
+    			});
+    		}
+
+    		Object.keys(DEFAULT_SECURITY_HEADERS).map((name) => {
+    			newHeaders.set(name, DEFAULT_SECURITY_HEADERS[name]);
+    		});
+
+    		BLOCKED_HEADERS.forEach((name) => {
+    			newHeaders.delete(name);
+    		});
+
+    		if (tlsVersion !== "TLSv1.2" && tlsVersion !== "TLSv1.3") {
+    			return new Response("You need to use TLS version 1.2 or higher.", {
+    				status: 400,
+    			});
+    		} else {
+    			return new Response(response.body, {
+    				status: response.status,
+    				statusText: response.statusText,
+    				headers: newHeaders,
+    			});
+    		}
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            default_security_headers = {
+                #Content-Security-Policy 헤더를 사용하여 응용 프로그램을 보호합니다.
+                #이 헤더를 활성화하면 신뢰할 수있는 도메인과 모든 하위 도메인에서 콘텐츠를 허용합니다.
+                #https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy를 보십시오
+                "Content-Security-Policy": "default-src 'self' example.com *.example.com",
+                #Strict-Transport-Security 헤더를 설정할 수 있습니다.
+                #이 웹 사이트가 Chrome의 HSTS 사전로드 목록에 추가되기 때문에 자동으로 설정되지 않습니다.
+                #적용하려는 경우 코드는 다음과 같습니다.
+                "Strict-Transport-Security" : "max-age=63072000; includeSubDomains; preload",
+                #Permissions-Policy Header는 FLoC에서 선택과 같은 브라우저 기능의 사용을 허용하거나 거부 할 수있는 능력을 제공합니다.
+                "Permissions-Policy": "interest-cohort=()",
+                #X-XSS-Protection 헤더는 XSS 공격이 감지되면 로딩에서 페이지를 방지합니다.
+                #https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
+                "X-XSS-Protection": "0",
+                #X-Frame-Options 헤더는 click-jacking 공격을 방지합니다.
+                #https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options
+                "X-Frame-Options": "DENY",
+                #X-Content-Type-Options 헤더는 MIME-sniffing을 방지합니다.
+                #https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options를 보십시오
+                "X-Content-Type-Options": "nosniff",
+                "Referrer-Policy": "strict-origin-when-cross-origin",
+                "Cross-Origin-Embedder-Policy": 'require-corp; report-to="default";',
+                "Cross-Origin-Opener-Policy": 'same-site; report-to="default";',
+                "Cross-Origin-Resource-Policy": "same-site",
+            }
+            blocked_headers = ["Public-Key-Pins", "X-Powered-By" ,"X-AspNet-Version"]
+
+            res = await fetch(request)
+            new_headers = res.headers
+
+            #이것은 HTML 응답을위한 헤더를 설정합니다.
+            if "text/html" in new_headers["Content-Type"]:
+                return Response(res.body, status=res.status, statusText=res.statusText, headers=new_headers)
+
+            for name in default_security_headers:
+                new_headers[name] = default_security_headers[name]
+
+            for name in blocked_headers:
+                del new_headers["name"]
+
+            tls = request.cf.tlsVersion
+
+            if not tls in ("TLSv1.2", "TLSv1.3"):
+                return Response("You need to use TLS version 1.2 or higher.", status=400)
+            return Response(res.body, status=res.status, statusText=res.statusText, headers=new_headers)
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use std::collections::HashMap;
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
+        let default_security_headers = HashMap::from([
+            //Secure your application with Content-Security-Policy headers.
+            //Enabling these headers will permit content from a trusted domain and all its subdomains.
+            //@see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Security-Policy
+            (
+                "Content-Security-Policy",
+                "default-src 'self' example.com *.example.com",
+            ),
+            //You can also set Strict-Transport-Security headers.
+            //These are not automatically set because your website might get added to Chrome's HSTS preload list.
+            //Here's the code if you want to apply it:
+            (
+                "Strict-Transport-Security",
+                "max-age=63072000; includeSubDomains; preload",
+            ),
+            //Permissions-Policy header provides the ability to allow or deny the use of browser features, such as opting out of FLoC - which you can use below:
+            ("Permissions-Policy", "interest-cohort=()"),
+            //X-XSS-Protection header prevents a page from loading if an XSS attack is detected.
+            //@see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-XSS-Protection
+            ("X-XSS-Protection", "0"),
+            //X-Frame-Options header prevents click-jacking attacks.
+            //@see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Frame-Options
+            ("X-Frame-Options", "DENY"),
+            //X-Content-Type-Options header prevents MIME-sniffing.
+            //@see https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/X-Content-Type-Options
+            ("X-Content-Type-Options", "nosniff"),
+            ("Referrer-Policy", "strict-origin-when-cross-origin"),
+            (
+                "Cross-Origin-Embedder-Policy",
+                "require-corp; report-to='default';",
+            ),
+            (
+                "Cross-Origin-Opener-Policy",
+                "same-site; report-to='default';",
+            ),
+            ("Cross-Origin-Resource-Policy", "same-site"),
+        ]);
+        let blocked_headers = ["Public-Key-Pins", "X-Powered-By", "X-AspNet-Version"];
+        let tls = req.cf().unwrap().tls_version();
+        let res = Fetch::Request(req).send().await?;
+        let mut new_headers = res.headers().clone();
+
+        // This sets the headers for HTML responses
+        if Some(String::from("text/html")) == new_headers.get("Content-Type")? {
+            return Ok(Response::from_body(res.body().clone())?
+                .with_headers(new_headers)
+                .with_status(res.status_code()));
+        }
+        for (k, v) in default_security_headers {
+            new_headers.set(k, v)?;
+        }
+
+        for k in blocked_headers {
+            new_headers.delete(k)?;
+        }
+
+        if !vec!["TLSv1.2", "TLSv1.3"].contains(&tls.as_str()) {
+            return Response::error("You need to use TLS version 1.2 or higher.", 400);
+        }
+        Ok(Response::from_body(res.body().clone())?
+            .with_headers(new_headers)
+            .with_status(res.status_code()))
+
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { secureHeaders } from "hono/secure-headers";
+
+    const app = new Hono();
+    app.use(secureHeaders());
+
+    //다른 모든 요청을 전달하여 기원합니다.
+    app.all("*", async (c) => {
+    	return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

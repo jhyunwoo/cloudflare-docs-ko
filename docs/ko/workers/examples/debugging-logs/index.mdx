@@ -1,0 +1,226 @@
+---
+summary: Send debugging information in an errored response to a logging service.
+tags:
+  - Debugging
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: Debugging 로그
+sidebar:
+  order: 1001
+description: 로깅 서비스에 오류 응답에 대한 정보를 디버깅합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/debugging-logs/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/debugging-logs/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/debugging-logs)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env, ctx) {
+    		//로그 수신 설정
+    		const LOG_URL = "https://log-service.example.com/";
+
+    		async function postLog(data) {
+    			return await fetch(LOG_URL, {
+    				method: "POST",
+    				body: data,
+    			});
+    		}
+
+    		let response;
+
+    		try {
+    			response = await fetch(request);
+    			if (!response.ok && !response.redirected) {
+    				const body = await response.text();
+    				throw new Error(
+    					"Bad response at origin. Status: " +
+    						response.status +
+    						" Body: " +
+    						//문자열이 더 낫다.
+    						body.trim().substring(0, 10),
+    				);
+    			}
+    		} catch (err) {
+    			//ctx.waitUntil() 없이, 당신의 fetch()는 Cloudflare의
+    			//로그인 서비스 또는 완료 할 수 없습니다
+    			ctx.waitUntil(postLog(err.toString()));
+    			const stack = JSON.stringify(err.stack) || err;
+    			//응답을 복사하고 스택 추적에 몸을 초기화
+    			response = new Response(stack, response);
+    			//오류 스택을 헤더에 추가하여 무슨 일이 있었는지 알아보십시오.
+    			response.headers.set("X-Debug-stack", stack);
+    			response.headers.set("X-Debug-err", err);
+    		}
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		//로그 수신 설정
+    		const LOG_URL = "https://log-service.example.com/";
+
+    		async function postLog(data) {
+    			return await fetch(LOG_URL, {
+    				method: "POST",
+    				body: data,
+    			});
+    		}
+
+    		let response;
+
+    		try {
+    			response = await fetch(request);
+    			if (!response.ok && !response.redirected) {
+    				const body = await response.text();
+    				throw new Error(
+    					"Bad response at origin. Status: " +
+    						response.status +
+    						" Body: " +
+    						//문자열이 더 낫다.
+    						body.trim().substring(0, 10),
+    				);
+    			}
+    		} catch (err) {
+    			//ctx.waitUntil() 없이, 당신의 fetch()는 Cloudflare의
+    			//로그인 서비스 또는 완료 할 수 없습니다
+    			ctx.waitUntil(postLog(err.toString()));
+    			const stack = JSON.stringify(err.stack) || err;
+    			//응답을 복사하고 스택 추적에 몸을 초기화
+    			response = new Response(stack, response);
+    			//오류 스택을 헤더에 추가하여 무슨 일이 있었는지 알아보십시오.
+    			response.headers.set("X-Debug-stack", stack);
+    			response.headers.set("X-Debug-err", err);
+    		}
+    		return response;
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import create_proxy
+    from js import Response, fetch
+
+    async def post_log(data):
+    	log_url = "https://log-service.example.com/"
+    	await fetch(log_url, method="POST", body=data)
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            #로그 수신 설정
+            response = await fetch(request)
+
+            try:
+                if not response.ok and not response.redirected:
+                    body = await response.text()
+                #오류를 시뮬레이션합니다. 문자열이 더 낫다.
+                raise Exception(f'Bad response at origin. Status:{response.status} Body:{body.strip()[:10]}')
+            except Exception as e:
+                #ctx.waitUntil() 없이, 당신의 fetch()는 Cloudflare의
+                #로그인 서비스 또는 완료 할 수 없습니다
+                self.ctx.waitUntil(create_proxy(post_log(str(e))))
+                #응답을 복사하고 헤더에 추가
+                response = Response.new(stack, response)
+                response.headers["X-Debug-err"] = str(e)
+
+            return response
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    //적절한 유형의 환경을 정의
+    interface Env {}
+
+    const app = new Hono<{ Bindings: Env }>();
+
+    //로그 수신 설정
+    const LOG_URL = "https://log-service.example.com/";
+
+    //외부 서비스에 로그를 게시하는 기능
+    async function postLog(data: string) {
+      return await fetch(LOG_URL, {
+        method: "POST",
+        body: data,
+      });
+    }
+
+    //오류 로깅을 처리하는 Middleware
+    app.use('*', async (c, next) => {
+      try {
+        //다음 핸들러와 요청을 처리
+        await next();
+
+        //처리 후, 응답이 오류를 나타냅니다.
+        if (c.res && (!c.res.ok && !c.res.redirected)) {
+          const body = await c.res.clone().text();
+          throw new Error(
+            "Bad response at origin. Status: " +
+            c.res.status +
+            " Body: " +
+            //문자열이 더 낫다.
+            body.trim().substring(0, 10)
+          );
+        }
+
+      } catch (err) {
+        //waitUntil없이, 로깅 서비스에 fetch는 완료 할 수 없습니다
+        c.executionCtx.waitUntil(
+          postLog(err.toString())
+        );
+
+        //오류 스택 또는 오류 자체를 가져옵니다.
+        const stack = JSON.stringify(err.stack) || err.toString();
+
+        //오류 정보로 새로운 응답 생성
+        const response = c.res ?
+          new Response(stack, {
+            status: c.res.status,
+            headers: c.res.headers
+          }) :
+          new Response(stack, { status: 500 });
+
+        //debug 헤더 추가
+        response.headers.set("X-Debug-stack", stack);
+        response.headers.set("X-Debug-err", err.toString());
+
+        //수정된 응답 설정
+        c.res = response;
+      }
+    });
+
+    //요청을 전달하는 기본 경로 핸들러
+    app.all('*', async (c) => {
+      return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

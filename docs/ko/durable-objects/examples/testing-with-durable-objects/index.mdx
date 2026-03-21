@@ -1,0 +1,517 @@
+---
+summary: Write tests for Durable Objects using the Workers Vitest integration.
+pcx_content_type: example
+title: 테스트 Durable Objects
+sidebar:
+  order: 3
+description: Durable ObjectsXQ에 대한 테스트 쓰기 Workers Vitest 통합.
+reviewed: 2023-08-08T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/examples/testing-with-durable-objects/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/examples/testing-with-durable-objects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample, Tabs, TabItem } from "~/components";
+
+사용 방법[`@cloudflare/vitest-pool-workers`](https://www.npmjs.com/package/@cloudflare/vitest-pool-workers)Durable Objects에 대한 테스트를 작성하는 패키지. 이 통합은 Workers 런타임 내에서 테스트를 실행하며, 튼튼한 오브젝트 바인딩 및 API에 직접 액세스를 제공합니다.
+
+## 자주 묻는 질문
+
+Vitest와 Workers Vitest 통합을 dev 종속으로 설치하십시오:
+
+<Tabs>
+  <TabItem label="₢ 킹">
+    ```sh
+    npm i -D vitest@~3.2.0 @cloudflare/vitest-pool-workers
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sh
+    pnpm add -D vitest@~3.2.0 @cloudflare/vitest-pool-workers
+    ```
+  </TabItem>
+
+  <TabItem label="주요 특징">
+    ```sh
+    yarn add -D vitest@~3.2.0 @cloudflare/vitest-pool-workers
+    ```
+  </TabItem>
+</Tabs>
+
+## 보기 튼튼한 목표
+
+이 예제는 SQLite 저장소와 간단한 카운터 튼튼한 개체를 테스트:
+
+<TypeScriptExample filename="src/index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	COUNTER: DurableObjectNamespace<Counter>;
+  }
+
+  export class Counter extends DurableObject<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+  		ctx.blockConcurrencyWhile(async () => {
+  			this.ctx.storage.sql.exec(`
+  				CREATE TABLE IF NOT EXISTS counters (
+  					name TEXT PRIMARY KEY,
+  					value INTEGER NOT NULL DEFAULT 0
+  				)
+  			`);
+  		});
+  	}
+
+  	async increment(name: string = "default"): Promise<number> {
+  		this.ctx.storage.sql.exec(
+  			`INSERT INTO counters (name, value) VALUES (?, 1)
+  			 ON CONFLICT(name) DO UPDATE SET value = value + 1`,
+  			name
+  		);
+  		const result = this.ctx.storage.sql
+  			.exec<{ value: number }>("SELECT value FROM counters WHERE name = ?", name)
+  			.one();
+  		return result.value;
+  	}
+
+  	async getCount(name: string = "default"): Promise<number> {
+  		const result = this.ctx.storage.sql
+  			.exec<{ value: number }>("SELECT value FROM counters WHERE name = ?", name)
+  			.toArray();
+  		return result[0]?.value ?? 0;
+  	}
+
+  	async reset(name: string = "default"): Promise<void> {
+  		this.ctx.storage.sql.exec("DELETE FROM counters WHERE name = ?", name);
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const counterId = url.searchParams.get("id") ?? "default";
+
+  		const id = env.COUNTER.idFromName(counterId);
+  		const stub = env.COUNTER.get(id);
+
+  		if (request.method === "POST") {
+  			const count = await stub.increment();
+  			return Response.json({ count });
+  		}
+
+  		const count = await stub.getCount();
+  		return Response.json({ count });
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+## Vitest 구성
+
+이름 \*`vitest.config.ts`파일 사용`defineWorkersConfig`:
+
+```ts title="vitest.config.ts"
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		poolOptions: {
+			workers: {
+				wrangler: { configPath: "./wrangler.jsonc" },
+			},
+		},
+	},
+});
+```
+
+WranglerXQ 구성은 튼튼한 목표 바인딩과 SQLite 이동을 포함합니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "name": "counter-worker",
+    "main": "src/index.ts",
+    "compatibility_date": "$today",
+    "durable_objects": {
+      "bindings": [
+        { "name": "COUNTER", "class_name": "Counter" }
+      ]
+    },
+    "migrations": [
+      { "tag": "v1", "new_sqlite_classes": ["Counter"] }
+    ]
+  }
+  ```
+</WranglerConfig>
+
+## 시험의 종류 정의
+
+이름 \*`test/tsconfig.json`테스트에 대한 TypeScript를 구성하려면:
+
+```jsonc title="test/tsconfig.json"
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"moduleResolution": "bundler",
+		"types": ["@cloudflare/vitest-pool-workers"]
+	},
+	"include": ["./**/*.ts", "../src/worker-configuration.d.ts"]
+}
+```
+
+이름 \*`env.d.ts`시험 환경을 유형에 파일:
+
+```ts title="test/env.d.ts"
+declare module "cloudflare:test" {
+	interface ProvidedEnv extends Env {}
+}
+```
+
+## 시험 쓰기
+
+### 직접적인 튼튼한 목표 접근을 가진 단위 시험
+
+당신은 직접 튼튼한 목표에 stub를 얻을 수 있습니다`env`로그인`cloudflare:test`:
+
+<TypeScriptExample filename="test/counter.test.ts">
+  ```ts
+  import { env } from "cloudflare:test";
+  import { describe, it, expect, beforeEach } from "vitest";
+
+  describe("Counter Durable Object", () => {
+  	//각 시험은 격리한 저장을 자동적으로 얻습니다
+  	it("should increment the counter", async () => {
+  		const id = env.COUNTER.idFromName("test-counter");
+  		const stub = env.COUNTER.get(id);
+
+  		//직접 stub에 RPC 방법을 호출
+  		const count1 = await stub.increment();
+  		expect(count1).toBe(1);
+
+  		const count2 = await stub.increment();
+  		expect(count2).toBe(2);
+
+  		const count3 = await stub.increment();
+  		expect(count3).toBe(3);
+  	});
+
+  	it("should track separate counters independently", async () => {
+  		const id = env.COUNTER.idFromName("test-counter");
+  		const stub = env.COUNTER.get(id);
+
+  		await stub.increment("counter-a");
+  		await stub.increment("counter-a");
+  		await stub.increment("counter-b");
+
+  		expect(await stub.getCount("counter-a")).toBe(2);
+  		expect(await stub.getCount("counter-b")).toBe(1);
+  		expect(await stub.getCount("counter-c")).toBe(0);
+  	});
+
+  	it("should reset a counter", async () => {
+  		const id = env.COUNTER.idFromName("test-counter");
+  		const stub = env.COUNTER.get(id);
+
+  		await stub.increment("my-counter");
+  		await stub.increment("my-counter");
+  		expect(await stub.getCount("my-counter")).toBe(2);
+
+  		await stub.reset("my-counter");
+  		expect(await stub.getCount("my-counter")).toBe(0);
+  	});
+
+  	it("should isolate different Durable Object instances", async () => {
+  		const id1 = env.COUNTER.idFromName("counter-1");
+  		const id2 = env.COUNTER.idFromName("counter-2");
+
+  		const stub1 = env.COUNTER.get(id1);
+  		const stub2 = env.COUNTER.get(id2);
+
+  		await stub1.increment();
+  		await stub1.increment();
+  		await stub2.increment();
+
+  		//각 튼튼한 Object 인스턴스에는 자체 저장소가 있습니다.
+  		expect(await stub1.getCount()).toBe(2);
+  		expect(await stub2.getCount()).toBe(1);
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+### SELF와의 통합 테스트
+
+사용 방법`SELF`Durable Objects에 대한 경로를 요청하는 노동자의 HTTP 핸들러를 테스트하는 fetcher :
+
+<TypeScriptExample filename="test/integration.test.ts">
+  ```ts
+  import { SELF } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+
+  describe("Counter Worker integration", () => {
+  	it("should increment via HTTP POST", async () => {
+  		const response = await SELF.fetch("http://example.com?id=http-test", {
+  			method: "POST",
+  		});
+
+  		expect(response.status).toBe(200);
+  		const data = await response.json<{ count: number }>();
+  		expect(data.count).toBe(1);
+  	});
+
+  	it("should get count via HTTP GET", async () => {
+  		//첫번째 증가 카운터
+  		await SELF.fetch("http://example.com?id=get-test", { method: "POST" });
+  		await SELF.fetch("http://example.com?id=get-test", { method: "POST" });
+
+  		//그런 다음
+  		const response = await SELF.fetch("http://example.com?id=get-test");
+  		const data = await response.json<{ count: number }>();
+  		expect(data.count).toBe(2);
+  	});
+
+  	it("should use different counters for different IDs", async () => {
+  		await SELF.fetch("http://example.com?id=counter-a", { method: "POST" });
+  		await SELF.fetch("http://example.com?id=counter-a", { method: "POST" });
+  		await SELF.fetch("http://example.com?id=counter-b", { method: "POST" });
+
+  		const responseA = await SELF.fetch("http://example.com?id=counter-a");
+  		const responseB = await SELF.fetch("http://example.com?id=counter-b");
+
+  		const dataA = await responseA.json<{ count: number }>();
+  		const dataB = await responseB.json<{ count: number }>();
+
+  		expect(dataA.count).toBe(2);
+  		expect(dataB.count).toBe(1);
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+### 튼튼한 개체 내부에 직접 액세스
+
+제품 정보`runInDurableObject()`인스턴스 속성 및 스토리지에 직접 액세스합니다. 이것은 내부 상태 또는 테스트 개인 방법을 확인하는 데 유용합니다 :
+
+<TypeScriptExample filename="test/direct-access.test.ts">
+  ```ts
+  import {
+  	env,
+  	runInDurableObject,
+  	listDurableObjectIds,
+  } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+  import { Counter } from "../src";
+
+  describe("Direct Durable Object access", () => {
+  	it("can access instance internals and storage", async () => {
+  		const id = env.COUNTER.idFromName("direct-test");
+  		const stub = env.COUNTER.get(id);
+
+  		//첫째, 일반적으로 RPC를 통해 상호 작용
+  		await stub.increment();
+  		await stub.increment();
+
+  		//runInDurableObject를 사용하여 내부를 검사합니다.
+  		await runInDurableObject(stub, async (instance: Counter, state) => {
+  			//정확한 동일한 클래스 인스턴스 접근
+  			expect(instance).toBeInstanceOf(Counter);
+
+  			//Access Storage 직접 검증
+  			const result = state.storage.sql
+  				.exec<{ value: number }>(
+  					"SELECT value FROM counters WHERE name = ?",
+  					"default"
+  				)
+  				.one();
+  			expect(result.value).toBe(2);
+  		});
+  	});
+
+  	it("can list all Durable Object IDs in a namespace", async () => {
+  		//어떤 Durable Objects를 창조하십시오
+  		const id1 = env.COUNTER.idFromName("list-test-1");
+  		const id2 = env.COUNTER.idFromName("list-test-2");
+
+  		await env.COUNTER.get(id1).increment();
+  		await env.COUNTER.get(id2).increment();
+
+  		//namespace의 모든 ID 목록
+  		const ids = await listDurableObjectIds(env.COUNTER);
+  		expect(ids.length).toBe(2);
+  		expect(ids.some((id) => id.equals(id1))).toBe(true);
+  		expect(ids.some((id) => id.equals(id2))).toBe(true);
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+### 시험 고립
+
+각 시험은 자동으로 격리된 저장을 가져옵니다. Durable Objects는 1개의 시험에서 창조했습니다 다른 시험에 영향을 미치지 않습니다:
+
+<TypeScriptExample filename="test/isolation.test.ts">
+  ```ts
+  import { env, listDurableObjectIds } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+
+  describe("Test isolation", () => {
+  	it("first test: creates a Durable Object", async () => {
+  		const id = env.COUNTER.idFromName("isolated-counter");
+  		const stub = env.COUNTER.get(id);
+
+  		await stub.increment();
+  		await stub.increment();
+  		expect(await stub.getCount()).toBe(2);
+  	});
+
+  	it("second test: previous Durable Object does not exist", async () => {
+  		//이전 테스트에서 튼튼한 목표는 자동으로 정리됩니다.
+  		const ids = await listDurableObjectIds(env.COUNTER);
+  		expect(ids.length).toBe(0);
+
+  		//동일한 ID 생성은 신선한 인스턴스를 제공합니다.
+  		const id = env.COUNTER.idFromName("isolated-counter");
+  		const stub = env.COUNTER.get(id);
+  		expect(await stub.getCount()).toBe(0);
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+### SQLite 저장
+
+SQLite-backed Durable Objects는 시험에서 이음새가 없 작동합니다. SQL API는 SoftLayer Object 클래스가 구성될 때 사용할 수 있습니다.`new_sqlite_classes`Wrangler 윤곽에서:
+
+<TypeScriptExample filename="test/sqlite.test.ts">
+  ```ts
+  import { env, runInDurableObject } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+
+  describe("SQLite in Durable Objects", () => {
+  	it("can query and verify SQLite storage", async () => {
+  		const id = env.COUNTER.idFromName("sqlite-test");
+  		const stub = env.COUNTER.get(id);
+
+  		//RPC를 통해 몇 번 카운터 증가
+  		await stub.increment("page-views");
+  		await stub.increment("page-views");
+  		await stub.increment("api-calls");
+
+  		//SQLite에서 데이터를 직접 검증
+  		await runInDurableObject(stub, async (instance, state) => {
+  			//Query 데이터베이스
+  			const rows = state.storage.sql
+  				.exec<{ name: string; value: number }>("SELECT name, value FROM counters ORDER BY name")
+  				.toArray();
+
+  			expect(rows).toEqual([
+  				{ name: "api-calls", value: 1 },
+  				{ name: "page-views", value: 2 },
+  			]);
+
+  			//데이터베이스 크기를 확인 non-zero
+  			expect(state.storage.sql.databaseSize).toBeGreaterThan(0);
+  		});
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+### 시험 경보
+
+제품 정보`runDurableObjectAlarm()`즉시 타이머를 기다리지 않고 예약 된 알람을 트리거합니다. 이것은 동시에 경보 핸들러를 테스트 할 수 있습니다 :
+
+<TypeScriptExample filename="test/alarm.test.ts">
+  ```ts
+  import {
+  	env,
+  	runInDurableObject,
+  	runDurableObjectAlarm,
+  } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+  import { Counter } from "../src";
+
+  describe("Durable Object alarms", () => {
+  	it("can trigger alarms immediately", async () => {
+  		const id = env.COUNTER.idFromName("alarm-test");
+  		const stub = env.COUNTER.get(id);
+
+  		//Increment 카운터 및 재설정 경보 일정
+  		await stub.increment();
+  		await stub.increment();
+  		expect(await stub.getCount()).toBe(2);
+
+  		//알람을 일정 (실제 앱에서, 이것은 미래의 시간에있을 수 있음)
+  		await runInDurableObject(stub, async (instance, state) => {
+  			await state.storage.setAlarm(Date.now() + 60_000); //지금부터 1분
+  		});
+
+  		//즉시 대기하지 않고 알람을 실행
+  		const alarmRan = await runDurableObjectAlarm(stub);
+  		expect(alarmRan).toBe(true); //알람이 예약 및 실행
+
+  		//알람 핸들러 랜을 검증 (대기 재설정)
+  		//참고 : 재설정을 처리하는 내구성 객체의 알람() 방법이 필요합니다.
+  		//기대(ait stub.getCount().toBe(0);
+
+  		//알람을 실행하려고 다시 false를 반환 (알림 없음)
+  		const alarmRanAgain = await runDurableObjectAlarm(stub);
+  		expect(alarmRanAgain).toBe(false);
+  	});
+  });
+  ```
+</TypeScriptExample>
+
+알람을 테스트하려면 추가`alarm()`당신의 튼튼한 목표에 방법:
+
+<TypeScriptExample filename="src/index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export class Counter extends DurableObject {
+  	//... 다른 방법 ...
+
+  	async alarm() {
+  		//이 방법은 알람 화재 때 호출됩니다.
+  		//모든 카운터를 재설정
+  		this.ctx.storage.sql.exec("DELETE FROM counters");
+  	}
+
+  	async scheduleReset(afterMs: number) {
+  		await this.ctx.storage.setAlarm(Date.now() + afterMs);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 실행 시험
+
+테스트 실행:
+
+```sh
+npx vitest
+```
+
+또는 스크립트를 추가`package.json`:
+
+```json
+{
+	"scripts": {
+		"test": "vitest"
+	}
+}
+```
+
+## 관련 자료
+
+- [모델 번호: Workers Vitest 통합](/workers/testing/vitest-integration/)- Vitest 통합을위한 전체 문서
+- [Durable Objects 테스트 레시피](https://github.com/cloudflare/workers-sdk/tree/main/fixtures/vitest-pool-workers-examples/durable-objects)- Workers SDK의 예
+- [RPC 테스트 레시피](https://github.com/cloudflare/workers-sdk/tree/main/fixtures/vitest-pool-workers-examples/rpc)- Durable Objects를 가진 시험 JSRPC

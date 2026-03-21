@@ -1,0 +1,191 @@
+---
+title: Joomla 규칙만 사용 가능
+pcx_content_type: configuration
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: Joomla 규칙을 활성화하려면 카테고리 override를 사용하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/deploy-cmr-joomla-only/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/deploy-cmr-joomla-only/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)관리 규칙의 실행을 구성하고 행동을 무시합니다. 기본적으로, 실행된 규칙은 관리된 통치자 발행자에 의해 정의된 작업을 수행한다. 이 예제는 특정 태그와 규칙을 보장하기 위해 overrides를 사용합니다.
+
+아래 단계를 따라 관리 규칙의 실행을 구성하기 위해 두 개의 overrides를 사용하여 규칙 태그를 활성화`joomla`.
+
+1. [규칙 추가](/ruleset-engine/basic-operations/deploy-rulesets/)관리 규칙을 실행하는 단계 항목 포인트 규칙.
+2. [통치자 override 구성](/ruleset-engine/managed-rulesets/override-managed-ruleset/)관리 규칙에 모든 규칙을 비활성화합니다.
+3. 주어진 태그를 가진 규칙만 활성화하는 태그를 구성합니다.
+
+꼬리표 overrides는 통치자 overrides에 전진합니다. 지정된 태그와 규칙 만 활성화되며 다른 모든 규칙은 비활성화됩니다.
+
+## 예제 1
+
+이 예제는 Joomla 규칙을 사용하여 QXQX0001XQ 관리 규칙 집합을 실행합니다. 더 보기`name`, `kind`·`phase`필드는 불균형이기 때문에 요청에서 omitted.
+
+<Details header="예: 영역 수준에서 카테고리 overrides를 사용하여 Joomla 규칙 만 사용 가능">
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+    method="PUT"
+    parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+    json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "joomla",
+  							action: "block",
+  							enabled: true,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  - `"id": "<MANAGED_RULESET_ID>"`지정된 영역에 대한 요청에 따라 Cloudflare Managed Ruleset을 적용 할 단계의 규칙을 추가하십시오 (`$ZONE_ID`).
+  - `"enabled": false`관리된 규칙에 모든 규칙을 비활성화하는 규칙 수준에서 과도한 정의.
+  - `"categories": [{"category": "joomla", "action": "block", "enabled": true}]`Joomla 규칙을 활성화하고 작업을 설정하는 태그 수준에서 override 정의`block`.
+</Details>
+
+<Details header="예: 계정 수준에서 카테고리 overrides를 사용하여 Joomla 규칙 만 사용 가능">
+  <APIRequest
+    path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+    method="PUT"
+    parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+    json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: 'cf.zone.name eq "example.com" and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "joomla",
+  							action: "block",
+  							enabled: true,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  - `"id": "<MANAGED_RULESET_ID>"`Cloudflare 관리 규칙을 적용 할 단계의 규칙을 추가`example.com`.
+  - `"enabled": false`관리된 규칙에 모든 규칙을 비활성화하는 규칙 수준에서 과도한 정의.
+  - `"categories": [{"category": "joomla", "action": "block", "enabled": true}]`Joomla 규칙을 활성화하고 작업을 설정하는 태그 수준에서 override 정의`block`.
+</Details>
+
+규칙에 한 개 이상의 범주를 추가 할 수 있습니다.
+
+## 예제 2
+
+이 예제는 관리 된 규칙을 실행하는 규칙에 두 개의 overrides를 추가합니다 (`<MANAGED_RULESET_ID>`) 에서`http_request_firewall_managed`단계. 주의사항`name`, `kind`·`phase`필드는 불균형이기 때문에 요청에서 omitted.
+
+<Details header="예: 영역 수준에서 1 개 이상의 범주 override 추가">
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+    method="PUT"
+    parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+    json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "joomla",
+  							action: "log",
+  							enabled: true,
+  						},
+  						{
+  							category: "wordpress",
+  							enabled: false,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+</Details>
+
+<Details header="예: 계정 수준에서 1 개 이상의 범주 override 추가">
+  <APIRequest
+    path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+    method="PUT"
+    parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+    json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: 'cf.zone.name eq "example.com" and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "joomla",
+  							action: "log",
+  							enabled: true,
+  						},
+  						{
+  							category: "wordpress",
+  							enabled: false,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+</Details>
+
+룰렛의 오버라이드의 순서는 배포 된 관리 규칙에 규칙이 활성화되거나 비활성화되면 결정합니다. Overrides는 목록에서 나중에 이전 overrides를 취합니다.
+
+위의 코드에서 관리 된 규칙에서 4 가지 규칙을 고려하면 다른 조합이 있습니다.`category`태그. 뒤에 오는 테이블은 overrides 후에 규칙의 상태를 보여줍니다.
+
+| 관리 규칙   | 이름 \*                        | overrides 후에 규칙 상태 |
+| ------- | ---------------------------- | ------------------ |
+| 관리1     | `drupal`, `dos`              | 지원하다               |
+| 관리2     | `drupal`, `dos`, `joomla`    | 이름 \*              |
+| 관리Rule3 | `dos`, `joomla`, `wordpress` | 지원하다               |
+| 관리Rule4 | `drupal`, `wordpress`        | 지원하다               |
+| 관리5     | (태그 없음)                      | 지원하다               |

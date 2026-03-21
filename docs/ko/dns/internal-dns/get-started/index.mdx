@@ -1,0 +1,163 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+---
+
+import {
+	TabItem,
+	Tabs,
+	Details,
+	Example,
+	Render,
+	DashButton,
+} from "~/components";
+
+이 가이드를 따라 Internal DNS를 시작하세요.
+
+<Render file="internal-dns-beta-note" product="dns" />
+
+## 시작하기 전에
+
+- [Gateway resolver policies](/cloudflare-one/traffic-policies/resolver-policies/)와 [Internal DNS](/dns/internal-dns/)에 접근할 수 있는 Enterprise 계정이 있는지 확인하세요.
+- [Gateway resolver에 연결](/dns/internal-dns/connectivity/)할 수 있는 여러 방법을 검토하세요.
+
+  :::caution
+  WARP를 사용하는 경우, internal DNS zones 또는 해당 TLD가 [Local Domain Fallback configuration](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)에 나열되어 있지 않은지 확인하세요. 그렇지 않으면 일치하는 도메인에 대한 DNS 쿼리가 Cloudflare로 전송되지 않고 fallback에 지정된 로컬 DNS 서버로 전송됩니다.
+  :::
+
+- 인증에 API 토큰을 사용할 계획이라면 다음 권한이 있는지 확인하세요.
+
+<Details header="API token configuration">
+<Example>
+**Permissions**
+- *Account* - *DNS Views* - *Edit*
+- *Zone* - *DNS* - *Edit*
+- *Account* - *Account Settings* - *Edit*
+- *Zone* - *DNS Settings* - *Edit*
+- *Zone* - *Zone* - *Edit*
+
+**Account Resources**
+
+- _Include_ - _(Your account)_
+
+**Zone Resources**
+
+- _Include_ - _All zones_
+
+</Example>
+</Details>
+
+## 1. 내부 DNS zone 설정
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+<Render
+	file="internal-zone-create-dash"
+	product="dns"
+	params={{
+		conditional: "get-started-detail",
+	}}
+/>
+
+</TabItem> <TabItem label="API">
+
+<Render
+	file="internal-zone-create-api"
+	product="dns"
+	params={{
+		conditional: "get-started-detail",
+	}}
+/>
+
+</TabItem> </Tabs>
+
+### (선택 사항) 다른 zone에서 zone 참조
+
+<Render
+	file="internal-reference-zone-intro"
+	product="dns"
+	params={{
+		conditional: "get-started-link",
+	}}
+/>
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **Internal DNS** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/internal-dns" />
+
+2. zone을 선택합니다.
+3. 선택한 zone 안에서 **Reference zone**으로 이동합니다.
+4. **Add reference zone**을 선택합니다.
+5. 참조로 사용할 zone을 찾아 해당 행에서 **Select**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+1. [Update DNS settings](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/) 엔드포인트를 사용해 한 internal zone에서 다른 internal zone으로의 참조를 추가합니다. `--json`에서 `internal_dns` 객체 안에 `reference_zone_id` 매개변수를 지정하세요.
+
+<Example>
+	<Render file="internal-reference-zone-api" product="dns" />
+</Example>
+
+</TabItem> </Tabs>
+
+## 2. 내부 zone을 view에 연결
+
+resolver policy에는 [DNS view](/dns/internal-dns/dns-views/)가 필요하므로, 요청을 internal zones로 라우팅하려면 최소 하나의 view가 있어야 합니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+<Render
+	file="internal-dns-view-create-dash"
+	product="dns"
+	params={{
+		conditional: "get-started-detail",
+	}}
+/>
+
+</TabItem> <TabItem label="API">
+
+1. [Create Internal DNS View](/api/resources/dns/subresources/settings/subresources/account/subresources/views/methods/create/) 엔드포인트를 사용합니다. 각 view를 만들 때 해당 view 아래에 그룹화해야 하는 모든 internal zone을 나열하세요.
+
+<Details header="DNS view configuration conditions">
+	<Render file="internal-dns-view-conditions" product="dns" />
+</Details>
+
+</TabItem> </Tabs>
+
+## 3. Gateway 정책 구성
+
+:::note
+Gateway 구성은 internal zone이 존재하는 것과 동일한 Cloudflare 계정 안에 있어야 합니다.
+:::
+
+resolver policies를 설정할 때 internal DNS view를 선택하는 것 외에도 **fallback through public DNS** 옵션을 활성화할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. [Cloudflare One](https://one.dash.cloudflare.com/)에서 **Traffic policies** > **Firewall policies** > **Resolver policies**로 이동합니다.
+2. **Add a policy**를 선택하고 이름과 설명을 입력합니다.
+3. 라우팅하려는 트래픽에 대한 표현식을 작성합니다. selector, operator, value에 대한 안내는 [Gateway resolver policies](/cloudflare-one/traffic-policies/resolver-policies/#selectors)를 참고하세요.
+4. **Use Internal DNS**를 선택합니다. 표현식과 일치하는 쿼리를 보낼 view를 선택합니다.
+5. (선택 사항) 사용 사례에 맞게 **Fallback through public DNS** 옵션을 조정합니다.
+
+- Off: Gateway DNS resolver가 응답을 그대로 클라이언트에 반환합니다.
+- On: internal zone의 응답이 REFUSED, NXDOMAIN 또는 CNAME 타입 응답인 경우, Gateway DNS resolver가 쿼리를 Cloudflare 1.1.1.1 public resolver로 보내 public DNS를 통해 해석을 시도합니다.
+
+6. 확인을 위해 **Create policy**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+[Zero Trust > Gateway > Rules](/api/resources/zero_trust/subresources/gateway/subresources/rules/) 아래의 API 엔드포인트를 사용해 resolver policies를 설정합니다. selector, operator, value에 대한 안내는 [Gateway](/cloudflare-one/traffic-policies/resolver-policies/#selectors)를 참고하세요.
+
+rule settings 객체를 사용해 `resolve_dns_internally`를 정의하고 `view_id`와 `fallback` 옵션을 지정합니다. fallback 옵션은 다음과 같이 동작합니다.
+
+- `none`: Gateway DNS resolver가 응답을 그대로 클라이언트에 반환합니다.
+- `public_dns`: internal zone의 응답이 REFUSED, NXDOMAIN 또는 CNAME 타입 응답인 경우, Gateway DNS resolver가 쿼리를 Cloudflare 1.1.1.1 public resolver로 보내 public DNS를 통해 해석을 시도합니다.
+
+</TabItem> </Tabs>
+
+Gateway resolver policy를 추가하면 해당 정책은 각 internal view의 **Resolver policies referencing this view** 아래에 표시됩니다.

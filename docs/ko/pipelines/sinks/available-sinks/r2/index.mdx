@@ -1,0 +1,119 @@
+---
+pcx_content_type: configuration
+title: R2
+description: JSON 또는 Parquet 파일로 데이터를 R2 객체 저장에 쓰기
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pipelines/sinks/available-sinks/r2/'
+translation_source_md: 'https://developers.cloudflare.com/pipelines/sinks/available-sinks/r2/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+R2 싱크는 파이프라인에서 원료 파일로 처리한 자료를[R2 객체 저장](/r2/). 현재 JSON 및 Parquet 형식에 대한 쓰기를 지원합니다.
+
+R2 싱크를 만들려면[`pipelines sinks create`](/workers/wrangler/commands/#pipelines-sinks-create)명령 및 싱크 유형 및 대상 지정[기타 제품](/r2/buckets/):
+
+```bash
+npx wrangler pipelines sinks create my-sink \
+  --type r2 \
+  --bucket my-bucket
+```
+
+## 형식 옵션
+
+R2 싱크 지원 2 산출 체재:
+
+### JSON 형식
+
+newline-delimited JSON 파일로 데이터를 작성:
+
+```bash
+--format json
+```
+
+### Parquet 형식
+
+더 나은 쿼리 성능과 압축에 대한 Parquet 파일로 데이터를 작성:
+
+```bash
+--format parquet --compression zstd
+```
+
+**Parquet를 위한 압축 선택권:**
+
+- `zstd`(과태) - 최고의 압축 비율
+- `snappy`- 가장 빠른 압축
+- `gzip`- 좋은 압축, 널리 지원
+- `lz4`- 합리적인 비율로 빠른 압축
+- `uncompressed`- 압축 없음
+
+**줄 그룹 크기:**
+[줄 그룹](https://parquet.apache.org/docs/file-format/configurations/)함께 저장되는 Parquet 파일에서 행의 세트, 메모리 사용 및 쿼리 성능에 영향을 미치는. MB의 대상 행 그룹 크기를 구성:
+
+```bash
+--target-row-group-size 256
+```
+
+## 파일 조직
+
+파일은 파티션 디렉토리 구조 내에서 UUID 이름으로 작성됩니다. 예를 들어, 경로`analytics`그리고 기본 분할:
+
+```
+analytics/year=2025/month=09/day=18/002507a5-d449-48e8-a484-b1bea916102f.parquet
+```
+
+### 오시는 길
+
+파일이 기록될 때 파일이 있는 버킷의 기본 디렉토리를 설정합니다:
+
+```bash
+--path analytics/events
+```
+
+### 옵션 정보
+
+R2는 configurable 패턴을 사용하여 시간에 의해 자동으로 파티션 파일을 싱크. 기본 패턴은`year=%Y/month=%m/day=%d`(Hive-style 분할).
+
+```bash
+--partitioning "year=%Y/month=%m/day=%d/hour=%H"
+```
+
+유효한 체재 specifiers를 위해, 참고하십시오[비밀번호](https://docs.rs/chrono/latest/chrono/format/strftime/index.html).
+
+## 배팅 및 롤링 정책
+
+파일이 R2에 기록될 때 통제하십시오. 당신의 필요에 따라 구성:
+
+- **낮은 값**: 더 빈번한 쓰기, 더 작은 파일, 더 낮은 대기 시간
+- **높은 값**: 덜 빈번한 쓰기, 더 큰 파일, 더 나은 쿼리 성능
+
+### 목록 간격
+
+종종 파일을 작성하는 방법을 설정하십시오 (과태: 300 초):
+
+```bash
+--roll-interval 60  #각 60 초마다 파일을 작성
+```
+
+### 목록 크기
+
+새로운 파일을 만들기 전에 MB에서 최대 파일 크기를 설정:
+
+```bash
+--roll-size 100  #100MB 후에 새로운 파일을 창조하십시오
+```
+
+## 인증현황
+
+R2 싱크는 API credentials (액세스 키 ID와 비밀 접근 열쇠)를 가진 요구합니다[개체 읽기 및 쓰기 권한](/r2/api/tokens/#permissions)당신의 물통에 자료를 쓰기 위하여.
+
+```bash
+npx wrangler pipelines sinks create my-sink \
+  --type r2 \
+  --bucket my-bucket \
+  --access-key-id YOUR_ACCESS_KEY_ID \
+  --secret-access-key YOUR_SECRET_ACCESS_KEY
+```

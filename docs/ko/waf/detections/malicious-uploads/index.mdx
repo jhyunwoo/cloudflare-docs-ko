@@ -1,0 +1,125 @@
+---
+title: 악성행위 탐지
+pcx_content_type: concept
+sidebar:
+  order: 4
+  group:
+    label: 맛있는 업로드
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/detections/malicious-uploads/'
+translation_source_md: 'https://developers.cloudflare.com/waf/detections/malicious-uploads/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Type, Render } from "~/components";
+
+악의적 인 업로드 감지도 업로드 된 콘텐츠 스캐닝이라고도 WAF[교통 감지](/waf/concepts/#detection-versus-mitigation)해당 앱에 업로드된 내용을 스캔합니다.
+
+활성화 할 때 콘텐츠 스캔은 업로드 된 파일과 같은 콘텐츠 객체를 감지하고 악성 코드와 같은 악성 서명을 스캔합니다. 추가 메타 데이터와 함께 스캔 결과 WAF에서 사용할 수있는 필드로 노출됩니다[주문 규칙](/waf/custom-rules/), 당신은 미세 곡물 완화 규칙을 구현 할 수 있습니다.
+
+:::참조
+이 기능은 유료 애드온과 엔터프라이즈 플랜에서 고객에게 제공됩니다.
+주요 특징
+
+## 어떻게 작동합니까?
+
+일단 활성화되면 콘텐츠 스캔은 모든 수신 트래픽을 위해 실행됩니다. 식별<GlossaryTooltip term="content object" link="#what-is-a-content-object">내용물</GlossaryTooltip>자동.
+
+한 개 이상의 검출 된 콘텐츠 객체를 가진 모든 요청을 위해 콘텐츠 스캐너는 콘텐츠 객체의 철저한 분석을 수행하는 바이러스 백신 (AV) 스캐너에 연결됩니다. 스캔 결과를 사용하여 WAF는 규칙 표현에서 사용할 수있는 여러 필드를 대체합니다. 예를 들어, 악성 파일이 포함 된 요청을 차단하는 기본 규칙을 만들 수 있습니다. 또는 표현이 특정 파일 크기, 파일 유형 또는 URI 경로와 일치하는 더 복잡한 규칙.
+
+Cloudflare는 동일을 사용합니다[Cloudflare Zero Trust에 사용되는 안티 바이러스 (AV) 스캐너](/cloudflare-one/traffic-policies/http-policies/antivirus-scanning/)WAF 내용 검사를 위해.
+
+:::주\[주]
+
+콘텐츠 스캔은 악성행위로 간주되는 내용물에 대한 요청에 대한 완화 조치를 적용하지 않습니다. 공격 완화 전략을 정의하는 데 사용할 수있는 신호를 제공합니다. 규칙을 만들려면 —[주문 규칙](/waf/custom-rules/)또는[비율 제한 규칙](/waf/rate-limiting-rules/)— 검출된 신호에 근거를 둔 행동을 실행하기 위하여.<br />검출 versus mitigation에 대한 자세한 내용은 참조[회사 소개](/waf/concepts/#detection-versus-mitigation).
+
+<Render file="content-scanning-latency" product="waf" />
+
+:::
+
+## 내용물이란?
+
+콘텐츠 객체는 다음과 같은 유형과 일치하지 않는 heuristics에 의해 감지 된 모든 요청 페이로드입니다.`text/html`, `text/x-shellscript`, `application/json`, `text/csv`·`text/xml`. 다른 모든 내용 유형은 다음과 같은 내용 객체로 간주됩니다:
+
+- 실행 파일 (예를 들어,`.exe`, `.bat`, `.dll`·`.wasm`)
+- 문서 (예를 들어,`.doc`, `.docx`, `.pdf`, `.ppt`·`.xls`)
+- 압축 파일 (예를 들면,`.gz`, `.zip`·`.rar`)
+- 이미지 파일 (예를 들면,`.jpg`, `.png`, `.gif`, `.webp`·`.tif`)
+- 비디오 및 오디오 파일
+
+Content 스캐닝은 요청을받지 않습니다.`Content-Type`이 헤더가 조작 될 수 있기 때문에 계정에 헤더. 시스템은 악성 객체를 감지하지만 정확한 내용 유형을 결정할 수 없습니다, 그것은 악성 콘텐츠 개체를보고`application/octet-stream`내용 유형.
+
+## 스캔된 내용
+
+Content 스캐닝은 악의적인 내용을 위한 뒤에 오는 내용 목표를 검사할 수 있습니다:
+
+- 파일 업로드
+- Multipart 요청에 대한 요청 신체의 포위로 인코딩`multipart/form-data`또는`multipart/mixed`
+- 요청에 따라 특정 JSON 속성 (콘텐츠, 예를 들어, Base64)에 인코딩된 파일)[사용자 정의 스캔 표현](#custom-scan-expressions)당신은
+
+수신 요청의 모든 콘텐츠 객체는 다중 업로드 파일 (예를 들어, 여러 파일 입력으로 제출 된 HTML 양식)을 요청하는 요청을 위해 확인됩니다.
+
+콘텐츠 스캐너는 최대 50MB의 크기로 콘텐츠 객체를 완전히 확인합니다. 더 큰 내용 개체를 위해, 스캐너는 첫번째 50 MB를 분석하고 목표의 그 부분에 근거를 둔 검사 결과를 제공합니다.
+
+:::주\[주]
+
+- AV 스캐너는 특정 유형의 파일을 스캔하지 않습니다, 즉 다음:
+  - 비밀번호 보호 아카이브
+  - 3개 이상의 반복 레벨을 가진 기록 보관소
+  - 300개 이상의 파일이 있는 아카이브
+  - PGP 암호화된 파일
+
+- 드문 경우 AV 스캐너는 시간이 지남에 따라 컨텐츠 객체를 분석하지 못합니다. 이 일 때,`cf.waf.content_scan.has_failed`필드는 true로 설정됩니다.
+
+:::
+
+## 사용자 정의 스캔 표현
+
+때로는 콘텐츠가 JSON 페이로드 내에서 Base64 인코딩된 문자열인 경우와 같은 내용 객체를 찾을 수 있습니다. 예를 들면:
+
+```json
+{ "file": "<BASE64_ENCODED_STRING>" }
+```
+
+이 상황에서, 컨텐츠 개체를 찾을 수있는 컨텐츠 스캐너를 말하는 사용자 정의 스캔 표현을 구성합니다. 더 많은 정보를 원하시면, 참조[사용자 정의 스캔 표현 구성](/waf/detections/malicious-uploads/get-started/#4-optional-configure-a-custom-scan-expression).
+
+배열 된 JSON 페이로드에서 필드를 찾는 더 많은 정보 및 추가 예제를 위해, 참조[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)기능 문서.
+
+:::참조
+내용 스캐너는 Base64 문자열을 자동으로 해독합니다.
+주요 특징
+
+## 검색 폼
+
+콘텐츠 스캔이 활성화되면 WAF 규칙의 다음 필드를 사용할 수 있습니다.
+
+| 제품정보                                                                                          | 이름 \*                                                                                             |
+| --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| 내용물<br /> [`cf.waf.content_scan.has_obj`][1] <br /> <Type text="Boolean" />                   | 요청이 적어도 하나의 콘텐츠 객체를 포함 여부를 나타냅니다.                                                                 |
+| 악성 콘텐츠 객체<br /> [`cf.waf.content_scan.has_malicious_obj`][2] <br /> <Type text="Boolean" />   | 요청이 적어도 하나의 악성 콘텐츠 객체를 포함 여부를 나타냅니다.                                                              |
+| 악성 콘텐츠 개체 수<br /> [`cf.waf.content_scan.num_malicious_obj`][3] <br /> <Type text="Integer" /> | 요청 (zero 또는 더 큰)에서 감지 된 악성 콘텐츠 객체의 수.                                                             |
+| 콘텐츠 검사 실패<br /> [`cf.waf.content_scan.has_failed`][4] <br /> <Type text="Boolean" />          | 파일 스캐너가 요청에서 감지 된 콘텐츠 객체의 일부를 스캔 할 수 없다는 것을 나타냅니다.                                                |
+| 내용물 수<br /> [`cf.waf.content_scan.num_obj`][5] <br /> <Type text="Integer" />                 | 요청 (zero 또는 더 큰)에서 검출되는 내용물의 수.                                                                   |
+| 콘텐츠 객체 크기<br /> [`cf.waf.content_scan.obj_sizes`][6] <br /> <Type text="Array<Integer>" />    | 바이트의 파일 크기의 배열은, 순서에서 내용 물체가 요청에 검출되었습니다.                                                         |
+| 콘텐츠 객체 유형<br /> [`cf.waf.content_scan.obj_types`][7] <br /> <Type text="Array<String>" />     | 순서에 있는 파일 유형의 배열은 내용 목표가 요청에 검출되었습니다.                                                             |
+| 콘텐츠 객체 결과<br /> [`cf.waf.content_scan.obj_results`][8] <br /> <Type text="Array<String>" />   | 순서에 있는 검사 결과의 배열은 내용 목표가 요청에 검출되었습니다.<br />가능한 값:`clean`, `suspicious`, `infected`·`not scanned`. |
+
+[1]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.has_obj/
+
+[2]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.has_malicious_obj/
+
+[3]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.num_malicious_obj/
+
+[4]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.has_failed/
+
+[5]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.num_obj/
+
+[6]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.obj_sizes/
+
+[7]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.obj_types/
+
+[8]: /ruleset-engine/rules-language/fields/reference/cf.waf.content_scan.obj_results/
+
+이 필드를 사용하여 규칙 표현의 예를 들어, 참조[예제 규칙](/waf/detections/malicious-uploads/example-rules/).

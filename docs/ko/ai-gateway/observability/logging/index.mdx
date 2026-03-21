@@ -1,0 +1,104 @@
+---
+pcx_content_type: reference
+title: 로그아웃
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/observability/logging/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/observability/logging/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Logging는 애플리케이션 개발을 위한 기본 빌딩 블록입니다. Logs는 개발 초기 단계에서 통찰력을 제공하고 생산에 발생하는 문제를 이해하는 데 종종 중요합니다.
+
+AI Gateway 대시보드는 사용자 신속한, 모델 응답, 공급자, 타임스탬프, 요청 상태, 토큰 사용, 비용 및 기간을 포함하여 개별 요청의 로그를 보여줍니다. 시간 :[사이트맵](/ai-gateway/features/dlp/)정책은 DLP 경기를 트리거하는 요청에 대한 로그를 구성하고 있습니다. DLP 액션 촬영 (Flag 또는 Block), 일치하는 정책 ID, 일치 프로필 ID 및 트리거 된 특정 탐지 항목. 이 로그 지속, 당신이 선호하는 기간 동안 저장 할 수있는 유연성을 제공하고 가치있는 요청 데이터를 더합니다.
+
+기본적으로 각 게이트웨이는 최대 10 백만 로그를 저장할 수 있습니다. 게이트웨이 설정에서 이 제한을 사용자 지정할 수 있습니다. 저장 제한이 도달되면 새로운 로그가 저장됩니다. 로그를 계속 저장하려면 이전 로그를 삭제해야합니다. 새로운 로그에 대한 공간을 확보.
+플랜 제한에 대한 자세한 내용을 보려면, 참조[제한 사항](/ai-gateway/reference/limits/).
+
+로그를 저장할 때 인증된 게이트웨이를 사용하는 것이 좋습니다. 무단 액세스를 방지하고 로그 저장 사용을 해제할 수 있는 잘못된 요청에 대해 보호하고 필요한 데이터를 찾기 위해 열심히 합니다. 더 알아보기[인증된 Gateway](/ai-gateway/configuration/authentication/).
+
+## 기본 설정
+
+미터뿐만 아니라 요청 및 응답 데이터를 포함하는 로그는 각 게이트웨이에 기본적으로 활성화됩니다. 이 로깅 행동은 게이트웨이의 모든 요청에 균일하게 적용됩니다. 개인 정보 보호 또는 준수에 대한 우려가 있고 로그 수집을 끄고 싶다면 설정 및 로그 아웃을 선택할 수 있습니다. 특정 요청에 대한 로그 설정을 수정해야 하는 경우, 이 설정을 per-request 기초로 삭제할 수 있습니다.
+
+<Render file="logging" product="ai-gateway" />
+
+## Per-request 로그인
+
+설정 탭에서 기본 로깅 동작을 무시하려면, per-request 기초에 헤더를 정의할 수 있습니다.
+
+### 로그 수집 (`cf-aig-collect-log`)
+
+더 보기`cf-aig-collect-log`header는 게이트웨이의 기본 로그 설정을 우회할 수 있습니다. 게이트웨이가 로그를 저장하도록 구성되면 헤더는 해당 특정 요청에 대한 로그를 제외합니다. 반대적으로, 로깅이 게이트웨이 수준에서 비활성화되면, 이 헤더는 해당 요청에 대한 로그를 저장합니다.
+
+아래 예제에서, 우리는`cf-aig-collect-log`로그 저장을 방지하기 위해 기본 설정을 우회합니다.
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header "Authorization: Bearer $TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-collect-log: false \
+  --data ' {
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is the email address and phone number of user123?"
+          }
+        ]
+      }
+'
+```
+
+## 로그의 DLP 필드
+
+시간 :[데이터 손실 방지 (DLP)](/ai-gateway/features/dlp/)정책은 게이트웨이에서 활성화되며 DLP 정책 일치를 트리거하는 요청에 대한 로그 항목은 추가 필드를 포함합니다.
+
+<Render file="dlp-log-fields" product="ai-gateway" />
+
+이 필드는 대시보드 로그 뷰어에서 모두 사용할 수 있으며[로그 API](/api/resources/ai_gateway/subresources/logs/methods/list/). 로그를 필터링 할 수 있습니다.**DLP 작업**대시보드에서 그림 또는 차단 된 요청을 볼 수 있습니다. DLP 모니터링에 대한 자세한 내용은 참조[모니터 DLP 이벤트](/ai-gateway/features/dlp/set-up-dlp/#monitor-dlp-events).
+
+## 로그 저장
+
+로그 저장을 효과적으로 관리하려면:
+
+- Storage Limits: 게이트웨이 설정에서 게이트웨이에 저장된 로그 수에 제한을 설정하면 필요한 것을 지불합니다.
+- 자동 로그인 삭제 가능: 게이트웨이 설정에서 자동 로그 삭제 기능을 활성화하여 로그 제한이 설정되거나 10 백만 로그의 기본 저장 제한이 도달됩니다. 새로운 로그는 항상 수동 개입없이 저장됩니다.
+
+## 로그 삭제 방법
+
+로그 저장을 효과적으로 관리하고 지속적인 로깅을 보장하려면 다음 방법을 사용하여 로그를 삭제할 수 있습니다.
+
+### 자동 로그인 삭제
+
+게이트웨이의 스토리지 제약 내에서 연속 로깅을 유지하려면 게이트웨이 설정에서 자동 로그 삭제를 활성화하십시오. 이 기능은 자동으로 로그 제한을 한 번 가장 오래된 로그를 삭제하거나 10 백만 로그의 기본 저장 제한이 도달되고, 새로운 로그가 수동 개입없이 저장됩니다.
+
+### 수동 삭제
+
+수동으로 대시보드를 통해 로그를 삭제하려면 대시보드에서 로그 탭으로 이동합니다. 상태, 캐시, 공급자, 비용, 또는 삭제하려는 로그를 정제하는 드롭다운의 다른 옵션과 같은 사용 가능한 필터. 일단 필터링하면, 작업을 완료하기 위해 삭제 로그를 선택합니다.
+
+사용 가능한 필터의 전체 목록과 아래의 설명 참조:
+
+| 필터 범주      | 필터 옵션                          | 관련 필터                  |
+| ---------- | ------------------------------ | ---------------------- |
+| 주요연혁       | 오류, 상태                         | 오류 유형 또는 상태.           |
+| 캐시         | 캐시, 캐시되지 않음                    | 그들은 캐시 된지 여부를 기반으로합니다. |
+| 회사 소개      | 특정 공급자                         | 선택한 AI 공급자.            |
+| AI 모델      | 특정 모델                          | 선택한 AI 모델.             |
+| 제품정보       | 보다 적게, 더 중대한                   | 임계값을 지정하는 비용.          |
+| 주문 유형      | 범용, Workers AI 바인딩, WebSockets | 요청의 유형.                |
+| 토큰 토큰      | 총 토큰, 토큰, 토큰                   | 토큰 수 (또는 그 이상).        |
+| 이름 \*      | 보다 적게, 더 중대한                   | 요청 기간.                 |
+| 이름 \*      | 동등하지 않습니다 (엄지, 엄지 아래로, 피드백 없음) | 의견 유형.                 |
+| 메타데이터 키    | 동등은, 동등하지 않습니다                 | 특정한 metadata 열쇠.       |
+| Metadata 값 | 동등은, 동등하지 않습니다                 | 특정 메타데이터 값.            |
+| 로그 ID      | 동등은, 동등하지 않습니다                 | 특정 로그 ID.              |
+| 이벤트 ID     | 동등은, 동등하지 않습니다                 | 특정 이벤트 ID.             |
+| DLP 작업     | FLAG, 블록                       | 요청에 걸린 DLP 액션.         |
+
+### API 삭제
+
+AI Gateway API를 사용하여 로그를 삭제할 수 있습니다. 자세한 내용은`DELETE`로그 엔드포인트, 체크 아웃[Cloudflare API 문서](/api/resources/ai_gateway/subresources/logs/methods/delete/).

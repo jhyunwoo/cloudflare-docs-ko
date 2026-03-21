@@ -1,0 +1,93 @@
+---
+pcx_content_type: how-to
+title: HTTP 대상
+sidebar:
+  order: 50
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/http/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/http/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+모델 번호: Cloudflare Logpush는 이제 configurable HTTP 엔드포인트에 로그를 보낼 수있는 능력을 지원합니다.
+
+Logpush를 HTTP 엔드포인트로 사용할 때, Cloudflare 고객은 푸시 로그의 자신의 인증을 수행 할 것으로 예상됩니다. 예를 들어, 고객은 URL 또는 Logpush 대상의 HTTP 헤더에 비밀 토큰을 지정할 수 있습니다.
+
+:::note\[Endpoint 요건]
+Cloudflare는 신뢰할 수있는 인증서를 사용하여 HTTPS에서 엔드 포인트가 사용할 수 있음을 기대합니다. endpoint는 동의해야 합니다.`POST`이름 \*
+주요 특징
+
+## Cloudflare 대시보드를 통해 관리
+
+<Render file="enable-logpush-job" product="logs" />
+
+4. 내 계정**자주 묻는 질문**, 선택**HTTP 대상**.
+
+5. 이름 \***HTTP 엔드포인트**로그인을 보내고 싶은 곳**계속하기**. - 당신은 사용할 수 있습니다`"header_*"`요청 헤더를 설정하는 URL 매개 변수, 예를 들어, 인증 토큰을 HTTP 엔드포인트로 전달합니다.
+
+6. Dataset을 선택하여 저장 서비스로 밀어줍니다.
+
+7. 다음 단계에서, 당신은 당신의 logpush 작업을 구성해야:
+   - 이름 \***이름 \***.
+   - 이름 \***로그인**, 당신은 이벤트를 선택하고 / 또는 로그에서 제거 할 수 있습니다. 더 알아보기[필터링](/logs/logpush/logpush-job/filters/)더 많은 정보. 모든 datasets에는 이 선택권이 있습니다.
+   - 내 계정**다음 필드를 보내십시오**, 당신은 당신의 저장 목적지에 모든 로그를 밀어 또는 선택적으로 당신이 밀어하려는 로그를 선택할 수 있습니다.
+
+8. 내 계정**고급 옵션**, 당신은 할 수 있습니다:
+   - 로그인의 타임스탬프 필드의 형식을 선택하십시오 (`RFC3339`(과태)`Unix`, 또는`UnixNano`).
+   - 선택하기[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)로그인 또는 로그의 무작위 샘플 비율을 밀어.
+   - 사용 가능한 적색`CVE-2021-44228`. 이 선택권은 각 발생을 대체할 것입니다`${`이름 \*`x{`.
+
+9. 제품정보**제출하기**일단 당신이 당신의 logpush 일을 구성하고 있습니다.
+
+## API를 통해 관리
+
+Logpush 작업을 만들려면,`POST`요청하기[Logpush 작업 작성 엔드 포인트 URL](/logs/logpush/logpush-job/api-configuration/)적당한 모수로.
+
+지원된 모수는 다음과 같이 입니다:
+
+- 다른 출처에서 변하지 않는 필드:
+  - **데이터셋**(필수): 예를 들어,`http_requests`.
+  - **이름 \***(선택): 도메인 이름을 작업 이름으로 사용하는 것이 좋습니다.
+  - **output 옵션**(선택): Refer에[로그 출력 옵션](/logs/logpush/logpush-job/log-output-options/)필드, 샘플 속도 및 타임스탬프 형식을 구성합니다.
+- 유일한 분야:
+  - **대상 conf**: 로그를 보내는 곳. 이것은 endpoint URL과 HTTP 헤더로 사용됩니다.
+    - 이름 \*`"header_*"`URL 매개 변수는 요청 헤더를 설정하는 데 사용됩니다.
+      - HTTPS 엔드 포인트는 어떤과 충돌 사용자 정의 URL 매개 변수를 가질 수 없습니다`"header_*"`URL 매개 변수 설정.
+      - 이 매개 변수는 제대로 URL 인코딩해야합니다 (그는, 사용`"%20"`whitespace를 위해), 그렇지 않으면 몇몇 특별한 특성은 잘못된 잘못될지도 모릅니다.
+    - `destination_conf`더 많은 URL 매개 변수가 특수에`"header_*"`모수.
+      - URL 인코딩 특수 문자는 업로드 할 때 인코딩됩니다.
+    - 예:`https://logs.example.com?header_Authorization=Basic%20REDACTED&tags=host:theburritobot.com,dataset:http_requests`
+  - **최대 upload bytes**(선택): 로그의 배치의 최대 압축 파일 크기. 이 조정 가치는 5 MB와 1개 GB 사이에서 있어야 합니다. 최소 파일 크기를 설정할 수 없습니다. 즉, 로그 파일이 일괄 크기보다 훨씬 작을 수 있음을 의미합니다.
+  - **최대 upload records**(선택): 일괄 처리 당 로그 라인의 최대 번호. 이 설정은 1,000과 1,000,000 줄 사이이어야 합니다. 일괄 처리 당 최소 로그 라인을 지정할 수 없습니다. 이 로그 파일이이보다 많은 몇 줄을 포함 할 수 있음을 의미합니다.
+
+:::주\[주]
+
+더 보기`ownership_challenge`매개변수는 Logpush 작업을 HTTP 엔드포인트로 만들 필요가 없습니다. 해당 이용 후기에 달린 코멘트가 없습니다.`test.txt.gz`내용으로`{"content":"tests"}`압축, 그렇지 않으면 오류를 반환합니다.`error validating destination: error writing object: error uploading`.
+
+:::
+
+## 보기 컬 요구
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  	name: "theburritobot.com-https",
+  	output_options: {
+  		field_names: ["EdgeStartTimestamp", "RayID"],
+  		timestamp_format: "rfc3339",
+  	},
+  	destination_conf:
+  		"https://logs.example.com?header_Authorization=Basic%20REDACTED&tags=host:theburritobot.com,dataset:http_requests",
+  	max_upload_bytes: 5000000,
+  	max_upload_records: 1000,
+  	dataset: "http_requests",
+  	enabled: true,
+  }}
+/>

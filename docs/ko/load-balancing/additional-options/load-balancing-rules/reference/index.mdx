@@ -1,0 +1,497 @@
+---
+pcx_content_type: reference
+title: 지원되는 필드와 연산자
+sidebar:
+  order: 51
+---
+
+Load Balancing 규칙에서 지원하는 필드는 Cloudflare가 로드 밸런서를 통과하는 트래픽을 프록시하는지 여부에 따라 달라집니다.
+
+잘못된 필드 집합을 사용하면 예상치 못한 동작이 발생할 수 있습니다. 최상의 결과를 얻으려면 트래픽의 [proxy status](/load-balancing/understand-basics/proxy-modes/)에 맞는 필드를 사용하세요.
+
+또한 일부 Load Balancing 규칙 필드는 [Load Balancing 표현식](/load-balancing/additional-options/load-balancing-rules/expressions/#working-with-expressions)에 설명된 것처럼 Expression Builder에서 사용할 수 있지만, 다른 필드는 API 또는 [Expression Editor](/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor)를 통해 수동으로만 구성할 수 있습니다.
+
+## Expression Builder 필드 세트
+
+[Expression Builder](/load-balancing/additional-options/load-balancing-rules/expressions/#expression-builder)에서 사용할 수 있는 필드가 어떻게 그룹화되어 있는지 이해하려면 다음 표를 참고하세요.
+
+| 필드 세트 | Expression Builder의 섹션 | 설명 |
+| --------- | ------------------------- | ---- |
+| [프록시 여부와 관계없이 지원되는 필드](#fields-supported-regardless-of-proxy) | `BOTH` | 로드 밸런서의 proxy status와 관계없이 항상 접근할 수 있는 값입니다. |
+| [프록시 전용 필드](#proxied-only-fields) | `PROXIED ONLY` | 로드 밸런서가 프록시될 때만 접근할 수 있는 값입니다. |
+| [비프록시 전용 필드](#unproxied-only-fields) | `NON-PROXIED ONLY` | 로드 밸런서가 프록시되지 않을 때만 접근할 수 있는 값입니다(DNS-only 트래픽). |
+
+![프록시 상태 헤더를 기준으로 로드 밸런서 필드를 선택하는 예시](~/assets/images/load-balancing/proxy-status.png)
+
+<div id="fields-supported-regardless-of-proxy"></div>
+
+## 프록시 여부와 관계없이 지원되는 필드
+
+트래픽의 [proxy status](/load-balancing/understand-basics/proxy-modes/)와 관계없이 Load Balancing 규칙은 다음 필드의 값에 접근할 수 있습니다.
+
+<table style="width:100%">
+	<thead>
+		<tr>
+			<th style="width:40%">필드</th>
+			<th style="width:20%">Expression Builder 이름</th>
+			<th>설명</th>
+		</tr>
+	</thead>
+	<tbody>
+		<tr id="field-cf-load-balancer-name">
+			<td valign="top">
+				<code>cf.load_balancer.name</code>
+				<br />
+				`Bytes`
+			</td>
+			<td>
+				<code>Load Balancer Name</code>
+			</td>
+			<td>
+				<p>이 규칙을 실행하는 로드 밸런서의 이름을 나타냅니다.</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">lb.example.com</code>
+				</p>
+			</td>
+		</tr>
+		<tr id="field-cf-load-balancer-region">
+			<td valign="top">
+				<code>cf.load_balancer.region</code>
+				<br />
+				`Bytes`
+			</td>
+			<td>
+				<code>Load Balancer Region</code>
+			</td>
+			<td>
+				<p>
+					요청을 처리하는 데이터 센터의
+					{" "}
+					<a href="/load-balancing/reference/region-mapping-api/#list-of-load-balancer-regions">
+						리전 이름
+					</a>
+					을 제공합니다.
+				</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">ENAM</code>
+				</p>
+			</td>
+		</tr>
+		<tr id="field-ip-src">
+			<td valign="top">
+				<code>ip.src</code>
+				<br />
+				`IP address`
+			</td>
+			<td>
+				<code>IP Source Address</code>
+			</td>
+			<td>
+				<p>
+					프록시된 경우 이 필드는 클라이언트의 TCP IP 주소를 제공합니다. 이 값은 <code>X-Forwarded-For</code> 또는 <code>X-Real-IP</code> 같은 HTTP 헤더를 사용해 실제 클라이언트 주소를 반영하도록 조정될 수 있습니다.
+				</p>
+				<p>
+					프록시되지 않은 경우(DNS-only) 이 필드는 ECS 소스 주소가 있으면 그 값을 제공하고, 없으면 클라이언트 리졸버 IP 주소를 제공합니다.
+				</p>
+				<p>
+					<strong>사용 중단 경고:</strong> 향후에는 프록시되지 않은 요청에서 이 필드가 항상 클라이언트 리졸버 IP 주소로 설정될 예정입니다. ECS 존재 여부를 확인하고 ECS IP를 사용하려면 각각{" "}
+					<a href="#field-dns-rr-opt-client">
+						<code>dns.rr.opt.client</code>
+					</a>
+					와{" "}
+					<a href="#field-dns-rr-opt-client-addr">
+						<code>dns.rr.opt.client.addr</code>
+					</a>
+					필드를 참고하세요.
+				</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">1.2.3.4</code>
+				</p>
+			</td>
+		</tr>
+		<tr id="field-asnum">
+			<td valign="top">
+				<code>ip.src.asnum</code>
+				<br />
+				`Number`
+			</td>
+			<td>
+				<code>AS Number</code>
+			</td>
+			<td>
+				<p>
+					클라이언트 IP 주소와 연결된 자율 시스템(AS) 번호를 나타내는 16비트 또는 32비트 정수입니다.
+				</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">13335</code>
+				</p>
+			</td>
+		</tr>
+	</tbody>
+</table>
+
+<div id="proxied-only-fields"></div>
+
+## 프록시 전용 필드
+
+트래픽이 Cloudflare를 통해 프록시되는 경우 [프록시 여부와 관계없이 지원되는 필드](#fields-supported-regardless-of-proxy)에 나열된 모든 필드와 더불어 다음 필드에 접근할 수 있습니다.
+
+이 중 많은 필드는 [Rules language 문서](/ruleset-engine/rules-language/fields/reference/)에서 참조됩니다.
+
+<table style="width:100%">
+  <thead>
+    <tr>
+      <th style="width:40%">필드</th>
+      <th style="width:20%">Expression Builder 이름</th>
+      <th>설명</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr id="field-http-cookie">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.cookie/"><code>http.cookie</code></a><br />`String`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>전체 cookie를 문자열로 나타냅니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">session=8521F670545D7865F79C3D7BEDC29CCE;-background=light</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-host">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.host/"><code>http.host</code></a><br />`String`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>전체 요청 URI에 사용된 hostname을 나타냅니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">www.example.org</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-referer">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.referer/"><code>http.referer</code></a><br />`String`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>현재 요청된 페이지로 연결된 웹 페이지의 주소를 담고 있는 HTTP Referer 요청 헤더를 나타냅니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">Referer: htt&shy;ps://developer.example.org/en-US/docs/Web/JavaScript</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-headers">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.headers/"><code>http.request.headers</code></a><br />`Map<Array<String>>`</td>
+      <td><code>Header</code></td>
+      <td>
+        <p>HTTP 요청 헤더를 Map(또는 연관 배열) 형태로 나타냅니다.</p>
+        <p>연관 배열의 키는 HTTP 요청 헤더 이름을 <strong>모두 소문자로 변환한 값</strong>입니다.</p>
+        <p>중복 헤더가 있는 경우 배열에는 요청에 나타난 순서대로 포함됩니다.</p>
+        <p>
+        <em><em>디코딩:</em></em> 수행하지 않음
+        <br /><em>공백:</em> 유지됨
+        <br /><em>비 ASCII:</em> 유지됨
+        </p>
+        <p>
+        예시:
+        <br /><code class="InlineCode">any(http.request.headers["content-type"][*] == "application/json")</code>
+        </p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">`{"content-type": ["application/json"]}`</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-method">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.method/"><code>http.request.method</code></a><br />`String`</td>
+      <td><code>Request Method</code></td>
+      <td>
+        <p>HTTP 메서드를 나타내며, 대문자 문자열로 반환됩니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">GET</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-timestamp-sec">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.timestamp.sec/"><code>http.request.timestamp.sec</code></a><br />`Integer`</td>
+      <td><code>Timestamp</code></td>
+      <td>
+        <p>Cloudflare가 요청을 수신한 시각을 초 단위 Unix 시간으로 나타냅니다. 이 값은 10자리 숫자입니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">1484063137</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri/"><code>http.request.uri</code></a><br />`String`</td>
+      <td><code>URI</code></td>
+      <td>
+        <p>요청의 URI 경로와 쿼리 문자열을 나타냅니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">/articles/index?section=539061&expand=comments</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri-args">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri.args/"><code>http.request.uri.args</code></a><br />`Map<Array<String>>`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>요청과 연결된 HTTP URI 인수를 Map(연관 배열) 형태로 나타냅니다.</p>
+        <p>인수가 반복되면 배열에는 요청에 나타난 순서대로 여러 항목이 포함됩니다.</p>
+        <p>
+        값은 사전 처리되지 않으며 요청에 사용된 원래 대소문자를 유지합니다.
+        </p>
+        <p>
+        <em>디코딩:</em> 수행하지 않음
+        <br /><em>비 ASCII:</em> 유지됨
+        </p>
+        <p>
+        예시:
+        <br /><code class="InlineCode">any(http.request.uri.args["search"][*] == "red+apples")</code>
+        </p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">`{"search": ["red+apples"]}`</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri-args-names">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri.args.names/"><code>http.request.uri.args.names</code></a><br />`Array<String>`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>HTTP URI 쿼리 문자열에 포함된 인수 이름을 나타냅니다. 이름은 사전 처리되지 않으며 요청에 사용된 원래 대소문자를 유지합니다.</p>
+        <p>이름이 반복되면 배열에는 요청에 나타난 순서대로 여러 항목이 포함됩니다.</p>
+        <p>
+        <em>디코딩:</em> 수행하지 않음
+        <br /><em>비 ASCII:</em> 유지됨
+        </p>
+        <p>
+        예시:
+        <br /><code class="InlineCode">any(http.request.uri.args.names[*] == "search")</code>
+        </p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">["search"]</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri-args-values">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri.args.values/"><code>http.request.uri.args.values</code></a><br />`Array<String>`</td>
+      <td>(<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">수동 입력만 가능</a>)</td>
+      <td>
+        <p>HTTP URI 쿼리 문자열의 인수 값을 나타냅니다. 값은 사전 처리되지 않으며 요청에 사용된 원래 대소문자를 유지합니다. 또한 요청에 나타난 것과 같은 순서를 따릅니다.</p>
+        <p>중복 값은 여러 번 나열됩니다.</p>
+        <p>
+        <em>디코딩:</em> 수행하지 않음
+        <br /><em>비 ASCII:</em> 유지됨
+        </p>
+        <p>
+        예시:
+        <br /><code class="InlineCode">any(http.request.uri.args.values[*] == "red+apples")</code>
+        </p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">["red+apples"]</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri-path">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri.path/"><code>http.request.uri.path</code></a><br />`String`</td>
+      <td><code>URI Path</code></td>
+      <td>
+        <p>요청의 URI 경로를 나타냅니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">/articles/index</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-uri-query">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.uri.query/"><code>http.request.uri.query</code></a><br />`String`</td>
+      <td><code>URI Query</code></td>
+      <td>
+        <p>전체 쿼리 문자열을 나타내며 <code class="InlineCode">?</code> 구분자는 포함하지 않습니다.</p>
+        <p>
+        예시 값:
+        <br /><code class="InlineCode">section=539061&expand=comments</code>
+        </p>
+      </td>
+    </tr>
+    <tr id="field-http-request-version">
+      <td valign="top"><a href="/ruleset-engine/rules-language/fields/reference/http.request.version/"><code>http.request.version</code></a><br />`String`</td>
+      <td><code>HTTP Version</code></td>
+      <td>
+        <p>사용 중인 HTTP 프로토콜 버전을 나타냅니다. 버전에 따라 다른 검사가 필요할 때 이 필드를 사용하세요.</p>
+        <p>
+        예시 값:
+            <ul>
+              <li><code class="InlineCode">HTTP/1.1</code></li>
+              <li><code class="InlineCode">HTTP/3</code></li>
+            </ul>
+        </p>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div id="unproxied-only-fields"></div>
+
+## 비프록시 전용 필드
+
+트래픽이 Cloudflare를 통해 프록시되지 않는 경우 [프록시 여부와 관계없이 지원되는 필드](#fields-supported-regardless-of-proxy)에 나열된 모든 필드와 더불어 다음 필드에 접근할 수 있습니다.
+
+<table style="width:100%">
+	<thead>
+		<tr>
+			<th style="width:40%">필드</th>
+			<th style="width:20%">Expression Builder 이름</th>
+			<th>설명</th>
+		</tr>
+	</thead>
+	<tbody>
+		<tr id="field-dns-qry-name">
+			<td valign="top">
+				<code>dns.qry.name</code>
+				<br />
+				`Bytes`
+			</td>
+			<td>
+				<code>Query Name</code>
+			</td>
+			<td>
+				<p>질의된 query name을 나타냅니다.</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">example.com.</code>
+				</p>
+			</td>
+		</tr>
+		<tr id="field-dns-qry-name-len">
+			<td valign="top">
+				<code class>dns.qry.name.len</code>
+				<br />
+				`Integer`
+			</td>
+			<td>
+				<code>Query Name Length</code>
+			</td>
+			<td>
+				<p>query name의 바이트 길이를 나타냅니다.</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">123</code>
+				</p>
+			</td>
+		</tr>
+		<tr id="field-dns-qry-qu">
+			<td valign="top">
+				<code>dns.qry.qu</code>
+				<br />
+				`Boolean`
+			</td>
+			<td>
+				<code>Question</code>
+			</td>
+			<td>
+				<p>
+					<code>true</code>이면 이 필드는 수신한 DNS 메시지가 질문(question)이었음을 나타냅니다.
+				</p>
+			</td>
+		</tr>
+		<tr id="field-dns-qry-type">
+			<td valign="top">
+				<code>dns.qry.type</code>
+				<br />
+				`Integer`
+			</td>
+			<td>
+				<code>Query Type</code>
+			</td>
+			<td>
+				<p>
+					<a href="https://en.wikipedia.org/wiki/List_of_DNS_record_types">
+						DNS query type
+					</a>
+					의 숫자 값을 나타냅니다.
+				</p>
+				<p>예시 값:</p>
+				<ul>
+					<li>
+						<code class="InlineCode">1</code>&nbsp;(A 레코드)
+					</li>
+					<li>
+						<code class="InlineCode">28</code>&nbsp;(AAAA 레코드)
+					</li>
+				</ul>
+			</td>
+		</tr>
+		<tr id="field-dns-rr-opt-client">
+			<td valign="top">
+				<code class>dns.rr.opt.client</code>
+				<br />
+				`Boolean`
+			</td>
+			<td>
+				(
+				<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">
+					수동 입력만 가능
+				</a>
+				)
+			</td>
+			<td>
+				<p>
+					<code>true</code>이면 이 필드는 DNS 요청과 함께 EDNS Client Subnet(ECS) 주소가 전송되었음을 나타냅니다.
+				</p>
+			</td>
+		</tr>
+		<tr id="field-dns-rr-opt-client-addr">
+			<td valign="top">
+				<code class>dns.rr.opt.client.addr</code>
+				<br />
+				`String`
+			</td>
+			<td>
+				(
+				<a href="/load-balancing/additional-options/load-balancing-rules/expressions/#expression-editor">
+					수동 입력만 가능
+				</a>
+				)
+			</td>
+			<td>
+				<p>
+					존재하는 경우 이 필드는 DNS 요청과 함께 전송된 ECS 주소를 나타냅니다.
+				</p>
+				<p>
+					예시 값:
+					<br />
+					<code class="InlineCode">1.2.3.0</code>
+				</p>
+			</td>
+		</tr>
+	</tbody>
+</table>
+
+<div id="operators-and-grouping-symbols"></div>
+
+## 연산자 및 그룹 기호
+
+- **비교 연산자**는 표현식에 정의된 값이 실제 HTTP 요청 값과 어떤 관계여야 표현식이 true를 반환하는지 지정합니다.
+
+- **논리 연산자**는 두 표현식을 결합해 하나의 복합 표현식을 만들고, 우선순위에 따라 표현식을 어떻게 평가할지 결정합니다.
+
+- **그룹 기호**는 표현식을 정리하고, 연산자 우선순위를 강제하며, 표현식을 중첩할 수 있게 해줍니다.
+
+예시와 사용법은 Rules language 문서의 [연산자 및 그룹 기호](/ruleset-engine/rules-language/operators/)를 참고하세요.

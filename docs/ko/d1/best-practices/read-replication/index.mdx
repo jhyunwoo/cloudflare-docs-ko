@@ -1,0 +1,480 @@
+---
+title: 글로벌 읽기 복제
+pcx_content_type: concept
+sidebar:
+  order: 90
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/best-practices/read-replication/'
+translation_source_md: 'https://developers.cloudflare.com/d1/best-practices/read-replication/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Details, GitHubCode, APIRequest, Tabs, TabItem, TypeScriptExample, DashButton } from "~/components"
+
+D1 읽힌 복제는 읽기 전용 데이터베이스 사본을 추가하여 쿼리 및 스케일 읽기 처리량을 낮추기 위해 지연 시간을 낮출 수 있으며, 전 세계적으로 클라이언트에 가까운 지역 전역에 읽힌 복제본을 추가합니다.
+
+읽는 복제를 사용하려면, 당신은 사용해야합니다[D1 세션 API](/d1/worker-api/d1-database/#withsession), 그렇지 않으면 모든 쿼리는 기본 데이터베이스에서만 실행됩니다.
+
+세션은 응용 프로그램에 대한 하나의 논리 세션에서 모든 쿼리를 캡슐화합니다. 예를 들어, 세션은 특정 웹 브라우저 세션에서 온 모든 쿼리에 대응할 수 있습니다. 세션 내에서 모든 쿼리는 데이터베이스 인스턴스에서 읽을 수 있습니다. 세션 API는[연락처](/d1/best-practices/read-replication/#replica-lag-and-consistency-model)세션에서 모든 쿼리를 위해.
+
+체크 아웃 D1 읽힌 복제, 세션 API를 사용하여 다음 작업 코드를 배포, 이는 D1 데이터베이스를 생성하고 데이터베이스에 대한 읽힌 복제를 가능하게합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/d1-starter-sessions-api-template)
+
+:::note\[Tip: 읽힌 복제 데모를 위해 데이터베이스를 더 멀리 배치하십시오]
+읽는 복제가 최악의 경우 대기 시간 시나리오를 개선 할 수있는 방법을 시뮬레이션하려면 D1 데이터베이스 위치 hint를 훨씬 멀리 지역으로 설정하십시오. 예를 들어, 유럽에있는 경우 Western North America (WNAM)의 데이터베이스를 만듭니다.
+주요 특징
+
+<GitHubCode repo="cloudflare/templates" file="d1-starter-sessions-api/src/index.ts" commit="3912e863acedd2be2438f8758f21374ed426fc54" lang="ts" useTypeScriptExample={true} lines="7-44" />
+
+## 기본 데이터베이스 인스턴스 vs read replicas
+
+![D1는 복제 개념을 읽었습니다](/images/d1/d1-read-replication-concept.png)
+
+D1XQ를 사용하여 복제를 읽지 않고, D1는 모든 쿼리를 경로 (읽고 쓰기) 특정 데이터베이스 인스턴스에[세계 1위](/d1/configuration/data-location/), 알려져 있는<GlossaryTooltip term="primary database instance">기본 데이터베이스 인스턴스</GlossaryTooltip>. D1 요청 대기 시간은 사용자의 기본 데이터베이스 인스턴스에 따라 다릅니다. 사용자가 더 멀리에 위치한 기본 데이터베이스 인스턴스 경험 더 긴 요청 대기 시간 때문에[네트워크 왕복 시간](https://www.cloudflare.com/learning/cdn/glossary/round-trip-time-rtt/).
+
+읽기 복제를 사용할 때 D1는 기본 데이터베이스 인스턴스의 여러 비동기 복제 사본을 만듭니다. 이는 읽기 요청 만 호출됩니다.<GlossaryTooltip term="read replica">관련 기사</GlossaryTooltip>. D1는 읽힌 복제를 안으로 창조합니다[다수 지역](/d1/best-practices/read-replication/#read-replica-locations)Cloudflare의 네트워크를 통해 전 세계.
+
+사용자는 기본 데이터베이스 인스턴스에서 멀리 떨어진 곳에 위치 할 수 있지만, read replica에 닫을 수 있습니다. D1 경로가 기본 데이터베이스 인스턴스 대신 읽기 복제 요청을 읽을 때 사용자는 읽기 쿼리에 대한 빠른 응답을 즐깁니다.
+
+D1는 1 차적인 데이타베이스 인스턴스에서 모든 읽힌 복제에 비동기적으로 복제합니다. 이것은 주어진 시간에, 읽힌 복제가 날짜에서 arbitrarily 일 수 있다는 것을 의미합니다. 읽힌 복제로 복제되는 기본 데이터베이스 인스턴스의 최신 데이터가 사용됩니다.<GlossaryTooltip term="replica lag">복제 lag</GlossaryTooltip>. Replica lag 및 비-deterministic routing to 개별 복제는 애플리케이션 데이터 일관성 문제로 이어질 수 있습니다.
+D1 세션 API는 순차적 일관성을 보장함으로써 이것을 해결합니다.
+더 많은 정보를 원하시면, 참조[복제 지연 및 일관성 모델](/d1/best-practices/read-replication/#replica-lag-and-consistency-model).
+
+:::참조
+모든 쓰기 쿼리는 여전히 기본 데이터베이스 인스턴스에 전달됩니다. 읽는 복제는 읽는 쿼리 요청에 대한 응답 시간을 만 향상시킵니다.
+주요 특징
+
+| 데이터베이스의 유형 인스턴스   | 이름 \*                                                      | 어떻게 핸들 쓰기 쿼리                 | 어떻게 핸들을 읽는 쿼리                      |
+| ----------------- | ---------------------------------------------------------- | ---------------------------- | ---------------------------------- |
+| 기본 데이터베이스 인스턴스    | 데이터베이스의 “original” 복사본을 포함하는 데이터베이스 인스턴스                   | 쓸 수 있다                       | 자주 묻는 질문                           |
+| 복사 데이터베이스 인스턴스 읽기 | 데이터베이스 인스턴스는 기본 데이터베이스 인스턴스에서 업데이트를 수신하는 원래 데이터베이스의 사본을 포함 | 모든 쓰기 쿼리를 기본 데이터베이스 인스턴스에 전달 | 데이터베이스의 자체 사본을 사용하여 쿼리를 읽을 수 있습니다. |
+
+## 읽힌 복제의 이점
+
+전세계에 위치한 여러 개의 읽기 복제 시스템을 통해 데이터베이스의 성능을 향상시킵니다.
+
+- 자주 묻는 질문(FAQ) 데이터베이스 인스턴스와 사용자 사이의 물리적 거리를 단축함으로써 쿼리 대기 시간이 줄어듭니다.
+- 읽힌 처리량은 다수 복제를 통하여 짐을 배부하여 증가합니다. 여러 데이터베이스 인스턴스가 읽기 전용 요청을 제공 할 수 있기 때문에 응용 프로그램은 주어진 시간에 쿼리의 더 큰 수를 제공 할 수 있습니다.
+
+## 세션 API 사용
+
+이름 \*[세션 API](/d1/worker-api/d1-database/#withsession)읽힌 복제를 위해, 당신의 쿼리의 모든 단일<GlossaryTooltip term="session">이름 \*</GlossaryTooltip>순차적 일관성을 보장하는 데이터베이스의 버전에서 읽으십시오. 읽는 데이터베이스의 버전이 서로 다른 읽는 복제로 처리되는 경우에도 기록적으로 일관되게됩니다.
+
+D1는 복제를 읽었습니다 이것에게 붙이기 위하여 달성합니다<GlossaryTooltip term="bookmark">책갈피</GlossaryTooltip>세션 내에서 각 쿼리에. 더 많은 정보를 원하시면, 참조[한국어](/d1/reference/time-travel/#bookmarks).
+
+### Enable 읽기 복제
+
+복제가 Cloudflare 대시보드에서 데이터베이스 수준에서 활성화 될 수 있습니다. 기타**계정 설정**D1 데이터베이스에 대해 읽는 복제가 활성화되면 볼 수 있습니다.
+
+1. Cloudflare 대시보드에서, 갑니다**D1**사이트 맵
+
+   <DashButton url="/?to=/:account/workers/d1" />
+2. 기존 데이터베이스 선택 >**계정 설정** > **Enable 읽기 복제**.
+
+### constraints 없이 세션 시작
+
+모든 사용 가능한 데이터베이스 버전에서 세션을 만들려면, 사용`withSession()`어떤 매개 변수없이, 어떤 데이터베이스 인스턴스에 대한 첫 번째 쿼리를 경로, 하나의 기본 데이터베이스 인스턴스 또는 읽기 복제.
+
+```ts
+const session = env.DB.withSession() //비동기
+//쿼리는 기본 데이터베이스 또는 읽기 복제에서 실행
+const result = await session
+	.prepare(`SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'`)
+	.run()
+```
+
+- `withSession()`같은`withSession("first-unconstrained")`
+- 이 접근법은 최신 데이터베이스 버전이 필요하지 않을 때 가장 좋습니다. 세션의 모든 쿼리는 순차적 일관성을 보장합니다.
+- 더 알아보기[D1 Workers API 문서](/d1/worker-api/d1-database#withsession).
+
+{/* #### Example of a D1 session without constraints
+
+  Suppose you want to develop a feature for displaying “likes” on a social network application.
+
+  The number of likes is a good example of a situation which does not require the latest information all the time. When displaying the number of likes of a post, the first request starts a new D1 session using the constraint `first-unconstrained`, which will be served by the nearest D1 read replica.
+
+  Subsequent interactions on the application should continue using the same session by passing the `bookmark` from the first query to subsequent requests. This guarantees that all interactions will observe information at least as up-to-date as the initial request, and therefore never show information older than what a user has already observed. The number of likes will be updated with newer counts over time with subsequent requests as D1 asynchronously updates the read replicas with the changes from the primary database.
+
+  ```js
+  async function getLikes(postId: string, db: D1Database, bookmark: string | null): GetLikesResult {
+  // NOTE: Achieve sequential consistency with given bookmark,
+  //       or start a new session that can be served by any replica.
+  const session = db.withSession(bookmark ?? "first-unconstrained");
+  const { results } = session
+    .prepare("SELECT * FROM likes WHERE postId = ?")
+    .bind(postId)
+    .run();
+  return { bookmark: session.getBookmark(), likes: results };
+  }
+  ``` */}
+
+### 모든 최신 데이터로 세션 시작
+
+최신 데이터베이스 버전에서 세션을 만들려면, 사용`withSession("first-primary")`, 이는 첫 번째 쿼리를 기본 데이터베이스 인스턴스에 전달합니다.
+
+```ts
+const session = env.DB.withSession(`first-primary`) //비동기
+//쿼리는 기본 데이터베이스에서 실행
+const result = await session
+	.prepare(`SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'`)
+	.run()
+```
+
+- 이 접근법은 최신 데이터베이스 버전을 필요로 할 때 가장 좋습니다. 세션의 모든 쿼리는 순차적 일관성을 보장합니다.
+- 더 알아보기[D1 Workers API 문서](/d1/worker-api/d1-database#withsession).
+
+{/* #### Example of using `first-primary`
+
+  Suppose you want to develop a webpage for an electricity provider which lists the electricity bill statements. An assumption here is that each statement is immutable. Once issued, it never changes.
+
+  In this scenario, you want the first request of the page to show a list of all the statements and their issue dates. Therefore, the first request starts a new D1 session using the constraint `first-primary` to get the latest information (ensuring that the list includes all issued bill statements) from the primary database instance.
+
+  Then, when opening an individual electricity bill statement, we can continue using the same session by passing the `bookmark` from the first query to subsequent requests. Since each bill statement is immutable, any bill statement listed from the first query is guaranteed to be available in subsequent requests using the same session.
+
+  ```ts
+  async function listBillStatements(accountId: string, db: D1Database): Promise<ListBillStatementsResult> {
+    const session = db.withSession('first-primary');
+    const { results } = (await session.prepare('SELECT * FROM bills WHERE accountId = ?').bind(accountId).run()) as unknown as {
+    	results: Bill[];
+    };
+    return { bookmark: session.getBookmark() ?? 'first-unconstrained', bills: results };
+  }
+
+  async function getBillStatement(accountId: string, billId: string, bookmark: string, db: D1Database): Promise<GetBillStatementResult> {
+    // NOTE: We achieve sequential consistency with the given `bookmark`.
+    const session = db.withSession(bookmark);
+    const result = (await session
+    	.prepare('SELECT * FROM bills WHERE accountId = ? AND billId = ? LIMIT 1')
+    	.bind(accountId, billId)
+    	.first()) as unknown as Bill;
+
+    return { bookmark: session.getBookmark() ?? 'first-unconstrained', bill: result };
+  }
+  ``` */}
+
+### 이전 컨텍스트에서 세션 시작 (bookmark)
+
+이전 세션의 컨텍스트에서 새로운 세션을 만들려면, 패스 a`bookmark`세션이 제공 한대로 최신 데이터베이스 버전으로 시작된다는 것을 보증하는 매개 변수`bookmark`.
+
+```ts
+//HTTP 헤더에 저장된 이전 세션에서 bookmark를 검색
+const bookmark = request.headers.get('x-d1-bookmark') ?? 'first-unconstrained';
+
+const session = env.DB.withSession(bookmark)
+const result = await session
+	.prepare(`SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'`)
+	.run()
+//미래에 대한 책갈피
+response.headers.set('x-d1-bookmark', session.getBookmark() ?? "")
+```
+
+- 세션 시작`bookmark`새로운 세션은 이전 세션으로 최신 상태로 유지됩니다.`bookmark`.
+- 더 알아보기[D1Workers API 문서](/d1/worker-api/d1-database#withsession).
+
+{/* #### Example of using `bookmark`
+
+  This example follows from [Example of using `first-primary`](/d1/best-practices/read-replication/#example-of-using-first-primary), but retrieves the `bookmark` from HTTP cookie.
+
+  ```ts collapse={1-10, 22-42, 61-86}
+  import { ListBillStatementsResult, GetBillStatementResult, Bill } from './types';
+
+  async function listBillStatements(accountId: string, db: D1Database): Promise<ListBillStatementsResult> {
+    const session = db.withSession('first-primary');
+    const { results } = (await session.prepare('SELECT * FROM bills WHERE accountId = ?').bind(accountId).run()) as unknown as {
+    	results: Bill[];
+    };
+    return { bookmark: session.getBookmark() ?? 'first-unconstrained', bills: results };
+  }
+
+  async function getBillStatement(accountId: string, billId: string, bookmark: string, db: D1Database): Promise<GetBillStatementResult> {
+    // NOTE: We achieve sequential consistency with the given `bookmark`.
+    const session = db.withSession(bookmark);
+    const result = (await session
+    	.prepare('SELECT * FROM bills WHERE accountId = ? AND billId = ? LIMIT 1')
+    	.bind(accountId, billId)
+    	.first()) as unknown as Bill;
+
+    return { bookmark: session.getBookmark() ?? 'first-unconstrained', bill: result };
+  }
+
+  export default {
+    async fetch(request, env, ctx): Promise<Response> {
+    	// URL path
+    	const url = new URL(request.url);
+    	const path = url.pathname;
+
+    	// Method
+    	const method = request.method;
+
+    	// Fetch using first-unconstrained
+    	if (path === '/bills' && method === 'GET') {
+    		// List bills
+    		const result = await listBillStatements('1', env.DB);
+    		return new Response(JSON.stringify(result), { status: 200 });
+    	}
+    	if (path === '/bill' && method === 'GET') {
+    		// Get bill
+    		const result = await getBillStatement('1', '1', 'first-unconstrained', env.DB);
+    		return new Response(JSON.stringify(result), { status: 200 });
+    	}
+
+    	// Fetch using bookmark from cookie
+    	if (path === '/bill/cookie' && method === 'GET') {
+    		// Get bill
+    		const cookie = request.headers.get('Cookie');
+    		const bookmark =
+    			cookie
+    				?.split(';')
+    				.find((c) => c.trim().startsWith('X-D1-Bookmark'))
+    				?.split('=')[1] ?? 'first-unconstrained';
+    		console.log('bookmark', bookmark);
+    		const result = await getBillStatement('1', '1', bookmark, env.DB);
+    		return new Response(JSON.stringify(result), {
+    			status: 200,
+    			headers: {
+    				'Set-Cookie': `X-D1-Bookmark=${result.bookmark}; Path=/; SameSite=Strict`,
+    			},
+    		});
+    	}
+
+    	// To ingest data
+    	if (path === '/bill' && method === 'POST') {
+    		// Create bill
+    		const { accountId, amount, description, due_date } = await request.json();
+    		const session = env.DB.withSession('first-primary');
+    		const { results } = await session
+    			.prepare('INSERT INTO bills (accountId, amount, description, due_date) VALUES (?, ?, ?, ?) RETURNING *')
+    			.bind(accountId, amount, description, due_date)
+    			.run();
+    		const bookmark = session.getBookmark() ?? 'first-unconstrained';
+
+    		return new Response(JSON.stringify(results), {
+    			status: 201,
+    			headers: {
+    				// Set bookmark cookie
+    				'Set-Cookie': `X-D1-Bookmark=${bookmark}; Path=/; SameSite=Strict`,
+    			},
+    		});
+    	}
+    	return new Response('Not Found', {
+    		status: 404,
+    		statusText: 'Not Found',
+    	});
+    },
+  } satisfies ExportedHandler<Env>;
+  ``` */}
+
+### D1 요청이 처리된 경우
+
+D1 요청이 read replicas의 추가로 처리되는 방법을 보려면`served_by_region`·`served_by_primary`필드가 반환됩니다`meta`기타 제품[D1 결과](/d1/worker-api/return-object/#d1result).
+
+```ts
+const result = await env.DB.withSession()
+	.prepare(`SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'`)
+	.run();
+console.log({
+  servedByRegion: result.meta.served_by_region ?? "",
+  servedByPrimary: result.meta.served_by_primary ?? "",
+});
+```
+
+- `served_by_region`·`served_by_primary`필드는 모든 D1 원격 요청을 위해 존재합니다. 현지 개발,`npx wrangler dev`, 이 분야는 입니다`undefined`.
+
+### REST API를 통한 Enable read replication
+
+REST API로 설정`read_replication.mode: auto`D1 데이터베이스에서 복제를 읽을 수 있습니다.
+
+이 REST 엔드포인트의 경우 API 토큰이 있어야 합니다.`D1:Edit`이름 \* API 토큰이 없다면 가이드를 따르십시오.[API 토큰 만들기](/fundamentals/api/get-started/create-token/).
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```sh
+    curl -X PUT "https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"read_replication": {"mode": "auto"}}'
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript">
+    ```ts
+    const headers = new Headers({
+      "Authorization": `Bearer ${TOKEN}`
+    });
+
+    await fetch ("/v4/accounts/{account_id}/d1/database/{database_id}", {
+    	method: "PUT",
+    	headers: headers,
+    	body: JSON.stringify(
+    		{ "read_replication": { "mode": "auto" } }
+    	)
+     }
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+### REST API를 통한 Disable read replication
+
+REST API로 설정`read_replication.mode: disabled`D1 데이터베이스에서 복제를 비활성화 할 수 있습니다.
+
+이 REST 엔드포인트의 경우 API 토큰이 있어야 합니다.`D1:Edit`이름 \* API 토큰이 없다면 가이드를 따르십시오.[API 토큰 만들기](/fundamentals/api/get-started/create-token/).
+
+:::참조
+읽힌 복제가 처리 요청을 중지하기 위해 복제를 위해 최대 24 시간 걸립니다. Sessions API는 replication을 활성화하지 않은 데이터베이스와 함께 작동하므로 read replication을 비활성화 한 후 Sessions API를 사용하여 코드를 실행하는 것이 안전합니다.
+주요 특징
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```sh
+    curl -X PUT "https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}" \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{"read_replication": {"mode": "disabled"}}'
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript">
+    ```ts
+    const headers = new Headers({
+      "Authorization": `Bearer ${TOKEN}`
+    });
+
+    await fetch ("/v4/accounts/{account_id}/d1/database/{database_id}", {
+    	method: "PUT",
+    	headers: headers,
+    	body: JSON.stringify(
+    		{ "read_replication": { "mode": "disabled" } }
+    	)
+     }
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+### 읽는 복제가 활성화되면 확인
+
+Cloudflare 대시보드에, 체크**계정 설정**D1 데이터베이스에 대해 읽는 복제가 활성화되면 볼 수 있습니다.
+
+대안으로,`GET`D1 데이터베이스 REST 엔드포인트가 다시 복제가 활성화되거나 비활성화되면 반환합니다.
+
+이 REST 엔드포인트의 경우 API 토큰이 있어야 합니다.`D1:Read`이름 \* API 토큰이 없다면 가이드를 따르십시오.[API 토큰 만들기](/fundamentals/api/get-started/create-token/).
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```sh
+    curl -X GET "https://api.cloudflare.com/client/v4/accounts/{account_id}/d1/database/{database_id}" \
+      -H "Authorization: Bearer $TOKEN"
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript">
+    ```ts
+    const headers = new Headers({
+      "Authorization": `Bearer ${TOKEN}`
+    });
+
+    const response = await fetch("/v4/accounts/{account_id}/d1/database/{database_id}", {
+      method: "GET",
+      headers: headers
+    });
+
+    const data = await response.json();
+    console.log(data.read_replication.mode);
+    ```
+  </TabItem>
+</Tabs>
+
+- 자주 묻는 질문`read_replication`호텔 위치`result`기타 제품
+  - `"mode": "auto"`읽는 복제를 나타냅니다.
+  - `"mode": "disabled"`읽힌 복제를 나타냅니다.
+
+## 관련 기사
+
+현재 D1는 자동으로 읽기 복제를 만듭니다.[지원되는 지역](/d1/configuration/data-location/#available-location-hints)기본 데이터베이스 인스턴스가 있는 지역을 포함하여 . 이 지역은:
+
+- 사이트맵
+- 사이트맵
+- 장바구니
+- 장바구니
+- 사이트맵
+- 10월
+
+:::참조
+복제 위치를 읽는 것은 Cloudflare의 재량에 따라 변경될 수 있습니다.
+주요 특징
+
+## 옵션 정보
+
+읽기 복제의 영향을보고 D1 요청이 추가 데이터베이스 인스턴스로 처리되는 방법을 확인하십시오.
+
+- 더 보기`meta`객체 안에[`D1Result`](/d1/worker-api/return-object/#d1result)새로운 필드를 포함하는 반환 객체:
+  - `served_by_region`
+  - `served_by_primary`
+- Cloudflare 대시보드는 D1 요청을 처리하는 지역으로 데이터베이스 메트릭스 고장을 볼 수 있습니다.
+
+## 가격 책정
+
+D1 읽는 복제는 D1로 건축됩니다, 그래서 당신은 독서 복제를 위한 여분 저장 또는 compute 비용을 지불하지 않습니다. 당신은 정확한 동일한 D1를 incurs[사용 청구](/d1/platform/pricing/#billing-metrics)또는 복제없이, 기반`rows_read`·`rows_written`당신의 쿼리에 의해.
+
+## Known 제한
+
+D1에 대한 몇 가지 알려진 제한이 있습니다.
+
+- Sessions API는 오직[D1 작업자 바인딩](/d1/worker-api/d1-database/#withsession)아직 REST API를 통해 사용할 수 없습니다.
+
+## 배경 정보
+
+### Replica 지연 및 일관성 모델
+
+계정 만들기<GlossaryTooltip term="replica lag">복제 lag</GlossaryTooltip>, D1XQ에 대한 일관성 모델을 고려하는 것이 중요합니다. 일관성 모델은 데이터베이스 시스템이 여러 데이터베이스 인스턴스가있을 때 사용자 쿼리 (데이터가 업데이트되고 액세스되는 방법)를 제공하는 방법을 지배하는 논리 프레임 워크입니다. 다른 모형은 다른 사용 케이스에서 유용합니다. 대부분의 데이터베이스 시스템 제공[자주 묻는 질문](https://jepsen.io/consistency/models/read-committed), [스냅 샷 고립](https://jepsen.io/consistency/models/snapshot-isolation), 또는[일관 작업](https://jepsen.io/consistency/models/serializable)일관성 모델, 구성에 따라.
+
+#### Sessions API 없이
+
+배포 된 데이터베이스 시스템에 무슨 일이 일어날 수 있는지 고려하십시오.
+
+![분산된 복제는 Sessions API 없이 inconsistencies를 일으킬 수 있었습니다](/images/d1/consistency-without-sessions-api.png)
+
+1. SQL 쓰기 쿼리는 기본 데이터베이스 인스턴스에 의해 처리됩니다.
+2. 쓰기 쿼리를 acknowledging 응답을 얻을.
+3. 이후 SQL 읽는 쿼리는 읽기 복제로 이동합니다.
+4. read replica는 아직 업데이트되지 않았으므로 SQL write 쿼리에서 변경 사항을 포함하지 않습니다. 반환된 결과는 당신의 관점에서 의도합니다.
+
+#### 세션 API
+
+D1 Sessions API를 사용할 때, 여러분의 쿼리는 책갈피를 읽을 수 있게 되며, 일정한 데이터를 제공합니다.
+
+![D1는 세션 API를 사용할 때 순차적 일관성을 제공합니다](/images/d1/consistency-with-sessions-api.png)
+
+1. SQL 쓰기 쿼리는 기본 데이터베이스 인스턴스에 의해 처리됩니다.
+2. 쓰기 쿼리를 acknowledging 응답을 얻을. 당신은 또한 쓰기 쿼리 후 데이터베이스의 상태를 식별 책갈피 (100)을 얻을.
+3. 이후 SQL read 쿼리는 읽기 복제로 진행되며, 또한 bookmark (100)을 제공합니다.
+4. 읽힌 복제는 제공된 책갈피 (100)로 최신으로 적어도 업데이트될 때까지 기다립니다.
+5. 읽힌 복제가 업데이트되었습니다 (Bookmark 104), 그것은 현재 순차적으로 일관성있는 읽힌 쿼리를 제공합니다.
+
+다이어그램에서, 반환된 책갈피는 책갈피 104입니다, 당신의 읽힌 쿼리 (bookmark 100)에서 제공된 것에서 다른. 이 작업을 수행 할 수 있습니다 다른 클라이언트 요청에서 다른 쓰기 또한 실행하는 두 개의 쓰기 / 읽기 쿼리 사이에 읽는 복제를 얻었다.
+
+#### Sessions API는 순차적인 일관성을 제공합니다.
+
+D1는 복제 제안을 읽었습니다[연락처](https://jepsen.io/consistency/models/sequential). D1는 데이터베이스에 잡는 모든 가동의 세계적인 순서를 창조하고, 조회가 보인 데이터베이스의 최신 버전을 확인할 수 있습니다, 사용[책갈피](/d1/reference/time-travel/#bookmarks). 그런 다음 쿼리와 함께 전달 된 책갈피로 적어도 최신 데이터베이스 인스턴스와 쿼리를 제공합니다.
+
+순차적 견실함은 다음과 같은 특성을 가지고 있습니다:
+
+- **Monotonic 읽기**: 다른 후 두 번의 읽음을 수행하면 (read-1, then read-2), read-2는 read-1 이전에 데이터베이스의 버전을 읽을 수 없습니다.
+- **Monotonic 쓰기**: write-1을 수행하면 write-2, 모든 프로세스가 write-1를 쓰기 전에 관찰합니다.
+- **자주 묻는 질문**: 값을 읽으면, 쓰기를 수행하면, 이후 쓰기는 단지 읽는 값에 근거해야합니다.
+- **내 자신의 쓰기**: 데이터베이스에 작성하는 경우, 이후 모든 읽기는 쓰기를 볼 것입니다.
+
+## 자주 묻는 질문
+
+다음 리소스를 참조하려면:
+
+- 블로그:[국경 없는 순차적인 견실함: D1는 세계적인 읽힌 복제를 실행합니다](https://blog.cloudflare.com/d1-read-replication-beta/)
+- 블로그:[빌딩 D1: 글로벌 데이터베이스](https://blog.cloudflare.com/building-d1-a-global-database/)
+- [D1 API 문서](/d1/worker-api/d1-database#withsession)
+- [D1 세션 API 데모](https://github.com/cloudflare/templates/tree/main/d1-starter-sessions-api-template)
+- [전자 상거래 상점은 복제 자습서를 읽었습니다](/d1/tutorials/using-read-replication-for-e-com)

@@ -1,0 +1,108 @@
+---
+title: 공급 업체
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/reference/generated-columns/'
+translation_source_md: 'https://developers.cloudflare.com/d1/reference/generated-columns/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+D1는 하나 이상의 다른 열, SQL 기능, 또는 심지어의 가치를 기반으로 생성 된 열을 정의 할 수 있습니다[JSON 값 추출](/d1/sql-api/query-json/).
+
+이것은 당신이 그것을 쓰고 또는 테이블에서 그것을 읽기 때문에 당신의 자료를 정상화하는 것을 허용하고 복잡한 신청 논리를 위한 필요를 감소시키기 위하여 그것을 쉽게 만들기.
+
+열을 생성 할 수도 있습니다.[정의 된 인덱스](/d1/best-practices/use-indexes/)그(것)들에 대하여, 자주 queried 분야에 질의 성과를 극적으로 증가할 수 있는.
+
+## 생성된 열의 유형
+
+생성된 란의 2가지 유형이 있습니다:
+
+- `VIRTUAL`(과태): 열은 읽을 때 생성됩니다. 이것은 저장을 consuming의 이점이 있습니다, 그러나 더 큰 쿼리를 위해 충분한 시간을 증가할 수 있습니다 (그리고 따라서 조회 성과를 감소시킵니다).
+- `STORED`: 행이 작성되면 열이 생성됩니다. 열은 일반 열으로 저장 공간을 차지하지만, 열은 쿼리 성능을 향상시킬 수있는 모든 읽기에 생성 할 필요가 없습니다.
+
+생성 된 열 표현에서 omitted 경우, 생성 된 열 기본값으로`VIRTUAL`유형. 더 보기`STORED`생성된 열이 집중될 때 유형 추천됩니다. 예를 들어, 큰 JSON 구조를 파싱 할 때.
+
+## 생성된 열을 정의
+
+생성된 열은 테이블 작성 중에 정의될 수 있습니다.`CREATE TABLE`성명 또는 이후`ALTER TABLE`이름 \*
+
+생성 된 열을 정의하는 테이블을 만들려면, 당신은 사용`AS`키워드:
+
+```sql
+CREATE TABLE some_table (
+    -- other columns omitted
+    some_generated_column AS <function_that_generates_the_column_data>
+)
+```
+
+구체적인 예로, 자동으로 추출`location`다음 JSON 센서 데이터의 값은 생성된 열을 정의할 수 있습니다.`location`(의 유형`TEXT`), 기반`raw_data`JSON 데이터의 원시 표현을 저장하는 열.
+
+```json
+{
+    "measurement": {
+        "temp_f": "77.4",
+        "aqi": [21, 42, 58],
+        "o3": [18, 500],
+        "wind_mph": "13",
+        "location": "US-NY"
+    }
+}
+```
+
+생성된 열을 값으로 정의하기 위해`$.measurement.location`, 당신은 사용할 수 있습니다[`json_extract`](/d1/sql-api/query-json/#extract-values)값 추출 기능`raw_data`그 행에 쓸 때마다 열:
+
+```sql
+CREATE TABLE sensor_readings (
+    event_id INTEGER PRIMARY KEY,
+    timestamp INTEGER NOT NULL,
+    raw_data TEXT,
+    location as (json_extract(raw_data, '$.measurement.location')) STORED
+);
+```
+
+생성됨 열은 선택적으로 지정될 수 있습니다`column_name GENERATED ALWAYS AS <function> [STORED|VIRTUAL]`구문. 더 보기`GENERATED ALWAYS`구문은 옵션이며 생성 된 열의 동작을 변경하지 않습니다.
+
+## 생성된 열을 기존 테이블에 추가
+
+생성된 열은 또한 기존 테이블에 추가될 수 있습니다. 만약에`sensor_readings`테이블은 생성하지 않았다`location`열, 당신은 그것을 실행해서 추가할 수 있었습니다`ALTER TABLE`성명 :
+
+```sql
+ALTER TABLE sensor_readings
+ADD COLUMN location as (json_extract(raw_data, '$.measurement.location'));
+```
+
+이 정의`VIRTUAL`생성된 컬럼`json_extract`각 읽기 쿼리에.
+
+열 정의는 직접 수정할 수 없습니다. 생성 된 열이 데이터를 생성하는 방법을 변경하려면 사용할 수 있습니다.`ALTER TABLE table_name REMOVE COLUMN`그리고 그때`ADD COLUMN`생성된 열을 재 정의하거나`ALTER TABLE table_name RENAME COLUMN current_name TO new_name`호출하기 전에 기존의 열을 이름을 바꾸기`ADD COLUMN`새로운 정의로.
+
+## 이름 \*
+
+생성된 열은 JSON 함수로만 제한되지 않습니다.`json_extract`: 생성 된 열이 생성되는 방법을 정의하는 거의 모든 사용 가능한 기능을 사용할 수 있습니다.
+
+예를 들어, 생성 할 수 있습니다.`date`열을 기반으로`timestamp`이전의 열`sensor_reading`테이블, 자동으로 유닉스 타임스탬프를 변환`YYYY-MM-dd`데이터베이스 내에서 형식 :
+
+```sql
+ALTER TABLE your_table
+-- date(timestamp, 'unixepoch') converts a Unix timestamp to a YYYY-MM-dd formatted date
+ADD COLUMN formatted_date AS (date(timestamp, 'unixepoch'))
+```
+
+또는, 당신은 정의 할 수`expires_at`미래의 날짜를 계산하는 열, 그 날짜에 필터링:
+
+```sql
+-- Filter out "expired" results based on your generated column:
+-- SELECT * FROM your_table WHERE current_date() > expires_at
+ALTER TABLE your_table
+-- calculates a date (YYYY-MM-dd) 30 days from the timestamp.
+ADD COLUMN expires_at AS (date(timestamp, '+30 days'));
+```
+
+## 자주 묻는 질문
+
+- 테이블은 적어도 1개의 비 생성한 란이 있어야 합니다. 생성된 열(s)만으로 테이블을 정의할 수 없습니다.
+- 표현은 동일한 테이블과 행에 있는 참고 자료 다른 란만 할 수 있고, 단지 사용해야 합니다[deterministic 기능](https://www.sqlite.org/deterministic.html). 기능과 같은`random()`, 하위 쿼리 또는 집계 기능은 생성 된 열을 정의하는 데 사용할 수 없습니다.
+- 열은 기존 테이블에 추가`ALTER TABLE ... ADD COLUMN`\*필수`VIRTUAL`. 추가할 수 없습니다.`STORED`기존 테이블에 열.

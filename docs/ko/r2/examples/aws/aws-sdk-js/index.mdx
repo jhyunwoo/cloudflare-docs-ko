@@ -1,0 +1,146 @@
+---
+title: 프로젝트
+pcx_content_type: example
+reviewed: 2022-05-11T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+AWS JavaScript SDK의 새로운 버전에 관심이 있다면[aws-sdk-js-v3 예제 페이지 전용](/r2/examples/aws/aws-sdk-js-v3/).
+
+JavaScript 또는 TypeScript 사용자가 계속 사용할 수 있습니다[`aws-sdk`](https://www.npmjs.com/package/aws-sdk)정상에 의하여 npm 포장. R2 구성 자격 증명을 즉시 전달해야 합니다.`S3`서비스 클라이언트:
+
+```ts
+import S3 from "aws-sdk/clients/s3.js";
+
+const s3 = new S3({
+	//Cloudflare 계정 ID 제공
+	endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고: https://developers.cloudflare.com/r2/api/tokensQ)
+	accessKeyId: `${ACCESS_KEY_ID}`,
+	secretAccessKey: `${SECRET_ACCESS_KEY}`,
+	signatureVersion: "v4",
+});
+
+console.log(await s3.listBuckets().promise());
+//·
+//=> 버킷: [
+//=> { 이름: '사용자 업로드', 생성일: 2022-04-13T21:23:47.102Z },
+//=> { 이름: 'my-bucket', 생성일: 2022-05-07T02:46:49.218Z }
+//=> ],
+//=> 소유자: {
+//=> DisplayName: '...',
+//=> ID: '...'
+//·
+//·
+
+console.log(await s3.listObjects({ Bucket: "my-bucket" }).promise());
+//·
+//=> IsTruncated: 거짓,
+//=> 이름: 'my-bucket',
+//=> CommonPrefixes: [],
+//=> MaxKeys: 1000년,
+//=> 내용: [
+//·
+//=> 키: 'cat.png',
+//=> LastModified: 2022-05-07T02:50:45.616Z,
+//=> ETag: "c4da329b38467509049e615c11b0c48a",
+//=> ChecksumAlgorithm: [],
+//=> 크기: 751832,
+//=> 소유자: [Object]
+//·
+//·
+//=> 키: 'todos.txt',
+//=> LastModified: 2022-05-07T21:37:17.150Z,
+//=> ETag: "29d911f495d1ba7cb3a4d7d15e63236a",
+//=> ChecksumAlgorithm: [],
+//=> 크기: 279,
+//=> 소유자: [Object]
+//·
+//=> ·
+//·
+```
+
+## 사전 서명된 URL 생성
+
+공개 읽기를 공유하거나 일시적으로 버킷에 액세스 할 수있는 사전 서명 된 링크도 생성 할 수 있습니다.
+
+```ts
+//만료된 속성을 사용하여 미리 서명된 링크가 유효하다는 것을 결정하십시오.
+console.log(
+await s3.getSignedUrlPromise("getObject", {
+	Bucket: "my-bucket",
+	Key: "dog.png",
+	Expires: 3600,
+}),
+);
+//PutObject와 같은 작업에 대한 링크를 만들 수도 있습니다.
+//ContentType을 지정하여 특정 파일 유형에 업로드합니다.
+console.log(
+	await s3.getSignedUrlPromise("putObject", {
+		Bucket: "my-bucket",
+		Key: "dog.png",
+		Expires: 3600,
+		ContentType: "image/png",
+	}),
+);
+```
+
+```sh output
+https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-Date=<timestamp>&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature>
+https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-Date=<timestamp>&X-Amz-Expires=3600&X-Amz-SignedHeaders=content-type%3Bhost&X-Amz-Signature=<signature>
+```
+
+생성된 링크를 사용할 수 있습니다.`putObject`지정된 버킷과 키에 업로드 할 수 있는 예, 사전 서명된 링크가 만료될 때까지. 지정된 URL을 사용할 때`ContentType`, 고객은 일치를 포함해야 합니다`Content-Type`요청의 헤더.
+
+```sh
+curl -X PUT "https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=..." \
+  -H "Content-Type: image/png" \
+  --data-binary @dog.png
+```
+
+## CORS 및 Content-Type으로 업로드 제한
+
+사전 서명 된 URL을 생성 할 때, 당신은 학대를 제한 할 수 있습니다 :
+
+1. **콘텐츠 유형 제한**: 할당된 URL 매개변수에 있는 허용된 내용 유형 지정. 업로드는 클라이언트가 다른 것을 보낼 경우 실패합니다`Content-Type`헤더.
+
+2. **CORS 구성**: 설정[CORS 규칙](/r2/buckets/cors/#add-cors-policies-from-the-dashboard)파일 업로드를 할 수 있습니다. CORS 구성[Cloudflaredashboard](https://dash.cloudflare.com/?to=/:account/r2/overview)Bucket 설정에 JSON 정책을 추가함으로써:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+그런 다음 Content-Type 제한으로 사전 서명 된 URL을 생성합니다.
+
+```ts
+const putUrl = await s3.getSignedUrlPromise("putObject", {
+	Bucket: "my-bucket",
+	Key: "user-upload.png",
+	Expires: 3600,
+	ContentType: "image/png",
+});
+```
+
+클라이언트가이 할당 된 URL을 사용할 때, 그들은 반드시:
+
+- 허용된 근원에서 요청을 만드십시오 (CORS에 의해 강화하는)
+- 관련 기사`Content-Type: image/png`헤더 (시그니처에 의해 강화)

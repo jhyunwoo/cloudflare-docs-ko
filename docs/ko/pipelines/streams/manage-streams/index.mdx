@@ -1,0 +1,194 @@
+---
+pcx_content_type: configuration
+title: 스트림 관리
+description: 'Data ingestion에 대한 스트림 생성, 구성 및 관리'
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pipelines/streams/manage-streams/'
+translation_source_md: 'https://developers.cloudflare.com/pipelines/streams/manage-streams/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps, Tabs, TabItem, DashButton } from "~/components";
+
+학습 방법:
+
+- Data ingestion에 대한 스트림 생성 및 구성
+- 보기 및 업데이트 스트림 설정
+- 더 이상 필요로 할 때 스트림 삭제
+
+## 스트림 만들기
+
+스트림은 스트림 이름을 사용하여 SQL 테이블로 파이프라인에 사용할 수 있습니다 (예를 들어,`SELECT * FROM my_stream`).
+
+### 대시보드
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**파이프 라인**사이트 맵
+
+     <DashButton url="/?to=/:account/pipelines/overview" />
+  2. 제품정보**Pipeline 만들기**파이프라인 생성 마법사를 시작합니다.
+  3. 관련 싱크 및 파이프라인과 함께 스트림을 만들 수 마법사를 완료하십시오.
+</Steps>
+
+### Wrangler 클립
+
+스트림을 만들려면, 실행[`pipelines streams create`](/workers/wrangler/commands/#pipelines-streams-create)명령:
+
+```bash
+npx wrangler pipelines streams create <STREAM_NAME>
+```
+
+대신, 스트림, 싱크 및 파이프라인을 구성하는 데 도움이되는 대화형 설정 마법사를 사용하려면[`pipelines setup`](/workers/wrangler/commands/#pipelines-setup)명령:
+
+```bash
+npx wrangler pipelines setup
+```
+
+### Schema 구성
+
+Streams는 데이터 처리를위한 두 가지 접근 방식을 지원합니다.
+
+- **통합 스트림**: 특정 필드와 데이터 유형의 스키마를 정의합니다. 이벤트는 스키마에 유효합니다.
+- **통합된 스트림**: 유효성 검사 없이 유효한 JSON을 허용한다. 이 스트림은 단일`value`JSON 데이터를 포함하는 열.
+
+구조 스트림을 만들려면 스키마 파일을 제공합니다.
+
+```bash
+npx wrangler pipelines streams create my-stream --schema-file schema.json
+```
+
+schema 파일 보기:
+
+```json
+{
+	"fields": [
+		{
+			"name": "user_id",
+			"type": "string",
+			"required": true
+		},
+		{
+			"name": "amount",
+			"type": "float64",
+			"required": false
+		},
+		{
+			"name": "tags",
+			"type": "list",
+			"required": false,
+			"items": {
+				"type": "string"
+			}
+		},
+		{
+			"name": "metadata",
+			"type": "struct",
+			"required": false,
+			"fields": [
+				{
+					"name": "source",
+					"type": "string",
+					"required": false
+				},
+				{
+					"name": "priority",
+					"type": "int32",
+					"required": false
+				}
+			]
+		}
+	]
+}
+```
+
+**지원된 자료 유형:**
+
+- `string`- 텍스트 값
+- `int32`, `int64`- 정수 번호
+- `float32`, `float64`- 플로팅 포인트 번호
+- `bool`- Boolean true/팔
+- `timestamp`- RFC 3339 타임스탬프, 또는 숫자 값은 유닉스 초, 밀리 초 또는 마이크로 초 (단위에 따라 다름)로 나뉩니다.
+- `json`- JSON 객체
+- `binary`- 바이너리 데이터 (base64 인코딩)
+- `list`- 가치의 배열
+- `struct`- 정의된 필드를 가진 배열된 객체
+
+:::참조
+정의 된 스키마와 일치하지 않는 이벤트는 섭취 중에 허용되지만 처리 중에 떨어질 것입니다. 이벤트를 떨어뜨리고 왜 떨어졌다는지 이해하기 위해, 쿼리[사용자 오류 메트릭](/pipelines/observability/metrics/#user-error-metrics)GraphQL. Schema 수정을 통해 스트림 생성 후 지원되지 않습니다.
+주요 특징
+
+## 스트림 구성 보기
+
+### 대시보드
+
+<Steps>
+  1. Cloudflare 대시보드에서, 갑니다**파이프 라인** > **사이트 맵**.
+
+  2. 관련 구성을 볼 스트림을 선택합니다.
+</Steps>
+
+### Wrangler 클립
+
+특정 스트림을 보려면, 실행[`pipelines streams get`](/workers/wrangler/commands/#pipelines-streams-get)명령:
+
+```bash
+npx wrangler pipelines streams get <STREAM_ID>
+```
+
+계정의 모든 스트림을 나열하려면, 실행[`pipelines streams list`](/workers/wrangler/commands/#pipelines-streams-list)명령:
+
+```bash
+npx wrangler pipelines streams list
+```
+
+## HTTP ingest 설정 업데이트
+
+스트림 생성 후 특정 HTTP ingest 설정을 업데이트 할 수 있습니다. Schema 수정은 스트림이 생성되면 지원되지 않습니다.
+
+### 대시보드
+
+<Steps>
+  1. Cloudflare 대시보드에서, 갑니다**파이프 라인** > **사이트 맵**.
+
+  2. 업데이트하려는 스트림을 선택하십시오.
+
+  3. 내 계정**계정 설정**탭, 이동**HTTP 섭취**.
+
+  4. HTTP ingestion을 켜거나 켜기 위해 선택**이름 \***&#xB610;는**사용 방법**.
+
+  5. 인증 및 CORS 설정 업데이트, 선택**제품정보**그리고 수정.
+
+  6. 당신의 변화를 저장하십시오.
+</Steps>
+
+:::참조
+인증 토큰을 구성하고 인증된 요청을 만들기에 대한 자세한 내용은 참조[글쓰기](/pipelines/streams/writing-to-streams/).
+:::
+
+## 스트림 삭제
+
+### 대시보드
+
+<Steps>
+  1. Cloudflare 대시보드에서, 갑니다**파이프 라인** > **사이트 맵**.
+
+  2. 삭제하려는 스트림을 선택합니다.
+
+  3. 내 계정**계정 설정**탭, 이동**주요사업**, 그리고 선택**이름 \***.
+</Steps>
+
+### Wrangler 클립
+
+스트림을 삭제하려면[`pipelines streams delete`](/workers/wrangler/commands/#pipelines-streams-delete)명령:
+
+```bash
+npx wrangler pipelines streams delete <STREAM_ID>
+```
+
+:::카트로션
+스트림을 삭제하는 것은 영구적으로 처리되지 않은 모든 버퍼 이벤트를 제거하고 어떤 종속 파이프를 삭제합니다. 모든 데이터를 삭제하기 전에 싱크로 전달되었습니다.
+주요 특징

@@ -1,0 +1,178 @@
+---
+title: Workers 바인딩
+pcx_content_type: how-to
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/features/markdown-conversion/usage/binding/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/markdown-conversion/usage/binding/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Type, TypeScriptExample } from "~/components";
+
+Cloudflare의 서버가 없는 플랫폼은 당신이 가장자리에 코드를 실행할 수 있어 가득 차 있는 신청을 가진 건축하기 위하여[Workers](/workers/)·[관련 제품](/workers/runtime-apis/bindings/)QXQX0019XQ 개발자 플랫폼의 리소스와 상호 작용하기 위해 Worker 또는 PagesXQ 기능을 활성화합니다.
+
+WorkersXQ에서 직접 Markdown 변환 서비스를 사용하려면 Cloudflare QXQXdashboard (refer to[AI 바인딩](/pages/functions/bindings/#workers-ai)지시)를 위해, 또는 당신은 당신의 갱신할 수 있습니다[Wrangler 파일](/workers/wrangler/configuration/). Wrangler 파일에 다음을 추가하십시오:
+
+<WranglerConfig>
+  ```toml
+  [ai]
+  binding = "AI" # i.e. available in your Worker on env.AI
+  ```
+</WranglerConfig>
+
+## 이름 \*
+
+### 파일 변환
+
+이 예제에서는 R2에서 PDF 문서와 이미지를 읽고 둘 다 먹습니다.`env.AI.toMarkdown`. 결과는 변환된 문서의 목록입니다. Workers AI 모델은 자동으로 이미지를 감지하고 요약하는 데 사용됩니다.
+
+<TypeScriptExample>
+  ```typescript
+  import { Env } from "./env";
+
+  export default {
+  	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  		//모델 번호: https://pub-979cb28270cc461d94bc8a169d8f389d.r2.dev/somatosensory.pdf
+  		const pdf = await env.R2.get("somatosensory.pdf");
+
+  		//https://pub-979cb28270cc461d94bc8a169d8f389d.r2.dev/cat.jpeg
+  		const cat = await env.R2.get("cat.jpeg");
+
+  		return Response.json(
+  			await env.AI.toMarkdown([
+  				{
+  					name: "somatosensory.pdf",
+  					blob: new Blob([await pdf.arrayBuffer()], {
+  						type: "application/pdf",
+  					}),
+  				},
+  				{
+  					name: "cat.jpeg",
+  					blob: new Blob([await cat.arrayBuffer()], {
+  						type: "image/jpeg",
+  					}),
+  				},
+  			]),
+  		);
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+### 지원되는 파일 형식 받기
+
+<TypeScriptExample>
+  ```typescript
+  import { Env } from "./env";
+
+  export default {
+  	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  		return Response.json(await env.AI.toMarkdown().supported());
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+## 제품 설명
+
+### async env.AI.toMarkdown()
+
+다른 형식의 문서 또는 목록을 가져 와서 Markdown으로 변환합니다.
+
+<TypeScriptExample>
+  ```typescript
+  const result = await env.AI.toMarkdown({
+  	name: "document.pdf",
+  	blob: new Blob([documentBuffer]),
+  });
+  ```
+</TypeScriptExample>
+
+#### 제품 설명
+
+- <code>이름 \*</code>: <Type text="MarkdownDocument | MarkdownDocument[]" />- 한국어
+  인스턴스 또는 배열`MarkdownDocument`₢ 킹
+
+- <code>변환Options</code>: <Type text="ConversionOptions" />- 옵션
+  변환이 어떻게 일어나는지 통제합니다. 이름 \*[관련 기사
+  옵션 정보](/workers-ai/features/markdown-conversion/conversion-options/)제품 정보
+  더 자세히.
+
+#### 반환 값
+
+- <code>이름 \*</code>:
+  <Type text="Promise<ConversionResult | ConversionResult[]>" />- 인스턴스
+  또는 배열`ConversionResult`₢ 킹
+
+#### `MarkdownDocument`이름 \*
+
+- `name` <Type text="string" />
+  - 문서의 이름 변환.
+
+- `blob` <Type text="Blob" />
+  - 새로운[브로브](https://developer.mozilla.org/en-US/docs/Web/API/Blob/Blob)문서 콘텐츠를 가진 객체.
+
+#### `ConversionResult`이름 \*
+
+- `id` <Type text="string" />
+  - 이 객체와 관련된 ID.
+
+- `name` <Type text="string" />
+  - 변환된 문서의 이름. 입력 이름 일치.
+
+- `format` <Type text="'markdown' | 'error'" />
+  - 이 형식`ConversionResult`기타 제품
+
+- `mimetype` <Type text="string" />
+  - 발견 된[mime 유형](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types)문서의.
+
+- `tokens` <Type text="number" />
+  - 변환된 문서의 추정된 수. 현재 위치`format`이름 \*`markdown`.
+
+- `data` <Type text="string" />
+  - Markdown 형식으로 변환 된 문서의 내용. 현재 위치`format`이름 \*`markdown`.
+
+- `error` <Type text="string" />
+  - 이 변환이 실패한 이유를 설명하는 오류 메시지. 현재 위치`format`이름 \*`error`.
+
+### async env.AI.toMarkdown().transform()
+
+이 방법은 다음과 같습니다.`env.AI.toMarkdown`새로운 핸들을 통해 노출되는 것을 제외하고. 동일한 인수를 가지고 동일한 값을 반환합니다.
+
+<TypeScriptExample>
+  ```typescript
+  const result = await env.AI.toMarkdown().transform({
+  	name: "document.pdf",
+  	blob: new Blob([documentBuffer]),
+  });
+  ```
+</TypeScriptExample>
+
+### async env.AI.toMarkdown(). 지원()
+
+현재 markdown 변환에 지원되는 파일 형식의 목록을 반환합니다. 이름 \*[지원되는 체재](/workers-ai/features/markdown-conversion/supported-formats/)Markdown으로 변환 할 수있는 파일 형식의 전체 목록.
+
+<TypeScriptExample>
+  ```typescript
+  const formats = await env.AI.toMarkdown().supported();
+  ```
+</TypeScriptExample>
+
+#### 반환 값
+
+- <code>이름 \*</code>: <Type text="SupportedFormat[]" />- 모두의 배열
+  markdown 변환에 지원되는 형식.
+
+#### `SupportedFormat`이름 \*
+
+- `extension` <Type text="string" />
+  - 이 형식으로 파일 확장.
+
+- `mimeType` <Type text="string" />
+  - 더 보기[mime 유형](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/MIME_types/Common_types)이 형식의 파일

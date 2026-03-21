@@ -1,0 +1,90 @@
+---
+pcx_content_type: concept
+title: 모니터
+sidebar:
+  order: 5
+---
+
+import { GlossaryDefinition, Render } from "~/components";
+
+<GlossaryDefinition term="monitor" />
+
+<Render file="health-check-diagram" product="load-balancing" />
+
+엔드포인트의 상태 변경으로 이어지는 헬스 모니터 요청은 Load Balancing 이벤트 로그에 이벤트로 기록됩니다.
+
+:::note
+
+로드 밸런서에 연결된 헬스 모니터는 독립형 [Health Checks](/health-checks/)와 다릅니다. Cloudflare Load Balancing 솔루션이 동작하는 방식의 개요는 [Load Balancing components](/load-balancing/understand-basics/load-balancing-components/)를 참고하세요.
+
+:::
+
+---
+
+## 속성
+
+최신 모니터 속성 목록은 API 문서의 [Monitor properties](/api/resources/load_balancers/subresources/monitors/methods/list/)를 참고하세요.
+
+---
+
+## 모니터 생성
+
+단계별 안내는 [Create monitors](/load-balancing/monitors/create-monitor/)를 참고하세요.
+
+### Monitor Groups
+
+Monitor Groups를 사용하면 여러 헬스 모니터를 하나의 논리적 그룹으로 결합해 애플리케이션에 대해 더 정확하고 지능적인 헬스 체크를 만들 수 있습니다. 여러 모니터의 결과를 집계하면 실제 애플리케이션 상태를 더 잘 반영할 수 있고, 트래픽 스티어링의 복원력도 향상됩니다. 자세한 내용은 [Monitor Groups](/load-balancing/monitors/monitor-groups/) 문서를 참고하세요.
+
+---
+
+<div id="health-monitor-regions" />
+
+## 헬스 모니터 리전
+
+[풀에 모니터를 연결](/load-balancing/monitors/create-monitor/#create-a-monitor)할 때는 여러 리전을 선택해 보고 정확도를 높일 수 있습니다.
+
+<Render file="health-check-regions" product="load-balancing" />
+
+### 구성
+
+<Render file="monitor-health-check-regions-options" product="load-balancing" />
+
+---
+
+## Host 헤더 우선순위
+
+헬스 모니터 요청에 사용되는 Host 헤더는 [모니터 자체](/load-balancing/monitors/create-monitor/) 또는 [풀 내 엔드포인트](/load-balancing/pools/create-pool/)에서 구성할 수 있습니다.
+
+모니터와 엔드포인트 모두에 Host 헤더가 지정되어 있으면, 엔드포인트에 구성된 Host 헤더가 모니터에 구성된 Host 헤더보다 우선합니다.
+
+Host 헤더가 지정되지 않은 경우 Cloudflare는 엔드포인트에 구성된 **Endpoint Address**를 헬스 모니터 요청의 Host 헤더로 사용합니다.
+
+자세한 내용은 [Override HTTP Host headers](/load-balancing/additional-options/override-http-host-headers/)를 참고하세요.
+
+---
+
+## API 명령
+
+Cloudflare API는 모니터에 대해 다음 명령을 지원합니다. 예시는 사용자 수준 엔드포인트를 기준으로 제공되지만 계정 수준 엔드포인트에도 동일하게 적용됩니다.
+
+| Command | Method | Endpoint |
+| ------------------------------------------------------------------------------------------------------------ | -------- | ---------------------------------------------------------- |
+| [Create Monitor](/api/resources/load_balancers/subresources/monitors/methods/create/) | `POST` | `accounts/:account_id/load_balancers/monitors` |
+| [Delete Monitor](/api/resources/load_balancers/subresources/monitors/methods/delete/) | `DELETE` | `accounts/:account_id/load_balancers/monitors/:id` |
+| [List Monitors](/api/resources/load_balancers/subresources/monitors/methods/list/) | `GET` | `accounts/:account_id/load_balancers/monitors` |
+| [Monitor Details](/api/resources/load_balancers/subresources/monitors/methods/get/) | `GET` | `accounts/:account_id/load_balancers/monitors/:id` |
+| [Overwrite specific properties](/api/resources/load_balancers/subresources/monitors/methods/edit/) | `PATCH` | `accounts/:account_id/load_balancers/monitors/:id` |
+| [Overwrite existing monitor](/api/resources/load_balancers/subresources/monitors/methods/update/) | `PUT` | `accounts/:account_id/load_balancers/monitors/:id` |
+| [Preview Monitor](/api/resources/load_balancers/subresources/monitors/subresources/previews/methods/create/) | `POST` | `accounts/:account_id/load_balancers/monitors/:id/preview` |
+
+## 지원되는 프로토콜
+
+다음 표는 Cloudflare Load Balancing에서 사용할 수 있는 다양한 모니터 유형, 각 모니터링 유형, 그리고 각 헬스 체크 프로세스가 성공 기준을 평가해 엔드포인트 상태를 판단하는 방식을 요약합니다.
+
+| Monitor type | Monitoring type | Description | Health check process | Success criteria |
+| ------------ | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| HTTP/HTTPS | Public and private | 특정 프로토콜 속성을 가진 HTTP 및 HTTPS 엔드포인트에 사용됩니다. | 프로브는 Method, Simulate Zone, Follow Redirects, Request Headers, Response Body 같은 설정 및 성공 기준으로 구성됩니다. 이후 프로브는 HTTP 프로토콜을 사용해 설정된 성공 기준을 평가합니다. 구성된 timeout 기간 동안에는 응답이 없더라도 [keep-alives](/fundamentals/reference/tcp-connections/#tcp-connections-and-keep-alives)를 사용해 TCP 연결을 유지합니다. | 설정된 HTTP 성공 기준을 만족하면 성공으로 간주합니다. 구성된 timeout과 retries 내에 응답이 없으면 비정상으로 간주합니다. |
+| TCP | Public and private | 엔드포인트에 대한 연결을 시도해 TCP 연결 가능 여부를 확인합니다. | 모니터는 지정된 포트로 TCP SYN 메시지를 보냅니다. 헬스 체크가 성공하려면 연결 수립을 위한 SYN/ACK 메시지를 받아야 합니다. 이후 FIN 또는 RST 패킷을 보내거나 엔드포인트로부터 FIN 패킷을 받아 연결을 닫습니다. | 구성된 timeout과 retries 안에 TCP 연결을 수립하지 못하면 비정상으로 간주합니다. |
+| ICMP Ping | Public and Tunnel | ICMP를 사용해 엔드포인트에 대한 기본 Layer 3(L3) 연결성을 확인합니다. 엔드포인트는 ICMP 패킷에 응답할 수 있어야 하며, 중간에 있는 네트워크 장비도 ICMP를 지원해야 합니다. | 모니터는 ICMP/ICMPv6 echo request(ping)를 보내고, 엔드포인트로부터 ICMP/ICMPv6 echo reply를 기대합니다. | 구성된 timeout과 retries 안에 엔드포인트가 ICMP ping에 응답해야 정상으로 간주합니다. |
+| UDP-ICMP | Public and Tunnel | UDP-ICMP 모니터는 ICMP Ping 모니터가 정상으로 완료된 후 UDP 프로브 패킷을 보내는 방식으로 동작합니다. | 성공적인 ICMP 응답을 받은 뒤 모니터는 엔드포인트로 UDP 프로브 패킷을 보냅니다. ICMP Port Unreachable 메시지를 받지 않으면 엔드포인트는 정상으로 간주됩니다. | 구성된 timeout과 retries 안에 ICMP Port Unreachable 메시지를 받으면 엔드포인트를 비정상으로 간주합니다. |
+| SMTP | Public | 애플리케이션 계층에서 SMTP 사용 가능 여부를 검증합니다. | 모니터는 TCP 연결을 맺고 SMTP HELO 명령을 보냅니다. 코드 250의 응답을 기대합니다. 이어서 SMTP QUIT 명령을 보내고 코드 221의 응답을 기대합니다. 각 interval이 끝날 때 TCP FIN 패킷을 보내 TCP 연결을 닫습니다. | 구성된 timeout과 retries 안에 엔드포인트가 올바른 SMTP 코드(HELO에 250, QUIT에 221)로 응답해야 정상으로 간주합니다. |

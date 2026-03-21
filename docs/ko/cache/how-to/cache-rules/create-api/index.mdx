@@ -1,0 +1,168 @@
+---
+title: API로 규칙 만들기
+pcx_content_type: how-to
+
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: API로 캐시 규칙 만들기
+
+---
+
+import { Details, APIRequest } from "~/components"
+
+[Rulesets API](/ruleset-engine/rulesets-api/)를 사용하면 API를 통해 캐시 규칙을 만들 수 있습니다. Cloudflare API 구성 방법은 [API 문서](/fundamentals/api/get-started/)를 참고하세요.
+
+## 기본 규칙 설정
+
+API로 캐시 규칙을 만들 때는 다음 사항을 확인하세요.
+
+* 규칙 action을 `set_cache_settings`로 설정합니다.
+* 일치하는 요청에 대해 재정의하려는 [settings](/cache/how-to/cache-rules/settings/)에 따라 `action_parameters` 필드에 매개변수를 정의합니다.
+* 규칙을 `http_request_cache_settings` 단계 진입점 ruleset에 배포합니다.
+
+## 절차
+
+1. [List zone rulesets](/api/resources/rulesets/methods/list/) 메서드를 사용해 `http_request_cache_settings` 단계 진입점 ruleset에 이미 존재하는 규칙 목록을 가져옵니다.
+2. 단계 ruleset이 존재하지 않으면 [Create a zone ruleset](/api/resources/rulesets/methods/create/) 작업으로 생성합니다. 새 ruleset 속성에서 다음 값을 설정합니다.
+   * kind: `zone`
+   * phase: `http_request_cache_settings`
+3. [Update a zone ruleset](/api/resources/rulesets/methods/update/) 작업을 사용해 ruleset 규칙 목록에 캐시 규칙을 추가합니다. 또는 이전 단계에서 언급한 [Create a zone ruleset](/api/resources/rulesets/methods/create/) 요청에 규칙을 함께 포함할 수 있습니다.
+4. (선택 사항) 기존 캐시 규칙을 업데이트하려면 [Update a zone ruleset rule](/api/resources/rulesets/methods/update/) 작업을 사용합니다. 예시는 아래 섹션을 참고하세요.
+
+## 요청 예시
+
+다음 예시는 영역의 Cache Rules를 하나의 규칙으로 모두 설정합니다. 따라서 기존 규칙이 있다면 이 예시를 그대로 사용하면 삭제됩니다.
+
+
+<Details header="예시: example.com에 대해 모든 것 캐시">
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+    rules: [
+      {
+        expression: '(http.host eq "example.com")',
+        description: "cache everything for example.com",
+        action: "set_cache_settings",
+        action_parameters: {
+          cache: true
+        }
+      }
+    ]
+  }}
+  roles={false}
+/>
+
+
+</Details>
+
+
+<Details header="예시: Android 클라이언트의 읽기 타임아웃 늘리기">
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+    rules: [
+      {
+        expression: '(http.user_agent contains "Android")',
+        description: "extend read timeout for android clients",
+        action: "set_cache_settings",
+        action_parameters: {
+          cache: true,
+          read_timeout: 300
+        }
+      }
+    ]
+  }}
+  roles={false}
+/>
+
+</Details>
+
+
+<Details header="예시: 자주 업데이트되는 자산에 대해 Cache Reserve 비활성화">
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+    rules: [
+      {
+        expression: '(starts_with(http.request.uri, "/feed/"))',
+        description: "disable cache reserve for frequently updated assets",
+        action: "set_cache_settings",
+        action_parameters: {
+          cache: true,
+          cache_reserve: {
+            enabled: false
+          }
+        }
+      }
+    ]
+  }}
+  roles={false}
+/>
+
+</Details>
+
+
+<Details header="예시: 기본 캐시 TTL 끄기">
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+    rules: [
+      {
+        expression: '(http.host eq "example.com")',
+        description: "turn off default cache ttls",
+        action: "set_cache_settings",
+        action_parameters: {
+          cache: true,
+          edge_ttl: {
+            mode: "bypass_by_default"
+          }
+        }
+      }
+    ]
+  }}
+  roles={false}
+/>
+
+</Details>
+
+
+<Details header="예시: 기존 규칙의 위치 업데이트">
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+  method="PATCH"
+  json={{
+    expression: '(http.host eq "example.com")',
+    description: "cache everything for example.com",
+    action: "set_cache_settings",
+    action_parameters: {
+      cache: true
+    },
+    enabled: true,
+    position: {
+      before: "da5e8e506c8e7877fe06cdf4c41add54"
+    }
+  }}
+  roles={false}
+/>
+
+
+</Details>
+
+## 필요한 API 토큰 권한
+
+Cache Rules를 관리하기 위해 API 요청에서 사용하는 API 토큰에는 다음 권한이 있어야 합니다.
+
+* *Zone* > *Cache Rules* > *Edit*
+* *Account Rulesets* > *Edit*
+* *Account Filter Lists* > *Edit*

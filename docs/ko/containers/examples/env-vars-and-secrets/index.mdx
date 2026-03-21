@@ -1,0 +1,235 @@
+---
+summary: Pass in environment variables and secrets to your container
+pcx_content_type: example
+title: Env Vars 및 비밀
+sidebar:
+  order: 6
+description: 환경 변수 및 비밀을 컨테이너에 전달
+reviewed: 2025-06-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/containers/examples/env-vars-and-secrets/'
+translation_source_md: >-
+  https://developers.cloudflare.com/containers/examples/env-vars-and-secrets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, PackageManagers } from "~/components";
+
+환경 변수는 컨테이너로 전달할 수 있습니다.`envVars`제품정보
+내 계정[`Container`](/containers/container-package)컨테이너가 시작될 때 클래스 또는 수동으로 설정하십시오.
+
+비밀을 사용하여 컨테이너로 전달할 수 있습니다.[작업자 비밀](/workers/configuration/secrets/)또는[비밀번호](/secrets-store/integrations/workers/), 다음 컨테이너로 전달
+환경 변수로.
+
+KV 값은 컨테이너로 전달할 수 있습니다.[WorkersKV](/kv/), 다음 읽기
+값은 환경 변수로 컨테이너로 전달합니다.
+
+이 예제는 비밀, KVQ 값 및 환경 변수에 전달하는 다양한 방법을 보여줍니다. 각, 우리는
+에 전달:
+
+- 변수`"ENV_VAR"`hard-coded 환경 변수로
+- 비밀 번호`"WORKER_SECRET"`Worker Secrets의 비밀
+- 비밀 번호`"SECRET_STORE_SECRET"`비밀 가게에서 비밀
+- 이름 \*`"KV_VALUE"`Workers KV
+
+연습에서 비밀과 데이터를 저장하는 방법 중 하나를 사용할 수 있지만
+우리는 완전성을 위한 모든 방법을 보여줄 것입니다.
+
+## 비밀 및 KV 데이터 만들기
+
+먼저, 만들겠습니다.`"WORKER_SECRET"`노동자 비밀에 비밀:
+
+<PackageManagers type="exec" pkg="wrangler" args="secret put WORKER_SECRET" />
+
+그런 다음 비밀 가게에서 "demo"라는 가게를 만들고 추가하십시오.
+이름 \*`"SECRET_STORE_SECRET"`그것에 비밀:
+
+<PackageManagers type="exec" pkg="wrangler" args="secrets-store store create demo --remote" />
+
+<PackageManagers type="exec" pkg="wrangler" args="secrets-store secret create demo --name SECRET_STORE_SECRET --scopes workers --remote" />
+
+다음으로 KV 네임스페이스를 만들 수 있습니다.`DEMO_KV`키 값 쌍을 추가:
+
+<PackageManagers type="exec" pkg="wrangler" args="kv namespace create DEMO_KV" />
+
+<PackageManagers type="exec" pkg="wrangler" args="kv key put --binding DEMO_KV KV_VALUE 'Hello from KV!'" />
+
+비밀을 만드는 방법에 대한 자세한 내용은, 참조[모델 번호: Workers 비밀번호](/workers/configuration/secrets/)그리고[비밀번호](/secrets-store/integrations/workers/). KV 설치를 위해, 보십시오[Workers KV 문서](/kv/).
+
+## 바인딩 추가
+
+다음, 우리는 우리의 비밀에 액세스하기 위해 바인딩을 추가해야합니다, KVQ 값, 환경 변수
+Wrangler 윤곽에서.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-container-worker",
+  	"vars": {
+  		"ENV_VAR": "my-env-var"
+  	},
+  	"secrets_store_secrets": [
+  		{
+  			"binding": "SECRET_STORE",
+  			"store_id": "demo",
+  			"secret_name": "SECRET_STORE_SECRET"
+  		}
+  	],
+  	"kv_namespaces": [
+  		{
+  			"binding": "DEMO_KV",
+  			"id": "<your-kv-namespace-id>"
+  		}
+  	]
+  	// rest of the configuration...
+  }
+  ```
+</WranglerConfig>
+
+주의사항`"WORKER_SECRET"`Wrangler config 파일에 지정할 필요가 없습니다.
+이름 \*`env`.
+
+또한 환경 변수에 대한 모든 특정 구성하지 않았다,
+비밀, 또는 KV 값*컨테이너 관련*WranglerXQ 구성 파일의 부분.
+
+## 사용 방법`envVars`컨테이너 클래스에
+
+지금, env vars를 통과 하 고 우리의 컨테이너에 비밀`envVars`현장에`Container`종류:
+
+```js
+//https://developers.cloudflare.com/workers/runtime-apis/bindings/#importing-env-as-a-global
+import { env } from "cloudflare:workers";
+export class MyContainer extends Container {
+	defaultPort = 8080;
+	sleepAfter = "10s";
+	envVars = {
+		WORKER_SECRET: env.WORKER_SECRET,
+		ENV_VAR: env.ENV_VAR,
+		//우리는 여기에 기본으로 비밀 저장 바인딩 또는 KV 값을 설정할 수 없습니다, 그들의 값이 비동기이기 때문에
+	};
+}
+```
+
+이 모든 인스턴스`Container`이제 이러한 변수와 비밀이 있습니다
+실행할 때 환경 변수로 설정한다.
+
+## 환경 변수 설정 per-instance
+
+그러나 per-instance에 환경 변수를 설정하려면?
+
+이 경우, 사용`startAndWaitForPorts()`각 인스턴스의 환경 변수에 전달하는 방법.
+
+```js
+export class MyContainer extends Container {
+	defaultPort = 8080;
+	sleepAfter = "10s";
+}
+
+export default {
+	async fetch(request, env) {
+		if (new URL(request.url).pathname === "/launch-instances") {
+			let instanceOne = env.MY_CONTAINER.getByName("foo");
+			let instanceTwo = env.MY_CONTAINER.getByName("bar");
+
+			//각 인스턴스는 환경 변수의 다른 집합을 가져옵니다.
+
+			await instanceOne.startAndWaitForPorts({
+				startOptions: {
+					envVars: {
+						ENV_VAR: env.ENV_VAR + "foo",
+						WORKER_SECRET: env.WORKER_SECRET,
+						SECRET_STORE_SECRET: await env.SECRET_STORE.get(),
+						KV_VALUE: await env.DEMO_KV.get("KV_VALUE"),
+					},
+				},
+			});
+
+			await instanceTwo.startAndWaitForPorts({
+				startOptions: {
+					envVars: {
+						ENV_VAR: env.ENV_VAR + "bar",
+						WORKER_SECRET: env.WORKER_SECRET,
+						SECRET_STORE_SECRET: await env.SECRET_STORE.get(),
+						KV_VALUE: await env.DEMO_KV.get("KV_VALUE"),
+						//다른 인스턴스를 위한 다른 KV 열쇠를 읽을 수 있습니다
+						INSTANCE_CONFIG: await env.DEMO_KV.get("instance-bar-config"),
+					},
+				},
+			});
+			return new Response("Container instances launched");
+		}
+
+		//... 등 ...
+	},
+};
+```
+
+## 컨테이너에서 KV 값 읽기
+
+KV 값은 특히 구성 데이터에 유용하지만 컨테이너에 액세스 할 필요가있다. KV 가동은 비동기이기 때문에, 당신은 콘테이너를 시작할 때 런타임에 값을 읽아야 합니다.
+
+콘테이너를 가진 KVXQ를 사용하는 일반적인 본은 여기 있습니다:
+
+### 설정 데이터
+
+```js
+export default {
+	async fetch(request, env) {
+		if (new URL(request.url).pathname === "/configure-container") {
+			//KV에서 구성 읽기
+			const config = await env.DEMO_KV.get("container-config", "json");
+			const apiUrl = await env.DEMO_KV.get("api-endpoint");
+
+			let container = env.MY_CONTAINER.getByName("configured");
+
+			await container.startAndWaitForPorts({
+				startOptions: {
+					envVars: {
+						CONFIG_JSON: JSON.stringify(config),
+						API_ENDPOINT: apiUrl,
+						DEPLOYMENT_ENV: await env.DEMO_KV.get("deployment-env"),
+					},
+				},
+			});
+
+			return new Response("Container configured and launched");
+		}
+	},
+};
+```
+
+### 기능 플래그
+
+```js
+export default {
+	async fetch(request, env) {
+		if (new URL(request.url).pathname === "/launch-with-features") {
+			//KV의 기능 플래그 읽기
+			const featureFlags = {
+				ENABLE_FEATURE_A: await env.DEMO_KV.get("feature-a-enabled"),
+				ENABLE_FEATURE_B: await env.DEMO_KV.get("feature-b-enabled"),
+				DEBUG_MODE: await env.DEMO_KV.get("debug-enabled"),
+			};
+
+			let container = env.MY_CONTAINER.getByName("features");
+
+			await container.startAndWaitForPorts({
+				startOptions: {
+					envVars: {
+						...featureFlags,
+						CONTAINER_VERSION: "1.2.3",
+					},
+				},
+			});
+
+			return new Response("Container launched with feature flags");
+		}
+	},
+};
+```
+
+## Build-time 환경 변수
+
+마지막으로, 컨테이너 이미지를 구축 할 때만 사용할 수 있는 build-time 환경 변수를 설정할 수 있습니다.`image_vars`Wrangler 윤곽에 있는 분야.

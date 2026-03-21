@@ -1,0 +1,101 @@
+---
+pcx_content_type: get-started
+title: 시작하기
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/get-started/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/get-started/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { LinkButton } from "~/components";
+
+Workers와 함께 시작하세요.
+
+## 플랫폼 배포
+
+수정하기[플랫폼 스타터 키트](https://github.com/cloudflare/templates/tree/main/worker-publisher-template)Cloudflare 계정에. 이것은 하나의 클릭으로 플랫폼 설정을위한 완전한 Workers를 만듭니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/worker-publisher-template)
+
+배포 완료 후, Worker URL을 엽니다. 이제 코드 스니펫을 배포 할 수있는 플랫폼이 있습니다.
+
+### 더 알아보기
+
+1. 스크립트 이름을 입력, 예를 들어`my-worker`.
+2. 편집자의 Worker 코드를 작성하거나 붙여넣기.
+3. 이름 \***작업자 배치**.
+
+일단 배치, 방문`/<script-name>`작업자 URL에서 코드를 실행합니다. 예를 들어, 스크립트 이름을 지정하면`my-worker`, 이동`https://<your-worker>.<subdomain>.workers.dev/my-worker`.
+
+배포하는 각 스크립트는 자체 격리 된 노동자가됩니다. 플랫폼은 Cloudflare API를 호출하여 노동자와 파견 노동자 경로 요청을 URL 경로에 따라 호출합니다.
+
+## 어떻게 작동합니까?
+
+배포 된 템플릿은 함께 작동하는 세 가지 구성 요소를 포함합니다 :
+
+### 네임스페이스
+
+파견 네임스페이스는 사용자 Workers의 컬렉션입니다. 모든 WorkersXQ를 보유하고 있는 컨테이너로 생각하면 플랫폼이 고객 대신 배포됩니다.
+
+템플릿을 배포할 때, 파견 네임스페이스를 자동으로 생성합니다. Cloudflare dashboard에서 볼 수 있습니다.**플랫폼을위한 Workers**.
+
+### Dispatch 작업자
+
+파견 노동자는 들어오는 요청을 받고 올바른 사용자 작업자에게 전달합니다. 그것은 사용[관련 제품](/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/)전송 네임스페이스에 접근하기.
+
+```js
+export default {
+	async fetch(request, env) {
+		//URL 경로에서 사용자 작업자 이름을 가져옵니다
+		const url = new URL(request.url);
+		const workerName = url.pathname.split("/")[1];
+
+		//파견 네임스페이스에서 사용자 작업자를 찾습니다.
+		const userWorker = env.DISPATCHER.get(workerName);
+
+		//사용자 작업자에게 요청을 전달
+		return userWorker.fetch(request);
+	},
+};
+```
+
+더 보기`env.DISPATCHER.get()`방법은 파견 namespace의 이름으로 사용자 작업자를 검색합니다.
+
+### 사용자 Workers
+
+사용자 Workers는 코드를 고객 쓰기 및 배포합니다. 그들은 다른 고객의 데이터 또는 코드에 액세스 할 수없는 고립 된 환경에서 실행됩니다.
+
+템플릿에서 사용자 Workers는 API를 통해 프로그래밍적으로 배치됩니다. 생산에서, 당신의 플랫폼은 Cloudflare API 또는 SDK를 호출하여 사용자 WorkersXQ를 배포할 수 있습니다.
+
+## 플랫폼 구축
+
+이제 구성 요소가 어떻게 함께 작동했는지 이해하는 것은 사용 사례의 템플릿을 사용자 정의합니다.
+
+- [동적 파견](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/)— 하위 도메인 또는 호스트 이름의 경로 요청
+- [호스트 이름 routing](/cloudflare-for-platforms/workers-for-platforms/configuration/hostname-routing/)— 고객 사용[주문 영역](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/)그들의 신청
+- [회사 소개](/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/)— 각 고객 접근을 자신의 것에[관련 기사](/d1/), [핵심 가치 상점](/kv/), 또는[객체 저장](/r2/)
+- [아웃바운드 Workers](/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/)— 고객 코드에서 수신 요청에 대한 egress 정책을 구성
+- [주문 제한](/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/)— 고객당 CPU 시간 및 하위 요청 제한 설정
+- [API 예제](/cloudflare-for-platforms/workers-for-platforms/reference/platform-examples/)— 고객 코드 프로그래밍을 배포하고 관리하는 예제
+
+## AI vibe 코딩 플랫폼 구축
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/vibesdk)
+
+회사연혁[AI vibe 코딩 플랫폼](/reference-architecture/diagrams/ai/ai-vibe-coding-platform/)사용자가 원하는 것을 설명하고 AI는 응용 프로그램을 생성하고 배포합니다.
+
+이름 \*[사이트맵](https://github.com/cloudflare/vibesdk), Cloudflare의 오픈 소스 바이브 코딩 플랫폼, 당신은 할 수 get started AI 코드 생성을 처리하는 예와 함께, 보안 샌더 박스에서 코드 실행, 라이브 미리보기 및 스케일에 배포.
+
+<LinkButton type="secondary" href="https://build.cloudflare.dev">
+  데모 보기
+</LinkButton>
+
+<LinkButton type="secondary" href="https://github.com/cloudflare/vibesdk">
+  GitHub에서 보기
+</LinkButton>

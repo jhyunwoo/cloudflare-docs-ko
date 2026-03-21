@@ -1,0 +1,158 @@
+---
+reviewed: 2023-09-13T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: 실시간 채팅 애플리케이션 배포
+products:
+  - durable-objects
+tags:
+  - JavaScript
+description: >-
+  이 튜토리얼은 Serverless, 실시간 채팅 응용 프로그램을 배포하는 방법을 보여줍니다. 채팅 응용 프로그램은 각 채팅 룸을 제어하는
+  튼튼한 개체를 사용합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/tutorials/deploy-a-realtime-chat-app/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/tutorials/deploy-a-realtime-chat-app/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig, DashButton } from "~/components";
+
+이 튜토리얼에서는 Serverless, 실시간 채팅 응용 프로그램을 배포합니다.[모델 번호: Durable Objects](/durable-objects/).
+
+이 채팅 응용 프로그램은 각 채팅방을 제어하는 튼튼한 개체를 사용합니다. 사용자는 WebSockets를 사용하여 개체에 연결합니다. 한 사용자의 메시지는 다른 사용자에게 방송됩니다. 채팅 역사는 또한 튼튼한 저장에서 저장됩니다. 실시간 메시지는 저장 레이어를 통해 이동하지 않고 다른 사람에게 직접 릴레이됩니다.
+
+<Render file="tutorials-before-you-start" product="workers" />
+
+## 채팅 응용 프로그램 저장소를 복제
+
+맨끝을 열고 clone[채용 정보](https://github.com/cloudflare/workers-chat-demo)저장소:
+
+```sh
+git clone https://github.com/cloudflare/workers-chat-demo.git
+```
+
+## 인증 Wrangler
+
+저장소를 복제 한 후, 실행하여 Wrangler를 인증:
+
+```sh
+npx wrangler login
+```
+
+## 프로젝트 배포
+
+응용 프로그램을 배포 할 준비가되면 실행 :
+
+```sh
+npx wrangler deploy
+```
+
+당신의 응용 프로그램은 당신의 장치에 배치됩니다`*.workers.dev`하위 도메인.
+
+Cloudflare QXdashboardXQ 내에서 사용자 정의 도메인에 응용 프로그램을 배포하려면, 당신의 노동자에 이동 >**트리거** > **사용자 정의 도메인**.
+
+WranglerXQ를 사용하여 사용자 정의 도메인에 응용 프로그램을 배포하려면 프로젝트의 열기[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+Wrangler 설정 파일에서 경로를 구성하려면 다음과 같은 환경을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "example.com/about",
+  			"zone_id": "<YOUR_ZONE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+Wrangler 구성 파일의 환경에서 영역 ID를 지정하면 객체 형태로 다시 작성할 필요가 없습니다.
+
+Wrangler 설정 파일에서 하위 도메인을 구성하려면 다음을 환경으로 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "subdomain.example.com",
+  			"custom_domain": true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+당신의 살아있는 신청을 시험하기 위하여:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 작업자 선택 >**트리거** > **오시는 길**> 선택`edge-chat-demo.<SUBDOMAIN>.workers.dev`경로.
+
+3. 이름 입력**이름 \***&#xC774;름 \*
+
+4. 공공실에 들어가거나 개인실을 만들지 여부를 선택하십시오.
+
+5. 다른 참가자에게 링크를 보냅니다. 화면 오른쪽에 방 참가자를 볼 수 있습니다.
+
+## 앱 제거
+
+채팅 응용 프로그램을 제거하려면 Wrangler 파일을 수정하여 제거하십시오.`durable_objects`바인딩 및 추가`deleted_classes`이전 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": []
+  	},
+  	//Durable Objects로 호출할 수 있는 ChatRoom 및 RateLimiter 클래스를 원하는 것을 나타냅니다.
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"ChatRoom",
+  				"RateLimiter"
+  			]
+  		},
+  		{
+  			"tag": "v2", //각 항목에 고유해야합니다
+  			"deleted_classes": [
+  				"ChatRoom",
+  				"RateLimiter"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+다음 실행`npx wrangler deploy`.
+
+작업자를 삭제하려면:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**제품정보**, 당신의 노동자를 선정하십시오.
+
+3. 제품정보**회사연혁** > **이름 \***. 설정 및 삭제에 대한 완전한 지침을 위해, 참조`README.md`당신의 복제 된 저장소에.
+
+이 튜토리얼을 완료하면 Durable Objects 및 CloudflareQ QXQXQXWorkersXQ와 실시간 채팅 응용 프로그램을 배포했습니다.
+
+## 관련 자료
+
+다른 Cloudflare Workers 자습서로 계속 건물.
+
+- [Slackbot 빌드](/workers/tutorials/build-a-slackbot/)
+- [Twilio를 사용하여 GitHub 저장소에 SMS 알림 생성](/workers/tutorials/github-sms-notifications-using-twilio/)
+- [QR 코드 생성기 구축](/workers/tutorials/build-a-qr-code-generator/)

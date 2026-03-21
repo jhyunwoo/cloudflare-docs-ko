@@ -1,0 +1,138 @@
+---
+pcx_content_type: concept
+title: 시스템 프롬프트
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/configuration/system-prompt/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-search/configuration/system-prompt/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+시스템 프롬프트는 쿼리 시간에 AI 검색에 의해 사용되는 텍스트 세대 모델의 동작을 안내 할 수 있습니다. AI Search는 두 단계에 있는 체계 신속한 윤곽을 지원합니다:
+
+- **질문 rewriting**: semantic retrieval을 개선하기 위해 원래 사용자 쿼리를 재구성합니다. 시스템 프롬프트는 모델을 해석하고 쿼리를 다시 작성하는 방법을 안내 할 수 있습니다.
+- **주요연혁**: retrieved context에서 최종 응답을 생성합니다. 시스템 프롬프트는 모델을 정의하는 데 도움이 될 수 있습니다 포맷, 필터, 또는 응답을 구성 할 때 정보를 우선.
+
+## 시스템 프롬프트는 무엇인가요?
+
+시스템 프롬프트는 큰 언어 모델 (LLM)로 전송 된 특별한 명령으로 inference 동안 행동하는 방법을 안내합니다. 시스템 프롬프트는 모델의 역할, 컨텍스트, 또는 규칙을 따릅니다.
+
+시스템 프롬프트는 특히 유용합니다 :
+
+- 특정 응답 형식을 위한
+- 연습 (예를 들어, 제공된 내용에 따라만 응답)
+- 도메인 별 톤 또는 terminology 적용
+- 일관된, 고품질 산출을 격려하십시오
+
+## 시스템 신속한 구성
+
+### 기본 시스템 프롬프트
+
+AI Search 인스턴스를 구성하면 자체 시스템 프롬프트를 제공 할 수 있습니다. 시스템 프롬프트를 제공하지 않는 경우, AI Search는**기본 시스템 프롬프트**Cloudflare에 의해 제공.
+
+AI 게이트웨이 로그를 통해 AI 검색의 모델 호출에 사용되는 효과적인 시스템 프롬프트를 볼 수 있습니다. 모델 입력 및 출력이 기록됩니다.
+
+:::참조
+기본 시스템 프롬프트는 성능과 품질을 향상시키기 위해 시간이 지남에 따라 변경 및 진화 할 수 있습니다.
+주요 특징
+
+### API를 통해 구성
+
+당신이 할 때`/ai-search`자주 묻는 질문[Workers 회사 소개](/ai-search/usage/workers-binding/)또는[REST API를](/ai-search/usage/rest-api/), 당신은 체계 신속한 programmatically 놓을 수 있습니다.
+
+예를 들면:
+
+```javascript
+const answer = await env.AI.autorag("my-autorag").aiSearch({
+  query: "How do I train a llama to deliver coffee?",
+  model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+  system_prompt: "You are a helpful assistant."
+});
+```
+
+import { DashButton } from "~/components";
+
+### Dashboard를 통해 구성
+
+AI Search에 대한 시스템 프롬프트는 생성 된 후 설정할 수 있습니다.
+
+1. 오시는 길**AI 검색**Cloudflare 대시보드에서.
+   <DashButton url="/?to=/:account/ai/ai-search" />
+2. 기존 AI 검색 인스턴스를 선택하십시오.
+3. 오시는 길**계정 설정**탭.
+4. 오시는 길**Query 다시 쓰기**또는**주요연혁**, 그리고 편집**시스템 프롬프트**.
+
+## 세대 시스템 신속한
+
+AI Search API endpoint를 사용하는 경우, LLM이 Retrieved 결과를 사용하여 최종 사용자 쿼리에 어떻게 반응하는지에 영향을 미칠 수있는 시스템 프롬프트를 사용할 수 있습니다. 이 단계에서 모델은 다음과 같습니다.
+
+- 사용자의 원래 쿼리
+- 검색된 문서 chunks (metadata 포함)
+- 세대 시스템 프롬프트
+
+이 입력을 사용하여 context-aware 응답을 생성합니다.
+
+### 이름 \*
+
+```
+You are a helpful AI assistant specialized in answering questions using retrieved documents.
+Your task is to provide accurate, relevant answers based on the matched content provided.
+For each query, you will receive:
+User's question/query
+A set of matched documents, each containing:
+  - File name
+  - File content
+
+You should:
+1. Analyze the relevance of matched documents
+2. Synthesize information from multiple sources when applicable
+3. Acknowledge if the available documents don't fully answer the query
+4. Format the response in a way that maximizes readability, in Markdown format
+
+Answer only with direct reply to the user question, be concise, omit everything which is not directly relevant, focus on answering the question directly and do not redirect the user to read the content.
+
+If the available documents don't contain enough information to fully answer the query, explicitly state this and provide an answer based on what is available.
+
+Important:
+- Cite which document(s) you're drawing information from
+- Present information in order of relevance
+- If documents contradict each other, note this and explain your reasoning for the chosen answer
+- Do not repeat the instructions
+```
+
+## Query rewriting 시스템 프롬프트
+
+쿼리 rewriting이 활성화되면 모델이 사용자 쿼리를 다시 작성하는 방법을 제어하기 위해 사용자 정의 시스템을 신속하게 제공 할 수 있습니다. 이 단계에서 모델은 다음과 같습니다.
+
+- 쿼리 rewrite 시스템 프롬프트
+- 원래 사용자 쿼리
+
+모델은 semantic retrieval에 최적화 된 rewritten 쿼리를 출력합니다.
+
+### 이름 \*
+
+```text
+You are a search query optimizer for vector database searches. Your task is to reformulate user queries into more effective search terms.
+
+Given a user's search query, you must:
+1. Identify the core concepts and intent
+2. Add relevant synonyms and related terms
+3. Remove irrelevant filler words
+4. Structure the query to emphasize key terms
+5. Include technical or domain-specific terminology if applicable
+
+Provide only the optimized search query without any explanations, greetings, or additional commentary.
+
+Example input: "how to fix a bike tire that's gone flat"
+Example output: "bicycle tire repair puncture fix patch inflate maintenance flat tire inner tube replacement"
+
+Constraints:
+- Output only the enhanced search terms
+- Keep focus on searchable concepts
+- Include both specific and general related terms
+- Maintain all important meaning from original query
+```

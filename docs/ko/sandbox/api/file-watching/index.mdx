@@ -1,0 +1,216 @@
+---
+title: 파일 watching
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/file-watching/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/file-watching/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+Linux의 native inotify 시스템을 사용하여 실시간 모니터링 시스템 변경. 더 보기`watch()`메소드는 Server-Sent Events (SSE) 스트림을 파일 변경 이벤트로 반환합니다.`parseSSEStream()`.
+
+## 제품 설명
+
+### `watch()`
+
+filesystem 변경에 대한 디렉토리를 참조하십시오. 이벤트의 SSE 스트림을 반환합니다.
+
+```ts
+const stream = await sandbox.watch(path: string, options?: WatchOptions): Promise<ReadableStream<Uint8Array>>
+```
+
+**매개 변수**:
+
+- `path`- 절대 경로 또는 관계`/workspace`(예:`/app/src`또는`src`)
+- `options`(선택):
+  - `recursive`- 시계 subdirectories recursively (과태:`true`)
+  - `include`- Glob 패턴을 포함 (예를 들어,`['*.ts', '*.js']`). 함께 사용할 수 없습니다`exclude`.
+  - `exclude`- (과태를 제외하는 Glob 본:`['.git', 'node_modules', '.DS_Store']`). 함께 사용할 수 없습니다`include`.
+  - `sessionId`- 시계를 실행하는 세션 (omitted 경우, 기본 세션이 사용됩니다)
+
+**기타 제품**: `Promise<ReadableStream<Uint8Array>>`— SSE 스트림`FileWatchSSEEvent`기타 제품
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src", {
+  	recursive: true,
+  	include: ["*.ts", "*.js"],
+  });
+
+  const controller = new AbortController();
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(
+  	stream,
+  	controller.signal,
+  )) {
+  	switch (event.type) {
+  		case "watching":
+  			console.log(`Watch established on ${event.path} (id: ${event.watchId})`);
+  			break;
+  		case "event":
+  			console.log(`${event.eventType}: ${event.path}`);
+  			break;
+  		case "error":
+  			console.error(`Watch error: ${event.error}`);
+  			break;
+  		case "stopped":
+  			console.log(`Watch stopped: ${event.reason}`);
+  			break;
+  	}
+  }
+
+  //aborting에 의해 시계를 취소 — watcher 서버 측을 청소
+  controller.abort();
+  ```
+</TypeScriptExample>
+
+:::참조
+더 보기`watch()`또한 세션에서 사용할 수 있습니다. 세션에 호출 할 때,`sessionId`자동 설정:
+
+```ts
+const session = await sandbox.createSession();
+const stream = await session.watch("/workspace/src", {
+	include: ["*.ts"],
+});
+```
+
+:::
+
+## 제품정보
+
+### `FileWatchSSEEvent`
+
+시계 스트림에 의해 방출 된 모든 SSE 이벤트의 조합 유형.
+
+```ts
+type FileWatchSSEEvent =
+	| { type: "watching"; path: string; watchId: string }
+	| {
+			type: "event";
+			eventType: FileWatchEventType;
+			path: string;
+			isDirectory: boolean;
+			timestamp: string;
+	  }
+	| { type: "error"; error: string }
+	| { type: "stopped"; reason: string };
+```
+
+- **`watching`**— 시계가 설치되면 한 번 방출. 자주 묻는 질문`watchId`그리고`path`시계.
+- **`event`**- 각 파일 시스템 변경에 대해 Emitted. 자주 묻는 질문`eventType`·`path`그것이 바뀌고 있는지 여부`isDirectory`.
+- **`error`**— 시계가 오류를 발생했을 때 방출.
+- **`stopped`**— 시계가 중지 될 때 방출, 와`reason`.
+
+### `FileWatchEventType`
+
+검출될 수 있는 filesystem 변화의 유형.
+
+```ts
+type FileWatchEventType =
+	| "create"
+	| "modify"
+	| "delete"
+	| "move_from"
+	| "move_to"
+	| "attrib";
+```
+
+- **`create`**- 파일 또는 디렉토리가 생성되었습니다.
+- **`modify`**- 파일 내용 변경
+- **`delete`**- 파일 또는 디렉토리가 삭제되었습니다.
+- **`move_from`**- 파일 또는 디렉토리가 이동되었습니다 (이름 / move의 소스)
+- **`move_to`**- 파일 또는 디렉토리가 이동되었습니다 (이름/모브의 정의)
+- **`attrib`**- 파일 또는 디렉토리 속성 변경 (출금, 타임스탬프)
+
+### `WatchOptions`
+
+감독을 보는 구성 옵션.
+
+```ts
+interface WatchOptions {
+	/** 시계 subdirectories recursively (과태: 진실한)*/
+	recursive?: boolean;
+	/** Glob 패턴 포함. `exclude`와 함께 사용할 수 없습니다.*/
+	include?: string[];
+	/** Glob 본은 제외합니다. `include`와 함께 사용할 수 없습니다. 기본값: ['.git', 'node modules', '.DS Store']*/
+	exclude?: string[];
+	/** 시계를 실행하는 세션. omitted 경우, 기본 세션이 사용됩니다.*/
+	sessionId?: string;
+}
+```
+
+:::카트로션\[연속성]
+`include`·`exclude`함께 사용할 수 없습니다. 제품 정보`include`letlist 패턴 또는`exclude`blocklist 패턴에. 모두 지정 요청은 유효 오류로 거부됩니다.
+주요 특징
+
+### `parseSSEStream()`
+
+변환하기`ReadableStream<Uint8Array>`유형으로`AsyncGenerator`행사일정 선택 사항`AbortSignal`스트림을 취소합니다.
+
+```ts
+function parseSSEStream<T>(
+	stream: ReadableStream<Uint8Array>,
+	signal?: AbortSignal,
+): AsyncGenerator<T>;
+```
+
+**매개 변수**:
+
+- `stream`— SSE 스트림이 반환됨`watch()`
+- `signal`(옵션) — An`AbortSignal`스트림을 취소합니다. aborted 때, 독자는 서버에 정리를 전파하는 것을 취소합니다.
+
+신호를 전달하는 것이 권장되는 방법입니다.
+
+```ts
+const controller = new AbortController();
+
+//60초 후 취소
+setTimeout(() => controller.abort(), 60_000);
+
+for await (const event of parseSSEStream<FileWatchSSEEvent>(
+	stream,
+	controller.signal,
+)) {
+	//회사연혁
+}
+```
+
+## Glob 패턴 지원
+
+더 보기`include`·`exclude`옵션은 예측 가능한 일치를위한 glob 토큰의 제한된 세트를 허용합니다.
+
+| 토큰 토큰 | 이름 \*                | 이름 \*                 |
+| ----- | -------------------- | --------------------- |
+| `*`   | 경로 세그먼트 내에서 모든 문자 일치 | `*.ts`이름 \*`index.ts` |
+| `**`  | 디렉토리 경계              | `**/*.test.ts`        |
+| `?`   | 단일 문자 일치             | `?.js`이름 \*`a.js`     |
+
+캐릭터 클래스 (`[abc]`), brace 확장 (`{a,b}`), backslash 탈출은 지원되지 않습니다. 이 토큰을 포함하는 패턴은 유효성 오류로 거부됩니다.
+
+## 지원하다
+
+:::노트\[의료]
+`watch()`filesystem watcher가 서버에 설치될 때까지 블록. 약속이 해결되면 watcher가 활성화되고 시계에 따라 즉시 filesystem 작업을 수행 할 수 있습니다.
+주요 특징
+
+:::노트\[컨테이너 라이프사이클]
+File watchers는 sandbox 컨테이너 수면이나 파괴 될 때 자동으로 중지됩니다. 당신은 수동으로 컨테이너 종료에 스트림을 취소 할 필요가 없습니다.
+주요 특징
+
+:::카ution\[특허]
+모든 경로는 시계를 시작할 때 존재해야합니다. non-existent 경로가 오류를 반환합니다. 그들을보고하기 전에 감독을 만듭니다. 모든 경로는 해결해야 합니다.`/workspace`.
+:::
+
+## 관련 자료
+
+- [파일시스템 변경 안내](/sandbox/guides/file-watching/)- 패턴, 모범 사례 및 실제 사례
+- [파일 관리](/sandbox/guides/manage-files/)- 파일 작업

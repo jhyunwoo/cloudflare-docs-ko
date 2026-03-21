@@ -1,0 +1,190 @@
+---
+title: Terraform을 사용하여 규칙 구성
+pcx_content_type: how-to
+sidebar:
+  order: 6
+  label: Transform 규칙
+head:
+  - tag: title
+    content: Terraform을 사용하여 규칙 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/transform-rules/
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/transform-rules/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 페이지는 생성 예제를 제공합니다.[Transform 규칙](/rules/transform/)Terraform을 사용하여 영역에서. 예제는 다음과 같은 시나리오를 다룹니다.
+
+- [URL rewrite 규칙 만들기](#create-a-url-rewrite-rule)
+- [요청 헤더 변형 규칙 만들기](#create-a-request-header-transform-rule)
+- [응답 헤더 변환 규칙 만들기](#create-a-response-header-transform-rule)
+- [관리된 Transforms 구성](#configure-managed-transforms)
+
+Cloudflare API를 사용하는 경우 다음 리소스를 참조하십시오.
+
+- [API를 통해 URL 리깅 규칙 만들기](/rules/transform/url-rewrite/create-api/)
+- [API를 통해 요청 헤더 변형 규칙 만들기](/rules/transform/request-header-modification/create-api/)
+- [API를 통해 응답 헤더 변형 규칙 만들기](/rules/transform/response-header-modification/create-api/)
+- [관리된 Transforms 구성](/rules/transform/managed-transforms/configure/)
+
+## 시작하기 전에
+
+### 필요한 계정 또는 영역 ID를 얻으십시오.
+
+<Render file="find-ids" product="terraform" />
+
+### 기존의 규칙을 가져오기 또는 삭제
+
+<Render file="import-delete-existing-rulesets" product="terraform" />
+
+***
+
+## URL rewrite 규칙 만들기
+
+다음 예제는 URL을 다시 작성하는 규칙을 만듭니다. 요청에 대한`example.com/old-folder`으로`example.com/new-folder`:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "transform_url_rewrite" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Transform Rule performing a static URL rewrite"
+  description = ""
+  kind        = "zone"
+  phase       = "http_request_transform"
+
+  rules {
+    ref         = "url_rewrite_old_folder"
+    description = "Example URL rewrite rule"
+    expression  = "(http.host eq \"example.com\" and http.request.uri.path eq \"/old-folder\")"
+    action      = "rewrite"
+    action_parameters {
+      uri {
+        path {
+          value = "/new-folder"
+        }
+      }
+    }
+  }
+}
+```
+
+<Render file="terraform-use-ref-field" product="rules" />
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "URL rewrite rule" }} />
+
+<br />
+
+rewriting URL에 대한 자세한 내용은 참조[URL Rewrite 규칙](/rules/transform/url-rewrite/).
+
+## 요청 헤더 변형 규칙 만들기
+
+다음 구성 예제는 HTTP 요청 헤더에 다음과 같은 조정을 수행합니다.
+
+- 추가하기`my-header-1`정적 값으로 요청 헤더.
+- 추가하기`my-header-2`표정에 의해 정의 된 동적 값으로 요청 헤더.
+- 삭제하기`existing-header`요청에서 헤더, 그것이 존재하는 경우.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "transform_modify_request_headers" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Transform Rule performing HTTP request header modifications"
+  description = ""
+  kind        = "zone"
+  phase       = "http_request_late_transform"
+
+  rules {
+    ref         = "modify_request_headers"
+    description = "Example request header transform rule"
+    expression  = "true"
+    action      = "rewrite"
+    action_parameters {
+      headers {
+        name      = "my-header-1"
+        operation = "set"
+        value     = "Fixed value"
+      }
+      headers {
+        name       = "my-header-2"
+        operation  = "set"
+        expression = "cf.zone.name"
+      }
+      headers {
+        name      = "existing-header"
+        operation = "remove"
+      }
+    }
+  }
+}
+```
+
+<Render file="terraform-use-ref-field" product="rules" />
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "request header transform rule" }} />
+
+요청 헤더 수정에 대한 자세한 내용은 참조[Header Transform 규칙 요청](/rules/transform/request-header-modification/).
+
+## 응답 헤더 변환 규칙 만들기
+
+다음 구성 예제는 HTTP 응답 헤더에 다음과 같은 조정을 수행합니다.
+
+- 추가하기`my-header-1`정적 값으로 응답 헤더.
+- 추가하기`my-header-2`표정에 의해 정의 된 동적 값과 응답 헤더.
+- 삭제하기`existing-header`응답에서 헤더, 그것이 존재하는 경우.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "transform_modify_response_headers" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Transform Rule performing HTTP response header modifications"
+  description = ""
+  kind        = "zone"
+  phase       = "http_response_headers_transform"
+
+  rules {
+    ref         = "modify_response_headers"
+    description = "Example response header transform rule"
+    expression  = "true"
+    action      = "rewrite"
+    action_parameters {
+      headers {
+        name      = "my-header-1"
+        operation = "set"
+        value     = "Fixed value"
+      }
+      headers {
+        name       = "my-header-2"
+        operation  = "set"
+        expression = "cf.zone.name"
+      }
+      headers {
+        name      = "existing-header"
+        operation = "remove"
+      }
+    }
+  }
+}
+```
+
+<Render file="terraform-use-ref-field" product="rules" />
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "response header transform rule" }} />
+
+응답 헤더 수정에 대한 자세한 내용은, 참조[응답 헤더 Transform 규칙](/rules/transform/response-header-modification/).
+
+## 관리된 Transforms 구성
+
+<Render file="v4-code-snippets" product="terraform" />
+
+<Render file="transform/terraform-managed-transforms-example" product="rules" />
+
+Managed Transforms에 대한 자세한 내용은 참조[관리된 Transforms](/rules/transform/managed-transforms/).

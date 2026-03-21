@@ -1,0 +1,96 @@
+---
+pcx_content_type: concept
+title: 플랫폼을위한 Workers는 작동
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 플랫폼을위한 Workers는 어떻게 작동합니까?
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 회사연혁
+
+당신이 익숙한 경우[Workers](/workers/)플랫폼을위한 Workers는 네 가지 주요 구성 요소를 소개합니다. 이름 공간, 동적 파견 Workers, 사용자 Workers 및 선택적으로 아웃바운드 Workers.
+
+![플랫폼 건축을 위한 Workers](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-1.svg)
+
+### 네임스페이스
+
+파견 네임스페이스는 고객의 Workers를 보유하고 있는 컨테이너입니다. 귀하의 플랫폼은 고객이 작성한 코드를 가지고 있으며, API 요청을 사용하여 사용자가 네임스페이스에 코드를 배포합니다. 예를 들어`staging`또는`production`. 에 비교[Workers](/workers/),이 제공:
+
+- **Workers의 무제한 수**- 네임스페이스에서 Workers에 해당하지 않음
+- **기본적으로 고립**- 네임스페이스의 각 사용자 작업자는[신뢰할 수있는 모드](/cloudflare-for-platforms/workers-for-platforms/reference/worker-isolation/)— 사용자 WorkersXQ는 동일한 Cloudflare 지역을 실행할 때 캐시를 결코 공유하지 않으며, 접근할 수 없습니다`request.cf`기타 제품
+- **동적 invocation**- 역동적 인 파견 노동자는 네임스페이스에서 어떤 노동자를 호출 할 수 있습니다.`env.DISPATCHER.get("worker-name")`
+
+:::노트\[최고의 연습]
+
+모든 고객의 Workers는 단일 네임스페이스에 살고 있어야 합니다 (예를 들면,`production`). 고객의 네임스페이스를 만들지 마십시오.
+
+안전한 변화를 테스트해야 하는 경우, 별도의 생성`staging`네임스페이스
+
+:::
+
+### 동적인 파견 노동자
+
+동적인 파견 노동자는 당신의 플랫폼에 모든 요구를 위한 입장 점입니다. 당신의 동적인 파견 노동자:
+
+- **노선 요청**- 고객 근로자가 호스트 이름, 경로, 헤더 또는 기타 기준에 따라 각 요청을 처리해야 할 결정
+- **플랫폼 논리 실행**- 고객 코드 실행 전에 인증, 제한, 또는 요청 검증을 실행
+- **per-customer 한계를 놓으십시오**- 인력[주문 제한](/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/)계획 유형에 근거를 둔 CPU 시간과 subrequests에
+- **응답을 Sanitizes**- 고객 Workers에서 응답을 수정하거나 필터링하십시오
+
+동적 파견 노동자는[비밀번호](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/)invoke 사용자 Workers에:
+
+```js
+export default {
+	async fetch(request, env) {
+		//고객 근로자가 호출하는 결정
+		const customerName = new URL(request.url).hostname.split(".")[0];
+
+		//고객의 노동자를 돌리고
+		const userWorker = env.DISPATCHER.get(customerName);
+		return userWorker.fetch(request);
+	},
+};
+```
+
+### 사용자 Workers
+
+사용자 Workers는 고객이 쓴 코드를 포함합니다. 귀하의 고객은 플랫폼에 코드를 보냅니다. API 요청을 사용하여 사용자 Worker를 대신 배포하십시오. Workers는 동적인 파견 노동자에 의해 파견된 파견 네임스페이스에 배치됩니다. 당신은 사용자 Workers를 제공 할 수 있습니다[관련 제품](/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/)KV, D1, R2 및 기타 QXQX0088XQQ 리소스에 액세스 할 수 있습니다.
+
+![배포 및 관리 흐름](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-6.svg)
+
+### 아웃바운드 노동자 (옵션)
+
+이름 \*[아웃바운드 Worker](/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/)이름 \*[`fetch()`](/workers/runtime-apis/fetch/)사용자가 만든 요청 Workers. 그것을 사용하여:
+
+- **제어 egress**- 블록 또는 외부 API 호출을 고객 코드에서 허용
+- **로그 요청**- 외부 서비스 고객이 호출하는 것을 추적
+- **요청 수정**- 인증 헤더를 추가하거나 플랫폼을 떠나기 전에 요청을 변환
+
+![Outbound 노동자 egress 통제 본](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-3.svg)
+
+### 생명주기
+
+1. 요청은 동적 파견 노동자에 도착합니다 (예를 들어,`customer-a.example.com/api`)
+2. 동적인 파견 노동자는 사용자가 요청을 처리해야 하는 것을 결정합니다
+3. 동적 파견 노동자 호출`env.DISPATCHER.get("customer-a")`사용자 Worker를 얻기
+4. 사용자 Worker가 실행합니다. 외부를 만드는 경우`fetch()`호출 및 아웃바운드 노동자 구성, 그 요청은 아웃바운드 노동자를 먼저 통과.
+5. 사용자 Worker가 응답을 반환합니다.
+6. 동적인 파견 노동자는 선택적으로 그것을 돌려보내기 전에 응답을 수정할 수 있습니다
+
+***
+
+## 플랫폼 versus 서비스 바인딩을 위한 Workers
+
+플랫폼과 Workers 둘 다[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)Worker-to-Worker 커뮤니케이션을 가능하게 합니다. Workers가 통신해야 할 정확히 알 때 서비스 바인딩을 사용하십시오. 사용자 WorkersX0095XQXQ가 고객에 의해 역동적으로 업로드 될 때 플랫폼에 대한 WorkersXQ를 사용하십시오.
+
+동시에 사용할 수 있습니다 - 동적 인 파견 노동자는 내부 서비스를 호출하는 데 서비스 바인딩을 사용할 수 있으며 사용자 WorkersXQ를 네임스페이스에 파견합니다.

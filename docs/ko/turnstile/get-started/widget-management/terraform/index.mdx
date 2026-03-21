@@ -1,0 +1,201 @@
+---
+title: Terraform을 사용하여 위젯 생성 및 관리
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: 옵션 정보
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/turnstile/get-started/widget-management/terraform/
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/get-started/widget-management/terraform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components"
+
+Turnstile 위젯을 버전 제어 및 자동화 된 배포를위한 Terraform을 사용하여 코드로 관리하십시오.
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을해야합니다.
+
+- [옵션 정보](https://terraform.io/)설치하기
+- Cloudflare API 토큰`Account:Turnstile:Edit permissions`
+- (선택) A`cf-terraforming`기존 위젯을 가져 오기위한 도구
+
+## 설치하기
+
+### 1. 공급자 구성
+
+이름 \*`main.tf`파일.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
+  }
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API Token"
+  type        = string
+  sensitive   = true
+}
+
+variable "account_id" {
+  description = "Cloudflare Account ID"
+  type        = string
+}
+```
+
+### 2. 위젯 정의
+
+```tf
+resource "cloudflare_turnstile_widget" "login_form" {
+  account_id = var.account_id
+  name       = "Login Form Widget"
+  domains    = ["example.com", "www.example.com"]
+  mode       = "managed"
+  region     = "world"
+}
+
+resource "cloudflare_turnstile_widget" "api_protection" {
+  account_id = var.account_id
+  name       = "API Protection"
+  domains    = ["api.example.com"]
+  mode       = "invisible"
+  region     = "world"
+}
+
+# Output the sitekeys for use in your application
+output "login_sitekey" {
+  value = cloudflare_turnstile_widget.login_form.sitekey
+}
+
+output "api_sitekey" {
+  value = cloudflare_turnstile_widget.api_protection.sitekey
+}
+```
+
+### 3. 환경 변수
+
+이름 \*`.env`파일 또는 설정 환경 변수.
+
+```shell
+export TF_VAR_cloudflare_api_token="your-api-token"
+export TF_VAR_account_id="your-account-id"
+```
+
+***
+
+## Terraform 명령
+
+### 초기화 및 계획
+
+```shell title="Initialize Terraform"
+terraform init
+```
+
+```shell title="Plan changes"
+terraform plan
+```
+
+```shell title="Apply configuration"
+terraform apply
+```
+
+### 자주 묻는 질문
+
+```shell title="Update widget configuration"
+terraform plan
+```
+
+```shell title="Apply changes"
+terraform apply
+```
+
+```shell title="Destroy widgets"
+terraform destroy
+```
+
+***
+
+## 고급 Terraform 구성
+
+### 다중 환경
+
+```tf
+locals {
+  environments = {
+    dev = {
+      domains = ["dev.example.com"]
+      mode    = "managed"
+    }
+    staging = {
+      domains = ["staging.example.com"]
+      mode    = "non_interactive"
+    }
+    prod = {
+      domains = ["example.com", "www.example.com"]
+      mode    = "invisible"
+    }
+  }
+}
+
+resource "cloudflare_turnstile_widget" "app_widget" {
+  for_each = local.environments
+  
+  account_id = var.account_id
+  name       = "App Widget - ${each.key}"
+  domains    = each.value.domains
+  mode       = each.value.mode
+  region     = "world"
+}
+```
+
+### Enterprise 기능 탑재
+
+```tf
+resource "cloudflare_turnstile_widget" "enterprise_widget" {
+  account_id     = var.account_id
+  name          = "Enterprise Form"
+  domains       = ["enterprise.example.com"]
+  mode          = "managed"
+  region        = "world"
+  offlabel      = true  # Remove Cloudflare branding
+  bot_fight_mode = true # Enable bot fight mode
+}
+```
+
+***
+
+## 기존 위젯 가져 오기
+
+제품 정보[`cf-terraforming`](/terraform/advanced-topics/import-cloudflare-resources/#cf-terraforming)기존 위젯을 가져올 수 있습니다.
+
+```shell title="Install cf-terraforming"
+go install github.com/cloudflare/cf-terraforming/cmd/cf-terraforming@latest
+```
+
+```shell title="Generate Terraform configuration from existing widgets"
+cf-terraforming generate \
+  --resource-type cloudflare_turnstile_widget \
+  --account $ACCOUNT_ID
+```
+
+```shell title="Import existing widget"
+terraform import cloudflare_turnstile_widget.existing_widget \
+  $ACCOUNT_ID/$WIDGET_SITEKEY
+```

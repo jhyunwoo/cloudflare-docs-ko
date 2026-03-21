@@ -1,0 +1,95 @@
+---
+pcx_content_type: concept
+title: 소개
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: About multi-signer DNSSEC
+
+---
+
+Multi-signer DNSSEC는 서로 다른 권한 DNS 공급자가 동일한 영역을 동시에 제공하면서 DNSSEC도 함께 활성화할 수 있게 하는 두 가지 모델로 구성됩니다.
+
+이 방식은 DNS 레코드의 라이브 서명(쿼리 시점 서명)이 필요한 DNS 기능과의 호환성을 높여 주며, [DNSSEC를 비활성화하지 않고도 영역을 Cloudflare로 마이그레이션](/dns/dnssec/dnssec-active-migration/)할 수 있게 해 줍니다.
+
+[RFC 8901](https://www.rfc-editor.org/rfc/rfc8901.html)에 설명된 두 모델 중 하나를 사용해 [multi-signer DNSSEC를 설정](/dns/dnssec/multi-signer-dnssec/setup/)할 수 있습니다.
+
+## 동작 방식
+
+
+:::note
+이 설명은 [multi-signer DNSSEC 구성](/dns/dnssec/multi-signer-dnssec/setup/)에 무엇이 포함되는지 감을 잡을 수 있도록 단순화한 것입니다. 기술적 세부 사항은 [RFC 8901](https://www.rfc-editor.org/rfc/rfc8901.html)을 참고하세요. DNSSEC 자체에 대해 더 알고 싶다면 [DNSSEC 동작 방식](https://www.cloudflare.com/dns/dnssec/how-dnssec-works/)을 참고하세요.
+:::
+
+Multi-signer DNSSEC는 DNSSEC 검증에 필요한 신뢰 체인을 활용하여, 여러 공급자가 함께 관여하더라도 검증이 완료되도록 보장합니다.
+
+검증 문제가 생길 수 있는 대표적인 상황은 리졸버가 한 공급자의 [DNSKEY 레코드 세트](https://www.cloudflare.com/learning/dns/dns-records/dnskey-ds-records/)를 캐시해 두었는데, 응답은 다른 공급자가 서명한 경우입니다.
+
+이 문제를 피하기 위해 multi-signer DNSSEC를 설정할 때는 다음을 조정합니다.
+
+1. DNS 공급자들이 각자의 DNSKEY 레코드 세트에 보유한 Zone Signing Key(ZSK)
+2. Secure Entry Point(SEP), Key Signing Key(KSK), Delegation Signer(DS) 레코드를 누가 책임질지
+
+이 구성이 (a) 관련된 모든 공급자가 서로의 공개 Zone Signing Key(ZSK)를 가지고 있고, (b) Delegation Signer(DS) 레코드가 필요한 Key Signing Key(KSK)를 참조하도록 조정되면, 여러 공급자가 영역을 라이브 서명하더라도 더 이상 문제가 되지 않습니다.
+
+### 모델 1
+
+두 모델 모두에서 모든 공급자는 서로의 Zone Signing Key(ZSK)를 DNSKEY 레코드 세트에 포함하지만, 모델 1에서는 하나의 Key Signing Key(KSK)만 사용해 이 DNSKEY 레코드 세트에 서명합니다. 이 KSK 관리와 DS 레코드(즉 Secure Entry Point) 참조 관리는 영역 소유자 또는 영역 소유자가 지정한 한 공급자가 담당합니다.
+
+### 모델 2
+
+반면 모델 2에서는 각 공급자가 자체 KSK를 사용해 자신의 DNSKEY 레코드 세트에 서명하고, DS 레코드(Secure Entry Point)는 이 KSK들을 참조합니다.
+
+---
+
+## multi-signer DNSSEC를 켰을 때 일어나는 일
+
+Cloudflare에서 multi-signer DNSSEC를 활성화하면 다음과 같은 변화가 발생합니다.
+
+1. **내부 플래그**: Cloudflare가 영역에 DNSKEY 레코드를 추가할 수 있도록 허용하는 내부 플래그를 설정합니다.
+2. **외부 ZSK 포함**: 보조 공급자의 DNSKEY 레코드를 추가하면 Cloudflare가 이를 DNSKEY RRset에 포함합니다.
+3. **Cloudflare KSK로 서명**: Cloudflare가 외부 ZSK를 Cloudflare의 KSK로 서명하여 Multi-signer DNSSEC Model 2 RRset을 생성합니다.
+4. **CDS/CDNSKEY 생성**: 다른 공급자의 KSK(필수는 아니지만 권장)를 추가하면, Cloudflare가 검증 도구 호환성을 위해 CDS/CDNSKEY RRset을 생성합니다.
+
+이 구성은 모든 ZSK DNSKEY가 DS 레코드에서 참조되는 적절한 KSK에 의해 서명되므로, 리졸버가 어느 공급자에서 온 응답이든 검증할 수 있게 합니다.
+
+---
+
+## 모범 사례
+
+Multi-signer DNSSEC를 설정할 때는 아래 모범 사례를 따르면 보다 원활하게 배포할 수 있습니다.
+
+### 모델 2 사용
+
+Cloudflare는 multi-signer 구성에서 모델 2를 권장합니다. 이 모델에서는 각 공급자가 자체 KSK DNSKEY를 가지므로 DS 레코드도 두 개(공급자당 하나)가 됩니다. 이 방식은 더 높은 독립성과 유연성을 제공합니다.
+
+### DNSKEY 플래그 이해
+
+- **ZSK(Zone Signing Keys)**: 플래그 `256`
+- **KSK(Key Signing Keys)**: 플래그 `257`
+
+공급자 간에 키를 교환할 때는 올바른 유형의 키(일반적으로 ZSK)를 DNSKEY RRset에 추가하고 있는지 확인하세요.
+
+### TTL 준수
+
+DNSKEY와 DS 레코드를 변경한 뒤에는 다음 단계로 넘어가기 전에 항상 TTL 시간만큼 기다리세요. 이렇게 해야 캐시된 레코드가 만료된 뒤 새 레코드가 적용되어 검증 실패를 막을 수 있습니다.
+
+### 공급자 호환성 확인
+
+모든 DNS 공급자가 외부 DNSKEY를 자신의 DNSKEY RRset에 추가하는 기능을 지원하는 것은 아닙니다. Multi-signer 마이그레이션을 시작하기 전에 다음을 확인하세요.
+
+- 다른 공급자가 multi-signer DNSSEC를 지원하는지 확인합니다.
+- Cloudflare의 ZSK를 자신의 DNSKEY 레코드에 추가할 수 있는지 확인합니다.
+- 가능하다면 운영 환경이 아닌 곳에서 구성을 테스트합니다.
+
+일부 서드파티 공급자는 필요한 기능을 지원하지 않을 수 있습니다.
+
+### 충분히 테스트
+
+Multi-signer DNSSEC는 여러 공급자 간 암호화 키를 조정하는 작업입니다. 운영 환경에 배포하기 전에 다음을 확인하세요.
+
+1. 양쪽 공급자가 서로의 ZSK를 DNSKEY RRset에 포함하고 있는지 확인합니다.
+2. 등록기관에 두 개의 DS 레코드가 모두 존재하는지 확인합니다.
+3. DNSSEC 검증 도구를 사용해 양쪽 공급자 모두에서 해석을 테스트합니다.
+4. 전환 기간 동안 검증 오류를 모니터링합니다.

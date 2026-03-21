@@ -1,0 +1,153 @@
+---
+reviewed: 2023-09-27T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+tags:
+  - AI
+  - JavaScript
+title: AI Gateway를 통해 OpenAI에 연결하는 Worker 배포
+description: AI Gateway를 통해 OpenAI 호출하는 Worker를 배포하는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/tutorials/deploy-aig-worker/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/tutorials/deploy-aig-worker/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+이 튜토리얼에서는, AI Gateway를 통해 OpenAI를 호출하는 Worker를 배포하는 방법을 배울 것입니다. AI Gateway는 더 많은 분석, 캐싱, 속도 제한 및 로깅으로 AI 응용 프로그램을 관찰하고 제어하는 데 도움이됩니다.
+
+이 튜토리얼은 가장 최근의 v4 OpenAI 노드 라이브러리를 사용하여 8 월 2023에 출시 된 업데이트.
+
+## 시작하기 전에
+
+모든 튜토리얼은 이미 완료 한 가정[자주 묻는 질문](/workers/get-started/guide/)Cloudflare Workers 계정으로 설정되는 ,[사이트맵](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare)·[모델 번호: Wrangler](/workers/wrangler/install-and-update/).
+
+## 1. AI Gateway 및 OpenAI API 키 생성
+
+Cloudflare 대시보드의 AI 게이트웨이 페이지에서, 오른쪽 상단에 플러스 버튼을 클릭하여 새로운 AI 게이트웨이를 만듭니다. 게이트웨이와 엔드포인트 이름을 지정할 수 있어야 합니다. API Endpoints 버튼을 클릭하여 엔드포인트를 복사합니다. OpenAI, HuggingFace, Replicate와 같은 공급자 별 엔드포인트에서 선택할 수 있습니다. 또는 특정 스키마를 허용하는 보편적 인 엔드 포인트를 사용할 수 있으며 모델 fallback 및 retries를 지원합니다.
+
+이 튜토리얼의 경우, OpenAI 공급자 별 엔드포인트를 사용하므로 드롭다운에서 OpenAI를 선택하고 새로운 엔드포인트를 복사합니다.
+
+OpenAI 계정과 API 키가 필요합니다. 새로운 OpenAI 계정을 만들고 이 튜토리얼을 계속하려면 API 키를 만듭니다. API 키 어딘가를 안전하게 저장하려면 나중에 사용할 수 있습니다.
+
+## 2. 새로운 노동자 만들기
+
+명령줄에서 Worker 프로젝트를 만듭니다:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"openai-aig"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "JavaScript",
+  }}
+/>
+
+당신의 새로운 열린 노동자 프로젝트에 이동:
+
+```sh title="Open your new project directory"
+cd openai-aig
+```
+
+새로운 openai-aig 디렉토리의 내부, 찾기 및 열기`src/index.js`파일. 당신은 튜토리얼의 대부분이 파일을 구성합니다.
+
+처음, 당신의 생성`index.js`파일은 다음과 같습니다 :
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		return new Response("Hello World!");
+	},
+};
+```
+
+## 3. 당신의 노동자에 OpenAI를 구성하십시오
+
+생성 된 작업자 프로젝트로, 우리는 OpenAI에 첫 번째 요청을 만드는 방법을 배울 수 있습니다. OpenAI API와 상호 작용하기 위해 OpenAI 노드 라이브러리를 사용합니다. OpenAI 노드 라이브러리 설치`npm`:
+
+<PackageManagers pkg="openai" />
+
+내 계정`src/index.js`파일, 가져오기 추가`openai`현재 위치`export default`:
+
+```js
+import OpenAI from "openai";
+```
+
+내 계정`fetch`기능, 구성을 설정하고 즉시`OpenAIApi`AI Gateway endpoint와 클라이언트 생성:
+
+```js null {5-8}
+import OpenAI from "openai";
+
+export default {
+	async fetch(request, env, ctx) {
+		const openai = new OpenAI({
+			apiKey: env.OPENAI_API_KEY,
+			baseURL:
+				"https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai", // paste your AI Gateway endpoint here
+		});
+	},
+};
+```
+
+이 작업을하기 위해, 당신은 사용해야합니다[`wrangler secret put`](/workers/wrangler/commands/#secret-put)설정하기`OPENAI_API_KEY`. 이것은 당신의 환경에 API 열쇠를 저장할 것입니다 그래서 당신의 노동자는 배치될 때 그것을 접근할 수 있습니다. 이 키는 OpenAI 대시보드에서 이전 만든 API 키입니다:
+
+<PackageManagers type="exec" pkg="wrangler" args="secret put OPENAI_API_KEY" />
+
+로컬 개발에서이 작업을 만들기 위해 새로운 파일을 만듭니다.`.dev.vars`작업자 프로젝트에서이 라인을 추가합니다. 자주 묻는 질문`OPENAI_API_KEY`당신의 자신의 OpenAI API 열쇠로:
+
+```txt title="Save your API key locally"
+OPENAI_API_KEY = "<YOUR_OPENAI_API_KEY_HERE>"
+```
+
+## 4. OpenAI 요청 확인
+
+이제 OpenAI에 대한 요청을 만들 수 있습니다.[채팅 완료 API](https://platform.openai.com/docs/guides/gpt/chat-completions-api).
+
+당신은 당신이 좋아하는 어떤 모델을 지정할 수 있습니다, 역할 및 프롬프트, 뿐만 아니라 당신의 총 요청에 원하는 토큰의 최대 수.
+
+```js null {10-22}
+import OpenAI from "openai";
+
+export default {
+	async fetch(request, env, ctx) {
+		const openai = new OpenAI({
+			apiKey: env.OPENAI_API_KEY,
+			baseURL:
+				"https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai",
+		});
+
+		try {
+			const chatCompletion = await openai.chat.completions.create({
+				model: "gpt-4o-mini",
+				messages: [{ role: "user", content: "What is a neuron?" }],
+				max_tokens: 100,
+			});
+
+			const response = chatCompletion.choices[0].message;
+
+			return new Response(JSON.stringify(response));
+		} catch (e) {
+			return new Response(e);
+		}
+	},
+};
+```
+
+## 5. 작업자 응용 프로그램을 배포
+
+응용 프로그램을 배포하려면, 실행`npx wrangler deploy`Worker 응용 프로그램을 배포하려면 명령:
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+\<YOUR WORKER>에서 작업자를 미리 볼 수 있습니다.\<YOUR SUBDOMAIN>.workers.dev.
+
+## 6. AI Gateway 검토
+
+Cloudflare 대시보드XQ에서 AI 게이트웨이로 이동하면 최근 요청이 기록됩니다. 당신은 또한 할 수 있습니다[설정 tweak](/ai-gateway/configuration/)로그, 캐싱 및 제한 설정 관리.

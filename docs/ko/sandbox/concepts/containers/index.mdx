@@ -1,0 +1,128 @@
+---
+title: 컨테이너 런타임
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/concepts/containers/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/concepts/containers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+각 샌드 박스는 Python, Node.js 및 일반 개발 도구와 격리 된 Linux 컨테이너에서 실행됩니다. 사전 설치된 소프트웨어의 전체 목록 및 컨테이너 이미지를 사용자 정의하는 방법, 참조[도커파일 reference](/sandbox/configuration/dockerfile/).
+
+## Runtime 소프트웨어 설치
+
+표준 패키지 관리자를 사용하여 실행 시간에 추가 소프트웨어를 설치:
+
+```bash
+#Python 패키지
+pip install scikit-learn tensorflow
+
+#Node.js 패키지
+npm install express
+
+#시스템 패키지 (최초 apt-get 업데이트 필요)
+apt-get update && apt-get install -y redis-server
+```
+
+## 파일시스템
+
+컨테이너는 표준 Linux 파일 시스템을 제공합니다. 자주 묻는 질문
+
+**표준 디렉토리**:
+
+- `/workspace`- 사용자 코드에 대한 기본 작업 디렉토리
+- `/tmp`- 임시 파일
+- `/home`- 사용자 홈 디렉토리
+- `/usr/bin`, `/usr/local/bin`- 실행 가능한 binaries
+
+**이름 \***:
+
+```typescript
+await sandbox.writeFile('/workspace/app.py', 'print("Hello")');
+await sandbox.writeFile('/tmp/cache.json', '{}');
+await sandbox.exec('ls -la /workspace');
+```
+
+## 공정 관리
+
+프로세스는 일반 Linux 환경에서 기대됩니다.
+
+**Foreground 프로세스** (`exec()`):
+
+```typescript
+const result = await sandbox.exec('npm test');
+//완료를 위한 대기, 반환 산출
+```
+
+**배경 프로세스** (`startProcess()`):
+
+```typescript
+const process = await sandbox.startProcess('node server.js');
+//즉시 반환, 프로세스는 배경에서 실행
+```
+
+## 네트워크 기능
+
+**Outbound 연결**일:
+
+```bash
+curl https://api.example.com/data
+pip install requests
+npm install express
+```
+
+**Inbound 연결**항구 노출을 요구하십시오:
+
+```typescript
+const { hostname } = new URL(request.url);
+await sandbox.startProcess('python -m http.server 8000');
+const exposed = await sandbox.exposePort(8000, { hostname });
+console.log(exposed.url); //공개 URL
+```
+
+:::노트\[로컬 개발]
+사용 방법`wrangler dev`, 당신은 추가해야합니다`EXPOSE`각 포트에 대한 Dockerfile 지시어. 이름 \*[포트와 현지 개발](/sandbox/guides/expose-services/#local-development).
+:::
+
+**지역호스트**sandbox에서 일:
+
+```bash
+redis-server &      #서버 시작
+redis-cli ping      #로컬로 연결
+```
+
+## 보안 보안
+
+**sandboxes 사이**(관련):
+
+- 각 sandbox는 분리되는 콘테이너입니다
+- Filesystem, 메모리 및 네트워크는 모두 고립되어 있습니다.
+
+**sandbox 안에**(공유):
+
+- 모든 프로세스는 동일한 파일을 참조하십시오.
+- 프로세스는 서로 소통할 수 있습니다.
+- 환경 변수는 session-scoped입니다
+
+신뢰할 수없는 코드를 실행하려면 사용자 당 별도의 샌드 박스를 사용하십시오.
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, `user-${userId}`);
+```
+
+## 제한 사항
+
+**할 수 없습니다**:
+
+- Load 커널 모듈 또는 액세스 호스트 하드웨어
+
+## 관련 자료
+
+- [회사연혁](/sandbox/concepts/architecture/)- 방법 컨테이너는 시스템에 적합
+- [보안 모델](/sandbox/concepts/security/)- 콘테이너 고립 세부사항
+- [Sandbox 수명주기](/sandbox/concepts/sandboxes/)- 컨테이너 수명주기 관리
+- [도커 인 도커](/sandbox/guides/docker-in-docker/)- Sandbox 내부 Docker 컨테이너 실행

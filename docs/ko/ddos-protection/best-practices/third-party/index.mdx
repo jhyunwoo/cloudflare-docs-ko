@@ -1,0 +1,69 @@
+---
+title: 제3자 서비스 및 DDoS 보호
+pcx_content_type: reference
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 제3자 서비스 및 Cloudflare DDoS 보호
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ddos-protection/best-practices/third-party/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/best-practices/third-party/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, RuleID } from "~/components";
+
+## Cloudflare 앞에서 제3자 CDN 사용
+
+몇몇 Cloudflare 고객은 사용을 선택합니다<GlossaryTooltip term="content delivery network (CDN)">콘텐츠 전달 네트워크 (CDN)</GlossaryTooltip>Cloudflare 앞에서 캐시 및 리소스를 제공합니다.
+
+Cloudflare는 당신을 추천**Cloudflare 앞의 제3자 CDN을 사용하지 마십시오.**. 일부 CDN 제공 업체는 프로토콜 표준 및 / 또는 프로토콜 모범 사례에서 편차 HTTP 요청으로 미묘함을 소개 할 수 있습니다. 또한, 'Cloudflare' 트래픽은 'Cloudflare' 앞의 Akamai CDN을 사용할 때, 제 3 자 CDN의 IP 주소의 제한된 세트에서 시작될 것입니다. 즉, CDN이 이러한 제한 IP 주소에서 트래픽의 양으로 인해 'Cloudflare'에 대한 DDoS 공격을 시작하면 나타납니다.
+
+그래서, 그것은 당신이 그것을 추천**이용안내['클라우드' CDN](/cache/)**&#xB2E4;음 혜택을 제공:
+
+- 당신은 공급 업체 데이터 센터 사이에 추가 hop를 제거, 따라서 사용자에 대한 대기 시간을 감소.
+- 인터넷에서 접촉의 첫 번째 지점에서 DDoS 필터링을 수행, 권장 최고의 연습입니다.
+
+:::caution\[L3/4 DDoS 완화 정확도]
+'Cloudflare' 앞의 타사 'WAF' 또는 CDN 서비스를 사용하여 L3/4 DDoS 완화의 정확도에 부정적인 영향을 줄 수 있습니다.
+
+트래픽이 또 다른 공급업체를 통해 proxied 할 때, 공급업체의 IP 주소는 true 클라이언트 IP 주소가 아닌 ‘Cloudflare’의 네트워크 레이어 보호 시스템에 사용할 수 있습니다. 원래 소스에 가시성의이 부족은 덜 효과적인 자동화 된 완화 및 잠재적 인 거짓 긍정적으로 이어질 수 있습니다.
+주요 특징
+
+제3자 공급 업체와 관련된 특정 아키텍처를 요구하는 경우, 참조[Magic Transit에 대한 배포 아키텍처](/reference-architecture/architectures/magic-transit/#deployment-architectures-for-magic-transit)복잡한 환경에서 보안 자세 유지에 대한 자세한 지침.
+
+Cloudflare 앞의 제3자 CDN을 사용하고 Cloudflare는 DDoS 공격을 mitigates하면, 'Cloudflare\`에 의해 처리 된 공격 트래픽에 대한 최초의 CDN 공급자를 지불합니다.
+
+### 권장 DDoS 구성 조정
+
+'Cloudflare' 앞에 CDN 또는 프록시를 사용하는 경우 다음과 같은 DDoS 규칙의 동작 및 / 또는 감도 수준을 변경하는 것이 좋습니다.
+
+- `HTTP requests with unusual HTTP headers or URI path (signature #1)`규칙 ID로<RuleID id="0b1e17bd25c74e38834f19043486aee1" />
+- `HTTP requests with unusual HTTP headers or URI path (signature #56)`규칙 ID로<RuleID id="466d6c2e8ba74459a2670e91e269dfd6" />
+- `HTTP requests with unusual HTTP headers or URI path (signature #57)`규칙 ID로<RuleID id="12b9aecf1f6245b29d7e842bf35a42a0" />
+- `Requests coming from known bad sources`규칙 ID로<RuleID id="6e3ccc23900c428e8ec0fb8a3a679c52" />
+
+규칙의 행동을 변경해야합니다.*로그인*(기업 계획에서만 사용할 수 있음)[분석 대시보드](/ddos-protection/reference/analytics/). 또는, 규칙을 변경**감도 수준**으로*자주 묻는 질문*방아쇠에서 규칙을 방지하기 위해.
+
+더 많은 정보를 원하시면, 참조[HTTP DDoS 공격 보호 관리 규정: Ruleset 구성](/ddos-protection/managed-rulesets/http/#ruleset-configuration).
+
+## VPN, NAT 및 기타 타사 서비스 사용
+
+일부 Cloudflare Magic Transit 고객 운영<GlossaryTooltip term="Virtual Private Network (VPN)">가상 개인 네트워크 (VPN)</GlossaryTooltip>원격 직원은 조직의 서비스에 안전하게 연결할 수 있습니다. 또한, 더 큰 조직은 네트워크에 연결 및 네트워크의 아웃을 관리하는 Network Addressing Translation (NAT) 시스템을 가지고 있습니다.
+
+Cloudflare Magic Transit 고객은 Zoom, Webex, Microsoft Teams 등과 같은 제3자 서비스를 사용할 수 있으며, 내부 조직 커뮤니케이션에 대한 기타를 사용할 수 있습니다. 'Cloudflare'에 트래픽이 발생하기 때문에 이러한 제3자 서비스에 속하는 IP 주소의 제한 세트에서 시작될 수 있으므로, 해당 서비스는 제한된 IP 주소로부터 트래픽의 양으로 인해 'Cloudflare'에 대한 DDoS 공격을 시작하면 나타납니다.
+
+또한, 이 트래픽은 대상의 제한 세트 (예를 들어, 동일한 지정된 서비스 포트, VPN 엔드포인트 또는 NAT IP 주소)를 대상으로 할 수 있으므로 CDN이 IP의 제한된 설정에서 트래픽의 양으로 인해 'Cloudflare'에 대한 DDoS 공격을 시작하면 나타납니다.*으로*IP의 제한 세트.
+
+### 권장 DDoS 구성 조정
+
+조직이 VPN, NAT, 또는 100 Mbps 이상에서 타사 서비스를 사용하는 경우 다음 중 하나를 권장합니다.
+
+- 수정하기**감도 수준**관련 규칙의 낮은 수준. 수준 변경*자주 묻는 질문*트리거에서 규칙을 방지합니다. 더 알아보기[HTTP DDoS 공격 보호 관리 규정](/ddos-protection/managed-rulesets/http/)·[Network-layer DDoS 공격 보호 관리 규정](/ddos-protection/managed-rulesets/network/)규칙 당 사용 가능한 조정에 대한 자세한 내용은 어떻게 수행 할 수 있습니다.
+- 식각 필터를 사용하여 관리 된 DDoS 규칙에서 원하는 트래픽을 제외합니다. 소스 포트, 소스 IP 주소, 대상 포트, 대상 IP 주소 및 프로토콜의 조합을 제외할 수 있습니다. 더 많은 정보를 원하시면, 참조[API를 통해 Network-layer DDoS 공격 보호 구성](/ddos-protection/managed-rulesets/network/network-overrides/configure-api/).
+
+Enterprise 플랜에 있다면 규칙의 행동을 변경할 수 있습니다.*로그인*교통을 볼 수[분석 대시보드](/ddos-protection/reference/analytics/). 이 정보를 수집 한 후 이전에 설명 된 규칙 조정을 정의 할 수 있습니다.

@@ -1,0 +1,97 @@
+---
+reviewed: 2024-03-11T00:00:00.000Z
+category: Zero Trust
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: Cloudflare 터널 및 네트워크 정책을 사용하여 MySQL 데이터베이스 액세스 및 보안
+description: >-
+  Cloudflare 사용 터널의 개인 네트워크, 사용자는 데이터베이스와 같은 임의 비 브레이저 기반 TCP/UDP 애플리케이션에 연결할 수
+  있습니다. WARP 클라이언트를 사용하여 그 응용 프로그램에 액세스 할 수있는 것을 정의하는 Zero 신뢰 제어를 구현하는 네트워크 정책을
+  설정할 수 있습니다.
+tags:
+  - MySQL
+  - Private networks
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/mysql-network-policy/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/mysql-network-policy/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Cloudflare 사용 터널의 개인 네트워크, 사용자는 데이터베이스와 같은 임의 비 브레이저 기반 TCP/UDP 애플리케이션에 연결할 수 있습니다. WARP 클라이언트를 사용하여 그 응용 프로그램에 액세스 할 수있는 것을 정의하는 Zero 신뢰 제어를 구현하는 네트워크 정책을 설정할 수 있습니다.
+
+이 튜토리얼의 끝에 네트워크 정책을 통과하는 사용자는 TCP 포트 3306에 Cloudflare 터널을 통해 사용할 수있는 원격 MySQL 데이터베이스에 액세스 할 수 있습니다.
+
+## 시작하기 전에
+
+당신이 가지고 있는지 확인:
+
+- 원격 연결을위한 MySQL 데이터베이스 듣기 및 원격 연결을 연결할 수있는 사용자와 구성
+- (선택)[Resolver 정책](/cloudflare-one/traffic-policies/resolver-policies/)계정에서 활성화
+
+## Cloudflare 터널 만들기
+
+설치하기`cloudflared`개인 네트워크에서 서버. 이 서버는 MySQL 데이터베이스에 연결되어야 합니다.
+
+<Render file="tunnel/create-tunnel" product="cloudflare-one" />
+
+## 개인 네트워크 경로 추가
+
+1. 내 계정**CIDR 소개**탭, 다음 IP 주소를 추가:
+
+- MySQL 서버의 개인 IP/CIDR (예를 들면,`10.128.0.175/32`)
+- (선택) 내부 DNS 서버의 개인 IP/CIDR
+
+2. 제품정보**저장 터널**.
+
+응용 프로그램 및 (선택 사항) DNS 서버는 Cloudflare에 연결됩니다.
+
+## Gateway Network 정책 만들기
+
+1. 오시는 길**교통 정책** > **네트워크 정책**.
+2. 추가하기[네트워크 정책](/cloudflare-one/traffic-policies/network-policies/)이는 개인 IP 주소와 MySQL 데이터베이스의 포트를 대상으로합니다 (기본적으로 포트 3306). 다음 예제는 WARP에 등록하는 사용자에게 데이터베이스에 액세스 할 수 있습니다.`@example.com`이메일 주소 네트워크 정책도 고려할 수 있습니다.[장치 자세 검사](/cloudflare-one/reusable-components/posture-checks/).
+
+| 옵션 정보   | 회사연혁     | 제품정보            | 로그인   | - 연혁 |
+| ------- | -------- | --------------- | ----- | ---- |
+| 대상 IP   | 내 계정     | `10.128.0.175`  | 이름 \* | 지원하다 |
+| 관광 명소   | 내 계정     | `3306`          | 이름 \* |      |
+| 사용자 이메일 | 경기 regex | `.*example.com` |       |      |
+
+위의 허용 규칙 외에도 Cloudflare는 추가 권장[catch-all 블록 정책](/learning-paths/replace-vpn/build-policies/)네트워크 정책 목록의 하단에 기본 밀도 모델을 적용합니다.
+
+WARP 사용자는 MySQL 서버에 연결할 수 있습니다.`10.128.0.175`선택의 MySQL 클라이언트를 사용하여.
+
+## (선택 사항) Gateway fixr 정책을 작성
+
+개인 IP 주소 대신 내부 hostname을 사용하여 MySQL 데이터베이스에 액세스 할 수 있도록 Gateway fixr 정책을 구성합니다.
+
+1. 오시는 길**교통 정책** > **Resolver 정책**.
+
+2. 제품정보**정책 추가**.
+
+3. 개인에 대한 일치를 만들기[이름 \*](/cloudflare-one/traffic-policies/resolver-policies/#domain)또는[이름 \*](/cloudflare-one/traffic-policies/resolver-policies/#host)다음 예제와 같은 응용 프로그램의:
+
+   | 옵션 정보 | 회사연혁 | 제품정보                 |
+   | ----- | ---- | -------------------- |
+   | 이름 \* | 내 계정 | `internalrecord.com` |
+
+4. 내 계정**DNS 해결자 선택**, 선택*사용자 정의 DNS 해결사 구성*.
+
+5. DNS 서버의 개인 IP 주소를 입력하십시오.
+
+6. 드롭다운 메뉴에서, 선&#xD0DD;*`<IP-address> - Private`*.
+
+7. (선택) 주문 포트를 입력하십시오.
+
+8. 제품정보**공지사항**.
+
+내부 DNS 서버가 있는 경우`A`MySQL 데이터베이스에 대한 기록, 사용자는 이 레코드를 사용하여 서버에 연결할 수 있습니다. 예를 들어, BIND 서버로 항목이 포함됨:
+
+`mysql IN  A  10.128.0.175`
+
+WARP 사용자는 MySQL 데이터베이스에 연결할 수 있습니다.`mysql.internalrecord.com`선택의 MySQL 클라이언트를 사용하여.

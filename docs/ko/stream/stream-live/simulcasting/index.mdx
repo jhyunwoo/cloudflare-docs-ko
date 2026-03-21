@@ -1,0 +1,83 @@
+---
+pcx_content_type: how-to
+title: Simulcast (restream) 동영상
+learning_center:
+  title: 라이브 스트리밍이란?
+  link: 'https://www.cloudflare.com/learning/video/what-is-live-streaming/'
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/stream-live/simulcasting/'
+translation_source_md: 'https://developers.cloudflare.com/stream/stream-live/simulcasting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Simulcasting은 Twitch, YouTube, Facebook, Twitter 등과 같은 타사 플랫폼으로 라이브 스트림을 전달할 수 있습니다. 각 실시간 입력에서 최대 50개의 동시 목적지로 시뮬레이션할 수 있습니다. 시뮬레이션을 시작하려면 입력을 선택하고 하나 이상의 출력을 추가하십시오.
+
+## API를 사용하여 출력 추가
+
+retransmitting 라이브 비디오를 시작하기 위해 출력을 추가하십시오. 방송 중 언제든지 출력을 추가하거나 제거 할 수 있습니다.
+
+```bash title="Request"
+curl -X POST \
+--data '{"url": "rtmp://a.rtmp.youtube.com/live2","streamKey": "<redacted>"}' \
+-H "Authorization: Bearer <API_TOKEN>" \
+https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream/live_inputs/<INPUT_UID>/outputs
+```
+
+```json title="Response"
+{
+  "result": {
+    "uid": "6f8339ed45fe87daa8e7f0fe4e4ef776",
+    "url": "rtmp://a.rtmp.youtube.com/live2",
+    "streamKey": "<redacted>"
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 시작할 때 통제하고 simulcasting를 멈추십시오
+
+개별 실시간 출력을 할 수 있습니다:
+
+- 더 보기**실시간 입력**Cloudflare dashboard의 페이지.
+
+  <DashButton url="/?to=/:account/stream/inputs" />
+- [API를](/api/resources/stream/subresources/live_inputs/subresources/outputs/methods/update/)
+
+이렇게 하면:
+
+- 라이브 스트림을 시작하지만 YouTube 및 Twitch로 시뮬레이션을 시작하려면 컨텐츠가 시작됩니다.
+- 라이브 스트림 끝 전에 시뮬레이션을 중지, 시청자가 YouTube 또는 Twitch와 같은 타사 서비스의 전환을 격려하기 위해 직접 라이브 스트림.
+- 특정한 simulcasting 목적지에 살 때 당신의 자신의 사용자 설명서 통제를 주십시오.
+
+라이브 출력이 비활성화되면, 비디오는 라이브 출력으로 시뮬레이션되지 않습니다, 심지어 해당 라이브 입력에 적극적으로 스트리밍 할 때.
+
+기본적으로 모든 실시간 출력이 가능합니다.
+
+### dashboard에서 출력 가능:
+
+1. Cloudflare dashboard에서, 가십시오**실시간 입력**사이트 맵
+
+   <DashButton url="/?to=/:account/stream/inputs" />
+
+2. 목록에서 입력을 선택합니다.
+
+3. 이름 \***제품정보** > **이름 \***, toggle를 활성화 또는 비활성화 설정.
+
+## 출력 관리
+
+| 이름 \*                                                                                                                  | 제품 설명    | 끝점                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------- |
+| [출력 목록](/api/resources/stream/subresources/live_inputs/methods/list/)                                                  | `GET`    | `accounts/:account_identifier/stream/live_inputs`                                               |
+| [출력 삭제](/api/resources/stream/subresources/live_inputs/methods/delete/)                                                | `DELETE` | `accounts/:account_identifier/stream/live_inputs/:live_input_identifier`                        |
+| [A Specified Live 입력과 관련된 모든 출력 목록](/api/resources/stream/subresources/live_inputs/subresources/outputs/methods/list/) | `GET`    | `/accounts/{account_id}/stream/live_inputs/{live_input_identifier}/outputs`                     |
+| [출력을 삭제](/api/resources/stream/subresources/live_inputs/subresources/outputs/methods/delete/)                          | `DELETE` | `/accounts/{account_id}/stream/live_inputs/{live_input_identifier}/outputs/{output_identifier}` |
+
+관련 라이브 입력이 이미 이 출력으로 전송되면`DELETE`요청, 출력은 30 초 이내에 차단됩니다.

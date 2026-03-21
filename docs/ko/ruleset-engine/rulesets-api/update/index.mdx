@@ -1,0 +1,185 @@
+---
+pcx_content_type: reference
+title: 업데이트 또는 룰렛 배포
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/update/'
+translation_source_md: 'https://developers.cloudflare.com/ruleset-engine/rulesets-api/update/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+다음 API 엔드포인트 중 하나를 사용하여 규칙을 업데이트하십시오.
+
+- [계정 규칙 업데이트](/api/resources/rulesets/methods/update/)<br />
+  `PUT /accounts/{account_id}/rulesets/{ruleset_id}`
+- [계정 입력 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)<br />
+  `PUT /accounts/{account_id}/rulesets/phases/{phase_name}/entrypoint`
+- [지역 규칙 업데이트](/api/resources/rulesets/methods/update/)<br />
+  `PUT /zones/{zone_id}/rulesets/{ruleset_id}`
+- [지역 항목 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)<br />
+  `PUT /zones/{zone_id}/rulesets/phases/{phase_name}/entrypoint`
+
+규칙을 업데이트하면 업데이트 할 수 있습니다.
+
+- 규칙의 기본 속성 (현재에만 설명)
+- 규칙의 목록
+
+규칙을 배포하려면 규칙을 추가하십시오.`"action": "execute"`규칙의 목록[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset). 참고[규칙을 배포](#example---deploy-a-ruleset)예를 들어.
+
+:::참조
+규칙이나 유형의 이름을 업데이트 할 수 없습니다. 이 필드를 포함하지 마십시오`data`당신의 이름`PUT`이름 \*
+주요 특징
+
+## 예제 - 규칙의 규칙을 설정
+
+다음 것`PUT`요청은 규칙의 규칙의 목록을 정의, 단일 규칙에 설정. 당신은 모든 요청에 규칙과 함께하고 싶은 모든 규칙을 포함해야합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  			},
+  			expression: "true",
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point ruleset",
+		"description": "This ruleset executes a managed ruleset.",
+		"kind": "zone",
+		"version": "4",
+		"rules": [
+			{
+				"id": "<RULE_ID>",
+				"version": "2",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2025-03-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2025-03-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 예제 - 규칙을 배포
+
+규칙을 배포하려면 규칙을 만듭니다.`"action": "execute"`규칙을 실행하고 규칙 ID를 추가`action_parameters`현장에`id`모수.
+
+다음 것`PUT`요청은 관리된 규칙을 배치합니다.`http_request_firewall_managed`영역의 단계 (`$ZONE_ID`).
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  			},
+  			expression: "true",
+  			description:
+  				"Execute Cloudflare Managed Ruleset on my phase entry point ruleset",
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point ruleset",
+		"description": "",
+		"kind": "zone",
+		"version": "4",
+		"rules": [
+			{
+				"id": "<RULE_ID_1>",
+				"version": "1",
+				"action": "execute",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>",
+					"version": "latest"
+				},
+				"expression": "true",
+				"description": "Execute Cloudflare Managed Ruleset on my phase entry point ruleset",
+				"last_updated": "2025-03-21T11:02:08.769537Z",
+				"ref": "<RULE_REF_1>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2025-03-21T11:02:08.769537Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+배포 규칙에 대한 자세한 내용은 참조[배포 규칙](/ruleset-engine/basic-operations/deploy-rulesets/).
+
+## 예제 - 업데이트 규칙 설명
+
+다음 것`PUT`요청은 기존의 규칙 또는 단계 항목 포인트의 설명을 업데이트합니다.
+
+응답은 모든 규칙을 포함한 완전한 규칙 정의를 포함합니다.
+
+:::참조
+당신은 설명 또는 관리 규칙에 규칙을 업데이트 할 수 없습니다. 당신은 할 수 있습니다[오버라이드](/ruleset-engine/managed-rulesets/override-managed-ruleset/)규칙적인 행동을 사용자 정의합니다.
+주요 특징
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+  	description: "My updated phase entry point ruleset",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone entry point",
+		"description": "My updated phase entry point ruleset",
+		"kind": "zone",
+		"version": "4",
+		"rules": [
+			// (...)
+		],
+		"last_updated": "2025-03-30T10:49:11.006109Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```

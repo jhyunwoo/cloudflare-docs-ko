@@ -1,0 +1,298 @@
+---
+pcx_content_type: concept
+title: 미터 및 분석
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pipelines/observability/metrics/'
+translation_source_md: 'https://developers.cloudflare.com/pipelines/observability/metrics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Pipelines는 데이터 섭취, 가공 및 싱크로 전달되는 측정을 허용하는 미터를 노출합니다.
+
+표시된 미터[Cloudflare 대시보드](https://dash.cloudflare.com/)Cloudflare[GraphQL 분석 API](/analytics/graphql-api/). 미터에 접근할 수 있습니다[프로그램](#query-via-the-graphql-api)GraphQL 또는 HTTP 클라이언트를 통해.
+
+## 미터
+
+### 통신수 미터
+
+파이프 라인은 아래 메트릭을 수출합니다.`pipelinesOperatorAdaptiveGroups`데이터셋. 이 메트릭 트랙 데이터 읽기 및 파이프라인 연산자에 의해 처리.
+
+| 기본 정보     | GraphQL 필드 이름  | 이름 \*                                                            |
+| --------- | -------------- | ---------------------------------------------------------------- |
+| Bytes 에   | `bytesIn`      | 파이프라인에 의해 읽는 바이트의 총 수 (filter by`streamId_neq: ""`스트림에서 데이터를 읽는) |
+| 관련 기사     | `recordsIn`    | 총 레코드 수 파이프에 의해 읽는 (filter by`streamId_neq: ""`스트림에서 데이터를 읽는)    |
+| Decode 오류 | `decodeErrors` | 스트림 스키마에서 deserialized 할 수없는 메시지의 수                              |
+
+왜 사건의 상세한 고장은 떨어졌다 (특히 오류 유형을 포함하여`missing_field`, `type_mismatch`, `parse_failure`·`null_value`), 참조[사용자 오류 측정](#user-error-metrics).
+
+더 보기`pipelinesOperatorAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `pipelineId`- 파이프의 ID
+- `streamId`- 소스 스트림의 ID
+- `datetime`- 작업의 타임스탬프
+- `date`- 작업의 타임스탬프, 하루의 시작에 따라
+- `datetimeHour`- 가동의 타임스탬프, 시간의 시작에 truncated
+
+### 싱크 미터
+
+파이프 라인은 아래 메트릭을 수출합니다.`pipelinesSinkAdaptiveGroups`데이터셋. 이 미터는 수채에 자료 납품을 추적합니다.
+
+| 기본 정보              | GraphQL 필드 이름              | 이름 \*                      |
+| ------------------ | -------------------------- | -------------------------- |
+| Bytes 글            | `bytesWritten`             | 싱크로 작성된 바이트 수, 압축 후        |
+| 기록 글               | `recordsWritten`           | 싱크로 작성된 기록의 총 수            |
+| 파일 작성              | `filesWritten`             | 싱크로 작성된 파일 수               |
+| 행 그룹 글             | `rowGroupsWritten`         | 작성된 행 그룹 수 ( Parquet 파일 용) |
+| Uncompressed 바이트 글 | `uncompressedBytesWritten` | 압축하기 전에 작성된 바이트 수          |
+
+더 보기`pipelinesSinkAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `pipelineId`- 파이프의 ID
+- `sinkId`- 대상 싱크 ID
+- `datetime`- 작업의 타임스탬프
+- `date`- 작업의 타임스탬프, 하루의 시작에 따라
+- `datetimeHour`- 가동의 타임스탬프, 시간의 시작에 truncated
+
+### 사용자 오류 측정
+
+파이프 라인 트랙 이벤트는 deserialization 오류로 처리하는 동안 떨어졌다. 구조화된 스트림은 정의 된 스키마와 일치하지 않는 이벤트를 수신할 때, 그 이벤트는 섭취 중에 허용되지만 처리 중에 떨어졌다. 더 보기`pipelinesUserErrorsAdaptiveGroups`dataset는 이러한 떨어졌다 이벤트에 대한 가시성을 제공합니다. 이벤트가 떨어졌고 왜. GraphQL을 사용하여이 데이터 세트의 전체 스키마를 탐색 할 수 있습니다.[관련 상품](/analytics/graphql-api/features/discovery/introspection/).
+
+| 기본 정보 | GraphQL 필드 이름 | 이름 \*         |
+| ----- | ------------- | ------------- |
+| 제품정보  | `count`       | 유효한 실패한 사건의 수 |
+
+더 보기`pipelinesUserErrorsAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `pipelineId`- 파이프의 ID
+- `errorFamily`- 오류의 종류 (예를 들면,`deserialization`)
+- `errorType`- 가족 내의 특정 오류 유형
+- `date`- 오류의 날짜, 하루 시작에 truncated
+- `datetime`- 오류의 타임스탬프
+- `datetimeHour`- 오류의 타임스탬프, 시간의 시작에 따라
+- `datetimeMinute`- 오류의 타임스탬프, 분의 시작에 truncated
+
+#### Known 오류 유형
+
+| 오류 가족             | 오류 유형           | 이름 \*                                                     |
+| ----------------- | --------------- | --------------------------------------------------------- |
+| `deserialization` | `missing_field` | 스트림 스키마에 정의 된 필수 필드는 이벤트에서 제시되지 않았습니다.                    |
+| `deserialization` | `type_mismatch` | 필드 값은 schema의 예상 유형과 일치하지 않았다 (예를 들어, 문자열은 예상되는 곳을 보냈습니다) |
+| `deserialization` | `parse_failure` | 이벤트는 유효 JSON으로 파싱 할 수 없습니다, 또는 필드 값은 예상 유형으로 파싱 할 수 없습니다  |
+| `deserialization` | `null_value`    | 필수 필드가 존재했지만 null 값을 가지고                                  |
+
+:::참조
+첫 번째 장소에서 ingested에서 잘못된 데이터를 방지하기 위해, 사용 고려[Typed 파이프라인 바인딩](/pipelines/streams/writing-to-streams/#typed-pipeline-bindings)컴파일 시간에 schema 위반을 잡아.
+주요 특징
+
+## 대시보드의 메트릭 및 오류보기
+
+Per-pipeline 분석은 Cloudflare 대시보드에서 유효합니다. 파이프라인을 위한 현재와 역사적인 미터를 전망하기 위하여:
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com)계정 선택
+2. 오시는 길**파이프 라인** > **파이프 라인**.
+3. 파이프 선택
+4. 오시는 길**미터**metrics 또는**계정 관리**탭은 이벤트를 떨어졌다.
+
+쿼리에 시간 창을 선택 할 수 있습니다. 이 기본값은 마지막 24시간입니다.
+
+## GraphQL API를 통해 쿼리
+
+당신은 당신의 파이프라인을 위한 programmatically 쿼리 분석 할 수 있습니다[GraphQL 분석 API](/analytics/graphql-api/). 이 API는 Cloudflare 대시보드로 동일한 datasets를 쿼리하고 GraphQL를 지원합니다[관련 상품](/analytics/graphql-api/features/discovery/introspection/).
+
+Pipelines GraphQL 데이터셋은`accountTag`Cloudflare 계정 ID를 가진 여과기.
+
+### 시간 동안 연산자 메트릭을 측정
+
+이 쿼리는 전체 바이트를 반환하고 스트림에서 파이프라인에 의해 읽기, 어떤 decode 오류와 함께.
+
+```graphql graphql-api-explorer
+query PipelineOperatorMetrics(
+	$accountTag: String!
+	$pipelineId: String!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			pipelinesOperatorAdaptiveGroups(
+				limit: 10000
+				filter: {
+					pipelineId: $pipelineId
+					streamId_neq: ""
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				sum {
+					bytesIn
+					recordsIn
+					decodeErrors
+				}
+			}
+		}
+	}
+}
+```
+
+### 측정 싱크 납품 미터
+
+이 쿼리는 파일 및 압축 통계를 포함하여 특정 싱크로 작성된 데이터에 대한 자세한 측정을 반환합니다.
+
+```graphql graphql-api-explorer
+query PipelineSinkMetrics(
+	$accountTag: String!
+	$pipelineId: String!
+	$sinkId: String!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			pipelinesSinkAdaptiveGroups(
+				limit: 10000
+				filter: {
+					pipelineId: $pipelineId
+					sinkId: $sinkId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				sum {
+					bytesWritten
+					recordsWritten
+					filesWritten
+					rowGroupsWritten
+					uncompressedBytesWritten
+				}
+			}
+		}
+	}
+}
+```
+
+### Query는 이벤트 오류를 떨어졌다
+
+이 쿼리는 schema validation 실패로 인해 떨어졌다 이벤트의 요약을 반환, 오류 유형에 의해 그룹화 및 주파수에 의해 명령.
+
+```graphql graphql-api-explorer
+query GetPipelineUserErrors(
+	$accountTag: String!
+	$pipelineId: String!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			pipelinesUserErrorsAdaptiveGroups(
+				limit: 100
+				filter: {
+					pipelineId: $pipelineId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+				orderBy: [count_DESC]
+			) {
+				count
+				dimensions {
+					date
+					errorFamily
+					errorType
+				}
+			}
+		}
+	}
+}
+```
+
+예 응답:
+
+```json
+{
+	"data": {
+		"viewer": {
+			"accounts": [
+				{
+					"pipelinesUserErrorsAdaptiveGroups": [
+						{
+							"count": 679,
+							"dimensions": {
+								"date": "2026-02-19",
+								"errorFamily": "deserialization",
+								"errorType": "missing_field"
+							}
+						},
+						{
+							"count": 392,
+							"dimensions": {
+								"date": "2026-02-19",
+								"errorFamily": "deserialization",
+								"errorType": "type_mismatch"
+							}
+						},
+						{
+							"count": 363,
+							"dimensions": {
+								"date": "2026-02-19",
+								"errorFamily": "deserialization",
+								"errorType": "parse_failure"
+							}
+						},
+						{
+							"count": 44,
+							"dimensions": {
+								"date": "2026-02-19",
+								"errorFamily": "deserialization",
+								"errorType": "null_value"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+특정 오류 유형에 의해 필터링 할 수 있습니다.`errorType`필터에:
+
+```graphql
+pipelinesUserErrorsAdaptiveGroups(
+	limit: 100
+	filter: {
+		pipelineId: $pipelineId
+		datetime_geq: $datetimeStart
+		datetime_leq: $datetimeEnd
+		errorType: "type_mismatch"
+	}
+	orderBy: [count_DESC]
+)
+```
+
+계정의 모든 파이프라인에서 오류를 조회하려면, omit`pipelineId`필터 및 포함`pipelineId`차원에서:
+
+```graphql
+pipelinesUserErrorsAdaptiveGroups(
+	limit: 100
+	filter: {
+		datetime_geq: $datetimeStart
+		datetime_leq: $datetimeEnd
+	}
+	orderBy: [count_DESC]
+) {
+	count
+	dimensions {
+		pipelineId
+		errorFamily
+		errorType
+	}
+}
+```
+
+:::참조
+더 알아보기`pipelinesUserErrorsAdaptiveGroups`, 당신은 또한 조회할 수 있습니다`pipelinesUserErrorsAdaptive`마지막 24 시간 내에 상세한 오류 설명을 제공합니다. 이 데이터셋을 쿼리하는 것은 파이프라인 프로세스가 많은 이벤트를 처리하는 경우 대용량의 데이터를 반환할 수 있습니다.
+주요 특징

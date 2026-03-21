@@ -1,0 +1,174 @@
+---
+pcx_content_type: concept
+title: 제한 사항
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/reference/limits/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/reference/limits/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+Workflows를 실행하는 권한, 배포 및 실행에 적용되는 제한은 아래와 같습니다.
+
+많은 제한은 Workers 스크립트에 적용된 사람들로부터 상속되며 문서화[Workers 제한](/workers/platform/limits/)문서.
+
+:::참조
+
+Workflows는 플랫폼 네임스페이스의 WorkersXQ에 배포할 수 없습니다. Workflows는 플랫폼용 WorkersXQ를 지원하지 않습니다.
+
+:::
+
+| 제품 정보                                                                      | Workers 무료                                                                 | Workers 유료                                                                  |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| 스크립트 당 Workflow 클래스 정의                                                     | 3MB 당 최대 스크립트 크기[작업자 크기 제한](/workers/platform/limits/#account-plan-limits) | 10MB 당 최대 스크립트 크기[작업자 크기 제한](/workers/platform/limits/#account-plan-limits) |
+| 계정 당 총 스크립트                                                                | 100                                                                        | 500 (공유와 함께[Worker 스크립트 제한](/workers/platform/limits/#account-plan-limits)  |
+| 단계 당 컴퓨터 시간[^3]                                                            | 10 미터                                                                      | 30 초 (과태) / 구성 가능한 5 분[활동적인 CPU 시간](/workers/platform/limits/#cpu-time)     |
+| 기간 (벽 시계) 단계 당[^3]                                                         | 제한 없음                                                                      | 무제한 - 예를 들어, 네트워크 I / O 통화 또는 데이터베이스 쿼리                                     |
+| 단계 당 최대 지속된 국가                                                             | 1MiB (2^20 바이트)                                                            | 1MiB (2^20 바이트)                                                             |
+| 최대 행사[payload 크기](/workflows/build/events-and-parameters/)                 | 1MiB (2^20 바이트)                                                            | 1MiB (2^20 바이트)                                                             |
+| Workflow 인스턴스 당 persisted 할 수있는 최대 상태                                      | 100MB 이상                                                                   | 1기가바이트                                                                      |
+| 지원하다`step.sleep`이름 \*                                                      | 365일 (1년)                                                                  | 365일 (1년)                                                                   |
+| Workflow 당 최대 단계[^5]                                                       | 1,024                                                                      | 10,000 (과태) / 구성 최대 25,000                                                  |
+| 최대 Workflow 실행                                                             | 일 당 100,000[Workers 매일 제한으로 공유](/workers/platform/limits/#worker-limits)   | 제한 없음                                                                       |
+| 계정 당 Concurrent Workflow 인스턴스 (executions)[^7]                             | 100                                                                        | 10,000                                                                      |
+| 최대 Workflow 인스턴스 생성률[^8]                                                   | 초당 100[^6]                                                                 | 초당 100[^6]                                                                  |
+| 최대 수[queued 인스턴스](/workflows/observability/metrics-analytics/#event-types) | 100,000                                                                    | 1,000,000                                                                   |
+| 완료된 Workflow 인스턴스 상태에 대한 보존 제한                                             | 3 일                                                                        | 30 일[^2]                                                                    |
+| Workflow 이름의 최대 길이[^4]                                                     | 64자                                                                        | 64자                                                                         |
+| Workflow 인스턴스 ID의 최대 길이[^4]                                                | 100개의 특성                                                                   | 100개의 특성                                                                    |
+| Workflow 인스턴스 당 subrequests 수                                              | 50 / 요청                                                                    | 10,000/request (과태) / 구성 최대 10 백만                                           |
+
+[^2]: Workflow 인스턴스 상태 및 로그는 Workers 무료 플랜에서 3 일 동안 유지되며 Workers 유료 플랜에서 30 일 동안 유지됩니다.
+
+[^3]: Workflow 인스턴스는 forever를 실행할 수 있으며, 각 단계는 CPU 시간 제한과 Workflow 당 최대 단계 수는 도달하지 않습니다.
+
+[^4]: 일치 패턴 :  `^[a-zA-Z0-9_][a-zA-Z0-9-_]\*$`\_
+
+[^5]: `step.sleep`최대 단계 한계를 넘지 않습니다.
+
+[^6]: Workflows는 새로운 워크 플로우 인스턴스 생성률을 초과하면 HTTP 429 비율 제한 오류를 반환합니다.
+
+[^7]: 인스턴스만`running`concurrency limits에 대한 상태 계산. Instances 에`waiting`상태는 이 한계에서 제외됩니다.
+
+[^8]: 각 인스턴스는 이 제한을 향해 생성 또는 재시작
+
+<Render file="limits_increase" product="workers" />
+
+### `waiting`인스턴스는 인스턴스 concurrency limits로 계산하지 않습니다.
+
+에 있음`waiting`국가 — 을 통해 자`step.sleep`, retry를 기다리고, 또는 이벤트를 기다리고`step.waitForEvent`- 일**아니다.**&#x63;oncurrency 제한으로 계산합니다. 이것은 작업 흐름 인스턴스의 수백만을 가지고 있거나 이벤트를 동시에 기다리고 있습니다.`running`인스턴스는 10,000개의 동시 인스턴스 제한으로 계산합니다.
+그러나 10,000개의 동시 인스턴스가 활발한 경우, 그 인스턴스는`waiting`상태는 즉시 resuming 대신 할당됩니다.
+인스턴스가 전환될 때`running`으로`waiting`, 다른`queued`인스턴스는 예정될 것입니다 (보통 가장 오래된 누적된 인스턴스, 최고의 노력 기준). 이 상태 전환은 대기 시간이 매우 짧은 경우 발생할 수 없습니다.
+
+예를 들어, 작업 흐름을 고려, 30 일 동안 대기, 그리고 그 다음 더 많은 작업을 계속:
+
+```ts title="src/index.ts"
+import {
+	WorkflowEntrypoint,
+	WorkflowStep,
+	WorkflowEvent,
+} from "cloudflare:workers";
+
+type Env = {
+	MY_WORKFLOW: Workflow;
+};
+
+export class MyWorkflow extends WorkflowEntrypoint<Env> {
+	async run(event: WorkflowEvent<unknown>, step: WorkflowStep) {
+		await step.do("initial work", async () => {
+			let resp = await fetch("https://api.cloudflare.com/client/v4/ips");
+			return await resp.json<any>();
+		});
+
+		await step.sleep("wait 30 days", "30 days");
+
+		await step.do(
+			"make a call to write that could maybe, just might, fail",
+			{
+				retries: {
+					limit: 5,
+					delay: "5 seconds",
+					backoff: "exponential",
+				},
+				timeout: "15 minutes",
+			},
+			async () => {
+				if (Math.random() > 0.5) {
+					throw new Error("API call to $STORAGE_SYSTEM failed");
+				}
+			},
+		);
+	}
+}
+```
+
+주어진 Workflow 인스턴스가 30 일 동안 기다리는 동안, 그것은 전환할 것입니다`waiting`상태, 다른 것을 허용`queued`concurrency limits가 도달하면 실행할 수 있습니다.
+
+### Workflow 단계 제한 증가
+
+각 워크 플로우 인스턴스는 기본적으로 10,000 단계를 지원하지만 Wrangler 구성에서 최대 25,000 단계까지 증가 할 수 있습니다. 더 알아보기[Workflow 단계 한계](/workflows/build/workers-api/#workflowsteplimit)더 많은 정보.
+
+### Workflow CPU 제한 증가
+
+Workflows는 노동자 스크립트이고, 동일을 공유합니다[CPU 제한 당](/workers/platform/limits/#worker-limits)어떤 Workers로. CPU 시간이 활동적인 처리 시간이라고 주의하십시오: 네트워크 요구, 저장 통화, 또는 당신의 CPU 시간 또는 Workflows compute 소비를 위해 계산하지 않는 다른 일반적인 I/O에 기다리는 시간.
+
+작업 흐름이 CPU 시간 제한을 초과하면 다음과 같은 오류를 발생시킵니다.
+
+```txt
+Error: Worker exceeded CPU time limit.
+```
+
+이것으로 나타날 것입니다`exceededCpu`내 계정[`wrangler tail`](/workers/wrangler/commands/#tail)결과 및`exceededResources`내 계정[Workers 미터](/workers/observability/metrics-and-analytics/#invocation-statuses).
+
+기본적으로 Workflow invocation 당 최대 CPU 시간은 30 초로 설정되지만 Workflow 정의와 관련된 모든 invocations에 대해 증가 할 수 있습니다.`limits.cpu_ms`Wrangler 윤곽에서:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//당신의 윤곽의 ...rest...
+  	"limits": {
+  		"cpu_ms": 300000, //300,000 밀리 초 = 5 분
+  	},
+  	//당신의 윤곽의 ...rest...
+  }
+  ```
+</WranglerConfig>
+
+CPU 시간과 한계에 대해 자세히 알아 보려면,[Workers 문서 검토](/workers/platform/limits/#cpu-time).
+
+### Workflow subrequest 제한 증가
+
+subrequest는 Workflow가 인터넷 리소스를 사용하여 만드는 어떤 요청입니다.[페치 API](/workers/runtime-apis/fetch/)또는 다른 Cloudflare 서비스에 요청[모델 번호: R2](/r2/), [모델 번호: KV](/kv/), 또는[모델 번호: D1](/d1/). Workflows는 장시간이고 수시로 외부 서비스 또는 Cloudflare APIs에 많은 전화를, 그들은 기본 잠수정 한계를 초과할 수 있습니다.
+
+작업 흐름이 subrequest 한계를 초과하면 다음과 같은 오류를 발생시킵니다.
+
+```txt
+Error: Too many subrequests.
+```
+
+이것으로 나타날 것입니다`exceededResources`내 계정[Workers 미터](/workers/observability/metrics-and-analytics/#invocation-statuses)·`exception`내 계정[`wrangler tail`](/workers/wrangler/commands/#tail)회사 정보
+
+기본적으로 Workflow 인스턴스당 최대 수의 하위 요청은 Workers Paid 계획에 10,000이지만 설정하여 최대 10 백만까지 증가 할 수 있습니다.`limits.subrequests`당신의 Wrangler 윤곽에서:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//당신의 윤곽의 ...rest...
+  	"limits": {
+  		"subrequests": 10000000, //10백만 (최대)
+  	},
+  	//당신의 윤곽의 ...rest...
+  }
+  ```
+</WranglerConfig>
+
+무료 플랜에 Workers는 50개의 외부 보조금과 1,000개의 보조금으로 Cloudflare서비스로 제한됩니다.
+
+subrequest limits에 대해 더 알아보기[Workers 문서 검토](/workers/platform/limits/#subrequests).
+
+<Render file="wall-time-limits" product="workers" />

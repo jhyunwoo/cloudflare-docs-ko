@@ -1,0 +1,137 @@
+---
+pcx_content_type: configuration
+title: '규칙, 태그 및 규칙의 관리 규칙을 배포'
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/override-ruleset-tag-rule/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-examples/override-ruleset-tag-rule/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, APIRequest, Render } from "~/components";
+
+규칙의 조합으로 관리 된 규칙의 실행을 사용자 정의, 태그 overrides, 그리고 당신의 단계 항목에 규칙 overrides.
+
+1. [규칙 추가](/ruleset-engine/basic-operations/deploy-rulesets/)관리된 규칙을 실행하기 위한 단계 진입점 규칙에.
+2. [통치자 override 구성](/ruleset-engine/managed-rulesets/override-managed-ruleset/)관리 규칙에 모든 규칙을 비활성화합니다.
+3. [태그 override 구성](/ruleset-engine/managed-rulesets/override-managed-ruleset/)주어진 태그와 규칙에 대한 작업을 설정합니다.
+4. [규칙 override 구성](/ruleset-engine/managed-rulesets/override-managed-ruleset/)실행하려는 규칙에 대한 동작을 설정합니다.
+
+## 지역 수준 예
+
+이 예제는[지역 항목 포인트 규칙 업데이트](/ruleset-engine/rulesets-api/update/)단일에서 다음 작업을 수행`PUT`요구 사항:
+
+- 규칙을 추가`http_request_firewall_managed`관리 규칙을 실행하는 단계 항목 포인트 규칙.
+- 카테고리를 사용하여 규칙을 활성화`wordpress`·`drupal`태그와 작업을 설정`log`.
+- 단일 규칙을 활성화하는 규칙을 추가합니다.
+
+이 예제에서:
+
+- `"id": "<MANAGED_RULESET_ID>"`관리된 규칙을 정의하여 요청을 영역으로 지정합니다 (`$ZONE_ID`).
+- `"enabled": false`모든 규칙을 처리하는 규칙 수준에서 배속을 정의합니다.
+- `"categories": [{"category": "wordpress", "action": "log", "enabled": true}, {"category": "drupal", "action": "log", "enabled": true}]`태그 레벨에서 오버라이드를 정의하여 규칙 태그를 활성화`wordpress`또는`drupal`그리고 그들의 활동을 설정`log`.
+- `"rules": [{"id": "<RULE_ID>", "action": "block", "enabled": true}]`하나의 개인 규칙을 활성화하고 행동을 설정하는 규칙 수준에서 override 정의`block`.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "wordpress",
+  							action: "log",
+  							enabled: true,
+  						},
+  						{
+  							category: "drupal",
+  							action: "log",
+  							enabled: true,
+  						},
+  					],
+  					rules: [
+  						{
+  							id: "<RULE_ID>",
+  							action: "block",
+  							enabled: true,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+## 계정 수준 예
+
+이 예제는[계정 입력 포인트 규칙 업데이트](/ruleset-engine/rulesets-api/update/)단일에서 다음 작업을 수행`PUT`요구 사항:
+
+- 규칙을 추가`http_request_firewall_managed`영역의 관리 규칙을 실행하는 단계 항목 포인트 규칙`example.com`.
+- 카테고리를 사용하여 규칙을 활성화`wordpress`·`drupal`태그와 작업을 설정`log`.
+- 단일 규칙을 활성화하는 규칙을 추가합니다.
+
+이 예제에서:
+
+- `"id": "<MANAGED_RULESET_ID>"`요청 주소를 실행하기 위해 관리된 규칙을 정의합니다.`example.com`.
+- `"enabled": false`모든 규칙을 처리하는 규칙 수준에서 배속을 정의합니다.
+- `"categories": [{"category": "wordpress", "action": "log", "enabled": true}, {"category": "drupal", "action": "log", "enabled": true}]`태그 레벨에서 오버라이드를 정의하여 규칙 태그를 활성화`wordpress`또는`drupal`그리고 그들의 활동을 설정`log`.
+- `"rules": [{"id": "<RULE_ID>", "action": "block", "enabled": true}]`하나의 개인 규칙을 활성화하고 행동을 설정하는 규칙 수준에서 override 정의`block`.
+
+<Render file="deploy-account-ruleset-requirement" product="ruleset-engine" />
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: 'cf.zone.name eq "example.com" and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					enabled: false,
+  					categories: [
+  						{
+  							category: "wordpress",
+  							action: "log",
+  							enabled: true,
+  						},
+  						{
+  							category: "drupal",
+  							action: "log",
+  							enabled: true,
+  						},
+  					],
+  					rules: [
+  						{
+  							id: "<RULE_ID>",
+  							action: "block",
+  							enabled: true,
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+/>

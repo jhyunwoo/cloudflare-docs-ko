@@ -1,0 +1,191 @@
+---
+title: aws-sdk-js-v3의
+pcx_content_type: example
+reviewed: 2022-07-18T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws-sdk-js-v3/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+JavaScript 또는 TypeScript 사용자가 계속 사용할 수 있습니다[`@aws-sdk/client-s3`](https://www.npmjs.com/package/@aws-sdk/client-s3)정상에 의하여 npm 포장. R2 구성 자격 증명을 즉시 전달해야 합니다.`S3`서비스 클라이언트.
+
+:::참조
+현재 로컬을 통해 개발하는 동안 AWS S3-compatible API를 사용할 수 없습니다.`wrangler dev`.
+:::
+
+```ts
+import {
+	S3Client,
+	ListBucketsCommand,
+	ListObjectsV2Command,
+	GetObjectCommand,
+	PutObjectCommand,
+} from "@aws-sdk/client-s3";
+
+const S3 = new S3Client({
+	region: "auto", //SDK가 필요하지만 R2
+	//Cloudflare 계정 ID 제공
+	endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+	credentials: {
+		accessKeyId: ACCESS_KEY_ID,
+		secretAccessKey: SECRET_ACCESS_KEY,
+	},
+});
+
+console.log(await S3.send(new ListBucketsCommand({})));
+//이름 *
+//'$metadata': {
+//HTTPStatusCode: 200,
+//requestId: 정의되지 않음,
+//extensionRequestId: 정의되지 않음,
+//cfId: 정의되지 않은,
+//시도 : 1,
+//합계: 0
+//이름 *
+//물통: [
+//{ 이름: '사용자 업로드', 생성일: 2022-04-13T21:23:47.102Z },
+//{이름: 'my-bucket', 생성일: 2022-05-07T02:46:49.218Z }
+//],
+//이름:
+//DisplayName: '...',
+//ID: '...'
+//이름 *
+//이름 *
+
+console.log(
+	await S3.send(new ListObjectsV2Command({ Bucket: "my-bucket" })),
+);
+//이름 *
+//'$metadata': {
+//HTTPStatusCode: 200,
+//requestId: 정의되지 않음,
+//extensionRequestId: 정의되지 않음,
+//cfId: 정의되지 않은,
+//시도 : 1,
+//합계: 0
+//이름 *
+//CommonPrefixes: 정의되지 않은,
+//내용: [
+//이름 *
+//키: 'cat.png',
+//마지막 업데이트: 2022-05-07T02:50:45.616Z,
+//ETag: "c4da329b38467509049e615c11b0c48a",
+//ChecksumAlgorithm: 정의되지 않은,
+//크기: 751832,
+//저장 종류: 'STANDARD',
+//소유자: undefined
+//이름 *
+//이름 *
+//키: 'todos.txt',
+//마지막 업데이트: 2022-05-07T21:37:17.150Z,
+//ETag: "29d911f495d1ba7cb3a4d7d15e63236a",
+//ChecksumAlgorithm: 정의되지 않은,
+//크기: 279,
+//저장 종류: 'STANDARD',
+//소유자: undefined
+//이름 *
+//],
+//ContinuationToken: 정의되지 않은,
+//Delimiter: 정의되지 않음,
+//EncodingType: 정의되지 않는,
+//IsTruncated: 거짓,
+//열쇠: 8,
+//MaxKeys: 1000년
+//이름: 'my-bucket',
+//NextContinuationToken: 정의되지 않은,
+//접두사: 정의되지 않는,
+//시작: undefined
+//이름 *
+```
+
+## 사전 서명된 URL 생성
+
+공개 읽기를 공유하거나 일시적으로 버킷에 액세스 할 수있는 사전 서명 된 링크도 생성 할 수 있습니다.
+
+```ts
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+//만료되는 속성을 사용하여 지정된 링크가 유효하다는 것을 결정하십시오.
+console.log(
+	await getSignedUrl(
+		S3,
+		new GetObjectCommand({ Bucket: "my-bucket", Key: "dog.png" }),
+		{ expiresIn: 3600 },
+	),
+);
+//PutObject와 같은 작업에 대한 링크를 만들 수도 있습니다.
+//ContentType을 지정하여 특정 파일 유형에 업로드합니다.
+console.log(
+	await getSignedUrl(
+		S3,
+		new PutObjectCommand({
+			Bucket: "my-bucket",
+			Key: "dog.png",
+			ContentType: "image/png",
+		}),
+		{ expiresIn: 3600 },
+	),
+);
+```
+
+```sh output
+https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=<credential>&X-Amz-Date=<timestamp>&X-Amz-Expires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature>&x-id=GetObject
+https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Content-Sha256=UNSIGNED-PAYLOAD&X-Amz-Credential=<credential>&X-Amz-Date=<timestamp>&X-Amz-Expires=3600&X-Amz-SignedHeaders=content-type%3Bhost&X-Amz-Signature=<signature>&x-id=PutObject
+```
+
+생성된 링크를 사용할 수 있습니다.`PutObject`지정된 버킷과 키에 업로드 할 수 있는 예, 사전 서명된 링크가 만료될 때까지. 지정된 URL을 사용할 때`ContentType`, 고객은 일치를 포함해야 합니다`Content-Type`요청의 헤더.
+
+```sh
+curl -X PUT "https://my-bucket.<ACCOUNT_ID>.r2.cloudflarestorage.com/dog.png?X-Amz-Algorithm=..." \
+  -H "Content-Type: image/png" \
+  --data-binary @dog.png
+```
+
+## CORS 및 Content-Type으로 업로드 제한
+
+사전 서명 된 URL을 생성 할 때, 당신은 학대를 제한 할 수 있습니다 :
+
+1. **콘텐츠 유형 제한**: 허용된 내용 유형 지정`PutObjectCommand`. 업로드는 클라이언트가 다른 것을 보낼 경우에 실패할 것입니다`Content-Type`헤더.
+
+2. **CORS 구성**: 설정[CORS 규칙](/r2/buckets/cors/#add-cors-policies-from-the-dashboard)파일 업로드를 할 수 있습니다. CORS 구성[Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/r2/overview)Bucket 설정에 JSON 정책을 추가함으로써:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+그런 다음 Content-Type 제한으로 사전 서명 된 URL을 생성합니다.
+
+```ts
+const putUrl = await getSignedUrl(
+	S3,
+	new PutObjectCommand({
+		Bucket: "my-bucket",
+		Key: "dog.png",
+		ContentType: "image/png",
+	}),
+	{ expiresIn: 3600 },
+);
+```
+
+클라이언트가이 할당 된 URL을 사용할 때, 그들은 반드시:
+
+- 허용된 근원에서 요청을 만드십시오 (CORS에 의해 강화하는)
+- 관련 기사`Content-Type: image/png`헤더 (시그니처에 의해 강화)

@@ -1,0 +1,147 @@
+---
+pcx_content_type: how-to
+title: /snapshot - 웹 페이지 스냅 샷 가져 오기
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/rest-api/snapshot/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/rest-api/snapshot/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+더 보기`/snapshot`endpoint는 HTML 콘텐츠와 하나의 요청에 웹 페이지의 스크린 샷을 캡처합니다. 그것은 텍스트 문자열로 HTML을 반환하고 Base64 인코딩 된 이미지로 스크린 샷.
+
+<Render file="rest-api-token-permissions" product="browser-rendering" />
+
+## 끝점
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/snapshot
+```
+
+## 관련 분야
+
+자주 묻는 질문`url`또는`html`:
+
+- `url`(문자)
+- `html`(문자)
+
+## 일반적인 사용 사례
+
+- 렌더링 된 HTML과 단일 API 호출의 시각적 스크린 샷 모두 캡처
+- 시각적 및 구조적 데이터가있는 아카이브 페이지
+- 시각과 DOM 차이를 비교하는 모니터링 도구
+
+## 기본 사용
+
+### URL에서 스냅샷 캡처
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="컬럼">
+    1. 오시는 길`https://example.com/`.
+    2. 주문 JavaScript를 주사하십시오.
+    3. 렌더링 된 HTML을 캡처.
+    4. 스크린 샷을 가져 가라.
+
+    ```bash
+    curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/snapshot' \
+      -H 'Authorization: Bearer <apiToken>' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "url": "https://example.com/",
+        "addScriptTag": [
+          { "content": "document.body.innerHTML = \"Snapshot Page\";" }
+        ]
+      }'
+    ```
+
+    ```json output
+    {
+    	"success": true,
+    	"result": {
+    		"screenshot": "Base64EncodedScreenshotString",
+    		"content": "<html>...</html>"
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript SDK 지원">
+    ```typescript
+    import Cloudflare from "cloudflare";
+
+    const client = new Cloudflare({
+    	apiToken: process.env["CLOUDFLARE_API_TOKEN"],
+    });
+
+    const snapshot = await client.browserRendering.snapshot.create({
+    	account_id: process.env["CLOUDFLARE_ACCOUNT_ID"],
+    	url: "https://example.com/",
+    	addScriptTag: [
+            { content: "document.body.innerHTML = \"Snapshot Page\";" }
+        ]
+    });
+
+    console.log(snapshot.content);
+    ```
+  </TabItem>
+</Tabs>
+
+## 고급 사용
+
+:::note\[더 많은 매개 변수를 찾고?]
+자주 묻는 질문[브라우저 렌더링 API 참고 자료](/api/resources/browser_rendering/subresources/snapshot/methods/create/)HTTP credentials 설정과 같은 모든 사용 가능한 매개 변수에 대해`authenticate`, 설정`cookies`, 및 사용자 정의 로드 동작 사용`gotoOptions`.
+:::
+
+### 사용자 정의 HTML에서 스냅 샷 만들기
+
+더 보기`html`JSON 페이로드의 속성, 그것은 HTML을 설정`<html><body>Advanced Snapshot</body></html>`다음 단계는:
+
+1. JavaScript를 무능하게 하십시오.
+2. 스크린 샷 설정`fullPage`.
+3. 페이지 크기 변경`(viewport)`.
+4. 맨 위로`30000ms`또는 까지`DOMContentLoaded`이벤트 불.
+5. 페이지의 렌더링 된 HTML 콘텐츠와 base-64 인코딩 된 스크린 샷을 반환합니다.
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/snapshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "html": "<html><body>Advanced Snapshot</body></html>",
+    "setJavaScriptEnabled": false,
+    "screenshotOptions": {
+       "fullPage": true
+    },
+    "viewport": {
+      "width": 1200,
+      "height": 800
+    },
+    "gotoOptions": {
+      "waitUntil": "domcontentloaded",
+      "timeout": 30000
+    }
+  }'
+```
+
+```json output
+{
+	"success": true,
+	"result": {
+		"screenshot": "AdvancedBase64Screenshot",
+		"content": "<html><body>Advanced Snapshot</body></html>"
+	}
+}
+```
+
+<Render file="improve-blurry-screenshot-resolution" product="browser-rendering" />
+
+<Render file="javascript-heavy-pages" product="browser-rendering" />
+
+<Render file="setting-custom-user-agent" product="browser-rendering" />
+
+<Render file="faq" product="browser-rendering" />

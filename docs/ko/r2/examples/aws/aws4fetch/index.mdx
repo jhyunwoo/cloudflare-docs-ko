@@ -1,0 +1,181 @@
+---
+title: 추천 동영상
+pcx_content_type: example
+reviewed: 2022-07-18T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/aws4fetch/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/aws4fetch/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="keys" product="r2" />
+
+<br />
+
+JavaScript 또는 TypeScript 사용자가 계속 사용할 수 있습니다[`aws4fetch`](https://www.npmjs.com/package/aws4fetch)정상에 의하여 npm 포장. 이 패키지는`fetch`·`SubtleCrypto`브라우저 또는 QXQX0617XQ Workers와 함께 작동 할 때 익숙한 API.
+
+R2 구성 자격 증명을 즉시 전달해야 합니다.`S3`서비스 클라이언트:
+
+```ts
+import { AwsClient } from "aws4fetch";
+
+//Cloudflare 계정 ID 제공
+const R2_URL = `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+const client = new AwsClient({
+	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+	accessKeyId: ACCESS_KEY_ID,
+	secretAccessKey: SECRET_ACCESS_KEY,
+});
+
+const ListBucketsResult = await client.fetch(R2_URL);
+console.log(await ListBucketsResult.text());
+//<ListAllMyBucketsResult>에 대하여
+//<부켓>
+//<부켓>
+//<CreationDate>2022-04-13T21:23:47.102Z</CreationDate>
+//<Name>사용자 업로드</Name>
+//</부켓>
+//<부켓>
+//<CreationDate>2022-05-07T02:46:49.218Z</CreationDate>
+//<이름>my-bucket</이름>
+//</부켓>
+//</부켓>
+//<오우너>
+//<DisplayName>...</DisplayName>
+//<ID>...</ID>
+//</오우너>
+//</ListAllMyBucketsResult>에 대하여
+
+const ListObjectsV2Result = await client.fetch(
+	`${R2_URL}/my-bucket?list-type=2`,
+);
+console.log(await ListObjectsV2Result.text());
+//<ListBucketResult>
+//<이름>my-bucket</이름>
+//<내용>
+//<키>cat.png</Key>
+//<크기>751832</크기>
+//<LastModified>2022-05-07T02:50:45.616Z</LastModified>
+//<ETag>"c4da329b38467509049e615c11b0c48a"</ETag>
+//<StorageClass>STANDARD</저장 클래스>
+//</내용>
+//<내용>
+//<Key>todos.txt</키>
+//<크기>278</크기>
+//<LastModified> 2022-05-07T21:37:17.150Z</최신>
+//<ETag>"29d911f495d1ba7cb3a4d7d15e63236a"</ETag>
+//<StorageClass>STANDARD</저장 클래스>
+//</내용>
+//<IsTruncated>false</IsTruncated>
+//<MaxKeys>1000</MaxKeys>(최대 키)
+//<KeyCount>2</KeyCount>
+//</ListBucketResult>
+```
+
+## 사전 서명된 URL 생성
+
+공개 읽기를 공유하거나 일시적으로 버킷에 액세스 할 수있는 사전 서명 된 링크도 생성 할 수 있습니다.
+
+```ts
+import { AwsClient } from "aws4fetch";
+
+const client = new AwsClient({
+	service: "s3", //SDK가 필요하지만 R2
+	region: "auto", //SDK가 필요하지만 R2
+	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+	accessKeyId: ACCESS_KEY_ID,
+	secretAccessKey: SECRET_ACCESS_KEY,
+});
+
+//Cloudflare 계정 ID 제공
+const R2_URL = `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`;
+
+//`X-Amz-Expires` 쿼리를 사용하여 미리 서명 된 링크가 유효하다는 것을 결정하십시오.
+console.log(
+	(
+		await client.sign(
+			new Request(`${R2_URL}/my-bucket/dog.png?X-Amz-Expires=${3600}`),
+			{
+				aws: { signQuery: true },
+			},
+		)
+	).url.toString(),
+);
+//PutObject와 같은 작업에 대한 링크를 만들 수도 있습니다.
+//Content-Type 헤더를 지정하여 특정 파일 유형에 업로드합니다.
+console.log(
+	(
+		await client.sign(
+			new Request(`${R2_URL}/my-bucket/dog.png?X-Amz-Expires=${3600}`, {
+				method: "PUT",
+				headers: {
+					"Content-Type": "image/png",
+				},
+			}),
+			{
+				aws: { signQuery: true },
+			},
+		)
+	).url.toString(),
+);
+```
+
+```sh output
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/dog.png?X-Amz-Expires=3600&X-Amz-Date=<timestamp>&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-SignedHeaders=host&X-Amz-Signature=<signature>
+https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/dog.png?X-Amz-Expires=3600&X-Amz-Date=<timestamp>&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-SignedHeaders=content-type%3Bhost&X-Amz-Signature=<signature>
+```
+
+생성된 링크를 사용할 수 있습니다.`PutObject`지정된 버킷과 키에 업로드 할 수 있는 예, 사전 서명된 링크가 만료될 때까지. 지정된 URL을 사용할 때`Content-Type`, 고객은 일치를 포함해야 합니다`Content-Type`요청의 헤더.
+
+```sh
+curl -X PUT "https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/dog.png?X-Amz-Expires=3600&X-Amz-Date=<timestamp>&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=<credential>&X-Amz-SignedHeaders=content-type%3Bhost&X-Amz-Signature=<signature>" \
+  -H "Content-Type: image/png" \
+  --data-binary @dog.png
+```
+
+## CORS 및 Content-Type으로 업로드 제한
+
+사전 서명 된 URL을 생성 할 때, 당신은 학대를 제한 할 수 있습니다 :
+
+1. **콘텐츠 유형 제한**: 지정`Content-Type`서명 할 때 요청에 헤더. 업로드는 클라이언트가 다른 것을 보낼 경우 실패합니다`Content-Type`헤더.
+
+2. **CORS 구성**: 설정[CORS 규칙](/r2/buckets/cors/#add-cors-policies-from-the-dashboard)파일 업로드를 할 수 있습니다. CORS 구성[Cloudflare dashboard](https://dash.cloudflare.com/?to=/:account/r2/overview)Bucket 설정에 JSON 정책을 추가함으로써:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+그런 다음 Content-Type 제한으로 사전 서명 된 URL을 생성합니다.
+
+```ts
+const signedRequest = await client.sign(
+	new Request(`${R2_URL}/my-bucket/user-upload.png?X-Amz-Expires=${3600}`, {
+		method: "PUT",
+		headers: {
+			"Content-Type": "image/png",
+		},
+	}),
+	{
+		aws: { signQuery: true },
+	},
+);
+const putUrl = signedRequest.url.toString();
+```
+
+클라이언트가이 할당 된 URL을 사용할 때, 그들은 반드시:
+
+- 허용된 근원에서 요청을 만드십시오 (CORS에 의해 강화하는)
+- 관련 기사`Content-Type: image/png`헤더 (시그니처에 의해 강화)

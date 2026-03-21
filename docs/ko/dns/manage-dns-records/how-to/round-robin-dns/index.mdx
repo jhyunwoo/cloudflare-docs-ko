@@ -1,0 +1,47 @@
+---
+pcx_content_type: reference
+title: 라운드 로빈 DNS
+sidebar:
+  order: 18
+
+---
+
+여러 서버에 트래픽을 무작위로 분산하려면 동일한 호스트명에 대해 여러 개의 DNS `A` 또는 `AAAA` 레코드를 설정하세요.
+
+이 구성을 사용하면 간단한 [라운드 로빈 로드 밸런싱](https://www.cloudflare.com/learning/dns/glossary/round-robin-dns/)을 구현할 수 있습니다. 자동 장애 조치, 지능형 라우팅 등 보다 세밀한 트래픽 분산 제어가 필요하다면 [추가형 load balancing 서비스](/load-balancing/)를 설정하세요.
+
+## 예시 시나리오
+
+다음 예시는 `www.example.com`으로 향하는 트래픽을 어떻게 분산하는지 보여 줍니다. 예시에서는 `A` 레코드를 사용하지만 `AAAA` 레코드도 사용할 수 있습니다.
+
+`example.com`에 대해 [계정을 만들고](/fundamentals/account/create-account/) [네임서버를 업데이트한](/dns/zone-setups/full-setup/setup/) 뒤에는 `www`에 대해 [여러 개의 서브도메인 DNS 레코드](/dns/manage-dns-records/how-to/create-dns-records/)를 만들 수 있습니다.
+
+| Type | Name  | IPv4 address |
+| ---- | ----- | ------------ |
+| A    | `www` | `192.0.2.1`  |
+| A    | `www` | `192.0.2.2`  |
+| A    | `www` | `192.0.2.3`  |
+
+DNS 라우팅의 실제 동작은 각 레코드의 [proxy status](/dns/proxy-status/)에 따라 달라집니다.
+
+### 모든 레코드가 unproxied인 경우
+
+연결된 모든 레코드가 unproxied라면, Cloudflare 네임서버에 대한 어떤 요청이든 앞서 추가한 세 개의 `A` 레코드를 반환합니다.
+
+각 클라이언트(대개 브라우저)는 어느 IP 주소로 요청을 보낼지 결정합니다. 하나의 IP 주소가 실패하면 클라이언트는 다른 옵션을 선택합니다. 모든 요청은 직접 오리진 서버(`192.0.2.1`, `192.0.2.2`, `192.0.2.3`)로 전송됩니다.
+
+### 모든 레코드가 proxied인 경우(권장)
+
+연결된 모든 레코드가 proxied라면, Cloudflare 네임서버에 대한 어떤 요청이든 Cloudflare IP 주소 목록에서 두 개의 `A` 레코드를 반환합니다.
+
+각 클라이언트(대개 브라우저)는 어느 Cloudflare IP 주소로 요청을 보낼지 결정합니다. 그런 다음 Cloudflare가 해당 요청을 수신하고, Cloudflare가 오리진 서버에 연결해야 하는 경우 DNS 레코드에 지정된 세 개의 IP 주소 중 하나(`192.0.2.1`, `192.0.2.2`, `192.0.2.3`)를 선택합니다.
+
+이 설정은 오리진 서버로 가는 요청을 줄일 뿐 아니라 애플리케이션이 Cloudflare의 [Zero downtime failover](/fundamentals/security/protect-your-origin-server/#zero-downtime-failover)를 활용할 수 있게 해 줍니다. 하나의 IP 주소로의 요청이 실패하면 Cloudflare는 동일한 호스트명에 연결된 다른 IP 주소로 자동 재시도합니다. 이 동작은 최종 사용자가 다운타임을 경험하지 않도록 해 줍니다.
+
+### unproxied와 proxied 레코드가 섞여 있는 경우
+
+같은 호스트명에 proxied 레코드와 unproxied 레코드가 섞여 있으면 요청은 [모든 레코드가 proxied인 경우](#all-records-proxied-recommended)와 같은 방식으로 처리됩니다.
+
+이 접근 방식은 예기치 않은 동작을 초래할 수 있으므로 일반적으로 권장되지 않습니다. 예를 들어 unproxied 레코드 두 개와 proxied 레코드 하나가 있다면 Cloudflare는 모든 레코드를 proxied로 취급합니다. 그러나 proxied 레코드 하나를 삭제하면 남아 있는 두 개의 unproxied 레코드는 즉시 unproxied로 취급됩니다.
+
+DNS 레코드를 변경할 때 예상치 못한 결과를 피하려면 모든 레코드를 proxied 또는 모든 레코드를 unproxied로 사용하는 것을 권장합니다.

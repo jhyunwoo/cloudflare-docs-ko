@@ -1,0 +1,174 @@
+---
+pcx_content_type: how-to
+title: JSON 구성
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/features/dynamic-routing/json-configuration/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/features/dynamic-routing/json-configuration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+대신 사용**대시보드 편집기 UI**경로 그래프를 정의하려면 REST API를 사용하여 수행 할 수 있습니다. Routes는 간단한 JSON 구조를 사용하여 내부적으로 표현됩니다.
+
+```json
+{
+  "id": "<route id>",
+  "name": "<route name>",
+  "elements": [<array of elements>]
+}
+```
+
+## 지원되는 성분
+
+동적 라우팅은 정교한 라우팅 흐름을 만들 수 있는 여러 종류의 요소를 지원합니다. 각 성분에는 특정한 입력, 산출 및 윤곽 선택권이 있습니다.
+
+### 시작 요소
+
+경로의 시작을 표시합니다. 모든 경로는 시작 요소로 시작합니다.
+
+- **제품정보**: 없음
+- **제품정보**:
+  - `next`: 다음 요소에 대한 변경되지 않은 요청 전달
+
+```json
+{
+	"id": "<id>",
+	"type": "start",
+	"outputs": {
+		"next": { "elementId": "<id>" }
+	}
+}
+```
+
+### 조건 요소 (If/Else)
+
+요청 매개 변수에 따라 조건을 평가하고 요청을 따르십시오.
+
+- **제품정보**: 요청
+- **제품정보**:
+  - `true`: 조건이 true로 평가되는 경우 제공된 요소에 대한 Forwards 요청
+  - `false`: 상태가 false로 평가하는 경우 제공된 요소에 대한 Forwards 요청
+
+```json
+{
+	"id": "<id>",
+	"type": "conditional",
+	"properties": {
+		"condition": {
+			"metadata.plan": { "$eq": "free" } // Supports MongoDB-like operators
+		}
+	},
+	"outputs": {
+		"true": { "elementId": "<id>" },
+		"false": { "elementId": "<id>" }
+	}
+}
+```
+
+### Percentage 분할
+
+Routes 요청은 여러 출력을 통해 probabilistically, A / B 테스트 및 gradual rollouts에 유용합니다.
+
+- **제품정보**: 요청
+- **제품정보**: 최대 5 명의 비율 출력, 플러스 선택`else`뚱 베어
+  - 각 산출에는 분수 확률이 있습니다 (합계 100%년)
+  - `else`다른 분지가 100 %로 합하지 않는 경우 출력 핸들 나머지 비율
+
+```json
+{
+	"id": "<id>",
+	"type": "percentage",
+	"outputs": {
+		"10%": { "elementId": "<id>" },
+		"50%": { "elementId": "<id>" },
+		"else": { "elementId": "<id>" }
+	}
+}
+```
+
+### 비율/Budget 한계
+
+요청 메타데이터를 기반으로 한 제한을 적용합니다. 카운트 기반 및 비용 기반 제한을 모두 지원합니다.
+
+- **제품정보**: 요청
+- **제품정보**:
+  - `success`: 요청이 제한되지 않은 경우 제공된 요소에 대한 운송 요청
+  - `fallback`: rate-limited 요청에 대한 옵션 출력 (route는 제공되지 않는 경우 종료)
+
+**제품 정보**:
+
+- `limitType`: "count" 또는 "cost"
+- `key`: 제한 속도 (예 : "metadata.user id")에 대한 요청 필드
+- `limit`: 최대 허용된 요청/cost
+- `interval`: 초에 시간 창
+- `technique`: "sliding" 또는 "fixed" 창
+
+```json
+{
+	"id": "<id>",
+	"type": "rate_limit",
+	"properties": {
+		"limitType": "count",
+		"key": "metadata.user_id",
+		"limit": 100,
+		"interval": 3600,
+		"technique": "sliding"
+	},
+	"outputs": {
+		"success": { "elementId": "node_model_workers_ai" },
+		"fallback": { "elementId": "node_model_openai_mini" }
+	}
+}
+```
+
+### 모델 번호:
+
+지정된 모델과 configurable timeout 및 retry 설정과 공급자를 사용하여 inference를 실행합니다.
+
+- **제품정보**: 요청
+- **제품정보**:
+  - `success`: 모델이 성공적으로 응답을 스트리밍하는 경우 전달 요청
+  - `fallback`: 모델이 모든 retries 또는 밖으로 실패한 경우 선택 출력
+
+**제품 정보**:
+
+- `provider`: AI 공급자 (예 : "openai", "anthropic")
+- `model`: 특정 모델명
+- `timeout`: 밀리 초에 타임 아웃 요청
+- `retries`: 리트리 시도 수
+
+```json
+{
+	"id": "<id>",
+	"type": "model",
+	"properties": {
+		"provider": "openai",
+		"model": "gpt-4o-mini",
+		"timeout": 60000,
+		"retries": 4
+	},
+	"outputs": {
+		"success": { "elementId": "<id>" },
+		"fallback": { "elementId": "<id>" }
+	}
+}
+```
+
+### 끝 성분
+
+경로의 끝을 표시합니다. 마지막 성공적인 모델 응답을 반환하거나 모델 응답이 생성되지 않은 경우 오류.
+
+- **제품정보**: 요청
+- **제품정보**: 없음
+
+```json
+{
+	"id": "<id>",
+	"type": "end"
+}
+```

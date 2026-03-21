@@ -1,0 +1,130 @@
+---
+title: 접두사(URL)로 캐시 제거
+pcx_content_type: how-to
+sidebar:
+  order: 5
+
+---
+
+import { DashButton } from "~/components"
+
+URL 접두사 또는 URL의 경로 구분자를 기준으로 캐시를 즉시 제거할 수 있습니다. 예를 들어 `https://www.example.com/foo/bar/baz/qux.jpg` 같은 URL이 있을 때, 유효한 purge 요청에는 다음이 포함됩니다.
+
+* `www.example.com`
+* `www.example.com/foo`
+* `www.example.com/foo/bar`
+* `www.example.com/foo/bar/baz`
+* `www.example.com/foo/bar/baz/qux.jpg`
+
+접두사 기준 purge는 다음과 같은 여러 시나리오에서 유용합니다.
+
+* 디렉터리 전체를 제거할 때
+* 특정 경로 안의 캐시된 객체를 더 세밀하게 제어할 때
+* 전송해야 하는 purge 호출 수를 줄이고 싶을 때
+
+1. Cloudflare 대시보드에서 **Configuration** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/configuration" />
+
+2. **Purge Cache** 아래에서 **Custom Purge**를 선택합니다. **Custom Purge** 창이 나타납니다.
+3. **Purge by**에서 **Prefix**를 선택합니다.
+4. 문법 지침을 따릅니다.
+   * 한 줄에 prefix 하나
+   * API 호출당 최대 30개 prefix
+5. 예시에 표시된 형식으로 텍스트 필드에 적절한 값을 입력합니다.
+6. **Purge**를 선택합니다.
+
+속도 제한 정보는 [사용 가능 여부 및 한도](/cache/how-to/purge-cache/#availability-and-limits) 섹션을 참고하세요.
+
+:::caution[경고]
+
+
+[Transform Rule](/rules/transform/)이 URL 경로 일부를 수정하도록 설정되어 있다면, prefix purge가 효과를 내도록 제거 작업에는 변환 이후(오리진) URL을 사용해야 합니다.
+
+
+:::
+
+## 제거 후 캐시 상태
+
+접두사 기준 purge는 리소스를 삭제하므로, 이후 요청에서는 `CF-Cache-Status` 헤더가 [`MISS`](/cache/concepts/cache-responses/#miss)로 표시됩니다.
+
+[tiered cache](/cache/how-to/tiered-cache/)를 사용하는 경우, 하위 티어가 상위 티어와 재검증하여 상위 티어의 부하를 줄이려 하기 때문에 접두사 기준 purge가 `EXPIRED`를 반환할 수 있습니다.
+상위 티어가 리소스를 가지고 있는지 여부, 최종 사용자가 하위 티어에 도달하는지 상위 티어에 도달하는지에 따라 `EXPIRED` 또는 `MISS`가 반환됩니다.
+
+## 제한 사항
+
+접두사 기준 purge에는 몇 가지 제한이 있습니다.
+
+* prefix당 경로 구분자는 31개로 제한됩니다 `(example.com/a/b/c/d/e/f/g/h/i/j/k/l/m…)`.
+* purge 요청은 요청당 최대 30개의 prefix로 제한됩니다.
+* [Purge rate-limits가 적용됩니다](/api/resources/cache/methods/purge/).
+* URI 쿼리 문자열과 fragment는 prefix로 purge할 수 없습니다.
+  * `www.example.com/foo?a=b` (query string)
+  * `www.example.com/foo#bar` (fragment)
+
+:::caution[경고]
+
+
+접두사 기준 purge는 디렉터리를 제거하므로, 제거된 디렉터리 안의 리소스 URI는 쿼리 문자열이나 fragment 유무와 관계없이 모두 제거됩니다(fragment는 일반적으로 브라우저가 전송하지 않음). 접두사 기준 purge 규칙은 fragment와 query string을 허용하지 않습니다.
+
+예: `foo.com/bar`를 purge하면 `foo.com/bar`로 시작하는 모든 자산이 제거됩니다. 예를 들어 `foo.com/bar/baz`, `foo.com/bar?good=bad` 등이 제거되며, `foo.com/bar?good=bad` 자체를 지정해 purge하는 것은 동작하지 않습니다.
+
+
+:::
+
+## 접두사 기준 purge 정규화
+
+접두사 기준 purge 정규화를 사용하면, 정규화된 URL 경로에 대해 Cloudflare에 prefix purge 요청이 들어왔을 때 purge 서비스는 [URL 정규화](/rules/normalization/)를 존중하고 정규화된 URL을 제거합니다.
+
+### URL 정규화는 어떻게 동작하나요
+
+예를 들어 `https://cloudflare.com/انشاء-موقع-الكتروني/img_1.jpg`라는 웹사이트를 보겠습니다. 아래 표는 [정규화 켜짐/꺼짐](/rules/normalization/) 상태에서 Cloudflare 캐시가 이 경로를 어떻게 보는지 보여 줍니다.
+
+<table>
+  <tbody>
+    <th colspan="5" rowspan="1">
+      방문자가 EDGE로 보내는 요청
+    </th>
+    <th colspan="5" rowspan="1">
+      Normalize Incoming URLs가 ON일 때 Cloudflare 캐시가 보는 값
+    </th>
+    <th colspan="5" rowspan="1">
+      Normalize Incoming URLs가 OFF일 때 Cloudflare 캐시가 보는 값
+    </th>
+    <tr>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/انشاء-موقع-الكتروني/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/انشاء-موقع-الكتروني/img_1.jpg</code>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg</code>
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/hello/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/hello/img_1.jpg</code>
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>https://cloudflare.com/hello/img_1.jpg</code>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+위에서 보듯 URL 정규화가 **ON**이면 방문자가 `https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg`와 `https://cloudflare.com/انشاء-موقع-الكتروني/img_1.jpg` 두 URL 중 어느 쪽으로 오더라도 동일한 캐시 자산을 받게 됩니다. `https://cloudflare.com/%D8%A7%D9%86%D8%B4%D8%A7%D8%A1-%D9%85%D9%88%D9%82%D8%B9-%D8%A7%D9%84%D9%83%D8%AA%D8%B1%D9%88%D9%86%D9%8A/img_1.jpg`를 purge하면 두 방문자 모두에게 해당 자산이 즉시 제거됩니다.

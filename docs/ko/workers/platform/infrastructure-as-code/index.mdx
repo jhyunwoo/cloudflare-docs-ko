@@ -1,0 +1,779 @@
+---
+title: 코드로 인프라 (IaC)
+pcx_content_type: concept
+sidebar:
+  order: 11
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/platform/infrastructure-as-code/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/platform/infrastructure-as-code/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GitHubCode, TabItem, Tabs } from "~/components";
+import { Icon } from "astro-icon/components";
+
+한국어[Wrangler](/workers/wrangler/configuration)Workers를 업로드하고 관리하기 쉽습니다. 더 많은 프로그래밍 방법을 필요로 할 때 시간이 있습니다. Code (IaC) 도구로 인프라를 사용하거나 직접 상호 작용할 수 있습니다.[모델 번호: Workers](/api/resources/workers/). 예제는 빌드 및 배포 스크립트, CI/CD 파이프라인, 사용자 정의 개발자 도구 및 자동화 테스트를 포함합니다.
+
+이를 쉽게 만들기 위해 Cloudflare는 같은 인기있는 언어에 대한 SDK 라이브러리를 제공합니다.[클라우드 플레어-typescript](https://github.com/cloudflare/cloudflare-typescript)·[클라우드 플레어-python](https://github.com/cloudflare/cloudflare-python). IaC의 경우 HashiCorp의 Terraform과 같은 도구를 사용할 수 있습니다.[Cloudflare Terraform 공급자](/terraform)Workers 자원 관리.
+
+아래는 IaC와 Workers를 관리하기위한 중요한 고려 사항과 다른 도구와 언어를 사용하여 노동자를 배치하는 예입니다.
+
+이 예제의 모든 필요[계정 ID](/fundamentals/account/find-account-and-zone-ids)·[API 토큰](/fundamentals/api/get-started/create-token)(Global API 키가 아닙니다).
+
+## Workers 한국어
+
+아래 예제의 아무도[모델 번호: Workers 한국어](/workers/wrangler/bundling). 이것은 보통 Wrangler 또는 같이 공구로 행해집니다[esbuild의](https://esbuild.github.io).
+
+일반적으로, 당신은 당신의 Terraform 계획을 적용하기 전에이 번들링 단계를 실행하거나 스크립트 업로드에 대한 API를 사용하여:
+
+```bash
+wrangler deploy --dry-run --outdir build
+```
+
+Wrangler를 사용하여 건물 및 업로드를 위한 다른 방법, 당신의 구성 전부를 안으로 복사하는 것을 확인하십시오`wrangler.json`Terraform config 또는 API 요청으로. 이것은 특히 중요`compatibility_date`또는 스크립트를 실행합니다.
+
+## 옵션 정보
+
+이 예제에서, 당신은 로컬 파일 이름을 필요로`my-script.mjs`아래 예제와 유사한 스크립트 내용. 더 알아보기[Cloudflare Terraform 공급자](/terraform/), 그리고 참조[Workers 스크립트 리소스 예](https://github.com/cloudflare/terraform-provider-cloudflare/blob/main/examples/resources/cloudflare_workers_script/resource.tf)모든 사용 가능한 리소스 설정.
+
+```tf
+variable "account_id" {
+  default = "replace_me"
+}
+
+resource "cloudflare_worker" "my_worker" {
+  account_id = var.account_id
+  name = "my-worker"
+  observability = {
+    enabled = true
+  }
+}
+
+resource "cloudflare_worker_version" "my_worker_version" {
+  account_id = var.account_id
+  worker_id = cloudflare_worker.my_worker.id
+  compatibility_date = "2025-02-21" # Set this to today's date
+  main_module = "my-script.mjs"
+  modules = [
+    {
+      name = "my-script.mjs"
+      content_type = "application/javascript+module"
+      # Replacement (version creation) is triggered whenever this file changes
+      content_file = "my-script.mjs"
+    }
+  ]
+}
+
+resource "cloudflare_workers_deployment" "my_worker_deployment" {
+  account_id = var.account_id
+  script_name = cloudflare_worker.my_worker.name
+  strategy = "percentage"
+  versions = [{
+    percentage = 100
+    version_id = cloudflare_worker_version.my_worker_version.id
+  }]
+}
+```
+
+Terraform의 모든 리소스를 관리하지 않는 방법을 알려주세요. 예를 들어, 그냥 사용할 수 있습니다`cloudflare_worker`리소스 및 원활한 사용 Wrangler 또는 버전 또는 배포 도구.
+
+## Terraform의 바인딩
+
+[회사 소개](/workers/runtime-apis/bindings/)Cloudflare 개발자 플랫폼에 대한 리소스와 상호 작용할 수 있습니다. Terraform에서 바인딩은 Wrangler보다 다르게 구성됩니다. 각 바인딩 유형에 대한 별도의 최상위 속성 대신 (like)`kv_namespaces`, `r2_buckets`, 등), Terraform는 단 하나 사용합니다`bindings`각 바인딩이 있는 배열은`type`유형 별 속성과 함께 속성.
+
+아래는 각 바인딩 유형과 필요한 속성의 예입니다:
+
+### 모델 번호: KV Namespace 바인딩
+
+에 a[KV 네임스페이스](/kv/api/)핵심 가치 저장을 위해:
+
+```tf
+bindings = [{
+  type = "kv_namespace"
+  name = "MY_KV"
+  namespace_id = "your-kv-namespace-id"
+}]
+```
+
+**특성:**
+
+- `type`: `"kv_namespace"`
+- `name`: 바인딩의 변수명, 접속 가능`env.MY_KV`
+- `namespace_id`: KV 네임스페이스의 ID
+
+### 모델 번호: R2 물통 바인딩
+
+Bind로[R2 물통](/r2/api/workers/workers-api-reference/)대상 저장:
+
+```tf
+bindings = [{
+  type = "r2_bucket"
+  name = "MY_BUCKET"
+  bucket_name = "my-bucket-name"
+}]
+```
+
+**특성:**
+
+- `type`: `"r2_bucket"`
+- `name`: 접속하는 바인딩 이름`env.MY_BUCKET`
+- `bucket_name`: R2 버킷의 이름
+
+### 모델 번호: D1 데이터베이스 바인딩
+
+에 a[D1 데이터베이스](/d1/worker-api/)SQL 저장을 위해:
+
+```tf
+bindings = [{
+  type = "d1"
+  name = "DB"
+  id = "your-database-id"
+}]
+```
+
+**특성:**
+
+- `type`: `"d1"`
+- `name`: 접속하는 바인딩 이름`env.DB`
+- `id`: D1 데이터베이스의 ID
+
+### 튼튼한 목표 바인딩
+
+에 a[튼튼한 목표](/durable-objects/api/)종류:
+
+```tf
+bindings = [{
+  type = "durable_object_namespace"
+  name = "MY_DURABLE_OBJECT"
+  class_name = "MyDurableObjectClass"
+}]
+```
+
+**특성:**
+
+- `type`: `"durable_object_namespace"`
+- `name`: 접속하는 바인딩 이름`env.MY_DURABLE_OBJECT`
+- `class_name`: 튼튼한 목표의 수출한 종류 이름
+- `script_name`: (선택 사항) 이 튼튼한 개체 클래스를 수출하는 노동자 스크립트. 클래스가 같은 노동자에 정의 된 경우 Omit.
+
+### 서비스 바인딩
+
+다른 사람[작업자](/workers/runtime-apis/bindings/service-bindings/)Worker-to-Worker 커뮤니케이션을 위해:
+
+```tf
+bindings = [{
+  type = "service"
+  name = "MY_SERVICE"
+  service = "other-worker-name"
+}]
+```
+
+**특성:**
+
+- `type`: `"service"`
+- `name`: 접속하는 바인딩 이름`env.MY_SERVICE`
+- `service`: 대상 노동자의 이름
+- `entrypoint`: (선택) 이름 \*[회사연혁](/workers/runtime-apis/bindings/service-bindings/rpc/#named-entrypoints)에 바인딩
+
+### Queue 바인딩
+
+에 a[이름 \*](/queues/configuration/javascript-apis/)메시지 전달:
+
+메시지 생성을 위해:
+
+```tf
+bindings = [{
+  type = "queue"
+  name = "MY_QUEUE"
+  queue_name = "my-queue"
+}]
+```
+
+**특성:**
+
+- `type`: `"queue"`
+- `name`: 접속하는 바인딩 이름`env.MY_QUEUE`
+- `queue_name`: 당신의 Queue의 이름
+
+메시지를 소모하려면, queue 리소스 자체의 소비자로서 작업자를 구성, 바인딩을 통해하지.
+
+### 모델 번호: Vectorize 회사 소개
+
+에 a[Vectorize 인덱스](/vectorize/)벡터 검색:
+
+```tf
+bindings = [{
+  type = "vectorize"
+  name = "VECTORIZE_INDEX"
+  index_name = "my-index"
+}]
+```
+
+**특성:**
+
+- `type`: `"vectorize"`
+- `name`: 접속하는 바인딩 이름`env.VECTORIZE_INDEX`
+- `index_name`: Vectorize 인덱스의 이름
+
+### 모델 번호: Workers AI 회사 소개
+
+Bind로[모델 번호: Workers AI](/workers-ai/)AI inference를 위해:
+
+```tf
+bindings = [{
+  type = "ai"
+  name = "AI"
+}]
+```
+
+**특성:**
+
+- `type`: `"ai"`
+- `name`: 접속하는 바인딩 이름`env.AI`
+
+### Hyperdrive 회사 소개
+
+에 a[모델 번호: Hyperdrive](/hyperdrive/)데이터베이스 연결 풀에 대한 구성:
+
+```tf
+bindings = [{
+  type = "hyperdrive"
+  name = "HYPERDRIVE"
+  id = "your-hyperdrive-config-id"
+}]
+```
+
+**특성:**
+
+- `type`: `"hyperdrive"`
+- `name`: 접속하는 바인딩 이름`env.HYPERDRIVE`
+- `id`: Hyperdrive 구성의 ID
+
+### VPC 서비스 바인딩
+
+에 a[VPC 서비스](/workers-vpc/configuration/vpc-services/)개인 네트워크의 접근 자원을 위해:
+
+```tf
+bindings = [{
+  type = "vpc_service"
+  name = "PRIVATE_API"
+  service_id = "your-vpc-service-id"
+}]
+```
+
+**특성:**
+
+- `type`: `"vpc_service"`
+- `name`: 접속하는 바인딩 이름`env.PRIVATE_API`
+- `service_id`: VPC 서비스 ID (from)`cloudflare_connectivity_directory_service`또는 dashboard)
+
+Terraform을 사용하여 VPC 서비스를 만들 수 있습니다.`cloudflare_connectivity_directory_service`자료실 전체 연습을 위해, 참조[Terraform의 VPC 서비스 구성](/workers-vpc/configuration/vpc-services/terraform/).
+
+### Analytics 엔진 바인딩
+
+Bind로[Analytics 엔진](/analytics/analytics-engine/)데이터 세트:
+
+```tf
+bindings = [{
+  type = "analytics_engine"
+  name = "ANALYTICS"
+  dataset = "my_dataset"
+}]
+```
+
+**특성:**
+
+- `type`: `"analytics_engine"`
+- `name`: 접속하는 바인딩 이름`env.ANALYTICS`
+- `dataset`: Analytics Engine dataset의 이름
+
+### 환경 변수
+
+일반 텍스트 환경 변수의 경우, 사용`plain_text`연결 유형:
+
+```tf
+bindings = [{
+  type = "plain_text"
+  name = "MY_VARIABLE"
+  text = "my-value"
+}]
+```
+
+**특성:**
+
+- `type`: `"plain_text"`
+- `name`: 접속하는 바인딩 이름`env.MY_VARIABLE`
+- `text`: 환경 변수의 값
+
+### 비밀 텍스트 바인딩
+
+암호화된 비밀을 위해, 사용`secret_text`연결 유형:
+
+```tf
+bindings = [{
+  type = "secret_text"
+  name = "API_KEY"
+  text = var.api_key
+}]
+```
+
+**특성:**
+
+- `type`: `"secret_text"`
+- `name`: 접속하는 바인딩 이름`env.API_KEY`
+- `text`: 비밀 값 (암호화 가능)
+
+### 완전한 예
+
+여러 바인딩 유형을 결합 한 예입니다.
+
+```tf
+resource "cloudflare_worker_version" "my_worker_version" {
+  account_id = var.account_id
+  worker_id = cloudflare_worker.my_worker.id
+  compatibility_date = "2025-08-06"
+  main_module = "worker.js"
+
+  modules = [{
+    name = "worker.js"
+    content_type = "application/javascript+module"
+    content_file = "worker.js"
+  }]
+
+  bindings = [
+    {
+      type = "kv_namespace"
+      name = "MY_KV"
+      namespace_id = var.kv_namespace_id
+    },
+    {
+      type = "r2_bucket"
+      name = "MY_BUCKET"
+      bucket_name = "my-bucket"
+    },
+    {
+      type = "d1"
+      name = "DB"
+      id = var.d1_database_id
+    },
+    {
+      type = "service"
+      name = "AUTH_SERVICE"
+      service = "auth-worker"
+    },
+    {
+      type = "plain_text"
+      name = "ENVIRONMENT"
+      text = "production"
+    },
+    {
+      type = "secret_text"
+      name = "API_KEY"
+      text = var.api_key
+    },
+    {
+      type = "vpc_service"
+      name = "PRIVATE_API"
+      service_id = var.vpc_service_id
+    }
+  ]
+}
+```
+
+## Cloudflare API 도서관
+
+이 예제는[클라우드 플레어-typescript](https://github.com/cloudflare/cloudflare-typescript)서버 측 JavaScript 또는 TypeScriptXQ에 편리한 접근을 제공하는 SDK.
+
+<GitHubCode repo="cloudflare/cloudflare-typescript" file="examples/workers/script-upload.ts" commit="cb55a45d615425f6aaf9ee8a237d2c5424bf30b7" lang="ts" useTypeScriptExample={true} />
+
+## Cloudflare 등급 API
+
+터미널을 열고 쉘 스크립트를 생성하여 작업자를 업로드하고 컬과 버전과 배포를 관리합니다. Workers 스크립트는 JavaScript[ES 모듈](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules), 그러나 우리는 또한 지원합니다[Python Workers](/workers/languages/python/)(오픈 베타) 및[Rust Workers](/workers/languages/rust/).
+
+:::주\[주]
+
+이 API는 베타입니다. 안정된 API의 밑에 multipart/form-data API를 보십시오.
+주요 특징
+
+<Tabs syncKey="workers-esmodule-vs-python">
+  <TabItem label="ES 모듈" icon="seti:javascript">
+    ```bash
+    account_id="replace_me"
+    api_token="replace_me"
+    worker_name="my-hello-world-worker"
+
+    worker_script_base64=$(echo '
+    export default {
+      async fetch(request, env, ctx) {
+        return new Response(env.MESSAGE, { status: 200 });
+      }
+    };
+    ' | base64)
+
+    #아래는 이미 존재한다면 실패합니다!
+    #Worker를 삭제하는 방법
+    #
+    #worker id="replace-me"로 이동
+    #컬 "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers/$worker_id" \
+    #-X 종료 \
+    #-H "Authorization : Bearer $api token"
+
+    #작업자 만들기
+    worker_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "'$worker_name'"
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nWorker ID: $worker_id\n"
+
+    #Worker의 첫 번째 버전을 업로드
+    version_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers/$worker_id/versions" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "compatibility_date": "2025-08-06",
+        "main_module": "'$worker_name'.mjs",
+        "modules": [
+          {
+            "name": "'$worker_name'.mjs",
+            "content_type": "application/javascript+module",
+            "content_base64": "'$worker_script_base64'"
+          }
+        ],
+        "bindings": [
+          {
+            "type": "plain_text",
+            "name": "MESSAGE",
+            "text": "Hello World!"
+          }
+        ]
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nVersion ID: $version_id\n"
+
+    #Worker에 대한 배포 만들기
+    deployment_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/scripts/$worker_name/deployments" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "strategy": "percentage",
+        "versions": [
+          {
+            "percentage": 100,
+            "version_id": "'$version_id'"
+          }
+        ]
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nDeployment ID: $deployment_id\n"
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    [PythonWorkers](/workers/languages/python/)그들의 특별한`text/x-python`내용 유형 및`python_workers`호환성 깃발.
+
+    ```bash
+    account_id="replace_me"
+    api_token="replace_me"
+    worker_name="my-hello-world-worker"
+
+    worker_script_base64=$(echo '
+    from workers import WorkerEntrypoint, Response
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            return Response(self.env.MESSAGE)
+    ' | base64)
+
+    #아래는 이미 존재한다면 실패합니다!
+    #Worker를 삭제하는 방법
+    #
+    #worker id="replace-me"로 이동
+    #컬 "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers/$worker_id" \
+    #-X 종료 \
+    #-H "Authorization : Bearer $api token"
+
+    #작업자 만들기
+    worker_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "'$worker_name'"
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nWorker ID: $worker_id\n"
+
+    #Worker의 첫 번째 버전을 업로드
+    version_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/workers/$worker_id/versions" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "compatibility_date": "2025-08-06",
+        "compatibility_flags": [
+          "python_workers"
+        ],
+        "main_module": "'$worker_name'.py",
+        "modules": [
+          {
+            "name": "'$worker_name'.py",
+            "content_type": "text/x-python",
+            "content_base64": "'$worker_script_base64'"
+          }
+        ],
+        "bindings": [
+          {
+            "type": "plain_text",
+            "name": "MESSAGE",
+            "text": "Hello World!"
+          }
+        ]
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nVersion ID: $version_id\n"
+
+    #Worker에 대한 배포 만들기
+    deployment_id=$(curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/scripts/$worker_name/deployments" \
+      -X POST \
+      -H "Authorization: Bearer $api_token" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "strategy": "percentage",
+        "versions": [
+          {
+            "percentage": 100,
+            "version_id": "'$version_id'"
+          }
+        ]
+      }' \
+      | jq -r '.result.id')
+
+    echo "\nDeployment ID: $deployment_id\n"
+    ```
+  </TabItem>
+</Tabs>
+
+### multipart/form-data 업로드 API
+
+이 API 사용[multipart/form 자료](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Methods/POST)Worker를 업로드하고 버전과 배포를 implicitly 만들 것입니다. 위 API는 버전과 배포의 직접 관리에 권장됩니다.
+
+<Tabs syncKey="workers-vs-platforms" IconComponent={Icon}>
+  <TabItem icon="workers" label="모델 번호: Workers">
+    ```bash
+    account_id="replace_me"
+    api_token="replace_me"
+    worker_name="my-hello-world-script"
+
+    script_content='export default {
+      async fetch(request, env, ctx) {
+        return new Response(env.MESSAGE, { status: 200 });
+      }
+    };'
+
+    #작업자 업로드
+    curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/scripts/$worker_name" \
+      -X PUT \
+      -H "Authorization: Bearer $api_token" \
+      -F "metadata={
+        'main_module': '"$worker_name".mjs',
+        'bindings': [
+          {
+            'type': 'plain_text',
+            'name': 'MESSAGE',
+            'text': 'Hello World!'
+          }
+        ],
+        'compatibility_date': '$today'
+      };type=application/json" \
+      -F "$worker_name.mjs=@-;filename=$worker_name.mjs;type=application/javascript+module" <<EOF
+    $script_content
+    EOF
+    ```
+  </TabItem>
+
+  <TabItem icon="cloudflare-for-platforms" label="플랫폼을위한 Workers">
+    제품 정보[플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms), 업로드 할 수 있습니다[사용자 작업자](/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/#user-workers)한국어[비밀번호](/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/#dispatch-namespace). 참고[API 엔드포인트](/api/resources/workers_for_platforms/subresources/dispatch/subresources/namespaces/subresources/scripts/methods/update/)에 있다`/workers/dispatch/namespaces/$DISPATCH_NAMESPACE/scripts/$SCRIPT_NAME`.
+
+    ```bash
+    account_id="replace_me"
+    api_token="replace_me"
+    dispatch_namespace="replace_me"
+    worker_name="my-hello-world-script"
+
+    script_content='export default {
+      async fetch(request, env, ctx) {
+        return new Response(env.MESSAGE, { status: 200 });
+      }
+    };'
+
+    #비밀번호 찾기
+    curl https://api.cloudflare.com/client/v4/accounts/$account_id/workers/dispatch/namespaces \
+      -X POST \
+      -H 'Content-Type: application/json' \
+      -H "Authorization: Bearer $api_token" \
+      -d '{
+        "name": "'$dispatch_namespace'"
+      }'
+
+    #작업자 업로드
+    curl "https://api.cloudflare.com/client/v4/accounts/$account_id/workers/dispatch/namespaces/$dispatch_namespace/scripts/$worker_name" \
+      -X PUT \
+      -H "Authorization: Bearer $api_token" \
+      -F "metadata={
+        'main_module': '"$worker_name".mjs',
+        'bindings': [
+          {
+            'type': 'plain_text',
+            'name': 'MESSAGE',
+            'text': 'Hello World!'
+          }
+        ],
+        'compatibility_date': '$today'
+      };type=application/json" \
+      -F "$worker_name.mjs=@-;filename=$worker_name.mjs;type=application/javascript+module" <<EOF
+    $script_content
+    EOF
+    ```
+  </TabItem>
+</Tabs>
+
+### PythonWorkers
+
+[Python Workers](/workers/languages/python/)(오픈 베타) 자신의 특별`text/x-python`내용 유형 및`python_workers`multipart/form-data API를 사용하여 업로드를 위한 호환성 깃발.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/<account_id>/workers/scripts/my-hello-world-script \
+  -X PUT \
+  -H 'Authorization: Bearer <api_token>' \
+  -F 'metadata={
+        "main_module": "my-hello-world-script.py",
+        "bindings": [
+          {
+            "type": "plain_text",
+            "name": "MESSAGE",
+            "text": "Hello World!"
+          }
+        ],
+        "compatibility_date": "$today",
+        "compatibility_flags": [
+          "python_workers"
+        ]
+      };type=application/json' \
+  -F 'my-hello-world-script.py=@-;filename=my-hello-world-script.py;type=text/x-python' <<EOF
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return Response(self.env.MESSAGE)
+EOF
+```
+
+## Durable Objects로 고려
+
+[튼튼한 목표](/durable-objects/)마이그레이션은 배포에 적용됩니다. 이것은 배포가 존재하지 않는 경우 버전의 튼튼한 개체에 바인딩 할 수 없습니다. 즉, 마이그레이션이 적용되지 않았습니다. 예를 들어, Terraform에서 이것을 실행하면 계획이 적용됩니다.
+
+```tf
+resource "cloudflare_worker" "my_worker" {
+  account_id = var.account_id
+  name = "my-worker"
+}
+
+resource "cloudflare_worker_version" "my_worker_version" {
+  account_id = var.account_id
+  worker_id = cloudflare_worker.my_worker.id
+  bindings = [
+    {
+      type = "durable_object_namespace"
+      name = "my_durable_object"
+      class_name = "MyDurableObjectClass"
+    }
+  ]
+  migrations = {
+    new_sqlite_classes = [
+      "MyDurableObjectClass"
+    ]
+  }
+  # ...version props ommitted for brevity
+}
+
+resource "cloudflare_workers_deployment" "my_worker_deployment" {
+  # ...deployment props ommitted for brevity
+}
+```
+
+이 성공하기 위해, 당신은 먼저 코멘트를 가지고`durable_object`바인딩 블록, 계획을 적용, 그것을 uncomment, 코멘트 아웃`migrations`블록, 다음 다시 적용. 이 계획은 성공할 것입니다. API 또는 SDK도 적용됩니다. 이것은 단지 관리 할 감각을 만드는 예입니다.`cloudflare_worker`및/또는`cloudflare_workers_deployment`빌드 및 버전 관리를위한 Wrangler를 사용하는 동안 리소스.
+
+## Worker 버전의 고려
+
+### Resource의 특성
+
+Worker 버전은 API 수준에서 immutable이며, 생성 후 업데이트 할 수 없으며 원하는 변경으로 다시 생성 할 수 없습니다. 이것은 의미있는 변화를 의미한다.`cloudflare_worker_version`Terraform 자원은 항상 교체를 트리거합니다. 언제까지`cloudflare_worker_version`자원은 대체, 원하는 변경이있는 새로운 버전이 생성되지만 이전 버전은 삭제되지 않습니다. 이 작업자는 Terraform을 통해 관리 할 때 완전한 버전의 역사를 가지고 있습니다. 즉, 버전은 immutable과 append-only입니다. 부모의 경우`cloudflare_worker`리소스는 삭제됩니다. Worker와 관련된 모든 기존 버전도 삭제됩니다.
+
+### 모듈 내용
+
+Worker 버전 모듈은 콘텐츠를 제공하는 두 가지 상호 전용 방법을 지원합니다.
+
+- **`content_file`**- 현지 파일에 점수
+- **`content_base64`**- 인라인 base64 인코딩된 내용
+
+두 경우, 아래 내용을 변경하는 것은 계산을 사용하여 추적됩니다.`content_sha256`이름 \* 콘텐츠 지정`content_file`속성은 거의 모든 경우에 선호됩니다, 그것은 주에서 내용 자체를 저장하는 것을 피합니다. 모듈 내용은 매우 크 수 있습니다 (최대 10 메가바이트의), 그리고 저장 상태에 저장하고 부정적으로 Terraform 작업의 성능에 영향을 미칠 것입니다. 주요 사용 사례`content_base64`속성은 importing`cloudflare_worker_version`API의 Terraform 자원, 아래 논의.
+
+### 수입 Behavior
+
+**수입 중, Terraform은 항상`content_base64`상태의 속성**config에 사용되는 속성에 관계없이.
+
+```bash
+terraform import cloudflare_worker_version.my_worker_version <account_id>/<worker_id>/<version_id>
+```
+
+config가 사용하는 경우`content_file`, 수입 후 mismatch가 될 것입니다 (state uses`content_base64`, config 용도`content_file`). 견적 요청
+
+로컬 파일 referenced의 내용을 Assuming`content_file`수입된 내용과 그들의 일치`content_sha256`값은 동일합니다. 이것은 in-place update의 결과입니다.`cloudflare_worker_version`Terraform 자원. 아래 내용을 변경하지 않기 때문에 교체 대신에 in-place 업데이트해야합니다 (`content_sha256`속성은 둘 다에서 동일합니다), 그리고 자원은 API 수준에서 개정할 필요가 없습니다. 업데이트해야 할 유일한 것은 Terraform 상태입니다.`content_base64`으로`content_file`업데이트 후.
+
+Terraform 대신 리소스를 교체하려는 경우, 계산 된 차이를 인용`content_sha256`값은 로컬 파일 referenced의 내용입니다.`content_file`수입된 내용과 자원과 일치하지 않는 것은 예상된 API 가치를 일치하기 위하여 국부적으로 파일을 새롭게 하기 없이 청결하게 수입될 수 없습니다.
+
+### 이름 \*
+
+**사용 방법`content_file`:**
+
+```tf
+resource "cloudflare_worker_version" "content_file_example" {
+  account_id  = var.account_id
+  worker_id   = cloudflare_worker.example.id
+  main_module = "worker.js"
+  modules = [{
+    name         = "worker.js"
+    content_type = "application/javascript+module"
+    content_file = "build/worker.js"
+  }]
+}
+```
+
+**사용 방법`content_base64`:**
+
+```tf
+resource "cloudflare_worker_version" "content_base64_example" {
+  account_id  = var.account_id
+  worker_id   = cloudflare_worker.example.id
+  main_module = "worker.js"
+  modules = [{
+    name           = "worker.js"
+    content_type   = "application/javascript+module"
+    content_base64 = base64encode("export default { async fetch() { return new Response('Hello world!') } }")
+  }]
+}
+```

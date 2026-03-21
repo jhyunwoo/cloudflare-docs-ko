@@ -1,0 +1,93 @@
+---
+title: Microsoft Azure 지원
+pcx_content_type: how-to
+sidebar:
+  order: 63
+head:
+  - tag: title
+    content: Microsoft Azure에 Logpush 사용
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/azure/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/azure/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+모델 번호: Cloudflare Logpush는 Cloudflare 대시보드 또는 API를 통해 Microsoft Azure에 직접 푸시 로그를 지원합니다.
+
+:::주\[주]
+더 보기[마이크로소프트 Sentinel](/analytics/analytics-integrations/sentinel/)Cloudflare를 위한 통합은 2개의 연결관 버전에서 유효합니다.
+주요 특징
+
+## Cloudflare 대시보드를 통해 관리
+
+<Render file="enable-logpush-job" product="logs" />
+
+4. 내 계정**자주 묻는 질문**, 선택**마이크로 소프트 Azure**.
+
+5. 다음 목적지 세부 정보 입력 또는 선택:
+   - **SAS URL을**- Azure Storage 리소스에 액세스 권한을 부여하는 사전 서명 된 URL. 더 알아보기[Azure 스토리지 문서](https://learn.microsoft.com/en-us/azure/storage/storage-explorer/vs-azure-tools-storage-manage-with-storage-explorer?tabs=macos#shared-access-signature-sas-url)Azure Storage Explorer를 사용하여 SAS URL 생성에 대한 자세한 내용은. 서비스는 Blob 전용으로 설정해야합니다 (`ss=b`), 및 리소스 유형은 Object-only로 설정해야합니다 (`srt=o`).
+   - **오시는 길**- 저장 용기 안에 물통 위치
+   - **로그인을 일일 폴더로 구성**(추천)
+
+목적지 정보를 입력할 때, 선택**계속하기**.
+
+6. Dataset을 선택하여 저장 서비스로 밀어줍니다.
+
+7. 다음 단계에서, 당신은 당신의 logpush 작업을 구성해야:
+   - 이름 \***이름 \***.
+   - 이름 \***로그인**, 당신은 이벤트를 선택하고 / 또는 로그에서 제거 할 수 있습니다. 더 알아보기[필터링](/logs/logpush/logpush-job/filters/)더 많은 정보. 모든 datasets에는 이 선택권이 있습니다.
+   - 내 계정**다음 필드를 보내십시오**, 당신은 당신의 저장 목적지에 모든 로그를 밀어 또는 선택적으로 당신이 밀어하려는 로그를 선택할 수 있습니다.
+
+8. 내 계정**고급 옵션**, 당신은 할 수 있습니다:
+   - 로그인의 타임스탬프 필드의 형식을 선택하십시오 (`RFC3339`(과태)`Unix`, 또는`UnixNano`).
+   - 선택하기[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)로그인 또는 로그의 무작위 샘플 비율을 밀어.
+   - 사용 가능한 적색`CVE-2021-44228`. 이 선택권은 각 발생을 대체할 것입니다`${`이름 \*`x{`.
+
+9. 제품정보**제출하기**일단 당신이 당신의 logpush 일을 구성하고 있습니다.
+
+## Blob Storage 컨테이너에 액세스하고 얻을
+
+Cloudflare는 Blob 저장 용기에 액세스 할 수있는 공유 액세스 서명 (SAS) 토큰을 사용합니다. 당신은 제공해야합니다`Write`SAS 토큰 만료에 대해 걱정할 필요가 없습니다.
+
+<Render file="enable-read-permissions" product="logs" />
+
+<br />
+
+Logpush를 Azure로 활성화하려면:
+
+1. Blob Storage 컨테이너를 만듭니다. 더 알아보기[Azure의 지시](https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-portal).
+
+2. 이름 \*[공유 액세스 서명 (SAS)](https://learn.microsoft.com/en-us/azure/storage/common/storage-sas-overview)blob 저장 용기에 대한 보안 및 제한. 제품 정보[스토리지 Explorer](https://learn.microsoft.com/en-us/azure/storage/storage-explorer/vs-azure-tools-storage-manage-with-storage-explorer)컨테이너로 이동하고 서명을 만들려면 오른쪽 클릭. 적어도 5 년 동안 만료되는 서명을 설정하고 쓰기 권한을 제공합니다.
+
+3. Logpush API 또는 UI에 의해 신속한 경우 SAS URL을 제공합니다.
+
+:::주\[주]
+
+Logpush는 SAS 토큰이 만료되는 경우 로그를 밀어 중지합니다. 이는 적어도 5 년의 만료 기간이 필요합니다. SAS 토큰의 갱신은 API를 통해 수행해야하며 업데이트`destination_conf`Logpush 작업의 매개 변수.
+
+:::
+
+## Azure 목적지 문제 해결
+
+### loginResourceTypes 오류
+
+Azure 대상을 구성할 때 SAS (Shared Access Signature) 토큰은 blob 컨테이너로 작성할 수 있습니다. 서비스는 Blob 전용이어야합니다 (`ss=b`), 자원 유형은 Object-only이어야한다 (`srt=o`).
+
+SAS 토큰이 다른 설정을 사용하는 경우 다음 오류를 받게됩니다.
+
+```
+signedResourceTypes must be Object only (srt=o)
+```
+
+이 오류를 해결하기 위해 SAS 토큰을 재생[스토리지 Explorer](https://learn.microsoft.com/en-us/azure/storage/storage-explorer/vs-azure-tools-storage-manage-with-storage-explorer)올바른 권한으로:
+
+- 서비스: Blob 전용 (`ss=b`)
+- 리소스 유형: Object-only (`srt=o`)
+- 권한: 쓰기 전용
+- 만료: 5년 이상

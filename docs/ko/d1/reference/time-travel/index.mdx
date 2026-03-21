@@ -1,0 +1,139 @@
+---
+title: 시간 여행 및 백업
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/reference/time-travel/'
+translation_source_md: 'https://developers.cloudflare.com/d1/reference/time-travel/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip} from "~/components"
+
+시간 여행은 D1의 백업 및 포인트 인 시간 회복에 대한 접근이며 지난 30 일 이내에 데이터베이스를 복원 할 수 있습니다.
+
+- Time Travel을 사용할 필요가 없습니다. 항상 있습니다.
+- 데이터베이스 역사 및 데이터베이스 incur 추가 비용 없이 복원.
+- 시간 여행 자동으로 생성[책갈피](#bookmarks)자주 묻는 질문 당신은 수동으로 트리거 또는 백업을 시작 기억할 필요가 없습니다.
+
+예정된 백업 및/또는 수동으로 시작된 백업에 의존하지 않고, 시간 내에 돌아갈 수 있으며 실패한 마이그레이션 또는 스키마 변경 이전에 데이터베이스를 복원 할 수 있습니다.`DELETE`또는`UPDATE`특정하지 않은 진술`WHERE`항목 및 미래에, fork/copy 생산 데이터베이스 직접.
+
+:::노트\[시간 여행 지원]
+
+D1의 데이터베이스[새로운 저장 subsystem](https://blog.cloudflare.com/d1-turning-it-up-to-11/)Time Travel을 이용하실 수 있습니다. 시간 여행은 대체[snapshot 기반 백업](/d1/reference/backups/)레거시 알파 데이터베이스에 사용됩니다.
+
+어떤 저장 하위 시스템 데이터베이스 사용 이해, 실행`wrangler d1 info YOUR_DATABASE`그리고 검사`version`산출에 있는 분야. 데이터베이스`version: production`새로운 시간 여행 API를 지원합니다. 데이터베이스`version: alpha`이전, 스냅샷 기반 백업 API만 지원합니다.
+
+:::
+
+## 한국어
+
+시간 여행 레버리지 D1의 개념<GlossaryTooltip term="bookmark">책갈피</GlossaryTooltip>시간을 복원합니다.
+
+- 30 일 이상 책갈피는 유효하지 않으며 복원 지점으로 사용할 수 없습니다.
+- 특정 책갈피에 데이터베이스를 복원하거나 이전 책갈피를 삭제하지 않습니다. 예를 들어, 데이터베이스의 상태를 나타내는 책갈피에 복원하는 경우 10 분 전에, 그리고 당신이 시간에 이전 지점으로 복원 할 필요가 결정, 당신은 여전히 그렇게 할 수 있습니다.
+- 책갈피는 lexicographically 분류할 수 있습니다. 가장 오래된 책에서 책갈피 목록 정렬.
+- 즐겨찾기에 추가[유닉스 타임스탬프](https://en.wikipedia.org/wiki/Unix_time)( 1970년 1월 1일 이후 두 번째), 특정 타임스탬프와 북마크 사이의 변환은 세분화 (테이블)입니다.
+
+즐겨찾기에 추가[세션 API](/d1/best-practices/read-replication/#sessions-api-examples)세션 내에서 순차적 일관성을 보장하기 위해.
+
+## 스크린 샷
+
+시간 여행 지원 2 타임스탬프 형식:
+
+- [유닉스 타임스탬프](https://developer.mozilla.org/en-US/docs/Glossary/Unix_time)1 월 1 일부터 1970 일까지 초에 해당합니다. 항상 UTC입니다.
+- 더 보기[JavaScript 날짜 시간 문자열 형식](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date#date_time_string_format)ISO-8601 타임스탬프 형식의 단순화 된 버전입니다. 유효 날짜 시간 문자열 7월 27, 2023 에 11:18 미주 / New York (EST) 에서 같은 모습`2023-07-27T11:18:53.000-04:00`.
+
+## 제품 정보
+
+- [`Wrangler`](/workers/wrangler/install-and-update/) `v3.4.0`또는 나중에 Time Travel 명령을 사용하여 설치.
+- D1의 생산 백엔드에 대한 데이터베이스. 데이터베이스가 이 백엔드를 사용하여 있는지 확인할 수 있습니다.`wrangler d1 info DB_NAME`- 출력 쇼`version: production`.
+
+## 책갈피
+
+현재 타임스탬프에 대한 책갈피를 검색 할 수 있습니다.`d1 info`현재 bookmark를 반환하는 기본 명령:
+
+```sh
+wrangler d1 time-travel info YOUR_DATABASE
+```
+
+```sh output
+🚧 Time Traveling...
+⚠️ The current bookmark is '00000085-0000024c-00004c6d-8e61117bf38d7adb71b934ebbf891683'
+⚡️ To restore to this specific bookmark, run:
+ `wrangler d1 time-travel restore YOUR_DATABASE --bookmark=00000085-0000024c-00004c6d-8e61117bf38d7adb71b934ebbf891683`
+```
+
+과거의 타임스탬프에 대한 책갈피를 검색하려면, 통과`--timestamp`유효한 유닉스 또는 RFC3339 타임스탬프를 가진 깃발:
+
+```sh title="Using an RFC3339 timestamp, including the timezone"
+wrangler d1 time-travel info YOUR_DATABASE --timestamp="2023-07-09T17:31:11+00:00"
+```
+
+## 데이터베이스 복원
+
+특정 시점에서 시간에 데이터베이스를 복원하려면:
+
+:::카트로션
+
+특정 시점에서 시간에 데이터베이스를 복원하는 것은*관련 기사*작업 및 배치에 데이터베이스를 덮어. 앞으로, D1는 시간 여행을 사용하여 분지 및 복제 데이터베이스를 지원합니다.
+
+:::
+
+```sh
+wrangler d1 time-travel restore YOUR_DATABASE --timestamp=UNIX_TIMESTAMP
+```
+
+```sh output
+🚧 Restoring database YOUR_DATABASE from bookmark 00000080-ffffffff-00004c60-390376cb1c4dd679b74a19d19f5ca5be
+
+⚠️ This will overwrite all data in database YOUR_DATABASE.
+In-flight queries and transactions will be cancelled.
+
+✔ OK to proceed (y/N) … yes
+⚡️ Time travel in progress...
+✅ Database YOUR_DATABASE restored back to bookmark 00000080-ffffffff-00004c60-390376cb1c4dd679b74a19d19f5ca5be
+
+↩️ To undo this operation, you can restore to the previous bookmark: 00000085-ffffffff-00004c6d-2510c8b03a2eb2c48b2422bb3b33fad5
+```
+
+참고 :
+
+- Timestamps는 deterministic, 안정적인 bookmark로 변환됩니다. 같은 타임스탬프는 항상 같은 북마크를 나타냅니다.
+- 항공편의 쿼리는 취소되며 클라이언트로 반환된 오류입니다.
+- 복원 작업이 반환됩니다[책갈피](#bookmarks)당신이 할 수있는[이름 \*](#undo-a-restore)그리고 데이터베이스를 반전.
+
+## 자주 묻는 질문
+
+복원 할 수 있습니다 :
+
+- 이전 책갈피의 메모를 반환의 일부`wrangler d1 time-travel restore`(주)
+- 과거의 책갈피에 직접 복원, 당신의 마지막 복원 이전에.
+
+이전 상태의 책갈피를 태워:
+
+```sh title: "Get a historical bookmark"
+wrangler d1 time-travel info YOUR_DATABASE
+```
+
+```sh output
+🚧 Time Traveling...
+⚠️ The current bookmark is '00000085-0000024c-00004c6d-8e61117bf38d7adb71b934ebbf891683'
+⚡️ To restore to this specific bookmark, run:
+ `wrangler d1 time-travel restore YOUR_DATABASE --bookmark=00000085-0000024c-00004c6d-8e61117bf38d7adb71b934ebbf891683`
+```
+
+## D1를 R2XQXQ로 내보내기
+
+D1 데이터베이스를 REST API 및 Cloudflare QXQXQX0731XQQXQXWorkflowsXQ를 통해 R2 저장으로 자동 내보내기 할 수 있습니다. D1 데이터베이스를 30일 이상 저장할 경우 유용할 수 있습니다.
+
+자주 묻는 질문[D1 데이터베이스 내보내기 및 저장](/workflows/examples/backup-d1/).
+
+## 지원하다
+
+- macOS 및 Windows에서 명령줄에서 유닉스 타임스탬프를 빠르게 얻을 수 있습니다.`date +%s`.
+- Time Travel은 아직 clone 또는 fork에 새로운 사본에 기존 데이터베이스를 허용하지 않습니다. 미래에 Time Travel은 새로운 데이터베이스로 기존 데이터베이스를 fork (clone)로 허용하거나 기존 데이터베이스를 덮을 수 있습니다.
+- 과거에 30 일 (Workers 유료 플랜) 또는 7 일 (Workers 무료 플랜)까지 데이터베이스를 다시 복원 할 수 있습니다. 더 알아보기[제한 사항](/d1/platform/limits/)Time Travel의 제한에 대한 자세한 내용은.

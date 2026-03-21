@@ -1,0 +1,103 @@
+---
+pcx_content_type: how-to
+title: Minimum TLS Version
+sidebar:
+  order: 13
+---
+
+import { FeatureTable, TabItem, Tabs, APIRequest, Render, DashButton } from "~/components";
+
+Minimum TLS Version은 선택한 TLS 프로토콜 버전 이상을 지원하는 방문자의 HTTPS 연결만 허용합니다.
+
+예를 들어 TLS 1.1이 선택되어 있으면 TLS 1.0으로 연결을 시도하는 방문자는 거부됩니다. TLS 1.1, 1.2, 1.3([활성화된 경우](/ssl/edge-certificates/additional-options/tls-13/))를 사용하는 방문자는 연결할 수 있습니다.
+
+:::note
+
+cipher suite를 제한하려면 [Cipher suite 사용자 지정](/ssl/edge-certificates/additional-options/cipher-suites/customize-cipher-suites/)을 참고하세요. 어떤 TLS 버전을 사용해야 하는지에 대한 안내는 [TLS protocols](/ssl/reference/protocols/)를 참고하세요.
+
+:::
+
+## 가용성
+
+<FeatureTable id="ssl.minimum_tls" />
+
+[Cloudflare Pages](/pages/) 호스트명에 대해서는 minimum TLS version을 구성할 수 없습니다.
+
+## TLS 1.0 비활성화 방법
+
+더 높은 minimum TLS version을 선택하면 TLS 1.0을 비활성화할 수 있습니다.
+
+모든 사용자는 [zone-level](#zone-level) 아래의 단계에 따라 영역 내 모든 호스트명에 이 구성을 적용할 수 있습니다.
+
+[Advanced Certificate Manager](/ssl/edge-certificates/advanced-certificate-manager/#advanced-certificate-manager) 구독이 있으면 [per-hostname](#per-hostname) 구성으로 TLS 1.0(또는 다른 버전)을 비활성화할 수도 있습니다.
+
+## 설정
+
+:::caution
+다음 단계에 따라 설정한 Minimum TLS version은 [R2](/r2/) 커스텀 도메인에는 적용되지 않습니다. R2 커스텀 도메인의 TLS 버전을 제어하려면 [custom domains documentation](/r2/buckets/public-buckets/#minimum-tls-version)을 참고하세요.
+:::
+
+### Zone-level
+
+Cloudflare를 통해 프록시되는 전체 영역에 적용되는 TLS 버전을 관리하려면:
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Minimum TLS Version**에서 원하는 옵션을 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+URI 경로에서 설정 이름을 `min_tls_version`으로 지정하고, `value` 필드에 원하는 최소 버전을 지정한 [Edit zone setting](/api/resources/zones/subresources/settings/methods/edit/) 엔드포인트를 사용합니다.
+
+다음 예시에서는 영역의 minimum TLS version이 `1.2`로 설정됩니다. 영역 ID와 API 토큰 자리표시자를 실제 값으로 바꾸고, `value` 필드는 선택한 TLS 버전에 맞게 조정하세요.
+
+<APIRequest
+  path="/zones/{zone_id}/settings/{setting_id}"
+  method="PATCH"
+  json={{
+		"id": "min_tls_version",
+		"value": "1.2",
+	}}
+	parameters={{
+		setting_id: "min_tls_version"
+	}}
+/>
+
+</TabItem> </Tabs>
+
+### Per-hostname
+
+[Advanced Certificate Manager](/ssl/edge-certificates/advanced-certificate-manager/) 사용자는 Cloudflare 영역 내 특정 호스트명별 minimum TLS version도 지정할 수 있습니다.
+
+현재는 API를 통해서만 사용할 수 있습니다.
+
+- `min_tls_version`의 값을 서로 다르게 지정하려면 [Edit TLS setting for hostname](/api/resources/hostnames/subresources/settings/subresources/tls/methods/update/) 엔드포인트를 사용합니다.
+- 이전에 정의한 `min_tls_version` 설정을 지우려면 [Delete TLS setting for hostname](/api/resources/hostnames/subresources/settings/subresources/tls/methods/delete/) 엔드포인트를 사용합니다.
+
+Cloudflare는 어떤 설정을 적용할지 결정하기 위해 [hostname priority logic](/ssl/reference/certificate-and-hostname-priority/)을 사용합니다.
+
+다음 예시에서는 특정 호스트명의 minimum TLS version이 `1.2`로 설정됩니다. 영역 ID, 호스트명, 인증 정보를 실제 값으로 바꾸고 `value` 필드를 선택한 TLS 버전에 맞게 조정하세요.
+
+<APIRequest
+  path="/zones/{zone_id}/hostnames/settings/{setting_id}/{hostname}"
+  method="PUT"
+  json={{
+		"value": "1.2"
+	}}
+	parameters={{
+		setting_id: "min_tls_version"
+	}}
+/>
+
+### Cloudflare for SaaS
+
+SaaS 공급자로서 custom hostname에 대한 minimum TLS version을 구성하려면 Cloudflare for SaaS의 [TLS management](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/enforce-mtls/#minimum-tls-version)를 참고하세요.
+
+
+## 지원되는 TLS 버전 테스트
+
+<Render file="test-tls-version" product="ssl" />

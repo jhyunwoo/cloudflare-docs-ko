@@ -1,0 +1,54 @@
+---
+pcx_content_type: concept
+title: Automatic HTTPS Rewrites
+sidebar:
+  order: 14
+---
+
+import { FeatureTable, Render, TabItem, Tabs, DashButton } from "~/components";
+
+Automatic HTTPS Rewrites는 HTTPS로 제공할 수 있는 웹사이트의 리소스나 링크 URL을 `http`에서 `https`로 다시 작성하여, 최종 사용자가 "mixed content" 오류를 보지 않도록 합니다.
+
+## 가용성
+
+<FeatureTable id="ssl.automatic_https_rewrites" />
+
+## 추가 세부 정보
+
+사이트에 HTTP URL 링크나 참조가 포함되어 있고 해당 리소스를 HTTPS로도 안전하게 제공할 수 있다면 Automatic HTTPS Rewrites가 도움이 됩니다. HTTPS로 사이트에 접속했는데 자물쇠 아이콘이 보이지 않거나 노란 경고 삼각형이 표시된다면, 사이트에 HTTP 자산(“mixed content”) 참조가 포함되어 있을 수 있습니다.
+
+혼합 콘텐츠는 종종 삽입된 서드파티 콘텐츠나 복잡한 CMS 같은, 사이트 소유자가 직접 통제하기 어려운 요인 때문에 발생합니다. Automatic HTTPS Rewrites는 URL을 “http”에서 “https”로 다시 작성함으로써 웹사이트 전체를 HTTPS로 제공하는 작업을 단순화하고, 혼합 콘텐츠 오류를 제거하며, 사이트가 로드하는 모든 데이터가 도청과 변조로부터 보호되도록 돕습니다.
+
+:::note
+
+보안상의 이유로 이 기능은 URL이 활성 리소스(script, iframe, link, object 등)를 가져오는 경우 `localhost`를 가리키는 URL에서도 동작합니다.
+
+:::
+
+## Automatic HTTPS Rewrites 활성화
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+대시보드에서 **Automatic HTTPS Rewrites**를 활성화하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Automatic HTTPS Rewrites** 토글을 **On**으로 전환합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 **Automatic HTTPS Rewrites**를 활성화하거나 비활성화하려면 URI 경로에서 설정 이름을 `automatic_https_rewrites`로 지정하고 `value` 파라미터를 원하는 값(`"on"` 또는 `"off"`)으로 설정한 [`PATCH`](/api/resources/zones/subresources/settings/methods/edit/) 요청을 보냅니다.
+
+</TabItem> </Tabs>
+
+<Render file="configuration-rule-promotion" product="rules" />
+
+## 제한 사항
+
+다시 작성이 적용되기 전에 Cloudflare는 HTTP 리소스가 HTTPS로 접근 가능한지 확인합니다. HTTPS로 제공되지 않는다면 Cloudflare는 URL을 다시 작성할 수 없습니다.
+
+일부 리소스는 브라우저에서 사이트가 로드될 때 JavaScript나 CSS를 통해 HTTP로 불러와집니다. 이런 경우 혼합 콘텐츠 경고가 표시됩니다. 어떤 URL이 HTTPS를 지원하지 않는지 판단하기 위해 Cloudflare는 [EFF의 HTTPS Everywhere](https://www.eff.org/https-everywhere/faq#how-do-i-add-my-own-site-to-https-everywhere)와 [Chrome의 HSTS preload list](https://hstspreload.org) 데이터를 사용합니다. 영역이 이 목록에 없다면 활성 콘텐츠만 다시 작성됩니다. 수동 콘텐츠(예: 이미지)는 다시 작성되지 않으며 계속 혼합 콘텐츠 오류를 유발합니다.
+
+서드파티 도메인이 HTTPS를 지원하지만 자동으로 다시 작성되지 않는다면 해당 링크를 수동으로 상대 링크 또는 HTTPS 링크로 바꿀 수 있습니다. 또는 서드파티 도메인 소유자에게 자신의 사이트를 HTTPS Everywhere ruleset에 포함되도록 요청할 수도 있습니다. 이 프로젝트는 [GitHub pull request](https://github.com/EFForg/https-everywhere/)를 받습니다. 혼합 콘텐츠 오류 해결 방법에 대한 자세한 내용은 [혼합 콘텐츠 오류 문제 해결](/ssl/troubleshooting/mixed-content-errors/)을 참고하세요.

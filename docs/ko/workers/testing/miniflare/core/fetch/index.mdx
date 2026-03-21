@@ -1,0 +1,103 @@
+---
+order: 0
+title: Fetch 이벤트
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/testing/miniflare/core/fetch/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/testing/miniflare/core/fetch/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+- [`FetchEvent`이름 \*](/workers/runtime-apis/handlers/fetch/)
+
+## HTTP 요청
+
+HTTP 요청이 있으면 a`Request`객체는 작업자에 파견되어 생성 된`Response`반환합니다. 더 보기
+`Request`객체는 다음과 같습니다.
+[`cf`기타 제품](/workers/runtime-apis/request#incomingrequestcfproperties)·
+Miniflare는 메소드, 경로, 상태, 그리고 응답하는 데 시간이 걸렸습니다.
+
+Worker가 응답을 생성하는 오류가 발생하면 오류 페이지
+stack trace가 대신 반환됩니다.
+
+## Dispatching 이벤트
+
+API를 사용할 때,`dispatchFetch`기능은 파견에 사용될 수 있습니다`fetch`당신의 노동자에 사건. 이것은 테스트 응답을 위해 사용될 수 있습니다.`dispatchFetch`정규적으로 동일한 API가 있습니다.`fetch`방법: 그것은 걸립니다`Request`객체, 또는 URL 및 옵션`RequestInit`객체:
+
+```js
+import { Miniflare, Request } from "miniflare";
+
+const mf = new Miniflare({
+	modules: true,
+	script: `
+  export default {
+    async fetch(request, env, ctx) {
+      const body = JSON.stringify({
+        url: event.request.url,
+        header: event.request.headers.get("X-Message"),
+      });
+      return new Response(body, {
+        headers: { "Content-Type": "application/json" },
+      });
+    })
+  }
+  `,
+});
+
+let res = await mf.dispatchFetch("http://localhost:8787/");
+console.log(await res.json()); //{ url: "http://localhost:8787/", 헤더: null }
+
+res = await mf.dispatchFetch("http://localhost:8787/1", {
+	headers: { "X-Message": "1" },
+});
+console.log(await res.json()); //{ url : "http://localhost:8787/1", 헤더 : "1"}
+
+res = await mf.dispatchFetch(
+	new Request("http://localhost:8787/2", {
+		headers: { "X-Message": "2" },
+	}),
+);
+console.log(await res.json()); //{ url : "http://localhost:8787/2", 헤더 : "2" }
+```
+
+사건을 파견할 때, 당신은 추가를 책임집니다
+[`CF-*`맨 위로](/fundamentals/reference/http-headers/)그리고
+[`cf`기타 제품](/workers/runtime-apis/request#incomingrequestcfproperties)·
+이 테스트의 가치를 제어 할 수 있습니다:
+
+```js
+const res = await mf.dispatchFetch("http://localhost:8787", {
+	headers: {
+		"CF-IPCountry": "GB",
+	},
+	cf: {
+		country: "GB",
+	},
+});
+```
+
+## 업스트림
+
+Miniflare는 각 호출합니다`fetch`응답이 반환될 때까지 청취자. 없음
+응답은 반환, 또는 예외는 던지고`passThroughOnException()`호출되었다, 응답 지정된 업스트림에서 fetched
+대신:
+
+```js
+import { Miniflare } from "miniflare";
+
+const mf = new Miniflare({
+	script: `
+  addEventListener("fetch", (event) => {
+    event.passThroughOnException();
+    throw new Error();
+  });
+  `,
+	upstream: "https://miniflare.dev",
+});
+//파견 할 때 동일한 업스트림 URL을 사용하지 않는 경우, Miniflare는
+//업스트림과 일치하기
+const res = await mf.dispatchFetch("https://miniflare.dev/core/fetch");
+console.log(await res.text()); //이 페이지의 소스 코드
+```

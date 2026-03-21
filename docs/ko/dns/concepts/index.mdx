@@ -1,0 +1,133 @@
+---
+pcx_content_type: concept
+title: 개념
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: DNS 개념
+
+description: Cloudflare의 기술 문서로 핵심 DNS 개념을 이해하세요. 네임서버, DNS 레코드, DNSSEC 등을 알아볼 수 있습니다.
+---
+
+import { Details, Example, GlossaryTooltip } from "~/components";
+
+이 페이지는 Cloudflare DNS 서비스와 관련이 있고 이 문서 전반에서 사용되는 핵심 개념을 정의하고 설명합니다. 더 많은 개념과 더 넓은 설명은 [Cloudflare Learning Center](https://www.cloudflare.com/learning/dns/what-is-dns/)를 참고하세요.
+
+## 도메인
+
+도메인 이름이라고도 하며, `google.com`이나 `facebook.com`처럼 특정 웹사이트를 식별하는 문자열입니다. 웹 브라우저로 웹사이트에 접속할 때마다 DNS 쿼리가 발생하며, DNS 서비스는 도메인을 웹사이트가 [호스팅](/fundamentals/manage-domains/)된 실제 IP 주소에 매핑합니다.
+
+## 등록기관
+
+Cloudflare DNS 서비스를 사용하려면 먼저 도메인이 있어야 합니다. 이때 사용하는 서비스가 등록기관(registrar)입니다. [Learning Center](https://www.cloudflare.com/learning/dns/glossary/what-is-a-domain-name-registrar/)에서 설명하듯이, 등록기관은 도메인 이름 예약을 처리합니다.
+
+도메인 등록을 제공하는 회사가 웹 호스팅과 DNS 관리도 함께 제공하는 경우가 매우 많습니다.
+
+[Cloudflare Registrar](/registrar/)를 통해 원가로 도메인 이름을 등록할 수 있습니다. Cloudflare Registrar를 통해 취득한 모든 도메인은 Cloudflare를 [기본 권한 DNS](#authoritative-dns)로도 사용해야 합니다.
+
+## 네임서버
+
+DNS 쿼리의 해석에는 여러 종류의 서버가 관여하지만, 이 문서에서 네임서버는 대개 Cloudflare 권한 네임서버를 뜻합니다. [DNS 서버 유형에 대한 문서](https://www.cloudflare.com/learning/dns/dns-server-types/)에서 설명하듯이, 권한 네임서버는 DNS 쿼리 해석의 마지막 단계입니다.
+
+서로 다른 네임서버 제공 방식에 대한 자세한 내용은 [Nameservers](/dns/nameservers/)를 참고하세요.
+
+## 권한 DNS
+
+권한 DNS는 `example.com` 또는 `blog.example.com` 같은 호스트 이름을 해당 콘텐츠나 리소스를 호스팅하는 IP 주소에 최종 매핑하는 정보를 제공하는 네임서버 서비스입니다.
+
+이 서비스의 성능은 웹사이트나 애플리케이션의 가용성, 복원력, 성능을 결정하기 때문에 중요합니다. Cloudflare DNS는 Cloudflare의 글로벌 네트워크를 활용하는 권한 DNS 서비스입니다. 자세한 내용은 [How Cloudflare works](/fundamentals/concepts/how-cloudflare-works/)를 참고하세요.
+
+## DNS 설정 방식
+
+한 회사가 둘 이상의 DNS 공급자를 사용하는 경우도 있습니다. 일반적으로 이는 도메인의 복원력을 높이기 위함입니다. 한 공급자에 장애가 발생해도 다른 DNS 공급자가 운영하는 네임서버는 계속 사용 가능할 가능성이 높기 때문입니다.
+
+이 맥락에서 Cloudflare를 사용해 [DNS 레코드](#dns-records)를 관리하는 경우 기본(primary) DNS 설정을 사용할 수 있고, DNS 레코드를 다른 공급자에서 관리하면서 Cloudflare는 단지 DNS 레코드를 담은 영역 전송(zone transfer)을 수신하는 [secondary DNS 설정](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/)도 사용할 수 있습니다.
+
+기본 DNS 설정을 사용할 때는 Cloudflare만 사용하는 방식([Full setup](/dns/zone-setups/full-setup/))을 택할 수도 있고, Cloudflare와 다른 공급자를 함께 사용하는 방식도 가능합니다. 이 경우 다른 공급자는 Cloudflare에서 보내는 [outgoing zone transfer](/dns/zone-setups/zone-transfers/cloudflare-as-primary/)를 받는 쪽이 됩니다.
+
+마지막으로 Cloudflare는 [리버스 프록시](/fundamentals/concepts/how-cloudflare-works/#cloudflare-as-a-reverse-proxy)로도 동작하므로, 도메인에 대해 Cloudflare가 [권한](#authoritative-dns)을 갖지 않더라도 개별 서브도메인을 Cloudflare를 통해 프록시하고 싶다면 [CNAME 설정](/dns/zone-setups/partial-setup/)(partial이라고도 함)을 사용할 수 있습니다.
+
+## DNS 레코드
+
+DNS 레코드는 권한 DNS 서버에 존재하는 지시문으로, [Zone](#zone)에 대한 정보를 제공합니다. 이는 특정 도메인과 어떤 IP 주소가 연결되어 있는지를 포함하며, 메일 서버로 이메일을 보내거나 도메인 소유권을 검증하는 것과 같은 다양한 다른 용도로도 사용됩니다.
+
+Cloudflare에서 DNS 레코드를 사용하는 방법에 대한 자세한 내용은 [DNS 레코드 관리](/dns/manage-dns-records/how-to/create-dns-records/)와 [DNS 레코드 유형](/dns/manage-dns-records/reference/dns-record-types/)을 참고하세요.
+
+## Zone
+
+DNS Zone은 특정 도메인과 그 서브도메인에 대한 제어를 위임하기 위해 사용하는 관리 개념입니다. 자세한 내용은 Learning Center의 ["What is a DNS zone?"](https://www.cloudflare.com/learning/dns/glossary/dns-zone/) 문서를 참고하세요.
+
+이 문서에서는 Cloudflare 계정에 추가된 각 도메인이 계정 홈 페이지에서 하나의 Zone으로 표시된다는 점을 기억하세요. Zone의 정확한 속성과 동작은 [DNS 설정 방식](/dns/zone-setups/)에 따라 달라집니다.
+
+또한 서로 다른 Cloudflare 제품과 기능은 Zone 수준에서 구성됩니다. 자세한 내용은 [Fundamentals](/fundamentals/manage-domains/add-site/)를 참고하세요.
+
+### Zone apex
+
+Zone apex는 DNS 레코드에 대한 제어가 시작되는 도메인 또는 서브도메인을 뜻합니다.
+
+<Details header="예시 1">
+<Example>
+**example.com**의 DNS 관리:
+
+| 유형 | 이름 | 콘텐츠 | 프록시 상태 | TTL |
+| ---- | ---- | ------ | ----------- | --- |
+| A | `blog` | `192.0.2.1` | Proxied | Auto |
+
+Zone apex: `example.com`
+
+전체 레코드 이름: `blog.example.com`
+
+</Example>
+</Details>
+
+<Details header="예시 2">
+<Example>
+**sub.example.com**의 DNS 관리:
+
+| 유형 | 이름 | 콘텐츠 | 프록시 상태 | TTL |
+| ---- | ---- | ------ | ----------- | --- |
+| A | `blog` | `192.0.2.1` | Proxied | Auto |
+
+Zone apex: `sub.example.com`
+
+전체 레코드 이름: `blog.sub.example.com`
+
+</Example>
+</Details>
+
+일반적으로 Zone apex는 <GlossaryTooltip term="apex domain">apex domain</GlossaryTooltip>과 일치하며, 이는 예시 1과 같습니다. 예시 2는 [서브도메인 위임](/dns/zone-setups/subdomain-setup/)을 나타내며, Enterprise 요금제에서만 사용할 수 있습니다.
+
+Zone apex에 DNS 레코드를 만들려면 레코드 **Name**에 `@`를 사용하세요. 자세한 내용은 [How to](/dns/manage-dns-records/how-to/create-zone-apex/)를 참고하세요.
+
+<Details header="Zone apex의 레코드">
+<Example>
+**example.com**의 DNS 관리:
+
+| 유형 | 이름 | 콘텐츠 | 프록시 상태 | TTL |
+| ---- | ---- | ------ | ----------- | --- |
+| A | `@` | `192.0.2.1` | Proxied | Auto |
+
+Zone apex: `example.com`
+
+전체 레코드 이름: `example.com`
+</Example>
+
+<Example>
+**sub.example.com**의 DNS 관리:
+
+| 유형 | 이름 | 콘텐츠 | 프록시 상태 | TTL |
+| ---- | ---- | ------ | ----------- | --- |
+| A | `@` | `192.0.2.1` | Proxied | Auto |
+
+Zone apex: `sub.example.com`
+
+전체 레코드 이름: `sub.example.com`
+</Example>
+</Details>
+
+## DNSSEC
+
+DNSSEC는 DNS Security Extensions의 약자입니다. DNS 레코드에 암호화 서명을 추가함으로써 보안을 높입니다. 이 서명을 확인하면 레코드가 올바른 DNS 서버에서 왔는지 검증할 수 있으므로, 다른 누군가가 여러분 대신 거짓 DNS 레코드를 발급해 도메인으로 향하는 트래픽을 리디렉션하는 일을 막을 수 있습니다. 자세한 내용은 [DNS 보안에 대한 문서](https://www.cloudflare.com/learning/dns/dns-security/)를 참고하세요.
+
+Cloudflare에서 DNSSEC를 설정하는 방법은 [Enable DNSSEC](/dns/dnssec/)를 참고하세요.

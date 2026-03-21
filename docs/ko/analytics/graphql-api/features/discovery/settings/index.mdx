@@ -1,0 +1,91 @@
+---
+pcx_content_type: reference
+title: Settings 노드
+sidebar:
+  order: 43
+---
+
+Cloudflare GraphQL API는 고객에게 70개가 넘는 데이터세트를 제공합니다. 이 데이터세트들은 매우 다양한 형태의 데이터를 가진 여러 Cloudflare 제품을 나타내므로, 각각 자체 [limits][1] 구성을 가집니다.
+
+`httpRequestsAdaptiveGroups`, `firewallEventsAdaptive` 같은 핵심 데이터세트는 모든 요금제에서 접근할 수 있도록 제공하지만, 더 높은 요금제 사용자는 더 많은 데이터세트와 더 넓은 쿼리 제한의 혜택을 받습니다.
+
+[introspection][2] 외에도 사용자는 zone 및 account 범위 모두에서 사용할 수 있는 Settings 노드를 이용할 수 있습니다.
+
+## 형식
+
+`Settings` 노드는 `zones`와 `accounts`의 모든 데이터세트를 필드로 가집니다.
+
+```graphql title="Using a settings node on accounts nodes"
+{
+  viewer {
+    accounts(filter: { accountTag : $accountTag }) {
+      settings {
+        # any dataset(s) from accounts
+      }
+    }
+    zones(filter: { zoneTag : $zoneTag }) {
+      settings {
+        # any dataset(s) from zones
+      }
+    }
+  }
+}
+```
+
+`settings` 노드의 각 하위 노드는 다음 필드로 구성될 수 있습니다.
+
+- `enabled` - 요청자에게 해당 노드를 사용할 수 있는지 여부를 보여줍니다.
+- `availableFields` - 요청자에게 제공되는 필드 목록을 보여줍니다. 중첩 필드라면 `sum_requests`처럼 경로가 반환됩니다.
+- `maxPageSize` - 반환할 수 있는 최대 레코드 수를 조회합니다.
+- `maxNumberOfFields` - 해당 노드에 대해 단일 쿼리에서 사용할 수 있는 최대 필드 수를 알려줍니다.
+- `notOlderThan` - 쿼리가 얼마나 과거까지 읽을 수 있는지를 초 단위로 반환합니다.
+- `maxDuration` - 요청 가능한 최대 시간 범위를 보여줍니다.
+
+## 샘플 쿼리
+
+```graphql graphql-api-explorer title="Get boundaries of firewallEventsAdaptive node"
+query SampleQuery($zoneTag: string) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			settings {
+				firewallEventsAdaptive {
+					enabled
+					maxDuration
+					maxNumberOfFields
+					maxPageSize
+					notOlderThan
+				}
+			}
+		}
+	}
+}
+```
+
+```json title="firewallEventsAdaptive limits for a given user"
+{
+	"data": {
+		"viewer": {
+			"zones": [
+				{
+					"settings": {
+						"firewallEventsAdaptive": {
+							"enabled": true,
+							"maxDuration": 259200,
+							"maxNumberOfFields": 30,
+							"maxPageSize": 10000,
+							"notOlderThan": 2678400
+						}
+					}
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+쿼리 실행 방법에 대한 자세한 내용은 시작하기 [가이드][3]를 참고하세요.
+
+[1]: /analytics/graphql-api/limits/
+[2]: /analytics/graphql-api/features/discovery/introspection/
+[3]: /analytics/graphql-api/getting-started/

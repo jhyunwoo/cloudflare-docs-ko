@@ -1,0 +1,192 @@
+---
+title: 튼튼한 목표 콘테이너
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/api/container/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/api/container/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Tabs,
+	TabItem,
+	GlossaryTooltip,
+	Type,
+	MetaInfo,
+	TypeScriptExample,
+} from "~/components";
+
+## 이름 \*
+
+사용시[Container-enabled 튼튼한 목표](/containers), 당신은 튼튼한 목표의 관련한 콘테이너를 통해 접근할 수 있습니다
+이름 \*`container`객체에`ctx`호텔 위치 이것은 당신이 시작, 중지, 및 컨테이너와 상호 작용할 수 있습니다.
+
+:::참조
+공식을 사용하는 것이 좋습니다.`Container`Helper 방법 및
+Durable Objects의 상단에 컨테이너 작업을위한 더 관용 API.
+주요 특징
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  export class MyDurableObject extends DurableObject {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+      	//DO 시작시 컨테이너를 부팅
+      	this.ctx.blockConcurrencyWhile(async () => {
+      		this.ctx.container.start();
+      });
+      }
+
+  }
+
+  ```
+</TypeScriptExample>
+
+## 관련 기사
+
+### `running`
+
+`running`이름 \*`true`컨테이너가 현재 실행중인 경우. 컨테이너가 완전히 시작되고 요청을 수락 할 준비가 된 것을 보장하지 않습니다.
+
+```js
+	this.ctx.container.running;
+```
+
+## 제품 설명
+
+### `start`
+
+`start`관련 기사 이 방법은 컨테이너가 완전히 시작될 때까지 차단하지 않습니다.
+컨테이너를 확인하려면 먼저 요청을 수락해야합니다.
+
+```js
+this.ctx.container.start({
+	env: {
+		FOO: "bar",
+	},
+	enableInternet: false,
+	entrypoint: ["node", "server.js"],
+});
+```
+
+#### 매개 변수
+
+- `options`(선택): 다음 속성을 가진 객체:
+  - `env`: 환경 변수를 포함하는 객체는 컨테이너에 전달합니다. 구성 값이나 비밀을 컨테이너로 전달하는 데 유용합니다.
+  - `entrypoint`: 컨테이너에서 실행하는 명령을 나타내는 문자열의 배열.
+  - `enableInternet`: 컨테이너에 대한 인터넷 액세스를 가능하게하는 것을 나타내는 불린.
+
+#### 반환 값
+
+- 없음.
+
+### `destroy`
+
+`destroy`컨테이너를 중지하고 선택적으로 사용자 정의 오류 메시지를 반환`monitor()`오류 콜백.
+
+```js
+this.ctx.container.destroy("Manually Destroyed");
+```
+
+#### 매개 변수
+
+- `error`(선택 사항): 오류 핸들러로 보내질 문자열`monitor`방법. 이것은 로깅 또는 디버깅 목적으로 유용합니다.
+
+#### 반환 값
+
+- 컨테이너가 파괴되면 반환하는 약속.
+
+### `signal`
+
+`signal`SIGKILL 또는 SIGTERM과 같은 컨테이너에 IPC 신호를 보냅니다. 이것은 용기를 단단히 멈추거나 힘으로 멈춰주는 것이 유용합니다.
+
+```js
+const SIGTERM = 15;
+this.ctx.container.signal(SIGTERM);
+```
+
+#### 매개 변수
+
+- `signal`: 컨테이너로 보내는 신호를 나타내는 숫자. 이것은 일반적으로 SIGTERM (15) 또는 SIGKILL (9)와 같은 POSIX 신호 수입니다.
+
+#### 반환 값
+
+- 없음.
+
+### `getTcpPort`
+
+`getTcpPort`컨테이너에서 TCP 포트를 반환합니다. TCP 및 HTTP를 통해 컨테이너와 통신할 수 있습니다.
+
+```js
+const port = this.ctx.container.getTcpPort(8080);
+const res = await port.fetch("http://container/set-state", {
+	body: initialState,
+	method: "POST",
+});
+```
+
+```js
+const conn = this.ctx.container.getTcpPort(8080).connect('10.0.0.1:8080');
+await conn.opened;
+
+try {
+  if (request.body) {
+    await request.body.pipeTo(conn.writable);
+  }
+  return new Response(conn.readable);
+} catch (err) {
+  console.error("Request body piping failed:", err);
+  return new Response("Failed to proxy request body", { status: 502 });
+}
+```
+
+#### 매개 변수
+
+- `port`(number): 컨테이너와의 통신을 위해 TCP 포트 번호.
+
+#### 반환 값
+
+- `TcpPort`: 아`TcpPort`TCP 포트를 나타내는 객체. 이 객체는 TCP 및 HTTP를 통해 컨테이너에 요청을 보낼 수 있습니다.
+
+### `monitor`
+
+`monitor`컨테이너의 오류가 발생하면 컨테이너 출구 및 오류가 해결되는 약속을 반환합니다. 설정에 유용합니다.
+Workers 코드에서 컨테이너 상태 변경을 처리하는 콜백.
+
+```js
+class MyContainer extends DurableObject {
+	constructor(ctx, env) {
+		super(ctx, env);
+		function onContainerExit() {
+			console.log("Container exited");
+		}
+
+		//"err"값은 파괴 () 방법으로 사용자 정의 할 수 있습니다.
+		async function onContainerError(err) {
+			console.log("Container errored", err);
+		}
+
+		this.ctx.container.start();
+		this.ctx.container.monitor().then(onContainerExit).catch(onContainerError);
+	}
+}
+```
+
+#### 매개 변수
+
+- 이름 \*
+
+#### 반환 값
+
+- 컨테이너 출구 때 해결하는 약속.
+
+## 관련 자료
+
+- [회사 소개](/containers)
+- [Containers 시작하기](/containers/get-started)

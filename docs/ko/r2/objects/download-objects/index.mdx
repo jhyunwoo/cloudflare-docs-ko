@@ -1,0 +1,111 @@
+---
+title: 다운로드 개체
+pcx_content_type: how-to
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/objects/download-objects/'
+translation_source_md: 'https://developers.cloudflare.com/r2/objects/download-objects/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, DashButton } from "~/components";
+
+dashboard, Workers API, S3 API 또는 명령줄 도구를 사용하여 QXR2XQXQXQXQ에서 개체를 다운로드 할 수 있습니다.
+
+## 다운로드 dashboard
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 당신의 물통을 선택하십시오.
+3. 다운로드하려는 개체를 찾습니다.
+4. 제품정&#xBCF4;**...**&#xAC1D;체에 대한 클릭**다운로드**.
+
+## Workers API를 통해 다운로드
+
+사용 R2[관련 제품](/workers/runtime-apis/bindings/)Workers에서 개체를 다운로드:
+
+```ts ins={3}
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		const object = await env.MY_BUCKET.get("image.png");
+		return new Response(object.body);
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+완전한 문서의 경우, 참조[모델 번호: Workers](/r2/api/workers/workers-api-usage/).
+
+## S3 API를 통해 다운로드
+
+S3-compatible SDK를 사용하여 개체를 다운로드합니다. 당신은 당신의 필요[계정 ID](/fundamentals/account/find-account-and-zone-ids/)·[R2 API 토큰](/r2/api/tokens/).
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript">
+    ```ts
+    import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+
+    const S3 = new S3Client({
+    	region: "auto", //SDK에 의해 필요하지만 R2XQ에 의해 사용되지 않음
+    	//Cloudflare 계정 ID 제공
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+    	credentials: {
+    		accessKeyId: '<ACCESS_KEY_ID>',
+    		secretAccessKey: '<SECRET_ACCESS_KEY>',
+    	},
+    });
+
+    const response = await S3.send(
+    	new GetObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "image.png",
+    	}),
+    );
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+    	service_name="s3",
+    	#Cloudflare 계정 ID 제공
+    	endpoint_url=f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com",
+    	#API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (보기 : https://developers.cloudflare.com/r2/api/tokens)
+    	aws_access_key_id=ACCESS_KEY_ID,
+    	aws_secret_access_key=SECRET_ACCESS_KEY,
+    	region_name="auto", #SDK에 의해 필요하지만 R2XQ에 의해 사용되지 않음
+    )
+
+    response = s3.get_object(Bucket="my-bucket", Key="image.png")
+    image_data = response["Body"].read()
+    ```
+  </TabItem>
+</Tabs>
+
+R2의 참조[S3 API 문서](/r2/api/s3/api/)모든 S3 API 방법을 위해.
+
+### 위탁된 URL
+
+R2에서 직접 다운로드하는 클라이언트 측 다운로드를 위해, presigned URL을 사용하십시오. 서버는 클라이언트가 API 자격 증명을 만료하지 않고 사용할 수있는 임시 다운로드 URL을 생성합니다.
+
+1. 응용 프로그램은 S3 SDK를 사용하여 사전 서명된 GET URL을 생성합니다.
+2. URL을 클라이언트로 전송
+3. 클라이언트는 사전 서명된 URL을 사용하여 R2에서 직접 다운로드합니다
+
+사전 서명된 URL을 생성하고 사용하는 것에 대한 자세한 내용은 참조[위탁된 URL](/r2/api/s3/presigned-urls/).
+
+## Wrangler를 통해 다운로드
+
+제품 정보[모델 번호: Wrangler](/workers/wrangler/install-and-update/)개체를 다운로드합니다. 시작하기[`r2 object get`이름 \*](/workers/wrangler/commands/#r2-object-get):
+
+```sh
+wrangler r2 object get test-bucket/image.png
+```
+
+파일은 현재 작업 디렉토리에 다운로드됩니다. 또한 사용할 수 있습니다`--file`객체에 대한 새로운 이름을 설정하기 위해 플래그를 다운로드하고,`--pipe`표준 출력 (stdout)에 다운로드를 파이프 플래그.

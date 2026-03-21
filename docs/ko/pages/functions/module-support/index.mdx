@@ -1,0 +1,98 @@
+---
+pcx_content_type: reference
+title: 모듈 지원
+sidebar:
+  order: 13
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/module-support/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/module-support/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+모델 번호: Pages Functions는 몇몇 단위 유형을 위한 지원을, 매우 좋아합니다 제공합니다[모델 번호: Workers](https://blog.cloudflare.com/workers-javascript-modules/). 이것은 WebAssembly (Wasm)와 같은 외부 모듈을 가져올 수 있다는 것을 의미합니다,`text`·`binary`기능 코드 안쪽에 파일.
+
+이 가이드는 Pages 기능 안쪽에 이 다른 단위 유형을 사용하는 방법에 당신을 지시할 것입니다.
+
+## ECMAScript 모듈
+
+ECMAScript 모듈 (또는 짧은 ES 모듈)는 공식입니다,[표준화 된](https://tc39.es/ecma262/#sec-modules)JavaScript를 위한 단위 체계. 모듈 및 재사용 가능한 JavaScript 코드를 작성하기위한 권장 메커니즘입니다.
+
+[ES 모듈](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Modules)사용의 정의`import`·`export`이름 \* 아래는 ES 모듈 형식으로 작성된 스크립트의 예이며, 모듈을 가져 오는 Pages 기능입니다.
+
+```js
+export function greeting(name: string): string {
+  return `Hello ${name}!`;
+}
+```
+
+```js
+import { greeting } from "../src/greeting.ts";
+
+export async function onRequest(context) {
+	return new Response(`${greeting("Pages Functions")}`);
+}
+```
+
+## WebAssembly 모듈
+
+[웹 조립](/workers/runtime-apis/webassembly/)(약어 Wasm)는 Rust, Go, 또는 C와 같은 언어를 웹 브라우저, Cloudflare QXWorkersXQ, Cloudflare QXPagesXQXQXQXQXQXQ 기능 및 기타 WebAssembly runtimes.
+
+WebAssembly의 코드의 배포, 로드 가능 및 실행 가능한 단위는 호출[모듈](https://webassembly.github.io/spec/core/syntax/modules.html).
+
+아래는 PagesXQ 내부 Wasm Modules를 가져올 수있는 방법의 기본 예입니다. 기능 코드:
+
+```js
+import addModule from "add.wasm";
+
+export async function onRequest() {
+	const addInstance = await WebAssembly.instantiate(addModule);
+	return new Response(
+		`The meaning of life is ${addInstance.exports.add(20, 1)}`,
+	);
+}
+```
+
+## 텍스트 모듈
+
+텍스트 모듈은 HTML 파일과 같은 수입 리소스를 HTML 파일과 같은 비 표준화 된 수단입니다.`String`.
+
+아래 HTML 파일을 Pages 기능 코드로 가져 오기 :
+
+```html
+<!DOCTYPE html>
+<html>
+	<body>
+		<h1>Hello Pages Functions!</h1>
+	</body>
+</html>
+```
+
+다음 스크립트를 사용하십시오:
+
+```js
+import html from "../index.html";
+
+export async function onRequest() {
+	return new Response(html, {
+		headers: { "Content-Type": "text/html" },
+	});
+}
+```
+
+## 바이너리 모듈
+
+Binary Modules는 이미지와 같은 바이너리 데이터를 가져 오는 비 표준화 된 방법입니다.`ArrayBuffer`.
+
+아래는 PagesXQ 내부 바이너리 파일에서 데이터를 가져올 수있는 방법의 기본 예입니다 기능 코드:
+
+```js
+import data from "../my-data.bin";
+
+export async function onRequest() {
+	return new Response(data, {
+		headers: { "Content-Type": "application/octet-stream" },
+	});
+}
+```

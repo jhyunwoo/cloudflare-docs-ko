@@ -1,0 +1,151 @@
+---
+title: CDN-Cache-Control
+pcx_content_type: concept
+
+---
+
+`CDN-Cache-Control`은 응답을 처리할 수 있는 다른 중간자와 구분해 CDN 캐시의 동작을 따로 제어하기 위해 오리진에 설정하는 응답 헤더 필드입니다. [Cache-Control](/cache/concepts/cache-control/)에 사용하는 것과 같은 지시어를 사용해 `CDN-Cache-Control` 또는 `Cloudflare-CDN-Cache-Control` 응답 헤더를 설정할 수 있습니다.
+
+## 헤더 우선순위
+
+`CDN-Cache-Control` 지시어가 `Cache-Control` 지시어와 어떻게 상호작용할지를 결정하는 여러 옵션이 있습니다.
+
+오리진은 다음과 같이 할 수 있습니다.
+
+* Cloudflare가 캐싱 결정을 내릴 때 평가하는 `CDN-Cache-Control` 응답 헤더를 반환할 수 있습니다. 오리진이 `Cache-Control`도 함께 반환하는 경우, 이는 그대로 프록시되며 Cloudflare의 캐싱 결정에는 영향을 주지 않습니다. 추가로 Cloudflare와 브라우저 사이에 다른 CDN이 있는 경우를 대비해 `CDN-Cache-Control`은 다운스트림으로도 프록시됩니다.
+
+* `Cloudflare-CDN-Cache-Control` 응답 헤더를 반환할 수 있습니다. 이 경우 오리진이 `CDN-Cache-Control`을 반환했을 때와 동일하게 동작하지만, `Cloudflare-CDN-Cache-Control`은 Cloudflare만 제어하는 데 쓰이는 헤더이므로 Cloudflare는 이를 다운스트림으로 프록시하지 않습니다. Cloudflare만 다른 캐싱 동작을 하게 하고 다른 다운스트림 서버는 `Cache-Control`에 의존하게 하려는 경우나, Cloudflare가 `CDN-Cache-Control` 헤더를 다운스트림으로 전달하지 않기를 원할 때 유용합니다.
+
+* `Cloudflare-CDN-Cache-Control`과 `CDN-Cache-Control` 응답 헤더를 모두 반환할 수 있습니다. 이 경우 Cloudflare는 캐싱 결정을 내릴 때 더 구체적인 버전인 `Cloudflare-CDN-Cache-Control`만 보고, `CDN-Cache-Control`은 다운스트림으로 프록시합니다. 이런 상황에서 `CDN-Cache-Control`만 전달하는 것은 Cloudflare가 다운스트림의 다른 CDN과는 다른 캐싱 동작을 하게 하려는 경우에 유용합니다.
+
+또한 surrogate는 오리진 응답의 `Cache-Control` 헤더를 따르지 않습니다. 예를 들어 응답에 `Surrogate-Control` 헤더가 있으면, 해당 헤더가 지시어를 포함하지 않더라도 Cloudflare는 모든 `Cache-Control` 지시어를 무시합니다.
+
+## 다른 Cloudflare 기능과의 상호작용
+
+### Edge Cache TTL 캐시 규칙
+
+[Edge Cache TTL cache rule](/cache/how-to/cache-rules/settings/#edge-ttl)은 자산이 엣지(Cloudflare 데이터 센터)에 캐시되는 시간을 재정의합니다. 이 캐시 규칙은 자산이 엣지에 얼마나 오래 캐시되는지를 관리하는 `Cloudflare-CDN-Cache-Control/CDN-Cache-Control`의 지시어를 재정의합니다. 이 규칙은 대시보드의 **Caching** > **Cache Rules**에서 만들 수 있습니다.
+
+### Browser Cache TTL 캐시 규칙
+
+[Browser Cache TTL cache rule](/cache/how-to/cache-rules/settings/#browser-ttl)은 Cloudflare 다운스트림의 브라우저/서버가 자산을 캐시하는 시간을 재정의합니다. Browser Cache TTL은 `Cache-Control` 응답 헤더만 수정합니다. 이 캐시 규칙은 `Cloudflare-CDN-Cache-Control/CDN-Cache-Control` 응답 헤더는 수정하지 않습니다.
+
+### 기타 오리진 응답 헤더
+
+오리진은 객체가 브라우저에서 오래된 것으로 간주되기 전까지의 시간을 지정하는 `Expires` 응답 헤더를 반환할 수 있습니다. `Cloudflare-CDN-Cache-Control/CDN-Cache-Control`을 사용할 때 이 응답 헤더는 Cloudflare의 캐싱 결정에 영향을 주지 않습니다.
+
+### Cloudflare 기본 캐시 값
+
+Cloudflare가 `Cloudflare-CDN-Cache-Control`, `CDN-Cache-Control`, 또는 `Cache-Control` 값을 받지 못하는 상황에서는, 캐시 가능한 자산에 일반적인 [기본값](/cache/concepts/default-cache-behavior/)이 적용됩니다.
+
+## CDN-Cache-Control을 사용해야 하는 경우
+
+### 캐시된 자산의 TTL 관리
+
+오리진 캐시, CDN 캐시, 브라우저 캐시에 대해 캐시된 자산의 TTL을 각각 별도로 관리하려면 `CDN-Cache-Control`을 사용하세요. 아래 예시는 오리진에서 설정한 응답 헤더를 사용해 캐시된 자산의 TTL을 관리하는 방법을 보여줍니다.
+
+헤더:
+
+* `Cache-Control: max-age=14400, s-maxage=84000`
+* `Cloudflare-CDN-Cache-Control: max-age=24400`
+* `CDN-Cache-Control: max-age=18000`
+
+캐시 동작:
+
+<table>
+  <tbody>
+    <th colspan="5" rowspan="1">
+      캐시
+    </th>
+    <th colspan="5" rowspan="1">
+      캐시 TTL(초)
+    </th>
+    <tr>
+      <td colspan="5" rowspan="1">
+        오리진 서버 캐시
+      </td>
+      <td colspan="5" rowspan="1">
+        14400
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        네트워크 공유 캐시
+      </td>
+      <td colspan="5" rowspan="1">
+        84000
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        Cloudflare 엣지
+      </td>
+      <td colspan="5" rowspan="1">
+        24400
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        기타 CDN
+      </td>
+      <td colspan="5" rowspan="1">
+        18000
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        브라우저 캐시
+      </td>
+      <td colspan="5" rowspan="1">
+        14400
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+### 오래된 콘텐츠를 제공할 시점 지정
+
+오류 발생 시나 재검증 중에 오래된 콘텐츠를 언제 제공할지 지정하려면 `CDN-Cache-Control` 헤더를 `Cache-Control` 헤더와 함께 사용하세요. 아래 예시는 오류 처리 시 CDN에 적용되도록 헤더와 지시어를 설정하는 방법을 보여줍니다.
+
+헤더:
+
+* `Cache-Control: stale-if-error=400`
+* `Cloudflare-CDN-Cache-Control: stale-if-error=60`
+* `CDN-Cache-Control: stale-if-error=200`
+
+[5XX error](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/)에 대한 동작:
+
+<table>
+  <tbody>
+    <th colspan="5" rowspan="1">
+      캐시
+    </th>
+    <th colspan="5" rowspan="1">
+      오류 발생 시 오래된 콘텐츠 제공 시간(초)
+    </th>
+    <tr>
+      <td colspan="5" rowspan="1">
+        오리진 캐시 계층/네트워크 캐시/브라우저 캐시
+      </td>
+      <td colspan="5" rowspan="1">
+        400(해당 지시어가 적용된다고 가정할 경우)
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        Cloudflare 엣지
+      </td>
+      <td colspan="5" rowspan="1">
+        60
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        기타 CDN
+      </td>
+      <td colspan="5" rowspan="1">
+        200
+      </td>
+    </tr>
+  </tbody>
+</table>

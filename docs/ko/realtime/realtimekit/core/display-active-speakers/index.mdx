@@ -1,0 +1,495 @@
+---
+pcx_content_type: how-to
+title: 표시 활성 스피커
+slug: realtime/realtimekit/core/display-active-speakers
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/display-active-speakers/
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/display-active-speakers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+<RTKSDKSelector />
+
+RealtimeKit는 회의에서 적극적으로 연설하는 참가자를 자동으로 감지하고 추적합니다. 디자인 요구 사항에 따라 애플리케이션 UI에 단일 활성 스피커 또는 여러 활성 스피커를 표시 할 수 있습니다.
+
+RealtimeKit의 적극적인 스피커는 주어진 순간에 눈에 띄는 오디오 활동을 가진 먼 참가자입니다. SDK는 UI를 구축하는 데 도움이되는 두 가지 유형의 데이터를 유지합니다.
+
+- **Active 스피커**— 현재 가장 눈에 띄게 말하는 단일 원격 참가자.
+- **활동 참가자**- 가장 눈에 띄는 오디오 활동을 가진 원격 참가자의 집합.
+
+SDK는 이러한 속성을 자동으로 업데이트하고 행동 변경으로 참가자 미디어에 가입합니다. 눈에 띄는 오디오 활동을 전개하므로 현재 UI에서 볼 수없는 참가자는 오디오가 더 활성화되면 눈에 띄는 참가자를 대체 할 수 있습니다.
+
+:::참조
+SDK는 로컬 참가자가 ACTIVE 모드에서 참가자를 보고 또는 렌더링 할 때만 활성 스피커를 추적합니다 (페이지 0). 더 알아보기[원격 참가자](/realtime/realtimekit/core/remote-participants/#participant-view-modes)participant 보기 모드에 대해 알아 보려면 페이지.
+
+Active speaker 속성은 원격 참가자 만 포함합니다. 지역 참가자는 별도로 사용할 수 있습니다.
+주요 특징
+
+참가자의 최대 수`active`지도는 지역 참가자의 설정된 그리드 크기보다 작습니다.[공지사항](/realtime/realtimekit/concepts/preset/)·
+UI의 현지 참가자들을 위한 공간입니다. 예를 들어 그리드 크기가 6 인 경우`active`지도에는 최대 5개의 원격 참가자가 있습니다.
+
+## 단일 활성 스피커 표시
+
+<RTKCodeSnippet id="web-react">
+  제품 정보`lastActiveSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다. 현재 액티브 스피커에 액세스`useRealtimeKitSelector`걸이:
+
+  ```ts
+  const activeSpeaker = useRealtimeKitSelector((meeting) => {
+  	const activeSpeakerId = meeting.participants.lastActiveSpeaker;
+  	return meeting.participants.joined.get(activeSpeakerId);
+  });
+
+  if (activeSpeaker) {
+  	//액티브 스피커 동영상 렌더링
+  }
+  ```
+
+  더 보기`useRealtimeKitSelector`Hook은 활성 스피커가 변경 될 때 컴포넌트를 자동으로 업데이트합니다.
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK도 방출`activeSpeaker`행사일정`meeting.participants`다른 참가자가 활성 스피커가 될 때. 불완전한 갱신 또는 부작용을 위해, 이 사건을 경청하십시오:
+
+  ```ts
+  meeting.participants.on("activeSpeaker", ({ peerId, volume }) => {
+  	const activeSpeaker = meeting.participants.joined.get(peerId);
+  	//UI 또는 트리거 부작용 업데이트
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  제품 정보`lastActiveSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다.
+
+  오시는 길`lastActiveSpeaker`참여자 지도에서 참가자 ID를 얻기 위한 속성, 다음 참여자 지도에서 참가자 개체를 검색:
+
+  ```ts
+  const activeSpeakerId = meeting.participants.lastActiveSpeaker;
+  const activeSpeaker = meeting.participants.joined.get(activeSpeakerId);
+
+  if (activeSpeaker) {
+  	//액티브 스피커 동영상 렌더링
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는`activeSpeaker`행사일정`meeting.participants`다른 참가자가 활성 스피커가 될 때 :
+
+  ```ts
+  meeting.participants.on("activeSpeaker", ({ peerId, volume }) => {
+  	const activeSpeaker = meeting.participants.joined.get(peerId);
+  	//새로운 액티브 스피커를 표시하려면 UI를 업데이트하십시오.
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  제품 정보`lastActiveSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다.
+
+  오시는 길`lastActiveSpeaker`참여자 지도에서 참가자 ID를 얻기 위한 속성, 다음 참여자 지도에서 참가자 개체를 검색:
+
+  ```ts
+  const activeSpeakerId = meeting.participants.lastActiveSpeaker;
+  const activeSpeaker = meeting.participants.joined.get(activeSpeakerId);
+
+  if (activeSpeaker) {
+  	//액티브 스피커 동영상 렌더링
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는`activeSpeaker`행사일정`meeting.participants`다른 참가자가 활성 스피커가 될 때 :
+
+  ```ts
+  meeting.participants.on("activeSpeaker", ({ peerId, volume }) => {
+  	const activeSpeaker = meeting.participants.joined.get(peerId);
+  	//새로운 액티브 스피커를 표시하려면 UI를 업데이트하십시오.
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  제품 정보`activeSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다.
+
+  오시는 길`activeSpeaker`현재 활성화된 스피커를 얻는 재산:
+
+  ```kotlin
+  val activeSpeaker = meeting.participants.activeSpeaker
+
+  if (activeSpeaker != null) {
+  	// Render the active speaker video
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는 다른 참가자가 활성 스피커가 될 때 이벤트를 방출합니다. 이 행사에 대해`RtkParticipantsEventListener`:
+
+  ```kotlin
+  meeting.addParticipantsEventListener(object : RtkParticipantsEventListener {
+  	override fun onActiveSpeakerChanged(participant: RtkRemoteParticipant?) {
+  		// Update your UI to display the new active speaker
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  제품 정보`activeSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다.
+
+  오시는 길`activeSpeaker`현재 활성화된 스피커를 얻는 재산:
+
+  ```swift
+  let activeSpeaker = meeting.participants.activeSpeaker
+
+  if let activeSpeaker = activeSpeaker {
+  	// Render the active speaker video
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는 다른 참가자가 활성 스피커가 될 때 이벤트를 방출합니다. 이 행사에 대해`RtkParticipantsEventListener`:
+
+  ```swift
+  extension MeetingViewModel: RtkParticipantsEventListener {
+  	func onActiveSpeakerChanged(participant: RtkRemoteParticipant?) {
+  		// Update your UI to display the new active speaker
+  	}
+  }
+
+  meeting.addParticipantsEventListener(self)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  제품 정보`activeSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다.
+
+  Flutter SDK는 액티브 스피커를 통해 추적합니다.`onActiveSpeakerChanged`이벤트 리스너:
+
+  ```dart
+  class ParticipantsNotifier extends RtkParticipantsEventListener {
+  	@override
+  	void onActiveSpeakerChanged(RtkRemoteParticipant? participant) {
+  		if (participant != null) {
+  			// Update your UI to display the new active speaker
+  		}
+  	}
+  }
+
+  meeting.addParticipantsEventListener(ParticipantsNotifier());
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  제품 정보`lastActiveSpeaker`UI에서 가장 최근의 활성 참가자를 보여줍니다. 현재 액티브 스피커에 액세스`useRealtimeKitSelector`걸이:
+
+  ```tsx
+  const activeSpeaker = useRealtimeKitSelector((meeting) => {
+  	const activeSpeakerId = meeting.participants.lastActiveSpeaker;
+  	return meeting.participants.joined.get(activeSpeakerId);
+  });
+
+  if (activeSpeaker) {
+  	//액티브 스피커 동영상 렌더링
+  }
+  ```
+
+  더 보기`useRealtimeKitSelector`Hook은 활성 스피커가 변경 될 때 컴포넌트를 자동으로 업데이트합니다.
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK도 방출`activeSpeaker`행사일정`meeting.participants`다른 참가자가 활성 스피커가 될 때. 불완전한 갱신 또는 부작용을 위해, 이 사건을 경청하십시오:
+
+  ```tsx
+  meeting.participants.on("activeSpeaker", (participant) => {
+  	//UI 또는 트리거 부작용 업데이트
+  });
+  ```
+</RTKCodeSnippet>
+
+## 다중 활성 스피커 표시
+
+<RTKCodeSnippet id="web-react">
+  사용 방법`active`탁월한 오디오 활동을 가진 여러 참가자를 보여주는지도, 일반적으로 그리드 레이아웃에서. 현재 활성화된 참가자에 접근`useRealtimeKitSelector`걸이:
+
+  ```ts
+  const activeMap = useRealtimeKitSelector(
+  	(meeting) => meeting.participants.active,
+  );
+
+  const activeParticipants = activeMap.toArray();
+
+  //당신의 그리드에서 활성 참가자를 렌더링
+  activeParticipants.forEach((participant) => {
+  	//render participant 비디오 타일
+  });
+  ```
+
+  더 보기`useRealtimeKitSelector`Hook은 Active speakers가 변경될 때 컴포넌트를 자동으로 업데이트합니다.
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK도 방출`participantsUpdate`행사 일정`active`Active speakers의 설정이 변경 될 때지도. 불완전한 갱신 또는 부작용을 위해`active`맵 변경,이 이벤트를 듣고:
+
+  ```ts
+  meeting.participants.active.on("participantsUpdate", () => {
+  	const activeParticipants = meeting.participants.active.toArray();
+  	//부작용
+  });
+  ```
+
+  (선택) 특정 참가자가 활성 지도에서 추가되거나 제거 될 때 애플리케이션이 응답해야 하는 경우,`participantJoined`·`participantLeft`에 의해`meeting.participants.active`지도.
+
+  ```ts
+  meeting.participants.active.on("participantJoined", (participant) => {
+  	console.log("Participant added to active map:", participant.id);
+  });
+
+  meeting.participants.active.on("participantLeft", (participant) => {
+  	console.log("Participant removed from active map:", participant.id);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  사용 방법`active`탁월한 오디오 활동을 가진 여러 참가자를 보여주는지도, 일반적으로 그리드 레이아웃에서.
+
+  ```ts
+  const activeParticipants = meeting.participants.active.toArray();
+
+  //당신의 그리드에서 활성 참가자를 렌더링
+  activeParticipants.forEach((participant) => {
+  	//render participant 비디오 타일
+  });
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는`participantsUpdate`행사 일정`active`Active speakers의 설정이 변경 될 때지도. 이 이벤트를 듣고 업데이트 된 배열을 검색하고 그리드를 다시 렌더링합니다.
+
+  ```ts
+  meeting.participants.active.on("participantsUpdate", () => {
+  	const activeParticipants = meeting.participants.active.toArray();
+  	//새로운 활성 참가자와 그리드 UI 업데이트
+  });
+  ```
+
+  (선택) 특정 참가자가 활성 지도에서 추가되거나 제거 될 때 애플리케이션이 응답해야 하는 경우,`participantJoined`·`participantLeft`에 의해`meeting.participants.active`지도.
+
+  ```ts
+  meeting.participants.active.on("participantJoined", (participant) => {
+  	console.log("Participant added to active map:", participant.id);
+  });
+
+  meeting.participants.active.on("participantLeft", (participant) => {
+  	console.log("Participant removed from active map:", participant.id);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  사용 방법`active`탁월한 오디오 활동을 가진 여러 참가자를 보여주는지도, 일반적으로 그리드 레이아웃에서.
+
+  ```ts
+  const activeParticipants = meeting.participants.active.toArray();
+
+  //당신의 그리드에서 활성 참가자를 렌더링
+  activeParticipants.forEach((participant) => {
+  	//render participant 비디오 타일
+  });
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는`participantsUpdate`행사 일정`active`Active speakers의 설정이 변경 될 때지도. 이 이벤트를 듣고 업데이트 된 배열을 검색하고 그리드를 다시 렌더링합니다.
+
+  ```ts
+  meeting.participants.active.on("participantsUpdate", () => {
+  	const activeParticipants = meeting.participants.active.toArray();
+  	//새로운 활성 참가자와 그리드 UI 업데이트
+  });
+  ```
+
+  (선택) 특정 참가자가 활성 지도에서 추가되거나 제거 될 때 애플리케이션이 응답해야 하는 경우,`participantJoined`·`participantLeft`에 의해`meeting.participants.active`지도.
+
+  ```ts
+  meeting.participants.active.on("participantJoined", (participant) => {
+  	console.log("Participant added to active map:", participant.id);
+  });
+
+  meeting.participants.active.on("participantLeft", (participant) => {
+  	console.log("Participant removed from active map:", participant.id);
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  사용 방법`active`눈에 띄는 오디오 활동과 함께 여러 참가자를 보여줍니다. 그리드 레이아웃 :
+
+  ```kotlin
+  val activeParticipants = meeting.participants.active
+
+  // Render active participants in your grid
+  activeParticipants.forEach { participant ->
+  	// Render participant video tile
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는 Active speakers가 변경될 때 이벤트를 방출합니다. 이 행사에 대해`RtkParticipantsEventListener`:
+
+  ```kotlin
+  meeting.addParticipantsEventListener(object : RtkParticipantsEventListener {
+  	override fun onActiveParticipantsChanged(active: List<RtkRemoteParticipant>) {
+  		// Update your grid UI with the new active participants
+  	}
+  })
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  사용 방법`active`눈에 띄는 오디오 활동을 가진 여러 참가자를 표시하는 목록은 일반적으로 그리드 레이아웃에서 :
+
+  ```swift
+  let activeParticipants = meeting.participants.active
+
+  // Render active participants in your grid
+  for participant in activeParticipants {
+  	// Render participant video tile
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는 Active speakers가 변경될 때 이벤트를 방출합니다. 이 행사에 대해`RtkParticipantsEventListener`:
+
+  ```swift
+  extension MeetingViewModel: RtkParticipantsEventListener {
+  	func onActiveParticipantsChanged(active: [RtkRemoteParticipant]) {
+  		// Update your grid UI with the new active participants
+  	}
+  }
+
+  meeting.addParticipantsEventListener(self)
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  사용 방법`active`눈에 띄는 오디오 활동을 가진 여러 참가자를 표시하는 목록은 일반적으로 그리드 레이아웃에서 :
+
+  ```dart
+  final activeParticipants = meeting.participants.active;
+
+  // Render active participants in your grid
+  for (var participant in activeParticipants) {
+  	// Render participant video tile
+  }
+  ```
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK는 Active speakers가 변경될 때 이벤트를 방출합니다. 이 행사에 대해`RtkParticipantsEventListener`:
+
+  ```dart
+  class ParticipantsNotifier extends RtkParticipantsEventListener {
+  	@override
+  	void onActiveParticipantsChanged(List<RtkRemoteParticipant> active) {
+  		// Update your grid UI with the new active participants
+  	}
+  }
+
+  meeting.addParticipantsEventListener(ParticipantsNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  사용 방법`active`탁월한 오디오 활동을 가진 여러 참가자를 보여주는지도, 일반적으로 그리드 레이아웃에서. 현재 활성화된 참가자에 접근`useRealtimeKitSelector`걸이:
+
+  ```tsx
+  const activeMap = useRealtimeKitSelector(
+  	(meeting) => meeting.participants.active,
+  );
+
+  const activeParticipants = activeMap.toArray();
+
+  //당신의 그리드에서 활성 참가자를 렌더링
+  activeParticipants.forEach((participant) => {
+  	//render participant 비디오 타일
+  });
+  ```
+
+  더 보기`useRealtimeKitSelector`Hook은 Active speakers가 변경될 때 컴포넌트를 자동으로 업데이트합니다.
+
+  더 알아보기[Display participant 동영상](/realtime/realtimekit/core/remote-participants/#display-participant-videos)UI에서 참가자 비디오를 렌더링하는 방법을 배우십시오.
+
+  SDK도 방출`participantsUpdate`행사 일정`active`Active speakers의 설정이 변경 될 때지도. 불완전한 갱신 또는 부작용을 위해`active`맵 변경,이 이벤트를 듣고:
+
+  ```tsx
+  meeting.participants.active.on("participantsUpdate", () => {
+  	const activeParticipants = meeting.participants.active.toArray();
+  	//부작용
+  });
+  ```
+
+  (선택) 특정 참가자가 활성 지도에서 추가되거나 제거 될 때 애플리케이션이 응답해야 하는 경우,`participantJoined`·`participantLeft`에 의해`meeting.participants.active`지도:
+
+  ```tsx
+  meeting.participants.active.on("participantJoined", (participant) => {
+  	console.log("Participant added to active map:", participant.id);
+  });
+
+  meeting.participants.active.on("participantLeft", (participant) => {
+  	console.log("Participant removed from active map:", participant.id);
+  });
+  ```
+</RTKCodeSnippet>
+
+## 오디오 활동을 시각화
+
+<RTKCodeSnippet id="web-react">
+  일부 오디오 트랙에서 오디오 데이터를 사용하여 사용자 정의 오디오 시각화를 만들 수 있습니다. 오디오 트랙에서 볼륨 정보를 추출하여 진폭 시리즈를 계산합니다. 이 데이터를 사용하여 파형, 연설 지표, 또는 UI의 오디오 레벨 미터를 렌더링합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  일부 오디오 트랙에서 오디오 데이터를 사용하여 사용자 정의 오디오 시각화를 만들 수 있습니다. 오디오 트랙에서 볼륨 정보를 추출하여 진폭 시리즈를 계산합니다. 이 데이터를 사용하여 파형, 연설 지표, 또는 UI의 오디오 레벨 미터를 렌더링합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  일부 오디오 트랙에서 오디오 데이터를 사용하여 사용자 정의 오디오 시각화를 만들 수 있습니다. 오디오 트랙에서 볼륨 정보를 추출하여 진폭 시리즈를 계산합니다. 이 데이터를 사용하여 파형, 연설 지표, 또는 UI의 오디오 레벨 미터를 렌더링합니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  오디오 활동 시각화는 Android에서 지원되지 않습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  오디오 활동 시각화는 iOS에서 지원되지 않습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  오디오 활동 시각화는 Flutter에서 지원되지 않습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  오디오 활동 시각화는 React Native에서 지원되지 않습니다.
+</RTKCodeSnippet>
+
+## 관련 자료
+
+- [회의 객체 설명](/realtime/realtimekit/core/meeting-object-explained/)- 회의 객체 구조 및 사용 가능한 속성을 이해합니다.
+- [원격 참가자](/realtime/realtimekit/core/remote-participants/)- 세션에서 원격 참가자에 대해 자세히 알아보기 및 비디오를 표시하는 방법.

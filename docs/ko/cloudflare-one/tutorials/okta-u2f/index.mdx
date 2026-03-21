@@ -1,0 +1,86 @@
+---
+reviewed: 2020-12-07T00:00:00.000Z
+category: Zero Trust
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: Okta를 가진 U2F를 요구합니다
+description: >-
+  이 튜토리얼은 Okta와 Cloudflare Access를 통합하는 방법을 다룹니다. Cloudflare Access를 설정하고 Zero
+  Trust와 Okta를 통합하는 단계도 있습니다.
+tags:
+  - Okta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/tutorials/okta-u2f/'
+translation_source_md: 'https://developers.cloudflare.com/cloudflare-one/tutorials/okta-u2f/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Okta와 같은 많은 정체성 공급자, 지원 다수 다중 요인 입증 (MFA) 선택권 동시에. 예를 들어, Okta는 암호로 로그인하고 앱 또는 Yubikey와 같은 U2F 하드 키에서 생성 된 임시 코드가 허용됩니다.
+
+몇몇 두번째 요인 방법은 피싱에 더 저항합니다. U2F 옵션은 하드웨어 키라고도 알려진 물리적 장치에 액세스해야합니다. 그 열쇠 없이, 사용자는 암호를 가지고 있는 경우에 당신을 몰 수 없습니다. Cloudflare Access의 규칙을 구축하여 사용자가 하드웨어 키로 인증해야 할 수 있습니다. 공급자가 여러 옵션을 지원할 경우도 있습니다. 앱 기반 코드와 같은 더 적은 보안 옵션으로 로그인하면 액세스가 차단됩니다.
+
+**이 튜토리얼은 다음과 같습니다 :**
+
+- Cloudflare 통합 Okta로 오시는 길
+- U2F 등록을위한 Okta 구성
+- 회사연혁[오시는 길](/cloudflare-one/access-controls/policies/)사용자가 하드웨어 키로 로그인해야
+- 특정 액세스 응용 프로그램에 적용 할 수있는 정책 지정
+
+Cloudflare Access를 설정하고 Okta를 통합하기 위해이 튜토리얼 링크의 첫 번째 두 섹션. 이미 Okta와 Cloudflare Access를 사용하고 있다면 네 번째 섹션으로 건너 뛸 수 있습니다.
+
+**완료 시간:**
+
+20 분
+
+***
+
+## Cloudflare 구성 오시는 길
+
+시작하기 전에, 당신은 따를 필요가 있습니다[이 지침](/cloudflare-one/setup/)Cloudflare 설정 계정에서 액세스. 하드웨어 키 기능은 무료 플랜을 포함한 모든 계획에 사용할 수 있습니다.
+
+## 통합 Okta
+
+이름 \*[이 지침](/cloudflare-one/integrations/identity-providers/okta/)Cloudflare 액세스 계정으로 Okta를 통합합니다. 통합되면 액세스는 Okta의 ID, 그룹 회원 및 멀티 팩터 방법을 사용하여 규칙을 적용 할 수 있습니다.
+
+## U2F용 Okta 구성
+
+조직의 Okta 관리자가 먼저 해야 합니다.[U2F 지원](https://help.okta.com/en/prod/Content/Topics/Security/MFA.htm)당신의 Okta 계&#xC815;**·** [사용자 정의](https://help.okta.com/en/prod/Content/Topics/Security/healthinsight/required-factors.htm)그것을 위해 신속한. 이것은 세계적인 조정입니다; 당신의 계정이 이미 U2F를 형성한 경우에, 당신은 Cloudflare 접근으로 그것을 이용하는 어떤 고유든지 할 필요가 없습니다.
+
+## U2F 테스트
+
+Okta 통합을 테스트하여 U2F 정책을 구축 할 수 있습니다.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **액세스 설정**.
+2. 내 계정**앱 실행**, 선택**계정 관리**.
+3. 제품 정보**로그인 방법**.
+4. Okta의 행을 선택하고 선택**제품정보**.
+
+사이트맵 액세스는 Okta 계정으로 로그인합니다. 테스트의 목적을 위해, 앱 기반 코드와 같은 두 번째 요소 옵션을 사용합니다. Okta 반환`amr`Cloudflare에 대한 가치 Access - 이러한 표준 지표는 정체 제어 시스템 사이에 공유되는 다중 요인 방법입니다.
+
+더 보기`mfa`값은 Okta에 의해 보내집니다. Cloudflare 액세스는 멀티 팩터 인증 옵션을 사용했습니다. 더 보기`pwd`값은 암호를 사용합니다. 이 예제에서,`otp`유저가 앱 기반 코드로 인증되기 때문에 값이 전송됩니다.
+
+Okta에서 로그아웃하여 하드키를 테스트하고 액세스의 공급자 목록에 반환 할 수 있습니다. 제품정보**제품정보**다시,하지만 이번에는 하드웨어 키를 두 번째 요소로 사용합니다. 사이트맵 Okta 공유를 볼 수 있습니다.`hwk`내 계정`amr`사이트 맵
+
+![시험 MFA](~/assets/images/cloudflare-one/zero-trust-security/require-yubikey/with-hwk.png)
+
+## Zero Trust 정책을 구축하여 U2F를 필요로 합니다.
+
+이 정보를 사용하여 액세스 규칙을 구축 할 수 있습니다. 오시는 길`Applications`Cloudflare 액세스 섹션의 목록 대시보드. 이미 내장 된 응용 프로그램을 선택하고 새로운 것을 만들 수 있습니다. 이 예제는 기존 응용 프로그램에 대한 요구 사항을 추가합니다.
+
+제품정보**제품정보**기존의 편집`Allow`이름 \*
+
+추가하기`Require`규칙 및 선택`Authentication Method`목록에서. 제품 정보`hwk`자주 묻는 질문`Authentication Method`. 선택**저장 규칙**.
+
+![자주 묻는 질문](~/assets/images/cloudflare-one/zero-trust-security/require-yubikey/require-hwk.png)
+
+선택 사항: Cloudflare Access를 구성할 수도 있습니다. 이 응용 프로그램에는 여러 다른 공급자가 통합되어 있는 경우 Okta만 표시됩니다. 내 계정`Authentication`탭, 선택`Okta`사용자를 표시하는 유일한 옵션으로.
+
+## 규칙을 테스트
+
+이제 규칙을 테스트 할 수 있습니다. 앱 기반 코드 또는 하드웨어 보안 키 이외의 방법을 사용하여 로그인하고 시도하십시오. 액세스는 시도를 차단합니다.
+
+![관련 기사](~/assets/images/cloudflare-one/zero-trust-security/require-yubikey/blocked-user.png)
+
+Okta에 서명하고 하드웨어 키로 재발급하면 액세스가 연결됩니다.

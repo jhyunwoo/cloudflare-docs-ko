@@ -1,0 +1,77 @@
+---
+pcx_content_type: how-to
+title: 설정
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: CNAME flattening 설정
+---
+
+import { Render, TabItem, Tabs, GlossaryTooltip, DashButton } from "~/components";
+
+:::note
+
+CNAME 대상이 CNAME 레코드와 같은 Zone에 있는 경우, Cloudflare는 CNAME flattening을 수행하며 **CNAME Flattening** 설정은 무시합니다.
+
+:::
+
+## Zone apex에 대해
+
+도메인이 Zone apex(`example.com`, 즉 레코드 **Name**이 `@`로 설정된 경우)에 CNAME 레코드를 사용하면 모든 요금제에서 기본적으로 CNAME flattening이 적용됩니다.
+
+## 모든 CNAME 레코드에 대해
+
+유료 요금제의 Zone에서는 모든 CNAME 레코드를 flatten하도록 선택할 수 있습니다. 이 옵션은 <GlossaryTooltip term="proxy status">DNS-only(프록시되지 않은)</GlossaryTooltip> CNAME 레코드에 유용합니다. [프록시된 레코드](/dns/proxy-status/)는 기본적으로 flatten되며 Cloudflare 애니캐스트 IP를 반환합니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **CNAME flattening for all CNAME records** 옵션을 켭니다.
+
+</TabItem> <TabItem label="API">
+
+[Update DNS Settings](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/) 엔드포인트에 `PATCH` 요청을 보내고, 요청 본문에서 `flatten_all_cnames`를 `true`로 설정합니다.
+
+</TabItem> </Tabs>
+
+:::caution
+
+<Render file="cname-flattening-callout" product="dns" />
+:::
+
+## 레코드별
+
+유료 Zone은 특정 CNAME 레코드만 flatten하는 옵션도 제공합니다.
+
+이 옵션을 사용하면 Zone 파일의 해당 flatten된 CNAME 레코드에 특수 [tag](/dns/manage-dns-records/reference/record-attributes/)인 `cf-flatten-cname`가 추가되어, 이 구성을 잃지 않고 [레코드를 내보내고 가져올 수](/dns/manage-dns-records/how-to/import-and-export/) 있습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지에서 **CNAME flattening for all CNAME records**가 꺼져 있는지 확인합니다.
+2. [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지로 이동해 flatten하려는 CNAME 레코드를 찾습니다.
+3. **Edit**를 선택하고 **Flatten** 옵션을 켭니다.
+4. **Save**를 선택해 확인합니다.
+
+:::note[Flatten 옵션을 사용할 수 없는 경우]
+다음 경우에는 **Flatten** 옵션을 사용할 수 없습니다.
+
+- 레코드가 [Zone apex](#for-your-zone-apex)에 있는 경우
+- 레코드가 이미 프록시되고 있어 기본적으로 flatten되는 경우
+- **CNAME flattening for all CNAME records**가 켜져 있어 레코드별로 재정의할 수 없는 경우
+  :::
+
+</TabItem> <TabItem label="API">
+
+사용 가능한 [API 엔드포인트](/api/resources/dns/subresources/records/methods/create/)를 사용해 각 CNAME 레코드의 요청 본문에 다음을 지정하세요.
+
+```txt
+"settings": {
+  "flatten_cname": true
+}
+```
+
+</TabItem> </Tabs>

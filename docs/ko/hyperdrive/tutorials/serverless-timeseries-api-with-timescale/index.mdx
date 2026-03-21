@@ -1,0 +1,301 @@
+---
+reviewed: 2023-10-30T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: 'Serverless, Globally 분산 시간 시리즈 API를 Timescale로 만듭니다.'
+products:
+  - workers
+tags:
+  - PostgreSQL
+  - TypeScript
+  - SQL
+description: '이 튜토리얼에서, Timescale에 저장 된 시간 시리즈 데이터와 쿼리 할 Workers에 API를 구축하는 것을 배울 것입니다.'
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/hyperdrive/tutorials/serverless-timeseries-api-with-timescale/
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/tutorials/serverless-timeseries-api-with-timescale/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼에서는 WorkersXQ에 API를 구축하는 것을 배우게 됩니다.[타임 스](https://www.timescale.com/)(Pod에서 PostgreSQL을 더 빨리 만듭니다).
+
+API 경로를 노출하는 Worker 함수를 생성하고 배포합니다.[모델 번호: Hyperdrive](https://developers.cloudflare.com/hyperdrive/)의 데이터베이스 연결을 프록시하고 연결 풀을 유지하여 모든 요청에 새로운 데이터베이스 연결을 만들 수 있습니다.
+
+당신은 방법을 배울 것이다:
+
+- Cloudflare 구축 및 배포 작업자.
+- Wrangler CLI를 사용하여 작업자의 비밀을 사용하십시오.
+- Timescale 데이터베이스 서비스를 배포합니다.
+- Hyperdrive와 함께 타임 스케일 데이터베이스 서비스에 작업자를 연결합니다.
+- 새로운 API를 쿼리합니다.
+
+Timescale에 대해 자세히 알아볼 수 있습니다.[관련 기사](https://docs.timescale.com/getting-started/latest/services/).
+
+***
+
+## 1. Worker 프로젝트 만들기
+
+다음 명령을 실행하여 명령 줄에서 Worker 프로젝트를 만들 수 있습니다.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"timescale-api"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+응용 프로그램이 배포 된 URL의 메모를 확인합니다. GitHub webhook을 구성할 때 사용할 수 있습니다.
+
+작업자 프로젝트에 대해 만든 디렉토리로 변경:
+
+```sh
+cd timescale-api
+```
+
+## 2. Timescale 서비스 준비
+
+:::참조
+
+Timescale에 가입하지 않은 경우, 이동[회원가입](https://timescale.com/signup)신용 카드없이 30 일 평가판을 시작할 수 있습니다.
+주요 특징
+
+새로운 서비스를 만드는 경우, 이동[Timescale 콘솔](https://console.cloud.timescale.com/)그리고이 단계를 따르십시오:
+
+1. 제품정보**회사연혁**오른쪽 상단에 검은색을 선택하여.
+2. 제품 정보**시간 시리즈**서비스 유형으로.
+3. 원하는 지역과 인스턴스 크기를 선택하십시오. 1 CPU는이 튜토리얼에 충분합니다.
+4. 무작위로 생성 된 것을 대체하는 서비스 이름을 설정합니다.
+5. 제품정보**회사연혁**.
+6. 오른쪽에, 확장**연결 정보**대화 및 복사**서비스 URL**.
+7. 표시된 비밀번호 복사 다시 검색 할 수 없습니다.
+8. 제품정보**내 암호를 저장, 서비스 개요로 이동**.
+
+이전에 만든 서비스를 사용하고 있다면 서비스 연결 정보를 검색할 수 있습니다.[Timescale 콘솔](https://console.cloud.timescale.com/):
+
+1. Hyperdrive를 원하는 서비스 (database)를 선택하여 연결하십시오.
+2. 지원하다**연결 정보**.
+3. 제출하기**서비스 URL**. 서비스 URL은 Hyperdrive가 연결하는 연결 문자열입니다. 이 문자열에는 데이터베이스 hostname, 포트 번호 및 데이터베이스 이름을 포함합니다.
+
+:::참조
+
+비밀번호가 저장되지 않은 경우, 선택해야 할 것입니다.**비밀번호를 잊으셨나요?**&#xADF8;리고 새로운 설정**사이트맵**비밀번호 이 암호를 저장, Timescale로 표시 한 번.
+
+암호를 재설정 할 때 기존 클라이언트를 방해하지 않도록해야합니다.
+주요 특징
+
+비밀번호 입력**서비스 URL**다음과 같이 ( @ untouched 후에 부분):
+
+```txt
+postgres://tsdbadmin:YOURPASSWORD@...
+```
+
+이것은 다음과 같습니다.**회사 소개**다음 섹션에서.
+
+## 3. Hypertable 만들기
+
+Timescale는 일반 PostgreSQL 테이블을 변환 할 수 있습니다.[하이퍼테이블](https://docs.timescale.com/use-timescale/latest/hypertables/), 테이블은 time-series, 이벤트, 분석 데이터를 처리하는 데 사용됩니다. 이 변경을 한 후, Timescale는 압축 또는 연속 집계와 같은 다른 기능을 적용 할 수 있도록 하이퍼테이블의 파티션을 완벽하게 관리 할 것입니다.
+
+서비스 URL을 사용하여 Timescale 데이터베이스에 연결하면 마지막 단계에 복사됩니다.
+
+기본 PostgreSQL CLI 도구를 사용하는 경우[**사이트맵**](https://www.timescale.com/blog/how-to-install-psql-on-mac-ubuntu-debian-windows/)연결하려면 아래 psql을 실행합니다. (귀하의**서비스 URL**이전 단계에서). 그래픽 도구를 사용하여 연결할 수도 있습니다.[사이트맵](https://www.pgadmin.org/).
+
+```sh
+psql <SERVICEURL>
+```
+
+연결되면 다음 SQL을 붙여서 테이블을 만듭니다.
+
+```sql
+CREATE TABLE readings(
+  ts timestamptz DEFAULT now() NOT NULL,
+  sensor UUID NOT NULL,
+  metadata jsonb,
+  value numeric NOT NULL
+ );
+
+SELECT create_hypertable('readings', 'ts');
+```
+
+Timescale는 당신에게 ingest 및 쿼리 데이터로 나머지를 관리합니다.
+
+## 4. 데이터베이스 구성 만들기
+
+새로운 HyperdriveXQ 인스턴스를 만들려면:
+
+- 내 계정**회사 소개**이름 \*[단계 2](/hyperdrive/tutorials/serverless-timeseries-api-with-timescale/#2-prepare-your-timescale-service).
+- Hyperdrive 서비스에 대한 이름. 이 튜토리얼을 위해, 당신은 사용할 것이다**하이퍼 드라이브**.
+
+Hyperdrive는`create`명령과`--connection-string`이 정보를 전달합니다. 다음과 같이 실행:
+
+```sh
+npx wrangler hyperdrive create hyperdrive --connection-string="SERVICEURL"
+```
+
+:::참조
+
+Hyperdrive는 구성을 만들기 전에 올바른 확인하기 위해 제공된 자격 증명을 사용하여 데이터베이스에 연결하려고합니다. 연결하려고 할 때 오류가 발생하면 Hyperdrive의 참조[문제 해결 문서](/hyperdrive/observability/troubleshooting/)가능한 원인을 디버그합니다.
+
+:::
+
+이 명령은 Hyperdrive ID를 출력합니다. HyperdriveXQ 구성을 WranglerXQ 구성에 넣을 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "timescale-api",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"hyperdrive": [
+  		{
+  			"binding": "HYPERDRIVE",
+  			"id": "your-id-here"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+Postgres 드라이버를 Worker 프로젝트에 설치하십시오.
+
+<PackageManagers pkg="pg" />
+
+이제 아래 Worker 코드를 복사하고 현재 코드를 대신합니다.`./src/index.ts`. 아래 코드:
+
+1. Hyperdrive를 사용하여 Timescale에 연결할 수 있습니다.`env.HYPERDRIVE.connectionString`운전사에 직접.
+2. 계정 만들기`POST`JSON 판독의 배열을 받아 하나의 트랜잭션에서 Timescale에 삽입합니다.
+3. 계정 만들기`GET`오시는 길`limit`매개 변수와 가장 최근의 읽기를 반환합니다. 이것은 ID 또는 타임스탬프에 의해 필터에 적용 될 수있다.
+
+```ts
+import { Client } from "pg";
+
+export interface Env {
+	HYPERDRIVE: Hyperdrive;
+}
+
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//각 요청에 새로운 클라이언트를 만듭니다. Hyperdrive는 underlying를 유지합니다
+		//데이터베이스 연결 풀, 그래서 새로운 클라이언트를 만드는 것은 빠릅니다.
+		const client = new Client({
+			connectionString: env.HYPERDRIVE.connectionString,
+		});
+		await client.connect();
+
+		const url = new URL(request.url);
+		//JSON 삽입을 위한 경로 만들기
+		if (request.method === "POST" && url.pathname === "/readings") {
+			//요청의 JSON 페이로드를 파
+			const productData = await request.json();
+
+			//견적 요청 jsonb to recordset을 사용하여 JSON을 확장합니다.
+			//PG INSERT 형식으로 모든 항목을 한 번에 삽입하고 석탄을 사용하여
+			//ts 필드가 존재하지 않는 경우 현재 타임스탬프와 삽입
+			const insertQuery = `
+      INSERT INTO readings (ts, sensor, metadata, value)
+      SELECT coalesce(ts, now()), sensor, metadata, value FROM jsonb_to_recordset($1::jsonb)
+      AS t(ts timestamptz, sensor UUID, metadata jsonb, value numeric)
+  `;
+
+			const insertResult = await client.query(insertQuery, [
+				JSON.stringify(productData),
+			]);
+
+			//반환에 삽입 된 원뿔 줄 카운트를 수집
+			const resp = new Response(JSON.stringify(insertResult.rowCount), {
+				headers: { "Content-Type": "application/json" },
+			});
+
+			return resp;
+
+			//time-frame 내에서 쿼리하는 경로 만들기
+		} else if (request.method === "GET" && url.pathname === "/readings") {
+			const limit = url.searchParams.get("limit");
+
+			//Query limit param을 사용하여 판독
+			const result = await client.query(
+				"SELECT * FROM readings ORDER BY ts DESC LIMIT $1",
+				[limit],
+			);
+
+			//JSON으로 결과를 반환합니다.
+			const resp = new Response(JSON.stringify(result.rows), {
+				headers: { "Content-Type": "application/json" },
+			});
+
+			return resp;
+		}
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+## 5. 작업자를 배포
+
+다음 명령을 실행하여 작업자를 확보하십시오.
+
+```sh
+npx wrangler deploy
+```
+
+당신의 응용 프로그램은 지금 살고 접근 가능`timescale-api.<YOUR_SUBDOMAIN>.workers.dev`. 정확한 URI는 wrangler 명령의 출력에 표시됩니다.
+
+배포 후, Cloudflare Worker를 사용하여 Timescale IoT 판독 데이터베이스와 상호 작용할 수 있습니다. 가장자리의 연결은 당신이 가장자리에서 연결하는 Cloudflare HyperdriveXQ를 사용하기 때문에 더 빠릅니다.
+
+이제 Cloudflare를 사용할 수 있습니다. 새로운 행을 삽입하는 노동자`readings`테이블. 이 기능을 시험하기 위해, 보냅니다`POST`작업자의 URL에 요청`/readings`새로운 제품 데이터를 포함하는 JSON 페이로드와 함께 경로:
+
+```json
+[
+	{ "sensor": "6f3e43a4-d1c1-4cb6-b928-0ac0efaf84a5", "value": 0.3 },
+	{ "sensor": "d538f9fa-f6de-46e5-9fa2-d7ee9a0f0a68", "value": 10.8 },
+	{ "sensor": "5cb674a0-460d-4c80-8113-28927f658f5f", "value": 18.8 },
+	{ "sensor": "03307bae-d5b8-42ad-8f17-1c810e0fbe63", "value": 20.0 },
+	{ "sensor": "64494acc-4aa5-413c-bd09-2e5b3ece8ad7", "value": 13.1 },
+	{ "sensor": "0a361f03-d7ec-4e61-822f-2857b52b74b3", "value": 1.1 },
+	{ "sensor": "50f91cdc-fd19-40d2-b2b0-c90db3394981", "value": 10.3 }
+]
+```
+
+이 튜토리얼 omits`ts`(배터치)와`metadata`( JSON blob) 그래서 그들은 설정 될 것입니다`now()`·`NULL`각각.
+
+일단 보내면`POST`요청할 수도 있습니다.`GET`작업자의 URL에 요청`/readings`경로. 설정하기`limit`반환된 기록의 양을 통제하는 모수.
+
+당신은**컬럼**다음 명령어로 테스트할 수 있습니다 (replace`<YOUR_SUBDOMAIN>`위의 배포 명령에서 하위 도메인으로:
+
+```bash title="Ingest some data"
+curl --request POST --data @- 'https://timescale-api.<YOUR_SUBDOMAIN>.workers.dev/readings' <<EOF
+[
+  { "sensor": "6f3e43a4-d1c1-4cb6-b928-0ac0efaf84a5", "value":0.3},
+  { "sensor": "d538f9fa-f6de-46e5-9fa2-d7ee9a0f0a68", "value":10.8},
+  { "sensor": "5cb674a0-460d-4c80-8113-28927f658f5f", "value":18.8},
+  { "sensor": "03307bae-d5b8-42ad-8f17-1c810e0fbe63", "value":20.0},
+  { "sensor": "64494acc-4aa5-413c-bd09-2e5b3ece8ad7", "value":13.1},
+  { "sensor": "0a361f03-d7ec-4e61-822f-2857b52b74b3", "value":1.1},
+  { "sensor": "50f91cdc-fd19-40d2-b2b0-c90db3394981", "metadata": {"color": "blue" }, "value":10.3}
+]
+EOF
+```
+
+```sh title="Query some data"
+curl "https://timescale-api.<YOUR_SUBDOMAIN>.workers.dev/readings?limit=10"
+```
+
+이 튜토리얼에서는 Timescale, Workers, QXQXQXQXQ, Hyperdrive 및 TypeScript로 가장자리에서 작업 예제 및 쿼리 읽기를 만드는 방법을 배웠습니다.
+
+## 다음 단계
+
+- 더 알아보기[Hyperdrive 이름 \*](/hyperdrive/concepts/how-hyperdrive-works/).
+- 더 알아보기[타임 스](https://timescale.com).
+- 더 알아보기[문제 해결 가이드](/hyperdrive/observability/troubleshooting/)일반적인 문제를 디버그합니다.

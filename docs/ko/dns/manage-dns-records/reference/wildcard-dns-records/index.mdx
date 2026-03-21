@@ -1,0 +1,104 @@
+---
+pcx_content_type: concept
+title: 와일드카드 DNS 레코드
+sidebar:
+  order: 4
+
+---
+
+import { Details, Example, Render } from "~/components"
+
+일반 DNS 레코드는 도메인 이름을 하나 또는 여러 IP 주소, 혹은 다른 관련 리소스에 매핑합니다(일대다 매핑). 와일드카드 DNS 레코드를 사용하면 다대다 매핑이 가능해지므로, 수백 또는 수천 개의 서브도메인을 동일한 리소스로 연결하려는 경우에 유용합니다.
+
+Cloudflare에서는 와일드카드 DNS 레코드를 [proxied 또는 DNS-only](/dns/proxy-status/)로 설정할 수 있습니다.
+
+## 와일드카드 레코드 만들기
+
+와일드카드 DNS 레코드를 만들려면 [DNS 레코드를 생성](/dns/manage-dns-records/how-to/create-dns-records/)하면서 **Name** 필드에 `*`를 입력하세요.
+
+<Example>
+
+| Type | Name | IPv4 address | Proxy status |
+| ---- | ---- | ------------ | ------------ |
+| `A`  | `*`  | `192.0.2.1`  | Proxied      |
+
+</Example>
+
+:::caution
+
+
+[Cloudflare Pages](/pages/)를 사용하는 프로젝트의 경우, 와일드카드 사용자 지정 도메인은 지원되지 않습니다. 자세한 내용은 [known issues](/pages/platform/known-issues/#custom-domains)를 참고하세요.
+
+
+:::
+
+더 깊은 서브도메인에 대해서도 별도의 와일드카드 DNS 레코드를 만들 수 있습니다. 예를 들어 `*.www.example.com`에 와일드카드 레코드를 만들고 싶다면 이름 필드에 `*.www`를 넣은 레코드를 생성하면 됩니다.
+
+<Example>
+
+| Type    | Name    | IPv4 address  | Proxy status |
+| ------- | ------- | ------------- | ------------ |
+| `CNAME` | `*.www` | `example.com` | Proxied      |
+
+</Example>
+
+### 고려할 사항
+
+#### 와일드카드는 첫 번째 레이블에서만 지원됩니다
+
+즉, `subdomain.*.example.com` 같은 호스트명은 별표가 있는 위치에서 와일드카드로 취급되지 않습니다. 이 이름으로 DNS 레코드를 생성하면 별표는 와일드카드 연산자가 아니라 문자 그대로의 `*`로 해석됩니다.
+
+#### 와일드카드는 기본적으로 다단계입니다
+
+`*.*.example.com`에 DNS 레코드를 만들면 첫 번째 별표만 와일드카드로 해석되고, 두 번째 별표는 문자 그대로의 `*`로 해석됩니다. `*.example.com` 레코드는 기본적으로 다단계이므로, 우선 적용되는 [구체적인 DNS 레코드](#specific-dns-records-take-precedence-over-wildcard-records)가 없다면 `abc.example.com`뿐 아니라 `123.abc.example.com`까지 포괄합니다.
+
+#### 구체적인 DNS 레코드가 와일드카드 레코드보다 우선합니다
+
+와일드카드 레코드는 조회된 이름에 정확히 일치하는 레코드가 없을 때만 적용됩니다. 레코드나 위임이 존재하면 와일드카드는 적용되지 않습니다.
+
+  <Details header="예시 1 - 특정 레코드 또는 그 하위">
+
+  도메인에 아래 두 개의 레코드만 있다고 가정해 보겠습니다.
+
+  | Type  | Name                      | Content       |
+  | ----- | ------------------------- | ------------- |
+  | `A`   | `*`           | `192.0.2.1`   |
+  | `TXT` | `abc` | `<some_text>` |
+
+  이 경우 `A` 와일드카드 레코드는 `abc.example.com` 또는 그 하위(`123.abc.example.com`, `deeper.label.abc.example.com` 등)를 제외한 `example.com`의 모든 서브도메인 질의에 사용됩니다.
+
+  와일드카드는 `abc.example.com`의 특정 레코드 아래가 아닌 더 깊은 다른 레이블, 예를 들어 `deeper.label.xyz.example.com`에는 계속 적용됩니다.
+
+  </Details>
+
+	<Details header="예시 2 - 암시적 부모">
+
+	  도메인에 아래 두 개의 레코드만 있다고 가정해 보겠습니다.
+
+  | Type  | Name                      | Content       |
+  | ----- | ------------------------- | ------------- |
+  | `A`   | `*`           | `192.0.2.1`   |
+  | `TXT` | `123.abc` | `<some_text>` |
+
+	이 예시에서 `123.abc.example.com`은 `abc.example.com`의 하위이며, `abc.example.com` 자체에는 연결된 레코드가 없습니다. 동작은 사용하는 네임서버 유형에 따라 달라집니다.
+
+	- Standard nameservers: 와일드카드 `*.example.com`이 계속 `abc.example.com`에 적용됩니다.
+	- [Advanced nameservers](/dns/foundation-dns/setup/)[^1]: [RFC 4592](https://www.rfc-editor.org/rfc/rfc4592.html)를 준수하여 와일드카드 `*.example.com`이 `abc.example.com`에 적용되지 않습니다.
+
+	</Details>
+
+## 제공 여부
+
+모든 요금제 고객이 와일드카드 DNS 레코드를 생성하고 프록시할 수 있습니다.
+
+## 제한 사항
+
+DNS에 [CNAME setup (partial)](/dns/zone-setups/partial-setup/)을 사용하는 경우, Cloudflare는 와일드카드 레코드에 대한 SSL/TLS 인증서를 자동으로 프로비저닝하지 않습니다.
+
+<Render file="partial-zone-acm-dcv-wildcard" product="ssl" />
+
+## 추가 정보
+
+와일드카드 레코드 및 그 제한 사항에 대한 자세한 내용은 [소개 블로그 게시물](https://blog.cloudflare.com/wildcard-proxy-for-everyone/)을 참고하세요.
+
+[^1]: Enterprise 고객을 위한 opt-in 구성입니다.

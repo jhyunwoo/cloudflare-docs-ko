@@ -1,0 +1,156 @@
+---
+pcx_content_type: how-to
+title: 라이브 스트림 시작
+learning_center:
+  title: 라이브 스트리밍이란?
+  link: 'https://www.cloudflare.com/learning/video/what-is-live-streaming/'
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/stream-live/start-stream-live/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/stream-live/start-stream-live/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { InlineBadge, Render, Badge, DashButton } from "~/components";
+
+스트림에 가입 한 후 Dash 또는 API를 통해 라이브 입력을 만들 수 있습니다. RTMPS 또는 SRT를 사용하여 새로운 라이브 입력에 방송. SRT는 더 새로운 비디오 코덱을 지원하고 캡션 및 여러 오디오 트랙과 같은 접근성 기능을 사용하여 쉽게합니다.
+
+<Render file="srt-supported-modes" product="stream" />
+
+**처음 라이브 스트리밍?**&#xB2F9;신은 CloudflareXQ에 당신의 영상을 보내는 소프트웨어를 필요로 할 것입니다.[OBS Studio를 사용하여 스트림에가는 방법을 알아보세요.](/stream/examples/obs-from-scratch/).
+
+## dashboard를 사용하십시오
+
+**단계 1:**&#x43;loudflare dashboard에서, 갑니다**실시간 입력**페이지 및 라이브 입력 생성.
+
+<DashButton url="/?to=/:account/stream/inputs" />
+
+![dashboard에서 라이브 입력 필드 만들기](~/assets/images/stream/create-live-input-from-stream-dashboard.png)
+
+**단계 2:**&#x52;TMPS URL과 키를 복사하고 라이브 스트리밍 응용 프로그램을 사용합니다. 자주 묻는 질문[방송 소프트웨어 (OBS)](https://obsproject.com/)get started.에.
+
+![RTMPS URL 필드의 예](~/assets/images/stream/copy-rtmps-url-from-stream-dashboard.png)
+
+**단계 3:**&#xB77C;이브를 이동하고 Stream Dashboard에서 라이브 스트림을 미리보기
+
+Stream Dashboard에서는 몇 초 이내에 라이브를 볼 수 있습니다. 웹 사이트 또는 앱으로 라이브 비디오 재생을 추가하려면, 참조[재생 동영상](/stream/viewing-videos).
+
+## API 사용
+
+실제 스트림을 시작하려면,`POST`요청하기`/live_inputs`엔드포인트:
+
+```bash title="Request"
+curl -X POST \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data '{"meta": {"name":"test stream"},"recording": { "mode": "automatic" }}' \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/live_inputs
+```
+
+```json title="Response"
+{
+	"uid": "f256e6ea9341d51eea64c9454659e576",
+	"rtmps": {
+		"url": "rtmps://live.cloudflare.com:443/live/",
+		"streamKey": "MTQ0MTcjM3MjI1NDE3ODIyNTI1MjYyMjE4NTI2ODI1NDcxMzUyMzcf256e6ea9351d51eea64c9454659e576"
+	},
+	"created": "2021-09-23T05:05:53.451415Z",
+	"modified": "2021-09-23T05:05:53.451415Z",
+	"meta": {
+		"name": "test stream"
+	},
+	"status": null,
+	"recording": {
+		"mode": "automatic",
+		"requireSignedURLs": false,
+		"allowedOrigins": null,
+		"hideLiveViewerCount": false
+	},
+	"enabled": true,
+	"deleteRecordingAfterDays": null,
+	"preferLowLatency": false
+}
+```
+
+#### 선택적인 API 모수
+
+[API 참고 문서`/live_inputs`](/api/resources/stream/subresources/live_inputs/methods/create/)
+
+- `enabled`boolean 기본:`true`
+  - 실시간 입력이 들어오는 방송을 허용 여부를 제어합니다. 설정할 때`false`, 살아있는 입력은 어떤 들어오는 RTMPS 또는 SRT 연결을 거부할 것입니다. 이 속성을 사용하여 programmatically end Creator 방송 또는 특정 입력을 시작으로 새로운 방송을 방지합니다.
+
+- `preferLowLatency`boolean 기본:`false` <InlineBadge preset="beta" />
+  - true로 설정하면, 이 라이브 입력은 beta Low-Latency HLS 파이프라인에서 활성화됩니다. 스트림 내장 플레이어는 LL-HLS를 사용할 수 있습니다. (등록)`mode`재산도 설정해야합니다.`automatic`.)
+
+- `deleteRecordingAfterDays`integer 기본:`null`(모든)
+  - 기록이 아닌 날짜와 시간을 지정하면 입력이 삭제됩니다. 이 속성은 녹음이 가능한 시간에 적용되며 스트림을 준비합니다. 녹음이 삭제되면 더 이상 볼 수 없으며 더 이상 청구를 위해 저장을 계산하지 않습니다. 최소 값은`30`, 최대 가치는 입니다`1096`.
+
+    스트림이 종료되면`scheduledDeletion`타임스탬프는 계산`deleteRecordingAfterDays`현재 값.
+
+    스트림이 살고있는 동안 값이 라이브 입력에 추가되면, 속성은 미래의 스트림에만 적용됩니다.
+
+- `timeoutSeconds`integer 기본:`0`
+  - 더 보기`timeoutSeconds`속성은 새로운 비디오에서 생성 된 결과의 앞에 얼마나 오래 살 수 있습니다.
+
+뒤에 오는 4개의 재산은 아래에 배열됩니다`recording`객체.
+
+- `mode`문자열 기본값:`off`
+  - 모드 속성이 설정되면`automatic`, 살아있는 시내는 HLS/DASH를 사용하여 보기를 위해 자동적으로 유효합니다. 또한, 라이브 스트림은 나중에 재생을 위해 자동으로 기록됩니다. 기본적으로 녹화 모드가 설정됩니다.`off`, 입력은 재생을 위해 기록되거나 유효하지 않을 것입니다.
+
+- `requireSignedURLs`boolean 기본:`false`
+  - 더 보기`requireSignedURLs`지정된 URL이 비디오를 볼 필요가 있는지 나타냅니다. 이 설정은 입력에서 기록된 모든 동영상에 기본적으로 적용됩니다. 또한 라이브 입력 ID를 통해 비디오를 볼 경우이 필드는 모든 비디오 레벨 설정에 영향을받습니다.
+
+- `allowedOrigins`integer 기본:`null`(모든)
+  - 더 보기`allowedOrigins`속성은 선택적으로 허용 된 기원의 목록을 제공하기 위해 호출 될 수있다. 이 설정은 입력에서 기록된 모든 동영상에 기본적으로 적용됩니다. 또한 라이브 입력 ID를 통해 비디오를 볼 경우이 필드는 모든 비디오 레벨 설정에 영향을받습니다.
+
+- `hideLiveViewerCount`boolean 기본:`false`
+  - 라이브 뷰어 카운트에 대한 액세스를 제한하고 플레이어의 가치를 제거합니다.
+
+## 실시간 입력 관리
+
+실시간 입력을 업데이트할 수 있습니다.`PUT`요구 사항:
+
+```bash title="Request"
+curl --request PUT \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/live_inputs/{input_id} \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data '{"meta": {"name":"test stream 1"},"recording": { "mode": "automatic", "timeoutSeconds": 10 }}'
+```
+
+실시간 입력 삭제`DELETE`요구 사항:
+
+```bash title="Request"
+curl --request DELETE \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/live_inputs/{input_id} \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+## 추천, 요구 사항 및 제한
+
+버퍼링, 프리징, 경험있는 대기 시간, 또는 다른 유사한 문제가있는 경우, 방문[라이브 스트림 문제 해결](/stream/stream-live/troubleshooting/).
+
+### Recommend
+
+- 당신의 제작자는 12Mbps (12000Kbps)의 밑에 그들의 살아있는 시내를 위해 적당한 비트레이트를, 전형적으로 잘 사용해야 합니다. 높은 모션, 높은 프레임 속도 콘텐츠 일반적으로 더 높은 비트 레이트를 사용해야, 슬라이드 프리젠 테이션 같은 낮은 모션 콘텐츠 낮은 비트 레이트를 사용 해야 합니다.
+- 당신의 제작자는 사용해야 합니다[GOP 기간](https://en.wikipedia.org/wiki/Group_of_pictures)(키프레임 간격) 2 \~ 8 초 사이. Open Broadcaster Software (OBS)를 포함한 대부분의 인코딩 소프트웨어 및 하드웨어의 기본값은 이 범위 내에서 있습니다. 더 낮은 GOP 기간을 설정하면 시청자의 대기 시간을 줄일 수 있으며 인코딩 효율을 줄일 수 있습니다. 더 높은 GOP 기간을 설정하면 인코딩 효율을 향상시키고 시청자에게 대기 시간을 증가시킵니다. 이것은 비디오 인코딩에 대한 상인이며 Cloudflare 스트림의 제한이 아닙니다.
+- 가능한 경우, CBR 대신 VBR (variable bitrate) 대신 CBR을 선택하여 버퍼링 및 중단을 방지하면서 안정적인 스트리밍 경험을 보장합니다.
+
+#### Low-Latency HLS 방송 추천<Badge text="Beta" variant="caution" size="small" />
+
+- 최저 대기 시간 동안 GOP 크기 (키프레임 간격)을 1 \~ 2 초 사용합니다.
+- RTMP 엔드포인트로 방송 가능
+- OBS를 사용하는 경우, "ultra low" 대기 시간 프로파일을 선택합니다.
+
+### 제품 정보
+
+- 닫히는 GOPs는 요구됩니다. 이것은 비디오에 B 프레임이 있다면 항상 같은 GOP 내에서 프레임을 참조해야합니다. 이 설정은 대부분의 인코딩 소프트웨어 및 하드웨어에서 기본입니다.[OBS 스튜디오](https://obsproject.com/).
+- 스트림 라이브는 입력으로 H.264 비디오 및 AAC 오디오 코덱을 지원합니다. 이 요구 사항은 스트림 연결 출력에 릴레이되는 입력에 적용되지 않습니다. Stream Live는 ADTS를 지원하지만 현재 LATM를 지원하지 않습니다.
+- 클라이언트는 단선이 발생할 때 다시 연결하도록 구성해야 합니다. Stream Live는 라이브 스트림을 계속하여 재연결을 처리하도록 설계되었습니다.
+
+### 제한 사항
+
+- 워터 마크는 아직 라이브 동영상과 함께 사용할 수 없습니다.
+- 라이브 비디오가 길이 7 일 초과하는 경우, 기록은 7 일에 truncated 것입니다. 라이브 비디오 콘텐츠의 첫 번째 7 일 만 기록됩니다.

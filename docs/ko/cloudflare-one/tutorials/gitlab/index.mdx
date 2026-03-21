@@ -1,0 +1,344 @@
+---
+reviewed: 2020-12-10T00:00:00.000Z
+category: Zero Trust
+difficulty: Advanced
+pcx_content_type: tutorial
+title: Zero Trust GitLab SSH 및 HTTP
+description: >-
+  GitLab의 자체 호스팅 인스턴스에 Zero Trust 규칙을 추가하는 방법을 알아보십시오. 이 튜토리얼은 DigitalOcean에서
+  GitLab 배포를 통해 걸어갑니다.
+tags:
+  - SSH
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/tutorials/gitlab/'
+translation_source_md: 'https://developers.cloudflare.com/cloudflare-one/tutorials/gitlab/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Cloudflare Access를 사용하여 Zero Trust 규칙을 GitLab의 자체 호스팅 인스턴스에 추가할 수 있습니다. Cloudflare와 결합 터널, 사용자는 HTTP 및 SSH를 통해 연결하고 팀의 정체성 공급자와 정통 할 수 있습니다.
+
+**이 walkthrough는 방법을 포함합니다:**
+
+- GitLab의 인스턴스 배포
+- 그 인스턴스에 모든 인바운드 연결을 잠금하고 Cloudflare 터널을 사용하여 Cloudflare에 아웃바운드 연결을 설정
+- Cloudflare와 정책 구축 GitLab에 도달 할 수있는 제어 액세스
+- Cloudflare를 통해 HTTP 및 SSH에 연결
+
+**완료 시간:**
+
+1시간
+
+***
+
+## GitLab 배포
+
+이 섹션은 DigitalOcean에서 GitLab 배포를 통해 도보. 이미 GitLab을 배포 한 경우이 섹션을 건너뛸 수 있습니다.
+
+RAM 및 6 CPU의 16 GB의 드롭 스테이션을 만듭니다. 500명의 사용자를 지원할 수 있어야 합니다.[GitLab의 리소스 권장 사항](https://docs.gitlab.com/ee/install/requirements.html).
+
+![비밀번호](~/assets/images/cloudflare-one/zero-trust-security/gitlab/create-droplet.png)
+
+GitLab은 인터넷에 노출되는 외부 IP를 제공합니다 (지금). 초기 구성을 위한 외부 IP를 사용하여 배포된 서버에 연결해야 합니다. IP로 연결할 수 있습니다.[SSH 키 추가](https://www.digitalocean.com/community/tutorials/how-to-set-up-ssh-keys--2)DigitalOcean 계정으로.
+
+이 예제는 macOS 기계를 사용하여 Droplet을 구성합니다. DigitalOcean에서 기계에 할당 된 IP 주소를 복사하십시오.
+
+![기계 IP](~/assets/images/cloudflare-one/zero-trust-security/gitlab/show-ip.png)
+
+다음 명령을 열고 DigitalOcean에 의해 할당된 IP 주소를 대체합니다.
+
+```sh
+ssh root@134.209.124.123
+```
+
+다음, GitLab 설치. 이 예제는[Ubuntu 패키지](https://about.gitlab.com/install/#ubuntu)GitLab 문서의 단계는 아래와 같이 몇 가지 예외로 합니다.
+
+다음 명령을 실행합니다.
+
+```sh
+sudo apt-get update
+
+sudo apt-get install -y curl openssh-server ca-certificates
+curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ee/script.deb.sh | sudo bash
+```
+
+위의 명령은 GitLab 소프트웨어를 이 시스템에 다운로드합니다. 지금 설치해야 합니다. 이 튜토리얼은 GitLab 문서의 작업에서 다이어그램입니다. GitLab-provided 튜토리얼의 다음 단계는 외부 호스트 이름을 설정합니다. 대신 소프트웨어를 설치할 수 있습니다.
+
+```sh
+sudo apt-get install gitlab-ee
+```
+
+1분 후, GitLab가 설치됩니다.
+
+![GitLab 설치](~/assets/images/cloudflare-one/zero-trust-security/gitlab/install-gitlab.png)
+
+그러나 응용 프로그램은 아직 실행되지 않습니다. 어떤 포트가 듣는지 확인할 수 있습니다.`ss`.
+
+```sh
+sudo ss -lntup
+```
+
+결과는 현재 기계에 활동하는 서비스만 있어야 합니다:
+
+{/* <!-- ![Just Services](/images/cloudflare-one/zero-trust-security/gitlab/just-services.png) --> */}
+
+```bash
+sudo ss -lntup
+```
+
+```bash output
+Netid   State    Recv-Q   Send-Q     Local Address:Port     Peer Address:Port   Process
+udp     UNCONN   0        0                      *:9094                *:*
+tcp     LISTEN   0        128              0.0.0.0:22            0.0.0.0:*       users:(("sshd",pid=29,fd=3))
+tcp     LISTEN   0        128                 [::]:22               [::]:*       users:(("sshd",pid=29,fd=4))
+```
+
+GitLab을 시작하려면 소프트웨어의 재구성 명령을 실행하십시오.
+
+```sh
+sudo gitlab-ctl reconfigure
+```
+
+GitLab은 부품 서비스를 출시합니다. 완료되면 GitLab이 실행되고 두 포트 22 및 80을 듣는 것을 확인합니다.
+
+![GitLab 서비스](~/assets/images/cloudflare-one/zero-trust-security/gitlab/gitlab-services.png)
+
+```bash
+sudo ss -lntup
+```
+
+```bash output
+Netid   State    Recv-Q   Send-Q     Local Address:Port     Peer Address:Port   Process
+udp     UNCONN   0        0                      *:9094                *:*
+tcp     LISTEN   0        4096           127.0.0.1:9236          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:8150          0.0.0.0:*
+tcp     LISTEN   0        128              0.0.0.0:22            0.0.0.0:*       users:(("sshd",pid=29,fd=3))
+tcp     LISTEN   0        4096           127.0.0.1:8151          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:3000          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:8153          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:8154          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:8155          0.0.0.0:*
+tcp     LISTEN   0        511              0.0.0.0:8060          0.0.0.0:*       users:(("nginx",pid=324,fd=8))
+tcp     LISTEN   0        4096           127.0.0.1:9121          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:9090          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:9187          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:9093          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:9229          0.0.0.0:*
+tcp     LISTEN   0        1024           127.0.0.1:8080          0.0.0.0:*
+tcp     LISTEN   0        511              0.0.0.0:80            0.0.0.0:*       users:(("nginx",pid=324,fd=7))
+tcp     LISTEN   0        4096           127.0.0.1:9168          0.0.0.0:*
+tcp     LISTEN   0        4096           127.0.0.1:8082          0.0.0.0:*
+tcp     LISTEN   0        128                 [::]:22               [::]:*       users:(("sshd",pid=29,fd=4))
+tcp     LISTEN   0        4096                   *:9094                *:*
+```
+
+사용자는 SSH (포트 22 여기에) 및 웹 앱의 HTTP (포트 80) 이상 GitLab에 연결됩니다. 다음 단계에서 Cloudflare Access를 통해 모두 시도 할 수 있습니다. 나는 Cloudflare 대시보드에 이런닝과 머리를 떠날 것입니다.
+
+## Zero Trust 규칙을 가진 Securing GitLab
+
+### Zero Trust 정책 구축
+
+Cloudflare Access를 사용하여 Zero Trust 규칙을 구축하여 GitLab (HTTP)의 웹 응용 프로그램에 연결할 수 있으며 SSH에 연결할 수 있습니다.
+
+사용자가 액세스에 의해 보호 된 사이트에 요청을 할 때, 그 요청은 Cloudflare의 네트워크 먼저 히트. 액세스는 다음 사용자가 응용 프로그램에 도달 할 수 있는지 확인 할 수 있습니다. Cloudflare 터널과 통합되면 Zero Trust 아키텍처는 다음과 같습니다.
+
+![GitLab 서비스](~/assets/images/cloudflare-one/zero-trust-security/gitlab/teams-diagram.png)
+
+애플리케이션에 도달 할 수있는 사람들을 결정하기 위해 Cloudflare Access는 Okta, Microsoft Entra ID 또는 Google과 같은 정체성 공급자와 통합하여 문에서 확인되는 ID 카드를 발급합니다. VPN은 사용자가 개인 네트워크에 무료 범위를 허용하지만 누군가가 활성화 된 규칙을 구축하고 액세스는 모든 요청에 대한 정체성 검사를 시행합니다 (및 구성 된 모든 과립성에서).
+
+GitLab의 경우, 두 개의 정책을 구축하여 시작합니다. 사용자는 몇 가지 방법으로 GitLab에 연결됩니다. 웹 앱과 SSH 이상. 각각의 하위 도메인을 확보하는 정책을 작성합니다. 첫째, 웹 앱.
+
+규칙을 구축하기 전에, 당신은 따를 필요가있다[이 지침](/cloudflare-one/setup/)Cloudflare 설정 계정에서 액세스.
+
+일단 활성화되면 이동**이름 \***&#x5A;ero Trust에 있는 페이지. 제품정보**앱 추가**.
+
+주어진 옵션에서 자체 호스팅을 선택하십시오.
+
+![공유하기](~/assets/images/cloudflare-one/zero-trust-security/gitlab/policy.png)
+
+정책 빌더에서 자원을 나타내는 하위 도메인을 추가하기 위해 프롬프트됩니다. Cloudflare 계정의 도메인의 하위 도메인이어야합니다. 웹 응용 프로그램 및 SSH 흐름에 대한 별도의 하위 도메인이 필요합니다.
+
+이 예제는`gitlab.widgetcorp.tech`웹 신청 및`gitlab-ssh.widgetcorp.tech`SSH 연결을 위해.
+
+이 페이지에서는 정체성 공급자가 정통할 수 있음을 결정할 수 있습니다. 기본적으로 모든 구성 공급자가 허용됩니다. 제품정보**이름 \***&#xB204;가 응용 프로그램에 도달 할 수있는 규칙을 구축 할 수 있습니다.
+
+사이트에 도달 할 수있는 규칙을 추가 할 수 있습니다.
+
+제품정보**이름 \***·**이름 \***&#xB2E4;시 한번**설치하기**페이지 -이 예제는 고급 CORS 구성이 필요하지 않습니다. 두 번째 응용 프로그램에 대한 이러한 단계를 반복,`gitlab-ssh.widgetcorp.tech`.
+
+## Cloudflare 갱도
+
+사이트맵 터널은 보안, 아웃바운드 전용, 이 기계와 Cloudflare의 네트워크 간의 연결. 아웃바운드 전용 모델로, 이 기계에 직접 액세스를 방지하고 진입의 외부 노출 지점을 잠글 수 있습니다. 그리고 그와 함께, 열려있는 방화벽 포트.
+
+사이트맵 터널은 Cloudflare에서 경량 데몬을 통해 가능합니다.`cloudflared`. 다운로드 및 설치`cloudflared`DigitalOcean 기계에 다음 지침에 따라[다운로드](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)사이트 맵
+
+일단 설치되면, 인스턴스를 인증`cloudflared`다음 명령으로.
+
+```sh
+cloudflared login
+```
+
+명령은 Cloudflare 계정으로 로그인해야 하는 URL을 인쇄합니다.
+
+계정을 추가 한 웹 사이트를 선택하십시오.
+
+계정에서 사이트를 선택하면 Cloudflare는 인증서 파일을 다운로드하여이 인스턴스를 인증합니다.`cloudflared`. 이제 사용할 수 있습니다`cloudflared`Cloudflare 터널 연결을 Cloudflare 계정에 제어합니다.
+
+![Cert 다운로드](~/assets/images/cloudflare-one/secure-origin-connections/share-new-site/cert-download.png)
+
+### Cloudflare에 연결
+
+이제 Cloudflare 터널을 사용하여 GitLab을 Cloudflare에 연결할 수 있습니다.
+
+1. 다음 명령을 실행하여 새로운 터널을 만듭니다.
+
+```sh
+cloudflared tunnel create gitlab
+```
+
+`cloudflared`이 터널의 고유 ID를 생성합니다. 예를 들어`6ff42ae2-765d-4adf-8112-31c55c1551ef`. SSH와 HTTP 트래픽을 모두 사용할 수 있습니다.
+
+2. Cloudflare 터널을 두 목적지로 프록시 트래픽을 구성해야 합니다. 아래 구성은 웹 앱과 DNS 레코드를 위해 생성되는 DNS 레코드에 대한 트래픽을 우회합니다.
+
+구성 파일을 편집 할 수있는 선택의 텍스트 편집기를 사용합니다. 예를 들어,`Vi`.
+
+```sh
+vim ~/.cloudflared/config.yml
+```
+
+3. 교통을 제공하는 터널을 구성합니다.
+
+```yml
+tunnel: 6ff42ae2-765d-4adf-8112-31c55c1551ef
+credentials-file: /root/.cloudflared/6ff42ae2-765d-4adf-8112-31c55c1551ef.json
+
+ingress:
+  - hostname: gitlab.widgetcorp.tech
+    service: http://localhost:80
+  - hostname: gitlab-ssh.widgetcorp.tech
+    service: ssh://localhost:22
+  #Catch-all 규칙은 트래픽이 어떤 일치하지 않는 경우 404로 만 응답합니다.
+  #이전 규칙
+  - service: http_status:404
+```
+
+![공유하기](~/assets/images/cloudflare-one/zero-trust-security/gitlab/config-file.png)
+
+4. 구성 파일이 다음과 같이 올바르게 설정되도록 테스트 할 수 있습니다.
+
+```sh
+cloudflared tunnel ingress validate
+```
+
+`cloudflared`터널을 표시해야합니다. 터널을 실행할 수 있습니다.
+
+```sh
+cloudflared tunnel run
+```
+
+![터널 실행](~/assets/images/cloudflare-one/zero-trust-security/gitlab/tunnel-run.png)
+
+:::참조
+
+이 명령은 실행되어야한다.`systemd`장기 사용을 위한 서비스; 그것이 종결되면, GitLab는 사용할 수 없습니다.
+
+:::
+
+### DNS 레코드 구성
+
+이제 Cloudflare 대시보드에서 GitLab의 DNS 레코드를 만들 수 있습니다. 기억, 당신은 여전히 두 개의 레코드가 필요합니다 - 웹 응용 프로그램 및 SSH 트래픽에 대한 하나.
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/)그리고 이동**DNS 기록**귀하의 도메인에 대한 페이지.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 제품정보**추가 기록**. 선택`CNAME`기록 유형으로.
+
+3. 내 계정**이름 \***&#xBD84;야, 입력`gitlab`.
+
+4. 내 계정**제품정보**필드, 생성 된 터널의 ID를 입력`cfargotunnel.com`. 이 예에서, 그 값은:
+
+```txt
+6ff42ae2-765d-4adf-8112-31c55c1551ef.cfargotunnel.com
+```
+
+5. 제품정보**제품 정보**.
+6. 두 번째 만들기로 다시 프로세스를 반복`CNAME`기록, 같은**제품정보**, 그러나 입력`gitlab-ssh`제품정보**이름 \***. 둘 다 기록은 그 때 나타나고, 동일한 갱도에 지적해야 합니다. 위의 구성 파일에서 정의 된 진입 규칙은 적절한 포트에 트래픽을 지시합니다.
+
+![DNS 보기](~/assets/images/cloudflare-one/zero-trust-security/gitlab/view-dns.png)
+
+### 웹 응용 프로그램에 연결
+
+웹 응용 프로그램에 대한 엔드 투 엔드 구성을 테스트 할 수 있습니다. 웹 응용 프로그램에 생성 된 하위 도메인을 방문하십시오. 사이트맵 액세스는 인증합니다. 당신의 공급자로 로그인하십시오.
+
+일단 인증되면 GitLab 웹 응용 프로그램을 참조하십시오.
+
+![GitLab 웹](~/assets/images/cloudflare-one/zero-trust-security/gitlab/gitlab-web.png)
+
+자신의 계정을 등록하고 다음 단계에서 SSH를 테스트하는 빈 프로젝트를 만듭니다.
+
+![빈 프로젝트](~/assets/images/cloudflare-one/zero-trust-security/gitlab/blank-project.png)
+
+GitLab은 새로운 프로젝트와 저장소를 만들 것입니다.
+
+:::참조
+
+코드를 당기거나 푸시하려면 GitLab의 프로필에 SSH 키를 추가해야합니다.
+
+:::
+
+### SSH 구성
+
+SSH 이상 푸시 및 풀 코드하려면 설치해야합니다.`cloudflared`클라이언트 기계 뿐 아니라. 이 예제는 macOS 노트북을 사용합니다. macOS에서 설치할 수 있습니다.`cloudflared`다음 명령으로.
+
+```sh
+brew install cloudflared
+```
+
+설치해야 하는 이유`cloudflared`, 당신은 어떤 독특한 방법으로 SSH 명령을 포장 할 필요가 없습니다. 대신 SSH 구성 파일에 한 번의 변경을해야합니다.
+
+```sh
+vim /Users/samrhea/.ssh/config
+```
+
+다음 값을 입력; 교체`gitlab-ssh.widgetcorp.tech`만든 호스트 이름과 함께.
+
+```txt
+Host gitlab-ssh.widgetcorp.tech
+  ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+```
+
+이제 SSH 흐름을 테스트할 수 있습니다.
+
+```sh
+git clone git@gitlab-ssh.widgetcorp.tech:samrhea/demo
+```
+
+`cloudflared`이 웹 사이트는 애플 리케이션에 전념. 우리는 정품 앱과 게임을 제공 할 목적으로이 사이트를 만들었습니다. 4AppsApk 최고의 안드로이드 애플 리케이션을위한 무료 APK 파일 다운로드 서비스, 계략.
+
+![GitLab 복제](~/assets/images/cloudflare-one/zero-trust-security/gitlab/git-clone.png)
+
+### 폐쇄된 항구
+
+이제 DigitalOcean 방화벽을 단일 규칙으로 구성할 수 있습니다. 직접 액세스를 방지하기 위해 inbound 트래픽을 차단합니다.
+
+![규칙 설정](~/assets/images/cloudflare-one/zero-trust-security/gitlab/disable-ingress.png)
+
+사이트맵 터널은 아웃 바운드 전용 연결을 계속하고 나는이 기계를 피할 수 있습니다 암호화 광산 작업에서 잡은, 또는 뭔가 더 악화.
+
+## 로그아웃
+
+허용하고 차단 된 이벤트의 로그도 볼 수 있습니다. 자주 묻는 질문`Access`페이지의`Logs`Zero Trust에 있는 단면도.
+
+## 문제 해결
+
+Git Large File Storage (LFS)를 사용하는 경우 Git LFS가 자동으로 지원되지 않습니다.`cloudflared`. Cloudflare Access에 의해 보호 된 저장소에 액세스하려면, 실행하여 수동으로 인증해야합니다 :
+
+```sh
+cloudflared access login <your-git-access-url>
+```
+
+기타 제품`<your-git-access-url>`Cloudflare 액세스 보호 URL.

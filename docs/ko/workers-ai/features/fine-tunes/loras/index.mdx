@@ -1,0 +1,180 @@
+---
+title: LoRA 어댑터 사용
+pcx_content_type: get-started
+sidebar:
+  order: 1
+  badge:
+    text: Beta
+head:
+  - tag: title
+    content: LoRA 어댑터를 가진 정밀한 tuned inference
+description: Workers AI에 미세 조정 된 inference를 얻기 위해 LoRA 어댑터를 업로드하고 사용하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/features/fine-tunes/loras/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/fine-tunes/loras/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest, TabItem, Tabs } from "~/components";
+
+Workers AI는 접합기를 가진 정밀한 tuned inference를 훈련했습니다[낮은 순위 적응](https://blog.cloudflare.com/fine-tuned-inference-with-loras). 이 기능은 이 기간 동안 오픈 베타 및 무료입니다.
+
+## 제한 사항
+
+- 우리는 단지 LoRAs를 지원합니다[다양한 모델](/workers-ai/models/?capabilities=LoRA)(급여되지 않음)
+- 접합기는 순위로 훈련되어야 합니다`r <=8`32까지 더 큰 순위. 어댑터를 통해 사전 훈련된 LoRA 어댑터의 순위를 확인할 수 있습니다.`config.json`이름 \*
+- LoRA 어댑터 파일은 \< 300MB
+- LoRA 어댑터 파일은 이름을 지정해야 합니다.`adapter_config.json`·`adapter_model.safetensors`견적 요청
+- 계정 당 100 LoRA 어댑터까지 테스트 할 수 있습니다.
+
+***
+
+## 호환 LoRA 어댑터 선택
+
+### 오픈 소스 LoRA 어댑터 찾기
+
+우리는 시작[Hugging 얼굴 수집](https://huggingface.co/collections/Cloudflare/workers-ai-compatible-loras-6608dd9f8d305a46e355746e)Workers AI와 호환되는 몇 개의 LoRA 어댑터를 나열합니다. 일반적으로, 위의 우리의 제한에 맞는 모든 LoRA 어댑터는 작동해야합니다.
+
+### 자신의 LoRA 어댑터 훈련
+
+자신의 LoRA 어댑터를 훈련하려면[관련 기사](/workers-ai/guides/tutorials/fine-tune-models-with-autotrain/).
+
+***
+
+## LoRA 어댑터 업로드
+
+Workers AI에 LoRAs와 inference를 실행하려면 계정에서 새로운 미세 조정을 만들고 어댑터 파일을 업로드해야합니다. 당신은해야`adapter_model.safetensors`모델 무게 및 파일`adapter_config.json`config 정보로.*이 유형의 어댑터 파일만 허용됩니다.*
+
+지금, 당신은 업로드 한 후 미세 조정의 자산 파일을 편집 할 수 없습니다. 우리는 곧 이것을 지원할 것입니다, 그러나 지금 당신은 새로운 LoRA를 사용하고 싶은 경우에 새로운 정밀한 조정 및 업로드 파일을 다시 만들 필요가 있습니다.
+
+LoRA 어댑터를 업로드하기 전에 편집해야 할 것입니다.`adapter_config.json`파일 형식`model_type`하나하나`mistral`, `gemma`또는`llama`아래에서.
+
+```json null {10}
+{
+  "alpha_pattern": {},
+  "auto_mapping": null,
+  ...
+  "target_modules": [
+    "q_proj",
+    "v_proj"
+  ],
+  "task_type": "CAUSAL_LM",
+  "model_type": "mistral",
+}
+```
+
+### 모델 번호: Wrangler
+
+다음과 같은 명령을 사용하여 LoRA 어댑터를 만들 수 있습니다.
+
+```bash title="wrangler CLI" {1,7}
+npx wrangler ai finetune create <model_name> <finetune_name> <folder_path>
+#모델 "@cf/mistral/mistral-7b-instruct-v0.2-lora"에 대한 새로운 Finetune "test-lora" 만들기 ...
+#파일 "/Users/abcd/Downloads/adapter config.json" 에 "test-lora"...
+#파일 "/Users/abcd/Downloads/adapter model.safetensors" 에 "test-lora"...
+#✅ 자산 업로드, finetune "test-lora"를 사용할 준비가되어 있습니다.
+
+npx wrangler ai finetune list
+┌──────────────────────────────────────┬─────────────────┬─────────────┐
+│ finetune_id                          │ name            │ description │
+├──────────────────────────────────────┼─────────────────┼─────────────┤
+│ 00000000-0000-0000-0000-000000000000 │ test-lora       │             │
+└──────────────────────────────────────┴─────────────────┴─────────────┘
+```
+
+### REST API를
+
+대안으로, 당신은 우리의 REST API를 사용하여 미세화하고 어댑터 파일을 업로드 할 수 있습니다. Cloudflare API 토큰이 필요합니다.`Workers AI: Edit`Cloudflare Dashboard를 통해 생성 할 수있는 REST API로 호출 할 권한을 부여합니다.
+
+#### 계정의 벌금을 만들기
+
+<APIRequest
+  path="/accounts/{account_id}/ai/finetunes"
+  method="POST"
+  json={{
+  	model: "SUPPORTED_MODEL_NAME",
+  	name: "FINETUNE_NAME",
+  	description: "OPTIONAL_DESCRIPTION",
+  }}
+/>
+
+#### 어댑터 무게 및 구성 업로드
+
+새 파일을 업로드 할 때마다 업로드 엔드 포인트를 호출해야합니다, 그래서 당신은 일반적으로 이것을 한 번 실행`adapter_model.safetensors`한 번에`adapter_config.json`. 당신이 포함해 확인`@`파일 경로 앞에.
+
+당신은 finetune를 사용할 수 있습니다`name`또는`id`당신은 훌륭한 조정을 만들 때 사용.
+
+```bash title="cURL"
+## 입력 : finetune id, adapter model.safetensors, then adapter config.json
+## 산출: 성공 true/false
+
+curl -X POST https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/finetunes/{FINETUNE_ID}/finetune-assets/ \
+    -H 'Authorization: Bearer {API_TOKEN}' \
+    -H 'Content-Type: multipart/form-data' \
+    -F 'file_name=adapter_model.safetensors' \
+    -F 'file=@{PATH/TO/adapter_model.safetensors}'
+```
+
+#### 계정의 미세 조정 목록
+
+계정에서 생성 한 미세 조정을 확인하려면이 방법을 호출 할 수 있습니다.
+
+<APIRequest path="/accounts/{account_id}/ai/finetunes" method="GET" />
+
+```json output
+{
+	"success": true,
+	"result": [
+		[
+			{
+				"id": "00000000-0000-0000-0000-000000000",
+				"model": "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+				"name": "llama2-finetune",
+				"description": "test"
+			},
+			{
+				"id": "00000000-0000-0000-0000-000000000",
+				"model": "@cf/mistralai/mistral-7b-instruct-v0.2-lora",
+				"name": "mistral-finetune",
+				"description": "test"
+			}
+		]
+	]
+}
+```
+
+***
+
+## LoRA와 함께 실행
+
+방해 요청을 만들고 LoRA 어댑터를 적용하려면 모델과 finetune이 필요합니다.`name`또는`id`. LoRA가 훈련 된 채팅 템플릿을 사용해야하지만, 당신은 그것을 실행하려고 할 수 있습니다`raw: true`아래와 같은 메시지 템플릿.
+
+<Tabs>
+  <TabItem label="노동자 ai sdk">
+    ```javascript null {5-6}
+    const response = await env.AI.run(
+    	"@cf/mistralai/mistral-7b-instruct-v0.2-lora", //LoRA를 지원하는 모델
+    	{
+    		messages: [{ role: "user", content: "Hello world" }],
+    		raw: true, //기본 채팅 템플릿 적용
+    		lora: "00000000-0000-0000-0000-000000000", //finetune ID 또는 이름
+    	},
+    );
+    ```
+  </TabItem>
+
+  <TabItem label="휴식 api">
+    ```bash null {5-6}
+    curl https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/ai/run/@cf/mistral/mistral-7b-instruct-v0.2-lora \
+      -H 'Authorization: Bearer {API_TOKEN}' \
+      -d '{
+        "messages": [{"role": "user", "content": "Hello world"}],
+        "raw": "true",
+        "lora": "00000000-0000-0000-0000-000000000"
+      }'
+    ```
+  </TabItem>
+</Tabs>

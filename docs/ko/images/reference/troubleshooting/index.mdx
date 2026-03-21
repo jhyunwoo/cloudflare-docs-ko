@@ -1,0 +1,83 @@
+---
+pcx_content_type: troubleshooting
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/4412024022029-Troubleshoot-Image-Resizing-problems
+title: 문제 해결
+sidebar:
+  order: 8
+head:
+  - tag: title
+    content: 문제 해결| Image Resizing
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/images/reference/troubleshooting/'
+translation_source_md: 'https://developers.cloudflare.com/images/reference/troubleshooting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 재사용 없이 요청
+
+응답은 있다`Cf-Resized`헤드러? 그렇지 않은 경우, 다시 시도하지 않았습니다. 가능한 원인:
+
+- 기능은 Cloudflare 대시보드에서 활성화되지 않습니다.
+- 같은 요청에 따라 다른 노동자가 있습니다. 재조정은 한 명의 노동자가 다른 통화로 "forgotten"입니다. 전체 도메인에 Workers 범위를 사용하지 마십시오`/*`.
+- Cloudflare Dashboard의 편집기에서 미리보기는 이미지 재구성을 시뮬레이션하지 않습니다. 대신 다른 브라우저 탭에서 Worker 및 테스트를 배포해야합니다.
+
+***
+
+## resizing에서 오류 응답
+
+실패를 재조정할 때, 응답 몸은 이유를 설명하는 오류 메시지뿐만 아니라`Cf-Resized`관련 상품`err=code`:
+
+- 9401 — 필수 인수`{cf:image{…}}`옵션이 누락되거나 무효합니다. 다시 시도하십시오. 더 알아보기[Fetch 옵션](/images/transform-images/transform-via-workers/#fetch-options)지원되는 인수.
+- 9402 — 이미지는 너무 크거나 연결이 중단되었습니다. 더 알아보기[지원된 체재 및 한계](/images/transform-images/)더 많은 정보.
+- 9403 — A[요청 루프](/images/transform-images/transform-via-workers/#prevent-request-loops)이미지가 이미 재사이즈 또는 Worker가 자신의 URL을 붙였습니다. 서버의 Worker 경로와 이미지 경로가 중복되지 않습니다.
+- 9406 & 9419 - 이미지 URL은 비 HTTPS URL 또는 URL은 공백 또는 네이프 유니코드가 있습니다. URL을 확인하고 다시 시도하십시오.
+- 9407 — 보기 오류는 Origin 서버 도메인 이름과 함께 발생했습니다. DNS 설정을 확인하고 다시 시도하십시오.
+- 9404 — 이미지는 원본 서버 또는 이미지 크기를 변경하는 URL에 존재하지 않습니다. 이미지가 존재하고 URL을 확인합니다.
+- 9408 - Origin 서버는 HTTP 4xx 상태 코드를 반환하고 이미지에 대한 액세스를 거부 할 수 있습니다. 이미지 설정을 확인하고 다시 시도하십시오.
+- 9509 — Origin 서버는 HTTP 5xx 상태 코드를 반환합니다. 이것은 원래 서버 측 소프트웨어를 가진 문제, resizing 아닙니다.
+- 9412 — Origin 서버는 비이미지를 반환합니다. 예를 들어 HTML 페이지. 일반적으로 잘못된 URL이 지정되거나 서버 측 소프트웨어는 오류를 인쇄하거나 로그인 페이지를 발표 할 때 발생합니다.
+- 9413 - 이미지는 100 메가 픽셀의 최대 이미지 영역을 초과합니다. 더 작은 이미지를 사용하고 다시 시도하십시오.
+- 9420 - 잘못된 URL로 리디렉션된 Origin 서버. 당신의 근원에 조정을 확인하고 다시 시도하십시오.
+- 9421 - 원래 서버는 너무 많은 시간을 리디렉션. 당신의 근원에 조정을 확인하고 다시 시도하십시오.
+- 9422 - 사용 제한이 도달했기 때문에 변환 요청이 거부됩니다. 5,000 이상의 독특한 변형을 요청하려면 이미지 유료 플랜으로 업그레이드하십시오.
+- 9432 — 이미지 바인딩은 레거시 청구를 사용하여 사용할 수 없습니다. 계정은 Legacy Image Resizing 구독을 사용합니다. 작업자에게 이미지를 바인딩하려면 대시보드에서 이미지 구독에 계획을 업데이트해야합니다.
+- 9504, 9505, & 9510 - 기원 서버가 다운되거나 과부하 될 수 있기 때문에 원래 서버가 연락 할 수 없습니다. 나중에 다시 시도하십시오.
+- 9523 —`/cdn-cgi/image/`resizing 서비스는 resizing 수행 할 수 없습니다. 이미지가 잘못된 형식이 있을 때 발생할 수 있습니다. 제대로 포맷 된 이미지를 사용하고 다시 시도하십시오.
+- 9524 —`/cdn-cgi/image/`resizing 서비스는 resizing 실행할 수 없습니다. 이미지 URL이 Worker에 의해 차단될 때 발생할 수 있습니다. 당신이 할 수있는 대안으로[노동자 안에 resize](/images/transform-images/transform-via-workers/). 이것은 또한 사용할 때 일어날 수 있습니다`pages.dev`URL의[Cloudflare Pages](/pages/)프로젝트. 그 경우, 당신은 사용할 수 있습니다[주문 영역](/pages/configuration/custom-domains/)대신.
+- 9520 - 이미지 형식은 지원되지 않습니다. 더 알아보기[지원된 체재 및 한계](/images/transform-images/)지원된 입력 및 출력 형식에 대해 알아보세요.
+- 9522 — 이미지는 처리 한계를 초과했습니다. 이것은 전체 영역을 순화 한 후 또는 매우 큰 치수가있는 파일이 요청 될 때 간단히 발생할 수 있습니다. 문제가 발생할 경우, 연락처 지원.
+- 9529 - 처리 중에 이미지가 중단되었습니다. 이 파일은 매우 큰 치수가 요구되거나 서버가 과부하 될 때 발생할 수 있습니다.
+- 9422, 9424, 9516, 9517, 9518, 9522 및 9523 - 내부 오류. 이 오류가 발생하면 지원에 문의하십시오.
+
+***
+
+## 제한 사항
+
+이미지 밖에 저장되는 이미지의 한계는 다음과 같습니다:
+
+- 최대 이미지 크기는 100 메가 픽셀입니다 (예를 들어, 10,000 × 10,000 픽셀 대형). 최대 파일 크기는 70 메가바이트 (MB)입니다. GIF/WebP 애니메이션은 총 50 메가픽셀(모든 프레임의 크기)로 제한됩니다.
+- Image Resizing는 호환되지 않습니다[자신의 IP를 가져 오기 (BYOIP)](/byoip/).
+- 폴란드어가 이미지를 최적화 할 수없는 경우 응답 헤더`Warning: cf-images 299 "original is smaller"`반환합니다.
+
+***
+
+## 인증 및 쿠키는 지원되지 않습니다.
+
+원본에 이미지 요청은 익명화됩니다 (쿠키 없음, auth 없음, 사용자 정의 헤더 없음). 이것은 우리가 크기의 이미지에 대한 하나의 공공 캐시를 가지고 있기 때문에 개인 방문자를 위해 개인화 된 이미지를 공유 할 수 없습니다.
+
+그러나, 고객이 공공 캐시에 이러한 이미지를 저장하는 경우, Cloudflare는 Workers를 통해 이미지를 재구성합니다.[인증된 원산지](/images/transform-images/transform-via-workers/).
+
+***
+
+## 캐싱 및 정제
+
+이미지 차원 또는 다른 resizing 선택권에 변화는 항상 효력을 즉각 가지고 갑니다 — 필요로 하지 않는.
+
+이미지 요청은 두 부분으로 이루어져 있습니다: 노동자 부호를 달리고, 이미지 가공. Worker 코드는 항상 실행되고 uncached입니다. 이미지 처리의 결과는 원시 서버의 경우 1 시간 이상으로 캐시됩니다.`Cache-Control`헤더 허용. 소스 이미지는 일반 캐싱 규칙을 사용하여 캐시됩니다. 아래와 같이 리다이렉션을 조정하므로 리다이렉션이 캐시되어 있습니다.
+
+WorkersXQ의 응답은 가장자리에, 순화하지 않습니다*작업자 URL*아무것도. 사이즈 이미지 변형은 소스의 URL에서 함께 캐시됩니다. 제거할 때 (전체 크기) 소스 이미지의 URL을 사용하여 요청된 작업자의 URL보다는.
+
+Origin 서버가 보내는 경우`Etag`HTTP 헤더, 크기의 이미지가 있습니다`Etag`형식의 HTTP 헤더`cf-<gibberish>:<etag of the original image>`. 두 번째 부분을 비교할 수 있습니다.`Etag`원본 이미지 URL의 헤더는 재사이즈 이미지가 현재까지 확인할 수 있습니다.

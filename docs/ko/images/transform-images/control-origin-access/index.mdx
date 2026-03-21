@@ -1,0 +1,159 @@
+---
+pcx_content_type: reference
+title: Control Origin 액세스
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/transform-images/control-origin-access/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/transform-images/control-origin-access/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+원본 이미지에 액세스하지 않고 크기를 제공 할 수 있습니다. 이미지는 영역 밖에 다른 서버에 호스팅 할 수 있으며 이미지의 진정한 소스는 완전히 숨겨질 수 있습니다. Origin 서버는 방문자가 인식하지 않고 원본 이미지를 공개해야 할 인증이 필요할 수 있습니다. 전체 크기의 이미지에 대한 액세스는 매개 변수를 재구성 할 수 없습니다.
+
+이 모든 행동은 완전히 customizable, 그들은 스크립트 실행의 사용자 정의 코드에 의해 처리되기 때문에[Cloudflare 노동자에 있는 가장자리에](/images/transform-images/transform-via-workers/).
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		//여기에 당신은 중재 imageURL을 compute 할 수 있습니다
+		//resizingOptions 어떤 요청 데이터에서 ...
+		return fetch(imageURL, { cf: { image: resizingOptions } });
+	},
+};
+```
+
+이 코드는 모든 요청에 대해 실행되지만 소스 코드는 웹 사이트 방문자에 액세스 할 수 없습니다. 이 코드는 보안 검사를 수행하고 제어 된 방식으로 이미지에 액세스 할 수있는 비밀을 포함합니다.
+
+아래 예제는 단지 제안이며, 정확히 따르지 않습니다. 이미지 URL을 컴파일하고 다른 여러 가지 방법으로 옵션을 재구성 할 수 있습니다.
+
+:::카트로션\[Warning]
+
+이미지 변환을 테스트하면 스크립트를 배포하고 일반 웹 브라우저 창에서 테스트하십시오. 대시보드의 미리보기는 변형을 시뮬레이션하지 않습니다.
+
+:::
+
+## 이미지 서버 Hiding
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		const resizingOptions = {
+			/*resizing 옵션은 다음 예에서 설명됩니다.*/
+		};
+
+		const hiddenImageOrigin = "https://secret.example.com/hidden-directory";
+		const requestURL = new URL(request.url);
+		//HiddenImageOrigin에 "/assets/image1.jpg"와 같은 요청 경로 승인.
+		//디렉터리를 추가하거나 제거 할 수있는 경로를 처리 할 수 있습니다, 파일 이름 변경, 기타.
+		const imageURL = hiddenImageOrigin + requestURL.pathname;
+		//이 주어진 URL에서 이미지를 fetch하지만, 웹 사이트의 방문자에
+		//원래 요청에 응답으로 나타납니다. 방문자의 브라우저는
+		//이 URL을 볼 수 없습니다.
+		return fetch(imageURL, { cf: { image: resizingOptions } });
+	},
+};
+```
+
+## full-size 이미지에 접근 방지
+
+원본 이미지 URL을 보호하는 위에, 당신은 또한 특정 이미지 크기가 허용된다는 것을 유효할 수 있습니다:
+
+```js
+export default {
+  async fetch(request, env, ctx) {
+  const imageURL = … //이 예제에서 자세히 omitted, 이전 예제를 참조
+
+  const requestURL = new URL(request.url)
+  const width = parseInt(requestURL.searchParams.get("width"), 10);
+  const resizingOptions = { width }
+  //누군가가 더 높은 해상도 이미지를 공개하기 위해 이미지 URL을 조작하는 경우,
+  //요청을 거부 할 수 있습니다 (또는 더 작은 크기 등 시행)
+  if (resizingOptions.width > 1000) {
+    return new Response("We don't allow viewing images larger than 1000 pixels wide", { status: 400 })
+  }
+  return fetch(imageURL, {cf:{image:resizingOptions}})
+},};
+```
+
+## URL에 이미지 크기를 피하십시오
+
+URL에서 실제 픽셀 크기를 포함 할 필요가 없습니다. Worker 스크립트에 크기를 지정할 수 있으며, URL에서 미리 설정한 경우 예를 들어, 다른 방법으로 크기를 선택합니다.
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		const requestURL = new URL(request.url);
+		const resizingOptions = {};
+
+		//regex는 "images" 후 첫 번째 경로 구성 요소를 선택합니다.
+		//접두사 및 경로의 나머지 (예 : "/images/first/rest")
+		const match = requestURL.pathname.match(/images\/([^/]+)\/(.+)/);
+
+		//첫 번째 경로 구성 요소가 필요할 수 있습니다.
+		//미리 정의된 크기만, 그리고 실제적인 차원을 그러므로 놓으십시오.
+		switch (match && match[1]) {
+			case "small":
+				resizingOptions.width = 300;
+				break;
+			case "medium":
+				resizingOptions.width = 600;
+				break;
+			case "large":
+				resizingOptions.width = 900;
+				break;
+			default:
+				throw Error("invalid size");
+		}
+
+		//경로의 나머지는 원래 위치를 찾을 수 있습니다
+		//image, e.g. 여기에 "/images/small/image1.jpg" 지도 할 것
+		//"https://storage.example.com/bucket/image1.jpg"는 300px에 크기를 나타냅니다.
+		const imageURL = "https://storage.example.com/bucket/" + match[2];
+		return fetch(imageURL, { cf: { image: resizingOptions } });
+	},
+};
+```
+
+## 인증 된 기원
+
+Cloudflare 이미지 변환 캐시는 지원 성과에 이미지를 크기를 나타냅니다. 제한된 액세스로 저장 된 이미지는 일반적으로 개별 방문자가 안전하지 않기 때문에 이미지를 공유하기 위해 권장되지 않습니다. 그러나 고객은 공개 캐시에서 이러한 이미지를 저장하는 것에 동의합니다. CloudflareXQ는 WorkersQ를 통해 이미지를 재구성합니다. 현재 AWS, Azure, Google Cloud, SecureAuth Origins 및 Cloudflare 액세스 뒤에 원본을 인증했습니다.
+
+```js null {9}
+//서명된 헤더 생성 (application specific)
+const signedHeaders = generatedSignedHeaders();
+
+fetch(private_url, {
+	headers: signedHeaders,
+	cf: {
+		image: {
+			format: "auto",
+			"origin-auth": "share-publicly",
+		},
+	},
+});
+```
+
+이 코드를 사용할 때, 다음 헤더는 원산지로 전달되며, 귀하의 요청이 성공할 수 있습니다.
+
+- `Authorization`
+- `Cookie`
+- `x-amz-content-sha256`
+- `x-amz-date`
+- `x-ms-date`
+- `x-ms-version`
+- `x-sa-date`
+- `cf-access-client-id`
+- `cf-access-client-secret`
+
+더 많은 정보를 원하시면:
+
+- [AWS 문서](https://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html)
+- [Azure 문서](https://docs.microsoft.com/en-us/rest/api/storageservices/List-Containers2#request-headers)
+- [Google 클라우드 문서](https://cloud.google.com/storage/docs/aws-simple-migration)
+- [Cloudflare Zero Trust 문서](/cloudflare-one/access-controls/service-credentials/service-tokens/)
+- [보안 문서](https://docs.secureauth.com/2104/en/authentication-api-guide.html)

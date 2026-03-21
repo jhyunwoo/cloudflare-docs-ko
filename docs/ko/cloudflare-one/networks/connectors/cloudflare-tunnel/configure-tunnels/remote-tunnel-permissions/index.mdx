@@ -1,0 +1,171 @@
+---
+pcx_content_type: how-to
+title: 터널 권한
+description: |
+  터널 토큰 관리 및 원격 관리 터널을 실행할 수 있는 제어.
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/remote-tunnel-permissions/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/remote-tunnel-permissions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, Render, APIRequest } from "~/components";
+
+원격 관리 터널은 터널 토큰을 실행해야 합니다. 토큰에 액세스하는 사람은 터널을 실행할 수 있습니다.
+
+## 터널 토큰 받기
+
+원격 관리 터널의 토큰을 얻으려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**네트워크** > **연결관** > **사이트맵 연락처**.
+    2. 선택하기`cloudflared`터널 및 선택**제품정보**.
+    3. 제출하기`cloudflared`설치 명령을 텍스트 편집기로 ( 명령을 실행하지 마십시오). 토큰은`eyJ...`문자열.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    더 보기`GET`요청하기[사이트맵 터널 토큰](/api/resources/zero_trust/subresources/tunnels/subresources/cloudflared/subresources/token/methods/get/)엔드포인트:
+
+    <APIRequest path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token" method="GET" />
+
+    ```sh output
+    {
+      "success": true,
+      "errors": [],
+      "messages": [],
+      "result": "eyJhIjoiNWFiNGU5Z..."
+    }
+    ```
+
+    토큰 값은에서 찾을 수 있습니다.`result`.
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    <Render file="terraform/get-tunnel-token" product="cloudflare-one" />
+  </TabItem>
+</Tabs>
+
+## 서비스 중단없이 토큰을 회전
+
+Cloudflare는 토큰 타협의 위험을 줄이기 위해 정기적인 Cadence에서 터널 토큰을 회전하는 것이 좋습니다. 최소한의 혼란을 가진 토큰을 순환할 수 있습니다.[`cloudflared`회사 소개](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/). 서비스 가용성을 지키기 위하여, 우리는 작업 시간의 외부 또는 정비 창에서 토큰 교체를 실행하는 것을 추천합니다.
+
+터널 토큰을 회전하려면:
+
+1. Cloudflare에 토큰을 새로 고침 :
+
+   <Tabs syncKey="dashPlusAPI">
+     <TabItem label="대시보드">
+       1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**네트워크** > **연결관** > **사이트맵 연락처**.
+       2. 선택하기`cloudflared`터널 및 선택**제품정보**.
+       3. 제품정보**토큰 판매**.
+       4. 제출하기`cloudflared`운영 체제의 설치 명령. 이 명령은 새로운 토큰을 포함합니다.
+     </TabItem>
+
+     <TabItem label="사이트맵">
+       1. 임의 base64 문자열 생성 (최소 크기 32 바이트) 터널 비밀로 사용:
+
+          ```sh
+          openssl rand -base64 32
+          ```
+
+          ```sh output
+          AQIDBAUGBwgBAgMEBQYHCAECAwQFBgcIAQIDBAUGBwg=
+          ```
+
+       2. 더 보기`PATCH`요청하기[Cloudflare 갱도](/api/resources/zero_trust/subresources/tunnels/methods/edit/)엔드포인트:
+
+          <APIRequest
+            path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}"
+            method="PATCH"
+            json={{
+            		name: "Example tunnel",
+            		tunnel_secret: "AQIDBAUGBwgBAgMEBQYHCAECAwQFBgcIAQIDBAUGBwg=",
+            	}}
+          />
+
+          ```sh output {18}
+          {
+          	"success": true,
+          	"errors": [],
+          	"messages": [],
+          	"result": {
+          		"id": "f70ff985-a4ef-4643-bbbc-4a0ed4fc8415",
+          		"account_tag": "699d98642c564d2e855e9661899b7252",
+          		"created_at": "2024-12-04T22:03:26.291225Z",
+          		"deleted_at": null,
+          		"name": "Example tunnel",
+          		"connections": [],
+          		"conns_active_at": null,
+          		"conns_inactive_at": "2024-12-04T22:03:26.291225Z",
+          		"tun_type": "cfd_tunnel",
+          		"metadata": {},
+          		"status": "inactive",
+          		"remote_config": true,
+          		"token": "eyJhIjoiNWFiNGU5Z..."
+          	}
+          }
+          ```
+
+       3. 제출하기`token`산출에서 보이는 가치.
+     </TabItem>
+   </Tabs>
+
+   토큰을 상쾌한 후,`cloudflared`오래된 토큰을 사용하여 Cloudflare에 새로운 연결을 더 이상 설치할 수 없습니다. 그러나 기존 커넥터는 활성 상태로 유지되며 터널은 계속 트래픽을 제공합니다.
+
+2. 당신의 반에`cloudflared`복제, 재설치`cloudflared`새로운 토큰으로 서비스. 예를 들어, Linux 호스트:
+
+   ```sh
+     sudo cloudflared service uninstall
+   sudo cloudflared service install <NEW_TOKEN>
+   ```
+
+3. 서비스가 올바르게 시작되었는지 확인하십시오.
+
+   ```sh
+   sudo systemctl status cloudflared
+   ```
+
+   이러한 복제가 새로운 토큰으로 Cloudflare에 연결되는 동안, 트래픽은 다른 복제를 통해 자동으로 경로입니다.
+
+4. 새로운 커넥터를 통해 트래픽을 10 분 기다립니다.
+
+5. 반복 단계 2, 3, 및 4 복제의 두 번째 절반.
+
+터널 토큰은 이제 완전히 회전됩니다. 오래된 토큰은 더 이상 사용하지 않습니다.
+
+## 탈중앙화된 토큰
+
+터널 토큰이 손상된 경우 다음 단계를 복용하는 것이 좋습니다.
+
+1. 대시보드 또는 API를 사용하여 토큰을 새로 고침합니다. 단계 1의[서비스 중단없이 토큰을 회전](#rotate-a-token-without-service-disruption).
+
+2. [모든 연결 삭제](/api/resources/zero_trust/subresources/tunnels/subresources/connections/methods/delete/)이름 \*`cloudflared`그리고 Cloudflare:
+
+   <APIRequest path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}/connections" method="DELETE" />
+
+   이 모든 권한의 연결을 청소하고 네트워크 연결에서 사용자를 방지합니다.
+
+3. 서로`cloudflared`복제, 업데이트`cloudflared`새로운 토큰을 사용합니다. 예를 들어, Linux 호스트:
+
+   ```sh
+     sudo cloudflared service uninstall
+   sudo cloudflared service install <NEW_TOKEN>
+   ```
+
+4. 서비스가 올바르게 시작되었는지 확인하십시오.
+   ```sh
+   sudo systemctl status cloudflared
+   ```
+
+터널 토큰은 이제 완전히 회전됩니다. 오래된 토큰은 더 이상 사용하지 않습니다.
+
+## 회계감사 역할
+
+<Render file="tunnel/account-scoped-roles" product="cloudflare-one" />

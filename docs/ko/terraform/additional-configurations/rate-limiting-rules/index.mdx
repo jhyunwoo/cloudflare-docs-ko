@@ -1,0 +1,183 @@
+---
+title: Terraform을 사용하여 제한 규칙 구성
+pcx_content_type: how-to
+sidebar:
+  order: 4
+  label: 비율 제한 규칙
+head:
+  - tag: title
+    content: Terraform을 사용하여 제한 규칙 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/rate-limiting-rules/
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/rate-limiting-rules/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+이 페이지는 생성 예제를 제공합니다.[비율 제한 규칙](/waf/rate-limiting-rules/)Terraform을 사용하여 영역 또는 계정에서.
+
+Cloudflare API를 사용하는 경우 다음 리소스를 참조하십시오.
+
+- [API를 통해 제한 규칙을 생성](/waf/rate-limiting-rules/create-api/)
+- [API를 통해 규칙을 제한하는 비율을 만듭니다.](/waf/account/rate-limiting-rulesets/create-api/)
+
+:::참조
+Terraform의 레이트 제한 규칙의 이전 버전 구성에 대한 자세한 내용은 참조[`cloudflare_rate_limit`주요사업](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/rate_limit)Terraform 문서에서.
+주요 특징
+
+## 시작하기 전에
+
+### 필요한 계정 또는 영역 ID를 얻으십시오.
+
+<Render file="find-ids" product="terraform" />
+
+### 기존의 규칙을 가져오기 또는 삭제
+
+<Render file="import-delete-existing-rulesets" product="terraform" />
+
+***
+
+## 영역 수준에서 제한 규칙을 생성
+
+이 예제는 ID와 영역의 제한 규칙을 만듭니다.`<ZONE_ID>`형성된 속도를 초과하는 트래픽 차단:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "zone_rl" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Rate limiting for my zone"
+  description = ""
+  kind        = "zone"
+  phase       = "http_ratelimit"
+
+  rules {
+    ref         = "rate_limit_api_requests_ip"
+    description = "Rate limit API requests by IP"
+    expression  = "(http.request.uri.path matches \"^/api/\")"
+    action      = "block"
+    ratelimit {
+      characteristics = ["cf.colo.id", "ip.src"]
+      period = 60
+      requests_per_period = 100
+      mitigation_timeout = 600
+    }
+  }
+}
+```
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "rate limiting rule" }} />
+
+<br />
+
+## 계정 수준에서 제한 룰 만들기
+
+:::주\[주]
+
+- [계정 레벨 비율 설정 구성](/waf/account/)유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+
+- 계정 수준에서 배포되는 사용자 정의 규칙은 엔터프라이즈 계획에 영역의 들어오는 트래픽에만 적용됩니다. 당신의 표현`execute`규칙은 끝이어야 합니다`and cf.zone.plan eq "ENT"`.
+
+:::
+
+이 예제는 정의[주문 규칙](/ruleset-engine/custom-rulesets/)ID를 가진 계정의 단일 속도 제한 규칙`<ACCOUNT_ID>`그 블록 트래픽`/api/`형성된 속도를 초과하는 경로. 두 번째`cloudflare_ruleset`리소스 정의`execute`트래픽에 대한 사용자 정의 규칙을 배포하는 규칙`example.com`.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_rl" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Rate limiting rules for APIs"
+  description = ""
+  kind        = "custom"
+  phase       = "http_ratelimit"
+
+  rules {
+    ref         = "rate_limit_api_ip"
+    description = "Rate limit API requests by IP"
+    expression  = "http.request.uri.path contains \"/api/\""
+    action      = "block"
+    ratelimit {
+      characteristics     = ["cf.colo.id", "ip.src"]
+      period              = 60
+      requests_per_period = 100
+      mitigation_timeout  = 600
+    }
+  }
+}
+
+# Account-level entry point ruleset for the 'http_ratelimit' phase
+resource "cloudflare_ruleset" "account_rl_entrypoint" {
+  account_id  = <ACCOUNT_ID>
+  name        = "Account-level rate limiting"
+  description = ""
+  kind        = "root"
+  phase       = "http_ratelimit"
+
+  depends_on = [cloudflare_ruleset.account_rl]
+
+  rules {
+    # Deploy the previously defined custom ruleset containing a rate limiting rule
+    ref         = "deploy_rate_limit_example_com"
+    description = "Deploy custom ruleset with RL rule"
+    expression  = "cf.zone.name eq \"example.com\" and cf.zone.plan eq \"ENT\""
+    action      = "execute"
+    action_parameters {
+      id = cloudflare_ruleset.account_rl.id
+    }
+  }
+}
+```
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "rate limiting rule" }} />
+
+<br />
+
+## 고급 비율 제한 규칙 만들기
+
+이 예제는 ID와 영역의 제한 규칙을 만듭니다.`<ZONE_ID>`이름:
+
+- 응답 필드를 포함하는 사용자 정의 계산 표현 (Custom counting expression)`http.response.code`).
+- 제한된 요청에 대한 사용자 정의 JSON 응답.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "zone_rl_custom_response" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Advanced rate limiting rule for my zone"
+  description = ""
+  kind        = "zone"
+  phase       = "http_ratelimit"
+
+  rules {
+    ref         = "rate_limit_example_com_status_404"
+    description = "Rate limit requests to www.example.com when exceeding the threshold of 404 responses on /status/"
+    expression  = "http.host eq \"www.example.com\" and (http.request.uri.path matches \"^/status/\")"
+    action      = "block"
+    action_parameters {
+      response {
+        status_code  = 429
+        content      = "{\"response\": \"block\"}"
+        content_type = "application/json"
+      }
+    }
+    ratelimit {
+      characteristics     = ["ip.src", "cf.colo.id"]
+      period              = 10
+      requests_per_period = 5
+      mitigation_timeout  = 30
+      counting_expression = "(http.host eq \"www.example.com\") and (http.request.uri.path matches \"^/status/\") and (http.response.code eq 404)"
+    }
+  }
+}
+```
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "rate limiting rule" }} />
+
+<br />

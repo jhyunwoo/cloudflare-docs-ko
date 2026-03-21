@@ -1,0 +1,238 @@
+---
+pcx_content_type: how-to
+title: 회사연혁
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip } from "~/components";
+
+<Render file="warp/mdm-intro" product="cloudflare-one" />
+
+이 페이지는 자동화된 배포에 대한 일반적인 지침을 제공합니다. WARP 클라이언트를 수동으로 배포하려면, 참조[수동 배치에 대 한 지침](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/).
+
+:::카트로션
+
+<Render file="warp/mdm-dash-conflict" product="cloudflare-one" />
+
+:::
+
+## 자주 묻는 질문
+
+- 더 알아보기[다운로드](/cloudflare-one/team-and-resources/devices/warp/download-warp/#windows)시스템 요구 사항을 검토하고 운영 체제에 대한 설치 프로그램을 다운로드합니다.
+- <Render file="warp/connectivity-status-check" product="cloudflare-one" />
+
+## 윈도우
+
+Windows용 WARP 클라이언트는 Intune, AD, 또는 실행할 수 있는 모든 스크립트 또는 관리 도구를 통해 자동화된 설치를 허용합니다`.msi`파일.
+
+### WARP 설치
+
+WARP 클라이언트를 설치하려면 다음 명령을 실행하십시오.
+
+```bash
+msiexec /i "Cloudflare_WARP_<VERSION>.msi" /qn ORGANIZATION="your-team-name" SUPPORT_URL="http://support.example.com"
+```
+
+#### 지원된 재산
+
+WARP MSI 설치 프로그램은 다음을 지원합니다[관련 상품](https://learn.microsoft.com/en-us/windows/win32/msi/public-properties):
+
+- `ORGANIZATION`
+- `GATEWAY_UNIQUE_ID`
+- `AUTH_CLIENT_ID`
+- `AUTH_CLIENT_SECRET`
+- `ONBOARDING`
+- `OVERRIDE_API_ENDPOINT`
+- `OVERRIDE_DOH_ENDPOINT`
+- `OVERRIDE_WARP_ENDPOINT`
+- `SERVICE_MODE`
+- `SUPPORT_URL`
+- `SWITCH_LOCKED`
+
+더 알아보기[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)각 재산에 대한 설명.
+
+### 제거 WARP
+
+WARP 클라이언트를 제거하려면:
+
+1. 첫째, 찾아`.msi`다음 PowerShell 명령 패키지:
+
+```powershell
+Get-WmiObject Win32_Product | Where-Object { $_.Name -match "WARP" } | Sort-Object -Property Name | Format-Table IdentifyingNumber, Name, LocalPackage -AutoSize
+```
+
+```txt output
+IdentifyingNumber                      Name            LocalPackage
+-----------------                      ----            ------------
+{5RA4DJWK-13D8-2NSX-QRF8-UANLODWD6D90} Cloudflare WARP C:\WINDOWS\Installer\3f476db.msi
+```
+
+2. uninstall 명령에서 LocalPackage 출력을 사용할 수 있습니다. 예를 들어,
+
+```powershell
+msiexec /x C:\WINDOWS\Installer\<WARP_RELEASE>.msi /quiet
+```
+
+### MDM 매개 변수 업데이트
+
+Windows 클라이언트의 on-disk 구성은 수정하거나 교체하여 언제든지 변경할 수 있습니다.`C:\ProgramData\Cloudflare\mdm.xml`. 이 파일의 형식은 다음과 같습니다.
+
+```xml
+<dict>
+  <key>organization</key>
+  <string>your-team-name</string>
+	<key>onboarding</key>
+	<false/>
+</dict>
+```
+
+이 파일 변경은 WARP 클라이언트가 즉시 처리됩니다.
+
+### 임베디드 브라우저에서 인증
+
+기본적으로 WARP는 사용자의 기본 브라우저를 사용하여 등록을 수행합니다. 기본 설정은 임베디드 브라우저에서 사용자를 정정할 수 있습니다. 임베디드 브라우저는 실행에서 기본 브라우저를 방지 할 수있는 모든 프로토콜 핸들러 문제 주위에 작동합니다.
+
+임베디드 브라우저를 사용하려면:
+
+1. WebView2 다운로드 및 설치[Microsoft 지침](https://developer.microsoft.com/en-us/microsoft-edge/webview2/#download-section).
+2. 다음 명령으로 레지스트리 키를 추가:
+   ```txt
+   REG ADD HKLM\SOFTWARE\Cloudflare\CloudflareWARP /f /v UseWebView2 /t REG_SZ /d y
+   ```
+
+WARP 클라이언트는 이제 사용자가 Zero Trust로 장치를 등록 할 때 WebView2를 시작합니다.
+
+## 맥 OS
+
+macOS용 WARP 클라이언트는 Jamf, Intune, Kandji, 또는 JumpCloud 또는 모든 스크립트 또는 관리 도구와 같은 도구를 통해 자동화 된 설치를 허용합니다.`com.cloudflare.warp.plist`파일 형식`/Library/Managed Preferences`. plist는 또한 감싸일 수 있습니다`.mobileconfig`.
+
+<Render file="warp/intune-lob-caution" product="cloudflare-one" />
+
+관리 도구를 사용하지 않으면 수동으로 배치 할 수 있습니다.`mdm.xml`파일 형식`/Library/Application Support/Cloudflare`.
+
+### MDM 배포를위한 준비 파일
+
+#### `plist`이름 \*
+
+1. [다운로드](/cloudflare-one/static/mdm/com.cloudflare.warp.plist)이름 \*`com.cloudflare.warp.plist`파일.
+
+2. 기타 제품`your-team-name`당신의 Cloudflare로 한국어<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>.
+
+3. 원하는 파일 수정[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/).
+
+#### `mobileconfig`이름 \*
+
+1. [다운로드](/cloudflare-one/static/mdm/CloudflareWARP.mobileconfig)이름 \*`.mobileconfig`파일.
+
+2. 기타 제품`your-team-name`당신의 Cloudflare로 한국어<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>.
+
+3. 지원하다`uuidgen`macOS 터미널에서. 이 값을 생성한다.`PayloadUUID`, 기본 값을 대신 사용할 수 있는 경우`PayloadUUID`.
+
+4. 원하는 파일 수정[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/).
+
+### 관리되지 않음`mdm.xml`이름 \*
+
+구성할 수 있습니다.[WARP 배치 모수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)macOS에서 수동으로 배치`mdm.xml`파일 형식`/Library/Application Support/Cloudflare`. 이 배포 방법은 푸시하는 대안입니다`plist`또는`mobileconfig`MDM 도구를 사용하여.
+
+형식의`/Library/Application Support/Cloudflare/mdm.xml`다음과 같이:
+
+```xml
+<dict>
+  <key>organization</key>
+  <string>your-team-name</string>
+</dict>
+```
+
+## 리눅스
+
+Linux용 WARP 클라이언트는 자동화된 설치를 통해`mdm.xml`파일 형식`/var/lib/cloudflare-warp`. 형식의`/var/lib/cloudflare-warp/mdm.xml`다음과 같이:
+
+```xml
+<dict>
+  <key>organization</key>
+  <string>your-team-name</string>
+</dict>
+```
+
+더 알아보기[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)허용되는 인수의 목록입니다.
+
+WARP 배포를 headless 서버에 자동화하는 방법을 배우려면, 우리의 참조[관련 기사](/cloudflare-one/tutorials/warp-on-headless-linux/).
+
+## iOS 앱
+
+:::주\[1.1.1.1]
+
+레거시 iOS 클라이언트,[1.1.1.1: 더 빠른 인터넷](https://apps.apple.com/us/app/1-1-1-1-faster-internet/id1423538627), Cloudflare 1 대리인에 의해 대체되었습니다. 더 알아보기[본문 바로가기](/cloudflare-one/team-and-resources/devices/warp/download-warp/cloudflare-one-agent-migration/).
+:::
+
+Cloudflare WARP iOS 클라이언트는, App Store에서 것과 같이 알려집니다[모델 번호: Cloudflare 1개의 대리인](https://apps.apple.com/us/app/cloudflare-one-agent/id6443476492), Jamf, Intune 또는 SimpleMDM 같은 도구를 통해 자동화 된 설치를 허용합니다.
+
+설치로 진행하려면 XML 코드의 예입니다.
+
+```xml
+<dict>
+    <key>organization</key>
+    <string>your-team-name</string>
+    <key>auto_connect</key>
+    <integer>1</integer>
+    <key>switch_locked</key>
+    <false />
+    <key>service_mode</key>
+    <string>warp</string>
+    <key>support_url</key>
+    <string>https://support.example.com</string>
+</dict>
+```
+
+더 알아보기[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)각 인수에 대한 설명.
+
+## 안드로이드 / 크롬
+
+:::주\[1.1.1.1]
+
+레거시 Android 클라이언트,[1.1.1.1 + WARP: 더 안전한 인터넷](https://play.google.com/store/apps/details?id=com.cloudflare.onedotonedotonedotone), Cloudflare 1 대리인에 의해 대체되었습니다. 더 알아보기[본문 바로가기](/cloudflare-one/team-and-resources/devices/warp/download-warp/cloudflare-one-agent-migration/).
+:::
+
+Cloudflare WARP Google Play 스토어에서 알려진 Android 클라이언트[모델 번호: Cloudflare 1개의 대리인](https://play.google.com/store/apps/details?id=com.cloudflare.cloudflareoneagent), Intune, Google Endpoint Manager 등과 같은 도구를 통해 자동화 된 설치를 허용합니다.
+
+설치로 진행하려면 XML 코드의 예입니다.
+
+```xml
+<key>organization</key>
+<string>your-team-name</string>
+<key>switch_locked</key>
+<true />
+<key>auto_connect</key>
+<integer>0</integer>
+<key>gateway_unique_id</key>
+<string>your_gateway_doh_subdomain</string>
+<key>service_mode</key>
+<string>warp</string>
+<key>support_url</key>
+<string>https://support.example.com</string>
+```
+
+MDM 도구가 XML을 지원하지 않으면 XML을 JSON으로 변환해야 할 수 있습니다. 아래 예입니다:
+
+```json
+{
+	"organization": "your-team-name",
+	"gateway_unique_id": "your_gateway_doh_subdomain",
+	"onboarding": true,
+	"switch_locked": true,
+	"auto_connect": 0,
+	"service_mode": "warp",
+	"support_url": "https://support.example.com"
+}
+```
+
+더 알아보기[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)각 값에 대한 설명.

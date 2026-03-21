@@ -1,0 +1,105 @@
+---
+title: 벡터 데이터베이스
+pcx_content_type: concept
+tags:
+  - LLM
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/vectorize/reference/what-is-a-vector-database/
+translation_source_md: >-
+  https://developers.cloudflare.com/vectorize/reference/what-is-a-vector-database/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+벡터 데이터베이스는 확장 가능한 AI-powered 응용 프로그램의 핵심 부분입니다. 벡터 데이터베이스는 기존 기계 학습 모델의 상단에 장기 메모리를 제공합니다.
+
+벡터 데이터베이스없이 모델을 훈련해야합니다 (또는 모델) 또는 쿼리를 만들기 전에 모델을 통해 데이터셋을 다시 실행, 이는 느리고 비쌉니다.
+
+## 왜 유용한 벡터 데이터베이스입니까?
+
+벡터 데이터베이스는 다른 데이터를 결정합니다 (펄스로 대표) 입력 쿼리 근처에 있습니다. 이것은 다음과 같은 벡터 데이터베이스의 상단에 다른 사용 케이스를 구축 할 수 있습니다 :
+
+- Semantic 검색은 쿼리의 입력과 비슷한 결과를 반환합니다.
+- 분류, 그룹화 (또는 그룹화)을 입력 쿼리에 가장 가까운 반환에 사용.
+- 다른 기준에 따라 입력과 유사한 콘텐츠를 반환하는 데 사용되는 추천 엔진 (예를 들면 이전 제품 판매, 또는 사용자 역사).
+- 특정 데이터 포인트가 기존 데이터와 유사하거나 다른지 확인하는 데 사용되는 Anomaly 탐지.
+
+벡터 데이터베이스는 또한 힘 할 수 있습니다[Retrieval 증강 발생](https://arxiv.org/abs/2005.11401)(RAG) 작업은 벡터 검색에서 사용자의 프롬프트를 augment로 변환하여 LLMs (Large Language Models)에 추가 컨텍스트를 가져올 수 있습니다.
+
+### 벡터 검색
+
+전통적인 벡터 검색 사용 사례에서 쿼리 벡터를 전달하여 벡터 데이터베이스에 대해 쿼리를 전달하고 벡터 데이터베이스가 쿼리 벡터에 가장 짧은 거리 ("most similar")와 벡터 구성 목록을 반환합니다.
+
+단계별 작업 흐름은 다음과 같습니다.
+
+1. 개발자는 기존의 데이터셋(서버레이션, 이미지, 로그를 R2)을 벡터 embeddings(하나방향 표현) 세트로 변환하여 그 데이터 유형에 대해 훈련되는 기계 학습 모델을 통해 전달합니다.
+2. 산출 embeddings는 Vectorize 데이타베이스 색인으로 삽입됩니다.
+3. 검색 쿼리, 분류 요청 또는 anomaly 탐지 쿼리는 동일한 ML 모델을 통해 전달, 쿼리의 벡터 embedding 표현을 반환.
+4. Vectorize는 이 embedding로 정복하고, 제공된 쿼리에 가장 유사한 벡터 embeddings의 세트를 반환합니다.
+5. 반환된 embeddings는 전용 저장 (예를 들면, R2, KVXQ, QXQXQXD1)에서 본래 근원 목표를 retrieve 위하여 이용되고 사용자에 돌려보냅니다.
+
+벡터 데이터베이스없이 작업 흐름에서, 당신은 당신의 쿼리에 따라 전체 데이터 세트를 통과해야 할 때마다, 실제 (모형은 입력 크기에 제한이 있습니다) 그리고 상당한 자원과 시간을 소비 할 것입니다.
+
+### Retrieval 증강 발생
+
+Retrieval Augmented Generation (RAG)는 Chatbot 및 일반적인 질문-answer 응용 프로그램을 포함하여 유전 AI 사용 케이스에서 LLM (Large Language Model)에 제공된 컨텍스트를 개선하는 데 사용되는 접근법입니다. 벡터 데이터베이스는 쿼리에 따라 추가 컨텍스트를 추가함으로써 LLM에 전달된 프롬프트를 강화하는 데 사용됩니다.
+
+LLM에 직접 전달하는 대신 RAG 접근 방식에서 :
+
+1. 기존의 데이터셋 또는 코푸(예를 들어, LLMs 응답에 추가 컨텍스트를 추가하기 위해 원하는 데이터셋)에서 벡터를 생성한다. 기존 데이터 세트 또는 corpus는 제품 문서, 연구 데이터, 기술 사양 또는 제품 카탈로그 및 설명이 될 수 있습니다.
+2. Vectorize 데이터베이스 인덱스의 출력 embedding을 저장합니다.
+
+사용자가 프롬프트를 시작했을 때, 대신 LLM에 (Add context 없이)를 전달합니다.*한국어*추가 상황에 따라:
+
+1. user prompt는 dataset에 사용되는 동일한 ML 모델로 전달되며, 쿼리의 벡터 embedding 표현을 반환합니다.
+2. 이 embedding는 벡터 데이터베이스에 대한 쿼리 (semantic search)로 사용됩니다.
+3. 이 벡터는 컨텐츠를 검색하는 데 사용됩니다. (변형 데이터로 벡터를 직접 포함하지 않는 경우).
+4. 이 콘텐츠는 원래 사용자 프롬프트와 함께 컨텍스트로 제공되며, LLM에 추가 컨텍스트를 제공하고 독립 프롬프트보다 훨씬 더 컨텍스트가 될 가능성이있는 답변을 반환할 수 있습니다.
+
+[AI Search로 오늘 RAG 응용 프로그램 만들기](/ai-search/)몇 번의 클릭만으로 완전히 관리되는 RAG 파이프라인을 배포합니다. AI Search는 Vectorize를 자동으로 설정하고 연속 색인을 처리하고 단일 API를 통해 응답을 제공합니다.
+
+<sup>1</sup>RAG 뒤에 이론에 대해 더 알아볼 수 있습니다.[사이트맵
+자료실](https://arxiv.org/abs/2005.11401).
+<sup>1</sup>RAG 뒤에 이론에 대해 더 알아볼 수 있습니다.[사이트맵
+자료실](https://arxiv.org/abs/2005.11401).
+
+## 용어 정의
+
+### 데이터베이스 및 인덱스
+
+Vectorize에서 데이터베이스와 인덱스는 같은 개념입니다. 생성된 각 인덱스는 다른 인덱스로 구분됩니다. Vectorize는 새로운 자료를 삽입할 때 당신을 위한 색인을 조정하고 재생합니다.
+
+### 벡터 Embeddings
+
+벡터 embeddings는 숫자 벡터 (숫자)로 기계 학습 모형의 특징을 대표합니다. 그들은 기계 학습 모델이 모델에 제공 된 입력 (들)을 이해하는 방법을 인코딩 한 방향 표현이며, 모델이 원래 훈련 된 방식과 내부 구조를 기반으로합니다.
+
+예를 들어,[텍스트 embedding 모델](/workers-ai/models/#text-embeddings)Workers AI에서 사용 가능한 텍스트 입력을 수행하고 768-dimension 벡터로 표현할 수 있습니다. 이름 \*`This is a story about an orange cloud`, 벡터 embedding로 표현할 때, 다음과 같다:
+
+```json
+[-0.019273685291409492,-0.01913292706012726,<764 dimensions here>,0.0007094172760844231,0.043409910053014755]
+```
+
+모델은 "similar"로 입력의 기능을 고려할 때 (그 이해에 따라), 그 두 개의 입력에 대한 벡터 embeddings 사이의 거리는 짧은 것입니다.
+
+### 크기 (mm)
+
+벡터 차원은 벡터 embedding의 폭을 설명합니다. 벡터 embedding의 폭은 주어진 벡터를 구성하는 뜨 점 성분의 수입니다.
+
+치수의 수는 벡터 embeddings를 생성하는 데 사용되는 기계 학습 모델에 의해 정의되며 내부 모델과 복잡성을 기반으로 입력 기능을 나타냅니다. 더 많은 차원 (" 넓게" 벡터)는 벡터 검색의 compute와 기억 자원의 비용에 더 정확도를 제공할지도 모릅니다.
+
+더 알아보기[크기 (mm)](/vectorize/best-practices/create-indexes/#dimensions)Vectorize 인덱스를 만들 때 허용된 벡터 치수 크기를 구성하는 방법을 배우는 문서.
+
+### 거리 미터
+
+거리 미터는 벡터 검색에 사용되는 인덱스입니다. 쿼리 벡터가 인덱스 내에서 다른 벡터에 어떻게 닫는지를 결정하는 방법을 정의합니다.
+
+- 거리 미터는 벡터 검색 엔진이 벡터 사이의 유사성을 평가하는 방법을 결정합니다.
+- Cosine, Euclidean (L2) 및 Dot 제품은 벡터 검색에서 가장 일반적으로 사용되는 거리 미터입니다.
+- 당신이 사용하는 embedding의 기계 학습 모형과 유형은 당신의 사용 케이스를 위해 거리 미터가 제일 적응된다는 것을 결정할 것입니다.
+- 다른 미터는 다른 득점방해 특성을 결정합니다. 예를 들어,`cosine`거리 미터는 텍스트, 문장 유사성 및 / 또는 문서 검색 사용 케이스에 잘 적응됩니다.`euclidean`이미지 또는 음성 인식 사용 케이스에 적합 할 수 있습니다.
+
+더 알아보기[거리 미터](/vectorize/best-practices/create-indexes/#distance-metrics)Vectorize 인덱스를 만들 때 거리 미터를 구성하는 방법을 배우는 문서.

@@ -1,0 +1,480 @@
+---
+title: Agent class internals
+pcx_content_type: concept
+sidebar:
+  order: 5
+---
+
+`agents` 라이브러리의 핵심은 `Agent` 클래스입니다. 이 클래스를 상속하고, 몇 가지 메서드를 오버라이드하면 상태 관리, WebSockets, 스케줄링, RPC 등을 거의 공짜로 얻게 됩니다. 이 페이지는 `Agent`가 어떻게 계층적으로 구성되는지를 설명해, 내부적으로 무슨 일이 일어나는지 이해할 수 있게 해 줍니다.
+
+여기 나오는 코드는 설명용 예시이며, 반드시 모범 사례를 의미하지는 않습니다. 전체 API는 [API reference](/agents/api-reference/)와 [source code](https://github.com/cloudflare/agents/blob/main/packages/agents/src/index.ts)를 참고하세요.
+
+## Agent란 무엇인가요?
+
+`Agent` 클래스는 `DurableObject`의 확장입니다. 즉, 에이전트는 곧 Durable Objects입니다. Durable Objects가 익숙하지 않다면 먼저 [What are Durable Objects](/durable-objects/)를 읽어 보세요. Durable Objects의 핵심은 전역에서 주소 지정 가능하고(각 인스턴스는 고유 ID를 가짐), 단일 스레드로 실행되며, 장기 저장소(key-value와 SQLite)를 가진 계산 인스턴스라는 점입니다.
+
+`Agent`는 `DurableObject`를 직접 상속하지 않습니다. 대신 [`partyserver`](https://github.com/cloudflare/partykit/tree/main/packages/partyserver) 패키지의 `Server`를 상속하고, `Server`가 다시 `DurableObject`를 상속합니다. 계층 구조는 다음처럼 생각하면 됩니다. **DurableObject** > **Server** > **Agent**.
+
+## Layer 0: Durable Object
+
+바깥 레이어가 이 기본 기능을 어떻게 사용하는지 이해하기 위해, 먼저 Durable Objects가 노출하는 기본 primitive를 간단히 살펴보겠습니다. Durable Object 클래스에는 다음이 포함됩니다.
+
+### `constructor`
+
+```ts
+constructor(ctx: DurableObjectState, env: Env) {}
+```
+
+Workers runtime은 내부 동작을 처리하기 위해 항상 constructor를 호출합니다. 이는 두 가지를 의미합니다.
+
+1. constructor는 Durable Object가 초기화될 때마다 호출되지만, 시그니처는 고정입니다. 개발자가 constructor에 전달되는 파라미터를 추가하거나 수정할 수 없습니다.
+2. 따라서 개발자는 클래스를 직접 인스턴스화하지 않고, binding APIs를 사용해 [DurableObjectNamespace](/durable-objects/api/namespace/)를 통해 접근해야 합니다.
+
+### RPC
+
+내장 타입 `DurableObject`를 상속하는 Durable Object 클래스를 작성하면, public methods는 RPC methods로 노출됩니다. 개발자는 이를 [Worker에서 생성한 DurableObjectStub](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/#invoking-methods-on-a-durable-object)를 통해 호출할 수 있습니다.
+
+```ts
+// This instance could've been active, hibernated,
+// not initialized or maybe had never even been created!
+const stub = env.MY_DO.getByName("foo");
+
+// We can call any public method on the class. The runtime
+// ensures the constructor is called if the instance was not active.
+await stub.bar();
+```
+
+### `fetch()`
+
+Durable Objects는 Worker로부터 `Request`를 받아 `Response`를 반환할 수 있습니다. 이는 개발자가 구현해야 하는 [`fetch`](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/#invoking-the-fetch-handler) 메서드를 통해서만 가능합니다.
+
+### WebSockets
+
+Durable Objects는 [WebSockets](/durable-objects/best-practices/websockets/)를 일급 지원합니다. Durable Object는 `fetch`에서 `Request`로 받은 WebSocket을 수락하고 이후 메시지를 관리할 수 있습니다. 기본 클래스는 개발자가 콜백처럼 구현할 수 있는 메서드들을 제공합니다. 이는 사실상 event listeners를 대체합니다.
+
+기본 클래스는 `webSocketMessage(ws, message)`, `webSocketClose(ws, code, reason, wasClean)`, `webSocketError(ws , error)`를 제공합니다([API](/workers/runtime-apis/websockets)).
+
+```ts
+export class MyDurableObject extends DurableObject {
+	async fetch(request) {
+		// Creates two ends of a WebSocket connection.
+		const webSocketPair = new WebSocketPair();
+		const [client, server] = Object.values(webSocketPair);
+
+		// Calling `acceptWebSocket()` connects the WebSocket to the Durable Object, allowing the WebSocket to send and receive messages.
+		this.ctx.acceptWebSocket(server);
+
+		return new Response(null, {
+			status: 101,
+			webSocket: client,
+		});
+	}
+
+	async webSocketMessage(ws, message) {
+		ws.send(message);
+	}
+}
+```
+
+### `alarm()`
+
+HTTP와 RPC 요청만이 Durable Object의 진입점은 아닙니다. alarm을 사용하면 나중 시점에 이벤트를 발생시키도록 예약할 수 있습니다. 다음 alarm 시점이 되면 runtime이 `alarm()` 메서드를 호출하며, 이 메서드는 개발자가 직접 구현해야 합니다.
+
+alarm을 예약하려면 `this.ctx.storage.setAlarm()`을 사용할 수 있습니다. 자세한 내용은 [Alarms](/durable-objects/api/alarms/)를 참고하세요.
+
+### `this.ctx`
+
+기본 `DurableObject` 클래스는 [DurableObjectState](/durable-objects/api/state/)를 `this.ctx`에 넣어 줍니다. 흥미로운 메서드와 속성이 많지만, 여기서는 `this.ctx.storage`에 집중하겠습니다.
+
+### `this.ctx.storage`
+
+[DurableObjectStorage](/durable-objects/api/sqlite-storage-api/)는 Durable Object의 영속성 메커니즘에 접근하는 주 인터페이스입니다. 여기에는 KV와 SQLITE **동기식** API가 모두 포함됩니다.
+
+```ts
+const sql = this.ctx.storage.sql;
+
+// Synchronous SQL query
+const rows = sql.exec("SELECT * FROM contacts WHERE country = ?", "US");
+
+// Key-value storage
+const token = this.ctx.storage.get("someToken");
+```
+
+### `this.ctx.env`
+
+마지막으로, Durable Object는 Worker의 `Env`도 `this.env`로 가집니다. 자세한 내용은 [Bindings](/workers/runtime-apis/bindings)를 참고하세요.
+
+## Layer 1: `Server` (partyserver)
+
+이제 Durable Objects가 기본적으로 제공하는 것들을 봤으니, [`partyserver`](https://github.com/cloudflare/partykit/tree/main/packages/partyserver)의 `Server` 클래스가 왜 필요한지 더 이해하기 쉬울 것입니다. 이것은 저수준 primitive를 개발자 친화적인 callbacks로 바꾸어 주는 의견 있는 `DurableObject` wrapper입니다.
+
+`Server`는 자체 스토리지 동작을 추가하지 않습니다. 오직 Durable Object lifecycle을 감싸는 역할만 합니다.
+
+### Addressing
+
+`partyserver`는 bindings를 직접 거치지 않고 Durable Objects를 이름으로 주소 지정할 수 있도록 도와주는 helper를 제공합니다. 여기에는 Agent 레이어가 사용하는 URL 라우팅 규칙(`<your-worker>/servers/:durableClass/:durableName`)도 포함됩니다.
+
+```ts
+// Note the await here!
+const stub = await getServerByName(env.MY_DO, "foo");
+
+// We can still call RPC methods.
+await stub.bar();
+```
+
+이 URL 규칙은 request router도 가능하게 합니다. Agent 레이어에서는 이것이 `routeAgentRequest`로 다시 export됩니다.
+
+```ts
+  async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const res = await routeAgentRequest(request, env);
+
+    if (res) return res;
+
+    return new Response("Not found", { status: 404 });
+  }
+```
+
+### `onStart`
+
+주소 지정 레이어 덕분에 `Server`는 Durable Object가 시작될 때마다(축출 후, 하이버네이션 후, 또는 최초 생성 시) 그리고 어떤 `fetch`나 RPC 호출보다 먼저 실행되는 `onStart` callback을 제공할 수 있습니다.
+
+```ts
+class MyServer extends Server {
+	onStart() {
+		// Some initialization logic that you wish
+		// to run every time the DO is started up.
+		const sql = this.ctx.storage.sql;
+		sql.exec(`...`);
+	}
+}
+```
+
+### `onRequest` and `onConnect`
+
+`Server`는 이미 기반 Durable Object의 `fetch`를 구현하고 있으며, 개발자가 사용할 수 있는 두 가지 callback인 `onRequest`와 `onConnect`를 제공합니다. 각각 HTTP requests와 들어오는 WS connections를 처리합니다(WebSocket connections는 기본적으로 accept됩니다).
+
+```ts
+class MyServer extends Server {
+	async onRequest(request: Request) {
+		const url = new URL(request.url);
+
+		return new Response(`Hello from ${url.origin}!`);
+	}
+
+	async onConnect(conn, ctx) {
+		const { request } = ctx;
+		const url = new URL(request.url);
+
+		// Connections are a WebSocket wrapper
+		conn.send(`Hello from ${url.origin}!`);
+	}
+}
+```
+
+### WebSockets
+
+`onConnect`가 새 연결마다 실행되는 callback인 것처럼, `Server`는 `DurableObject` 클래스의 기본 callbacks 위에 `onMessage`, `onClose`, `onError`도 제공합니다.
+
+또한 `this.broadcast`도 있는데, 이것은 모든 연결된 클라이언트에 WS 메시지를 보냅니다(마법은 아니고 `this.getConnections()`를 순회하는 루프일 뿐입니다).
+
+### `this.name`
+
+Durable Object 내부에서 자신의 `name`을 얻는 것은 어렵습니다. `partyserver`는 이를 `this.name`으로 노출하려고 시도하지만 완벽한 해결책은 아닙니다. 자세한 내용은 [this GitHub issue](https://github.com/cloudflare/workerd/issues/2240)를 참고하세요.
+
+## Layer 2: Agent
+
+이제 마지막으로 `Agent` 클래스입니다. `Agent`는 `Server`를 상속하며, RPC, WebSockets, 이메일을 통해 통신할 수 있는 stateful, schedulable, observable agents를 위한 의견 있는 primitive를 제공합니다.
+
+### `this.state` and `this.setState()`
+
+`Agent`의 핵심 기능 중 하나는 **automatic state persistence**입니다. 개발자는 generic parameter와 `initialState`를 통해 상태 형태를 정의하며(`initialState`는 저장된 상태가 없을 때만 사용), Agent는 상태 로딩, 저장, 브로드캐스트를 처리합니다(위에서 본 `Server`의 `this.broadcast()` 참고).
+
+`this.state`는 storage(SQL)에서 상태를 지연 로드하는 getter입니다. 상태는 `this.setState()`로 업데이트될 때마다 자동 직렬화되어 storage에 다시 기록되므로 Durable Object가 축출된 뒤에도 유지됩니다.
+
+상태 변화에 반응하기 위해 오버라이드할 수 있는 `this.onStateChanged`도 있습니다.
+
+```ts
+class MyAgent extends Agent<Env, { count: number }> {
+	initialState = { count: 0 };
+
+	increment() {
+		this.setState({ count: this.state.count + 1 });
+	}
+
+	onStateChanged(state, source) {
+		console.log("State updated:", state);
+	}
+}
+```
+
+상태는 `cf_agents_state` SQL 테이블에 저장됩니다. 상태 메시지는 `type: "cf_agent_state"` 형식으로 보내집니다(클라이언트와 서버 모두에서). `agents`는 [JS와 React clients](/agents/api-reference/store-and-sync-state/#synchronizing-state)를 제공하므로, 실시간 상태 업데이트를 즉시 활용할 수 있습니다.
+
+### `this.sql`
+
+Agent는 Durable Object의 SQL storage에 쿼리를 실행하기 위한 편리한 `sql` template tag를 제공합니다. 이것은 parameterized query를 구성하고 실행합니다. 내부적으로는 `this.ctx.storage.sql`의 **동기식** SQL API를 사용합니다.
+
+```ts
+class MyAgent extends Agent {
+	onStart() {
+		this.sql`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        name TEXT
+      )
+    `;
+
+		const userId = "1";
+		const userName = "Alice";
+		this.sql`INSERT INTO users (id, name) VALUES (${userId}, ${userName})`;
+
+		const users = this.sql<{ id: string; name: string }>`
+      SELECT * FROM users WHERE id = ${userId}
+    `;
+		console.log(users); // [{ id: "1", name: "Alice" }]
+	}
+}
+```
+
+### RPC and Callable Methods
+
+`agents`는 Durable Objects RPC를 한 단계 더 발전시켜, WebSockets를 통한 RPC를 구현합니다. 따라서 클라이언트는 Agent의 메서드를 직접 호출할 수 있습니다. WebSocket으로 호출 가능하게 하려면 `@callable()` decorator를 사용하세요. 메서드는 직렬화 가능한 값 또는 스트림(`@callable({ stream: true })` 사용 시)을 반환할 수 있습니다.
+
+```ts
+class MyAgent extends Agent {
+	@callable({ description: "Add two numbers" })
+	async add(a: number, b: number) {
+		return a + b;
+	}
+}
+```
+
+클라이언트는 다음과 같은 WebSocket 메시지를 보내 이 메서드를 호출할 수 있습니다.
+
+```json
+{
+	"type": "rpc",
+	"id": "unique-request-id",
+	"method": "add",
+	"args": [2, 3]
+}
+```
+
+예를 들어 제공되는 `React` client를 사용하면 다음처럼 간단합니다.
+
+```ts
+const { stub } = useAgent({ name: "my-agent" });
+const result = await stub.add(2, 3);
+console.log(result); // 5
+```
+
+### `this.queue` and friends
+
+Agents에는 지연 실행을 위한 내장 task queue가 있습니다. 이는 작업을 뒤로 미루거나, 재시도하거나, 백그라운드에서 처리할 때 유용합니다. 사용할 수 있는 메서드는 `this.queue`, `this.dequeue`, `this.dequeueAll`, `this.dequeueAllByCallback`, `this.getQueue`, `this.getQueues`입니다.
+
+```ts
+class MyAgent extends Agent {
+	async onConnect() {
+		// Queue a task to be executed later
+		await this.queue("processTask", { userId: "123" });
+	}
+ 
+	async processTask(payload: { userId: string }, queueItem: QueueItem) {
+		console.log("Processing task for user:", payload.userId);
+	}
+}
+```
+
+작업은 `cf_agents_queues` SQL 테이블에 저장되며, 순서대로 자동 처리됩니다. 작업이 성공하면 자동으로 dequeue됩니다.
+
+### `this.schedule` and friends
+
+Agents는 Durable Object의 `alarm()`을 감싸 메서드의 스케줄 실행을 지원합니다. 사용 가능한 메서드는 `this.schedule`, `this.getSchedule`, `this.getSchedules`, `this.cancelSchedule`입니다. 스케줄은 일회성, 지연 실행, 또는 반복(cron expression 사용)으로 설정할 수 있습니다.
+
+Durable Objects는 한 번에 하나의 alarm만 허용하므로, `Agent` 클래스는 여러 스케줄을 SQL로 관리하고 단일 alarm을 사용하는 방식으로 이를 우회합니다.
+
+```ts
+class MyAgent extends Agent {
+	async foo() {
+		// Schedule at a specific time
+		await this.schedule(new Date("2025-12-25T00:00:00Z"), "sendGreeting", {
+			message: "Merry Christmas!",
+		});
+
+		// Schedule with a delay (in seconds)
+		await this.schedule(60, "checkStatus", { check: "health" });
+
+		// Schedule with a cron expression
+		await this.schedule("0 0 * * *", "dailyTask", { type: "cleanup" });
+	}
+
+	async sendGreeting(payload: { message: string }) {
+		console.log(payload.message);
+	}
+
+	async checkStatus(payload: { check: string }) {
+		console.log("Running check:", payload.check);
+	}
+
+	async dailyTask(payload: { type: string }) {
+		console.log("Daily task:", payload.type);
+	}
+}
+```
+
+스케줄은 `cf_agents_schedules` SQL 테이블에 저장됩니다. Cron 스케줄은 실행 후 자동으로 자기 자신을 다시 예약하고, 일회성 스케줄은 삭제됩니다.
+
+### `this.mcp` and friends
+
+`Agent`에는 다중 서버 MCP client가 포함됩니다. 이를 통해 Agent는 MCP 인터페이스를 노출하는 외부 서비스와 상호작용할 수 있습니다. MCP client는 [MCP client API](/agents/api-reference/mcp-client-api/)에서 자세히 설명합니다.
+
+```ts
+class MyAgent extends Agent {
+	async onStart() {
+		// Add an HTTP MCP server (callbackHost only needed for OAuth servers)
+		await this.addMcpServer("GitHub", "https://mcp.github.com/mcp", {
+			callbackHost: "https://my-worker.example.workers.dev",
+		});
+
+		// Add an MCP server via RPC (Durable Object binding, no HTTP overhead)
+		await this.addMcpServer("internal-tools", this.env.MyMCP);
+	}
+}
+```
+
+### Email Handling
+
+Agents는 Cloudflare의 [Email Routing](/email-routing/email-workers/)을 사용해 이메일을 받고 답장할 수 있습니다.
+
+```ts
+class MyAgent extends Agent {
+	async onEmail(email: AgentEmail) {
+		console.log("Received email from:", email.from);
+		console.log("Subject:", email.headers.get("subject"));
+
+		const raw = await email.getRaw();
+		console.log("Raw email size:", raw.length);
+
+		// Reply to the email
+		await this.replyToEmail(email, {
+			fromName: "My Agent",
+			subject: "Re: " + email.headers.get("subject"),
+			body: "Thanks for your email!",
+			contentType: "text/plain",
+		});
+	}
+}
+```
+
+에이전트로 이메일을 라우팅하려면 Worker의 email handler에서 `routeAgentEmail`을 사용하세요.
+
+```ts
+export default {
+	async email(message, env, ctx) {
+		await routeAgentEmail(message, env, {
+			resolver: createAddressBasedEmailResolver("my-agent"),
+		});
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+### Context Management
+
+`agents`는 모든 메서드를 `AsyncLocalStorage`로 감싸 요청 lifecycle 전반에서 문맥을 유지합니다. 덕분에 현재 처리 중인 agent, connection, request, email(어떤 이벤트를 처리 중인지에 따라 다름)에 코드 어디에서나 접근할 수 있습니다.
+
+```ts
+import { getCurrentAgent } from "agents";
+
+function someUtilityFunction() {
+	const { agent, connection, request, email } = getCurrentAgent();
+
+	if (agent) {
+		console.log("Current agent:", agent.name);
+	}
+
+	if (connection) {
+		console.log("WebSocket connection ID:", connection.id);
+	}
+}
+```
+
+### `this.onError`
+
+`Agent`는 `Server`의 `onError`를 확장해, 반드시 WebSocket 에러가 아니더라도 에러를 처리할 수 있게 합니다. `Connection` 또는 `unknown` error를 받습니다.
+
+```ts
+class MyAgent extends Agent {
+	onError(connectionOrError: Connection | unknown, error?: unknown) {
+		if (error) {
+			// WebSocket connection error
+			console.error("Connection error:", error);
+		} else {
+			// Server error
+			console.error("Server error:", connectionOrError);
+		}
+
+		// Optionally throw to propagate the error
+		throw connectionOrError;
+	}
+}
+```
+
+### `this.destroy`
+
+`this.destroy()`는 모든 테이블을 삭제하고, alarms를 제거하고, storage를 비우고, context를 abort합니다. Durable Object가 완전히 축출되도록 하기 위해 `this.ctx.abort()`는 `setTimeout()`을 사용해 비동기적으로 호출되며, 이 덕분에 현재 실행 중인 handlers(예: scheduled tasks)가 정리 작업을 마칠 수 있습니다.
+
+이는 `this.ctx.abort()`가 로그에 잡히는 catch 불가능한 에러를 던진다는 뜻이지만, event loop에 한 번 양보한 뒤 수행되기 때문에 가능합니다([abort()](/durable-objects/api/state/#abort) 참고).
+
+`destroy()` 메서드는 scheduled tasks 안에서도 안전하게 호출할 수 있습니다. schedule callback 안에서 호출되면 Agent는 이후 남은 DB 업데이트를 건너뛰기 위한 내부 플래그를 세우고, alarm handler가 정상적으로 마무리된 뒤 축출되도록 `ctx.abort()`를 event loop로 넘깁니다.
+
+```ts
+class MyAgent extends Agent {
+	async onStart() {
+		console.log("Agent is starting up...");
+		// Initialize your agent
+	}
+
+	async cleanup() {
+		// This wipes everything!
+		await this.destroy();
+	}
+
+	async selfDestruct() {
+		// Safe to call from within a scheduled task
+		await this.schedule(60, "destroyAfterDelay", {});
+	}
+
+	async destroyAfterDelay() {
+		// This will safely destroy the Agent even when
+		// called from within the alarm handler
+		await this.destroy();
+	}
+}
+```
+
+:::note[Using destroy() in scheduled tasks]
+
+scheduled task callback 안에서 `this.destroy()`를 안전하게 호출할 수 있습니다. Agent SDK는 파괴 이후 DB 업데이트를 막기 위한 내부 플래그를 세우고, alarm handler가 정상 종료되도록 context abort를 뒤로 미룹니다.
+
+:::
+
+### Routing
+
+`Agent` 클래스는 [addressing helpers](#addressing)를 `getAgentByName`과 `routeAgentRequest`로 다시 export합니다.
+
+```ts
+const stub = await getAgentByName(env.MY_DO, "foo");
+await stub.someMethod();
+
+const res = await routeAgentRequest(request, env);
+if (res) return res;
+
+return new Response("Not found", { status: 404 });
+```
+
+## Layer 3: `AIChatAgent`
+
+`@cloudflare/ai-chat`의 [`AIChatAgent`](/agents/api-reference/chat-agents/) 클래스는 `Agent` 위에 AI 채팅을 위한 opinionated layer를 추가합니다. SQLite에 메시지를 자동 저장하고, 재개 가능한 스트리밍, 도구 지원(서버 측, 클라이언트 측, human-in-the-loop), 채팅 UI 빌드를 위한 React hook(`useAgentChat`)을 제공합니다.
+
+전체 계층 구조는 다음과 같습니다. **DurableObject** > **Server** > **Agent** > **AIChatAgent**.
+
+채팅 에이전트를 만들고 있다면 `AIChatAgent`로 시작하세요. 더 낮은 수준의 제어가 필요하거나 채팅 인터페이스가 아니라면 `Agent`를 직접 사용하세요.

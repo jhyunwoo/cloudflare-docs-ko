@@ -1,0 +1,201 @@
+---
+summary: Allow a client to request static assets while waiting for the HTML response.
+tags:
+  - Middleware
+  - Headers
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 103 초기 힌트
+sidebar:
+  order: 1001
+description: HTML 응답을 기다리는 동안 정적 자산을 요청할 수 있습니다.
+reviewed: 2022-08-12T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/103-early-hints/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/103-early-hints/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, Steps, TabItem, Tabs } from "~/components";
+
+get started를 빨리 원하면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/103-early-hints)
+
+GitHub 계정에서 저장소를 만들고 Cloudflare Workers에 응용 프로그램을 배포합니다.
+
+`103`Early Hints는 콘텐츠 전달을 가속화하도록 설계된 HTTP 상태 코드입니다. 활성화될 때, Cloudflare는 캐시할 수 있습니다`Link`헤더는 HTML 페이지의 사전 로드 및/또는 사전 연결으로 표시되어 있으며, 그 결과`103`Origin 서버에 도달하기 전에 조기 힌트 응답. 브라우저는 이러한 힌트를 사용하여 연결 자산을 fetch하고 원래의 최종 응답을 기다리면서 극적으로 페이지로드 속도를 향상시킵니다.
+
+초기 힌트가 귀하의 영역에 활성화되도록:
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**속도 설정**사이트 맵
+
+     <DashButton url="/?to=/:account/:zone/speed/optimization" />
+
+  2. 오시는 길**콘텐츠 최적화**.
+
+  3. 이름 \***초기 힌트**toggle에.
+</Steps>
+
+당신은 반환 할 수 있습니다`Link`영역에서 실행되는 작업자의 헤더는 페이지로드 시간을 가속화합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const CSS = "body { color: red; }";
+    const HTML = `
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Early Hints test</title>
+        <link rel="stylesheet" href="/test.css">
+    </head>
+    <body>
+        <h1>Early Hints test page</h1>
+    </body>
+    </html>
+    `;
+
+    export default {
+    	async fetch(req) {
+    		//test.css의 경우, raw CSS를 사용합니다.
+    		if (/test\.css$/.test(req.url)) {
+    			return new Response(CSS, {
+    				headers: {
+    					"content-type": "text/css",
+    				},
+    			});
+    		} else {
+    			//CSS 파일에 대한 초기 힌트를 사용하여 원본 HTML을 Serve
+    			return new Response(HTML, {
+    				headers: {
+    					"content-type": "text/html",
+    					link: "</test.css>; rel=preload; as=style",
+    				},
+    			});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```js
+    const CSS = "body { color: red; }";
+    const HTML = `
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Early Hints test</title>
+        <link rel="stylesheet" href="/test.css">
+    </head>
+    <body>
+        <h1>Early Hints test page</h1>
+    </body>
+    </html>
+    `;
+
+    export default {
+      async fetch(req): Promise<Response> {
+        //test.css의 경우, raw CSS를 사용합니다.
+        if (/test\.css$/.test(req.url)) {
+          return new Response(CSS, {
+            headers: {
+              "content-type": "text/css",
+            },
+          });
+        } else {
+          //CSS 파일에 대한 초기 힌트를 사용하여 원본 HTML을 Serve
+          return new Response(HTML, {
+            headers: {
+              "content-type": "text/html",
+              link: "</test.css>; rel=preload; as=style",
+            },
+          });
+        }
+      },
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    import re
+    from workers import Response, WorkerEntrypoint
+
+    CSS = "body { color: red; }"
+    HTML = """
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Early Hints test</title>
+        <link rel="stylesheet" href="/test.css">
+    </head>
+    <body>
+        <h1>Early Hints test page</h1>
+    </body>
+    </html>
+    """
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            if re.search("test.css", request.url):
+                headers = {"content-type": "text/css"}
+                return Response(CSS, headers=headers)
+            else:
+                headers = {"content-type": "text/html","link": "</test.css>; rel=preload; as=style"}
+            return Response(HTML, headers=headers)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    const app = new Hono();
+
+    const CSS = "body { color: red; }";
+    const HTML = `
+    <!doctype html>
+    <html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Early Hints test</title>
+        <link rel="stylesheet" href="/test.css">
+    </head>
+    <body>
+        <h1>Early Hints test page</h1>
+    </body>
+    </html>
+    `;
+
+    //CSS 파일
+    app.get("/test.css", (c) => {
+    	return c.body(CSS, {
+    		headers: {
+    			"content-type": "text/css",
+    		},
+    	});
+    });
+
+    //초기 힌트와 HTML을 구출
+    app.get("*", (c) => {
+    	return c.html(HTML, {
+    		headers: {
+    			link: "</test.css>; rel=preload; as=style",
+    		},
+    	});
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

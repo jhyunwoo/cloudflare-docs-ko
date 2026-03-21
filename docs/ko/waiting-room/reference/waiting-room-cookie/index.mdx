@@ -1,0 +1,48 @@
+---
+pcx_content_type: reference
+title: 쿠키
+
+---
+
+대기실은 방문자가 활성화되고 연결된 대기실이 있는 호스트 및 경로 조합에 접근을 요청할 때만 `__cfwaitingroom` 쿠키를 사용합니다. 대기실이 중지되어 있으면 트래픽은 origin으로 전달되며 `__cfwaitingroom` 쿠키는 생성되지 않습니다. `__cfwaitingroom` 쿠키는 사용자가 수정하지 못하도록 암호화됩니다. 대기실 쿠키 이름을 사용자 지정하려면 [custom suffix](#customize-cookie-name)를 `__cfwaitingroom` 쿠키에 덧붙일 수 있습니다.
+
+:::caution[중요:]
+
+
+Cloudflare Waiting Room은 `__cfwaitingroom` 쿠키를 필요로 합니다. 대기실이 실제로 대기열을 운영 중일 때는 쿠키를 활성화하지 않으면 사용자가 해당 호스트 및 경로 조합에 접근할 수 없습니다.
+
+
+:::
+
+## 쿠키의 역할
+
+`__cfwaitingroom` 쿠키는 다음 용도로 사용됩니다.
+
+- 사용자의 대기열 위치를 추적하고 올바른 순서로 서비스를 제공합니다.
+- 각 방문자의 애플리케이션 체류 시간을 모니터링하여 대기실에서 기다리는 방문자에게 [정확한 입장 시간](#estimated-wait-time-fifo-queueing-method)을 제공합니다.
+- [session\_duration](/waiting-room/reference/configuration-settings/#session-duration)에 지정된 일정 기간 동안 대기실로 다시 돌아가지 않고 재입장을 허용합니다.
+
+## 쿠키 만료 시간
+
+- 방문자가 대기실에 머무는 동안 `__cfwaitingroom` 쿠키의 만료 시간은 항상 5분으로 설정되지만, 방문자가 탭을 닫지 않거나 애플리케이션을 떠나지 않는 한 20초마다 자동 갱신됩니다.
+- 방문자가 애플리케이션에 접근하면 `__cfwaitingroom` 쿠키는 [session\_duration](/waiting-room/reference/configuration-settings/#session-duration)에 지정된 시간 간격 후 만료됩니다.
+
+## 쿠키 이름 사용자 지정
+
+`__cfwaitingroom` 끝에 사용자 지정 접미사를 추가하여 대기실 쿠키 이름을 바꿀 수 있습니다.
+
+UI에서 하려면 [Create](/waiting-room/how-to/create-waiting-room/) 또는 [Edit](/waiting-room/how-to/edit-delete-waiting-room/) 워크플로에서 Custom cookie 필드를 입력하세요. API에서 하려면 대기실을 생성하거나 편집할 때 `cookie_suffix` 값을 입력하세요. 하나의 대기실에 [추가 호스트명](/waiting-room/how-to/place-waiting-room/)과 경로를 사용할 때는 쿠키 접미사가 필수 필드입니다. 쿠키가 적용 가능한 정책을 준수하는지 확인하세요.
+
+## 예상 대기 시간(FIFO 대기열 방식)
+
+방문자가 처음 대기실의 호스트 및 경로 조합에 들어오면 `__cfwaitingroom` 쿠키를 받습니다. 이 쿠키에는 고유한 그룹 ID가 포함되어 있으며, 이는 방문자가 대기실에 들어온 분(minute)에 대응합니다. 이 값을 사용하면 특정 그룹 앞에 몇 명의 방문자가 있는지 알 수 있습니다.
+
+각 쿠키에는 방문자가 애플리케이션에 들어온 분에 해당하는 `acceptedAt` 값도 포함됩니다. 이 값으로 대기실을 떠나 애플리케이션에 입장하는 방문자 수가 분당 얼마나 되는지 파악할 수 있습니다.
+
+```txt
+visitorsAhead ÷ activeUsersToWebApplication = estimatedWaitTime
+```
+
+이 정보를 조합해 각 방문자 그룹의 예상 대기 시간을 계산합니다.
+
+Cloudflare Waiting Room의 기술 구현에 대한 자세한 내용은 [블로그 게시물](https://blog.cloudflare.com/building-waiting-room-on-workers-and-durable-objects/)을 참고하세요.

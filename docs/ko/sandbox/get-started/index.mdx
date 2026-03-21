@@ -1,0 +1,211 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Steps, WranglerConfig } from "~/components";
+
+Sandbox SDK와 함께 첫 번째 응용 프로그램을 구축 - 안전한 코드 실행 환경. 이 가이드에서 Python 코드를 실행할 수 있는 Worker를 만들고 고립된 컨테이너에 있는 파일과 작업할 수 있습니다.
+
+:::주최\[건축]
+Python 코드를 안전하게 실행할 수 있는 간단한 API와 격리된 샌드박스 환경에서 파일 작업을 수행합니다.
+주요 특징
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+### Ensure Docker는 로컬로 실행됩니다.
+
+Sandbox SDK 사용[기타 제품](https://www.docker.com/)Worker와 함께 컨테이너 이미지를 구축합니다.
+
+<Render product="containers" file="docker-setup" />
+
+## 1. 새 프로젝트 만들기
+
+새로운 Sandbox SDK 프로젝트 만들기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"my-sandbox --template=cloudflare/sandbox-sdk/examples/minimal"} />
+
+이 생성`my-sandbox`필요한 모든 것을 가진 디렉토리:
+
+- `src/index.ts`- sandbox 통합 작업자
+- `wrangler.jsonc`- Workers 및 컨테이너 구성
+- `Dockerfile`- 컨테이너 환경 정의
+
+```sh
+cd my-sandbox
+```
+
+## 2. 템플릿 살펴보기
+
+템플릿은 핵심 sandbox 기능을 보여주는 최소 작업자를 제공합니다:
+
+```typescript
+import { getSandbox, proxyToSandbox, type Sandbox } from "@cloudflare/sandbox";
+
+export { Sandbox } from "@cloudflare/sandbox";
+
+type Env = {
+	Sandbox: DurableObjectNamespace<Sandbox>;
+};
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		const url = new URL(request.url);
+
+		//sandbox 인스턴스를 가져옵니다
+		const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+		//Python 코드 실행
+		if (url.pathname === "/run") {
+			const result = await sandbox.exec('python3 -c "print(2 + 2)"');
+			return Response.json({
+				output: result.stdout,
+				error: result.stderr,
+				exitCode: result.exitCode,
+				success: result.success,
+			});
+		}
+
+		//파일로 작업
+		if (url.pathname === "/file") {
+			await sandbox.writeFile("/workspace/hello.txt", "Hello, Sandbox!");
+			const file = await sandbox.readFile("/workspace/hello.txt");
+			return Response.json({
+				content: file.content,
+			});
+		}
+
+		return new Response("Try /run or /file");
+	},
+};
+```
+
+**주요 개념**:
+
+- `getSandbox()`- ID로 sandbox 인스턴스를 가져옵니다. 동일한 ID를 사용하여 요청에 따라 동일한 sandbox 인스턴스를 재사용합니다.
+- `sandbox.exec()`- sandbox에서 쉘 명령을 실행하고 stdout, stderr 및 종료 코드 캡처.
+- `sandbox.writeFile()` / `readFile()`- sandbox 파일 시스템에서 파일을 작성하고 읽으십시오.
+
+## 3. 로컬 테스트
+
+개발 서버 시작:
+
+```sh
+npm run dev
+#여러 sandbox 인스턴스를 가질 것으로 예상되는 경우 `max_instances`를 증가시킬 수 있습니다.
+```
+
+:::참조
+첫 번째 실행 Docker 컨테이너 구축 (2-3 분). 연속 실행은 캐싱으로 인해 훨씬 더 빠릅니다.
+주요 특징
+
+끝점을 시험하십시오:
+
+```sh
+#Python 코드 실행
+curl http://localhost:8787/run
+
+#파일 작업
+curl http://localhost:8787/file
+```
+
+명령 출력 및 파일 내용으로 JSON 응답을 볼 수 있습니다.
+
+## 4. 생산에 배포
+
+노동자와 용기를 배포하십시오:
+
+```sh
+npx wrangler deploy
+```
+
+이것은:
+
+1. Docker를 사용하여 컨테이너 이미지 구축
+2. Cloudflare의 컨테이너 등록
+3. 전 세계 Worker 배포
+
+:::카트로션\[제공]
+첫 번째 배포 후, 요청하기 전에 2-3 분을 기다립니다. Worker는 즉시 배포하지만, 컨테이너는 제공 시간을 필요로합니다.
+주요 특징
+
+설정 상태 확인:
+
+```sh
+npx wrangler containers list
+```
+
+## 5. 배포 테스트
+
+Worker URL을 방문하십시오. (출판 출력에 표시):
+
+```sh
+#실제 URL로 바꾸기
+curl https://my-sandbox.YOUR_SUBDOMAIN.workers.dev/run
+```
+
+sandbox는 이제 배포되고 격리 된 컨테이너에서 코드를 실행할 수 있습니다.
+
+:::note\[Preview URL은 사용자 정의 도메인을 요구합니다]
+sandboxes에서 포트를 노출 할 계획이라면 (사용`exposePort()`미리보기 URL), 당신은 와일드 카드 DNS 라우팅과 사용자 정의 도메인을 설정해야합니다. 더 보기`.workers.dev`도메인은 미리보기 URL에 필요한 하위 도메인 패턴을 지원하지 않습니다. 이름 \*[생산 Deployment](/sandbox/guides/production-deployment/)서비스를 노출 할 준비가되면.
+주요 특징
+
+## 구성 이해
+
+내 계정`wrangler.jsonc`함께 3 조각을 연결합니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"containers": [
+  		{
+  			"class_name": "Sandbox",
+  			"image": "./Dockerfile",
+  			"instance_type": "lite",
+  			"max_instances": 1,
+  		},
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"class_name": "Sandbox",
+  				"name": "Sandbox",
+  			},
+  		],
+  	},
+  	"migrations": [
+  		{
+  			"new_sqlite_classes": ["Sandbox"],
+  			"tag": "v1",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+- **회사 소개**- 현명한[컨테이너 이미지, 인스턴스 유형 및 리소스 제한](/workers/wrangler/configuration/#containers)당신의 sandbox 환경을 위해. 여러 sandbox 인스턴스를 가질 것으로 예상되는 경우 증가할 수 있습니다.`max_instances`.
+- **튼튼한 objects**- 당신은 익숙하지 않아[모델 번호: Durable Objects](/durable-objects)Sandbox SDK를 사용하지만, 좋아한다면,[Cloudflare 컨테이너 및 Durable ObjectsQ에 대해 자세히 알아보기](/containers/get-started/#each-container-is-backed-by-its-own-durable-object). 이 구성은[관련 제품](/workers/runtime-apis/bindings#what-is-a-binding)그것은`Sandbox`Worker 코드에서 접근 가능한 튼튼한 개체.
+- **회사연혁**- 등록`Sandbox`Sandbox SDK에 의해 구현되는 클래스,[SQLite 저장 백엔드](/durable-objects/best-practices/access-durable-objects-storage)(한 번 필요)
+
+환경변수, 비밀 및 사용자 정의 이미지를 포함한 상세한 구성 옵션은[Wrangler 윤곽 reference](/sandbox/configuration/wrangler/).
+
+## 다음 단계
+
+지금 당신은 작업 sandbox가, 더 많은 기능을 탐구:
+
+- [Workers AI를 가진 부호 해석기](/sandbox/tutorials/workers-ai-code-interpreter/)- AI-powered 코드 실행 시스템 구축
+- [명령 실행](/sandbox/guides/execute-commands/)- 쉘 명령 및 스트림 출력 실행
+- [파일 관리](/sandbox/guides/manage-files/)- 파일 및 디렉토리 작업
+- [Expose 서비스](/sandbox/guides/expose-services/)- sandbox에서 실행되는 서비스에 대한 공개 URL을
+- [생산 Deployment](/sandbox/guides/production-deployment/)- 미리보기 URL에 대한 사용자 정의 도메인 설정
+- [API reference](/sandbox/api/)- 완전한 API 문서

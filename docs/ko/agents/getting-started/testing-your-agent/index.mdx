@@ -1,0 +1,152 @@
+---
+title: Agents 테스트하기
+pcx_content_type: get-started
+sidebar:
+  order: 3
+---
+
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+Agents는 Cloudflare Workers와 Durable Objects 위에서 실행되므로, Workers와 Durable Objects를 테스트할 때 사용하는 동일한 도구와 기법으로 테스트할 수 있습니다.
+
+## 테스트 작성 및 실행
+
+### Setup
+
+:::note
+
+`agents-starter` 템플릿과 새 Cloudflare Workers 프로젝트에는 이미 관련 `vitest`, `@cloudflare/vitest-pool-workers` 패키지와 유효한 `vitest.config.js` 파일이 포함되어 있습니다.
+
+:::
+
+첫 번째 테스트를 작성하기 전에 필요한 패키지를 설치하세요.
+
+```sh
+npm install vitest@~3.0.0 --save-dev --save-exact
+npm install @cloudflare/vitest-pool-workers --save-dev
+```
+
+`vitest.config.js` 파일이 다음과 동일한지 확인하세요.
+
+```js
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		poolOptions: {
+			workers: {
+				wrangler: { configPath: "./wrangler.jsonc" },
+			},
+		},
+	},
+});
+```
+
+### Agent configuration 추가
+
+Agent class 이름으로 `vitest.config.js`에 `durableObjects` 구성을 추가하세요.
+
+```js
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		poolOptions: {
+			workers: {
+				main: "./src/index.ts",
+				miniflare: {
+					durableObjects: {
+						NAME: "MyAgent",
+					},
+				},
+			},
+		},
+	},
+});
+```
+
+### 테스트 작성
+
+:::note
+
+테스트 API reference와 고급 테스트 기법을 포함한 자세한 내용은 [Vitest documentation](https://vitest.dev/)를 참고하세요.
+
+:::
+
+테스트는 `vitest` 프레임워크를 사용합니다. 기본 테스트 스위트는 Agent가 요청에 어떻게 응답하는지를 검증할 수 있을 뿐 아니라, Agent 메서드와 상태에 대한 unit test도 수행할 수 있습니다.
+
+```ts
+import {
+	env,
+	createExecutionContext,
+	waitOnExecutionContext,
+	SELF,
+} from "cloudflare:test";
+import { describe, it, expect } from "vitest";
+import worker from "../src";
+import { Env } from "../src";
+
+interface ProvidedEnv extends Env {}
+
+describe("make a request to my Agent", () => {
+	// Unit testing approach
+	it("responds with state", async () => {
+		// Provide a valid URL that your Worker can use to route to your Agent
+		// If you are using routeAgentRequest, this will be /agent/:agent/:name
+		const request = new Request<unknown, IncomingRequestCfProperties>(
+			"http://example.com/agent/my-agent/agent-123",
+		);
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(await response.text()).toMatchObject({ hello: "from your agent" });
+	});
+
+	it("also responds with state", async () => {
+		const request = new Request("http://example.com/agent/my-agent/agent-123");
+		const response = await SELF.fetch(request);
+		expect(await response.text()).toMatchObject({ hello: "from your agent" });
+	});
+});
+```
+
+### 테스트 실행
+
+테스트 실행은 `vitest` CLI를 사용합니다.
+
+```sh
+$ npm run test
+# or run vitest directly
+$ npx vitest
+```
+
+```sh output
+  MyAgent
+    ✓ should return a greeting (1 ms)
+
+Test Files  1 passed (1)
+```
+
+추가 예시와 테스트 구성은 [documentation on testing](/workers/testing/vitest-integration/write-your-first-test/)를 참고하세요.
+
+## Agents 로컬 실행
+
+`wrangler` CLI로 Agent를 로컬에서 실행할 수도 있습니다.
+
+```sh
+$ npx wrangler dev
+```
+
+```sh output
+Your Worker and resources are simulated locally via Miniflare. For more information, see: https://developers.cloudflare.com/workers/testing/local-development.
+
+Your worker has access to the following bindings:
+- Durable Objects:
+  - MyAgent: MyAgent
+  Starting local server...
+[wrangler:inf] Ready on http://localhost:53645
+```
+
+이렇게 하면 Cloudflare Workers와 동일한 runtime을 실행하는 로컬 개발 서버가 올라가고, 배포 없이 Agent 코드를 반복 개발하고 테스트할 수 있습니다.
+
+CLI 플래그와 configuration options는 [`wrangler dev`](https://developers.cloudflare.com/workers/wrangler/commands/#dev) 문서를 참고하세요.

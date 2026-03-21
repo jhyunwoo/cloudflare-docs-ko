@@ -1,0 +1,360 @@
+---
+pcx_content_type: concept
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/115001635128-Configuring-Cloudflare-Rate-Limiting
+title: 비율 제한 (이전 버전)
+sidebar:
+  order: 3
+canonical: /waf/rate-limiting-rules/
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/reference/legacy/old-rate-limiting/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/reference/legacy/old-rate-limiting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+사이트맵 비율 제한 자동적으로 특정 URL 또는 전체 도메인에 대한 과도한 요청 비율을 식별하고 mitigates.
+
+:::카트로션
+
+이 페이지의 정보는 이전 버전의 비율 제한 규칙을 참조, 이는 사용에 따라 청구됩니다.
+
+Cloudflare는 모든 비율 제한 규칙을 업그레이드[새로운 버전의 비율 제한 규칙](/waf/rate-limiting-rules/). 새 버전에서 변경되는 것에 대한 자세한 내용은 참조[제한 속도 (이전 버전) 업그레이드](/waf/reference/legacy/old-rate-limiting/upgrade/).
+
+:::
+
+요청 비율은 개별 Cloudflare 데이터 센터에 로컬로 계산됩니다. 비율 제한을 위한 일반적인 용도는:
+
+- 관련 제품[DDoS 공격](https://www.cloudflare.com/learning/ddos/glossary/denial-of-service/)
+- 관련 제품[Brute-force 공격](https://www.cloudflare.com/learning/bots/brute-force-attack/)
+- 포럼 검색에 대한 제한 액세스, API 통화, 또는 소스는 데이터베이스 기반 작업에 참여
+
+개별 IPv4 주소 또는 IPv6가되면`/64`IP 범위는 규칙 임계값을 초과하며, 원래 서버의 요청은 차단됩니다.`HTTP 429`응답 상태 부호. 응답은 포함`Retry-After`클라이언트가 요청을 보낼 수 있을 때 나타내는 헤더.
+
+:::참조
+당신은 제한을 활성화하려고?[Enable Rate 제한](https://dash.cloudflare.com/?to=/:account/:zone/firewall/tools).
+:::
+
+### 제한 및 SEO 비율
+
+관련 리소스 및 알려진 검색 엔진 크롤러는 제한 규칙 (이전 버전 만)에서 면제됩니다. 그러므로, 그들은 당신의 웹사이트에 영향을 미치지 않습니다[SEO 순위](/fundamentals/performance/improve-seo/).
+
+***
+
+## 적용분야
+
+:::참조
+Cloudflare Rate Limiting (이전 버전)은 모든 고객 계획에 대한 부가 서비스이며,**보안 보안** > **사이트맵** > **비율 제한 규칙**.
+:::
+
+제한 규칙의 수는 도메인의 계획에 따라 다릅니다.
+
+| 계획하기    | 이름 \* | 응답 헤더 일치 규칙 | 관련 기사                                                                              | 활동 기간                                | 접수기간                               |
+| ------- | ----- | ----------- | ---------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------- |
+| 무료 다운로드 | 1     | 1           | 제품정보                                                                               | 1 분 또는 1 시간                          | 10 초 또는 1 분                        |
+| 지원하다    | 10    | 1           | Block, Non-Interactive Challenge, Managed Challenge, Interactive Challenge, 또는 로그인 | 1 분 또는 1 시간                          | 10 초 또는 1 분                        |
+| 회사연혁    | 15    | 10          | Block, Non-Interactive Challenge, Managed Challenge, Interactive Challenge, 또는 로그인 | 1 분, 1 시간, 또는 24 시간                  | 10 초, 1 분, 또는 10 분                 |
+| 회사 소개   | 100   | 10          | Block, Non-Interactive Challenge, Managed Challenge, Interactive Challenge, 또는 로그인 | 10 초와 86,400 초 사이 입력되는 어떤 내구 (24 시간) | 10 초와 3,600 초 사이 입력되는 어떤 가치 (1 시간) |
+
+사이트맵 비율 제한은 도메인 Cloudflare 계획에 따라 구성 제어의 여러 수준을 지원합니다. 아래 표는 계획에 따라 할 수있는 것을 알아냅니다 :
+
+| 이름 \* | 기타                                                                                       | 이용안내         |
+| ----- | ---------------------------------------------------------------------------------------- | ------------ |
+| 1     | [기본 속도 제한 규칙 구성](#task-1-configure-a-basic-rate-limiting-rule)                           | 모든 계획        |
+| 2     | [고급 Criteria 구성](#task-2-configure-advanced-criteria-only-business-and-enterprise-plans) | 비즈니스 및 기업 계획 |
+| 3     | [고급 응답 구성](#task-3-configure-advanced-response-only-business-and-enterprise-plans)       | 비즈니스 및 기업 계획 |
+| 4     | [Bypass 옵션 구성](#task-4-configure-the-bypass-option-enterprise-plans-only)                | 기업 계획        |
+
+***
+
+## 비율 제한 규칙의 성분
+
+제한 규칙의 비율은 3개의 명백한 성분으로 이루어져 있습니다:
+
+- [견적 요청](#request-matching-criteria)
+- [비율 일치 기준](#rate-matching-criteria)
+- [규칙 완화](#rule-mitigation)
+
+### 견적 요청
+
+수신 요청은 요청 경로, 요청 계획, 요청 방법 및 (선택) 기원 응답 코드에 따라 일치합니다.
+
+#### 자주 묻는 질문
+
+예를 들면:
+
+- `http://example.com/example`
+- `http://example.com/example/*`
+
+요청 경로는 불균형입니다. 패턴은 쿼리 문자열 후 콘텐츠를 일치 할 수 없습니다 (`?`) 또는 닻 (`#`). 아스테리아크 (Asterisk)`*`) 빈 순서를 포함하여 문자의 어떤 순서도 일치합니다. 예를 들면:
+
+- `*.example.com/*`모든 하위 도메인에 어떤 경로 일치`example.com`.
+- `*example.com/example.html`이름 \*`example.html`에 의해`example.com`또는 어떤 하위 도메인`example.com`.
+- `*`당신의 사이트에 어떤 페이지 일치.
+
+요청사항`example.com/path`동일하지 않습니다.`example.com/path/`. 이 규칙에만 예외는 홈페이지:`example.com`이름 \*`example.com/`.
+
+#### 자주 묻는 질문
+
+*HTTP: HTTP*또는*다운로드*. 지정되지 않은 경우, 둘 다 일치하고, 규칙은   ALL  를 나열합니다.
+
+#### 자주 묻는 질문
+
+*사이트맵*또는*이름 \**. 지정되지 않은 경우, 모든 방법은 일치하고 규칙은   ALL  를 나열합니다.
+
+#### (선택) 근원 응답 부호
+
+예를 들어, Origin 서버가 반환할 때만 제한 규칙과 일치`HTTP 401`또는`403`상태 코드. 응답 코드 표준 블록에 일치하는 트리거 된 규칙은 원래 응답 코드에 관계없이 클라이언트에서 후속 요청을 차단합니다.
+
+### 비율 일치 기준
+
+규칙은 동일한 클라이언트에서 오는 모든 요청의 수와 시간 기간에 일치할 수 있습니다.
+
+#### 요청의 수
+
+최소 2개의 요청을 지정합니다. 단일 요청 차단을 위해, 경로를 사용할 수 없음 — 예를 들어, 원래 서버를 구성하여 반환`HTTP 403`상태 코드.
+
+#### 접수 기간
+
+클라이언트 요청이 지정된 기간 동안 임계값을 초과하면 규칙 트리거.
+
+### 규칙 완화
+
+규칙 완화는 완화 활동과 금지 기간으로 구성됩니다.
+
+#### Mitigation 활동
+
+비율 제한 작업은 도메인 계획에 따라 언급 된대로[적용분야](#availability):
+
+- **제품정보**: Cloudflare 문제`HTTP 429`임계 값이 초과될 때 오류.
+- **비동기 도전**: Cloudflare 비동기적인 도전을 통과해야 합니다. 통과하면 Cloudflare는 요청을 허용합니다.
+- **관리 도전**: Cloudflare에 의해 동적 선택된 도전을 전달해야 합니다. 통과하면 Cloudflare는 요청을 허용합니다.
+- **대화 도전**: 방문객은 Interactive Challenge를 통과해야합니다. 통과하면 Cloudflare는 요청을 허용합니다.
+- **로그인**: 로그인[Cloudflare 로그](/logs/). 이것은 생산에 적용하기 전에 시험 규칙을 돕습니다.
+
+도전 과제에 대한 자세한 내용은, 참조[공지사항](/cloudflare-challenges/).
+
+#### 반 기간
+
+임계값보다 타임아웃 단축을 설정하면 API를 자동으로 임계값과 같은 타임아웃을 증가시킵니다.
+
+방문자는 속도 제한을 타격하는 기본 HTML 페이지를받을 경우[오류 페이지](/rules/custom-errors/)지정되지 않습니다. 또한 Business 및 Enterprise 고객은 규칙 자체에 대한 응답을 지정할 수 있습니다. 더 알아보기[고급 응답 구성](#task-3-configure-advanced-response-only-business-and-enterprise-plans)상세 정보
+
+***
+
+## rate-limit 임계 값 식별
+
+Cloudflare Rate Limiting의 일반 임계값을 식별하려면 24시간 동안 고유한 방문자가 웹 사이트 요청의 24시간을 나눕니다. 그때, 방문의 예상 평균 분에 의해 분할. 마지막으로, 4 (더 큰)에 의해 곱하여 웹 사이트에 대한 분 당 추정 된 임계 값을 설정합니다. 4보다 더 높은 값은 대부분의 공격이 일반적인 교통 요금보다 큰 규모의 순서이기 때문에 벌금입니다.
+
+특정 URL에 대한 URL 비율 제한을 식별하려면 특정 URL에 대한 24 시간의 요청 및 고유 방문자를 사용하십시오. 사용자 보고서 및 자체 모니터링에 기반한 임계값을 조정합니다.
+
+***
+
+## Task 1: 기본 속도 제한 규칙 구성
+
+다음 섹션은 두 가지 일반적인 유형의 비율 제한 규칙을 포함합니다.
+
+### 자주 묻는 질문
+
+제한 속도는 원클릭**자주 묻는 질문**5 분 이내에 5 POST 요청을 보낼 때 15 분 동안 클라이언트를 차단하는 규칙을 만듭니다. 이것은 대부분의 brute-force 시도를 차단하는 충분하다.
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정과 도메인을 선택합니다.
+2. 오시는 길**보안 보안** > **사이트맵** > **비율 제한 규칙**.
+3. 이름 \***비율 제한**, 선택**자주 묻는 질문**.
+4. 이름 \***규칙 이름**·**로그인 URL을 입력**내 계정**자주 묻는 질문**대화 상자.
+5. 제품정보**제품 정보**.
+6. 더 보기**규칙 이름**내 계정**비율 제한**규칙 목록.
+
+### 사용자 정의 속도 제한 규칙 만들기
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정과 도메인을 선택합니다.
+
+2. 오시는 길**보안 보안** > **사이트맵** > **비율 제한 규칙**.
+
+3. 제품정보**제한 규칙을 창조**. 새 규칙의 세부 사항을 지정하는 대화 상자가 열립니다.
+
+   ![규칙을 제한하는 비율 생성 팝업 대화 상자 예 규칙 구성. 규칙은 1 시간 동안 150 요청을 초과하는 IP 주소에서 요청을 차단합니다.](~/assets/images/waf/reference/legacy/old-rate-limiting-create-rule.png)
+
+4. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+5. 제품 정보**URL을 일치하는 경우**, 드롭다운에서 HTTP 계획을 선택하고 URL을 입력하십시오.
+
+6. 내 계정**동일한 IP 주소에서 초과**, 1보다 더 큰 정수를 입력하여 샘플링 기간에 요청의 번호를 나타냅니다.
+
+7. 제품 정보**당 요청**, 샘플링 기간을 선택하십시오 (요청 기간 중). 엔터프라이즈 계획의 도메인은 수동으로 10 초와 3,600 초 사이의 기간을 입력 할 수 있습니다 (1 시간).
+
+8. 제품 정보**다음 것**, 당신의 계획에 따라 가능한 행동 중 하나를 선택합니다. 자주 묻는 질문[규칙 완화](#rule-mitigation)자세한 내용은 섹션.
+
+9. 선택한 경우*제품정보*또는*로그인*, 를 위해**해당 방문자의 일치 트래픽**, 임계 값이 트리거 된 한 번 옵션을 적용하는 방법을 선택하십시오. 엔터프라이즈 계획의 도메인은 10 초와 86,400 초 (24 시간) 사이의 값을 입력 할 수 있습니다.
+
+10. 새로운 규칙을 활성화하려면, 선택**저장 및 배포**.
+
+새로운 규칙은 제한 규칙 목록에서 나타납니다.
+
+:::참조
+규칙을 제한하는 속도에 대한 모든 변경은 현재 트리거 된 행동을 명확하게합니다. 지속적인 공격을 완화하는 규칙을 제한 할 때 관리하십시오.
+주요 특징
+
+일반적으로 더 낮은 임계값을 설정할 때:
+
+1. 기존 규칙을 배치하고 더 낮은 임계값으로 새로운 규칙을 추가하십시오.
+2. 새로운 규칙이 일어났을 때, 이전 규칙을 삭제하기 전에 이전 규칙의 작용 기간을 기다립니다.
+
+더 높은 임계값을 설정할 때 ( 합법적인 클라이언트 차단), 기존 규칙 내에서 임계값을 증가.
+
+***
+
+## 과제 2: 고급 표준(Business and Enterprise plans) 구성
+
+더 보기**고급 Criteria**옵션은 HTTP 방법, 헤더 응답 및 소스 응답 코드가 제한 규칙에 일치하도록 구성합니다.
+
+새로운 또는 기존 규칙에 대한 고급 기준을 구성하려면:
+
+1. 지원하다**고급 Criteria**.
+
+   ![Advanced Criteria를 설정할 때 사용할 수 있는 필드는 제한 규칙을 위해 지정합니다.](~/assets/images/waf/reference/legacy/old-rate-limiting-advanced-criteria.png)
+
+2. 가치 선택**방법 (s)**. 기본 값은*이름 \**&#xBAA8;든 HTTP 메소드와 일치합니다.
+
+3. 필터 로**HTTP 응답 헤더 (s)**. 선택**헤더 응답 필드 추가**웹 서버가 반환된 헤더를 포함합니다.
+
+   더 보기`CF-Cache-Status`헤더가 기본적으로 나타나므로 Cloudflare는 이러한 리소스를 제한하는 것보다 캐시 된 리소스를 제공합니다. 또한 속도 제한 캐시 된 리소스, 선택하여이 헤더를 제거**사이트맵**또는 활성화**또한 캐시된 자산에 대한 비율 제한 적용**.
+
+   아래 1개의 헤더가 있는 경우**HTTP 응답 헤더 (s)**·*이름 \**&#x62;oolean 논리가 적용됩니다. 헤더를 제외하려면*이름 \**&#xC635;션. 각 우두머리는 불균성 케이스입니다.
+
+4. 이름 \***근원 응답 부호 (s)**, 각 HTTP 응답 부호의 숫자값을 일치하기 위하여 입력하십시오. comma (예:`401, 403`).
+
+5. (선택 사항) 플랜에 따라 추가 요금 제한 기능을 구성합니다.
+
+6. 제품정보**저장 및 배포**.
+
+***
+
+## 작업 3 : 고급 응답 구성 (사업 및 기업 계획 만)
+
+더 보기**고급 응답**옵션은 규칙의 임계값이 초과될 때 Cloudflare에 의해 반환된 정보 형식을 구성합니다. 제품 정보**고급 응답**정적 일반 텍스트 또는 JSON 콘텐츠를 반환하려면.
+
+일반 텍스트 또는 JSON 응답을 구성하려면:
+
+1. 지원하다**고급 응답**.
+
+   ![레이트 제한 규칙에 대한 사전 응답을 구성 할 때 사용 가능한 필드.](~/assets/images/waf/reference/legacy/old-rate-limiting-advanced-response.png)
+
+2. 선택하기**응답 유형**기본 이외의 형식 :*사용자 정의 JSON*또는*주문 TEXT*.
+
+3. 반환하려면 일반 텍스트 또는 JSON 응답을 입력하십시오. 최대 응답 크기는 32 KB입니다.
+
+4. (선택 사항) 플랜에 따라 추가 요금 제한 기능을 구성합니다.
+
+5. 제품정보**저장 및 배포**.
+
+### HTML 페이지 또는 리디렉션을 사용하여
+
+사용자 지정 HTML 페이지를 표시하려면 사용자 지정 페이지를 구성`HTTP 429`오류 (`Too many requests`대시보드에 ). Cloudflare를 선택하면 이 페이지를 표시합니다.*과태 Cloudflare 비율 제한 페이지*내 계정**응답 유형**(분야의 기본 값).
+
+특정 URL에 rate-limited 클라이언트를 리디렉션하는 다음 방법을 사용할 수 있습니다.
+
+1. 표시하려는 페이지의 마지막 URL로 리디렉션할 서버에서 HTML 페이지를 만듭니다. 다음 것[뚱 베어`refresh`](https://www.w3.org/TR/WCAG20-TECHS/H76.html)페이지 내용에 태그, 다음과 같은 예에서:
+
+   ```html
+   <!doctype html>
+   <html>
+   	<head>
+   		<meta charset="utf-8" />
+   		<title>Custom RL page</title>
+   		<meta
+   			http-equiv="refresh"
+   			content="0; url='https://yourzonename/block'"
+   		/>
+   	</head>
+
+   	<body></body>
+   </html>
+   ```
+
+   작성된 페이지의 공개 URL을 참고하세요.
+
+2. Cloudflare 대시보드에서**계정 설정**사이트 맵
+
+   <DashButton url="/?to=/:account/configurations" />
+
+3. 오시는 길**오류 Pages**.
+
+4. 이름 \***비율 제한 구획**, 3개의 점을 선정하십시오 >**제품정보**.
+
+5. 제품정보**주문 페이지**.
+
+6. 내 계정**주문 페이지 주소**, 서버에서 생성 된 페이지의 URL을 입력 - 메타를 포함하는 페이지`refresh`태그.
+
+7. 제품정보**제품 정보**.
+
+일반 텍스트 또는 JSON 콘텐츠를 반환하려는 경우 동일한 접근 방식을 따르지만 응답은 32 KB보다 크다. 이 경우 리디렉션 URL은 일반 텍스트 또는 JSON 리소스의 URL이 표시되고 싶습니다.
+
+:::주\[주]
+
+- 제한 규칙을 제한하면 사용자 정의 HTML 페이지에 포함 된 리디렉션 URL과 일치해야합니다.`429`오류.
+- denial-of-service (DoS) 공격으로부터 보호하려면 리디렉션의 페이지는 Cloudflare에 의해 캐시 된 리소스를 포함해야합니다.
+
+:::
+
+***
+
+## Task 4: Bypass 옵션을 구성 (Enterprise 계획 만)
+
+**비밀번호**허용 목록 또는 예외를 작성하여 해당 URL의 특정 설정에 해당하지 않습니다.
+
+설정하기**비밀번호**:
+
+1. 지원하다**비밀번호**.
+
+2. 내 계정**이 URL에 대한 우회 규칙**, URL(s)을 입력하여 제한 규칙을 면제합니다. 자신의 줄에 각 URL을 입력하십시오. URL에 지정된 HTTP 또는 HTTPS는 규칙이 저장되고 대신 HTTP와 HTTPS에 적용 할 때 자동으로 제거됩니다.
+
+   ![제한 규칙을 우회하는 두 URL을 구성 (라인당 하나).](~/assets/images/waf/reference/legacy/old-rate-limiting-bypass.png)
+
+3. (선택 사항) 플랜에 따라 추가 요금 제한 기능을 구성합니다.
+
+4. 제품정보**저장 및 배포**.
+
+***
+
+## 회사 소개
+
+영역의 제한 분석 보기**Analytics 및 로그** > **보안 보안**. rate Limiting analytics는 가장된 요청과 dotted line과 일치하는 트래픽을 나타내는 고체 라인을 사용하여 실제 차단된 요청을 사용합니다. 제한 규칙에 의해 생성 된 로그는 Enterprise 고객에게만 볼 수 있습니다.[Cloudflare 로그](/logs/).
+
+Cloudflare 반환`HTTP 429`차단된 요청에 대한 오류. 위치 당 차단된 요구에 세부사항은 밑에 기업 고객에게 제공됩니다**상태 코드**분석 대시보드에서 사용 가능**회사 소개** > **교통안내**.
+
+:::참조
+`HTTP 429`웹 사이트 방문자에 전송 된 응답은 어떤 포함`HTTP 429`응답은 Origin 서버가 자체 속도 제한을 적용하면 원래에서 반환됩니다.
+주요 특징
+
+***
+
+## 규칙 실행의 순서
+
+가장 최근에 만들어진 규칙에서 평가되는 비율 제한 규칙.
+
+예를 들어, 요청이 다음 두 가지 규칙에 일치하면:
+
+- 규칙 #1: 일치`test.example.com`(2024-03-01에 창조하는)
+- 규칙 #2: 일치`*.example.com*`(2024-03-12에 창조하는)
+
+그런 다음 규칙 #2는 마지막으로 생성 된 때문에 먼저 방아쇠합니다.
+
+또한 경기가있을 때 WAF가 적용됩니다.*로그인*행동, 그것은 계속 다른 비율 제한 규칙을 평가, 이후*로그인*non-terminating 동작입니다. WAF가 다른 행동을 적용하면 다른 규칙이 평가되지 않습니다.
+
+***
+
+## 제한 사항
+
+Rate Limiting은 사용자 정의 비율을 초과하는 트래픽에서 큰 파도를 제한하도록 설계되었습니다. 시스템은 원래 서버에 도달하기 위해 정확한 요청 수를 허용하도록 설계되었습니다. 지연이 요청을 감지하고 내부 카운터를 업데이트하는 사이에 소개되는 경우가 있습니다. 이 지연 때문에, 몇 초까지 할 수 있습니다, 과잉 요청은 여전히 차단 또는 도전과 같은 행동의 기원에 도달 할 수 있습니다.
+
+***
+
+## 관련 자료
+
+- [문제 해결 비율 제한 (이전 버전)](/waf/reference/legacy/old-rate-limiting/troubleshooting/)
+- [Cloudflare API를 통한 비율 제한](/api/resources/rate_limits/methods/create/)

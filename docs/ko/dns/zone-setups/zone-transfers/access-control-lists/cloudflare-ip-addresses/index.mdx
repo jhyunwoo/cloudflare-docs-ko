@@ -1,0 +1,74 @@
+---
+pcx_content_type: reference
+title: Cloudflare IP 주소
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: Cloudflare IP 주소 - 접근 제어 목록(ACL)
+
+---
+
+Access Control List(ACL)는 서버가 들어오는 데이터나 제어 메시지를 허용할 원본 IP 주소를 정의합니다.
+
+새 DNS zone transfer(incoming 또는 outgoing)를 설정할 때는, Cloudflare와의 통신이 차단되지 않도록 다른 DNS 제공자의 ACL을 업데이트해야 합니다.
+
+설정 방식([Cloudflare as Primary](#cloudflare-as-primary) 또는 [Cloudflare as Secondary](#cloudflare-as-secondary))에 따라 다른 DNS 제공자에서 구성해야 하는 Cloudflare IP 주소가 조금씩 다릅니다.
+
+## Cloudflare as Primary
+
+Cloudflare를 Primary DNS로 사용하는 경우, 즉 Cloudflare가 [나가는 zone transfer](/dns/zone-setups/zone-transfers/cloudflare-as-primary/)를 보내도록 설정하는 경우에는 secondary DNS 제공자 쪽에서 아래 설정을 업데이트해야 합니다.
+
+### 허용 범위
+
+Cloudflare의 NOTIFY 메시지는 다음 IP prefix에서 발생합니다. 이 범위는 secondary DNS 서버에서 허용되어야 합니다.
+
+```txt
+198.41.144.240/28
+198.41.150.240/28
+2a06:98c0:3601::/48
+2a06:98c0:1401::/48
+```
+
+### Transfer IP
+
+Cloudflare는 이 IP 주소에서 secondary DNS 서버의 AXFR/IXFR zone transfer 요청과 SOA 쿼리를 수신합니다.
+
+```txt
+172.65.64.6
+```
+
+## Cloudflare as Secondary
+
+Cloudflare를 Secondary DNS로 사용하는 경우, 즉 Cloudflare가 [들어오는 zone transfer](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/)를 수신하도록 설정하는 경우에는 primary DNS 제공자 쪽에서 아래 설정을 업데이트해야 합니다.
+
+### 허용 범위
+
+Cloudflare의 AXFR/IXFR zone transfer 요청은 다음 IP prefix에서 발생합니다. 이 범위는 primary DNS 서버에서 허용되어야 합니다.
+
+```txt
+198.41.144.240/28
+198.41.150.240/28
+2a06:98c0:3601::/48
+2a06:98c0:1401::/48
+```
+
+### Notify IP
+
+Notify IP는 Cloudflare Secondary DNS에 알림을 보내 primary DNS 서버에서 새 zone 정보를 가져오도록 시작시키는 IP 주소입니다.
+
+```txt
+172.65.30.82
+172.65.50.145
+2606:4700:60:0:317:26ee:3bdf:5774
+2606:4700:60:0:35a:4be3:4144:c5ee
+```
+
+### Bind 서버 구성
+
+기본(primary) BIND 서버를 실행하려면 zone 파일에 다음 구문을 추가합니다.
+
+```txt
+allow-transfer {198.41.144.240/28;198.41.150.240/28;2a06:98c0:3601::/48;2a06:98c0:1401::/48;}
+also-notify { 172.65.30.82;172.65.50.145;2606:4700:60:0:317:26ee:3bdf:5774;2606:4700:60:0:35a:4be3:4144:c5ee;}
+```

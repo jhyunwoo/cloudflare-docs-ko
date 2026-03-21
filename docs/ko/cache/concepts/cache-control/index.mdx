@@ -1,0 +1,334 @@
+---
+title: Origin Cache Control
+pcx_content_type: concept
+head:
+  - tag: title
+    content: Origin Cache Control
+
+---
+
+import { Details } from "~/components"
+
+Origin Cache Control은 Cloudflare 기능입니다. Enterprise 고객 웹사이트에서 이 기능이 활성화되면 Cloudflare가 오리진 서버에서 받은 `Cache-Control` 지시어를 엄격히 준수해야 함을 의미합니다. Free, Pro, Business 고객은 이 기능이 기본적으로 활성화되어 있습니다.
+
+오리진 서버의 HTTP 응답에 포함된 `Cache-Control` 지시어는 Cloudflare 같은 중간 서비스에 구체적인 [캐싱 지침](https://datatracker.ietf.org/doc/html/rfc7234)을 제공합니다.
+
+Origin Cache Control 기능이 활성화되면 오리진 서버 응답에 포함된 `Cache-Control` 지시어가 지정된 대로 적용됩니다. 예를 들어 응답에 `max-age` 지시어가 3,600초로 포함되어 있으면, Cloudflare는 오리진 서버에 다시 업데이트를 확인하기 전에 그 기간 동안 해당 리소스를 캐시합니다.
+
+Cloudflare의 [Cache Rules](/cache/how-to/cache-rules/)는 사용자가 오리진 서버의 `Cache-Control` 헤더 또는 Cloudflare가 설정한 [기본 정책](/cache/concepts/default-cache-behavior/)을 보강하거나 재정의할 수 있게 해줍니다.
+
+다음 섹션에서는 다음 내용을 자세히 설명합니다.
+
+* 가장 일반적인 `Cache-Control` 지시어
+* Origin Cache Control을 활성화하는 방법
+* `Cache-Control` 지시어와 함께 Origin Cache Control이 어떻게 동작하는지
+* 다른 Cloudflare 제품이 `Cache-Control` 지시어와 어떻게 상호작용하는지
+
+<div id="cache-control-directives"></div>
+
+## `Cache-Control` 지시어
+
+`Cache-Control` 헤더는 여러 지시어를 포함할 수 있으며, 이 지시어는 누가 리소스를 캐시할 수 있는지와 리소스를 업데이트해야 하기 전까지 얼마나 오래 캐시할 수 있는지를 결정합니다.
+
+:::note[참고]
+
+
+오리진 서버의 `Cache-Control` 지시어에 대한 자세한 내용은 [Mozilla Cache-Control 문서](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Cache-Control)를 참고하세요.
+
+
+:::
+
+여러 지시어가 함께 전달되면 각 지시어는 쉼표로 구분됩니다. 지시어가 인수를 받는 경우 등호로 구분되어 뒤따릅니다. 예: `max-age=86400`.
+
+지시어는 네 그룹으로 나눌 수 있습니다. [cacheability](/cache/concepts/cache-control/#cacheability), [expiration](/cache/concepts/cache-control/#expiration), [revalidation](/cache/concepts/cache-control/#revalidation), [other](/cache/concepts/cache-control/#other)입니다.
+
+<div id="cacheability"></div>
+
+### 캐시 가능성
+
+캐시 가능성은 리소스가 캐시에 들어가야 하는지 여부를 의미하며, 아래 지시어는 리소스의 캐시 가능 여부를 나타냅니다.
+
+* `public` — 응답이 일반적으로 캐시할 수 없거나 개인 캐시에서만 캐시 가능한 경우에도 어떤 캐시든 응답을 저장할 수 있음을 나타냅니다.
+* `private` — 응답 메시지가 브라우저 캐시처럼 단일 사용자를 위한 것이며 Cloudflare나 기업 프록시 같은 공유 캐시에 저장되어서는 안 됨을 나타냅니다.
+* `no-store` — 클라이언트 또는 프록시 캐시 같은 어떤 캐시도 즉시 요청 또는 응답의 어떤 부분도 저장해서는 안 됨을 나타냅니다.
+
+<div id="expiration"></div>
+
+### 만료
+
+만료는 리소스가 캐시에 얼마나 오래 머물러야 하는지를 의미하며, 아래 지시어는 리소스가 캐시에 머무는 시간에 영향을 줍니다.
+
+:::note[참고]
+
+
+Cloudflare는 Cloudflare의 [Browser Cache TTL](/cache/how-to/edge-browser-cache-ttl/)과 `max-age` 헤더 중 더 큰 값을 따릅니다. `s-maxage`와 `max-age` `Cache-Control` 헤더를 각각 사용하면 Cloudflare Edge Cache TTL과 Browser Cache TTL을 서로 다르게 동시에 지정할 수도 있습니다.
+
+Origin Cache Control을 사용하면서 `max-age=0`을 설정하면 Cloudflare는 캐시 후 재검증을 선호합니다. Origin Cache Control이 꺼져 있고 `max-age=0`이면 Cloudflare는 캐시를 우회합니다.
+
+Origin Cache Control이 꺼진 상태에서 `no-cache`를 설정하면 Cloudflare는 캐시하지 않습니다. Origin Cache Control이 켜진 상태에서 `no-cache`를 설정하면 Cloudflare는 캐시하고 항상 재검증합니다.
+
+
+:::
+
+* `max-age=seconds` — 응답의 나이가 지정된 초 수보다 커지면 응답이 오래된 것으로 간주됨을 나타냅니다. 나이는 자산이 오리진 서버에서 제공된 시점 이후의 초 단위 시간으로 정의됩니다. `seconds` 인수는 따옴표 없는 정수입니다.
+* `s-maxage=seconds` — 공유 캐시에서 이 지시어가 지정한 최대 수명이 `max-age` 지시어나 `Expires` 헤더 필드가 지정한 최대 수명을 재정의함을 나타냅니다. `s-maxage` 지시어는 또한 proxy-revalidate 응답 지시어의 의미를 내포합니다. 브라우저는 `s-maxage`를 무시합니다.
+* `no-cache` — 오리진 서버에서 성공적으로 검증하지 않고서는 응답을 후속 요청에 사용할 수 없음을 나타냅니다. 이를 통해 오리진 서버는 오래된 응답을 보내도록 구성된 캐시를 포함해, 자신과 접촉하지 않은 채 요청을 처리하는 것을 막을 수 있습니다.
+
+오리진 서버에서 HTTP `Expires` 헤더를 설정할 때는 [RFC 2616](https://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3 "3.3.1 Full Date")에 명시된 대로 Greenwich Mean Time(GMT)을 사용하도록 하세요.
+
+<div id="revalidation"></div>
+
+### 재검증
+
+재검증은 리소스가 만료되었을 때 캐시가 어떻게 동작해야 하는지를 결정하며, 아래 지시어는 재검증 동작에 영향을 줍니다.
+
+* `must-revalidate` — 리소스가 오래된 상태가 되면 캐시(클라이언트 또는 프록시)는 오리진 서버에서 성공적으로 검증하지 않고 후속 요청을 처리하기 위해 응답을 사용해서는 안 됨을 나타냅니다.
+* `proxy-revalidate` — `must-revalidate` 응답 지시어와 동일한 의미를 가지지만 개인 클라이언트 캐시에는 적용되지 않습니다.
+* `stale-while-revalidate=<seconds>` — HTTP 응답에 포함되면, 캐시가 리소스가 만료된 뒤에도 표시된 초 수까지 해당 응답을 제공할 수 있음을 나타냅니다. [Always Online](/cache/how-to/always-online/)이 활성화되어 있으면 `stale-while-revalidate`와 `stale-if-error` 지시어는 무시됩니다. 이 지시어는 Cache API 메서드 `cache.match` 또는 `cache.put`를 사용할 때는 지원되지 않습니다. 자세한 내용은 [Workers의 Cache API 문서](/workers/runtime-apis/cache/#methods)를 참고하세요.
+
+:::note
+`stale-while-revalidate`는 이제 완전히 비동기식입니다. 만료 후 첫 번째 요청이 백그라운드에서 재검증을 트리거하고, 블로킹되는 대신 곧바로 `UPDATING` 상태와 함께 오래된 콘텐츠를 받습니다. 재검증 중의 모든 요청은 오리진이 응답할 때까지 `UPDATING` 상태의 오래된 콘텐츠를 받고, 이후에는 `HIT`를 받습니다.
+
+자세한 내용은 [Revalidation](/cache/concepts/revalidation/#asynchronous-revalidation)을 참고하세요.
+:::
+
+* `stale-if-error=<seconds>` — 오류가 발생했을 때 다른 신선도 정보와 무관하게 캐시된 오래된 응답을 요청 처리에 사용할 수 있음을 나타냅니다. 이 동작을 피하려면 오리진에서 반환하는 객체에 `stale-if-error=0` 지시어를 포함하세요. 이 지시어는 Cache API 메서드 `cache.match` 또는 `cache.put`를 사용할 때는 지원되지 않습니다. 자세한 내용은 [Workers의 Cache API 문서](/workers/runtime-apis/cache/#methods)를 참고하세요.
+
+[Always Online](/cache/how-to/always-online/)이 활성화되어 있거나 명시적인 프로토콜 내 지시어가 전달되면 `stale-if-error` 지시어는 무시됩니다. 명시적인 프로토콜 내 지시어의 예로는 `no-store` 또는 `no-cache cache` 지시어, `must-revalidate` cache-response-directive, 적용 가능한 `s-maxage` 또는 `proxy-revalidate` cache-response-directive가 있습니다.
+
+<div id="other"></div>
+
+### 기타
+
+캐시 동작에 영향을 주는 추가 지시어는 다음과 같습니다.
+
+* `no-transform` — 캐시를 구현하는지 여부와 관계없이 중간자가 페이로드를 변환해서는 안 됨을 나타냅니다.
+* `vary` — Cloudflare는 캐싱 결정에서 vary 값을 고려하지 않습니다. 다만 [Vary for images](/cache/advanced-configuration/vary-for-images/)가 구성되어 있을 때와 vary 헤더가 [`vary: accept-encoding`](/speed/optimization/content/compression/)일 때는 vary 값을 존중합니다.
+* `immutable` — 클라이언트에 응답 본문이 시간이 지나도 바뀌지 않음을 알립니다. 리소스가 아직 만료되지 않았다면 서버에서 변경되지 않은 것입니다. 사용자가 명시적으로 페이지를 새로 고치더라도 `If-None-Match` 또는 `If-Modified-Since` 같은 조건부 재검증 요청을 보내 업데이트를 확인해서는 안 됩니다. 이 지시어는 Cloudflare 같은 공용 캐시에는 영향을 주지 않지만 브라우저 동작은 변경합니다.
+
+### `no-store`와 `no-cache` 지시어 이해하기
+
+`Cache-Control: no-store`와 `Cache-Control: no-cache` 지시어가 브라우저 캐싱과 [Back-Forward Cache](https://developer.mozilla.org/en-US/docs/Glossary/bfcache)(BFCache) 같은 기능에 어떤 영향을 주는지에 대해 혼동이 자주 발생합니다.
+
+#### `no-store`
+
+- 브라우저와 CDN 같은 중간자 모두에게 어떤 상황에서도 응답 사본을 저장하지 말라고 지시합니다.
+- 응답은 디스크나 메모리에 절대 기록되지 않으므로 브라우저는 매번 다시 가져와야 합니다.
+- 많은 브라우저에서 `no-store`는 BFCache를 비활성화합니다. BFCache에서 페이지를 복원하려면 브라우저가 페이지 메모리 상태 사본을 유지해야 하는데, 이는 "저장하지 말라"는 지시와 상충하기 때문입니다.
+- 이 지시어는 매우 민감하거나 동적인 데이터(예: 은행 앱, 개인 정보, 보안 대시보드)에 사용됩니다.
+
+#### `no-cache`
+
+- 응답을 저장하는 것은 허용하지만(브라우저 및 중간 캐시 모두), 사용하기 전에 오리진 서버와 재검증해야 합니다.
+- 이를 통해 콘텐츠를 항상 최신 상태로 유지하면서도 BFCache 또는 기타 성능 최적화를 여전히 활용할 수 있습니다.
+- 이 지시어는 자주 바뀌지만 민감하지 않은 데이터에 사용되며, 다시 다운로드하는 것보다 검증 후 제공하는 편이 더 빠를 수 있습니다.
+
+Origin Cache Control이 활성화되었을 때와 비활성화되었을 때 이러한 지시어가 어떻게 동작하는지에 대한 자세한 내용은 [Directives](/cache/concepts/cache-control/#directives) 섹션을 참고하세요.
+
+<div id="enable-origin-cache-control"></div>
+
+## Origin Cache Control 활성화
+
+Origin Cache Control을 활성화하면 Cloudflare는 [RFC 7234](https://datatracker.ietf.org/doc/html/rfc7234)를 엄격히 준수하려고 합니다. Enterprise 고객은 [대시보드](/cache/how-to/cache-rules/settings/#origin-cache-control-enterprise-only) 또는 [API](/cache/how-to/cache-rules/settings/#origin-cache-control-enterprise-only)를 통해 웹사이트에서 Origin Cache Control을 활성화하거나 비활성화할 수 있습니다. Free, Pro, Business 고객은 이 옵션이 기본적으로 활성화되어 있으며 비활성화할 수 없습니다.
+
+## Origin Cache Control 동작
+
+다음 섹션은 Origin Cache Control을 활성화하거나 비활성화할 때 관련된 지시어와 동작 조건을 다룹니다.
+
+<div id="directives"></div>
+
+### 지시어
+
+아래 표는 Origin Cache Control이 비활성화된 경우와 활성화된 경우 각각의 지시어 동작을 보여줍니다.
+
+| Directive                 | Origin Cache Control Disabled Behavior            | Origin Cache Control Enabled Behavior                                                                                                           |
+|---------------------------|---------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| `s-maxage=0`              | 캐시하지 않습니다.                                | 캐시하고 항상 재검증합니다.                                                                                                                     |
+| `max-age=0`               | 캐시하지 않습니다.                                | 캐시하고 항상 재검증합니다.                                                                                                                     |
+| `no-cache`                | 캐시하지 않습니다.                                | 캐시하고 항상 재검증합니다. 오래된 콘텐츠를 제공하지 않습니다.                                                                                  |
+| `no-cache=<headers>`      | 캐시하지 않습니다.                                | `no-cache=<headers>`에 언급된 헤더가 존재하지 않으면 캐시합니다. 언급된 헤더 중 하나라도 존재하면 항상 재검증합니다.                         |
+| `Private=<headers>`       | 캐시하지 않습니다.                                | `Private=<headers>` 지시어에 언급된 `<headers>` 값은 캐시하지 않습니다.                                                                         |
+| `must-revalidate`         | 캐시 지시어를 무시하고 오래된 콘텐츠를 제공합니다. | 오래된 콘텐츠를 제공하지 않습니다. CDN과 브라우저 모두 재검증해야 합니다.                                                                      |
+| `proxy-revalidate`        | 캐시 지시어를 무시하고 오래된 콘텐츠를 제공합니다. | 오래된 콘텐츠를 제공하지 않습니다. CDN은 재검증해야 하지만 브라우저는 그렇지 않습니다.                                                          |
+| `no-transform`            | (비)Gzip, Polish, 이메일 필터 등을 수행할 수 있습니다. | 본문을 변환하지 않습니다.                                                                                                                   |
+| `s-maxage=delta, delta>1` | `max-age`와 동일합니다.                           | `max-age` 및 `proxy-revalidate`와 동일합니다.                                                                                                   |
+| `immutable`               | 다운스트림으로 프록시되지 않습니다.               | 다운스트림으로 프록시됩니다. 브라우저 측 동작이며 캐싱 프록시에는 영향을 주지 않습니다.                                                         |
+| `no-store`                | 캐시하지 않습니다.                                | 캐시하지 않습니다.                                                                                                                              |
+
+<div id="conditions"></div>
+
+### 조건
+
+특정 시나리오는 Origin Cache Control이 활성화 또는 비활성화되었을 때의 동작에도 영향을 줍니다.
+
+<table>
+  <tbody>
+    <th colspan="5" rowspan="1">
+      조건
+    </th>
+    <th colspan="5" rowspan="1">
+      Origin Cache Control 비활성화 시 동작
+    </th>
+    <th colspan="5" rowspan="1">
+      Origin Cache Control 활성화 시 동작
+    </th>
+    <tr>
+      <td colspan="5" rowspan="1">
+        <code>Authorization</code> 헤더가 존재하는 경우
+      </td>
+      <td colspan="5" rowspan="1">
+        콘텐츠가 캐시될 수 있습니다.
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>must-revalidate</code>, <code>public</code>, 또는 <code>s-maxage</code>가 함께 있는 경우에만 콘텐츠가 캐시됩니다.
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        <code>no-cache</code> 헤더 사용
+      </td>
+      <td colspan="5" rowspan="1">
+        로그에서 <code>cacheStatus=miss</code>.
+      </td>
+      <td colspan="5" rowspan="1">
+        로그에서 <code>cacheStatus=bypass</code>.
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        오리진 응답에 <code>Set-Cookie</code> 헤더가 있고 기본 캐시 수준이 사용되는 경우
+      </td>
+      <td colspan="5" rowspan="1">
+        <code>set-cookie</code> 헤더가 제거된 상태로 콘텐츠가 캐시될 수 있습니다.
+      </td>
+      <td colspan="5" rowspan="1">
+        콘텐츠가 캐시되지 않습니다.
+      </td>
+    </tr>
+    <tr>
+      <td colspan="5" rowspan="1">
+        Browser Cache TTL이 설정된 경우
+      </td>
+      <td colspan="5" rowspan="1">
+        eyeball에 반환되는 `Cache-Control`에는 <code>private</code>가 포함되지 않습니다.
+      </td>
+      <td colspan="5" rowspan="1">
+        오리진이 `Cache-Control`에 <code>private</code>를 반환하면 이를 보존합니다.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+:::note
+`Cloudflare-Cdn-Cache-Control` 헤더가 설정되면 OCC는 **켜짐** 상태가 됩니다(OCC의 활성화 여부와 무관). 결과적으로 [RFC 7234, Section 3.2](https://tools.ietf.org/html/rfc7234#section-3.2)에 따라 `s-maxage`, `must-revalidate`, `public` 지시어만 허용하는 Authorization 헤더 로직을 적용합니다. 다른 지시어가 하나라도 존재하면 자산을 캐시하지 않고 대신 `BYPASS`를 반환합니다.
+:::
+
+## 예시
+
+아래 예시를 검토해 특정 캐싱 동작을 제어하기 위해 `Cache-Control` 헤더에 어떤 지시어를 사용해야 하는지 확인하세요.
+
+
+<Details header="정적 자산 캐시하기">
+
+`Cache-Control: public, max-age=86400`
+
+
+</Details>
+
+
+<Details header="비밀 자산이 절대 캐시되지 않도록 보장하기">
+
+`Cache-Control: no-store`
+
+
+</Details>
+
+
+<Details header="브라우저에는 자산을 캐시하고 프록시 캐시에는 캐시하지 않기">
+
+`Cache-Control: private, max-age=3600`
+
+
+</Details>
+
+
+<Details header="클라이언트와 프록시 캐시에 자산을 캐시하되, 제공 시 재검증을 우선하기">
+
+`Cache-Control: public, no-cache`
+
+
+</Details>
+
+
+<Details header="프록시 캐시에 자산을 캐시하되, 제공 시 프록시가 반드시 재검증하도록 요구하기">
+
+`Cache-Control: public, no-cache, proxy-revalidate` 또는 `Cache-Control: public, s-maxage=0`
+
+
+</Details>
+
+
+<Details header="자산을 캐시하되, 제공 시 어떤 캐시든 반드시 재검증하도록 요구하기">
+
+`Cache-Control: public, no-cache, must-revalidate`
+
+
+</Details>
+
+
+<Details header="자산을 캐시하되, 프록시가 이를 수정하지 않도록 보장하기">
+
+`Cache-Control: public, no-transform`
+
+이 구성은 원래 페이로드가 압축되지 않은 상태로 제공된 경우, 엣지에서 방문자까지의 gzip 또는 brotli 압축 같은 변환도 비활성화합니다.
+
+
+</Details>
+
+
+<Details header="자산을 재검증과 함께 캐시하되, 오리진 서버에 도달할 수 없을 때는 오래된 응답을 허용하기">
+
+`Cache-Control: public, max-age=3600, stale-if-error=60`
+
+이 구성을 사용하면 콘텐츠가 3,600초(1시간) 동안 캐시에 머문 뒤 Cloudflare는 오리진 서버와 재검증을 시도합니다. 서버가 적절한 재검증 응답 대신 오류를 반환하면 Cloudflare는 리소스 만료 후 추가로 1분 동안 오래된 리소스를 계속 제공합니다.
+
+
+</Details>
+
+
+<Details header="Cloudflare와 방문자 브라우저에서 자산을 서로 다른 시간 동안 캐시하기">
+
+`Cache-Control: public, max-age=7200, s-maxage=3600`
+
+
+</Details>
+
+
+<Details header="자산을 캐시하고 재검증되는 동안에도 제공하기">
+
+`Cache-Control: max-age=600, stale-while-revalidate=30`
+
+이 구성은 자산이 600초 동안 신선함을 의미합니다. Cloudflare가 백그라운드에서 오리진과 자산을 재검증하는 동안, 자산은 추가로 최대 30초 동안 오래된 상태로 제공될 수 있습니다. 자세한 내용은 [Revalidation](/cache/concepts/revalidation/)을 참고하세요.
+
+
+</Details>
+
+## 다른 Cloudflare 기능과의 상호작용
+
+이 섹션에서는 다른 Cloudflare 기능이 `Cache-Control` 지시어와 어떻게 상호작용하는지 설명합니다.
+
+### Edge Cache TTL
+
+[Edge Cache TTL](/cache/how-to/edge-browser-cache-ttl/#edge-cache-ttl) Cache Rules는 존재할 경우 `s-maxage`를 재정의하고 재검증 지시어를 비활성화합니다. Cloudflare에서 Origin Cache Control이 활성화되어 있으면 Edge Cache TTL 재정의가 있어도 원래의 `Cache-Control` 헤더가 엣지에서 다운스트림으로 전달됩니다. 반대로 Cloudflare에서 Origin Cache Control이 비활성화되어 있으면 Cloudflare가 Origin Cache Control을 재정의합니다.
+
+### Browser Cache TTL
+
+[Browser Cache TTL](/cache/how-to/edge-browser-cache-ttl/#browser-cache-ttl) Cache Rules는 일반적으로 방문자 브라우저로 전달되는 `max-age` 설정을 재정의합니다.
+
+### Polish
+
+`no-transform` 지시어가 존재하면 [Polish](/images/polish/)는 비활성화됩니다.
+
+### Gzip 및 기타 압축
+
+`no-transform` 지시어가 존재하면 압축은 비활성화됩니다. 오리진에서 가져온 원본 자산이 압축되어 있으면 방문자에게도 압축된 상태로 제공됩니다. 원본 자산이 압축되지 않았다면 압축은 적용되지 않습니다.

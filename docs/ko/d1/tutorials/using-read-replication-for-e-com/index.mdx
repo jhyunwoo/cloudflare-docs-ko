@@ -1,0 +1,914 @@
+---
+reviewed: 2025-04-09T00:00:00.000Z
+difficulty: Beginner
+content_type: Tutorial
+pcx_content_type: tutorial
+title: D1 사용하기 전자 상거래 웹 사이트에 대한 복제
+tags:
+  - JavaScript
+  - TypeScript
+  - SQL
+description: >-
+  D1 읽기 복제는 D1 데이터베이스를 여러 지역에 복제 할 수있는 기능입니다. 이 전자 상거래 웹 사이트에 유용합니다, 그것은 읽는
+  latencies를 감소시키고 읽는 처리량을 개량하기 때문에.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/d1/tutorials/using-read-replication-for-e-com/
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/tutorials/using-read-replication-for-e-com/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Steps,
+	PackageManagers,
+	WranglerConfig,
+	Details,
+} from "~/components";
+
+[D1 읽기 복제](/d1/best-practices/read-replication/)D1 데이터베이스를 여러 영역으로 복제할 수 있는 기능입니다. 이 전자 상거래 웹 사이트에 유용합니다, 그것은 읽는 latencies를 감소시키고 읽는 처리량을 개량하기 때문에. 이 튜토리얼에서 D1는 전자 상거래 웹 사이트에 대한 복제를 읽는 방법을 배울 것입니다.
+
+이 튜토리얼은 소설 전자 상거래 웹 사이트를 사용하지만, 원칙은 뉴스 웹 사이트, 소셜 미디어 플랫폼, 또는 마케팅 웹 사이트와 같은 낮은 읽기 latencies 및 scaling 읽기를 필요로하는 모든 사용 케이스에 적용 할 수 있습니다.
+
+## 빠른 시작
+
+단계와 시작하기XQ를 신속하게 건너려면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/harshil1712/e-com-d1-hono)
+
+GitHub 계정에서 저장소를 만들고 QXQX0994XQ QXWorkersXQ에 응용 프로그램을 배포합니다. 그것은 또한 D1 데이터베이스를 만들고, 필요한 테이블을 만들고, 몇몇 표본 자료를 추가할 것입니다. 배포 중, tick the`Enable read replication`읽힌 복제를 활성화하는 상자.
+
+배포 된 응용 프로그램을 방문 할 수 있습니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 단계 1: Workers 프로젝트를 창조하십시오
+
+다음 명령을 실행하여 새로운 Workers 프로젝트 만들기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"fast-commerce"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "SSR / full-stack app",
+  	lang: "TypeScript",
+  }}
+/>
+
+API 경로를 만들기 위해, 당신은 사용할 것입니다[호노](https://hono.dev/). 다음 명령을 실행하여 Hono를 설치해야 합니다.
+
+<PackageManagers pkg="hono" />
+
+## 단계 2: frontend 업데이트
+
+위의 단계는 기본 frontend와 새로운 Workers 프로젝트를 만들고 Hono를 설치합니다. 제품을 나열하기 위해 frontend를 업데이트합니다. 단일 제품을 표시하기 위해 프론트엔드에 새 페이지를 추가합니다.
+
+새로 만든 Worker 프로젝트 폴더에 Navigate.
+
+```sh
+cd fast-commerce
+```
+
+업데이트`public/index.html`제품을 나열하는 파일. 아래 코드를 참고 자료로 사용하십시오.
+
+<Details open={false} header="사이트 맵">
+  ```html
+  <!DOCTYPE html>
+  <html lang="en">
+  	<head>
+  		<meta charset="UTF-8" />
+  		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  		<title>E-commerce Store</title>
+  		<style>
+  			* {
+  				margin: 0;
+  				padding: 0;
+  				box-sizing: border-box;
+  				font-family: Arial, sans-serif;
+  			}
+
+      		body {
+      			background-color: #f9fafb;
+      			min-height: 100vh;
+      			display: flex;
+      			flex-direction: column;
+      		}
+
+      		header {
+      			background-color: white;
+      			padding: 1rem 2rem;
+      			display: flex;
+      			justify-content: space-between;
+      			align-items: center;
+      			border-bottom: 1px solid #e5e7eb;
+      		}
+
+      		.store-title {
+      			font-weight: bold;
+      			font-size: 1.25rem;
+      		}
+
+      		.cart-button {
+      			padding: 0.5rem 1rem;
+      			cursor: pointer;
+      			background: none;
+      			border: none;
+      		}
+
+      		.products-grid {
+      			display: grid;
+      			grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+      			gap: 1.5rem;
+      			padding: 2rem;
+      		}
+
+      		.product-card {
+      			background-color: white;
+      			border-radius: 0.5rem;
+      			overflow: hidden;
+      			box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      		}
+
+      		.product-info {
+      			padding: 1rem;
+      		}
+
+      		.product-title {
+      			font-size: 1.125rem;
+      			font-weight: 600;
+      			margin-bottom: 0.5rem;
+      		}
+
+      		.product-description {
+      			color: #4b5563;
+      			font-size: 0.875rem;
+      			margin-bottom: 1rem;
+      		}
+
+      		.product-price {
+      			font-size: 1.25rem;
+      			font-weight: bold;
+      			margin-bottom: 0.5rem;
+      		}
+
+      		.product-stock {
+      			color: #4b5563;
+      			font-size: 0.875rem;
+      			margin-bottom: 1rem;
+      		}
+
+      		.view-details-btn {
+      			display: block;
+      			width: 100%;
+      			padding: 0.5rem 0;
+      			background-color: #2563eb;
+      			color: white;
+      			border: none;
+      			border-radius: 0.375rem;
+      			cursor: pointer;
+      			text-align: center;
+      			text-decoration: none;
+      			font-size: 0.875rem;
+      		}
+
+      		.view-details-btn:hover {
+      			background-color: #1d4ed8;
+      		}
+
+      		footer {
+      			background-color: white;
+      			padding: 1rem 2rem;
+      			text-align: center;
+      			border-top: 1px solid #e5e7eb;
+      			color: #4b5563;
+      			font-size: 0.875rem;
+      		}
+
+      		/* Basic Responsiveness */
+      		@media (max-width: 768px) {
+      			.products-grid {
+      				grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      			}
+      		}
+
+      		@media (max-width: 480px) {
+      			.products-grid {
+      				grid-template-columns: 1fr;
+      			}
+      		}
+      	</style>
+      </head>
+      <body>
+      	<header>
+      		<h1 class="store-title">E-commerce Store</h1>
+      		<button class="cart-button">Cart</button>
+      	</header>
+
+      	<main class="products-grid" id="products-container">
+      		<!--제품은 JavaScript에 의해 여기에서 적재될 것입니다-->
+      	</main>
+
+      	<footer>
+      		<p>© 2025 E-commerce Store. All rights reserved.</p>
+      	</footer>
+
+      	<script>
+      		document.addEventListener('DOMContentLoaded', () => {
+      			let products = [];
+      			let d1Duration,
+      				queryDuration = 0;
+      			let dbLocation;
+      			let isPrimary = true;
+
+      			// Function to create product HTML
+      			function createProductCard(product) {
+      				return `
+                  <div class="product-card" data-category="${product.category}">
+                      <div class="product-info">
+                          <h3 class="product-title">${product.name}</h3>
+                          <p class="product-description">${product.description}</p>
+                          <p class="product-price">$${product.price.toFixed(2)}</p>
+                          <p class="product-stock">${product.inventory} in stock</p>
+                          <a href="product-details.html?id=${product.id}" class="view-details-btn">View Details</a>
+                      </div>
+                  </div>
+              `;
+      			}
+
+      			// Function to render content
+      			function renderContent() {
+      				try {
+      					const productsContainer = document.getElementById('products-container');
+      					if (!productsContainer) return;
+      					productsContainer.innerHTML = '';
+
+      					products.forEach((product) => {
+      						productsContainer.innerHTML += createProductCard(product);
+      					});
+      				} catch (error) {
+      					console.error('Error rendering content:', error);
+      				}
+      			}
+
+      			// Fetch products
+      			fetch('/api/products')
+      				.then((response) => response.json())
+      				.then((data) => {
+      					products = data;
+      					renderContent();
+      				})
+      				.catch((error) => console.error('Error fetching products:', error));
+      		});
+      	</script>
+      </body>
+
+  </html>
+  ```
+</Details>
+
+새로운 기능`public/product-details.html`단일 제품을 표시하는 파일.
+
+<Details open={false} header="공개/제품-details.html">
+  ```html
+  <!DOCTYPE html>
+  <html lang="en">
+  	<head>
+  		<meta charset="UTF-8" />
+  		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  		<title>Product Details - E-commerce Store</title>
+  		<style>
+  			* {
+  				margin: 0;
+  				padding: 0;
+  				box-sizing: border-box;
+  				font-family: Arial, sans-serif;
+  			}
+
+  			body {
+  				background-color: #f9fafb;
+  				min-height: 100vh;
+  				display: flex;
+  				flex-direction: column;
+  			}
+
+  			header {
+  				background-color: white;
+  				padding: 1rem 2rem;
+  				display: flex;
+  				justify-content: space-between;
+  				align-items: center;
+  				border-bottom: 1px solid #e5e7eb;
+  			}
+
+  			.store-title {
+  				font-weight: bold;
+  				font-size: 1.25rem;
+  				text-decoration: none;
+  				color: black;
+  			}
+
+  			.cart-button {
+  				padding: 0.5rem 1rem;
+  				cursor: pointer;
+  				background: none;
+  				border: none;
+  			}
+
+  			.product-container {
+  				max-width: 800px;
+  				margin: 2rem auto;
+  				background-color: white;
+  				border-radius: 0.5rem;
+  				box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  				padding: 2rem;
+  			}
+
+  			.product-title {
+  				font-size: 1.875rem;
+  				font-weight: bold;
+  				margin-bottom: 0.5rem;
+  			}
+
+  			.product-description {
+  				color: #4b5563;
+  				margin-bottom: 1.5rem;
+  			}
+
+  			.product-price {
+  				font-size: 1.875rem;
+  				font-weight: bold;
+  				margin-bottom: 0.5rem;
+  			}
+
+  			.product-stock {
+  				font-size: 0.875rem;
+  				color: #4b5563;
+  				text-align: right;
+  			}
+
+  			.add-to-cart-btn {
+  				display: block;
+  				width: 100%;
+  				padding: 0.75rem;
+  				background-color: #2563eb;
+  				color: white;
+  				border: none;
+  				border-radius: 0.375rem;
+  				cursor: pointer;
+  				text-align: center;
+  				font-size: 1rem;
+  				margin-top: 1.5rem;
+  			}
+
+  			.add-to-cart-btn:hover {
+  				background-color: #1d4ed8;
+  			}
+
+  			.price-stock-container {
+  				display: flex;
+  				justify-content: space-between;
+  				align-items: center;
+  				margin-bottom: 1rem;
+  			}
+
+  			footer {
+  				background-color: white;
+  				padding: 1rem 2rem;
+  				text-align: center;
+  				border-top: 1px solid #e5e7eb;
+  				color: #4b5563;
+  				font-size: 0.875rem;
+  				margin-top: auto;
+  			}
+
+  			/* Back button */
+  			.back-button {
+  				display: inline-block;
+  				margin-bottom: 1.5rem;
+  				color: #2563eb;
+  				text-decoration: none;
+  				font-size: 0.875rem;
+  			}
+
+  			.back-button:hover {
+  				text-decoration: underline;
+  			}
+
+  			/* Notification */
+  			.notification {
+  				position: fixed;
+  				top: 1rem;
+  				right: 1rem;
+  				background-color: #10b981;
+  				color: white;
+  				padding: 0.75rem 1rem;
+  				border-radius: 0.375rem;
+  				box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+  				transform: translateX(150%);
+  				transition: transform 0.3s ease;
+  			}
+
+  			.notification.show {
+  				transform: translateX(0);
+  			}
+  		</style>
+  	</head>
+  	<body>
+  		<header>
+  			<a href="index.html" class="store-title">E-commerce Store</a>
+  			<button class="cart-button">Cart</button>
+  		</header>
+
+  		<main class="product-container">
+  			<a href="index.html" class="back-button">← Back to products</a>
+  			<h1 class="product-title" id="product-title">Product Name</h1>
+  			<p class="product-description" id="product-description">
+  				Product description goes here.
+  			</p>
+
+  			<div class="price-stock-container">
+  				<p class="product-price" id="product-price">$0.00</p>
+  				<p class="product-stock" id="product-stock">0 in stock</p>
+  			</div>
+
+  			<button class="add-to-cart-btn" id="add-to-cart">Add to Cart</button>
+  		</main>
+
+  		<div class="notification" id="notification">Added to cart!</div>
+
+  		<footer>
+  			<p>© 2025 E-commerce Store. All rights reserved.</p>
+  		</footer>
+
+  		<script>
+  			// Get query parameter from URL
+  			const url = new URL(window.location.href);
+  			const searchParams = new URLSearchParams(url.search);
+  			const productId = searchParams.get("id");
+
+  			// Fetch product details
+  			fetch(`/api/products/${productId}`)
+  				.then((response) => response.json())
+  				.then((product) => displayContent(product))
+  				.catch((error) =>
+  					console.error("Error fetching product details:", error),
+  				);
+
+  			// Function to display product details
+  			function displayContent(product) {
+  				document.title = `${product[0].name} - E-commerce Store`;
+  				document.getElementById("product-title").textContent = product[0].name;
+  				document.getElementById("product-description").textContent =
+  					product[0].description;
+  				document.getElementById("product-price").textContent =
+  					`$${product[0].price.toFixed(2)}`;
+  				document.getElementById("product-stock").textContent =
+  					`${product[0].inventory} in stock`;
+  			}
+  		</script>
+  	</body>
+  </html>
+  ```
+</Details>
+
+제품 목록과 단일 제품을 표시합니다. 그러나 frontend는 아직 D1 데이터베이스에 연결되지 않습니다. 개발 서버를 시작하면 제품을 볼 수 없습니다. 다음 단계에서 D1 데이터베이스를 만들고 API를 fetch 제품으로 만들고 frontend에 표시합니다.
+
+## 단계 3: D1 데이터베이스를 만들고 복제를 활성화
+
+다음 명령을 실행하여 새로운 D1 데이터베이스를 만듭니다.
+
+```sh
+npx wrangler d1 create fast-commerce
+```
+
+D1 바인딩을 터미널에 반환`wrangler`파일 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB",
+  			"database_name": "fast-commerce",
+  			"database_id": "YOUR_DATABASE_ID"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+다음 명령을 실행하여 업데이트`Env`인터페이스에서`worker-configuration.d.ts`파일.
+
+```sh
+npm run cf-typegen
+```
+
+다음, D1 데이터베이스에 대한 복제를 읽을 수 있습니다. 바로가기[**Workers & Pages** > **D1**](https://dash.cloudflare.com/?to=/:account/workers/d1), 다음 기존 데이터베이스를 선택 >**계정 설정** > **Enable 읽기 복제**.
+
+## 단계 4: API 경로 만들기
+
+업데이트`src/index.ts`Hono 라이브러리를 가져오고 API 경로를 만듭니다.
+
+```ts
+import { Hono } from "hono";
+//쿠키에 db 세션 북마크 설정
+import { getCookie, setCookie } from "hono/cookie";
+
+const app = new Hono<{ Bindings: Env }>();
+
+//모든 제품
+app.get("/api/products", async (c) => {
+	return c.json({ message: "get list of products" });
+});
+
+//단일 제품 얻기
+app.get("/api/products/:id", async (c) => {
+	return c.json({ message: "get a single product" });
+});
+
+//제품 업데이트
+app.post("/api/product", async (c) => {
+	return c.json({ message: "create or update a product" });
+});
+
+export default app;
+```
+
+위 코드는 세 가지 API 경로를 만듭니다.
+
+- `GET /api/products`: 제품의 목록을 반환합니다.
+- `GET /api/products/:id`: 단일 제품을 반환합니다.
+- `POST /api/product`: 제품 생성 또는 업데이트.
+
+그러나 API 경로는 D1 데이터베이스에 아직 연결되지 않습니다. 다음 단계에서 D1 데이터베이스에서 제품 테이블을 만들고 D1 데이터베이스에 연결하는 API 경로를 업데이트합니다.
+
+## 5 단계 : 로컬 D1 데이터베이스 스키마 만들기
+
+다음 명령을 실행하여 D1 데이터베이스에서 제품 테이블을 만듭니다.
+
+```sh
+npx wrangler d1 execute fast-commerce --command "CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT, price DECIMAL(10, 2) NOT NULL, inventory INTEGER NOT NULL DEFAULT 0, category TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+```
+
+다음, 다음 명령을 실행하여 제품 테이블에 인덱스를 생성:
+
+```sh
+npx wrangler d1 execute fast-commerce --command "CREATE INDEX IF NOT EXISTS idx_products_id ON products (id)"
+```
+
+개발 목적으로 다음 명령을 실행하여 로컬 D1 데이터베이스에 삽입문을 실행할 수 있습니다.
+
+```sh
+npx wrangler d1 execute fast-commerce --command "INSERT INTO products (id, name, description, price, inventory, category) VALUES (1, 'Fast Ergonomic Chair', 'A comfortable chair for your home or office', 100.00, 10, 'Furniture'), (2, 'Fast Organic Cotton T-shirt', 'A comfortable t-shirt for your home or office', 20.00, 100, 'Clothing'), (3, 'Fast Wooden Desk', 'A wooden desk for your home or office', 150.00, 5, 'Furniture'), (4, 'Fast Leather Sofa', 'A leather sofa for your home or office', 300.00, 3, 'Furniture'), (5, 'Fast Organic Cotton T-shirt', 'A comfortable t-shirt for your home or office', 20.00, 100, 'Clothing')"
+```
+
+## 단계 6: retry 논리 추가
+
+응용 프로그램을 더 탄력적으로 만들려면 API 경로에 재스트 논리를 추가 할 수 있습니다. 새 파일 만들기`retry.ts`내 계정`src`디렉토리.
+
+```ts
+export interface RetryConfig {
+	maxRetries: number;
+	initialDelay: number;
+	maxDelay: number;
+	backoffFactor: number;
+}
+
+const shouldRetry = (error: unknown): boolean => {
+	const errMsg = error instanceof Error ? error.message : String(error);
+	return (
+		errMsg.includes("Network connection lost") ||
+		errMsg.includes("storage caused object to be reset") ||
+		errMsg.includes("reset because its code was updated")
+	);
+};
+
+//잠을 위한 Helper 기능
+const sleep = (ms: number): Promise<void> => {
+	return new Promise((resolve) => setTimeout(resolve, ms));
+};
+
+export const defaultRetryConfig: RetryConfig = {
+	maxRetries: 3,
+	initialDelay: 100,
+	maxDelay: 1000,
+	backoffFactor: 2,
+};
+
+export async function withRetry<T>(
+	operation: () => Promise<T>,
+	config: Partial<RetryConfig> = defaultRetryConfig,
+): Promise<T> {
+	const maxRetries = config.maxRetries ?? defaultRetryConfig.maxRetries;
+	const initialDelay = config.initialDelay ?? defaultRetryConfig.initialDelay;
+	const maxDelay = config.maxDelay ?? defaultRetryConfig.maxDelay;
+	const backoffFactor =
+		config.backoffFactor ?? defaultRetryConfig.backoffFactor;
+
+	let lastError: Error | unknown;
+	let delay = initialDelay;
+
+	for (let attempt = 0; attempt <= maxRetries; attempt++) {
+		try {
+			const result = await operation();
+			return result;
+		} catch (error) {
+			lastError = error;
+
+			if (!shouldRetry(error) || attempt === maxRetries) {
+				throw error;
+			}
+
+			//동기화 retries를 방지하는 임의성을 추가하십시오
+			//지연과 지연 사이의 임의 지연을 기대*2
+			await sleep(delay * (1 + Math.random()));
+
+			//exponential backoff와 다음 지연 계산
+			delay = Math.min(delay * backoffFactor, maxDelay);
+		}
+	}
+
+	throw lastError;
+}
+```
+
+더 보기`withRetry`함수는 exponential backoff를 가진 주어진 가동을 retries 하는 실용 함수입니다. 구성 객체를 인수로 움직입니다. 즉, retries, 초기 지연, 최대 지연 및 backoff 요소를 사용자 정의 할 수 있습니다. 네트워크 연결 손실, 저장 재설정, 또는 코드 업데이트로 인해 오류가 발생하면 작동을 재개합니다.
+
+:::카트로션
+
+distrubed 체계에서는, retry 기계장치는 특정 위험이 있을 수 있습니다. 기사 읽기[Distributed Systems의 Retry Strategies : 식별 및 주소 키 Pitfalls](https://www.computer.org/publications/tech-news/trends/retry-strategies-avoiding-pitfalls)회복 메커니즘의 위험에 대해 자세히 알아 보려면 및 그들을 피하는 방법.
+
+Retries는 때때로 자료 inconsistency에 지도할 수 있습니다. retry 논리를 주의 깊게 취급해야합니다.
+
+:::
+
+다음, 업데이트`src/index.ts`파일 가져오기`withRetry`기능 및 API 경로에서 사용.
+
+```ts
+import { withRetry } from "./retry";
+```
+
+## 단계 7: API 경로 업데이트
+
+D1 데이터베이스에 연결하는 API 경로 업데이트.
+
+### 1. POST /api / 제품
+
+```ts
+app.post("/api/product", async (c) => {
+	const product = await c.req.json();
+
+	if (!product) {
+		return c.json({ message: "No data passed" }, 400);
+	}
+
+	const db = c.env.DB;
+	const session = db.withSession("first-primary");
+
+	const { id } = product;
+
+	try {
+		return await withRetry(async () => {
+			//상품이 존재하는 경우 확인
+			const { results } = await session
+				.prepare("SELECT * FROM products where id = ?")
+				.bind(id)
+				.run();
+			if (results.length === 0) {
+				const fields = [...Object.keys(product)];
+				const values = [...Object.values(product)];
+				//제품 삽입
+				await session
+					.prepare(
+						`INSERT INTO products (${fields.join(", ")}) VALUES (${fields.map(() => "?").join(", ")})`,
+					)
+					.bind(...values)
+					.run();
+				const latestBookmark = session.getBookmark();
+				latestBookmark &&
+					setCookie(c, "product_bookmark", latestBookmark, {
+						maxAge: 60 * 60, //1시간
+					});
+				return c.json({ message: "Product inserted" });
+			}
+
+			//제품 업데이트
+			const updates = Object.entries(product)
+				.filter(([_, value]) => value !== undefined)
+				.map(([key, _]) => `${key} = ?`)
+				.join(", ");
+
+			if (!updates) {
+				throw new Error("No valid fields to update");
+			}
+
+			const values = Object.entries(product)
+				.filter(([_, value]) => value !== undefined)
+				.map(([_, value]) => value);
+
+			await session
+				.prepare(`UPDATE products SET ${updates} WHERE id = ?`)
+				.bind(...[...values, id])
+				.run();
+			const latestBookmark = session.getBookmark();
+			latestBookmark &&
+				setCookie(c, "product_bookmark", latestBookmark, {
+					maxAge: 60 * 60, //1시간
+				});
+			return c.json({ message: "Product updated" });
+		});
+	} catch (e) {
+		console.error(e);
+		return c.json({ message: "Error upserting product" }, 500);
+	}
+});
+```
+
+위 코드에서:
+
+- 요청 몸에서 제품 데이터를 얻습니다.
+- 그런 다음 제품이 데이터베이스에 존재하는지 확인하십시오.
+  - 그것이 작동하는 경우에, 당신은 제품을 새롭게 합니다.
+  - 그렇지 않으면 제품을 삽입합니다.
+- 당신은 쿠키에 책갈피를 설정한다.
+- 마지막으로 응답을 반환합니다.
+
+최신 데이터로 세션을 시작하려면 사용`first-primary`제약. 당신이 사용하더라도`first-unconstrained`constraint 또는 bookmark를 통과, 쓰기 요청은 항상 기본 데이터베이스로 이동합니다.
+
+쿠키에 설정된 책갈피는 새로운 세션이 제공된 책갈피로 최소한의 데이터베이스 버전을 읽는 것을 보장하기 위해 사용될 수 있습니다.
+
+외부 플랫폼을 사용하여 제품을 관리하려면, 이 API를 외부 플랫폼에 연결할 수 있습니다. 이 API를 외부 플랫폼에서 생성하거나 업데이트 할 때 D1 데이터베이스는 자동으로 제품 세부 정보를 업데이트합니다.
+
+### 2. GET /api / 제품
+
+```ts
+app.get("/api/products", async (c) => {
+	const db = c.env.DB;
+
+	//쿠키에서 bookmark 받기
+	const bookmark = getCookie(c, "product_bookmark") || "first-unconstrained";
+
+	const session = db.withSession(bookmark);
+
+	try {
+		return await withRetry(async () => {
+			const { results } = await session.prepare("SELECT * FROM products").run();
+
+			const latestBookmark = session.getBookmark();
+
+			//쿠키에 책갈피 설정
+			latestBookmark &&
+				setCookie(c, "product_bookmark", latestBookmark, {
+					maxAge: 60 * 60, //1시간
+				});
+
+			return c.json(results);
+		});
+	} catch (e) {
+		console.error(e);
+		return c.json([]);
+	}
+});
+```
+
+위 코드에서:
+
+- 당신은 쿠키에서 데이터베이스 세션 북마크를 얻을.
+  - 책갈피가 설정되지 않은 경우, 사용`first-unconstrained`제약.
+- 당신은 책갈피와 데이터베이스 세션을 만들.
+- 당신은 데이터베이스에서 모든 제품을 꺼내 최신 bookmark를 얻을.
+- 당신은 쿠키에이 책갈피를 설정한다.
+- 마지막으로 결과를 반환합니다.
+
+### 3. /api/products/:id를 얻으십시오
+
+```ts
+app.get("/api/products/:id", async (c) => {
+	const id = c.req.param("id");
+
+	if (!id) {
+		return c.json({ message: "Invalid id" }, 400);
+	}
+
+	const db = c.env.DB;
+
+	//쿠키에서 bookmark 받기
+	const bookmark = getCookie(c, "product_bookmark") || "first-unconstrained";
+
+	const session = db.withSession(bookmark);
+
+	try {
+		return await withRetry(async () => {
+			const { results } = await session
+				.prepare("SELECT * FROM products where id = ?")
+				.bind(id)
+				.run();
+
+			const latestBookmark = session.getBookmark();
+
+			//쿠키에 책갈피 설정
+			latestBookmark &&
+				setCookie(c, "product_bookmark", latestBookmark, {
+					maxAge: 60 * 60, //1시간
+				});
+
+			console.log(results);
+
+			return c.json(results);
+		});
+	} catch (e) {
+		console.error(e);
+		return c.json([]);
+	}
+});
+```
+
+위 코드에서:
+
+- 요청 매개 변수에서 제품 ID를 얻습니다.
+- 당신은 책갈피와 데이터베이스 세션을 만들.
+- 당신은 데이터베이스에서 제품을 꺼내 최신 bookmark를 얻을.
+- 당신은 쿠키에이 책갈피를 설정한다.
+- 마지막으로 결과를 반환합니다.
+
+## 8 단계 : 응용 프로그램을 테스트
+
+이제 D1 데이터베이스에 연결하는 API 경로가 업데이트되었습니다. 이제 개발 서버를 시작 하 여 응용 프로그램을 테스트 하 고 frontend에 항해.
+
+```sh
+npm run dev
+```
+
+\`\`로 이동[모델 번호: http://localhost:8787](http://localhost:8787). 당신은 제품 목록으로 보아야 합니다. 제품 상세보기를 클릭.
+
+새 제품을 삽입하려면 다음 명령을 사용하십시오 (개발 서버가 실행 중):
+
+```sh
+curl -X POST http://localhost:8787/api/product \
+     -H "Content-Type: application/json" \
+     -d '{"id": 6, "name": "Fast Computer", "description": "A computer for your home or office", "price": 1000.00, "inventory": 10, "category": "Electronics"}'
+```
+
+바로가기`http://localhost:8787/product-details?id=6`. 당신은 신제품을 보아야 합니다.
+
+다음 명령을 사용하여 제품을 업데이트하고 탐색`http://localhost:8787/product-details?id=6`다시. 업데이트 된 제품을 볼 수 있습니다.
+
+```sh
+curl -X POST http://localhost:8787/api/product \
+     -H "Content-Type: application/json" \
+     -d '{"id": 6, "name": "Fast Computer", "description": "A computer for your home or office", "price": 1050.00, "inventory": 10, "category": "Electronics"}'
+```
+
+:::참조
+
+읽는 복제는 응용 프로그램이있을 때만 사용됩니다[설치하기](/d1/tutorials/using-read-replication-for-e-com/#step-9-deploy-the-application). D1는 국부적으로 개발할 때 읽힌 복제를 창조하지 않습니다.
+
+로컬로 테스트하려면 설정할 수 있습니다.`"remote" : true`D1 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보.
+
+:::
+
+## 단계 9: 응용 프로그램을 배포
+
+이전 단계에서 사용되는 데이터베이스가 로컬이기 때문에 원격 데이터베이스에서 제품 테이블을 만들 필요가 있습니다. 다음 D1 명령을 실행하여 원격 데이터베이스에서 제품 테이블을 만듭니다.
+
+```sh
+npx wrangler d1 execute fast-commerce --remote --command "CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY, name TEXT NOT NULL, description TEXT, price DECIMAL(10, 2) NOT NULL, inventory INTEGER NOT NULL DEFAULT 0, category TEXT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, last_updated TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+```
+
+다음, 다음 명령을 실행하여 제품 테이블에 인덱스를 생성:
+
+```sh
+npx wrangler d1 execute fast-commerce --remote --command "CREATE INDEX IF NOT EXISTS idx_products_id ON products (id)"
+```
+
+선택적으로, 다음 명령을 실행하여 원격 데이터베이스에 제품을 삽입 할 수 있습니다.
+
+```sh
+npx wrangler d1 execute fast-commerce --remote --command "INSERT INTO products (id, name, description, price, inventory, category) VALUES (1, 'Fast Ergonomic Chair', 'A comfortable chair for your home or office', 100.00, 10, 'Furniture'), (2, 'Fast Organic Cotton T-shirt', 'A comfortable t-shirt for your home or office', 20.00, 100, 'Clothing'), (3, 'Fast Wooden Desk', 'A wooden desk for your home or office', 150.00, 5, 'Furniture'), (4, 'Fast Leather Sofa', 'A leather sofa for your home or office', 300.00, 3, 'Furniture'), (5, 'Fast Organic Cotton T-shirt', 'A comfortable t-shirt for your home or office', 20.00, 100, 'Clothing')"
+```
+
+이제 다음 명령을 사용하여 응용 프로그램을 배포 할 수 있습니다.
+
+```sh
+npm run deploy
+```
+
+이것은 Workers 및 D1 데이터베이스에 응용 프로그램을 배포합니다. 사용자 요청이 모든 지역에서 응용 프로그램을 요청하면 데이터베이스가 복제 된 가장 가까운 지역에 요청이 리디렉션됩니다.
+
+## 이름 \*
+
+이 튜토리얼에서 D1를 사용하는 방법을 배웠습니다. 전자 상거래 웹 사이트에 대한 복제를 읽으십시오. 당신은 D1 데이터베이스를 생성하고 그것을 위해 복제를 활성화. 그런 다음 데이터베이스에서 제품을 만들고 업데이트하는 API를 만들었습니다. 당신은 또한 데이터베이스에서 최신 데이터를 얻는 책갈피를 사용하는 방법을 배웠습니다.
+
+원격 데이터베이스에서 제품 테이블을 만들고 응용 프로그램을 배포했습니다.
+
+기존의 읽는 무거운 응용 프로그램에 대한 동일한 접근 방식을 사용하여 읽는 latencies를 줄이고 읽기 처리량을 향상시킬 수 있습니다. 외부 플랫폼을 사용하여 콘텐츠를 관리하려면 외부 플랫폼을 D1 데이터베이스에 연결할 수 있으므로 컨텐츠가 데이터베이스에서 자동으로 업데이트됩니다.
+
+이 튜토리얼의 전체 코드를 찾을 수 있습니다.[GitHub 저장소](https://github.com/harshil1712/e-com-d1-hono).

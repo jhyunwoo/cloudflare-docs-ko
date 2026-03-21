@@ -1,0 +1,75 @@
+---
+pcx_content_type: reference
+title: 도전 해결률 (CSR)
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-challenges/reference/challenge-solve-rate/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-challenges/reference/challenge-solve-rate/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem } from "~/components";
+
+도전 해결 비율 (CSR)은 발행 된 문제의 비율입니다 - 비 인터랙티브 도전, 관리 된 도전, 또는 대화 형 도전 작업 - 해결 된.
+
+```txt
+CSR = number of challenges solved / number of challenges issued
+```
+
+이 메트릭은 규칙의 효과를 평가하는 데 도움이되며 규칙의 기준 또는 행동에 대한 모든 조정을해야합니다. 도전 모드의 규칙은 false 긍정적 인 비율을 나타내는 Challenge Solve Rate data (CSR)를 생성하는 것입니다.
+
+해당 대시보드 페이지로 이동하여 규칙의 CSR을 찾을 수 있습니다.
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 ‘대시보드’" icon="rocket">
+    제품 정보[주문 규칙](/waf/custom-rules/)또는[비율 제한 규칙](/waf/rate-limiting-rules/), 당신의 지역으로 이동 >**보안 보안** > **보안 규칙**.
+  </TabItem>
+
+  <TabItem label="'대시보드'">
+    - 제품 정보[주문 규칙](/waf/custom-rules/), 당신의 지역으로 이동 >**보안 보안** > **‘WAF’** > **주문 규칙**.
+    - 제품 정보[비율 제한 규칙](/waf/rate-limiting-rules/), 당신의 지역으로 이동 >**보안 보안** > **‘WAF’** > **비율 제한 규칙**.
+  </TabItem>
+</Tabs>
+
+***
+
+## Security Events의 도전 과제
+
+Challenge Solved 액션을 찾을 경우와 같은`[js]challengeSolved`또는`challengeSolved`, 귀하의 보안 이벤트에서 underlying 규칙 기준과 일치하지 않는 것, 이 행동은 이전 요청의 성공적인 완화를 나타냅니다.
+
+도전 수명주기는 두 가지 명백한 이벤트를 포함합니다. 즉, 로그인을 해석하는 것이 중요합니다.
+
+- 도전 트리거 : 원래 요청은 도전 액션을 가진 WAF맞춤 규칙을 일치시킵니다. 이 요청은 규칙을 트리거 한 의심스러운 매개 변수를 포함합니다.
+- 도전 해결: 클라이언트의 브라우저는 검증된 솔루션을 포함하는 후속 요청을 다시 보냅니다. 이 행동은 도전 해결으로 기록됩니다.
+
+해결 요청의 매개 변수는 더 이상 원래 규칙의 표현과 일치 할 수 없습니다. 예를 들어, 챌린지가 낮은 Bot 점수로 발행된 경우, 해결된 요청에 대한 점수는 이미 성공적인 검증에 비소한 값으로 변경될 수 있습니다.
+
+Challenge Solved action은 이전에 발행 된 도전이 응답 한 비공식적 신호입니다. 방문자의 트래픽을 진행할 수 있습니다. 이후 요청은 초기 방아쇠 규칙을 재 일치하지 않습니다.
+
+***
+
+## 실패 도전
+
+보안 분석에서 실패한 도전에 대한 전용 메트릭을 찾을 수 없습니다. Cloudflare는 문제 간접적으로 계산되며, 발행 및 도전 간의 차이를 기반으로 합니다.
+
+시스템은 실패로 성공적인 통관 쿠키에서 발생하지 않는 발행 된 도전을 볼 수 있습니다. 이것은 실패한 도전의 수는 예외적으로 높을지도 모릅니다: 발행된 도전의 대다수는 결코 완료되지 않습니다.
+
+실패의 공식 계산은:
+
+```txt
+Failed Challenges = Total Challenges Issued − Total Challenges Solved
+```
+
+기존의 챌린지의 큰 숫자는 자동 트래픽 (봇 또는 스크랩)로 인해 초기 챌린지 스크립트에 즉시 프로세스를 포기합니다.
+
+도전이 발행될 수 있지만 해결되지 않은 이유:
+
+- 방문자는 도전에 포기하거나 페이지를 탐색합니다.
+- 방문자는 도전을 해결하려고하지만 유효 답을 제공 할 수 없습니다.
+- 시스템은 클라이언트에서 잘못된 또는 변형 된 대답을받습니다.
+- 스크립트 환경 (봇의 제어 브라우저를 유지) 필요한 클라이언트 측 체크를 실행하는 실패.

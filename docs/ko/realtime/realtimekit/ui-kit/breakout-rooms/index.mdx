@@ -1,0 +1,308 @@
+---
+pcx_content_type: navigation
+title: 휴식 룸
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/ui-kit/breakout-rooms/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/ui-kit/breakout-rooms/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+<Render file="realtimekit/common/default-meeting-examples" product="realtime" />
+
+<Render file="realtimekit/web/breakout-room-preface" product="realtime" />
+
+### 휴식 룸
+
+1. RealtimeKit 회의에서 클릭**휴식 룸**
+2. Create Breakout 대화 상자에서 원하는 객실 수를 추가하고 클릭**이름 \***
+
+방을 만들면 참가자가 방에 할당합니다. 당신은 할 수 있습니다:
+
+- **참가자는 자동으로**- RealtimeKit는 방 전체에 걸쳐 참가자를 균등하게 분할
+- **자주 묻는 질문**- 각 방에서 원하는 참가자 선택
+
+#### 참가자는 자동으로
+
+참가자를 자동으로 할당하려면:
+
+1. Assign Participants 대화 상자에서 shuffle 버튼을 클릭하십시오.
+2. 참가자는 방에 할당됩니다.
+3. 방 이름 옆에 연필 아이콘을 클릭하여 객실 이름 편집 (옵션)
+4. 필요한 경우 다른 방으로 참가자를 이동
+5. 이름 \***시작 Breakout**
+6. 이름 \***예, 시작**확인 대화 상자에서
+
+#### 자주 묻는 질문
+
+참가자를 수동으로 할당하려면:
+
+1. Assign Participants 대화 상자에서 원하는 참가자를 선택하세요.
+2. 방에서 클릭**이름 \***
+3. 모든 참가자 및 객실 반복
+4. 이름 \***시작 Breakout**
+5. 이름 \***예, 시작**확인 대화 상자에서
+
+## 통합 방재
+
+API를 통해 Breakout 객실을 설정한 후 RealtimeKit SDK를 사용하여 애플리케이션에 통합해야 합니다.
+
+<RTKSDKSelector />
+
+### Breakout 룸 지원 SDK 초기화
+
+SDK를 초기화하고 Breakout 룸에 대한 이벤트 핸들러 추가:
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  import {
+  	RealtimeKitProvider,
+  	useRealtimeKitClient,
+  } from "@cloudflare/realtimekit-react";
+  import { RtkMeeting } from "@cloudflare/realtimekit-react-ui";
+  import { useEffect, useState } from "react";
+
+  function App() {
+  	const [meeting, initMeeting] = useRealtimeKitClient();
+  	const [authToken, setAuthToken] = useState("<participant_auth_token>");
+
+  	useEffect(() => {
+  		if (authToken) {
+  			initMeeting({
+  				authToken: authToken,
+  			});
+  		}
+  	}, [authToken]);
+
+  	//휴식 룸에 대한 이벤트 핸들러 추가
+  	useEffect(() => {
+  		if (meeting) {
+  			meeting.connectedMeetings.on("meetingChanged", (newMeeting) => {
+  				//회의 객체는 React에서 자동으로 업데이트됩니다.
+  				console.log("Switched to breakout room or main meeting");
+  			});
+  		}
+  	}, [meeting]);
+
+  	return (
+  		<RealtimeKitProvider value={meeting}>
+  			<RtkMeeting showSetupScreen={true} meeting={meeting} />
+  		</RealtimeKitProvider>
+  	);
+  }
+  ```
+
+  더 보기`meetingChanged`이벤트는 메인 미팅과 휴식 룸 사이에 참가자 스위치가 될 때 트리거됩니다. React에서는, 회의 목적은 공급자에 의해 자동적으로 관리됩니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```html
+  <script type="module">
+  	import RealtimeKitClient from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/index.es.js";
+
+  	let meeting = await RealtimeKitClient.init({
+  		authToken: "<participant_auth_token>",
+  	});
+
+  	// Add event handler for breakout rooms
+  	meeting.connectedMeetings.on("meetingChanged", (newMeeting) => {
+  		meeting = newMeeting;
+  		document.querySelector("rtk-meeting").meeting = meeting;
+  	});
+  </script>
+  ```
+
+  더 보기`meetingChanged`이벤트는 메인 미팅과 휴식 룸 사이에 참가자 스위치가 될 때 트리거됩니다. 이 사건 불이 있을 때 회의 목표 referenceXQ를 새롭게 하십시오.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```ts
+  import { Component, ViewChild, AfterViewInit } from '@angular/core';
+  import RealtimeKitClient from '@cloudflare/realtimekit';
+  import { RtkMeeting } from '@cloudflare/realtimekit-angular';
+
+  @Component({
+  	selector: 'app-root',
+  	template: `<rtk-meeting #myid [showSetupScreen]="true"></rtk-meeting>`
+  })
+  export class AppComponent implements AfterViewInit {
+  	@ViewChild('myid') meetingComponent: RtkMeeting;
+  	rtkMeeting: RealtimeKitClient;
+
+  	async ngAfterViewInit() {
+  		let meeting = await RealtimeKitClient.init({
+  			authToken: '<participant_auth_token>',
+  		});
+
+  		//휴식 룸에 대한 이벤트 핸들러 추가
+  		meeting.connectedMeetings.on('meetingChanged', (newMeeting) => {
+  			meeting = newMeeting;
+  			if (this.meetingComponent) {
+  				this.meetingComponent.meeting = meeting;
+  			}
+  		});
+
+  		this.rtkMeeting = meeting;
+  		if (this.meetingComponent) {
+  			this.meetingComponent.meeting = meeting;
+  		}
+  	}
+  }
+  ```
+
+  더 보기`meetingChanged`이벤트는 메인 미팅과 휴식 룸 사이에 참가자 스위치가 될 때 트리거됩니다. 이 사건 불이 있을 때 회의 목표 referenceXQ를 새롭게 하십시오.
+</RTKCodeSnippet>
+
+### 회의 UI 렌더링
+
+내장 Breakout 룸 지원을 포함하는 기본 회의 UI 구성 요소:
+
+<RTKCodeSnippet id="web-react">
+  ```jsx
+  import {
+  	RealtimeKitProvider,
+  	useRealtimeKitClient,
+  } from "@cloudflare/realtimekit-react";
+  import { RtkMeeting } from "@cloudflare/realtimekit-react-ui";
+  import { useEffect, useState } from "react";
+
+  function App() {
+  	const [meeting, initMeeting] = useRealtimeKitClient();
+  	const [authToken, setAuthToken] = useState("<participant_auth_token>");
+
+  	useEffect(() => {
+  		if (authToken) {
+  			initMeeting({
+  				authToken: authToken,
+  			});
+  		}
+  	}, [authToken]);
+
+  	useEffect(() => {
+  		if (meeting) {
+  			meeting.connectedMeetings.on("meetingChanged", (newMeeting) => {
+  				console.log("Switched to breakout room or main meeting");
+  			});
+  		}
+  	}, [meeting]);
+
+  	return (
+  		<RealtimeKitProvider value={meeting}>
+  			<RtkMeeting showSetupScreen={true} meeting={meeting} />
+  		</RealtimeKitProvider>
+  	);
+  }
+  ```
+
+  :::참조
+
+  기본 회의 UI (기본 회의 UI)`RtkMeeting`구성 요소) 자동으로 세션에 가입, 그래서 당신은 호출 할 필요가 없습니다`meeting.join()`.
+
+  :::
+
+  더 보기`showSetupScreen`속성은 설정 화면이 표시된지 여부를 제어하고 참가자가 세션에 가입하기 전에 오디오 및 비디오를 미리보기 할 수 있습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  ```html
+  <body>
+  	<rtk-meeting id="my-meeting"></rtk-meeting>
+
+  	<script type="module">
+  		import RealtimeKitClient from "https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/index.es.js";
+
+  		let meeting = await RealtimeKitClient.init({
+  			authToken: "<participant_auth_token>",
+  		});
+
+  		// Add event handler for breakout rooms
+  		meeting.connectedMeetings.on("meetingChanged", (newMeeting) => {
+  			meeting = newMeeting;
+  			document.querySelector("rtk-meeting").meeting = meeting;
+  		});
+
+  		document.querySelector("rtk-meeting").showSetupScreen = true;
+  		document.querySelector("rtk-meeting").meeting = meeting;
+  	</script>
+  </body>
+  ```
+
+  :::참조
+
+  기본 회의 UI (기본 회의 UI)`rtk-meeting`구성 요소) 자동으로 세션에 가입, 그래서 당신은 호출 할 필요가 없습니다`meeting.join()`.
+
+  :::
+
+  더 보기`showSetupScreen`속성은 설정 화면이 표시된지 여부를 제어하고 참가자가 세션에 가입하기 전에 오디오 및 비디오를 미리보기 할 수 있습니다.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ```html
+  <rtk-meeting #myid [showSetupScreen]="true"></rtk-meeting>
+  ```
+
+  ```ts
+  import { Component, ViewChild, AfterViewInit } from '@angular/core';
+  import RealtimeKitClient from '@cloudflare/realtimekit';
+  import { RtkMeeting } from '@cloudflare/realtimekit-angular';
+
+  @Component({
+  	selector: 'app-root',
+  	templateUrl: './app.component.html'
+  })
+  export class AppComponent implements AfterViewInit {
+  	@ViewChild('myid') meetingComponent: RtkMeeting;
+  	rtkMeeting: RealtimeKitClient;
+
+  	async ngAfterViewInit() {
+  		let meeting = await RealtimeKitClient.init({
+  			authToken: '<participant_auth_token>',
+  		});
+
+  		//휴식 룸에 대한 이벤트 핸들러 추가
+  		meeting.connectedMeetings.on('meetingChanged', (newMeeting) => {
+  			meeting = newMeeting;
+  			if (this.meetingComponent) {
+  				this.meetingComponent.meeting = meeting;
+  			}
+  		});
+
+  		this.rtkMeeting = meeting;
+  		if (this.meetingComponent) {
+  			this.meetingComponent.meeting = meeting;
+  		}
+  	}
+  }
+  ```
+
+  :::참조
+
+  기본 회의 UI (기본 회의 UI)`rtk-meeting`구성 요소) 자동으로 세션에 가입, 그래서 당신은 호출 할 필요가 없습니다`meeting.join()`.
+
+  :::
+
+  더 보기`showSetupScreen`속성은 설정 화면이 표시된지 여부를 제어하고 참가자가 세션에 가입하기 전에 오디오 및 비디오를 미리보기 할 수 있습니다.
+</RTKCodeSnippet>
+
+## 다음 단계
+
+RealtimeKit 응용 프로그램에 성공적으로 통합된 Breakout 룸이 있습니다. 참가자는 지금 할 수 있습니다:
+
+- 주요 회의에 가입
+- 해당 이용 후기에 달린 코멘트가 없습니다.
+- 메인 미팅과 휴식 룸 사이 전환
+- 더 작은 집중된 그룹에서 협업
+
+더 고급 사용자 정의를 위해, 다음을 탐구:
+
+- [UI 키트 구성 요소 라이브러리](/realtime/realtimekit/ui-kit/component-library/)- Browse 유효한 성분
+- [UI 키트](/realtime/realtimekit/ui-kit/state-management/)- 컴포넌트 동기화 방법 알아보기
+- [자체 UI 구축](/realtime/realtimekit/ui-kit/build-your-own-ui/)- 사용자 정의 회의 인터페이스 만들기

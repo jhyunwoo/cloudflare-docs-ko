@@ -1,0 +1,208 @@
+---
+title: Securing 게스트 무선 네트워크
+pcx_content_type: design-guide
+products:
+  - gateway
+  - cloudflare-wan
+tags:
+  - IPv6
+sidebar:
+  label: Securing 게스트 무선 네트워크
+reviewed: 2024-12-17T00:00:00.000Z
+description: 이 가이드는 Cloudflare를 찾고있는 IT 또는 보안 전문가를 위해 디자인되어 게스트 무선 네트워크를 안전하게 보호합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/securing-guest-wireless-networks/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/securing-guest-wireless-networks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PublicStats } from "~/components";
+
+## 제품정보
+
+많은 조직과 기업은 고객에게 무료 무선 인터넷 액세스를 제공합니다, 고객, 환자, 학생 및 방문자. 환대와 같은 산업, 게스트 Wi-Fi를 제공은 종종 필수적입니다. 신뢰할 수 있고 안전한 Wi-Fi 서비스를 갖춘 대학 및 대학은 잠재적 인 학생들과 방문객을 유치하는 중요한 요소가 될 수 있습니다.
+
+무료 무선 인터넷 액세스를 제공하는 몇 가지 혜택을 제공합니다. Businesses use Guest Wi-Fi는 마케팅 캠페인 또는 쿠폰을 제공하는 페이지를 방문하기 위해 사용자를 지시하여 고객 참여를 강화합니다. 또한, 많은 게스트 Wi-Fi 시스템은 이메일 주소, 브라우징 행동 및 특정 위치에 거주 시간과 같은 귀중한 사용자 분석을 수집합니다. 이 데이터는 매장이나 드라이브 후속 이메일 마케팅 캠페인에서 제품 배치와 같은 영향을 미칠 수 있습니다.
+
+그러나 게스트 Wi-Fi도 위험에 대해 소개합니다. 악성 사용자는 불법 행위에 대한 귀하의 네트워크를 악용 할 수 있습니다. 금지 된 콘텐츠, 구매, 또는 사이버 범죄에 참여. 일부 경우에, 호텔, 카페, 도서관 같은 기업은 그들의 게스트 Wi-Fi를 통해 불법 다운로드를 가능하게 해준 소송을 직면했습니다. 이 소송은 종종 저작권 보유자에 의해 제기, 기업은 자신의 손님에 의해 액세스하거나 다운로드 한 콘텐츠를 모니터링하거나 제어하지 못하여 불법 행위를 촉진 주장.
+
+![그림 1 : 게스트 네트워크는 종종 약간의 보안과 인터넷에 직접 연결됩니다.](~/assets/images/reference-architecture/securing-guest-wireless-networks/figure1.svg "Figure 1: Guest networks are often directly connected to the Internet with little security.")
+
+귀하의 조직이 범죄 비용을 직면 할 수있을 수 있지만 조직은 법적 비용 및 명성 손상에 잠재적으로 결과적으로 긴 조사의 일부가 될 수 있습니다. 이 가이드에서는 Cloudflare가 위험을 극소화할 수 있는 방법을 배우게 됩니다.[더 나은 보안 게스트 무선 네트워크](https://www.cloudflare.com/zero-trust/solutions/secure-guest-wifi/).
+
+### 이 문서는 누구입니까?
+
+이 참고 자료 건축은 Cloudflare를 찾고 있는 IT 또는 안전 전문가를 위해 그들의 손님 무선 네트워크를 확보하는 것을 돕도록 디자인됩니다. Cloudflare의 더 강한 기본 이해를 구축하려면 다음 리소스를 권장합니다.
+
+- Cloudflare는 무엇입니까? |[웹 사이트](https://www.cloudflare.com/what-is-cloudflare/)(5 분 읽기) 또는[동영상](https://www.youtube.com/watch?v=XHvmX3FhTwU)(2 분)
+- 모델 번호: Cloudflare Zero Trust[모델 번호: https://www.cloudflare.com/zero-trust/](https://www.cloudflare.com/zero-trust/)
+- Cloudflare와 SASE 아키텍처 |[/참고 자료-architecture/architectures/sase/](/reference-architecture/architectures/sase/)
+
+이 참고 자료 건축 가이드는 독자가 이해하는 것을 도울 것입니다:
+
+1. **Cloudflare 게이트웨이 DNS**: Cloudflare를 통합하는 방법을 알아보기 Gateway DNS 정책은 일반적인 게스트 무선 배포 시나리오에.
+2. **DNS 정책에 대한 모범 사례**: 고객 무선 DNS 정책을 구축하는 효과적인 방법을 발견하여 허용된 사용 정책을 시행하고 악의적인 활동을 방지합니다.
+3. **향상된 가시성과 보안**:
+
+- Cloudflare Zero Trust 대시보드를 사용하여 자세한 로그 및 분석에 액세스하고 DNS 쿼리, 트래픽 패턴 및 잠재적 인 보안 위협으로 통찰력을 제공합니다.
+- 이름 \***다운로드**장기 분석 또는 준수 목적으로 외부 스토리지 솔루션에 로그를 내보내기.
+- SIEM (Security Information and Event Management) 플랫폼과 통합하여 다른 보안 데이터와 Cloudflare 로그를 통합하고 사고 감지 및 응답을 간소화합니다.
+
+### 게이트웨이 DNS
+
+Cloudflare는 Zero Trust 고객을 위한 강화된 보호한 DNS 결심사를 제안합니다. 이 서비스는 같은 IP 주소를 공유하기 위해 여러 서버 또는 데이터 센터를 활성화하는 routing 기술을 사용합니다. 요청이 Anycast IP 주소로 전송되면 라우터는 Border Gateway Protocol (BGP)를 사용하여 가장 가까운 서버에 요청을 지시합니다. 결과적으로 DNS 쿼리는 항상 귀하의 위치에 따라 가장 가까운 Cloudflare 데이터 센터로 이동합니다. 데이터 센터<PublicStats id="data_center_cities" />, Cloudflare는의 하나 운영하고 있습니다[가장 큰 글로벌 네트워크](https://www.cloudflare.com/network/). 이 서비스는 조직의 보안을 강화하여 잠재적으로 악의적, 질적 또는 부적절한 목적지에 대한 DNS 해상도를 필터링하는 정책을 작성할 수 있습니다. 이 가이드는 이 서비스를 활성화하고 환경을 구성하는 방법을 설명합니다. 게스트 무선 네트워크를 확보하고 조직에 위험을 줄입니다.
+
+### DNS 위치
+
+모델 번호: Cloudflare[DNS 위치](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/)사무실, 집 또는 데이터 센터와 같은 물리적 인 기관에 맵핑 할 수있는 DNS 엔드 포인트 모음입니다.[오시는 길](/cloudflare-one/traffic-policies/)DNS 쿼리 프로토콜에 따라 다른 위치를 식별합니다. IPv4 트래픽은 DNS 쿼리가 시작된 소스 IP 주소에서 식별됩니다. IPv6 트래픽은 Cloudflare 대시보드에서 생성된 유일한 IPv6 해결자 주소에 의해 식별될 수 있습니다. 다음은 DNS 쿼리를 보장하는 방법을 설명합니다. 네트워크 환경 및 프로토콜에 따라 물리적 위치에 적절하게 맵핑됩니다. 이 문서에서 Gateway DNS 정책에 적용 할 수있는 속성으로 위치의 IP 주소를 사용하는 방법을 배우게됩니다.
+
+이 목표는 Wi-Fi 네트워크에서 DNS 요청이 Cloudflare의 보안 DNS 및 보안 웹 게이트웨이 서비스를 통해 전송됩니다. DNS 정책이 요청을 필터링하고 위험을 막을 수 있습니다. 이 가이드는 게스트 네트워크에 필요한 다양한 네트워크 아키텍처를 통해 산책하고 Cloudflare를 구현하는 방법에 대한 지침을 제공하여 해당 게스트 Wi-Fi 네트워크에 장치를 보호합니다.
+
+## 기본 무선 라우터에서 Securing 게스트 트래픽
+
+### 비즈니스 인터넷 및 정적 IPv4 주소를 사용하여
+
+게스트 무선 액세스를 제공하는 일반적인 방법은 기업 또는 운영 네트워크와 완전히 분리된 네트워크를 설정하는 것입니다. 예를 들어 지점 사무실이나 소매점은 단일 무선 라우터를 사용해 이를 구현할 수 있습니다. 라우터는 게스트 무선 서비스 세트 식별자(SSID)를 브로드캐스트하고, 연결된 장치에 IP 주소를 할당하며, 인터넷 연결을 제공합니다. 라우터에 할당된 공인 고정 IPv4 주소는 Cloudflare Zero Trust 대시보드에서 DNS 위치 속성으로 사용할 수 있습니다. 라우터 IP 주소가 ISP에 의해 동적으로 할당되는 경우에는 "전용 DNS resolver IPv4 및 IPv6 주소" 섹션을 참조하세요.
+
+모든 DNS 쿼리를 Cloudflare를 통해 라우팅하려면 WAN 인터페이스에서 라우터의 DNS 설정을 Cloudflare의 resolver IP 주소로 업데이트하세요. Zero Trust용 특정 resolver IP는 Cloudflare 대시보드의 DNS 위치 설정에서 찾을 수 있습니다. WAN 인터페이스 업데이트에 대한 자세한 단계는 라우터 제조사의 문서를 참조하세요. 일반적으로 Wi-Fi로 연결된 장치는 라우터의 IP 주소를 DNS 서버로 사용하며, 라우터가 대신 DNS 쿼리를 Cloudflare로 전달합니다. 그 결과 무선 장치의 DNS 쿼리는 Cloudflare로 전송되고, 라우터에 할당된 고정 IP 주소에서 발생한 것으로 보입니다.
+
+향상된 보안을 위해, 라우터에 방화벽 규칙을 생성하여 다른 DNS 서비스에 액세스하는 무선 게스트를 방지 (지원되는 경우). 이 규칙은 Cloudflare의 DNS 서버에서만 접근하고 UDP/TCP 항구 53에 다른 모든 DNS 목적지를 막을 수 있어야 합니다. 또한, 일부 고급 무선 라우터 지원 콘텐츠 필터링. 사용 가능한 경우 TLS (DoT) 또는 HTTPS (DoH)에서 DNS를 차단할 수 있습니다. 엔드포인트는 Cloudflare에서 설정된 DNS 보안 설정을 우회할 수 없습니다.
+
+![그림 2: DNS 쿼리가 Cloudflare에 전달될 때, 정책은 악의적이고 높은 위험 목적지에 접근을 방지하기 위하여 실행될 수 있습니다. Guest-Security-Block 및 Guest-Content-Block은 무선 게스트 장치에 적용되는 특정 DNS 정책을 참조합니다.](~/assets/images/reference-architecture/securing-guest-wireless-networks/figure2.svg "Figure 2: When DNS queries are forwarded to Cloudflare, policies can be implemented to prevent access to malicious and high risk destinations.  `Guest-Security-Block` and `Guest-Content-Block` refer to the specific DNS policies applied to the wireless guest devices.")
+
+## 보안 고객 트래픽은 기업 네트워크에서 소스
+
+몇몇 회사는 소비자 또는 반 직업적인 급료를 사용하여 넘어갑니다, 1개의 무선 대패에서 모두 및 기존하는 기업 네트워킹 해결책의 정상에 게스트 Wi-Fi 접근을 배치합니다. 예를 들어, 동일한 Wi-Fi 액세스 포인트 하드웨어는 엔터프라이즈 내부 네트워크와 게스트 네트워크 모두 방송 할 수 있습니다.
+
+### Segment 내부 및 게스트 네트워크
+
+내부 및 게스트 네트워크를 분리하는 일반적인 접근은 명백한 SSIDs의 사용을 포함합니다. 내부 법인 SSID 및 게스트 무선 SSID는 별도의 VLAN(Virtual Local Area Networks) 또는 연결될 수 있습니다.[Dot1q 태그](https://en.wikipedia.org/wiki/IEEE_802.1Q), 네트워크 사이 가상 세그먼트 제공.
+
+이 윤곽에서:
+
+1. 서브넷은 게스트 무선 VLAN에 할당됩니다.
+2. 하위넷의 기본 게이트웨이는 방화벽이나 라우터와 같은 상류 네트워크 장치의 인터페이스(또는 가상 인터페이스)에 구성됩니다.
+3. 이 장치는 내부 네트워크 트래픽에서 게스트 네트워크 트래픽을 설정하고 보안 게이트웨이를 공공 인터넷으로 행동합니다.
+
+### 고객 네트워크에 대한 DNS 구성
+
+단순 설정과 마찬가지로 게스트 무선 장치에서 DNS 쿼리는 Cloudflare의 해결사 IP로 전달되어야 합니다. 당신은 이것에 의해 달성할 수 있습니다:
+
+- Cloudflare DNS 서버를 게스트 장치에 대한 DHCP 범위에 할당합니다.
+- Cloudflare에 프록시 DNS 쿼리에 업스트림 네트워크 장치 구성.
+
+참고, 일부 내부 리소스에 게스트 장치 액세스를 제공 할 수도 있습니다. 또한 내부 DNS 서비스를 사용하여 클라이언트를 구성 할 수 있습니다. 또한 Cloudflare에 인터넷 경계 DNS 요청을 전달하는이 서비스를 설정할 수 있습니다.
+
+보안을 향상시키기 위해, TCP/UDP 포트 53에 Cloudflare의 엔터프라이즈 해커 IP를 Cloudflare에서만 DNS 쿼리를 허용하기 위해 아웃바운드 인터넷 방화벽 규칙을 구성하십시오.
+
+### 전용 공개 IPv4 주소 할당
+
+게스트 트래픽을 보장하기 위해 고유의 공용 IPv4 주소에서 소스:
+
+1. Port Address Translation (PAT)를 사용하여 방화벽 또는 Edge 장치에 대한 정책은 게스트 트래픽에 특히 사용됩니다.
+   - PAT (또는 NAT 하중 초과)는 로컬 네트워크에 여러 장치를 허용하여 단일 공용 IP 주소를 사용하여 인터넷에 액세스 할 수 있습니다.
+2. 방화벽 설정에서 게스트 서브넷으로 소스 주소 범위를 정의합니다.
+3. 번역된 소스 주소를 지정합니다. 공용 IPv4 주소는 게스트 네트워크에서 시작된 모든 인터넷 트래픽에 사용됩니다.
+
+PAT 또는 NAT 하중 초과 규칙을 설정하는 자세한 지침에 대한 방화벽 제조업체의 문서에 대한 참조.
+
+### Cloudflare의지도 손님 교통
+
+일단 게스트 네트워크 트래픽은 고유의 공용 IPv4 주소를 할당하면, 이 주소는 Cloudflare 대시보드에서 DNS 위치를 효과적으로 맵으로 사용할 수 있습니다.
+
+![Figure 3: 이 다이어그램은 게스트 Wi-Fi 트래픽이 다른 DNS 필터링 정책을 통해 기업 네트워크 트래픽을 확보하기 위해 Gateway DNS 서비스의 사용을 계산합니다.](~/assets/images/reference-architecture/securing-guest-wireless-networks/figure3.svg "Figure 3: This diagram shows how guest Wi-Fi traffic has different DNS filtering policies versus your use of our Gateway DNS service to secure corporate network traffic.")
+
+## 동적 할당 된 공용 IPv4 또는 IPv6 주소로 위치 보안 게스트 무선
+
+### 전용 DNS 해결자 IPv4 및 IPv6 주소
+
+Cloudflare는 여러분의 가장자리 장치에 정적 공공 IP 주소를 사용할 수 없으면 조직에 특별히 할당될 수 있는 전용 IPv4 및 IPv6 결의자 엔드포인트 주소를 제공합니다. 이 시나리오에서 DNS 쿼리가 전송되는 대상 주소는 Cloudflare DNS 엔드포인트에 물리적 위치를 지도하는 방법으로 역할을 할 수 있습니다.
+
+Cloudflare는 Zero Trust 대시보드를 통해 비용 없이 유일한 IPv6 결의점 주소를 제공합니다. 그러나 IPv4 주소의 제한된 가용성 때문에 전용 IPv4 DNS 엔드포인트는 Cloudflare Enterprise 플랜에서만 사용할 수 있습니다.
+
+예를 들어, 게스트 무선 라우터가 동적으로 ISP에 의해 IPv6 주소와 IPv6 DNS 서버를 할당하면 Cloudflare DNS 위치 설정에서 구성 된 IPv6 DNS 엔드포인트 주소와 일치하도록 IPv6 DNS 주소를 수정할 수 있습니다.
+
+### DNS 위치 추가
+
+이제 Cloudflare DNS resolver로 DNS 쿼리를 보내고, 조직의 게스트 무선 네트워크를 소스 IP 주소 또는 전용 resolver 주소로 식별하는 여러 방법을 살펴보았으므로, Zero Trust에서 새 위치를 만들 준비가 되었습니다.
+
+시작하기로 이동**DNS 위치**Zero Trust 대시보드에서. 자세한 내용은 단계별 지침을 참조하십시오.[**DNS 위치**](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/)관련 기사 IPv4 또는 IPv6 엔드포인트 필터링 및 위치 매칭을 사용할 때, 위치의 소스 IP 주소를 나타내는 CIDR 표기에서 네트워크 및 하위넷 마스크를 정의할 수 있습니다. 예를 들면:
+
+- 모든 무선 네트워크가 동일한 하위넷 내에서 공개 IP 주소를 공유하면 단일 DNS 위치 객체를 사용하여 한 번에 모든 위치에 정책을 적용 할 수 있습니다.
+- 특정 위치에 고유 한 정책을 지정하려면 /32에서 각 위치를 개별적으로 나타내는 호스트 주소를 사용합니다.
+
+### DNS 정책 만들기
+
+시작하기에, 방화벽 정책을 탐색하고 Zero Trust 대시보드에서 DNS를 선택하십시오. 자세한 내용은 단계별 지침을 참조하십시오.[DNS 정책](/cloudflare-one/traffic-policies/dns-policies/)관련 기사
+
+조직을 유지하기 위해, 우리는 명확하게 자신의 목적을 나타내는 의미있는 이름을 사용하는 것이 좋습니다. 예를 들어, 이름의 정책**게스트-보안-블록**수송:
+
+- **이름 \***: 누구의 정책이 적용됩니다.
+- **보안 보안**: 평가되는 내용의 유형.
+- **제품정보**: 행동이 취합니다.
+
+Cloudflare는 다양한 종류의 위협을 필터링하는 데 사용할 수있는 관리 범주의 범위를 제공합니다. 예를 들어 DNS 정책에 추가[보안 범주](/cloudflare-one/traffic-policies/domain-categories/#security-categories)Malware는 Cloudflare가 악성 코드 캠페인의 일부로 알려진 태그를 가지고있는 모든 사이트에 DNS 요청을하기에서 연결된 장치를 방지하거나 악성 코드를 호스팅 할 수 있습니다. 물론 보안 카테고리도 있습니다.[관련 분류](/cloudflare-one/traffic-policies/domain-categories/#content-categories)Cryptocurrency, P2P 공유 사이트 또는 성인 테마 사이트와 같은 사이트를 식별합니다. Cloudflare 또한 목록 관리[제품정보](/cloudflare-one/traffic-policies/application-app-types/), 그래서 당신은 공공 클라우드 스토리지 또는 파일 공유 사이트에 액세스 할 수 있습니다.
+
+Cloudflare는 또한 허용합니다[주문 피드](/security-center/indicator-feeds/#publicly-available-feeds)다른 공급업체에 가입할 수 있는 곳 중 하나가 필터에 대한 목록을 제공하거나 정부 기반 위협 피드에 내장 된 일부 사용할 수 있습니다. 이것은 당신이 필터를 원하는 어떤 사이트에 대해 매우 선택 할 수 있습니다.
+
+알려진 DNS 위치에서 요청을 만드는 장치, 또한이 정책을 추가 할 수 있습니다. 그래서 다른 게스트 Wi-Fi 위치에 대한 다른 정책을 만들 수 있습니다. 현지 법률이 필요한 상황에서는 인터넷 사이트의 특정 유형에 액세스 할 수 있습니다.
+
+정책은 여러 규칙으로 구성 될 수 있으므로 단일 정책은 높은 위험 웹 사이트에 액세스뿐만 아니라 부적절한 콘텐츠를 방지 할 수 있습니다.
+
+### 자주 묻는 질문
+
+Cloudflare는 몇 가지 추가 권장 DNS 정책을 가지고 있습니다.[인터넷 트래픽 구현 가이드](/learning-paths/secure-internet-traffic/build-dns-policies/recommended-dns-policies/). 이 정책은 조직의 전반적인 보안을 강화하기 위해 설계되었으며 내부 생산 웹 트래픽에 대한 정책을 설정할 때에도 영향을 미칩니다.
+
+### 게스트 DNS 인터넷 활동에 대한 가시성
+
+이제 DNS 트래픽을 통해 Cloudflare 및 무선 네트워크 보안, 당신은 당신의 손님에 대한 자세한 가시성을 얻을 수 있습니다 로그 및 고급 로깅 도구를 사용하여 인터넷 활동. 모든 DNS 요청은[이름 \*](/cloudflare-one/insights/logs/gateway-logs/)Cloudflare에서 우리의 대시보드는 간단한 검색 공용영역을 제공합니다. 이 로그는 귀하의 정책이 적용되고 게스트 인터넷 사용의 추세 또는 패턴을 감지하는 방법을 이해하는 데 도움이되며 보안 구성을 미세 조정 할 수있는 통찰력을 제공합니다.
+
+고급 원격 측정 및 원활한 데이터 관리에 대한 자세한 내용은**다운로드**당신의 Cloudflare 대시보드에서. 이 로그를 외부 소스로 전송, 가장 일반적으로 SIEM 플랫폼, 다음 혜택을 제공:
+
+- **중앙 분석**: 다양한 Cloudflare 서비스에서 포괄적인 가시성을 위해 SIEM의 다른 조직 데이터와 통합합니다.
+- **향상된 위협 탐지**: 다른 보안 이벤트와 함께 DNS 활동은 악성 행위의 패턴을 더 효과적으로 감지합니다.
+- **준수 및 감사 Readiness**: 규제 준수 요구 사항 또는 지원 사건 감사를 충족시키기 위해 장기적인 보유를 위한 DNS 로그.
+- **실시간 경고**: 지능형 DNS 활동을 기반으로 자동화된 알림 및 응답을 트리거하는 SIEM 통합.
+- **운영 통찰력**: 성능 병목을 식별하거나 콘텐츠 필터링 정책을 최적화하는 게스트 브라우징 행동에 대한 깊은 이해를 얻을 수 있습니다.
+
+로그, Logpush 및 SIEM 통합을 활용하여 게스트 인터넷 활동에 가시성을 향상시키고 조직의 전반적인 보안 자세를 강화하십시오.
+
+## DNS 필터링을 넘어
+
+위에서 언급 한 모든 방법까지 DNS 주위에 회귀했다, 주로 게스트 Wi-Fi 네트워크에 가장 트래픽이 DNS를 활용하고 이러한 구성은 장치에 설치된 모든 에이전트 또는 인증서가 필요하지 않습니다, 이 이유 DNS 동심 보호는 항상 게스트 Wi-Fi 네트워크를 확보 할 때 권장 시작점입니다. 불행히도 DNS 기반 보안 조치를 우회하는 방법은 다음과 같습니다.
+
+- dns 해결자를 수동으로 바꾸기
+- IP 주소를 사용하여 사이트에 도달 (지속적으로 IP를 저장하여 호스트 파일을 통해 완전히 자격이 된 도메인 이름 매핑)
+- 비 sanctioned VPN 클라이언트 사용
+
+이러한 이유로 보안을 레이어에 적용하고 DNS를 통해 제공된 보호를 보완하기 위해 네트워크 중심의 집행을 추가해야합니다.
+
+![그림 4: 이 도표는 Cloudflare에 손님 네트워크를 연결하는 방법 및 인터넷 자원에 도달하는 고도 교통 교류를 보여줍니다.](~/assets/images/reference-architecture/securing-guest-wireless-networks/figure4.svg "Figure 4: This diagram shows how to connect guest networks to Cloudflare and the high level traffic flow to reach Internet resources.")
+
+네트워크 레벨 필터링을 제공하려면 Cloudflare는 DNS 요청보다 트래픽 경로에 있어야합니다. 인터넷바운드 트래픽을 라우팅하여[IPsec 지원](https://www.cloudflare.com/learning/network-layer/what-is-ipsec/)Cloudflare에 갱도. Cloudflare의[Cloudflare 대만](/cloudflare-wan/)(이전 매직 WAN) 서비스는 IPsec 또는 GRE 터널을 Cloudflare 네트워크에 설치하는 타사 장치를 허용합니다. 배포할 수도 있습니다.[모델 번호: Cloudflare 1개의 기구](/cloudflare-wan/configuration/appliance/)Cloudflare로 터널을 다시 생성하고 원격으로 관리 할 수있는 사전 구성 경량 네트워크 어플라이언스. 트래픽이 Cloudflare 다중 보안 제어에 도달하면 다음과 같습니다.
+
+- Cloud 기반 네트워크 방화벽 ([Cloudflare 네트워크 방화벽](/cloudflare-network-firewall/))
+- 보안 웹 게이트웨이 (Security web Gateway)[오시는 길](/cloudflare-one/traffic-policies/))
+
+아래는 높은 수준의 트래픽 흐름은 위의 다이어그램에 상관 관계:
+
+1. 인터넷 중단 트래픽은 연결된 게스트 네트워크에서 구름을 막을 수 있으므로 정책 기반 경로로 쉽게 수행 할 수 있습니다. 대부분의 게스트 Wi-Fi 설정 장치에서 인터넷 경계 트래픽을 생성 할 것으로 예상됩니다. 대부분의 경우 정책 기반 경로는 목적지로 ANY를 참조하는 것이 충분합니다. Ex Source 192.168.53.0/24 to Destination ANY 다음 홉 Cloudflare IPsec 터널.
+2. 일단 트래픽이 구름에 도달하면 먼저 Cloudflare 네트워크 방화벽에 의해 검사됩니다. 모델 번호: Cloudflare 네트워크 방화벽은 특정 목적지 IP 또는 포트에 대한 액세스를 제한 할 수 있도록 관리자가 관리 할 수있는 네트워크 및 전송 레이어 블록을 만들 수 있으며, 일반적인 정책은 클라우드 플레어 DNS 해결사로 지시하지 않는 모든 DNS 트래픽을 차단할 수 있습니다. 사용자 지정 목록은 기존 목록 고객이 이미 가지고 가져올 수 있습니다.[이름 \*](/cloudflare-network-firewall/about/ids/)게스트 사용자가 게스트 네트워크에서 알려진 악용을 실행하려고 하는 경우 모니터링 할 수 있습니다. 관리 위협[이름 \*](/waf/tools/lists/managed-lists/#managed-ip-lists)Cloudflare의 자동 업데이트 위협 인텔을 사용하여 알려진 악성 코드 저장소 또는 botnets와 같은 알려진 위협을 차단할 수 있습니다.
+3. 그런 다음 트래픽은 Cloudflare Gateway로 전달됩니다. Gateway에서는 앞서 DNS 기반 정책에서 언급한 것과 동일한 콘텐츠 카테고리와 보안 위험을 사용해 네트워크 기반 정책을 만들 수 있습니다. 이러한 필터를 네트워크 수준에 적용하면 사용자가 DNS를 우회하더라도 정책을 계속 적용할 수 있어 다층 방어를 제공할 수 있습니다. 조직의 허용 가능한 사용 정책에 맞춰 DNS 기반 규칙을 반영하는 것이 좋습니다. Cloudflare Gateway는 보안 아웃바운드 프록시 역할도 하므로 사설 주소를 인터넷 라우팅 가능한 공인 주소로 SNAT할 수 있습니다. 기본적으로 RFC 1918 주소는 자동으로 공유 Cloudflare egress IP로 SNAT됩니다. 이렇게 하면 엣지 장치에서 직접 PAT를 관리할 필요가 없고, 인터넷 사이트를 탐색할 때 트래픽이 Cloudflare 소유 IP에서 나가므로 프라이버시 계층도 제공합니다. 계정 전용 전용 egress IP를 제공받을 수도 있고, 정책으로 egress IP 선택을 제어할 수도 있습니다.
+4. 트래픽은 이제 최종 인터넷 목적지로 떨어졌다, 반환 트래픽은 Cloudflare 가장자리를 통해 다시 경로되고 대응 IPsec 터널로 반환됩니다.
+
+## 제품정보
+
+이 전략을 따르고 Cloudflare Zero Trust를 레버리지하고, 조직은 그들의 손님을 위한 안전하고, 믿을 수 있는, 정책 고분고분한 무선 경험을 제안할 수 있습니다. 이 측정은 안전한 네트워크뿐만 아니라 가시성을 향상시키고 유능한 위협 완화를 가능하게합니다.
+
+Gateway 또는 Cloudflare SASE 플랫폼의 다른 측면에 대해 더 많은 학습에 관심이 있다면, 참조[모델 번호: 참고 자료 건축 도서관](/reference-architecture/)또는 우리의[개발자 docs](/)시작하기에.
+
+## 관련 자료
+
+- [Cloudflare와 SASE 아키텍처로 진화](/reference-architecture/architectures/sase/)
+- [모델 번호: Cloudflare 1개의 기구 배치 선택권 · Cloudflare 참고 자료 건축 문서](/reference-architecture/diagrams/sase/cloudflare-one-appliance-deployment/)
+- [DNS 정책 - Cloudflare Zero Trust](/cloudflare-one/traffic-policies/dns-policies/)

@@ -1,0 +1,131 @@
+---
+reviewed: 2025-02-26T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: URI 경로 및 호스트 헤더 변경
+products:
+  - transform-rules
+  - origin-rules
+description: 이 튜토리얼은 URI 경로와 Transform 규칙 및 Origin 규칙을 사용하여 수신 요청의 호스트 헤더를 수정하는 방법을 보여줍니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/change-uri-path-and-host-header/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/change-uri-path-and-host-header/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example, Steps, DashButton } from "~/components";
+
+이 튜토리얼은 URI 경로와 모두 수정하는 방법을 알려줍니다.`Host`자주 묻는 질문[Transform 규칙](/rules/transform/)그리고 근원 규칙.
+
+웹 사이트 방문자는 노선이됩니다.`https://<YOUR_SOURCE_HOSTNAME>/uploads/*`으로`https://<YOUR_TARGET_HOSTNAME>/*`.
+
+이 튜토리얼에서 다음을 수행 할 것:
+
+1. URL을 다시 작성하여 제거`/uploads`경로에서.
+2. 수정을 만들기`Host`원하는 호스트 이름에 헤더.
+
+이 단계에 따라 URI 경로와 효과적으로 관리할 수 있습니다.`Host`트래픽을 적절하게 전달하고 요청 처리 최적화합니다.
+
+## 1. URL을 다시 작성
+
+<Steps>
+  1. Cloudflare 대시보드에서 규칙에 가십시오**제품정보**사이트 맵
+
+     <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+  2. 제품정보**규칙 만들기** > **URL Rewrite 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+  4. 이름 \***자주 묻는 질문**, 선택**사용자 정의 필터 표현**, 선택**본문 바로가기**, 다음 표현을 입력:
+
+     <Example>
+       본문 바로가기**Expression 편집기**:
+
+       ```txt
+       raw.http.request.uri.path matches "^/uploads/.*"
+       ```
+     </Example>
+
+  5. 이름 \***Rewrite 매개 변수 설정**, 선택**오시는 길** > **자주 묻는 질문**, 그리고 선&#xD0DD;*·*.
+
+  6. URL 규칙을 다시 작성하기위한 작업을 정의 :
+
+     <Example>
+       텍스트 후**오시는 길** > **자주 묻는 질문** > *·*:
+
+       ```txt
+       regex_replace(raw.http.request.uri.path, "^/uploads/", "/")
+       ```
+     </Example>
+
+     더 보기[`regex_replace()`](/ruleset-engine/rules-language/functions/#regex_replace)함수는 대체합니다`/uploads/`경로의 일부`/`, 변화`/uploads/example.jpg`으로`/example.jpg`.
+
+  7. 제품정보**계정 만들기**.
+</Steps>
+
+## 2. 근원 규칙 만들기
+
+:::참조
+객체 저장 물통에 트래픽을 올리면 사용[클라우드 커넥터](/rules/cloud-connector/)원래 규칙 대신.
+주요 특징
+
+<Steps>
+  1. Cloudflare 대시보드에서 규칙에 가십시오**제품정보**사이트 맵
+
+     <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+  2. 제품정보**규칙 만들기** > **근원 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+  4. 이름 \***수신 요청 일치**, 규칙 표현 정의:
+
+     <Example>
+       본문 바로가기**Expression 편집기**:
+
+       ```txt
+       raw.http.request.uri.path matches "^/uploads/.*"
+       ```
+     </Example>
+
+  5. 이름 \***세트 근원 모수**, 선택**호스트 헤더** > **자주 묻는 질문**.
+
+  6. 규칙을 구성`Host`원하는 호스트 이름:
+
+     <Example>
+       텍스트 후**호스트 헤더** > **자주 묻는 질문**:
+
+       ```txt
+       example.com
+       ```
+     </Example>
+
+     이 설정[`Host`기타 제품](/rules/origin-rules/features/#host-header)으로`example.com`견적 요청 자주 묻는 질문`example.com`실제 호스트 이름과 함께.
+
+  7. (선택) 다른 근원 (DNS 표적)에 요구에, 사용[DNS 보장](/rules/origin-rules/features/#dns-record):
+
+     <Example>
+       텍스트 후**DNS 기록** > **관련 기사**:
+
+       ```txt
+       example.com
+       ```
+     </Example>
+
+     DNS 대상에 대한 요청을 전달합니다.`example.com`기본적으로[DNS 기록](/dns/manage-dns-records/how-to/create-dns-records/).
+
+  8. 제품정보**계정 만들기**.
+</Steps>
+
+## 최종 알림
+
+이 튜토리얼을 완료 한 후, 트래픽을 수신`https://<YOUR_SOURCE_HOSTNAME>/uploads/*`가는 길`https://<YOUR_TARGET_HOSTNAME>/*`.
+
+필터를 보장합니다.[URL 재 작성](/rules/transform/url-rewrite/)그리고[이름 \*](/rules/origin-rules/)(주)[클라우드 커넥터](/rules/cloud-connector/)규칙)는 unintended 규칙 실행을 피하기 위해 정확합니다.
+
+규칙을 평가하는 것[순서에](/ruleset-engine/reference/phases-list/), 그래서 Transform 규칙 (포함 URL rewrites) 원래 규칙 또는 클라우드 커넥터 전에 실행.

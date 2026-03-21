@@ -1,0 +1,141 @@
+---
+pcx_content_type: reference
+title: Zone Analytics Colos Endpoint에서 GraphQL Analytics로
+sidebar:
+  order: 13
+---
+
+import { Details } from "~/components";
+
+이 가이드는 더 이상 사용되지 않으며 곧 종료될 zone analytics API에서 GraphQL API로 어떻게 마이그레이션할 수 있는지 보여줍니다. colos endpoint의 현실적인 사용 사례를 예로 들고, 그 사용 사례가 GraphQL API에서 어떻게 표현되는지 설명합니다. 또한 GraphQL API가 대체하는 기존 API보다 더 강력한 이유가 되는 기능도 살펴봅니다.
+
+이 예제에서는 특정 colo의 요청 수를, 요청이 발생한 시간을 기준으로 시간별로 나누어 계산하려고 합니다. zone analytics colos endpoint를 기준으로 하면 API에서 데이터를 가져오는 curl을 다음과 같이 구성할 수 있습니다.
+
+```bash
+curl -H "Authorization: Bearer $API_TOKEN" "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/analytics/colos?since=2020-12-10T00:00:00Z"  > colos_endpoint_output.json
+```
+
+이 쿼리는 다음을 의미합니다.
+
+- `ZONE_ID`에 대한 Analytics Read 권한이 있는 `API_TOKEN`을 사용해
+- `2020-12-10T00:00:00Z`(`since` 매개변수)부터 현재까지의 시간 범위에 대해 `ZONE_ID`의 colos analytics를 가져옵니다.
+
+우리가 답하고 싶은 질문은 "ZHR의 시간당 요청 수는 얼마인가?"입니다. colos endpoint 응답 데이터와 약간의 jq 가공을 사용하면 다음 명령으로 답할 수 있습니다.
+
+```bash
+cat colos_endpoint_output.json | jq  -c '.result[] | {colo_id: .colo_id, timeseries: .timeseries[]} | {colo_id: .colo_id, timeslot: .timeseries.since, requests: .timeseries.requests.all, bandwidth: .timeseries.bandwidth.all} | select(.requests > 0) | select(.colo_id == "ZRH") '
+```
+
+이 jq 명령은 복잡하므로 단계별로 나누어 보겠습니다.
+
+```bash
+.result[]
+```
+
+이는 result 배열을 개별 JSON 라인으로 분리한다는 뜻입니다.
+
+```bash
+{colo_id: .colo_id, timeseries: .timeseries[]}
+```
+
+이 단계에서는 각 JSON 라인을 여러 JSON 라인으로 분해합니다. 각 결과 라인은 `colo_id` 하나와 `timeseries` 배열의 한 요소를 포함합니다.
+
+```bash
+{colo_id: .colo_id, timeslot: .timeseries.since, requests: .timeseries.requests.all, bandwidth: .timeseries.bandwidth.all}
+```
+
+이 단계에서는 각 라인의 timeseries 객체 내부에서 우리가 관심 있는 데이터를 평탄화합니다.
+
+```bash
+select(.requests > 0) | select(.colo_id == "ZRH")
+```
+
+이 단계에서는 요청 수가 0보다 크고 `colo_id`가 ZRH인 라인만 선택합니다.
+
+최종적으로 얻는 데이터는 다음 응답과 같습니다.
+
+<Details header="응답">
+
+```json
+{"colo_id":"ZRH","timeslot":"2020-12-10T00:00:00Z","requests":601,"bandwidth":683581}
+{"colo_id":"ZRH","timeslot":"2020-12-10T01:00:00Z","requests":484,"bandwidth":550936}
+{"colo_id":"ZRH","timeslot":"2020-12-10T02:00:00Z","requests":326,"bandwidth":370627}
+{"colo_id":"ZRH","timeslot":"2020-12-10T03:00:00Z","requests":354,"bandwidth":402527}
+{"colo_id":"ZRH","timeslot":"2020-12-10T04:00:00Z","requests":446,"bandwidth":507234}
+{"colo_id":"ZRH","timeslot":"2020-12-10T05:00:00Z","requests":692,"bandwidth":787688}
+{"colo_id":"ZRH","timeslot":"2020-12-10T06:00:00Z","requests":1474,"bandwidth":1676166}
+{"colo_id":"ZRH","timeslot":"2020-12-10T07:00:00Z","requests":2839,"bandwidth":3226871}
+{"colo_id":"ZRH","timeslot":"2020-12-10T08:00:00Z","requests":2953,"bandwidth":3358487}
+{"colo_id":"ZRH","timeslot":"2020-12-10T09:00:00Z","requests":2550,"bandwidth":2901823}
+{"colo_id":"ZRH","timeslot":"2020-12-10T10:00:00Z","requests":2203,"bandwidth":2504615}
+...
+```
+
+</Details>
+
+같은 결과를 GraphQL API로는 어떻게 얻을 수 있을까요?
+
+GraphQL API를 사용하면 가져오고 싶은 데이터를 훨씬 더 구체적으로 지정할 수 있습니다. colos endpoint는 colo별 요청 및 대역폭 분해에 대한 모든 정보를 강제로 가져오게 하지만, GraphQL API를 사용하면 우리가 관심 있는 정보만 가져올 수 있습니다.
+
+우리가 원하는 데이터는 HTTP 요청에 관한 것이므로, HTTP 요청 데이터의 표준 소스인 `httpRequestsAdaptiveGroups`를 사용합니다. GraphQL API의 이 노드는 상상할 수 있는 거의 모든 HTTP 요청 차원을 기준으로 필터링하고 그룹화할 수 있게 해줍니다. 또한 [Adaptive](/analytics/network-analytics/understand/concepts/#adaptive-bit-rate-sampling)이므로 [ABR 기술](https://blog.cloudflare.com/explaining-cloudflares-abr-analytics/)를 기반으로 빠르게 응답합니다.
+
+다음은 "ZHR의 시간당 요청 수는 얼마인가?"라는 질문에 답하는 데 필요한 데이터를 가져오는 GraphQL API 쿼리입니다.
+
+```txt
+{
+  viewer {
+    zones(filter: {zoneTag:"$ZONE_TAG"}) {
+      httpRequestsAdaptiveGroups(filter: {datetime_gt: "2020-12-10T00:00:00Z", coloCode:"ZRH"}, limit:10000, orderBy: [datetimeHour_ASC]) {
+        count
+        sum {
+          edgeResponseBytes
+        }
+        avg {
+          sampleInterval
+        }
+        count
+        dimensions {
+          datetimeHour
+          coloCode
+        }
+      }
+    }
+  }
+}
+```
+
+그런 다음 curl로 실행할 수 있습니다.
+
+```bash
+curl -X POST -H "Authorization: Bearer $API_TOKEN"  https://api.cloudflare.com/client/v4/graphql -d "@./coloGroups.json" > graphqlColoGroupsResponse.json
+```
+
+이전과 같은 방식으로 jq를 사용해 질문에 답할 수 있습니다.
+
+```bash
+cat graphqlColoGroupsResponse.json| jq -c '.data.viewer.zones[] | .httpRequestsAdaptiveGroups[] | {colo_id: .dimensions.coloCode, timeslot: .dimensions.datetimeHour, requests: .count, bandwidth: .sum.edgeResponseBytes}'
+```
+
+이 명령은 GraphQL API가 반환하는 데이터가 colos endpoint보다 훨씬 더 구체적이기 때문에 이전보다 훨씬 단순합니다.
+
+그래도 GraphQL API의 기본 개념을 이해하는 데 도움이 되므로 명령을 간단히 설명할 가치는 있습니다.
+
+```bash
+.data.viewer.zones[]
+```
+
+GraphQL 응답 형식은 쿼리와 매우 비슷합니다. 성공적인 응답은 항상 응답 데이터를 감싸는 `data` 객체를 포함합니다. 쿼리에는 항상 사용자 자신을 나타내는 `viewer` 객체가 있습니다. 그런 다음 zone 객체를 한 줄에 하나씩 풀어냅니다. 이 쿼리에는 zone이 하나만 있지만(이 예제에서는 그렇게 선택했기 때문), 여러 zone을 대상으로 한 쿼리도 가능합니다.
+
+```bash
+.httpRequestsAdaptiveGroups[]
+```
+
+`httpRequestsAdaptiveGroups` 필드는 리스트이며, 리스트의 각 데이터 포인트는 선택한 차원 조합과 그 조합에 대해 선택한 집계를 나타냅니다. 여기서는 각 데이터 포인트를 한 줄에 하나씩 풀어냅니다.
+
+```bash
+{colo_id: .dimensions.coloCode, timeslot: .dimensions.datetimeHour, requests: .count, bandwidth: .sum.edgeResponseBytes}
+```
+
+이 부분은 단순합니다. colos endpoint에서 앞서 사용했던 형식으로, 각 데이터 포인트에서 관심 있는 속성만 선택합니다.
+
+GraphQL API는 매우 강력한 도구이며, 다양한 차원을 기준으로 데이터를 필터링하고 그룹화할 수 있습니다. 이 기능은 Zone Analytics API의 colos endpoint에는 전혀 없습니다.

@@ -1,0 +1,398 @@
+---
+title: 마운트 버킷
+pcx_content_type: how-to
+sidebar:
+  order: 10
+description: 로컬 파일시스템으로 S3-compatible 객체 저장을 마운트합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/mount-buckets/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/mount-buckets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+로컬 파일 시스템 경로로 S3-compatible 객체 저장 물통을 마운트합니다. 표준 파일 작업을 사용하여 액세스 개체 저장.
+
+:::노트\[S3-compatible Provider]
+SDK는 S3-compatible object storage Provider와 함께 작동합니다. 예제에는 Cloudflare R2, Amazon S3, Google Cloud Storage, Backblaze B2, MinIO 및이 포함됩니다.[다른 사람](https://github.com/s3fs-fuse/s3fs-fuse/wiki/Non-Amazon-S3). SDK는 R2, S3 및 GCS를 자동으로 감지하고 최적화합니다.
+주요 특징
+
+## 물통을 거치할 때
+
+당신이 필요로 할 때 산 S3-compatible 물통:
+
+- **관련 자료**- 데이터는 sandbox 파괴를 생존
+- **큰 datasets**- 다운로드없이 프로세스 데이터
+- **관련 상품**- 다수 sandboxes는 동일한 자료에 접근합니다
+- **비용 효율적인 지속성**- sandboxes를 살아 남기기 보다는 더 싼
+
+## R2 물통 마운트
+
+<TypeScriptExample>
+  ```typescript
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  const sandbox = getSandbox(env.Sandbox, 'data-processor');
+
+  //산 R2 물통
+  await sandbox.mountBucket('my-r2-bucket', '/data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'
+  });
+
+  //표준 파일 시스템 운영을 가진 접근 물통
+  await sandbox.exec('ls', { args: ['/data'] });
+  await sandbox.writeFile('/data/results.json', JSON.stringify(results));
+
+  //Python에서 사용
+  await sandbox.exec('python', { args: ['-c', `
+  import pandas as pd
+  df = pd.read_csv('/data/input.csv')
+  df.describe().to_csv('/data/summary.csv')
+  `] });
+  ```
+</TypeScriptExample>
+
+:::note\[샌드박스 전체에 영향을 미치는 영향]
+마운트 버킷은 파일 시스템을 공유하기 때문에 모든 세션에서 볼 수 있습니다. sandbox 당 한 번 마운트.
+주요 특징
+
+## 회사 소개
+
+### 자동 검출
+
+Worker secrets로 credentials를 설정하고 SDK를 자동으로 감지합니다.
+
+```sh
+npx wrangler secret put AWS_ACCESS_KEY_ID
+npx wrangler secret put AWS_SECRET_ACCESS_KEY
+```
+
+<TypeScriptExample>
+  ```typescript
+  //Credentials는 환경에 자동적으로 검출했습니다
+  await sandbox.mountBucket('my-r2-bucket', '/data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'
+  });
+  ```
+</TypeScriptExample>
+
+### Explicit 자격
+
+필요한 경우 직접 자격 증명을 전달하십시오:
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('my-r2-bucket', '/data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+  	credentials: {
+  		accessKeyId: env.R2_ACCESS_KEY_ID,
+  		secretAccessKey: env.R2_SECRET_ACCESS_KEY
+  	}
+  });
+  ```
+</TypeScriptExample>
+
+## 산 물통 subdirectories
+
+버킷 내의 특정 하위디렉토리를 장착`prefix`옵션. 접두사의 내용만 마운트 포인트에 표시됩니다.
+
+<TypeScriptExample>
+  ```typescript
+  //마운트 만 / 업로드 / 이미지 / 하위 디렉토리
+  await sandbox.mountBucket('my-bucket', '/images', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+  	prefix: '/uploads/images/'
+  });
+
+  //파일은 접두사없이 마운트 포인트에 나타납니다.
+  //버킷: my-bucket/uploads/images/photo.jpg
+  //마운트 경로: /images/photo.jpg
+  await sandbox.exec('ls', { args: ['/images'] });
+
+  //subdirectory에 쓰기
+  await sandbox.writeFile('/images/photo.jpg', imageData);
+  //my-bucket 만들기:/uploads/images/photo.jpg
+
+  //다른 경로에 다른 접두사를 거치하십시오
+  await sandbox.mountBucket('datasets', '/training-data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+  	prefix: '/ml/training/'
+  });
+
+  await sandbox.mountBucket('datasets', '/test-data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+  	prefix: '/ml/testing/'
+  });
+  ```
+</TypeScriptExample>
+
+:::note\[Prefix 형식]
+더 보기`prefix`시작하기`/`(예:`/data/`, `/logs/2024/`). 다음은 s3fs 도구에 의해 필요합니다.
+주요 특징
+
+## 읽기 전용 마운트
+
+read-only 형태에 있는 거치 물통에 의하여 자료를 보호하십시오:
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('dataset-bucket', '/data', {
+  	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com',
+  	readOnly: true
+  });
+
+  //작업 읽기
+  await sandbox.exec('cat', { args: ['/data/dataset.csv'] });
+
+  //쓰기 실패
+  await sandbox.writeFile('/data/new-file.txt', 'data');  //오류: 읽기 전용 파일 시스템
+  ```
+</TypeScriptExample>
+
+## 지역 개발
+
+로컬 개발 중에 R2 Bucket을 장착할 수 있습니다.`wrangler dev`패스워드`localBucket`옵션. 이것은 노동자 환경에서 직접 R2 바인딩을 사용하므로 S3-compatible endpoint 또는 credentials가 필요하지 않습니다.
+
+### R2 바인딩 구성
+
+R2 물통을 Wrangler 구성에 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "my-test-bucket"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+### 산과 함께`localBucket`
+
+패스워드`localBucket: true`물통을 로컬로 거치는 선택권에서:
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('MY_BUCKET', '/data', {
+  	localBucket: true
+  });
+
+  //표준 작업을 사용하여 파일 접근
+  await sandbox.exec('ls', { args: ['/data'] });
+  await sandbox.writeFile('/data/results.json', JSON.stringify(results));
+  ```
+</TypeScriptExample>
+
+:::참조
+toggle 환경 변수를 사용할 수 있습니다.`localBucket`현지 개발과 생산 사이. 환경 변수 설정`LOCAL_DEV`Wrangler 설정에서 사용`vars`로컬 개발의 경우 reference 그것은 코드에:
+
+```typescript
+await sandbox.mountBucket('MY_BUCKET', '/data', {
+	localBucket: Boolean(env.LOCAL_DEV),
+	endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'
+});
+```
+
+시간 :`localBucket`이름 \*`true`·`endpoint`무시되고 SDK는 R2 바인딩을 직접 사용합니다. 환경 변수 설정에 대한 자세한 내용은 참조[Wrangler의 환경 변수](/workers/configuration/environment-variables/).
+:::
+
+더 보기`readOnly`·`prefix`옵션은 로컬 모드에서 동일한 방법을 작동:
+
+<TypeScriptExample>
+  ```typescript
+  //현지 산만
+  await sandbox.mountBucket('MY_BUCKET', '/data', {
+  	localBucket: true,
+  	readOnly: true
+  });
+
+  //subdirectory 마운트
+  await sandbox.mountBucket('MY_BUCKET', '/images', {
+  	localBucket: true,
+  	prefix: '/uploads/images/'
+  });
+  ```
+</TypeScriptExample>
+
+### 지역 개발 고려사항
+
+로컬 개발 중에, 파일은 R2와 직접 파일 시스템 마운트보다 주기적인 동기화 프로세스를 사용하여 컨테이너 사이에 동기화됩니다. 다음을 염두에두고:
+
+- **동기화 창**- 파일이 작성되면 간단한 지연이 존재하며 다른 쪽에 표시될 때. 예를 들어, R2에 파일을 업로드하고 컨테이너에 장착 된 경로에서 즉시 읽으면 파일이 아직 사용할 수 없습니다. 최근 기록된 데이터를 읽기 전에 동기화를 위한 짧은 창을 허용하십시오.
+- **고주파 쓰기**- Rapid Successive는 동일한 파일 경로에 쓰기는 완전히 propagate에 약간 오래 걸릴 수 있습니다. 제일 결과를 위해, R2와 동시에 콘테이너 둘 다에서 동일한 파일에 쓰기를 피하십시오.
+- **양방향 동기화**- 컨테이너에서 만든 변경은 R2과 동기화되며 R2XQ에서 만든 변경은 컨테이너에 동기화됩니다. 두 방향은 동일한 주기적인 sync 모형을 따릅니다.
+
+:::참조
+이러한 고려사항은 현지 개발에 적용`wrangler dev`이름 \* 생산에서는, 물통 산은 동기화 지연 없이 직접적인 filesystem 산을 이용합니다.
+주요 특징
+
+## Unmount 물통
+
+<TypeScriptExample>
+  ```typescript
+  //처리용 마운트
+  await sandbox.mountBucket('my-bucket', '/data', { endpoint: '...' });
+
+  //일하다
+  await sandbox.exec('python process_data.py');
+
+  //더 알아보기
+  await sandbox.unmountBucket('/data');
+  ```
+</TypeScriptExample>
+
+:::노트\[자동정화]
+거치된 물통은 sandbox가 파괴될 때 자동적으로 거치됩니다. 수동 unmounting는 선택적입니다.
+주요 특징
+
+## 다른 공급자
+
+SDK는 S3-compatible 객체 저장을 지원합니다. 다음은 일반적인 공급자의 예입니다:
+
+### 아마존 S3
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('my-s3-bucket', '/data', {
+  	endpoint: 'https://s3.us-west-2.amazonaws.com',  // Regional endpoint
+  	credentials: {
+  		accessKeyId: env.AWS_ACCESS_KEY_ID,
+  		secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+  	}
+  });
+  ```
+</TypeScriptExample>
+
+### Google 클라우드 스토리지
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('my-gcs-bucket', '/data', {
+  	endpoint: 'https://storage.googleapis.com',
+  	credentials: {
+  		accessKeyId: env.GCS_ACCESS_KEY_ID,  //HMAC 키
+  		secretAccessKey: env.GCS_SECRET_ACCESS_KEY
+  	}
+  });
+  ```
+</TypeScriptExample>
+
+:::note\[GCS는 HMAC키를 요구합니다]
+설정 → 상호 운용성에서 GCS 콘솔에서 HMAC 키를 생성합니다.
+주요 특징
+
+### 다른 S3-compatible 공급자
+
+Backblaze B2, MinIO, Wasabi 또는 기타와 같은 공급자는 표준 마운트 패턴을 사용합니다.
+
+<TypeScriptExample>
+  ```typescript
+  await sandbox.mountBucket('my-bucket', '/data', {
+  	endpoint: 'https://s3.us-west-000.backblazeb2.com',  // Provider-specific endpoint
+  	credentials: {
+  		accessKeyId: env.ACCESS_KEY_ID,
+  		secretAccessKey: env.SECRET_ACCESS_KEY
+  	}
+  });
+  ```
+</TypeScriptExample>
+
+공급자 특정한 윤곽을 위해, 보십시오[RSS 피드](https://github.com/s3fs-fuse/s3fs-fuse/wiki/Non-Amazon-S3)어떤 문서 지원 제공 업체 및 권장 플래그.
+
+## 문제 해결
+
+### 자격 증명 오류
+
+**오류 수정**: `MissingCredentialsError: No credentials found`
+
+**제품정보**: Worker secrets로 credentials를 놓으십시오:
+
+```sh
+npx wrangler secret put AWS_ACCESS_KEY_ID
+npx wrangler secret put AWS_SECRET_ACCESS_KEY
+```
+
+### 마운트 실패 오류
+
+**오류 수정**: `S3FSMountError: mount failed`
+
+**일반적인 원인**:
+
+- 잘못된 엔드포인트 URL
+- 잘못된 자격
+- 버킷은 존재하지 않습니다.
+- 네트워크 연결 문제
+
+엔드포인트 형식과 자격 증명을 검증:
+
+<TypeScriptExample>
+  ```typescript
+  try {
+  	await sandbox.mountBucket('my-bucket', '/data', {
+  		endpoint: 'https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com'
+  	});
+  } catch (error) {
+  	console.error('Mount failed:', error.message);
+  	//endpoint 형식, 자격 증명, 버킷 존재 확인
+  }
+  ```
+</TypeScriptExample>
+
+### 경로 이미 장착 오류
+
+**오류 수정**: `InvalidMountConfigError: Mount path already in use`
+
+**제품정보**: 첫 번째 또는 다른 경로 사용 :
+
+<TypeScriptExample>
+  ```typescript
+  //현재 위치
+  await sandbox.unmountBucket('/data');
+
+  //또는 다른 경로 사용
+  await sandbox.mountBucket('bucket2', '/storage', { endpoint: '...' });
+  ```
+</TypeScriptExample>
+
+### 느린 파일 접근
+
+거치된 물통에 파일 가동은 네트워크 대기권 때문에 국부적으로 filesystem 보다는 더 느립니다.
+
+**제품정보**: 자주 액세스 된 파일 복사 :
+
+<TypeScriptExample>
+  ```typescript
+  //로컬 파일시스템에 복사
+  await sandbox.exec('cp', { args: ['/data/large-dataset.csv', '/workspace/dataset.csv'] });
+
+  //로컬 복사 작업 (빠른)
+  await sandbox.exec('python', { args: ['process.py', '/workspace/dataset.csv'] });
+
+  //버킷에 결과를 다시 저장
+  await sandbox.exec('cp', { args: ['/workspace/results.json', '/data/results/output.json'] });
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+- **일찍 산**- sandbox 초기화에 마운트 버킷
+- **R2XQ를 Cloudflare를 위해 사용하십시오**- Zero egress 수수료 및 최적화 구성
+- **보안 자격**- 항상 노동자 비밀을 사용, 절대 hardcode
+- **가능한 한 읽기 전용**- 읽기 전용 마운트로 데이터를 보호합니다.
+- **고립을 위한 prefixes 사용**- 특정한 datasets로 일할 때 산 subdirectories
+- **산 경로**- 사용`/data`, `/storage`, 또는`/mnt/*`(아보이드)`/workspace`, `/tmp`)
+- **핸들 오류**- try/catch 블록에 있는 포장 산 가동
+- **Optimize 액세스**- 자주 액세스하는 파일 복사
+
+## 관련 자료
+
+- [Persistent 저장 자습서](/sandbox/tutorials/persistent-storage/)- 완전한 R2 예
+- [저장 API reference](/sandbox/api/storage/)- 전체 방법 문서
+- [환경 변수](/sandbox/configuration/environment-variables/)- Credential 구성
+- [R2 문서](/r2/)- Cloudflare R2XQ에 대해 알아보기

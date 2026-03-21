@@ -1,0 +1,104 @@
+---
+pcx_content_type: how-to
+title: 레드우드SDK
+sidebar:
+  order: 6
+tags:
+  - full-stack
+description: RedwoodSDK 응용 프로그램을 만들고 Cloudflare Workers에 배포합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/redwoodsdk/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/redwoodsdk/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Description,
+	InlineBadge,
+	Render,
+	PackageManagers,
+	Steps,
+} from "~/components";
+
+이 가이드에서, 당신은 새로운 만들 것입니다[레드우드SDK](https://rwsdk.com/)응용 프로그램 및 Cloudflare Workers에 배포합니다.
+
+RedwoodSDK는 Cloudflare에 서버 측 웹 응용 프로그램을 구축하기위한 프레임 워크입니다. SSR, React 서버 구성 요소, 서버 기능 및 실시간 기능을 제공하는 Vite 플러그인입니다.
+
+## Workers에 새로운 RedwoodSDK 응용 프로그램을 배포
+
+<Steps>
+  1. **새로운 프로젝트를 만듭니다.**
+
+     다음 명령을 실행, 교체`my-project-name`원하는 프로젝트 이름:
+
+     <PackageManagers type="dlx" pkg="create-rwsdk" args={"my-project-name"} />
+
+  2. **디렉토리 변경.**
+     ```sh
+     cd my-project-name
+     ```
+
+  3. **신뢰할 수 있는 설치**
+     <PackageManagers type="install" />
+
+  4. **현지 개발**
+
+     프로젝트 디렉토리의 다음 명령을 실행하여 로컬 개발 서버를 시작합니다. RedwoodSDK는 Vite 플러그인이므로 다른 Vite 프로젝트와 동일한 개발 워크플로를 사용할 수 있습니다.
+
+     <PackageManagers type="run" args={"dev"} />
+
+     브라우저에서 개발 서버 액세스`http://localhost:5173`, "Hello, World!" 페이지를 표시해야 할 곳.
+
+  5. **첫 번째 경로 추가.**
+
+     응용 프로그램의 항목 점은`src/worker.tsx`. 편집기에서 파일을 엽니다.
+
+     당신은 볼 것이다`defineApp`클라이언트에 응답을 돌려서 요청을 처리하는 기능:
+
+     ```tsx
+     import { defineApp } from "rwsdk/worker";
+     import { route, render } from "rwsdk/router";
+
+     import { Document } from "@/app/Document";
+     import { Home } from "@/app/pages/Home";
+
+     export default defineApp([
+       render(Document, [route("/", () => new Response("Hello, World!"))]),
+     ]);
+     ```
+
+     추가하기`/ping`경로 핸들러:
+
+     ```tsx
+     import { defineApp } from "rwsdk/worker";
+     import { route, render } from "rwsdk/router";
+
+     export default defineApp([
+       render(Document, [
+         route("/", () => new Response("Hello, World!")),
+         route("/ping", function () {
+           return <h1>Pong!</h1>;
+         }),
+       ]),
+     ]);
+     ```
+
+     바로가기`http://localhost:5173/ping`페이지에 표시된 "Pong!"를 볼 수 있습니다.
+
+     Route는 JSX를 직접 반환 할 수 있습니다. RedwoodSDK는 서버에서 JSX를 렌더링하고 클라이언트에게 HTML을 보냅니다.
+
+  6. **프로젝트 배포**
+
+     프로젝트에 배포할 수 있습니다.`*.workers.dev`하위 도메인 또는[주문 영역](/workers/configuration/routing/custom-domains/), 당신의 국부적으로 기계에서 또는 어떤 CI/CD 체계에서, 포함하여[CloudflareWorkers CI/CD의](/workers/ci-cd/builds/).
+
+     다음 명령을 사용하여 빌드 및 배포합니다. CI를 사용하는 경우, 당신의 업데이트를 확인[배포 명령](/workers/ci-cd/builds/configuration/#build-settings)구성에 따라.
+
+     <PackageManagers type="run" args={"release"} />
+
+     명령을 실행하는 첫 번째 시간은 실패하고 근로자를 만들 것을 요청할 수 있습니다. dev 하위 도메인. dashboard로 이동하여 Workers 메뉴를 엽니다. Workers 랜딩 페이지를 처음 열면 근로자를 만들 것입니다. dev subdomain 자동.
+</Steps>

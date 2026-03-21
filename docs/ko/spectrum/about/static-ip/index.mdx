@@ -1,0 +1,60 @@
+---
+pcx_content_type: concept
+title: Static IP
+weight: 0
+
+---
+
+import { APIRequest, Render } from "~/components"
+
+Spectrum 애플리케이션을 만들면 IP가 할당됩니다. 이 IP는 일반적으로 동적이므로 시간이 지나면서 변경됩니다. 하지만 예를 들어 특정 IP에 대해 WAF 사용자 지정 규칙을 설정하려는 경우에는 static IP를 사용하는 편이 좋을 수 있습니다.
+
+물리적인 도로 주소처럼 static IP는 인터넷상의 다른 컴퓨터나 서버에 특정 컴퓨터가 어디에 위치하거나 연결되어 있는지를 알려줄 수 있습니다. IP가 바뀌지 않기 때문에 네트워크에서 해당 장치를 더 쉽게 찾을 수 있습니다.
+
+static IP를 사용하면 Cloudflare는 Cloudflare 전역 네트워크에서 확인되는 클라이언트 도메인의 IP 주소를 절대 변경하지 않겠다고 약속합니다. 예를 들어 `www.example.com`은 항상 `198.51.100.10`으로 해석되고 그 주소로 전송된 트래픽을 수락합니다. 다른 고객은 해당 IP에서 호스팅되지 않습니다.
+
+중요한 점은 static IP가 개별 Spectrum 애플리케이션 각각이 아니라 DNS 이름과 연결된다는 것입니다. 즉 같은 hostname을 사용하는 모든 Spectrum 앱은 동일한 static IP를 공유합니다.
+
+## Spectrum에서 Static IP 사용
+
+:::caution[가용성]
+Static IP는 Spectrum에 기본 포함되지 않는 Enterprise 기능입니다. 접근 권한을 요청하려면 계정 팀에 문의하세요.
+:::
+
+Cloudflare에서 static IP를 받으면 [BYOIP](/byoip/)와 마찬가지로 API를 통해 사용할 수 있습니다. 현재로서는 이 기능을 위한 UI는 아직 제공되지 않습니다.
+
+API를 통해 Spectrum 애플리케이션을 만들 때 제공받은 static IP를 지정하세요. 예를 들어 아래 API 예시는 Cloudflare의 HTTP 파이프라인을 통해 트래픽을 라우팅하는 애플리케이션을 생성합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/spectrum/apps"
+  method="POST"
+  json={{
+    protocol: "tcp/80",
+    dns: {
+      type: "ADDRESS",
+      name: "www.example.com"
+    },
+    origin_direct: [
+      "tcp://192.0.2.1:80"
+    ],
+    tls: "off",
+    traffic_type: "http",
+    edge_ips: {
+      type: "static",
+      ips: [
+        "198.51.100.10",
+        "2001:DB8::1"
+      ]
+    }
+  }}
+/>
+
+## Static IP 확인
+
+<Render
+  file="check-leased-ips"
+	product="byoip"
+	params={{
+		product: "Spectrum용 static IP"
+	}}
+/>

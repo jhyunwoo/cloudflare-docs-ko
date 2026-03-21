@@ -1,0 +1,104 @@
+---
+pcx_content_type: faq
+title: 자주 묻는 질문
+
+---
+
+## 개요
+
+사용 방법 가이드, 튜토리얼, 기타 참조 정보를 포함한 Load Balancing의 더 자세한 내용은 [제품 문서](/load-balancing/)를 확인하세요.
+
+:::note
+
+Load Balancing을 켜려고 하나요? [Load Balancing 활성화](https://dash.cloudflare.com/?to=/:account/:zone/traffic/load-balancing).
+:::
+
+***
+
+## 왜 origin이 이렇게 많은 health monitor 요청을 받나요?
+
+이 문제는 두 가지 원인이 함께 작용해서 발생할 수 있습니다.
+
+### 여러 Health Monitor 지역
+
+[monitor를 pool에 연결](/load-balancing/monitors/create-monitor/#create-a-monitor)할 때, Cloudflare가 endpoint health를 모니터링하는 데 사용할 **Health Monitor Regions**를 지정할 수 있습니다.
+
+여러 지역을 선택하거나 **All Data Centers (Enterprise Only)**를 선택하면, 해당 pool과 연결된 endpoint로 가는 [트래픽이 크게 증가](/load-balancing/understand-basics/health-details/#how-an-endpoint-becomes-unhealthy)할 수 있습니다. 각 지역은 3개의 데이터 센터에서 개별 health monitor 요청을 보냅니다. **All Data Centers**를 사용하면 존재하는 모든 Cloudflare 데이터 센터에서 개별 health monitor 요청이 전송되며, 이 데이터 센터 수는 계속 증가하고 있습니다.
+
+트래픽을 줄이려면 선택한 지역 수를 줄이거나 **All Data Centers** 대신 다른 옵션을 선택하세요.
+
+### health monitor 요청의 낮은 간격
+
+health monitor 요청 간격이 너무 낮으면 endpoint로 전송되는 트래픽이 증가할 수 있습니다.
+
+***
+
+## 왜 내 endpoint 또는 pool이 unhealthy로 간주되나요?
+
+endpoint와 pool이 unhealthy 상태가 되는 방식에 대해 자세히 알아보려면 [Endpoint and pool health](/load-balancing/understand-basics/health-details)를 참고하세요.
+
+endpoint가 실제로는 healthy인데 Load Balancing이 unhealthy로 보고한다면, [monitor](/load-balancing/monitors)에서 다음 설정을 확인하세요.
+
+* 구성된 endpoint를 대상으로 `curl` 요청을 수행하세요. 확인되는 응답이 monitor 설정과 일치하는지 점검하세요.
+* 방화벽이나 웹 서버가 [Cloudflare health monitors](/fundamentals/reference/cloudflare-site-crawling/#specific-products)를 차단하거나 rate limit하지 않고, [Cloudflare IP addresses](/fundamentals/concepts/cloudflare-ip-addresses/)에서 오는 요청을 허용하는지 확인하세요.
+* **Response Body**에서 특정 값을 찾고 있다면, 그 값이 비교적 고정적이며 HTML 페이지의 처음 10 KB 안에 있는지 확인하세요.
+* endpoint가 `301` 또는 `302` 상태 코드를 반환한다면 **Follow Redirects**가 선택되어 있는지 확인하세요.
+* **Timeout** 값을 늘려 보세요.
+* health monitor의 **Host Header**를 검토하세요.
+* [Authenticated Origin Pulls](/ssl/origin-configuration/authenticated-origin-pull/) 또는 [Argo Smart Routing](/argo-smart-routing/)을 사용하고 있다면 **Simulate Zone**에 zone 값을 입력했는지 확인하세요.
+
+***
+
+## 왜 primary pool이 아직 healthy인데도 Load Balancer가 secondary pool로 트래픽을 보내나요?
+
+특정 데이터 센터에서 health monitor 요청이 실패하면(해당 endpoint가 여전히 healthy하더라도) 간헐적으로 트래픽이 다른 pool로 라우팅되는 것을 볼 수 있습니다. 그 데이터 센터는 healthy하다고 판단한 다른 pool로 소량의 요청을 보낼 수 있습니다.
+
+endpoint와 pool이 unhealthy 상태가 되는 방식에 대해 자세히 알아보려면 [Endpoint and pool health](/load-balancing/understand-basics/health-details)를 참고하세요.
+
+***
+
+## pool 또는 endpoint가 unhealthy가 되면 어떤 일이 발생하나요?
+
+pool 또는 endpoint가 unhealthy가 되면, 설정에 따라 트래픽이 다른 healthy pool 또는 endpoint로 다시 라우팅될 수 있습니다. 다음과 같은 경우 이 동작을 경험할 수 있습니다.
+
+1. **All-Datacenters** 모니터링을 사용하는 pool에서 특정 데이터 센터의 monitor가 실패하는 경우. 이때는 monitor가 다시 성공할 때까지 해당 데이터 센터에서 영향을 받은 endpoint로 향하던 모든 트래픽이 우회됩니다. 이런 경우는 LB request 분석에서 unhealthy endpoint 또는 pool을 피하도록 steering한 것으로 반영됩니다.
+
+2. FQDN endpoint 주소를 사용하는 pool에서 특정 데이터 센터의 recursive DNS 조회가 실패하는 경우. 이 경우 DNS 요청이 실패한 요청만 영향을 받은 endpoint에서 우회됩니다. 특히 로컬 DNS 캐시 TTL이 만료되어 hot path에서 원격 조회가 필요할 때, 상위 authoritative resolver가 가끔 timeout되거나 실패하면 간헐적으로 나타날 수 있습니다. 이 역시 LB request 분석에서 unhealthy endpoint를 피하도록 steering한 것으로 표시되며, 요청 로그에는 확인된 endpoint IP가 누락됩니다.
+
+이러한 상황을 피하려면 다음을 권장합니다.
+
+1. **All-Datacenters** 모니터링을 사용하지 마세요.
+
+2. endpoint 구성에는 IP 주소를 사용하세요. 그것이 어렵다면 Cloudflare가 authoritative한 domain(primary 또는 secondary)을 사용하세요.
+
+endpoint와 pool이 unhealthy 상태가 되는 방식에 대해 자세히 알아보려면 [Endpoint and pool health](/load-balancing/understand-basics/health-details)를 참고하세요.
+
+***
+
+## Load Balancing과 Health Checks의 차이는 무엇인가요?
+
+[Cloudflare Load Balancing](/load-balancing/)은 endpoint health를 모니터링하고, 그 정보와 기타 정보를 바탕으로 들어오는 요청을 적절히 라우팅하는 데 도움을 줍니다. 개별 endpoint에는 monitor가 연결되며, 이 monitor는 일정한 간격으로 monitor 요청을 보냅니다.
+
+[Cloudflare Health Checks](/health-checks/)는 Load Balancer 안의 monitor와 동일하지만, 서버 health를 점검하기 위한 용도로만 사용되며 트래픽 분산 기능은 제공하지 않습니다.
+
+***
+
+## 왜 Load Balancing Analytics에서 다른 요청 수가 보이나요?
+
+[Load Balancing Analytics](/load-balancing/reference/load-balancing-analytics/)를 검토할 때, 특히 다른 Cloudflare 대시보드(Caching 등)와 비교하면 요청 수가 다르게 보일 수 있습니다.
+
+Load balancing **requests**는 Load Balancer가 처리한 캐시되지 않은 요청 수를 의미합니다. Cloudflare는 기본적으로 확인된 IP 주소를 최대 5초 동안 캐시합니다. 이러한 기본 캐싱 동작이 차이가 발생하는 가장 흔한 원인입니다.
+
+***
+
+## Load Balancer 또는 monitor에서 특정 오류 코드가 보입니다.
+
+특정 오류 코드와 다음 단계 목록은 [Load Balancing 문제 해결](/load-balancing/troubleshooting)을 참고하세요.
+
+***
+
+## 관련 자료
+
+* [Endpoint and pool health](/load-balancing/understand-basics/health-details)
+* [Monitors](/load-balancing/monitors)
+* [Load Balancing Analytics](/load-balancing/reference/load-balancing-analytics/)

@@ -1,0 +1,140 @@
+---
+pcx_content_type: how-to
+title: 검색 옵션
+tags:
+  - Logging
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/dlp-policies/logging-options/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/data-loss-prevention/dlp-policies/logging-options/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Data Loss Prevention은 포렌식 증거로 특정 DLP 정책을 트리거 한 데이터를 캡처, 저장하고 볼 수 있습니다. 모든 계획에 대한 사용자는 로그인 할 수 있습니다.[제품 설명](#log-the-payload-of-matched-rules)또는[Generative AI 신속한 내용](#log-generative-ai-prompt-content)그들의 Cloudflare 로그에 일치 HTTP 요청. 또한, 기업 사용자는 할 수 있습니다[Logpush 작업 구성](#send-http-requests-to-logpush-destination)저장 대상에 맞는 HTTP 요청의 사본을 보낼 수 있습니다.
+
+DLP 정책을 트리거하는 데이터는 HTTP 요청의 일부에 저장됩니다. Payload 로깅은 특히 DLP 정책의 행동을 진단 할 때 유용합니다. 규칙을 트리거 한 값은 민감한 데이터를 포함 할 수 있으므로 고객 보호 된 공공 키와 암호화되어 나중에 검사 할 수 있습니다. 저장된 자료는 경기의 적격한 버전을 포함하고, 경기의 양쪽에 추가적인 맥락의 75 바이트.
+
+## DLP 페이로드 암호화 공개 키 설정
+
+로깅 DLP 페이로드를 시작하기 전에 DLP 페이로드 암호화 공개 키를 설정해야합니다.
+
+### 키 쌍 생성
+
+명령줄의 public/private key 쌍을 생성하려면, 참조[이 지침](/waf/managed-rules/payload-logging/command-line/generate-key-pair/).
+
+### Cloudflare에 공공 키를 업로드
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **교통 설정**.
+2. 내 계정**DLP 페이로드 및 신속한 암호화 공개 키 설정**필드, 선택**제품정보**.
+3. 대중적인 열쇠를 붙여.
+4. 제품정보**제품 정보**.
+
+:::참조
+일치하는 개인 키는 로그를 볼 필요가있다. 개인 키를 잃는 경우, 당신은해야합니다[제품정보](#1-generate-a-key-pair)·[이름 \*](#2-upload-the-public-key-to-cloudflare)새로운 공개 키. 새로운 요청의 페이로드는 새로운 공개 키로 암호화됩니다.
+주요 특징
+
+## 일치하는 규칙의 페이로드를 로그
+
+DLP는 Cloudflare 로그에서 일치된 HTTP 요청의 페이로드를 기록할 수 있습니다.
+
+### DLP 정책에 대한 페이로드 로깅 켜기
+
+사용 가능한 페이로드 로깅을 허용하거나 HTTP 정책을 차단할 수 있습니다.[*DLP 프로필*](/cloudflare-one/traffic-policies/http-policies/#dlp-profile)옵션 정보
+
+1. 오시는 길**교통 정책** > **방화벽 정책** > **HTTP: HTTP**.
+2. 기존의 허용 또는 블록 DLP 정책 또는[새로운 정책 만들기](/cloudflare-one/data-loss-prevention/dlp-policies/#2-create-a-dlp-policy).
+3. 정책 빌더에서 스크롤**정책 설정 구성**관련 기사**일치하는 규칙의 페이로드를 로그**.
+4. 제품정보**제품 정보**.
+
+Data Loss Prevention은 이제 이 정책과 일치하는 HTTP 요청에 대한 페이로드의 일부를 저장합니다.
+
+### payload 로그 보기
+
+DLP 페이로드 로그를 볼 수:
+
+1. 오시는 길**관련 기사** > **로그인** > **HTTP 요청 로그**.
+2. DLP 로그로 이동하여 리뷰 및 확장에 관심이 있습니다.
+3. 제품정보**Decrypt 페이로드 로그**.
+4. 개인 키를 입력하고 선택**암호 해독**.
+
+당신은 볼 것이다[일치하는 DLP 프로필의 ID](/api/resources/zero_trust/subresources/dlp/subresources/profiles/methods/list/)다음으로 decrypted payload.
+
+:::참조
+Cloudflare는 열쇠 또는 해독한 탑재량을 저장하지 않습니다.
+주요 특징
+
+### AI 컨텍스트 분석에 거짓과 진실한 긍정적
+
+당신은[AI 컨텍스트 분석](/cloudflare-one/data-loss-prevention/dlp-profiles/advanced-settings/#ai-context-analysis)DLP 프로파일을 위해, 당신은 거짓과 진실한 긍정적을 보고해서 그것의 confident 문턱을 조정하기 위하여 AI 모델을 훈련할 수 있습니다.
+
+DLP 매치 페이로드를 false 또는 true로 보고하려면:
+
+1. [찾기 및 해독](#4-view-payload-logs)보고 싶은 payload 로그.
+2. 내 계정**자주 묻는 질문**, 검출된 컨텍스트 일치를 선택합니다.
+3. 내 계정**사이트맵**, redacted 일치 데이터를 선택하십시오.
+4. 내 계정**연락처**, 당신이 거짓 긍정 또는 진실한 긍정으로 일치보고 싶은지 선택합니다.
+
+DLP의 기계 학습은 관련 프로필에 대한 미래에 대한 신뢰를 조정할 것입니다.
+
+### 데이터 보호
+
+- 모든 Cloudflare 로그는 나머지에서 암호화됩니다. payload 콘텐츠를 암호화하는 것은 DLP 규칙을 트리거 한 일치 값에 대한 암호화의 두 번째 레이어를 추가합니다.
+- Cloudflare는 암호화 된 페이로드를 해독 할 수 없습니다. 이 작업은 개인 키를 필요로합니다. Cloudflare 직원은 절대 개인 키를 요청하지 않습니다.
+- DLP는 로그에서 모든 사전 정의 된 알파벳 문자를 redact합니다. 예를 들어,`123-45-6789`으로`XXX-XX-XXXX`.
+  - 민감한 데이터를 정의할 수 있습니다.[정확한 데이터 일치 (EDM)](/cloudflare-one/data-loss-prevention/detection-entries/#exact-data-match). EDM 경기 기록은 정의된 문자열을 적색합니다.
+
+## Log generative AI 신속한 내용
+
+DLP는 AI 도구로 전송된 신속한 주제를 감지하고 로그 할 수 있습니다.
+
+### DLP 정책에 대한 AI 신속한 콘텐츠 로깅
+
+사용 가능한 페이로드 로깅을 허용하거나 HTTP 정책을 차단할 수 있습니다.[*제품 설명*](/cloudflare-one/traffic-policies/http-policies/#application)고객지원[신청 과립상 통제](/cloudflare-one/traffic-policies/http-policies/#application-granular-controls)신청.
+
+1. 오시는 길**교통 정책** > **방화벽 정책** > **HTTP: HTTP**.
+2. 기존의 허용 또는 블록 DLP 정책 또는[새로운 정책 만들기](/cloudflare-one/data-loss-prevention/dlp-policies/#2-create-a-dlp-policy).
+3. 정책 빌더에서 스크롤**정책 설정 구성**관련 기사**Capture generative AI 신속한 콘텐츠 로그**.
+4. 제품정보**제품 정보**.
+
+Data Loss Prevention은 이제 이 정책과 일치하는 요청에 대한 사용자 신속한 AI 모델 응답을 저장합니다.
+
+### 빠른 로그 보기
+
+generative AI 신속한 로그 세부 사항 보기:
+
+1. 오시는 길**관련 기사** > **로그인** > **HTTP 요청 로그**.
+2. DLP 로그로 이동하여 리뷰 및 확장에 관심이 있습니다.
+3. 제품정보**Decrypt 페이로드 로그**.
+4. 개인 키를 입력하고 선택**암호 해독**.
+5. 내 계정**제품정보** > **GenAI 신속한 캡처**, 선택**연락처**.
+
+Gateway logs는 주제 및 AI 모델을 포함하여 대화의 요약을 제공 할 것이며 사용 가능한 경우 사용자의 신속한 및 AI 모델의 원시 응답을 제공합니다. 텍스트 프롬프트는 DLP에 대해 제시해야 합니다.
+
+## DLP forensic 사본을 Logpush 목적지로 보내십시오
+
+:::노트\[Availability]
+Enterprise 플랜에서만 사용할 수 있습니다.
+주요 특징
+
+Gateway는 HTTP 허용 및 블록 정책에 따라 HTTP 요청 전체 HTTP 요청의 사본을 보낼 수 있습니다.[다운로드](/logs/logpush/)제삼자 목적지를 포함하여. Forensic 사본은 민감한 데이터를 포함할 수 있는 unaltered 페이로드 및 헤더를 포함합니다. Logpush 로그는 TLS 트래픽으로 전송 될 때만 transit에서 암호화됩니다. 더 많은 암호화는 저장 대상의 정책에 따라 달라집니다.
+
+DLP 포렌식 복사 Logpush 작업을 설정하려면:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**관련 기사** >**로그인**, 그리고 선택**Logpush 관리**.
+2. Logpush에서, 선택**Logpush 작업 만들기**.
+3. 선택하기[Logpush 목적지](/logs/logpush/logpush-job/enable-destinations/).
+4. 내 계정**logpush 작업 구성**, 선택*DLP 법정 사본*데이터셋. 제품정보**Logpush 작업 만들기**.
+5. Cloudflare로 돌아가기 하나와 이동**교통 정책** > **방화벽 정책** > **HTTP: HTTP**.
+6. 기존의 허용 또는 블록 정책 편집, 또는[새로운 정책 만들기](/cloudflare-one/data-loss-prevention/dlp-policies/#2-create-a-dlp-policy). 귀하의 정책은 DLP 프로파일을 포함 할 필요가 없습니다.
+7. 정책 빌더에서 스크롤**정책 설정 구성**관련 기사**DLP forensic 사본을 저장**.
+8. 저장 목적지 선택. Gateway는 HTTP 요청을받을 수있는 구성 된 Logpush 작업 또는 통합을 나열합니다.
+9. 제품정보**자주 묻는 질문**.
+
+DLP는 이제 Logpush 대상에 이 정책과 일치 HTTP 요청의 사본을 보낼 것입니다.
+
+Logpush는 계정 당 4 DLP 포렌식 복사 Logpush 작업을 지원합니다. 기본적으로 Gateway는 구성된 DLP 포렌식 복사 작업에 모든 일치 HTTP 요청을 보냅니다. 특정 작업에 대한 특정 정책 일치를 보내려면 구성[로그 필터](/logs/logpush/logpush-job/filters/). 요청이 아카이브 파일이 포함되면 DLP는 구성 된 저장소에 100 MB의 압축되지 않은 콘텐츠를 보내드립니다.

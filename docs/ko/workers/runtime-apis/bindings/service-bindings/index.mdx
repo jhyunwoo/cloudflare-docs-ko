@@ -1,0 +1,185 @@
+---
+pcx_content_type: configuration
+title: 서비스 바인딩
+tags:
+  - Bindings
+head:
+  - tag: title
+    content: 서비스 바인딩 - Runtime APIs
+description: Facilitate 노동자에 노동자 커뮤니케이션.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+## 서비스 바인딩
+
+서비스 바인딩은 한 명의 근로자가 공개적으로 접근 가능한 URL을 통해 이동하지 않고 다른 사람에게 전화 할 수 있습니다. 서비스 바인딩은 Worker B에서 메소드를 호출하거나 Worker A에서 Worker B로 요청할 수 있습니다.
+
+서비스 바인딩은 microservice 또는 서비스 중심의 아키텍처가 구성 통증, 성능 오버 헤드없이 또는 RPC 프로토콜을 배울 필요가 있는지의 분리를 제공합니다.
+
+- **서비스 바인딩은 빠릅니다.**&#xC11C;비스 바인딩을 사용할 때 0 오버 헤드 또는 추가 대기 시간이 있습니다. 기본적으로 Workers는 동일한 Cloudflare 서버의 동일한 실에서 실행됩니다. 당신은 할 때[스마트 배치](/workers/configuration/placement/), 각 노동자는 전반적인 성과를 위한 최선 위치에 실행합니다.
+- **서비스 바인딩은 HTTP가 아닙니다.**&#x57;orker A는 Worker B.가 직접 호출 할 수있는 방법을 노출 할 수 있습니다. 서비스 간의 통신은 JavaScript 방법과 클래스를 작성해야합니다.
+- **서비스 바인딩은 비용을 증가시키지 않습니다.**&#xCD94;가 비용 없이 여러 WorkersXQXQ로 출발 기능을 분할할 수 있습니다. 더 알아보기[서비스 바인딩에 대한 가격](/workers/platform/pricing/#service-bindings).
+
+![서비스 바인딩은 Zero-cost 요약입니다.](~/assets/images/workers/platform/bindings/service-bindings-comparison.png)
+
+서비스 바인딩은 일반적으로 사용됩니다:
+
+- **여러 Workers에 공유된 내부 서비스를 제공합니다.**&#xC608;를 들어, 자체 작업자로 인증 서비스를 배포할 수 있으며, 별도의 Workers는 서비스 바인딩을 통해 통신합니다.
+- **공공 인터넷에서 고립 된 서비스.**&#xACF5;공 인터넷을 통해 액세스 할 수없는 노동자를 배포 할 수 있으며 다른 노동자 선언이 명시된 서비스 바인딩을 통해 도달 할 수 있습니다.
+- **팀을 독립적으로 배포할 수 있습니다.**&#x54;eam A는 자체 릴리스 일정에 Worker를 배포할 수 있으며, Team B는 Worker를 별도로 배포할 수 있습니다.
+
+## 제품 설명
+
+서비스 바인딩을 추가하여 수정[Wrangler 구성 파일](/workers/wrangler/configuration/)콜러의 - 당신이 요청을 시작 할 수있는 노동자.
+
+예를 들어, Worker A를 원한다면 Worker B를 호출 할 수 있습니다. - 다음을 추가합니다.[Wrangler 구성 파일](/workers/wrangler/configuration/)노동자 A를 위해:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"services": [
+  		{
+  			"binding": "<BINDING_NAME>",
+  			"service": "<WORKER_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+- `binding`: 당신이 위에 노출하려는 열쇠의 이름`env`객체.
+- `service`: 타겟 노동자의 이름은 당신과 의사 소통하고 싶습니다. 이 노동자는 Cloudflare 계정에 있어야합니다.
+
+## 지원하다
+
+Worker A는 Worker B에 서비스 바인딩을 선언하면 Worker B를 두 가지 다른 방법으로 호출 할 수 있습니다.
+
+1. [사이트맵](/workers/runtime-apis/bindings/service-bindings/rpc)함수 호출을 사용하여 Workers와 통신할 수 있습니다. 예를 들어,`await env.BINDING_NAME.myMethod(arg1)`. 이것은 대부분의 사용 케이스를 위해 추천되고, 당신의 노동자가 다른 WorkersXQ에 유효하게 하는 당신의 자신의 내부 APIs를 창조하는 것을 허용합니다.
+2. [HTTP: HTTP](/workers/runtime-apis/bindings/service-bindings/http)Workers를 호출하여[`fetch()`회사 소개](/workers/runtime-apis/handlers/fetch)다른 Workers에서, 보내기`Request`물체 및 수신`Response`물체 뒤. 예를 들어,`env.BINDING_NAME.fetch(request)`.
+
+## 예제 - RPC를 사용하여 첫 번째 서비스 바인딩 구축
+
+이 예제[확대하기`WorkerEntrypoint`한국어](/workers/runtime-apis/bindings/service-bindings/rpc/#the-workerentrypoint-class)RPC 기반 서비스 바인딩을 지원합니다.
+먼저 의사 소통하고 싶은 노동자를 만듭니다. "Worker B"를 호출합시다. Worker B는 공공 방법을 노출,`add(a, b)`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "worker_b",
+  	"main": "./src/workerB.js"
+  }
+  ```
+</WranglerConfig>
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export default class WorkerB extends WorkerEntrypoint {
+	//현재 handler가 지원되지 않는 항목은 지원되지 않습니다.
+	async fetch() {
+		return new Response(null, { status: 404 });
+	}
+
+	async add(a, b) {
+		return a + b;
+	}
+}
+```
+
+Next, Worker B를 호출 할 노동자를 만듭니다. "Worker A"라고 부릅니다. Worker A는 Worker B에 바인딩을 선언합니다. 이것은 Worker B의 공공 방법을 호출 할 수있는 권한을주는 것입니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "worker_a",
+  	"main": "./src/workerA.js",
+  	"services": [
+  		{
+  			"binding": "WORKER_B",
+  			"service": "worker_b"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+```js
+export default {
+	async fetch(request, env) {
+		const result = await env.WORKER_B.add(1, 2);
+		return new Response(result);
+	},
+};
+```
+
+로컬 개발에서 Worker A 및 Worker B를 실행하려면 두 개의 인스턴스를 실행해야합니다.[모델 번호: Wrangler](/workers/wrangler)당신의 맨끝에서. 각 노동자를 위해, 새로운 맨끝을 열고 뛰기[`npx wrangler@latest dev`](/workers/wrangler/commands#dev).
+
+각 노동자는 별도로 배치됩니다.
+
+## 생활주기
+
+서비스 바인딩 API는 비동기입니다 — 당신은 해야 합니다`await`자주 묻는 질문 Worker A invokes Worker B 서비스 바인딩을 통해, Worker A는 Worker B의 완료를 기다리지 않습니다. Worker B는 일찍 종료됩니다.
+
+RPC를 통해 Service Binding에 Worker를 호출하는 생명주기에 대한 자세한 내용은 참조[RPC 수명주기](/workers/runtime-apis/rpc/lifecycle)문서.
+
+## 지역 개발
+
+로컬 개발은 서비스 바인딩을 지원합니다. 각 노동자를 위해, 새로운 맨끝을 열고 사용[`wrangler dev`](/workers/wrangler/commands/#dev)관련 디렉토리에서. 현재 위치`wrangler dev`, 서비스 바인딩은 것과 같이 보여줄 것입니다`connected`/`not connected`Wrangler가 실행할 수 있는지 여부에 따라`wrangler dev`그 노동자를위한 세션. 예를 들면:
+
+```sh
+$ wrangler dev
+...
+Your worker has access to the following bindings:
+- Services:
+  - SOME_OTHER_WORKER: some-other-worker [connected]
+  - ANOTHER_WORKER: another-worker [not connected]
+```
+
+Wrangler는 또한 1개의 명령으로 한 번에 다수 WorkersXQ를 실행하는 것을 지원합니다. 그것을 밖으로 시도, 여러 통과`-c`이처럼 Wrangler에 플래그:`wrangler dev -c wrangler.json -c ../other-worker/wrangler.json`. 첫번째 구성은 대우될 것입니다*주요 특징*worker, 일반적으로 HTTP에 노출됩니다`http://localhost:8787`. 나머지 설정 파일은 처리됩니다.*주요 특징*1 차적인 노동자에게서 서비스 바인딩을 통해 접근가능할 것입니다.
+
+:::카트로션
+
+여러 WorkersXQ를 한 번에 실행하는 지원 Wrangler 명령은 실험적이고, 우리가 경험에서 일하기 때문에 변화하는 주제입니다. 버그로 실행하거나 피드백을 가지고 있다면,[근로자 sdk 저장소에 문제가 열립니다.](https://github.com/cloudflare/workers-sdk/issues/new)
+
+:::
+
+## 계정 만들기
+
+서비스 바인딩을 사용하는 Workers는 따로따로 배치됩니다.
+
+처음에 시작 및 배포 할 때, 이것은 대상 노동자 (위의 예에서 노동자 B)가 처음 배포되어야한다는 것을 의미한다, 노동자 A 전에. 그렇지 않으면, 당신은 노동자 A를 배치하려고 시도 할 때, 배포 실패, 노동자 A는 아직 존재하지 않는 노동자 B에 바인딩을 선언한다.
+
+기존의 WorkersXQ로 변경할 때, 대부분의 경우:
+
+- 기존 Worker A와 호환되는 방식으로 Worker B를 먼저 배포합니다. 예를 들어, Worker B에 새로운 방법을 추가합니다.
+- Next, Worker A로 변경합니다. 예를 들어, Worker A에서 Worker B의 새로운 방법을 호출합니다.
+- 마지막으로 사용하지 않은 코드를 제거하십시오. 예를 들어, Worker B에서 이전에 사용되는 방법을 삭제합니다.
+
+## 스마트 배치
+
+[스마트 배치](/workers/configuration/placement/)작업자가 최적의 위치에 자동으로 배치하여 대기 시간을 최소화합니다.
+
+서비스 바인딩과 함께 Smart Placement를 사용하여 작업자를 두 서비스로 분할 할 수 있습니다.
+
+![스마트 배치 및 서비스 바인딩](~/assets/images/workers/platform/smart-placement-service-bindings.png)
+
+더 알아보기[Smart Placement에 대한 문서](/workers/configuration/placement/#multiple-workers)더 보기
+
+## 제한 사항
+
+서비스 바인딩에는 다음과 같은 제한이 있습니다.
+
+- 서비스 바인딩을 통해 Worker에 각 요청은[subrequest 제한](/workers/platform/limits/#subrequests).
+- 단일 요청은 최대 32 Worker invocations를 가지고 있으며, 각 통화는 이 제한을 향해 서비스 바인딩 카운트를 호출합니다. 자주 묻는 질문
+- 서비스 바인딩을 호출하지 않습니다[동시 개방 연결 제한](/workers/platform/limits/#simultaneous-open-connections)

@@ -1,0 +1,163 @@
+---
+pcx_content_type: how-to
+title: Tenant 통제
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/tenant-control/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/tenant-control/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Gateway tenant 컨트롤을 사용하면 개인 애플리케이션에 액세스하는 동안 엔터프라이즈 SaaS 애플리케이션에 액세스할 수 있습니다. 기업 네트워크의 민감한 또는 기밀 데이터의 손실을 방지합니다.
+
+HTTP 정책을 허용 작업으로 만들 때, 사용자 정의 헤더를 구성 할 수있는 옵션을 가질 것입니다. Gateway는 SaaS 애플리케이션 액세스를 제어하기 위해 사용자 정의 헤더를 사용할 수 있습니다. 사용자의 HTTP 요청이 SaaS 애플리케이션에 대한 조직의 계정으로 머리 받으면 게이트웨이가 요청을 승인합니다. 요청이 헤더의 정보에 일치하지 않으면 게이트웨이가 요청을 차단합니다.
+
+## SaaS 애플리케이션에 대한 사용자 정의 헤더 추가
+
+사용자 정의 헤더와 HTTP 정책을 작성하려면:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **방화벽 정책**. 선택**HTTP: HTTP**.
+2. 제품정보**정책 추가**.
+3. 제어하려는 SaaS 트래픽과 일치하는 표현을 구축하십시오.
+4. 내 계&#xC815;**- 연혁**, 선택*지원하다*. 에서**위탁된 증명서 활동**, 선택*제품정보*.
+5. 이름 \***headers를 일치하는 요청에 추가하십시오**, 선택**헤더 추가**.
+6. 사용자 정의 헤더 이름 및 값 추가[SaaS 응용](#common-policy-configurations).
+7. 제품정보**공지사항**.
+
+귀하의 정책은 이제 HTTP 정책 목록에 표시됩니다. 사용자가 개인 계정으로 구성된 SaaS 응용 프로그램을 인증하려고 할 때 인증은 실패합니다.
+
+### 사용자 정의 헤더를 검증
+
+웹 트래픽을 분석하기 위해 브라우저에서 HAR (HTTP Archive) 파일을 저장하면 게이트웨이가 파일에 표시되지 않는 사용자 정의 헤더가 표시됩니다. Gateway가 브라우저를 나타낸 후 헤더를 주사하기 때문입니다.
+
+Gateway를 확인하려면 custom header를 적용해야 합니다.
+
+1. 사용자 정의 헤더를 가진 정책에서, 선택자를 추가하여 트래픽을 일치[HTTP빈](https://httpbin.org/)HTTP 요청을 테스트하기위한 오픈 소스 사이트. 예를 들면:
+
+   | 옵션 정보 | 회사연혁 | 제품정보           | 로그인   | - 연혁 | 위탁된 증명서 활동 |
+   | ----- | ---- | -------------- | ----- | ---- | ---------- |
+   | 제품 설명 | 내 계정 | *Google 작업 공간* | 이름 \* | 지원하다 | 제품정보       |
+   | 이름 \* | 내 계정 | `httpbin.org`  |       |      |            |
+
+2. 기기에서 이동[`httpbin.org/anything`](https://httpbin.org/anything). 당신의 주문 우두머리는 우두머리의 명부에서 나타납니다.
+
+3. (선택 사항) 정책에서 HTTPBin 표현 제거.
+
+## 일반 정책 구성
+
+어떤 SaaS 애플리케이션에 따라 조직이 접근할 수 있도록, 다른 tenant 제어 정책이 필요합니다.
+
+### 마이크로 소프트 365
+
+Microsoft 365 테넌트 컨트롤은 두 가지 정책을 요구합니다. 당신은 당신의 정책을 주문할 때, 그들이 따르는 것을 확인합니다[우선순위](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence).
+
+| 이름 \* | 옵션 정보 | 회사연혁  | 제품정보             | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ----- | ----- | ---------------- | ---- | ---------- |
+| 1     | 이름 \* | 이름 \* | `login.live.com` | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                            | 주문 헤더 값        |
+| ----------------------------------- | -------------- |
+| `Sec-Restrict-Tenant-Access-Policy` | `restrict-msa` |
+
+| 이름 \* | 옵션 정보 | 회사연혁 | 제품정보             | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ----- | ---- | ---------------- | ---- | ---------- |
+| 2     | 제품 설명 | 내 계정 | *마이크로소프트 오피스365* | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                                                | 주문 헤더 값     |
+| ------------------------------------------------------- | ----------- |
+| `Restrict-Access-To-Tenants`, `Restrict-Access-Context` | 귀하의 조직의 도메인 |
+
+더 많은 정보를 원하시면, 참조[Microsoft Entra ID 문서](https://learn.microsoft.com/entra/identity/enterprise-apps/tenant-restrictions).
+
+### Google 작업 공간
+
+| 옵션 정보 | 회사연혁 | 제품정보           | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ---- | -------------- | ---- | ---------- |
+| 제품 설명 | 내 계정 | *Google 작업 공간* | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                     | 주문 헤더 값     |
+| ---------------------------- | ----------- |
+| `X-GooGApps-Allowed-Domains` | 귀하의 조직의 도메인 |
+
+더 많은 정보를 원하시면, 참조[Google Workspace 문서](https://support.google.com/a/answer/1668854).
+
+### 스크랩
+
+| 옵션 정보 | 회사연혁 | 제품정보  | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ---- | ----- | ---- | ---------- |
+| 제품 설명 | 내 계정 | *스크랩* | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                                                             | 주문 헤더 값   |
+| -------------------------------------------------------------------- | --------- |
+| `X-Slack-Allowed-Workspaces-Requester`, `X-Slack-Allowed-Workspaces` | 조직의 업무 공간 |
+
+더 많은 정보를 원하시면, 참조[Slack 문서](https://slack.com/help/articles/360024821873-Approve-Slack-workspaces-for-your-network).
+
+### 다운로드
+
+| 옵션 정보 | 회사연혁 | 제품정보   | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ---- | ------ | ---- | ---------- |
+| 제품 설명 | 내 계정 | *다운로드* | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                     | 주문 헤더 값 |
+| ---------------------------- | ------- |
+| `X-Dropbox-allowed-Team-Ids` | 조직의 ID  |
+
+더 많은 정보를 원하시면, 참조[Dropbox 문서](https://help.dropbox.com/security/network-control).
+
+### 채팅GPT
+
+| 옵션 정보 | 회사연혁 | 제품정보    | - 연혁 | 위탁된 증명서 활동 |
+| ----- | ---- | ------- | ---- | ---------- |
+| 제품 설명 | 내 계정 | *채팅GPT* | 지원하다 | 제품정보       |
+
+| 주문 헤더 이름                       | 주문 헤더 값      |
+| ------------------------------ | ------------ |
+| `Chatgpt-Allowed-Workspace-Id` | 조직의 업무 공간 ID |
+
+더 많은 정보를 원하시면, 참조[OpenAI 문서](https://help.openai.com/articles/8798594-what-is-a-workspace-how-do-i-access-my-chatgpt-business-workspace).
+
+## Cloudflare WAF에 있는 사용자에게 면제하십시오
+
+HTTP 정책에서 사용자 정의 헤더를 포함할 수 있습니다.[Cloudflare WAF](/waf/). 이것은 당신의 WAF를 통해 WARP 사용자만 허용하는 것을 위해 유용합니다.
+
+1. WAF 뒤에 내부 도메인에 대한 허용 정책을 사용자 정의 헤더.
+
+   | 옵션 정보 | 회사연혁 | 제품정보              | - 연혁 |
+   | ----- | ---- | ----------------- | ---- |
+   | 이름 \* | 내 계정 | `internalapp.com` | 지원하다 |
+
+   | 주문 헤더 이름           | 주문 헤더 값         |
+   | ------------------ | --------------- |
+   | `X-Example-Header` | `example-value` |
+
+2. Cloudflare WAF에서,[사용자 정의 규칙 만들기](/waf/custom-rules/)으로[동일한 HTTP 헤더가 필요합니다.](/waf/custom-rules/use-cases/require-specific-headers/#example-2-require-http-header-with-a-specific-value).
+
+## Browser Isolation를 가진 tenant 통제를 사용하십시오
+
+구성할 수 있습니다.[브라우저 고립](/cloudflare-one/remote-browser-isolation/)주문 헤더를 보낼 수 있습니다. 고립된 SaaS 신청을 위한 10ant 통제를 실행하거나 격리한 웹사이트에 arbitrary 주문 요구 우두머리를 보내는 것이 유용합니다.
+
+Browser Isolation을 사용하여 사용자 정의 헤더를 사용하려면 동일한 도메인 또는 응용 프로그램 그룹을 대상으로 두 HTTP 정책을 만듭니다. 예를 들면, 당신은 정책을 만들 수 있습니다[HTTP빈](https://httpbin.org/)HTTP 요청을 테스트하기위한 오픈 소스 사이트 :
+
+1. Isolate 정책 만들기`httpbin.org`.
+
+   | 옵션 정보 | 회사연혁 | 제품정보          | - 연혁 |
+   | ----- | ---- | ------------- | ---- |
+   | 이름 \* | 내 계정 | `httpbin.org` | 사이트맵 |
+
+2. 이용 약관`httpbin.org`사용자 정의 헤더.
+
+   | 옵션 정보 | 회사연혁 | 제품정보          | - 연혁 |
+   | ----- | ---- | ------------- | ---- |
+   | 이름 \* | 내 계정 | `httpbin.org` | 지원하다 |
+
+   | 주문 헤더 이름         | 주문 헤더 값         |
+   | ---------------- | --------------- |
+   | `Example-Header` | `example-value` |
+
+3. 오시는 길[`httpbin.org/anything`](https://httpbin.org/anything). Cloudflare는 격리한 브라우저에 있는 위치를 렌더링할 것입니다. 사용자 정의 헤더는 헤더 목록에서 나타납니다.

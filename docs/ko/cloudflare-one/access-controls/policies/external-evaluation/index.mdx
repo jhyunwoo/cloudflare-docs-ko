@@ -1,0 +1,192 @@
+---
+pcx_content_type: how-to
+title: 외부 평가 규칙
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/policies/external-evaluation/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/policies/external-evaluation/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Example, WranglerConfig, DashButton } from "~/components";
+
+Cloudflare로 액세스, 사용자 정의 기준에 따라 사용자를 평가하는 허용 또는 블록 정책을 만들 수 있습니다. 이것은 추가하여 수행됩니다.**외부 평가**당신의 정책에 규칙. 더 보기**외부 평가**selector는 2개의 값을 요구합니다:
+
+- **URL 복사**— 비즈니스 논리를 포함하는 API 엔드포인트.
+- **키 URL**— 액세스는 API에서 응답이 왔는지 확인하는 열쇠
+
+사용자의 ID 공급자를 인증한 후 Access는 사용자의 ID를 외부 API로 보냅니다.**URL 복사**. 외부 API는 True 또는 False 응답을 Access로 반환합니다. 그러면 사용자에 액세스하거나 거부 할 수 있습니다. man-in-the-middle attacks에 대해 보호하려면 Access 계정 키와 모든 요청을 액세스하고 응답이 키에 의해 서명되는 확인**키 URL**.
+
+어떤 API 서비스를 사용하여 외부 평가 규칙을 설정할 수 있지만 시작하기에 신속하게 사용 권장[Cloudflare Workers](/workers/).
+
+## Cloudflare Workers를 가진 외부 API 그리고 열쇠를 설치하십시오
+
+### 자주 묻는 질문
+
+- [Workers 계정](/workers/get-started/guide/)
+- 설치하기[₢ 킹](https://docs.npmjs.com/getting-started)
+- 설치하기[사이트맵](https://nodejs.org/en/)
+- Access에 의해 보호되는 신청
+
+### 1. 새로운 노동자 만들기
+
+1. 터미널을 열고 예제 프로젝트를 클론합니다.
+
+   ```sh
+   npm create cloudflare@latest my-worker -- --template https://github.com/cloudflare/workers-access-external-auth-example
+   ```
+
+2. 프로젝트 디렉토리로 이동합니다.
+
+   ```sh
+   cd my-worker
+   ```
+
+3. 이름 \*[Workers KV 네임스페이스](/kv/concepts/kv-namespaces/)키 저장. 바인딩 이름은`KV`작성한 예를 실행하려면.
+
+   ```sh
+   npx wrangler kv namespace create "KV"
+   ```
+
+   명령은 바인딩 이름과 KV 네임스페이스 ID를 출력합니다. 예를 들어
+
+   ```txt
+     [[kv_namespaces]]
+      binding = "KV"
+      id = "YOUR_KV_NAMESPACE_ID"
+   ```
+
+4. 자주 묻는 질문[Wrangler 구성 파일](/workers/wrangler/configuration/)편집기에서 다음을 삽입:
+
+   - `[[kv_namespaces]]`: 이전 단계에서 생성된 출력을 추가합니다.
+   - `<TEAM_NAME>`: Cloudflare 한국어<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>.
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "$schema": "./node_modules/wrangler/config-schema.json",
+    "name": "my-worker",
+    "workers_dev": true,
+    "compatibility_date": "$today",
+    "main": "index.js",
+    "kv_namespaces": [
+      {
+        "binding": "KV",
+        "id": "YOUR_KV_NAMESPACE_ID"
+      }
+    ],
+    "vars": {
+      "TEAM_DOMAIN": "<TEAM_NAME>.cloudflareaccess.com",
+      "DEBUG": false
+    }
+  }
+  ```
+</WranglerConfig>
+
+### 2. 당신의 사업 논리 프로그램
+
+1. 기타`index.js`그리고 수정`externalEvaluation`액세스에 의해 전송 된 모든 ID 기반 데이터에 논리를 수행 할 수있는 기능.
+
+:::참조
+
+- 표본 부호는 우리의에서 유효합니다[GitHub 저장소](https://github.com/cloudflare/workers-access-external-auth-example).
+- ID 기반 데이터 필드 목록을 보려면 액세스 응용 프로그램에 로그인하고 append`/cdn-cgi/access/get-identity`URL로. 예를 들어,`www.example.com`오시는 길`https://www.example.com/cdn-cgi/access/get-identity`.
+  :::
+
+2. Cloudflare의 글로벌 네트워크를 배포합니다.
+
+   ```sh
+   npx wrangler deploy
+   ```
+
+Worker가 배포됩니다.`*.workers.dev`하위 도메인`my-worker.<YOUR_SUBDOMAIN>.workers.dev`.
+
+### 3. 중요한 생성
+
+RSA private/public key 쌍을 생성하기 위하여:
+
+1. 브라우저를 열고 이동`https://my-worker.<YOUR_SUBDOMAIN>.workers.dev/keys`.
+
+2. (선택) 열쇠가 저장된다는 것을 검증하십시오`KV`이름 공간:
+   1. Cloudflare 대시보드에서**Workers KV**사이트 맵
+      <DashButton url="/?to=/:account/workers/kv/namespaces" />
+   2. 제품정&#xBCF4;**- 연혁**이름 \*`my-worker-KV`.
+
+다른 주요 형식 (DSA와 같은)이 시간에 지원되지 않습니다.
+
+### 4. 외부 평가 규칙 만들기
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**액세스 제어** > **회사연혁**.
+
+2. 기존 정책 편집 또는 선택**정책 추가**.
+
+3. 귀하의 정책에 따라 다음 규칙을 추가하십시오.
+
+| 규칙 유형 | 옵션 정보 | URL 복사                                            | 키 URL                                                  |
+| ----- | ----- | ------------------------------------------------- | ------------------------------------------------------ |
+| 이름 \* | 외부 평가 | `https://my-worker.<YOUR_SUBDOMAIN>.workers.dev/` | `https://my-worker.<YOUR_SUBDOMAIN>.workers.dev/keys/` |
+
+4. 자주 묻는 질문
+
+5. 오시는 길**액세스 제어** > **이름 \***&#xC678;부 평가 규칙을 적용하려는 응용 프로그램을 편집합니다.
+
+6. 내 계정**회사연혁**탭, 외부 평가 규칙을 포함하는 정책을 추가합니다.
+
+7. 제품정보**자주 묻는 질문**.
+
+사용자의 응용 프로그램에 로그인하면 액세스는 이제 이메일, 장치, 위치 및 비즈니스 논리에 대한 기타 ID 기반 데이터를 확인할 수 있습니다.
+
+### 노동자의 문제 해결
+
+외부 평가 규칙을 디버그하려면:
+
+1. Worker 디렉토리로 이동합니다.
+
+   ```sh
+   cd my-worker
+   ```
+
+2. 자주 묻는 질문[Wrangler 구성 파일](/workers/wrangler/configuration/)편집기에서 설정`debug`변수에`TRUE`.
+
+3. 변경 사항
+
+   ```sh
+   npx wrangler deploy
+   ```
+
+4. 다음, 작업자에서 실시간 로그를 출력하는 세션을 시작합니다.
+
+   ```sh
+   wrangler tail -f pretty
+   ```
+
+5. 액세스 신청에 로그인하십시오.
+
+   세션 로그는 들어오고 나가는 JWT를 보여줍니다. 들어오는 JWT는 Worker API에 액세스하여 전송되었지만, JWT는 Worker가 Access로 전송되었습니다.
+
+6. JWT의 내용을 해독하려면 토큰을 복사 할 수 있습니다.[사이트맵](https://jwt.io/).
+
+   들어오는 JWT는 사용자의 ID 데이터를 포함해야 합니다. 나가는 JWT는:
+
+   ```js
+   {
+   "success": true,
+   "iat": 1655409315,
+   "exp": 1655409375,
+   "nonce": "9J2E9Xg6wYj8tlnA5MV4Zgp6t8rzmS0Q"
+   }
+   ```
+
+   JWT는 다음과 같은 모든 기준을 확인:
+
+   - 토큰이 서명되었습니다.**키 URL**.
+   - 만료 날짜는 탈출하지 않았습니다.
+   - API 반환`"success": true`.
+   - `nonce`들어오는 JWT에서 변하지 않습니다. 더 보기`nonce`가치는 요구에 의하여 독특합니다.
+
+   어떤 조건이 실패하면 외부 평가 규칙은 false로 평가됩니다.

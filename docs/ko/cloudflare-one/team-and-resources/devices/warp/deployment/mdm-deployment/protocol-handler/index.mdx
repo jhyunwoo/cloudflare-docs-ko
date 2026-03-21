@@ -1,0 +1,185 @@
+---
+pcx_content_type: how-to
+title: 최소 사용자 상호 작용을 가진 WARP 등록
+sidebar:
+  order: 4
+  label: 자동화된 WARP 등록
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/protocol-handler/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/protocol-handler/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip, Tabs, TabItem } from "~/components";
+
+Administrators는 관리된 장치에 WARP 등록을 자동화하고 최종 사용자에서 필요한 클릭 수를 최소화 할 수 있습니다.
+
+기본 WARP 등록 과정 도중, 최종 사용자는 일반적으로 로그인하기 위하여 몇몇 단계를 완료해야 합니다:
+
+1. WARP 클라이언트 GUI에서 약관을 검토하고 Cloudflare WARP의 회사의 사용을 인정합니다.
+2. Cloudflare 액세스 로그인 화면에서 자신의 정체 공급자를 선택하십시오.
+3. ID 공급자에 의해 요구되는 인증 단계를 완료하십시오.
+4. WARP 클라이언트를 실행하는 브라우저 팝업 요청 권한을 가진 인터랙트.
+
+이 가이드는 WARP 배포에서 단계 1, 2 및 4를 제거하는 방법을 다룹니다.
+
+:::note\[서비스 토큰 인증]
+모든 사용자 상호 작용을 제거하려는 경우, 당신은 할 수 있습니다[서비스 토큰을 이용한 계정](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/#check-for-service-token). 사용자는 정체성 공급자, 정체성 정책 및 로깅에 로그인할 필요가 없습니다.
+주요 특징
+
+iOS 및 Android / ChromeOS에서 최종 사용자는 여전히 알림을 수락하거나 VPN 프로파일을 설치와 같은 플랫폼에 의해 필요한 질문을 할 것입니다.
+
+## Onboarding 스크린을 끄십시오
+
+일반적으로 사용자에게 표시된 약관 화면을 건너려면, 설정[`onboarding`이름 \*](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/)으로`false`내 계정[MDM 배치 파일](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/). 다음은 예입니다.`mdm.xml`파일 :
+
+```xml
+<dict>
+  <key>organization</key>
+  <string>your-team-name</string>
+	<key>onboarding</key>
+	<false/>
+</dict>
+```
+
+## 즉시 Auth를 켜십시오
+
+장치 등록을 위한 1개의 ID 공급자만 사용하는 경우에, 켜기**즉시 Auth**내 계정[장치 등록 권한](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/#set-device-enrollment-permissions). 사용자가 Cloudflare 액세스 로그인 페이지를 건너 SSO 로그인 이벤트에 직접 이동합니다.
+
+## 브라우저를 허용 WARP
+
+Cloudflare WARP 응용 프로그램을 성공적으로 로그인하고 건너뛰기 후에 자동으로 브라우저를 구성할 수 있습니다**오픈 Cloudflare WARP.app**팝업.
+
+![브라우저 팝업 요청 권한을 열고 WARP](~/assets/images/cloudflare-one/connections/warp-protocol-handler.png)
+
+### Chromium 기반 브라우저
+
+Google Chrome 및 Microsoft Edge와 같은 Chromium 기반 브라우저에는 정책 설정이 있습니다.[AutoLaunchProtocolsOrigins에서](https://learn.microsoft.com/en-us/DeployEdge/microsoft-edge-policies#autolaunchprotocolsfromorigins). 이 설정은 두 가지 매개 변수에 걸립니다 : 브라우저의 프로토콜을 시작하고 실행할 수있는 기원. WARP를 실행하려면 프로토콜을 설정해야합니다.`com.cloudflare.warp`그리고 당신의 근원<GlossaryTooltip term="team domain">Cloudflare Zero Trust 팀 도메인</GlossaryTooltip> (`https://<your-team-name>.cloudflareaccess.com`).
+
+<Tabs>
+  <TabItem label="윈도우">
+    Windows에서 구성할 수 있습니다.`AutoLaunchProtocolsFromOrigins`새로운 레지스트리 키를 추가하여.
+
+    레지스트리 키를 수동으로 추가하려면:
+
+    1. 레지스트리 편집기를 Administrator로 엽니다.
+    2. 브라우저의 정책 폴더에 Navigate:
+       - 구글 크롬:`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome`
+       - Microsoft 가장자리:`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Edge`:::참조
+         당신은 만들 필요가 있습니다`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome`이미 존재하지 않는 경우 폴더.
+         주요 특징
+    3. 새로운 문자열 값 만들기:
+
+       - **가치 이름**: `AutoLaunchProtocolsFromOrigins`
+       - **가치 자료**: `[{"allowed_origins": ["https://<your-team-name>.cloudflareaccess.com/"], "protocol": "com.cloudflare.warp"}]`
+
+       자주 묻는 질문`<your-team-name>`당신의 실제<GlossaryTooltip term="team name">Zero Trust 팀 이름</GlossaryTooltip>.
+
+    레지스트리 편집기를 사용하는 대신 레지스트리 키는 그룹 정책 개체 (GPO), PowerShell 스크립트 또는 MDM과 같은 생성 할 수 있습니다.[언어 선택](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/partners/intune/#update-mdm-parameters).
+  </TabItem>
+
+  <TabItem label="맥 OS">
+    macOS에서 구성할 수 있습니다.`AutoLaunchProtocolsFromOrigins`브라우저의 속성 목록 (plist) 파일을 배치함으로써. 정확한 지시는 당신의 것에 따라서 변화할 것입니다[사이트맵](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/partners/). 일반적인 절차는 다음과 같이 입니다:
+
+    1. 다음 이름과 새로운 plist 파일을 생성 (예를 들어 케이스):
+       - 구글 크롬:`com.google.Chrome.plist`
+       - Microsoft 가장자리:`com.microsoft.Edge.plist`
+
+    2. 텍스트 편집기를 사용하여 다음과 같은 내용을 plist에 추가하십시오.
+
+       ```xml
+       <key>AutoLaunchProtocolsFromOrigins</key>
+       <array>
+       	<dict>
+       		<key>allowed_origins</key>
+       		<array>
+       			<string>https://<your-team-name>.cloudflareaccess.com</string>
+       		</array>
+       		<key>protocol</key>
+       		<string>com.cloudflare.warp</string>
+       	</dict>
+       </array>
+       ```
+
+       자주 묻는 질문`<your-team-name>`당신의 실제<GlossaryTooltip term="team name">Zero Trust 팀 이름</GlossaryTooltip>.
+
+    3. MDMs는 변환을 요구합니다`.plist`한국어`.mobileconfig`장치를 밀어하기 전에. 당신은 사용할 수[파일 변환기](https://github.com/timsutton/mcxToProfile)다음 예제를 수정합니다.`com.google.Chrome.mobileconfig`:
+
+       ```xml
+       <?xml version="1.0" encoding="UTF-8"?>
+       <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+       <plist version="1.0">
+       <dict>
+       		<key>PayloadIdentifier</key>
+       		<string>com.google.chrome</string>
+       		<key>PayloadRemovalDisallowed</key>
+       		<true/>
+       		<key>PayloadScope</key>
+       		<string>System</string>
+       		<key>PayloadType</key>
+       		<string>Configuration</string>
+       		<key>PayloadUUID</key>
+       		<string>8FCBDCA7-87B3-4610-A01A-B0FE4C5B57C8</string>
+       		<key>PayloadOrganization</key>
+       		<string></string>
+       		<key>PayloadVersion</key>
+       		<integer>1</integer>
+       		<key>PayloadDisplayName</key>
+       		<string>Google Chrome Policy</string>
+       		<key>PayloadContent</key>
+       		<array>
+       				<dict>
+       						<key>PayloadType</key>
+       						<string>com.apple.ManagedClient.preferences</string>
+       						<key>PayloadVersion</key>
+       						<integer>1</integer>
+       						<key>PayloadIdentifier</key>
+       						<string>com.normandale</string>
+       						<key>PayloadUUID</key>
+       						<string>8FCBDCA7-87B3-4610-A01A-B0FE4C5B57C8</string>
+       						<key>PayloadEnabled</key>
+       						<true/>
+       						<key>PayloadDisplayName</key>
+       						<string>Custom: (com.google.Chrome)</string>
+       						<key>PayloadContent</key>
+       						<dict>
+       								<key>com.google.Chrome</key>
+       								<dict>
+       										<key>Forced</key>
+       										<array>
+       												<dict>
+       														<key>mcx_preference_settings</key>
+       														<dict>
+       																<key>AutoLaunchProtocolsFromOrigins</key>
+       																<array>
+       																<dict>
+       																<key>allowed_origins</key>
+       																<array>
+       																<string>https://<your-team-name>.cloudflareaccess.com</string>
+       																</array>
+       																<key>protocol</key>
+       																<string>com.cloudflare.warp</string>
+       																</dict>
+       																</array>
+       														</dict>
+       												</dict>
+       										</array>
+       								</dict>
+       						</dict>
+       				</dict>
+       		</array>
+       </dict>
+       </plist>
+       ```
+
+    4. 다운로드`.plist`또는`.mobileconfig`선호되는 MDM에 파일.
+
+    5. 구성 프로파일을 기기에 배포합니다.
+
+    macOS의 브라우저 정책 구성에 대한 자세한 내용은 참조[구글 크롬](https://support.google.com/chrome/a/answer/9020077?hl=en\&ref_topic=7650028\&sjid=15337530832025656704-NA)또는[마이크로소프트 가장자리](https://learn.microsoft.com/en-us/deployedge/configure-microsoft-edge-on-mac)문서.
+  </TabItem>
+</Tabs>

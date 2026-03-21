@@ -1,0 +1,59 @@
+---
+title: 문제 해결
+pcx_content_type: troubleshooting
+sidebar:
+  order: 9
+head:
+  - tag: title
+    content: Troubleshooting - Cipher suites — Edge certificates
+---
+
+import { Render } from "~/components";
+
+엣지 인증서 cipher suite 관련 문제가 발생하면 아래 시나리오를 참고하세요.
+
+## Minimum TLS Version과의 호환성
+
+도메인에 적용되는 [Minimum TLS Version](/ssl/edge-certificates/additional-options/minimum-tls/) 설정을 조정하면, 해당 도메인은 그 TLS 프로토콜 버전으로만 HTTPS 연결을 허용합니다. [Cipher suites 소개](/ssl/edge-certificates/additional-options/cipher-suites/#related-ssltls-settings)에서 설명한 것처럼, cipher suite와 TLS 버전은 별도로 설정되더라도 밀접하게 연결되어 있습니다.
+
+도메인에서 TLS 1.2 cipher를 지원하지 않는 경우 Minimum TLS Version이 문제를 일으킬 수 있습니다. 문제가 발생하면 도메인의 [Minimum TLS Version](/ssl/edge-certificates/additional-options/minimum-tls/) 설정과 Cloudflare의 [지원 cipher 목록](/ssl/edge-certificates/additional-options/cipher-suites/supported-cipher-suites/)을 검토하세요.
+
+### curl로 Minimum TLS version 테스트하기
+
+<Render file="test-tls-version" product="ssl" />
+
+## 인증서 암호화와의 호환성
+
+[커스텀 인증서 업로드](/ssl/edge-certificates/custom-certificates/uploading/) 시 인증서가 해당 영역 또는 호스트명에 선택한 cipher suite와 호환되는지 확인하세요.
+
+예를 들어 RSA 인증서를 업로드했다면, 선택한 cipher suite가 ECDSA 인증서만 지원하도록 구성되어 있어서는 안 됩니다.
+
+## Cloudflare Pages와의 호환성
+
+[Cloudflare Pages](/pages/) 호스트명에 대해서는 minimum TLS version 또는 cipher suites를 구성할 수 없습니다.
+
+## 커스텀 호스트명 인증서용 API 요구 사항
+
+[Edit Custom Hostname endpoint](/api/resources/custom_hostnames/methods/edit/)를 사용할 때는 `ssl` 객체 안에 `type`과 `method`, 그리고 `settings` 지정까지 함께 포함해야 합니다.
+
+`settings`만 포함하면 `The SSL attribute is invalid. Please refer to the API documentation, check your input and try again` 오류가 발생합니다.
+
+## TLS 1.3 설정
+
+<Render file="tls-13-cipher-limitations" product="ssl" />
+
+## SSL Labs의 약한 cipher 보고서
+
+[Qualys SSL Labs](https://www.ssllabs.com/ssltest/) 보고서에 나온 `WEAK` cipher를 모두 [비활성화](/ssl/edge-certificates/additional-options/cipher-suites/customize-cipher-suites/)하려고 하면 이름 규칙이 다르다는 점을 알 수 있습니다.
+
+이는 SSL Labs는 RFC cipher 네이밍 규칙을 따르고, Cloudflare는 OpenSSL cipher 네이밍 규칙을 따르기 때문입니다. [OpenSSL 문서](https://www.openssl.org/docs/man1.0.2/man1/ciphers.html)의 cipher suite 이름 목록을 참고하면 이름 매핑에 도움이 됩니다.
+
+## CVE-2019-1559 관련 경고
+
+Cloudflare 애플리케이션은 [CVE-2019-1559](/ssl/reference/cloudflare-and-cve-2019-1559/)에 취약하지 않지만, 일부 보안 스캐너는 잘못 경고할 수 있습니다.
+
+이 경고를 제거하려면 [Cipher suite 사용자 지정](/ssl/edge-certificates/additional-options/cipher-suites/customize-cipher-suites/)을 참고하여 다음 cipher를 제외하세요.
+
+- `ECDHE-ECDSA-AES256-SHA384`
+- `ECDHE-ECDSA-AES128-SHA256`
+- `ECDHE-RSA-AES256-SHA384`

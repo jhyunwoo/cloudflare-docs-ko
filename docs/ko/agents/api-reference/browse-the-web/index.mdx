@@ -1,0 +1,122 @@
+---
+title: 웹 탐색
+pcx_content_type: concept
+sidebar:
+  order: 15
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/browse-the-web/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/browse-the-web/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	MetaInfo,
+	Render,
+	Type,
+	TypeScriptExample,
+	WranglerConfig,
+	PackageManagers,
+} from "~/components";
+
+상담원은 다음을 사용하여 웹을 탐색할 수 있습니다.[브라우저 렌더링](/browser-rendering/)API 또는 선호하는 헤드리스 브라우저 서비스.
+
+### 브라우저 렌더링 API
+
+는[브라우저 렌더링](/browser-rendering/)헤드리스 브라우저 인스턴스를 실행하고, 웹 페이지를 렌더링하고, 에이전트를 통해 웹 사이트와 상호 작용할 수 있습니다.
+
+Puppeteer를 사용하여 웹페이지의 콘텐츠를 가져오고, DOM을 구문 분석하고, 다음을 통해 모델을 호출하여 관련 정보를 추출하는 메서드를 정의할 수 있습니다.[Workers AI](/workers-ai/):
+
+<TypeScriptExample>
+  ```ts
+  interface Env {
+  	BROWSER: Fetcher;
+  	AI: Ai;
+  }
+
+  export class MyAgent extends Agent<Env> {
+  	async browse(browserInstance: Fetcher, urls: string[]) {
+  		let responses = [];
+  		for (const url of urls) {
+  			const browser = await puppeteer.launch(browserInstance);
+  			const page = await browser.newPage();
+  			await page.goto(url);
+
+  			await page.waitForSelector("body");
+  			const bodyContent = await page.$eval(
+  				"body",
+  				(element) => element.innerHTML,
+  			);
+
+  			let resp = await this.env.AI.run("@cf/zai-org/glm-4.7-flash", {
+  				messages: [
+  					{
+  						role: "user",
+  						content: `Return a JSON object with the product names, prices and URLs with the following format: { "name": "Product Name", "price": "Price", "url": "URL" } from the website content below. <content>${bodyContent}</content>`,
+  					},
+  				],
+  			});
+
+  			responses.push(resp);
+  			await browser.close();
+  		}
+
+  		return responses;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+또한 설치를 추가해야 합니다.`@cloudflare/puppeteer`패키지를 만들고 에이전트의 Wrangler 구성에 다음을 추가합니다.
+
+<PackageManagers pkg="@cloudflare/puppeteer" dev />
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//...
+  	"ai": {
+  		"binding": "AI",
+  	},
+  	"browser": {
+  		"binding": "MYBROWSER",
+  	},
+  	//...
+  }
+  ```
+</WranglerConfig>
+
+### 브라우저베이스
+
+당신은 또한 사용할 수 있습니다[브라우저베이스](https://docs.browserbase.com/integrations/cloudflare/typescript)에이전트 내에서 직접 Browserbase API를 사용합니다.
+
+일단 당신은 당신의[브라우저베이스 API 키](https://docs.browserbase.com/integrations/cloudflare/typescript), 생성하여 에이전트에 추가할 수 있습니다.[비밀](/workers/configuration/secrets/):
+
+```sh
+cd your-agent-project-folder
+npx wrangler@latest secret put BROWSERBASE_API_KEY
+```
+
+```sh output
+Enter a secret value: ******
+Creating the secret for the Worker "agents-example"
+Success! Uploaded secret BROWSERBASE_API_KEY
+```
+
+설치하다`@cloudflare/puppeteer`패키지를 만들고 에이전트 내에서 이를 사용하여 Browserbase API를 호출합니다.
+
+<PackageManagers pkg="@cloudflare/puppeteer" />
+
+<TypeScriptExample>
+  ```ts
+  interface Env {
+  	BROWSERBASE_API_KEY: string;
+  }
+
+  export class MyAgent extends Agent {
+  	constructor(env: Env) {
+  		super(env);
+  	}
+  }
+  ```
+</TypeScriptExample>

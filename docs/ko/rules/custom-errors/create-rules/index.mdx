@@ -1,0 +1,152 @@
+---
+title: 사용자 정의 오류 규칙
+pcx_content_type: how-to
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/custom-errors/create-rules/'
+translation_source_md: 'https://developers.cloudflare.com/rules/custom-errors/create-rules/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest, Render, Steps, DashButton } from "~/components";
+
+## 대시보드
+
+### 사용자 정의 오류 규칙 만들기{/* create-a-custom-error-rule-dashboard */}
+
+<Steps>
+  1. Cloudflare 대시보드에서 규칙에 가십시오**제품정보**사이트 맵
+
+     <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+  2. 제품정보**규칙 만들기** > **사용자 정의 오류 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+  4. 이름 \***자주 묻는 질문**, 다음 옵션 중 하나를 선택:
+     - **사용자 정의 필터 표현**: 규칙은 사용자 정의 표현과 일치하는 트래픽에만 적용됩니다. 수정하기[규칙 표현](/ruleset-engine/rules-language/expressions/edit-expressions/)요청이 rewritten이어야 하는 구성. Expression Builder 또는 Expression Editor를 사용하여 사용자 정의 표현을 정의합니다. 더 많은 정보를 원하시면, 참조[대시보드](/ruleset-engine/rules-language/expressions/edit-expressions/).
+
+     - **모든 수신 요청**: 규칙은 모든 응답에 적용됩니다.`400`Cloudflare의 보안 제품에 의해 발행된 블록 및 도전 작업을 제외하고 상태 코드 또는 위.
+
+  5. 내 계정**사용자 정의 오류 응답 전달**, 응답 유형을 선정하십시오 (either*주문 오류 자산*또는 유효한 인라인 응답의 한).
+
+     자주 묻는 질문*주문 오류 자산*, 기존 사용자 정의 오류 자산을 선택**투자정보**, 또는 선택**새로운 자산 만들기**으로[새로운 사용자 정의 오류 자산 만들기](#create-a-custom-error-asset-dashboard).
+
+     자주 묻는 질문*JSON 응답*, *HTML 응답*, *텍스트 응답*, 또는*XML 응답*, 웹 사이트 방문자에게 보내는 사용자 정의 오류 응답을 입력**JSON 응답**, **HTML 응답**, **텍스트 응답**, 또는**XML 응답**각각.
+     응답은 포함될 수 있습니다[오류 토큰](/rules/custom-errors/reference/error-tokens/)Cloudflare는 방문자에게 응답을 보내기 전에 실제 값으로 대체 할 것입니다. 최대 응답 크기는 10 KB입니다.
+
+  6. (선택) 안으로**응답 코드**, 응답의 HTTP 상태 코드를 입력 (간 정수 값)`400`·`999`). 제공된 경우, 이 값은 현재 응답 상태 코드를 무시합니다.
+
+  7. (선택) 밑에**이름 \***, 규칙 목록에 규칙을 배치 할 곳 정의 : 목록의 첫 번째 규칙, 목록의 마지막 규칙, 또는 사용자 정의 위치에 ( 주어진 규칙 후).
+
+  8. 규칙을 저장하고 배포하려면, 선택**계정 만들기**. 규칙을 배포 할 준비가 없다면, 선택**Draft로 저장**.
+</Steps>
+
+### 사용자 정의 오류 자산 만들기{/* create-a-custom-error-asset-dashboard */}
+
+<Steps>
+  1. 내 계정**사용자 정의 오류 자산 만들기**sidebar, 자산의 이름을 입력**자산 이름**.
+  2. (선택 사항) 자산에 대한 설명을 입력**이름 \***.
+  3. 내 계정**사이트 맵**, Cloudflare의 글로벌 네트워크에서 fetch 및 store하려는 페이지의 URL을 입력하십시오. Cloudflare는 모든 페이지 리소스를 가져오고 페이지의 분화 된 버전을 저장하면 하나 이상의 사용자 정의 오류 규칙을 사용할 수 있습니다.
+  4. 제품정보**제품 정보**.
+</Steps>
+
+기존의 사용자 정의 오류 자산을 검토하려면 이동**이름 \*** > **계정 설정** > **사용자 정의 오류 자산**탭.
+
+## API를 통해
+
+API를 통해 사용자 정의 오류 규칙을 구성하려면:
+
+<Steps>
+  1. (선택)[사용자 정의 오류 자산 만들기](#create-a-custom-error-asset-api)제공된 URL을 기반으로 합니다.
+  2. [사용자 정의 오류 규칙 만들기](#create-a-custom-error-rule-api)내 계정`http_custom_errors`단계, 사용[규칙 세트 API](/ruleset-engine/rulesets-api/).
+</Steps>
+
+### 사용자 정의 오류 자산 만들기{/* create-a-custom-error-asset-api */}
+
+다음 것`POST`요청은 제공된 URL을 기반으로 한 영역에서 새로운 사용자 정의 오류 자산을 만듭니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/custom_pages/assets" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--json '{
+  "name": "500_error_template",
+  "description": "Standard 5xx error template page",
+  "url": "https://example.com/errors/500_template.html"
+}'
+```
+
+```json output
+{
+	"result": {
+		"name": "500_error_template",
+		"description": "Standard 5xx error template page",
+		"url": "https://example.com/errors/500_template.html",
+		"last_updated": "2025-02-10T11:36:07.810215Z",
+		"size_bytes": 2048
+	},
+	"success": true
+}
+```
+
+### 사용자 정의 오류 규칙 만들기{/* create-a-custom-error-rule-api */}
+
+API를 통해 사용자 정의 오류 규칙을 만들 때, 확인 :
+
+- 규칙 작업을 설정`serve_error`.
+- 수정하기[규칙 모수](/rules/custom-errors/reference/parameters/#custom-error-rules)내 계정`action_parameters`응답 유형에 따라 분야.
+- 규칙을 배포`http_custom_errors`단계.
+
+첫 번째 규칙`http_custom_errors`일치하는 단계 규칙은 적용됩니다. 규칙의 다른 규칙은 일치하거나 적용됩니다. 또한, 영역 수준에서 정의 된 사용자 정의 오류 규칙은 계정 수준에서 정의 된 규칙에 우선 순위가있을 것입니다.
+
+#### 일반 절차
+
+API를 통해 주어진 영역에 대한 사용자 정의 오류 규칙을 만들려면이 작업을 수행:
+
+<Steps>
+  1. 사용 방법[영역 규칙](/api/resources/rulesets/methods/list/)이미 규칙이 있는지 확인하는 작업`http_custom_errors`영역 수준에서 단계.
+  2. 단계 규칙이 존재하지 않는 경우, 그것을 사용하여 만들[지역 항목 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)작업, 그것은 존재하지 않는 경우 규칙을 만들 수 있고 규칙에 모든 규칙을 업데이트. 룰렛 만들기`http_custom_errors`단계.
+
+     단계 규칙이 이미 존재한다면, 사용[지역 항목 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)규칙의 모든 규칙을 교체하는 작업, 또는[규칙에 추가](/ruleset-engine/rulesets-api/add-rule/)규칙에 존재하는 규칙을 추가하는 작업.
+</Steps>
+
+계정 수준에서 사용자 정의 오류 규칙을 만들려면 해당 계정 레벨 API 엔드포인트를 사용하십시오.
+
+#### 이름 \*
+
+이 예제는 사용자 정의 오류 규칙을 반환[이전에 만든 사용자 정의 오류 자산](#create-a-custom-error-asset-api)이름 \*`500_error_template`응답을 위해`500`HTTP 상태 코드.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_custom_errors",
+  }}
+  json={{
+  	rules: [
+  		{
+  			ref: "serve_500_template",
+  			action: "serve_error",
+  			action_parameters: {
+  				asset_name: "500_error_template",
+  				content_type: "text/html",
+  			},
+  			expression: "http.response.code eq 500",
+  			enabled: true,
+  		},
+  	],
+  }}
+/>
+
+<Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+
+이름 \*`PUT`요청, 대응[지역 항목 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)작업, 어떤 기존 규칙을 대체`http_custom_errors`단계 항목 포인트 규칙.
+
+### 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 Custom Error Rules and Custom Error Assets를 관리해야 합니다.
+
+- *사용자 정의 오류 규칙* > *제품정보*

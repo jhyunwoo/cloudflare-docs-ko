@@ -1,0 +1,137 @@
+---
+title: Human in the Loop
+pcx_content_type: concept
+sidebar:
+  order: 5
+---
+
+import { LinkCard } from "~/components";
+
+Human-in-the-Loop(HITL) 워크플로는 자동화된 프로세스에 인간의 판단과 감독을 통합합니다. 이런 워크플로는 중요한 지점에서 일시 중지해 사람이 검토, 검증, 의사결정을 한 뒤 다음 단계로 진행합니다.
+
+## 왜 human-in-the-loop가 필요한가요?
+
+- **Compliance**: 규제 요구사항상 특정 행동에는 사람의 승인이 필요할 수 있습니다.
+- **Safety**: 고위험 작업(결제, 삭제, 외부 커뮤니케이션)은 감독이 필요합니다.
+- **Quality**: 사람의 검토는 AI가 놓칠 수 있는 오류를 잡아냅니다.
+- **Trust**: 사용자는 중요한 작업을 직접 승인할 수 있을 때 더 신뢰감을 느낍니다.
+
+### 일반적인 사용 사례
+
+| Use Case            | Example                              |
+| ------------------- | ------------------------------------ |
+| Financial approvals | Expense reports, payment processing  |
+| Content moderation  | Publishing, email sending            |
+| Data operations     | Bulk deletions, exports              |
+| AI tool execution   | Confirming tool calls before running |
+| Access control      | Granting permissions, role changes   |
+
+## Human-in-the-loop 구현 패턴
+
+Cloudflare는 human-in-the-loop를 구현하기 위한 두 가지 주요 패턴을 제공합니다.
+
+### Workflow approval
+
+몇 시간, 며칠, 몇 주를 기다릴 수도 있는 durable한 multi-step process와 approval gate에 적합합니다. [Cloudflare Workflows](/workflows/)와 `waitForApproval()` 메서드를 사용하세요.
+
+**핵심 API:**
+
+- `waitForApproval(step, { timeout })` — 승인될 때까지 workflow를 일시 중지
+- `approveWorkflow(instanceId, options)` — 대기 중인 workflow 승인
+- `rejectWorkflow(instanceId, options)` — 대기 중인 workflow 거절
+
+**가장 적합한 용도:** 비용 승인, 콘텐츠 게시 파이프라인, 데이터 export 요청
+
+### MCP elicitation
+
+tool 실행 중 사용자에게 추가 구조화 입력을 요청해야 하는 MCP 서버에 적합합니다. MCP client는 여러분의 JSON Schema를 바탕으로 form을 렌더링합니다.
+
+**핵심 API:**
+
+- `elicitInput(options, context)` — 사용자에게 구조화된 입력 요청
+
+**가장 적합한 용도:** 대화형 도구 승인, 실행 중 추가 파라미터 수집
+
+## Workflows는 승인을 어떻게 처리하나요?
+
+![A human-in-the-loop diagram](~/assets/images/agents/human-in-the-loop.svg)
+
+workflow 기반 승인 흐름에서는 다음과 같이 동작합니다.
+
+1. workflow가 승인 단계에 도달하고 `waitForApproval()`을 호출합니다
+2. workflow가 일시 중지되고 진행 상황을 agent에 보고합니다
+3. agent가 pending approval 상태로 자신의 state를 업데이트합니다
+4. 연결된 클라이언트는 pending approval을 보고 승인 또는 거절할 수 있습니다
+5. 승인되면 workflow가 approval metadata와 함께 재개됩니다
+6. 거절되거나 timeout이 발생하면 workflow가 적절히 이를 처리합니다
+
+## 모범 사례
+
+### 장기 상태 영속성
+
+사람의 검토 프로세스는 예측 가능한 시간표로 움직이지 않습니다. 복잡한 사례에서 추가 조사나 여러 승인자가 필요할 경우, 결론이 나오기까지 며칠 또는 몇 주가 걸릴 수 있습니다. 이 기간 동안 시스템은 다음 정보를 완벽히 일관되게 유지해야 합니다.
+
+- 원래 요청과 문맥
+- 모든 중간 의사결정과 행동
+- 부분 진행 상황 또는 임시 상태
+- 검토 이력과 피드백
+
+:::note[Tip]
+[Durable Objects](/durable-objects/)는 Human-in-the-Loop 워크플로의 상태를 관리하는 데 이상적입니다. 몇 시간, 몇 주, 몇 달 동안 상태를 유지하는 persistent compute instance를 제공하기 때문입니다.
+:::
+
+### Timeouts와 escalation
+
+workflow가 무한히 기다리지 않도록 timeout을 설정하세요. [scheduling](/agents/api-reference/schedule-tasks/)을 사용해 다음을 구현할 수 있습니다.
+
+- 일정 시간 비활성 상태가 지나면 리마인더 전송
+- 관리자나 대체 승인자에게 escalation
+- 비즈니스 규칙에 따라 자동 거절 또는 자동 승인
+
+### Audit trails
+
+[SQL API](/agents/api-reference/store-and-sync-state/)를 사용해 모든 승인 결정을 변경 불가능한 audit log로 남기세요. 다음을 기록해야 합니다.
+
+- 누가 결정을 내렸는지
+- 언제 결정을 내렸는지
+- 이유 또는 근거
+- 관련 메타데이터
+
+### 지속적인 개선
+
+인간 검토자는 LLM 성능을 평가하고 개선하는 데 중요한 역할을 합니다. 사람의 피드백이 최종 출력뿐 아니라 LLM의 의사결정 과정 자체에 대해서도 수집되도록 체계적인 평가 절차를 구현하세요.
+
+- **Decision quality assessment**: 검토자가 LLM의 추론 과정과 의사결정 지점을 평가하도록 합니다.
+- **Edge case identification**: 성능을 더 개선할 수 있는 시나리오를 인간의 전문성으로 식별합니다.
+- **Feedback collection**: LLM 미세 조정에 활용할 수 있는 구조화된 피드백을 수집합니다. [AI Gateway](/ai-gateway/evaluations/add-human-feedback/)는 이런 피드백 루프 구축에 도움이 됩니다.
+
+### Error handling and recovery
+
+강인한 오류 처리는 workflow 무결성을 유지하는 데 필수적입니다. 시스템은 다음 상황을 우아하게 처리해야 합니다.
+
+- reviewer 부재
+- 시스템 장애
+- 충돌하는 검토 결과
+- timeout 만료
+
+예외 상황을 위한 명확한 escalation path와, 어떤 중단 이후에도 마지막 안정 상태에서 workflow를 재개할 수 있도록 하는 자동 체크포인팅을 구현하세요.
+
+## 다음 단계
+
+<LinkCard
+	title="Human-in-the-loop patterns"
+	href="/agents/guides/human-in-the-loop/"
+	description="승인 플로우 구현 예제."
+/>
+
+<LinkCard
+	title="Run Workflows"
+	href="/agents/api-reference/run-workflows/"
+	description="workflow approvals를 위한 전체 API."
+/>
+
+<LinkCard
+	title="MCP elicitation"
+	href="/agents/api-reference/mcp-agent-api/#elicitation-human-in-the-loop"
+	description="MCP clients로부터 대화형 입력 받기."
+/>

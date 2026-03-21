@@ -1,0 +1,75 @@
+---
+title: SaaS를 위한 Cloudflare
+pcx_content_type: how-to
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/data-localization/how-to/cloudflare-for-saas/
+translation_source_md: >-
+  https://developers.cloudflare.com/data-localization/how-to/cloudflare-for-saas/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, DashButton } from "~/components";
+
+다음 섹션에서, 우리는 지역 서비스 및 고객 메타 데이터 경계를 가진 SaaS를 위한 Cloudflare를 구성하는 방법에 대한 몇 가지 세부 정보를 제공 할 것입니다.
+
+## 지역 서비스
+
+두 개의 hostname에 대한 지역 서비스를 구성하려면[뚱 베어](/dns/proxy-status/)Cloudflare와 fallback 근원을 통해서, 대시보드 또는 API 윤곽을 위한 이 단계를 따르십시오:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. Cloudflare 대시보드에서**사용자 이름**사이트 맵
+
+       <DashButton url="/?to=/:account/:zone/ssl-tls/custom-hostnames" />
+
+    2. 이 단계를 따르십시오.[SaaS를 위한 Cloudflare 구성](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/).
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    1. 설정하기[fallback 기록](/api/resources/custom_hostnames/subresources/fallback_origin/methods/update/).
+    2. 이름 \*[사용자 이름](/api/resources/custom_hostnames/methods/create/).
+    3. 시작하기[API POST](/data-localization/regional-services/get-started/#configure-regional-services-via-api)Custom Hostname의 명령을 사용하여`regional_hostnames`특정 지역으로.
+  </TabItem>
+</Tabs>
+
+지역 서비스 기능은 사용자 지정 호스트 이름에 확장 될 수 있으며 이것은 별명의 대상에 따라 다릅니다.
+
+다음 예제를 고려하십시오.
+
+:::참조
+
+SaaS 제공 업체로서, 나는 가장 가까운 데이터 센터에 연결하고 모든 처리 및 Cloudflare 기능을 적용 할 수 있습니다. 그러나, 나는 미국에서만 처리 할 수있는 몇 가지 예외가있을 수 있습니다.
+
+이 경우, 난 그냥 내 fallback 레코드를 유지할 수`Earth`처리 영역으로 모든 사용자 정의 호스트 이름은 CNAME 레코드를 생성하고 CNAME 대상으로 fallback 레코드를 사용합니다. 미국에서 처리해야하는 모든 사용자 정의 호스트 이름의 경우, 예를 들어 DNS 레코드를 만들 것입니다.`us.saasprovider.com`처리 영역 설정`United States of America`. 적용되기 위하여 미국 가공 지역을 위한 순서에서는, 나의 고객은 CNAME 기록을 창조하고 사용해야 합니다`us.saasprovider.com`CNAME 대상으로. Custom Hostname과 관련된 기원은 처리 영역을 설정하는 데 사용되지 않지만 오른쪽 서버에 트래픽을 우회하는 데 사용됩니다.
+
+:::
+
+아래에서 SaaS 및 해당 처리 영역에 Cloudflare를 구성할 수 있는 다른 방법의 고장을 찾을 수 있습니다.
+
+- 처리 지역 없음:`fallback.saasprovider.com`
+- 처리 지역은`US`: `us.saasprovider.com`
+- 사용자 위치:`UK`(닫는 datacenter:`LHR`)
+
+| 제품정보 | 사용자 이름                                   | 제품정보                        | 이름 \*                     | 제품정보  |
+| ---- | ---------------------------------------- | --------------------------- | ------------------------- | ----- |
+| 1    | ​​`regionalservices-default.example.com` | `fallback.saasprovider.com` | 기본값 (fallback)            | `LHR` |
+| 2    | `regionalservices-default2.example.com`  | `us.saasprovider.com`       | 기본값 (fallback)            | `EWR` |
+| 3    | `regionalservices-custom.example.com`    | `fallback.saasprovider.com` | `us.saasprovider.com`(주문) | `LHR` |
+| 4    | `regionalservices-custom2.example.com`   | `us.saasprovider.com`       | `us.saasprovider.com`(주문) | `EWR` |
+
+- 지역 서비스에 대한 사용 가능한 지역에 대한 fallback 레코드에 대한 처리 영역을 설정하려면, fallback에 대한 새로운 지역 호스트 이름 항목을 만들[사이트맵](/data-localization/regional-services/get-started/#configure-regional-services-via-api)이름 \*
+
+- 기존 지역을 업데이트하려면 (예를 들면, from`EU`으로`US`), 만듭니다[공지사항](/data-localization/regional-services/get-started/#configure-regional-services-via-api)처리 영역을 업데이트하는 fallback에 대한 요청.
+
+- 지역 서비스 처리 영역을 제거하고 다시 설정`Earth`, 만들기[계정 만들기](/data-localization/regional-services/get-started/#configure-regional-services-via-api)지역 설정 삭제 요청.
+
+## 고객 메타데이터 경계
+
+SaaS를 위한 Cloudflare[회사 소개](/cloudflare-for-platforms/cloudflare-for-saas/hostname-analytics/)제품정보[HTTP 요청](/logs/logpush/logpush-job/datasets/zone/http_requests/)고객 Metadata Boundary에 의해 완전히 지원됩니다.
+
+더 알아보기[SaaS 문서에 대한 Cloudflare](/cloudflare-for-platforms/cloudflare-for-saas/)더 많은 정보.

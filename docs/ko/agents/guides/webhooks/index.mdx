@@ -1,0 +1,617 @@
+---
+title: 웹훅
+pcx_content_type: how-to
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/webhooks/'
+translation_source_md: 'https://developers.cloudflare.com/agents/guides/webhooks/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+외부 서비스에서 웹훅 이벤트를 수신하고 전용 에이전트 인스턴스로 이동합니다. 각 webhook 근원 (repository, 고객, 장치)는 격리한 국가, 지속적인 저장 및 순간 클라이언트 연결을 가진 그것의 자신의 대리인이 있을 수 있습니다.
+
+## 빠른 시작
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, getAgentByName, routeAgentRequest } from "agents";
+
+  //특정 법인에 대한 webhooks를 처리하는 에이전트
+  export class WebhookAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		if (request.method !== "POST") {
+  			return new Response("Method not allowed", { status: 405 });
+  		}
+
+  		//webhook 서명 확인
+  		const signature = request.headers.get("X-Hub-Signature-256");
+  		const body = await request.text();
+
+  		if (
+  			!(await this.verifySignature(body, signature, this.env.WEBHOOK_SECRET))
+  		) {
+  			return new Response("Invalid signature", { status: 401 });
+  		}
+
+  		//웹훅 페이로드 프로세스
+  		const payload = JSON.parse(body);
+  		await this.processEvent(payload);
+
+  		return new Response("OK", { status: 200 });
+  	}
+
+  	private async verifySignature(
+  		payload: string,
+  		signature: string | null,
+  		secret: string,
+  	): Promise<boolean> {
+  		if (!signature) return false;
+
+  		const encoder = new TextEncoder();
+  		const key = await crypto.subtle.importKey(
+  			"raw",
+  			encoder.encode(secret),
+  			{ name: "HMAC", hash: "SHA-256" },
+  			false,
+  			["sign"],
+  		);
+
+  		const signatureBytes = await crypto.subtle.sign(
+  			"HMAC",
+  			key,
+  			encoder.encode(payload),
+  		);
+  		const expected = `sha256=${Array.from(new Uint8Array(signatureBytes))
+  			.map((b) => b.toString(16).padStart(2, "0"))
+  			.join("")}`;
+
+  		return signature === expected;
+  	}
+
+  	private async processEvent(payload: unknown) {
+  		//상점 이벤트, 업데이트 상태, 트리거 작업 ...
+  	}
+  }
+
+  //webhooks를 올바른 에이전트 인스턴스로 경로
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//Webhook 엔드포인트: POST /webhooks/:entityId
+  		if (url.pathname.startsWith("/webhooks/") && request.method === "POST") {
+  			const entityId = url.pathname.split("/")[2];
+  			const agent = await getAgentByName(env.WebhookAgent, entityId);
+  			return agent.fetch(request);
+  		}
+
+  		//WebSocket 연결을 위한 기본 여정
+  		return (
+  			(await routeAgentRequest(request, env)) ||
+  			new Response("Not found", { status: 404 })
+  		);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 사용 사례
+
+에이전트와 결합 된 Webhooks는 각 외부 조직이 자체 격리 된 상태 에이전트 인스턴스를 가져옵니다.
+
+### 개발자 도구
+
+| 사용 사례               | 이름 \*                                                     |
+| ------------------- | --------------------------------------------------------- |
+| **GitHub Repo 모니터** | 저장소 추적 커밋, PR, 문제 및 별 한 에이전트                              |
+| **CI/CD 파이프라인 대리인** | React to build/deploy events, notify on failure, 트랙 배포 역사 |
+| **선형/지라 추적기**       | Auto-triage 문제, 콘텐츠 기반 할당, 트랙 해상도 시간                      |
+
+### 전자상거래 및 결제
+
+| 사용 사례                 | 이름 \*                            |
+| --------------------- | -------------------------------- |
+| **Stripe 고객 에이전트**    | 고객 추적 결제, 구독 및 분쟁 당 하나의 에이전트     |
+| **Shopify 주문 에이전트**   | 재고 동기화를 통한 생산성 향상                |
+| **지불 Reconciliation** | 내부 기록에 웹훅 이벤트, 플래그 discrepancies |
+
+### 통신 및 알림
+
+| 사용 사례               | 이름 \*                                 |
+| ------------------- | ------------------------------------- |
+| **Twilio SMS / 음성** | 인바운드 메시지 또는 통화에 의해 방아쇠                |
+| **슬랙 봇**            | 슬래시 명령, 버튼 클릭 및 대화형 메시지 대응            |
+| **이메일 추적**          | SendGrid/Mailgun 배달 이벤트, 반송 처리, 참여 분석 |
+
+### IoT 및 인프라
+
+| 사용 사례            | 이름 \*                                      |
+| ---------------- | ------------------------------------------ |
+| **장치 Telemetry** | 장치 처리 센서 데이터 스트림 당 하나의 에이전트                |
+| **연락처**          | PagerDuty, Datadog 또는 사용자 정의 모니터링에서 경고를 수집 |
+| **홈 자동화**        | React to IFTTT/Zapier 방아쇠 persistent 상태    |
+
+### SaaS 통합
+
+| 사용 사례       | 이름 \*                                         |
+| ----------- | --------------------------------------------- |
+| **CRM 동기화** | Salesforce/HubSpot 연락처 및 거래 업데이트              |
+| **회사 소개**   | Google 캘린더 이벤트 알림 및 스케줄링                      |
+| **양식 제출**   | Typeform, Tally, 또는 후속 작업과 사용자 정의 양식 webhooks |
+
+## 웹훅을 에이전트로 변환
+
+키 패턴은 webhook에서 엔터티 식별자를 추출하고`getAgentByName()`전용 에이전트 인스턴스로 경로.
+
+### payload에서 추출물 법인
+
+대부분의 webhooks는 payload에 식별자를 포함합니다:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "POST" && url.pathname === "/webhooks/github") {
+  			const payload = await request.clone().json();
+
+  			//payload에서 법인 ID를 추출
+  			const repoFullName = payload.repository?.full_name;
+  			if (!repoFullName) {
+  				return new Response("Missing repository", { status: 400 });
+  			}
+
+  			//에이전트 이름로 사용을위한 Sanitize
+  			const agentName = repoFullName.toLowerCase().replace(/\//g, "-");
+
+  			//오시는 길
+  			const agent = await getAgentByName(env.RepoAgent, agentName);
+  			return agent.fetch(request);
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### URL에서 엔터티티티를 추출
+
+또는 webhook URL의 엔티티티 ID를 포함:
+
+<TypeScriptExample>
+  ```ts
+  //웹훅 URL : https://your-worker.dev/webhooks/stripe/cus 123456
+  if (url.pathname.startsWith("/webhooks/stripe/")) {
+  	const customerId = url.pathname.split("/")[3]; //"cus 123456"'s
+  	const agent = await getAgentByName(env.StripeAgent, customerId);
+  	return agent.fetch(request);
+  }
+  ```
+</TypeScriptExample>
+
+### headers의 추출 기관
+
+몇몇 서비스는 headers에 있는 식별자를 포함합니다:
+
+<TypeScriptExample>
+  ```ts
+  //Slack은 헤더에 작업 공간 정보를 보냅니다.
+  const teamId = request.headers.get("X-Slack-Team-Id");
+  if (teamId) {
+  	const agent = await getAgentByName(env.SlackAgent, teamId);
+  	return agent.fetch(request);
+  }
+  ```
+</TypeScriptExample>
+
+## 서명 검증
+
+항상 webhook 서명을 확인하여 요청을 정정합니다. 대부분의 공급자는 HMAC-SHA256를 사용합니다.
+
+### HMAC-SHA256 패턴
+
+<TypeScriptExample>
+  ```ts
+  async function verifySignature(
+  	payload: string,
+  	signature: string | null,
+  	secret: string,
+  ): Promise<boolean> {
+  	if (!signature) return false;
+
+  	const encoder = new TextEncoder();
+  	const key = await crypto.subtle.importKey(
+  		"raw",
+  		encoder.encode(secret),
+  		{ name: "HMAC", hash: "SHA-256" },
+  		false,
+  		["sign"],
+  	);
+
+  	const signatureBytes = await crypto.subtle.sign(
+  		"HMAC",
+  		key,
+  		encoder.encode(payload),
+  	);
+
+  	const expected = `sha256=${Array.from(new Uint8Array(signatureBytes))
+  		.map((b) => b.toString(16).padStart(2, "0"))
+  		.join("")}`;
+
+  	//타이밍 안전 비교 사용
+  	return signature === expected;
+  }
+  ```
+</TypeScriptExample>
+
+### 공급자 별 headers
+
+| 회사 소개 | 서명 헤더                   | Algorithm, 그리스       |
+| ----- | ----------------------- | -------------------- |
+| 프로젝트  | `X-Hub-Signature-256`   | 사이트맵                 |
+| 뚱 베어  | `Stripe-Signature`      | HMAC-SHA256 (배터치 포함) |
+| 트위리오  | `X-Twilio-Signature`    | 사이트맵                 |
+| 스크랩   | `X-Slack-Signature`     | HMAC-SHA256 (배터치 포함) |
+| 회사소개  | `X-Shopify-Hmac-Sha256` | HMAC-SHA256 (베이스64)  |
+
+## 웹훅 처리
+
+### onRequest 핸들러
+
+제품 정보`onRequest()`당신의 대리인에 있는 들어오는 webhooks를 취급하기 위하여:
+
+<TypeScriptExample>
+  ```ts
+  export class WebhookAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		//1. 검증 방법
+  		if (request.method !== "POST") {
+  			return new Response("Method not allowed", { status: 405 });
+  		}
+
+  		//2. Headers의 이벤트 유형 받기
+  		const eventType = request.headers.get("X-Event-Type");
+
+  		//3. 서명 확인
+  		const signature = request.headers.get("X-Signature");
+  		const body = await request.text();
+
+  		if (!(await this.verifySignature(body, signature))) {
+  			return new Response("Invalid signature", { status: 401 });
+  		}
+
+  		//4. 파스와 과정
+  		const payload = JSON.parse(body);
+  		await this.handleEvent(eventType, payload);
+
+  		//5. 빨리 응답
+  		return new Response("OK", { status: 200 });
+  	}
+
+  	private async handleEvent(type: string, payload: unknown) {
+  		//업데이트 상태 (연결된 클라이언트에 브로드캐스트)
+  		this.setState({
+  			...this.state,
+  			lastEventType: type,
+  			lastEventTime: new Date().toISOString(),
+  		});
+
+  		//역사에 대한 SQL에서 저장
+  		this
+  			.sql`INSERT INTO events (type, payload, timestamp) VALUES (${type}, ${JSON.stringify(payload)}, ${Date.now()})`;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 웹훅 이벤트
+
+SQLite 를 persist webhook 이벤트에 대한 역사와 재생.
+
+### 이벤트 테이블 schema
+
+<TypeScriptExample>
+  ```ts
+  class WebhookAgent extends Agent {
+  	async onStart(): Promise<void> {
+  		this.sql`
+        CREATE TABLE IF NOT EXISTS events (
+          id TEXT PRIMARY KEY,
+          type TEXT NOT NULL,
+          action TEXT,
+          title TEXT NOT NULL,
+          description TEXT,
+          url TEXT,
+          actor TEXT,
+          payload TEXT,
+          timestamp TEXT NOT NULL
+        )
+      `;
+
+  		this.sql`
+        CREATE INDEX IF NOT EXISTS idx_events_timestamp
+        ON events(timestamp DESC)
+      `;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### Cleanup 이전 이벤트
+
+최근 이벤트를 유지함으로써 비동기적 성장을 방지:
+
+<TypeScriptExample>
+  ```ts
+  //지난 100개의 이벤트 유지
+  this.sql`
+    DELETE FROM events WHERE id NOT IN (
+      SELECT id FROM events ORDER BY timestamp DESC LIMIT 100
+    )
+  `;
+
+  //또는 30 일 이상 이벤트 삭제
+  this.sql`
+    DELETE FROM events
+    WHERE timestamp < datetime('now', '-30 days')
+  `;
+  ```
+</TypeScriptExample>
+
+### Query 이벤트
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, callable } from "agents";
+
+  class WebhookAgent extends Agent {
+  	@callable()
+  	getEvents(limit = 20) {
+  		return [
+  			...this.sql`
+        SELECT * FROM events
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `,
+  		];
+  	}
+
+  	@callable()
+  	getEventsByType(type: string, limit = 20) {
+  		return [
+  			...this.sql`
+        SELECT * FROM events
+        WHERE type = ${type}
+        ORDER BY timestamp DESC
+        LIMIT ${limit}
+      `,
+  		];
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 실시간 방송
+
+webhook가 도착하면, 웹소켓 클라이언트를 연결하기 위해 에이전트 상태를 업데이트합니다.
+
+<TypeScriptExample>
+  ```ts
+  class WebhookAgent extends Agent {
+  	private async processWebhook(eventType: string, payload: WebhookPayload) {
+  		//업데이트 상태 -이 자동으로 모든 연결된 클라이언트에 방송
+  		this.setState({
+  			...this.state,
+  			stats: payload.stats,
+  			lastEvent: {
+  				type: eventType,
+  				timestamp: new Date().toISOString(),
+  			},
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+클라이언트 측에:
+
+```tsx
+import { useAgent } from "agents/react";
+
+function Dashboard() {
+	const [state, setState] = useState(null);
+
+	const agent = useAgent({
+		agent: "webhook-agent",
+		name: "my-entity-id",
+		onStateUpdate: (newState) => {
+			setState(newState); //webhooks가 도착할 때 자동으로 업데이트
+		},
+	});
+
+	return <div>Last event: {state?.lastEvent?.type}</div>;
+}
+```
+
+## 패턴
+
+### 이벤트 deduplication
+
+이벤트 ID를 사용하여 중복 이벤트를 방지:
+
+<TypeScriptExample>
+  ```ts
+  class WebhookAgent extends Agent {
+  	async handleEvent(eventId: string, payload: unknown) {
+  		//자주 묻는 질문
+  		const existing = [
+  			...this.sql`
+        SELECT id FROM events WHERE id = ${eventId}
+      `,
+  		];
+
+  		if (existing.length > 0) {
+  			console.log(`Event ${eventId} already processed, skipping`);
+  			return;
+  		}
+
+  		//프로세스 및 저장
+  		await this.processPayload(payload);
+  		this.sql`INSERT INTO events (id, ...) VALUES (${eventId}, ...)`;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 신속하게 대응하고, 동시에 처리
+
+Webhook 공급자는 빠른 응답을 기대합니다. 무거운 처리를 위한 큐를 사용하십시오:
+
+<TypeScriptExample>
+  ```ts
+  class WebhookAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		const payload = await request.json();
+
+  		//빠른 검증
+  		if (!this.isValid(payload)) {
+  			return new Response("Invalid", { status: 400 });
+  		}
+
+  		//Queue 무거운 처리
+  		await this.queue("processWebhook", payload);
+
+  		//즉시 응답
+  		return new Response("Accepted", { status: 202 });
+  	}
+
+  	async processWebhook(payload: WebhookPayload) {
+  		//무거운 처리는 여기에서, 보낸 응답 후에 일어났습니다
+  		await this.enrichData(payload);
+  		await this.notifyDownstream(payload);
+  		await this.updateAnalytics(payload);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### Multi-provider 여정
+
+하나의 노동자에 여러 서비스에서 웹훅을 처리 :
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		if (request.method === "POST") {
+  			//GitHub 웹훅
+  			if (url.pathname.startsWith("/webhooks/github/")) {
+  				const payload = await request.clone().json();
+  				const repoName = payload.repository?.full_name?.replace("/", "-");
+  				const agent = await getAgentByName(env.GitHubAgent, repoName);
+  				return agent.fetch(request);
+  			}
+
+  			//웹훅
+  			if (url.pathname.startsWith("/webhooks/stripe/")) {
+  				const payload = await request.clone().json();
+  				const customerId = payload.data?.object?.customer;
+  				const agent = await getAgentByName(env.StripeAgent, customerId);
+  				return agent.fetch(request);
+  			}
+
+  			//웹훅
+  			if (url.pathname === "/webhooks/slack") {
+  				const teamId = request.headers.get("X-Slack-Team-Id");
+  				const agent = await getAgentByName(env.SlackAgent, teamId);
+  				return agent.fetch(request);
+  			}
+  		}
+
+  		return (
+  			(await routeAgentRequest(request, env)) ??
+  			new Response("Not found", { status: 404 })
+  		);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 웹훅 전송
+
+대리인은 또한 외부 서비스에 webhooks를 보낼 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  export class NotificationAgent extends Agent {
+  	async notifySlack(message: string) {
+  		const response = await fetch(this.env.SLACK_WEBHOOK_URL, {
+  			method: "POST",
+  			headers: { "Content-Type": "application/json" },
+  			body: JSON.stringify({ text: message }),
+  		});
+
+  		if (!response.ok) {
+  			throw new Error(`Slack notification failed: ${response.status}`);
+  		}
+  	}
+
+  	async sendSignedWebhook(url: string, payload: unknown) {
+  		const body = JSON.stringify(payload);
+  		const signature = await this.sign(body, this.env.WEBHOOK_SECRET);
+
+  		await fetch(url, {
+  			method: "POST",
+  			headers: {
+  				"Content-Type": "application/json",
+  				"X-Signature": signature,
+  			},
+  			body,
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 보안 모범 사례
+
+1. **항상 서명 확인**- 믿을 수 없는 webhooks.
+2. **환경 비밀 사용**- 상점 비밀과`wrangler secret put`, 코드에 없습니다.
+3. **빠른 응답**- retries를 피하기 위하여 초 안에 200/202를 돌려보냅니다.
+4. **Validate 페이로드**- 처리하기 전에 필요한 필드를 확인하십시오.
+5. **로그 거부**- 보안 모니터링에 대한 잘못된 서명을 추적합니다.
+6. **HTTPS 사용**- Webhook URL은 항상 TLS를 사용한다.
+
+<TypeScriptExample>
+  ```ts
+  //안전한 저장 비밀
+  //wrangler 비밀 넣어 GITHUB WEBHOOK SECRET
+
+  //회사 소개
+  const secret = this.env.GITHUB_WEBHOOK_SECRET;
+  ```
+</TypeScriptExample>
+
+## 웹훅 공급자
+
+| 회사 소개 | 회사연혁                                                                                               |
+| ----- | -------------------------------------------------------------------------------------------------- |
+| 프로젝트  | [Webhook 이벤트 및 페이로드](https://docs.github.com/en/webhooks)                                          |
+| 뚱 베어  | [Webhook 서명](https://stripe.com/docs/webhooks/signatures)                                          |
+| 트위리오  | [웹훅 요청](https://www.twilio.com/docs/usage/webhooks/webhooks-security)                              |
+| 스크랩   | [Verifying 요청](https://api.slack.com/authentication/verifying-requests-from-slack)                 |
+| 회사소개  | [Webhook 인증](https://shopify.dev/docs/apps/webhooks/configuration/https#step-5-verify-the-webhook) |
+| 회사 소개 | [웹훅](https://docs.sendgrid.com/for-developers/tracking-events/getting-started-event-webhook)       |
+| 제품정보  | [웹훅](https://developers.linear.app/docs/graphql/webhooks)                                          |
+
+## 다음 단계
+
+<LinkCard title="Queue 작업" href="/agents/api-reference/queue-tasks/" description="배경 작업 처리." />
+
+<LinkCard title="이메일 룰렛" href="/agents/api-reference/email/" description="귀하의 에이전트에 inbound 이메일 핸들." />
+
+<LinkCard title="에이전트 API" href="/agents/api-reference/agents-api/" description="Agents SDK를 위한 API 참고 자료를 완료합니다." />

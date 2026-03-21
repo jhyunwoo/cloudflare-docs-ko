@@ -1,0 +1,99 @@
+---
+title: API를 통해 구성 규칙 만들기
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API를 통해 규칙 만들기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/configuration-rules/create-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/configuration-rules/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 구성 규칙을 만들 수 있습니다.
+
+## 기본 규칙 설정
+
+API를 통해 구성 규칙을 만들 때, 당신을 확인:
+
+- 규칙 작업을 설정`set_config`.
+- 매개 변수를 정의`action_parameters`분야에 따라[제품정보](/rules/configuration-rules/settings/)일치하는 요청에 대한 override를 원합니다.
+- 규칙을 배포`http_config_settings`영역 수준에서 단계.
+
+## 회사연혁
+
+<Render
+  file="rules-creation-workflow"
+  product="rules"
+  params={{
+  	ruleName: "a configuration rule",
+  	phaseName: "http_config_settings",
+  }}
+/>
+
+API 토큰이 있는지 확인하십시오.[자주 묻는 질문](#required-api-token-permissions)API 작업을 수행합니다.
+
+## 예제 요청
+
+<Details header="예: 이메일 Obfuscation 및 Browser Integrity Check를 활성화하는 규칙을 추가하십시오.">
+  다음 예제는 기존 단계 규칙의 규칙을 설정합니다 (`{ruleset_id}`) 단일 구성 규칙에 - 이메일 Obfuscation 및 Browser Integrity Check for the contacts page — 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동:
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "enable_email_obfuscation_bic",
+  			expression: 'starts_with(http.request.uri.path, "/contact-us/")',
+  			description:
+  				"Obfuscates email addresses and enables BIC in contacts page",
+  			action: "set_config",
+  			action_parameters: {
+  				email_obfuscation: true,
+  				bic: true,
+  			},
+  		},
+  	],
+  }}
+  />
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+<Details header="예: 관리자 영역에 대한 공격 모드 아래에서 턴하는 규칙을 추가">
+  다음 예제는 기존 단계 규칙의 규칙을 설정합니다 (`{ruleset_id}`) 단일 구성 규칙에 - 관리 영역에 대한 공격 모드를 켜 -[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동:
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "enable_under_attack_in_admin",
+  			expression: 'http.host eq "admin.example.com"',
+  			description: "Turn on Under Attack mode for admin area",
+  			action: "set_config",
+  			action_parameters: {
+  				security_level: "under_attack",
+  			},
+  		},
+  	],
+  }}
+  />
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+***
+
+## 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 구성 규칙을 관리해야 적어도 다음과 같은 권한이 있어야합니다.
+
+- *지역 명소* > *Config 규칙* > *제품정보*

@@ -1,0 +1,115 @@
+---
+title: 에이전트를 위한 Markdown
+pcx_content_type: navigation
+sidebar:
+  badge:
+    text: 베타
+  group:
+    hideIndex: false
+---
+
+import {
+	Render,
+	TypeScriptExample,
+} from "~/components";
+
+## 에이전트를 위한 Markdown이란
+
+Markdown은 빠르게 에이전트와 AI 시스템 전반의 공통 언어가 되었습니다. 형식의 명시적인 구조는 AI 처리에 이상적이며, 결과적으로 토큰 낭비를 최소화하면서 더 나은 결과를 만들어 냅니다.
+
+Cloudflare 네트워크는 [콘텐츠 협상](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Content_negotiation) 헤더를 사용하는 활성화된 zone에 대해 원본에서 실시간 콘텐츠 변환을 지원합니다. AI 시스템이 Cloudflare를 사용하고 Markdown for Agents가 활성화된 웹사이트의 페이지를 요청하면, 요청에서 `text/markdown` 선호도를 표현할 수 있고, 그러면 Cloudflare 네트워크는 가능한 경우 HTML을 즉시 Markdown으로 자동적이고 효율적으로 변환합니다.
+
+자세한 내용은 블로그의 [공지](https://blog.cloudflare.com/markdown-for-agents/)를 읽어보십시오.
+
+## 사용 방법
+
+Markdown for Agents가 활성화된 zone의 모든 페이지에 대한 Markdown 버전을 가져오려면 클라이언트가 `Accept` 협상 헤더에 `text/markdown`를 옵션 중 하나로 추가해야 합니다. Cloudflare는 이를 감지하고 원본에서 원래 HTML 버전을 가져온 뒤, 클라이언트에 제공하기 전에 Markdown으로 변환합니다.
+
+다음은 개발자 문서에서 이 페이지를 요청하는 `Accept` 협상 헤더를 포함한 curl 예시입니다.
+
+```bash
+curl https://developers.cloudflare.com/fundamentals/reference/markdown-for-agents/ \
+  -H "Accept: text/markdown"
+```
+
+또는 Workers로 AI 에이전트를 빌드하고 있다면 TypeScript를 사용할 수 있습니다.
+
+<TypeScriptExample>
+
+```ts
+const r = await fetch(
+	`https://developers.cloudflare.com/fundamentals/reference/markdown-for-agents/`,
+	{
+		headers: {
+			Accept: "text/markdown",
+		},
+	},
+);
+const tokenCount = r.headers.get("x-markdown-tokens");
+const markdown = await r.text();
+```
+
+</TypeScriptExample>
+
+이 요청에 대한 응답은 이제 Markdown 형식으로 반환됩니다.
+
+```http
+HTTP/2 200
+date: Wed, 11 Feb 2026 11:44:48 GMT
+content-type: text/markdown; charset=utf-8
+content-length: 2899
+vary: accept
+x-markdown-tokens: 725
+content-signal: ai-train=yes, search=yes, ai-input=yes
+
+---
+title: Markdown for Agents · Cloudflare Agents docs
+---
+
+## What is Markdown for Agents
+
+Markdown has quickly become the lingua franca for agents and AI systems
+as a whole. The format’s explicit structure makes it ideal for AI processing,
+ultimately resulting in better results while minimizing token waste.
+...
+```
+
+### x-markdown-tokens
+
+변환된 응답에는 Markdown 문서의 예상 토큰 수를 나타내는 `x-markdown-tokens` 헤더가 포함됩니다. 예를 들어 컨텍스트 윈도 크기를 계산하거나 청킹 전략을 결정하는 데 이 값을 사용할 수 있습니다.
+
+### Content Signals Policy
+
+[Content Signals](https://contentsignals.org/)는 누구나 자신의 콘텐츠가 액세스된 이후 어떻게 사용될 수 있는지에 대한 선호를 표현할 수 있게 해주는 프레임워크입니다.
+
+기본적으로 Markdown for Agents가 변환한 응답에는 `Content-Signal: ai-train=yes, search=yes, ai-input=yes` 헤더가 포함되며, 이는 콘텐츠가 AI 학습, 검색 결과 및 AI 입력(에이전트 사용 포함)에 사용될 수 있음을 알립니다. 앞으로 Markdown for Agents는 사용자 지정 Content Signal 정책을 정의하는 옵션을 제공할 예정입니다.
+
+## 활성화 방법
+
+<Render file="markdown-for-agents" product="fundamentals" />
+
+## 제공 범위 및 가격
+
+Markdown for Agents는 Pro, Business, Enterprise 플랜과 SSL for SaaS 고객에게 추가 비용 없이 제공됩니다.
+
+## Cloudflare에서 직접 사용해 보기
+
+Cloudflare는 [Developer Documentation](https://developers.cloudflare.com/)와 [Blog](https://blog.cloudflare.com/)에 이 기능을 활성화하여, 모든 AI 크롤러와 에이전트가 HTML 대신 Markdown으로 콘텐츠를 사용할 수 있도록 하고 있습니다.
+
+```bash
+curl https://blog.cloudflare.com/markdown-for-agents/ \
+  -H "Accept: text/markdown"
+```
+
+## 제한 사항
+
+- 현재는 HTML에서만 변환되며, 다른 문서 형식은 향후 추가될 수 있습니다.
+- 원본 응답은 2 MB(2,097,152바이트)를 초과할 수 없습니다.
+- 기능이 활성화되어 있는데도 응답이 계속 `text/html`이라면, zone 호환성 확인을 위해 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하십시오.
+
+## 기타 Markdown 변환 API
+
+Cloudflare 외부의 임의 문서 변환이 필요하거나, 콘텐츠 소스에서 Markdown for Agents를 사용할 수 없는 AI 시스템을 빌드하고 있다면, 애플리케이션용 문서를 Markdown으로 변환할 수 있는 다른 방법도 제공합니다.
+
+- Workers AI [AI.toMarkdown()](https://developers.cloudflare.com/workers-ai/features/markdown-conversion/)은 여러 문서 형식과 요약을 지원합니다.
+- Browser Rendering의 [/markdown](https://developers.cloudflare.com/browser-rendering/rest-api/markdown-endpoint/) REST API는, 변환 전에 실제 브라우저에서 동적 페이지나 애플리케이션을 렌더링해야 하는 경우 Markdown 변환을 지원합니다.

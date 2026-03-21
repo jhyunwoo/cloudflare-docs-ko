@@ -1,0 +1,139 @@
+---
+summary: Resolve requests to your domain to a set of proxy third-party origin URLs.
+tags:
+  - Middleware
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 대량 근원 override
+sidebar:
+  order: 1001
+description: 프록시 제3자 소스 URL의 설정에 도메인에 대한 요청을 해결합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/bulk-origin-proxy/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/bulk-origin-proxy/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * 다른 URL을 fetch로 객체
+    * @param {Object} 사용자*/
+    		const ORIGINS = {
+    			"starwarsapi.yourdomain.com": "swapi.dev",
+    			"google.yourdomain.com": "www.google.com",
+    		};
+
+    		const url = new URL(request.url);
+
+    		//hostname이 ORIGINS 객체의 키인지 확인
+    		if (url.hostname in ORIGINS) {
+    			const target = ORIGINS[url.hostname];
+    			url.hostname = target;
+    			//즉, 그 제 3 자 기원에 대한 프록시 요청
+    			return fetch(url.toString(), request);
+    		}
+    		//그렇지 않으면, 정상적인 과정 요구
+    		return fetch(request);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * 다른 URL을 fetch로 객체
+    * @param {Object} 사용자*/
+    		const ORIGINS = {
+    			"starwarsapi.yourdomain.com": "swapi.dev",
+    			"google.yourdomain.com": "www.google.com",
+    		};
+
+    		const url = new URL(request.url);
+
+    		//hostname이 ORIGINS 객체의 키인지 확인
+    		if (url.hostname in ORIGINS) {
+    			const target = ORIGINS[url.hostname];
+    			url.hostname = target;
+    			//즉, 그 제 3 자 기원에 대한 프록시 요청
+    			return fetch(url.toString(), request);
+    		}
+    		//그렇지 않으면, 정상적인 과정 요구
+    		return fetch(request);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { proxy } from "hono/proxy";
+
+    //다른 URL과 객체를 fetch
+    const ORIGINS: Record<string, string> = {
+    	"starwarsapi.yourdomain.com": "swapi.dev",
+    	"google.yourdomain.com": "www.google.com",
+    };
+
+    const app = new Hono();
+
+    app.all("*", async (c) => {
+    	const url = new URL(c.req.url);
+
+    	//hostname이 ORIGINS 객체의 키인지 확인
+    	if (url.hostname in ORIGINS) {
+    		const target = ORIGINS[url.hostname];
+    		url.hostname = target;
+
+    		//즉, 그 제 3 자 기원에 대한 프록시 요청
+    		return proxy(url, c.req.raw);
+    	}
+
+    	//그렇지 않으면, 정상적인 과정 요구
+    	return proxy(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from js import fetch, URL
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            #다른 URL과 같이 fetch
+            ORIGINS = {
+              "starwarsapi.yourdomain.com": "swapi.dev",
+              "google.yourdomain.com": "www.google.com",
+            }
+
+            url = URL.new(request.url)
+
+            #hostname이 ORIGINS 객체의 키인지 확인
+            if url.hostname in ORIGINS:
+                url.hostname = ORIGINS[url.hostname]
+                #즉, 그 제 3 자 기원에 대한 프록시 요청
+                return fetch(url.toString(), request)
+
+            #그렇지 않으면, 정상적인 과정 요구
+            return fetch(request)
+    ```
+  </TabItem>
+</Tabs>

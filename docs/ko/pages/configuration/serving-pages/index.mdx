@@ -1,0 +1,90 @@
+---
+pcx_content_type: concept
+title: 서빙 Pages
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/configuration/serving-pages/'
+translation_source_md: 'https://developers.cloudflare.com/pages/configuration/serving-pages/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Pages는 Pages 사이트를 제공하기위한 기본 수를 포함합니다. 이 페이지는 그 결정의 일부에 대한 세부 사항이므로 Pages가 작동하는 방법을 이해하고 기본 행동의 일부를 과도하게 할 수 있습니다.
+
+## 노선 매칭
+
+HTML 파일이 요청된 현재 경로에 일치 경로로 발견되면 Pages는 그것을 봉사합니다. Pages는 또한 HTML 페이지를 확장이없는 카운터로 리디렉션합니다. 예를 들어,`/contact.html`본문 바로가기`/contact`·`/about/index.html`본문 바로가기`/about/`.
+
+## 회사연혁
+
+Pages가 요청한 파일을 찾을 수 없을 때 사용자 지정 페이지를 정의할 수 있습니다.`404.html`파일. Pages는 그 후에 가장 가까운 404 페이지를 찾아내기 위하여 시도할 것입니다. 현재 요청하는 경로와 같은 디렉토리에서 찾을 수없는 경우, 일치하는 디렉토리 트리를 계속 볼 것입니다`404.html`파일, 에 종료`/404.html`. 이것은 당신이 같은 상황을 위한 관례 404 경로를 정의할 수 있다는 것을 의미합니다`/blog/404.html`·`/404.html`, 그리고 Pages는 자동적으로 상황에 따라 정확한 것을 렌더링할 것입니다.
+
+## 단일 페이지 응용 프로그램 (SPA) 렌더링
+
+프로젝트가 최상위 레벨을 포함하지 않는 경우`404.html`파일, Pages는 단일 페이지 응용 프로그램을 배포하는 것을 가정한다. 이것은 React, Vue, 그리고 모난과 같은 기구를 포함합니다. PagesQ' 기본 단 하나 페이지 신청 행동은 뿌리에 모든 들어오는 경로 일치합니다 (`/`), 같은 URL을 캡처 할 수`/about`또는`/help`그리고 SPA 내에서 그들에게 응답.
+
+## 캐싱 및 성능
+
+### Recommend
+
+대부분의 상황에서, 당신은 당신의 사이트에 모든 사용자 정의 캐싱을 설정하지 않도록해야합니다. Pages는 가능한 한 캐싱에 최적화 된 캐싱 디폴트에 내장되어 있으며 대부분의 최신 콘텐츠를 제공합니다. 때마다 자산을 PagesXQ에 배포합니다. 자산은 다음 배포까지 Cloudflare CDN에 캐시되어 있습니다.
+
+그래서, 당신은 당신의 캐싱을 추가하는 경우[사용자 정의 도메인](/pages/configuration/custom-domains/), 배포 후 stale 자산을 제공 할 수 있습니다.
+
+또한 사용자 정의 도메인에 캐싱을 추가하면 문제가 발생할 수 있습니다.[Pages 리디렉션](/pages/configuration/redirects/)또는[Pages 기능](/pages/functions/). 이 문제점은 Pages가 요청에 행동할 수 있기 전에 당신의 최종 사용자에게 봉사할지도 모르기 때문에 발생할 수 있습니다.
+
+그러나 어떤 상황도 있습니다.[캐시 규칙](/cache/how-to/cache-rules/)사용자 정의 도메인은 감각을 만듭니다. 예를 들어, CSS 또는 JS 파일과 같은 immutable 자산에 대한 쉽게 캐시 가능한 위치를 가질 수 있습니다. 사용자 정의 캐싱은 파일 (및 관련 파일 이름) 변경 될 때까지이 경우에 도움이 될 수 있습니다. 당신의 캐싱이 리디렉션이나 기능에 방해하지 않도록하십시오.
+
+Cloudflare PagesXQ, Pages 프로젝트의 일환으로 업로드한 정적 자산이 자동으로 제공됩니다.[계층화된 캐시](/cache/how-to/tiered-cache/). Pages 프로젝트가 실행되는 사용자 정의 도메인에 Tiered Cache를 별도로 사용할 필요가 없습니다.
+
+:::note\[현금]
+
+새로운 배포 후 stale 자산을 제공 한 경우 지역으로 이동 한 다음**뚱 베어** > **제품 설명** > [**모든 것**](/cache/how-to/purge-cache/purge-everything/)최신 배포를 보장하기 위해.
+
+:::
+
+### 채용 정보
+
+브라우저 캐싱을 위해, Pages는 항상 보냅니다`Etag`맨 위로`200 OK`응답, 그 브라우저는 다음에서 반환`If-None-Match`그 자산에 대한 후속 요청에 대한 헤더. Pages는 비교합니다`If-None-Match`요청의 헤더`Etag`그것은 보낼 계획이다, 그들은 일치 하는 경우, Pages 대신 응답`304 Not Modified`브라우저는 로컬 캐시에 저장된 것을 사용하는 것이 안전합니다.
+
+Pages 현재 반환`200`HTTP 범위 요청에 대한 응답; 그러나, 팀은 spec-compliant 추가 작업`206`부분 응답.
+
+Pages는 Gzip과 Brotli 응답도 가능합니다.
+
+## 자산 보유
+
+우리는 per-data 센터 기초에 캐시에 자산을 삽입합니다. Assets는 일주일에 한 번 살아있을 (TTL)가 있지만 언제든지 사라질 수 있습니다. 새로운 배포를 할 경우 자산은 1 주까지 데이터 센터에 존재 할 수 있습니다.
+
+## 기타 제품
+
+기본적으로, Pages는 자동적으로 몇몇을 추가합니다[HTTP 응답 헤더](https://developer.mozilla.org/en-US/docs/Glossary/Response_header)자산을 제공 할 때 :
+
+```txt title="Headers always added"
+Access-Control-Allow-Origin: *
+Cf-Ray: $CLOUDFLARE_RAY_ID
+Referrer-Policy: strict-origin-when-cross-origin
+Etag: $ETAG
+Content-Type: $CONTENT_TYPE
+X-Content-Type-Options: nosniff
+Server: cloudflare
+```
+
+:::참조
+
+더 보기[`Cf-Ray`](/fundamentals/reference/cloudflare-ray-id/)헤더는 Cloudflare에 독특합니다.
+
+:::
+
+```txt title="Headers sometimes added"
+// if the asset has been encoded
+Cache-Control: no-transform
+Content-Encoding: $CONTENT_ENCODING
+
+// if the asset is cacheable (the request does not have an `Authorization` or `Range` header)
+Cache-Control: public, max-age=0, must-revalidate
+
+// if requesting the asset over a preview URL
+X-Robots-Tag: noindex
+```
+
+QXQX0493XQQ PagesXQXQXQXQ에 의해 추가되는 헤더를 수정하려면 - 아마도 추가[초기 힌트](/pages/configuration/early-hints/)- 업데이트[headers 파일](/pages/configuration/headers/)당신의 프로젝트에.

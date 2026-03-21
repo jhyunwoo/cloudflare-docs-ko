@@ -1,0 +1,135 @@
+---
+title: 시작하기
+pcx_content_type: how-to
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: Workers Analytics Engine 시작하기
+
+---
+
+import { DirectoryListing, WranglerConfig } from "~/components"
+
+## 1. 데이터셋 이름을 정하고 Worker에 추가하기
+
+[Wrangler 구성 파일](/workers/wrangler/configuration/)에 다음 내용을 추가해 Workers Analytics Engine 데이터셋에 대한 [바인딩](/workers/runtime-apis/bindings/)을 생성합니다. 데이터셋은 SQL의 테이블과 비슷하며, 행과 열은 일관된 의미를 가져야 합니다.
+
+:::note
+Cloudflare 대시보드에서 데이터셋을 수동으로 만들 필요는 없습니다. Workers Analytics Engine 데이터셋은 Wrangler 구성에서 바인딩을 정의한 뒤 처음 데이터를 기록할 때 자동으로 생성됩니다.
+:::
+
+<WranglerConfig>
+
+```jsonc
+{
+	"analytics_engine_datasets": [
+		{
+			"binding": "<BINDING_NAME>",
+			"dataset": "<DATASET_NAME>"
+		}
+	]
+}
+```
+
+</WranglerConfig>
+
+## 2. Worker에서 데이터 포인트 기록하기
+
+방금 만든 바인딩에 노출된 `writeDataPoint()` 메서드를 호출해 Worker에서 데이터 포인트를 기록할 수 있습니다.
+
+```js
+async fetch(request, env) {
+  env.WEATHER.writeDataPoint({
+    'blobs': ["Seattle", "USA", "pro_sensor_9000"], // City, State
+    'doubles': [25, 0.5],
+    'indexes': ["a3cd45"]
+  });
+  return new Response("OK!");
+}
+```
+
+:::note
+
+`writeDataPoint()`를 `await`할 필요는 없습니다. 이 메서드는 즉시 반환되며, Workers 런타임이 백그라운드에서 데이터를 기록합니다.
+:::
+
+데이터 포인트는 다음으로 구성된 구조화된 이벤트입니다.
+
+* **Blobs** (문자열) - 그룹화와 필터링에 사용하는 차원입니다. 다른 메트릭 시스템에서는 label이라고 부르기도 합니다.
+* **Doubles** (숫자) - 데이터 포인트에 기록하려는 수치 값입니다.
+* **Indexes** (문자열) - [샘플링](/analytics/analytics-engine/sql-api/#sampling) 키로 사용됩니다.
+
+위 예시에서는 공기질 샘플을 수집한다고 가정합니다. 기록되는 각 데이터 포인트는 기상 센서의 측정값 하나를 나타냅니다. blobs는 이후 쿼리에서 필터링할 수 있도록 도시, 주, 센서 모델을 정의합니다. doubles는 온도와 기압 같은 수치 측정값을 정의합니다. index는 고객 ID입니다. 지리 정보 같은 [들어오는 요청의 컨텍스트](/workers/runtime-apis/request/)를 포함해 데이터 포인트에 추가 정보를 넣을 수도 있습니다.
+
+현재 `writeDataPoint()` API는 순서가 있는 값 배열을 받습니다. 즉, 필드를 항상 일관된 순서로 제공해야 합니다. `indexes` 필드는 배열을 받지만 현재는 인덱스를 하나만 제공해야 합니다. 여러 인덱스를 제공하면 해당 데이터 포인트는 기록되지 않습니다.
+
+## 3. SQL API로 데이터 조회하기
+
+기록한 데이터는 두 가지 방법으로 조회할 수 있습니다.
+
+* [**SQL API**](/analytics/analytics-engine/sql-api) - 직접 쿼리를 작성하거나 Grafana 같은 외부 도구와 연동할 때 가장 적합합니다.
+* [**GraphQL API**](/analytics/graphql-api/) - Cloudflare 대시보드가 사용하는 동일한 API입니다.
+
+이 예시에서는 SQL API를 사용합니다.
+
+### API 토큰 만들기
+
+`Account Analytics Read` 권한이 있는 [API Token](https://dash.cloudflare.com/profile/api-tokens)을 만듭니다.
+
+### 첫 번째 쿼리 작성하기
+
+다음 쿼리는 온도가 0보다 높을 때 평균 습도 측정값이 가장 높았던 상위 10개 도시를 반환합니다.
+
+```sql
+SELECT
+  blob1 AS city,
+  SUM(_sample_interval * double2) / SUM(_sample_interval) AS avg_humidity
+FROM WEATHER
+WHERE double1 > 0
+GROUP BY city
+ORDER BY avg_humidity DESC
+LIMIT 10
+```
+
+:::note
+
+이 쿼리에서는 [샘플링](/analytics/analytics-engine/sql-api/#sampling)을 고려하기 위해 사용자 정의 평균 계산식을 사용합니다.
+:::
+
+다음과 같이 SQL API로 HTTP 요청을 보내 이 쿼리를 실행할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data "SELECT blob1 AS city, SUM(_sample_interval * double2) / SUM(_sample_interval) AS avg_humidity FROM WEATHER WHERE double1 > 0 GROUP BY city ORDER BY avg_humidity DESC LIMIT 10"
+```
+
+지원되는 SQL 기능 전체 목록은 [Workers Analytics Engine SQL Reference](/analytics/analytics-engine/sql-reference/)를 참고하세요.
+
+### 시계열 데이터 다루기
+
+Workers Analytics Engine은 Grafana 같은 도구로 시각화할 수 있는 시계열 분석에 최적화되어 있습니다. 런타임에서 기록되는 모든 이벤트에는 `timestamp` 필드가 자동으로 채워집니다. 대부분의 시계열 쿼리는 `timestamp`를 반올림한 다음 `GROUP BY`하는 방식이 적합합니다. 예를 들면 다음과 같습니다.
+
+```sql
+SELECT
+  intDiv(toUInt32(timestamp), 300) * 300 AS t,
+  blob1 AS city,
+  SUM(_sample_interval * double2) / SUM(_sample_interval) AS avg_humidity
+FROM WEATHER
+WHERE
+  timestamp >= NOW() - INTERVAL '1' DAY
+  AND double1 > 0
+GROUP BY t, city
+ORDER BY t, avg_humidity DESC
+```
+
+이 쿼리는 먼저 `timestamp` 필드를 가장 가까운 5분 단위로 반올림합니다. 그런 다음 그 필드와 도시별로 그룹화하고, 각 도시의 5분 구간 평균 습도를 계산합니다.
+
+Workers Analytics Engine에 대해 효율적인 Grafana 쿼리를 만드는 방법은 [Grafana에서 Workers Analytics Engine 조회하기](/analytics/analytics-engine/grafana/)를 참고하세요.
+
+## 추가 읽을거리
+
+<DirectoryListing
+folder="analytics/analytics-engine"
+/>

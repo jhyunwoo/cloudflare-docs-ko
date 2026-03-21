@@ -1,0 +1,122 @@
+---
+pcx_content_type: concept
+title: '모델 번호: Cloudflare 오시는 길'
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/cloudflare-access/'
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/functions/plugins/cloudflare-access/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+Cloudflare 액세스 Pages 플러그인은 Cloudflare 액세스 JWT assertions. 또한 주어진 사용자의 JWT에 대한 추가 정보를 볼 수있는 API가 포함되어 있습니다.
+
+## 설치하기
+
+<PackageManagers pkg="@cloudflare/pages-plugin-cloudflare-access" />
+
+## 제품 정보
+
+```typescript
+import cloudflareAccessPlugin from "@cloudflare/pages-plugin-cloudflare-access";
+
+export const onRequest: PagesFunction = cloudflareAccessPlugin({
+	domain: "https://test.cloudflareaccess.com",
+	aud: "4714c1358e65fe4b408ad6d432a5f878f08194bdb4752441fd56faefa9b2b6f2",
+});
+```
+
+플러그인은 두 가지 속성을 가진 객체가 걸립니다.`domain`Cloudflare 액세스 계정 및 정책`aud`(audience)에 대한 검증. 실패할 수 없는 모든 요청은 반환됩니다.`403`상태 코드.
+
+### JWT 페이로드 액세스
+
+응용 프로그램에서 JWT 페이로드를 사용해야하는 경우 (예를 들어, 사용자의 이메일 주소가 필요합니다),이 플러그인은이에서 사용할 수 있습니다`data.cloudflareAccess.JWT.payload`.
+
+예를 들면:
+
+```typescript
+import type { PluginData } from "@cloudflare/pages-plugin-cloudflare-access";
+
+export const onRequest: PagesFunction<unknown, any, PluginData> = async ({
+	data,
+}) => {
+	return new Response(
+		`Hello, ${data.cloudflareAccess.JWT.payload.email || "service user"}!`,
+	);
+};
+```
+
+더 보기[전체 JWT 페이로드](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/#payload)할 수 있습니다`data.cloudflareAccess.JWT.payload`. 정체성 허가(예를 들어, 브라우저의 사용자) 및 비 ID 인증(예를 들어, 서비스 토큰)와 같은 필드를 사용할 수 있음을 알 수 있습니다.
+
+### 본문 바로가기
+
+주어진 사용자의 정체성에 대한 자세한 정보를 얻으려면 제공`getIdentity`API 기능:
+
+```typescript
+import { getIdentity } from "@cloudflare/pages-plugin-cloudflare-access/api";
+
+export const onRequest: PagesFunction = async ({ data }) => {
+	const identity = await getIdentity({
+		jwt: "eyJhbGciOiJIUzI1NiIsImtpZCI6IjkzMzhhYmUxYmFmMmZlNDkyZjY0NmE3MzZmMjVhZmJmN2IwMjVlMzVjNjI3YmU0ZjYwYzQxNGQ0YzczMDY5YjgiLCJ0eXAiOiJKV1QifQ.eyJhdWQiOlsiOTdlMmFhZTEyMDEyMWY5MDJkZjhiYzk5ZmMzNDU5MTNhYjE4NmQxNzRmMzA3OWVhNzI5MjM2NzY2YjJlN2M0YSJdLCJlbWFpbCI6ImFkbWluQGV4YW1wbGUuY29tIiwiZXhwIjoxNTE5NDE4MjE0LCJpYXQiOjE1MTkzMzE4MTUsImlzcyI6Imh0dHBzOi8vdGVzdC5jbG91ZGZsYXJlYWNjZXNzLmNvbSIsIm5vbmNlIjoiMWQ4MDgzZjcwOGE0Nzk4MjI5NmYyZDk4OTZkNzBmMjA3YTI3OTM4ZjAyNjU0MGMzOTJiOTAzZTVmZGY0ZDZlOSIsInN1YiI6ImNhNjM5YmI5LTI2YWItNDJlNS1iOWJmLTNhZWEyN2IzMzFmZCJ9.05vGt-_0Mw6WEFJF3jpaqkNb88PUMplsjzlEUvCEfnQ",
+		domain: "https://test.cloudflareaccess.com",
+	});
+
+	return new Response(`Hello, ${identity.name || "service user"}!`);
+};
+```
+
+더 보기`getIdentity`함수는 두 개의 속성을 가진 객체가 걸립니다: a`jwt`문자열 및`domain`문자열. 그것은 반환`Promise`이름 \*[반환된 객체`/cdn-cgi/access/get-identity`끝점](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/#user-identity). 신청 허가와 같은 무언가를 위한 사용자 그룹 멤버십을 사용하려는 경우에 특히 유용합니다.
+
+편의를 위해, 이 동일한 정보는 현재 요청의 JWT를 위해 fetched 할 수 있습니다`data.cloudflareAccess.JWT.getIdentity`함수, (당신은 이미 위에 플러그인과 요청을 검증했다):
+
+```typescript
+import type { PluginData } from "@cloudflare/pages-plugin-cloudflare-access";
+
+export const onRequest: PagesFunction<unknown, any, PluginData> = async ({
+	data,
+}) => {
+	const identity = await data.cloudflareAccess.JWT.getIdentity();
+
+	return new Response(`Hello, ${identity.name || "service user"}!`);
+};
+```
+
+### 로그인 및 로그아웃 URL
+
+로그인 또는 로그아웃을 강제하려면 이러한 유틸리티 기능을 사용하여 URL을 생성하고 사용자를 리디렉션합니다.
+
+```typescript
+import { generateLoginURL } from "@cloudflare/pages-plugin-cloudflare-access/api";
+
+export const onRequest = () => {
+	const loginURL = generateLoginURL({
+		redirectURL: "https://example.com/greet",
+		domain: "https://test.cloudflareaccess.com",
+		aud: "4714c1358e65fe4b408ad6d432a5f878f08194bdb4752441fd56faefa9b2b6f2",
+	});
+
+	return new Response(null, {
+		status: 302,
+		headers: { Location: loginURL },
+	});
+};
+```
+
+```typescript
+import { generateLogoutURL } from "@cloudflare/pages-plugin-cloudflare-access/api";
+
+export const onRequest = () =>
+	new Response(null, {
+		status: 302,
+		headers: {
+			Location: generateLogoutURL({
+				domain: "https://test.cloudflareaccess.com",
+			}),
+		},
+	});
+```

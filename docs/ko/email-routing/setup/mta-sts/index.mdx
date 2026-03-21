@@ -1,0 +1,80 @@
+---
+title: MTA-STS 구성
+pcx_content_type: how-to
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/email-routing/setup/mta-sts/'
+translation_source_md: 'https://developers.cloudflare.com/email-routing/setup/mta-sts/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+MTA 엄격한 수송 안전 ([사이트맵](https://datatracker.ietf.org/doc/html/rfc8461)) Microsoft, Google 및 Yahoo를 포함한 이메일 서비스 제공 업체가 SMTP 세션의 다운 그레이드 및 맨 - 인 - 중간 공격에 대한 보호뿐만 아니라 이메일 보안 우선 통신 표준의 부족을 해결하는 데 사용됩니다.
+
+관련 기사`example.com`귀하의 도메인 및 사용 이메일 Routing. MTA-STS를 사용할 수 있는 방법은 다음과 같습니다.
+
+1. Cloudflare 대시보드에서, 가십시오**이름 \***&#xC0AC;이트 맵
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 이름을 가진 새로운 CNAME 레코드 만들기`_mta-sts`Cloudflare의 기록`_mta-sts.mx.cloudflare.net`. 프록시 모드를 비활성화해야합니다.
+
+![MTA-STS CNAME 레코드](~/assets/images/email-routing/mta-sts-record.png)
+
+3. 기록이 생성 된 것을 확인 :
+
+```sh
+dig txt _mta-sts.example.com
+```
+
+```sh output
+_mta-sts.example.com. 300 IN  CNAME _mta-sts.mx.cloudflare.net.
+_mta-sts.mx.cloudflare.net. 300 IN  TXT "v=STSv1; id=20230615T153000;"
+```
+
+이것은 우리가 MTA-STS를 지원하는 저희와 연결하려고 하는 다른 끝 클라이언트를 말합니다.
+
+다음에는 HTTPS 엔드포인트가 필요합니다.`mta-sts.example.com`당신의 정책 파일을 봉사하기. 이 파일은 MTA-STS를 사용하는 도메인의 메일 서버를 정의합니다. DNS 대신에 HTTPS를 사용하는 이유는 모두 DNSSEC를 사용하고 있기 때문에 다른 MITM 공격 벡터를 피하고 싶습니다.
+
+이 작업을 수행하려면 이메일 클라이언트를 끌어 Cloudflare의 이메일 Routing 정책 파일을 "잘 알려진"URI 컨벤션을 사용하여.
+
+4. 로그인**계좌정보** > **Workers & Pages**선택하기**이름 \***. 기본 "Hello World" 옵션 버튼을 선택하고 다음과 같은 샘플 작업 코드를 대체하십시오.
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		return await fetch(
+			"https://mta-sts.mx.cloudflare.net/.well-known/mta-sts.txt",
+		);
+	},
+};
+```
+
+이 Worker 프록시`https://mta-sts.mx.cloudflare.net/.well-known/mta-sts.txt`당신의 자신의 도메인.
+
+5. 배포 후, Worker 구성으로 이동, 다음**계정 설정** > **도메인 및 경로** > **+ 추가**. subdomain를 타자를 치십시오`mta-sts.example.com`.
+
+![MTA-STS 노동자 관례 도메인](~/assets/images/email-routing/mta-sts-domain.png)
+
+그런 다음 정책 파일이 다음과 같이 작동한다는 것을 확인할 수 있습니다.
+
+```sh
+curl https://mta-sts.example.com/.well-known/mta-sts.txt
+```
+
+```sh output
+version: STSv1
+mode: enforce
+mx: *.mx.cloudflare.net
+max_age: 86400
+```
+
+이 말한다 그 도메인`example.com`MTA-STS를 시행합니다. 가능한 이메일 클라이언트는 지정된 MX 서버에 보안 연결을 통해이 도메인에 이메일 만 전달됩니다. 보안 연결이 없는 경우 이메일이 전달되지 않습니다.
+
+이메일 Routing은 또한 Gmail, Microsoft 및 기타와 같은 서비스 제공 업체에 이메일을 전달할 때 매우 보안을 향상 MTA-STS 업스트림을 지원합니다.
+
+MTA-STS를 활성화하는 동안 오늘 몇 가지 단계를 포함, 우리는 당신을 위해 일을 단순화하고 이메일 Routing 대시보드에서 도메인에 MTA-STS를 자동으로 구성하는 것을 목표로.

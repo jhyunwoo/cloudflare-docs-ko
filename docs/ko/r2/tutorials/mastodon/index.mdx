@@ -1,0 +1,96 @@
+---
+title: 마스토돈
+pcx_content_type: tutorial
+difficulty: Beginner
+reviewed: 2023-01-31T00:00:00.000Z
+description: >-
+  이 가이드는 R2를 구성하는 방법을 설명합니다. 자체 호스팅된 Mastodon 인스턴스의 객체 저장이 될 수 있습니다. 여러 가지 방법으로
+  셀프 호스팅 인스턴스를 설정할 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/tutorials/mastodon/'
+translation_source_md: 'https://developers.cloudflare.com/r2/tutorials/mastodon/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+[마스토돈](https://joinmastodon.org/)인기있는[뚱 베어](https://en.wikipedia.org/wiki/Fediverse)소프트웨어. 이 가이드는 R2를 구성하는 방법을 설명합니다.[새로운 인스턴스](#set-up-a-new-instance)또는[기존 인스턴스](#migrate-to-r2).
+
+## 새 인스턴스 설정
+
+여러 가지 방법으로 자체 호스팅 Mastodon 인스턴스를 설정할 수 있습니다. 더 알아보기[공식 문서](https://docs.joinmastodon.org/)더 많은 정보. 당신이 도달 할 때[환경 설정](https://docs.joinmastodon.org/admin/config/#files)설치 후 Mastodon 문서에서 단계는 다음 단계에 대한 절차를 참조하십시오.
+
+### 1. 파일에 hostname을 정의한다.
+
+Mastodon 인스턴스의 기본 호스트 이름과 다른 파일에 대한 객체 저장은 독특한 hostname을 요구합니다. 예를 들어, Mastodon의 호스트 이름을 설정하면`mastodon.example.com`, 당신은 사용할 수 있습니다`mastodon-files.example.com`또는`files.example.com`파일 접근. 이렇게 하면 인스턴스를 방문할 때`mastodon.example.com`, 이미지 또는 비디오와 같은 게시물에 첨부 된 미디어가있을 때, 파일은이 단계에서 결정 된 호스트 이름 아래 제공 될 것입니다`mastodon-files.example.com`.
+
+:::참조
+
+R2에서 다른 S3 호환 서비스로 이동하면 이 단계에서 결정된 동일한 호스트명을 계속 사용할 수 있습니다. 우리는 역사적인 파일 references를 파괴하기 위해 실행된 후에 hostname을 변경하는 것이 좋습니다. 이러한 시나리오에서,[대량 Redirects](/rules/url-forwarding/bulk-redirects/)이전 호스트 이름에 도달하는 데 사용할 수 있습니다.
+
+:::
+
+### 2. R2 물통을 창조하고 설치하십시오
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 제품정보**버킷 만들기**.
+3. 버킷 이름을 입력하고 다음 선택**버킷 만들기**. 이 이름은 Mastodon 인스턴스를 설정할 때 내부이며 공개적으로 접근할 수 없습니다.
+4. 버킷이 생성되면 탐색**계정 설정**이 물통의 탭과의 값을 복사**사이트맵**.
+5. 에 의해**계정 설정**탭, 선택**도메인 연결**단계 1에서 hostname을 입력하십시오.
+6. R2의 overview 페이지로 돌아가기**R2 API 관리 토큰 토큰**.
+7. 제품정보**API 토큰 만들기**.
+8. 토큰 이름`Mastodon`API 이름 옆에 연필 아이콘을 선택하고 그것을 부여**제품정보**이름 \* 제품정보**API 만들기 토큰 토큰**토큰 생성을 최종화합니다.
+9. 값 복사**액세스 키 ID**·**비밀 액세스 키**.
+
+### 3. Mastodon를 위한 R2를 구성하십시오
+
+공식에 따라 Mastodon 인스턴스를 구성하는 동안[구성 파일](https://github.com/mastodon/mastodon/blob/main/.env.production.sample), 대체합니다**파일 저장**다음 세부 사항과 섹션.
+
+```
+S3_ENABLED=true
+S3_ALIAS_HOST={{mastodon-files.example.com}}                  # Change to the hostname determined in step 1
+S3_BUCKET={{your-bucket-name}}                                # Change to the bucket name set in step 2
+S3_ENDPOINT=https://{{unique-id}}.r2.cloudflarestorage.com/   # Change the {{unique-id}} to the part of S3 API retrieved in step 2
+AWS_ACCESS_KEY_ID={{your-access-key-id}}                      # Change to the Access Key ID retrieved in step 2
+AWS_SECRET_ACCESS_KEY={{your-secret-access-key}}              # Change to the Secret Access Key retrieved in step 2
+S3_PROTOCOL=https
+S3_PERMISSION=private
+```
+
+설정 후 인스턴스를 실행할 수 있습니다. 인스턴스가 실행되면 미디어 첨부 파일을 업로드하고 위의 호스트 이름에서 첨부된 첨부 파일을 확인합니다. R2의 버킷의 페이지로 다시 항해 할 때 다음 구조를 볼 수 있습니다.
+
+![Mastodon 버킷 구조 인스턴스 설정 및 실행](~/assets/images/r2/mastodon-r2-bucket-structure.png)
+
+## R2에 마이그레이션
+
+이미 실행중인 인스턴스가 있다면 R2에 미디어 파일을 마이그레이션하고 혜택을 누릴 수 있습니다.[egress 비용](/r2/pricing/).
+
+### 1. R2 물통을 설치하고 파일 이동을 시작합니다
+
+1. (선택) migrated 파일의 수를 극소화하기 위해, 당신은 사용할 수 있습니다[Mastodon 관리자 CLI](https://docs.joinmastodon.org/admin/tootctl/#media)사용하지 않는 파일을 청소합니다.
+2. R2 버킷을 다음 단계 1 및 2에서 파일 마이그레이션을 준비[새 인스턴스 설정](#set-up-a-new-instance)위 단면도.
+3. R2에 모든 미디어 파일을 마이그레이션합니다. 더 알아보기[이름 \*](/r2/examples/)다양한 공급자를 함께 연결하기 위해 제공. 현재 이 미디어 파일을 로컬로 호스트하면 사용할 수 있습니다.[`rclone`](/r2/examples/rclone/)로컬 파일을 R2에 업로드합니다.
+
+### 2. (선택) 파일 경로 리디렉션 설정
+
+파일 마이그레이션이 진행 중이지만, 시간이 걸릴 수 있지만, 파일 경로 리디렉션 설정을 준비 할 수 있습니다.
+
+로컬로 호스팅되는 미디어 파일이 있다면 리디렉션을 설정해야 할 것입니다. 기본적으로, 로컬로 호스팅되는 미디어 파일에는 비슷한 경로가 있습니다.`https://mastodon.example.com/cache/...`, 이는 비슷한 경로로 리디렉션해야`https://mastodon-files.example.com/cache/...`R2 버킷은 Mastodon 인스턴스와 함께 실행됩니다. 이미 다른 S3 호환 객체 저장 서비스를 사용하고 같은 hostname을 유지하려는 경우 리디렉션을 설정할 필요가 없습니다.
+
+[대량 Redirects](/rules/url-forwarding/bulk-redirects/)모든 계획에 사용할 수 있습니다. 더 알아보기[dashboard에서 대량 리디렉트 생성](/rules/url-forwarding/bulk-redirects/create-dashboard/)더 많은 정보.
+
+![소스 URL 및 새로운 타겟 URL의 목록 대량 Redirects의 일부로](~/assets/images/r2/mastodon-r2-bulk-redirects.png)
+
+### 3. 버킷과 리디렉션을 검증
+
+이동 계획에 따라 물통이 공개적으로 접근할 수 있는지 확인하고 리디렉션이 제대로 작동할 수 있는지 확인할 수 있습니다. 확인하려면, 같은 경로로 기존 업로드 된 미디어 파일을 엽니 다`https://mastodon.example.com/cache/...`호스트명을 대신합니다.`mastodon.example.com`으로`mastocon-files.example.com`새로운 길을 방문하십시오. 파일을 올바르게 열면 최종 단계로 이동합니다.
+
+### 4. migration 정의
+
+귀하의 인스턴스는 마이그레이션 중에 여전히 실행될 수 있으며 마이그레이션 중에는 직접 업로드를 통해 생성된 새로운 미디어 파일이 있거나 다른 예기치 않은 인스턴스에서 fetched. 새로 생성된 파일만 업로드하려면 같은 프로그램을 사용할 수 있습니다.[`rclone`](/r2/examples/rclone/). sync 프로그램을 다시 실행할 때, 모든 기존 파일이 적어도 사용하도록 검사됩니다.[클래스 B 작업](/r2/pricing/#class-b-operations).
+
+모든 파일이 동기화되면 Mastodon 인스턴스를 새로운 객체 저장 구성으로 다시 시작할 수 있습니다.[단계 3](#3-configure-r2-for-mastodon)새 인스턴스를 설정한다.

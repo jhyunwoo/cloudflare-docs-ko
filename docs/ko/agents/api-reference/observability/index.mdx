@@ -1,0 +1,233 @@
+---
+title: 옵션 정보
+pcx_content_type: concept
+sidebar:
+  order: 18
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/observability/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/observability/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+에이전트는 모든 중요한 작업을 위해 구조화 된 이벤트를 방출 — RPC 통화, 상태 변경, 일정 실행, 워크플로우 전환, MCP 연결 등. 이 행사는[진단 채널](/workers/runtime-apis/nodejs/diagnostics-channel/)그리고 기본에 의해 침묵 (몸이 듣는 때 zero 오버헤드).
+
+## 이벤트 구조
+
+모든 이벤트는이 필드가 있습니다:
+
+```ts
+{
+  type: "rpc",                        //무슨 일이 있었는지
+  agent: "MyAgent",                   //에이전트 클래스 방출
+  name: "user-123",                   //에이전트 인스턴스 (Durable Object name)
+  payload: { method: "getWeather" },  //이름 *
+  timestamp: 1758005142787            //(epoch 이후)
+}
+```
+
+`agent`·`name`소스 에이전트 식별 —`agent`클래스 이름과`name`튼튼한 Object 인스턴스 이름입니다.
+
+## 채널 :
+
+이벤트는 자신의 유형에 따라 8 개의 이름 채널로 이동합니다 :
+
+| 채널 :               | 이벤트 유형                                                                                                                                                           | 이름 \*                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `agents:state`     | `state:update`                                                                                                                                                   | 국가 동기화 이벤트            |
+| `agents:rpc`       | `rpc`, `rpc:error`                                                                                                                                               | RPC 방식 호출 및 실패        |
+| `agents:message`   | `message:request`, `message:response`, `message:clear`, `message:cancel`, `message:error`, `tool:result`, `tool:approval`                                        | 채팅 메시지 및 도구 Lifecycle |
+| `agents:schedule`  | `schedule:create`, `schedule:execute`, `schedule:cancel`, `schedule:retry`, `schedule:error`, `queue:create`, `queue:retry`, `queue:error`                       | 계획 및 할당 된 작업 수명주기     |
+| `agents:lifecycle` | `connect`, `disconnect`, `destroy`                                                                                                                               | 에이전트 연결 및 눈물          |
+| `agents:workflow`  | `workflow:start`, `workflow:event`, `workflow:approved`, `workflow:rejected`, `workflow:terminated`, `workflow:paused`, `workflow:resumed`, `workflow:restarted` | Workflow 상태 전환        |
+| `agents:mcp`       | `mcp:client:preconnect`, `mcp:client:connect`, `mcp:client:authorize`, `mcp:client:discover`                                                                     | MCP 클라이언트 가동          |
+| `agents:email`     | `email:receive`, `email:reply`                                                                                                                                   | 이메일 처리                |
+
+## 행사 일정
+
+### Typed 구독 도움말
+
+더 보기`subscribe()`기능에서`agents/observability`특정 채널의 이벤트에 대한 유형 안전 액세스를 제공합니다:
+
+<TypeScriptExample>
+  ```ts
+  import { subscribe } from "agents/observability";
+
+  const unsub = subscribe("rpc", (event) => {
+  	if (event.type === "rpc") {
+  		console.log(`RPC call: ${event.payload.method}`);
+  	}
+  	if (event.type === "rpc:error") {
+  		console.error(
+  			`RPC failed: ${event.payload.method} — ${event.payload.error}`,
+  		);
+  	}
+  });
+
+  //할 때 정리
+  unsub();
+  ```
+</TypeScriptExample>
+
+콜백은 완전히 typed —`event`해당 채널을 통해 흐르는 이벤트 유형에만 좁아집니다.
+
+### 원료 진단 channel
+
+Node.js API를 사용하여 직접 구독할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  import { subscribe } from "node:diagnostics_channel";
+
+  subscribe("agents:schedule", (event) => {
+  	console.log(event);
+  });
+  ```
+</TypeScriptExample>
+
+## 꼬리 Workers(제작)
+
+생산에서, 모든 진단 채널 메시지는 자동으로 전달됩니다[꼬리 Workers](/workers/observability/logs/tail-workers/). 에이전트 자체에 가입 코드가 필요하지 않습니다 - 꼬리 노동자와 액세스 이벤트를 첨부`event.diagnosticsChannelEvents`:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async tail(events) {
+  		for (const event of events) {
+  			for (const msg of event.diagnosticsChannelEvents) {
+  				//msg.channel는 "agents:rpc", "agents:workflow", 등입니다.
+  				//msg.message는 Typed 사건 탑재량입니다
+  				console.log(msg.timestamp, msg.channel, msg.message);
+  			}
+  		}
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+이 당신에게 구조화, 필터링 가능한 관찰성 제로 오버 헤드 에이전트 핫 경로.
+
+## 관할권
+
+기본 구현을 무시할 수 있습니다.`Observability`인터페이스:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+  import type { Observability } from "agents/observability";
+
+  const myObservability: Observability = {
+  	emit(event) {
+  		//로깅 서비스, 필터 이벤트 등
+  		if (event.type === "rpc:error") {
+  			console.error(event.payload.method, event.payload.error);
+  		}
+  	},
+  };
+
+  class MyAgent extends Agent {
+  	override observability = myObservability;
+  }
+  ```
+</TypeScriptExample>
+
+설치하기`observability`으로`undefined`모든 이벤트 배출을 비활성화하려면:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+
+  class MyAgent extends Agent {
+  	override observability = undefined;
+  }
+  ```
+</TypeScriptExample>
+
+## 이벤트 참고 자료
+
+### RPC 이벤트
+
+| 제품정보        | 지불로드                     | 시간 :                    |
+| ----------- | ------------------------ | ----------------------- |
+| `rpc`       | `{ method, streaming? }` | ·`@callable`방법은 invoked |
+| `rpc:error` | `{ method, error }`      | ·`@callable`방법 던지기      |
+
+### 국가 행사
+
+| 제품정보           | 지불로드 | 시간 :              |
+| -------------- | ---- | ----------------- |
+| `state:update` | `{}` | `setState()`이름 \* |
+
+### 메시지 및 도구 이벤트 (AIChatAgent)
+
+이 행사는 방출됩니다.`AIChatAgent`이름 \*`@cloudflare/ai-chat`. 클라이언트 측 도구 상호 작용을 포함하여 채팅 메시지 라이프사이클을 추적합니다.
+
+| 제품정보               | 지불로드                       | 시간 :            |
+| ------------------ | -------------------------- | --------------- |
+| `message:request`  | `{}`                       | 채팅 메시지가 수신됩니다   |
+| `message:response` | `{}`                       | 채팅 응답 스트림 완료    |
+| `message:clear`    | `{}`                       | 채팅 역사는 분명하다     |
+| `message:cancel`   | `{ requestId }`            | 스트리밍 요청은 취소됩니다  |
+| `message:error`    | `{ error }`                | 채팅 스트림 실패       |
+| `tool:result`      | `{ toolCallId, toolName }` | 클라이언트 도구 결과 수신  |
+| `tool:approval`    | `{ toolCallId, approved }` | 도구 호출은 승인 또는 거부 |
+
+### 일정 및 큐 이벤트
+
+| 제품정보               | 지불로드                                     | 시간 :                        |
+| ------------------ | ---------------------------------------- | --------------------------- |
+| `schedule:create`  | `{ callback, id }`                       | 일정은                         |
+| `schedule:execute` | `{ callback, id }`                       | 예약된 콜백 시작                   |
+| `schedule:cancel`  | `{ callback, id }`                       | 일정은 취소                      |
+| `schedule:retry`   | `{ callback, id, attempt, maxAttempts }` | 예약된 콜백은 retried             |
+| `schedule:error`   | `{ callback, id, error, attempts }`      | 예정된 콜백은 모든 retries 후에 실패합니다 |
+| `queue:create`     | `{ callback, id }`                       | 작업은 enqueued                |
+| `queue:retry`      | `{ callback, id, attempt, maxAttempts }` | queued 콜백은 retried          |
+| `queue:error`      | `{ callback, id, error, attempts }`      | 모든 retries 후에 누락된 콜백 실패     |
+
+### Lifecycle 이벤트
+
+| 제품정보         | 지불로드                             | 시간 :               |
+| ------------ | -------------------------------- | ------------------ |
+| `connect`    | `{ connectionId }`               | WebSocket 연결 설정    |
+| `disconnect` | `{ connectionId, code, reason }` | WebSocket 연결은 닫힙니다 |
+| `destroy`    | `{}`                             | 대리인은 파괴됩니다         |
+
+### Workflow 이벤트
+
+| 제품정보                  | 지불로드                            | 시간 :                 |
+| --------------------- | ------------------------------- | -------------------- |
+| `workflow:start`      | `{ workflowId, workflowName? }` | 워크플로우 인스턴스가 시작되었습니다. |
+| `workflow:event`      | `{ workflowId, eventType? }`    | 작업 흐름에 전송            |
+| `workflow:approved`   | `{ workflowId, reason? }`       | 작업 흐름은 승인            |
+| `workflow:rejected`   | `{ workflowId, reason? }`       | 작업 흐름은 거부            |
+| `workflow:terminated` | `{ workflowId, workflowName? }` | 작업 흐름이 종료됩니다.        |
+| `workflow:paused`     | `{ workflowId, workflowName? }` | 작업 흐름은 일시 중지         |
+| `workflow:resumed`    | `{ workflowId, workflowName? }` | 작업 흐름은 재시작           |
+| `workflow:restarted`  | `{ workflowId, workflowName? }` | 워크플로우가 재시작           |
+
+### MCP 이벤트
+
+| 제품정보                    | 지불로드                                    | 시간 :               |
+| ----------------------- | --------------------------------------- | ------------------ |
+| `mcp:client:preconnect` | `{ serverId }`                          | MCP 서버에 연결하기 전에    |
+| `mcp:client:connect`    | `{ url, transport, state, error? }`     | MCP 연결 시도 완료 또는 실패 |
+| `mcp:client:authorize`  | `{ serverId, authUrl, clientId? }`      | MCP OAuth 흐름 시작    |
+| `mcp:client:discover`   | `{ url?, state?, error?, capability? }` | MCP 기능 발견 성공 또는 실패 |
+
+### 이메일 이벤트
+
+| 제품정보            | 지불로드                     | 시간 :          |
+| --------------- | ------------------------ | ------------- |
+| `email:receive` | `{ from, to, subject? }` | 이메일 접수        |
+| `email:reply`   | `{ from, to, subject? }` | 답변 메일이 전송됩니다. |
+
+## 다음 단계
+
+<LinkCard title="제품 설명" href="/agents/api-reference/configuration/" description="wrangler.jsonc 설정 및 배포." />
+
+<LinkCard title="꼬리 Workers" href="/workers/observability/logs/tail-workers/" description="생산 감시를 위한 꼬리 노동자에 앞으로 진단 수로 사건." />
+
+<LinkCard title="에이전트 API" href="/agents/api-reference/agents-api/" description="Agents SDK를 위한 API 참고 자료를 완료합니다." />

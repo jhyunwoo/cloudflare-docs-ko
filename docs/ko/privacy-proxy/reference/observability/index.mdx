@@ -1,0 +1,109 @@
+---
+title: 옵션 정보
+pcx_content_type: reference
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/privacy-proxy/reference/observability/'
+translation_source_md: >-
+  https://developers.cloudflare.com/privacy-proxy/reference/observability/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Privacy Proxy는 모니터링 및 관찰성을 위한 OpenTelemetry를 지원합니다. 프록시 성능과 사용법을 이해하기 위해 메트릭 및 추적을 수집할 수 있습니다.
+
+## OpenTelemetry 통합
+
+개인 정보 보호 프록시 수출 telemetry 데이터 사용[OpenTelemetry 프로토콜 (OTLP)](https://opentelemetry.io/docs/specs/otlp/). 이 데이터를 수신하고 관찰 가능한 플랫폼에 전달하기 위해 엔드포인트를 구성할 수 있습니다.
+
+### telemetry 수출 구성
+
+onboarding 도중, 당신의 OpenTelemetry 수집가 endpoint를 가진 CloudflareXQ를 제공합니다:
+
+- **엔드포인트 URL**: 원격 측정 데이터가 전송되어야 하는 HTTPS 엔드포인트.
+- **인증현황**: 수집가와 정정해야 할 헤더 또는 자격.
+
+Cloudflare는 귀하의 개인 정보 보호 프록시 인스턴스를 구성하여 이 엔드포인트에 telemetry을 내보낼 수 있습니다.
+
+### 지원된 신호
+
+Privacy Proxy는 다음과 같은 원격 측정 신호를 수출합니다.
+
+| 제품정보 | 이름 \*                                               |
+| ---- | --------------------------------------------------- |
+| 미터   | 연결 개수, 요청률, 대기시간 histograms, 오류율                    |
+| 팟캐스트 | Per-request 추적 표시 프록시 처리 시간. 추적은 요청의 약 1 %에서 샘플됩니다. |
+
+## 미터
+
+Privacy Proxy는 사용 패턴과 성능을 이해하는 데 도움이되는 메트릭스를 수출합니다.
+
+### 연결 미터
+
+| 기본 정보                                        | 이름 \*           |
+| -------------------------------------------- | --------------- |
+| `privacy_proxy_connections_total`            | 총 프록시 연결 수      |
+| `privacy_proxy_connections_active`           | 현재 활성 연결        |
+| `privacy_proxy_connections_duration_seconds` | 연결 내구 histogram |
+
+### 요청 메트릭
+
+| 기본 정보                                | 이름 \*               |
+| ------------------------------------ | ------------------- |
+| `privacy_proxy_requests_total`       | 처리되는 총 CONNECT 요구   |
+| `privacy_proxy_requests_by_status`   | 응답 상태 코드에 의해 그룹화 요청 |
+| `privacy_proxy_bytes_sent_total`     | 목적지로 보낸 총 바이트       |
+| `privacy_proxy_bytes_received_total` | 대상에서 받는 총 바이트       |
+
+### 장시간 미터
+
+| 기본 정보                                      | 이름 \*           |
+| ------------------------------------------ | --------------- |
+| `privacy_proxy_connect_latency_seconds`    | 오시는 길           |
+| `privacy_proxy_first_byte_latency_seconds` | 목적지에서 첫 번째 바이트로 |
+
+## `Server-Timing`기타 제품
+
+개인 정보 보호 프록시 포함`Server-Timing`응답에 있는 우두머리는 클라이언트 측에서 대기 시간을 측정하는 것을 돕습니다. 전체 헤더 형식 세부 사항, 참조[HTTP 헤더](/privacy-proxy/reference/http-headers/#server-timing).
+
+```http
+Server-Timing: proxy;dur=12.5
+```
+
+더 보기`dur`값은 프록시에 의해 도입 된 milliseconds의 처리 시간입니다. 클라이언트 측 SLI (Service Level Indicator)로 이 헤더를 사용하여 프록시 성능을 모니터링합니다.
+
+### 예: Prometheus와 Grafana
+
+Grafana의 개인 프록시 메트릭을 시각화하려면:
+
+1. OpenTelemetry Collector를 구성하여 개인 정보 보호 프록시에서 데이터를 수신합니다.
+2. 수집가에서 Prometheus로 내보내기 미터.
+3. 데이터 소스로 Prometheus를 사용하여 Grafana dashboards 생성.
+
+```txt title="Example Prometheus queries"
+# Request rate over time
+rate(privacy_proxy_requests_total[5m])
+
+# 95th percentile connection latency
+histogram_quantile(0.95, rate(privacy_proxy_connect_latency_seconds_bucket[5m]))
+
+# Error rate
+sum(rate(privacy_proxy_requests_by_status{status=~"5.."}[5m])) / sum(rate(privacy_proxy_requests_total[5m]))
+```
+
+## 데이터 보호
+
+Telemetry 데이터는 포함되지 않습니다:
+
+- 사용자 IP 주소
+- 요청 내용 또는 헤더 (미터에 필요한 것)
+- 대상 URL 또는 호스트 이름 (집합)
+- 인증 토큰 또는 자격
+
+Cloudflare는 사용자 개인 정보 보호를 손상시키지 않고 서비스 건강을 모니터링하는 데 도움이되는 작업 측정 만 제공합니다.
+
+## 관련 자료
+
+- [OpenTelemetry 문서](https://opentelemetry.io/docs/)- OpenTelemetry 개념 및 구성에 대해 자세히 알아보십시오.

@@ -1,0 +1,198 @@
+---
+title: 1 – Terraform의 초기화
+pcx_content_type: tutorial
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Terraform init 소개
+description: >-
+  이 튜토리얼은 Terraform과 시작하기에 대한 방법을 보여줍니다. 당신은 203.0.113.10에서 웹 서버에
+  www.example.com을 지적하는 DNS 레코드를 만들 것입니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/tutorial/initialize-terraform/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/tutorial/initialize-terraform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, Render } from "~/components";
+
+이 튜토리얼은 Terraform과 시작하기에 대한 방법을 보여줍니다. 당신은 단지 당신의 도메인에 가입 (`example.com`) Cloudflare에 Terraform에서 모든 것을 관리하고 지금 당신은 DNS 기록 지적을 창조할 것입니다`www.example.com`웹 서버로`203.0.113.10`.
+
+시작하기 전에, 당신은 가지고:
+
+- [설치 Terraform](/terraform/installing/)
+- [API 토큰 생성](/fundamentals/api/get-started/create-token/)이 튜토리얼에 대한 리소스를 편집 할 수있는 권한
+
+<Render file="v5-code-snippets" product="terraform" />
+
+## 1. 구성 만들기
+
+파일 생성`main.tf`, 당신의 자신의 가치를 채우기[API 토큰](/fundamentals/api/get-started/create-token/), [지역 ID](/fundamentals/account/find-account-and-zone-ids/), [계정 ID](/fundamentals/account/find-account-and-zone-ids/)·[이름 \*](/fundamentals/manage-domains/add-site/):
+
+```bash
+terraform {
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5"
+    }
+  }
+}
+
+provider "cloudflare" {
+  api_token = "<YOUR_API_TOKEN>"
+}
+
+variable "zone_id" {
+  default = "<YOUR_ZONE_ID>"
+}
+
+variable "account_id" {
+  default = "<YOUR_ACCOUNT_ID>"
+}
+
+variable "domain" {
+  default = "<YOUR_DOMAIN>"
+}
+
+resource "cloudflare_dns_record" "www" {
+  zone_id = "<YOUR_ZONE_ID>"
+  name    = "www"
+  content = "203.0.113.10"
+  type    = "A"
+  ttl     = 1
+  proxied = true
+  comment = "Domain verification record"
+}
+```
+
+:::카트로션
+
+사고로 Cloudflare 자격 증명을 만료하려면 버전 제어 시스템에이 파일을 저장하지 마십시오. 더 보기[다음 튜토리얼](/terraform/tutorial/track-history/)API 토큰을 전달하기위한 모범 사례를 다룹니다.
+주요 특징
+
+## 2. 초기화 및 계획
+
+Cloudflare 공급자를 다운로드하는 Terraform를 초기화하십시오:
+
+```sh
+terraform init
+```
+
+작성된 내용을 검토:
+
+```sh
+terraform plan
+```
+
+```sh output
+
+Terraform used the selected providers to generate the following execution plan. Resource actions are
+indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  #cloudflare dns record.www 생성
+  + resource "cloudflare_dns_record" "www" {
+      + comment             = "Domain verification record"
+      + comment_modified_on = (known after apply)
+      + content             = "203.0.113.10"
+      + created_on          = (known after apply)
+      + id                  = (known after apply)
+      + meta                = (known after apply)
+      + modified_on         = (known after apply)
+      + name                = "www"
+      + proxiable           = (known after apply)
+      + proxied             = true
+      + settings            = (known after apply)
+      + tags                = (known after apply)
+      + tags_modified_on    = (known after apply)
+      + ttl                 = 1
+      + type                = "A"
+      + zone_id             = "<YOUR_ZONE_ID>"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+```
+
+## 3. 적용 및 검증
+
+설정 적용:
+
+```sh
+terraform apply
+```
+
+제품정보`yes`신속한 경우.
+
+```sh output
+Terraform used the selected providers to generate the following execution plan. Resource actions are
+indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  #cloudflare dns record.www 생성
+  + resource "cloudflare_dns_record" "www" {
+      + comment             = "Domain verification record"
+      + comment_modified_on = (known after apply)
+      + content             = "203.0.113.10"
+      + created_on          = (known after apply)
+      + id                  = (known after apply)
+      + meta                = (known after apply)
+      + modified_on         = (known after apply)
+      + name                = "www"
+      + proxiable           = (known after apply)
+      + proxied             = true
+      + settings            = (known after apply)
+      + tags                = (known after apply)
+      + tags_modified_on    = (known after apply)
+      + ttl                 = 1
+      + type                = "A"
+      + zone_id             = "<YOUR_ZONE_ID>"
+    }
+
+Plan: 1 to add, 0 to change, 0 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: yes
+
+cloudflare_dns_record.www: Creating...
+cloudflare_dns_record.www: Creation complete after 0s
+
+Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
+```
+
+생성 후, DNS 레코드를 확인:
+
+```sh
+dig www.example.com
+```
+
+웹 서버 응답을 테스트:
+
+```sh
+curl https://www.example.com
+```
+
+```sh output
+Hello, this is 203.0.113.10!
+```
+
+API 호출에서 반환된 전체 결과를 보려면:
+
+```sh
+terraform show
+```
+
+Cloudflare 대시보드를 확인하고**DNS 보호** > **이름 \***&#xC0AC;이트 맵
+
+<DashButton url="/?to=/:account/home" />

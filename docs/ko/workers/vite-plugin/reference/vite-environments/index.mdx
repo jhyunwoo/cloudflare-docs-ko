@@ -1,0 +1,87 @@
+---
+pcx_content_type: reference
+title: Vite 환경
+sidebar:
+  order: 8
+description: Vite 환경과 Vite 플러그인
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/vite-plugin/reference/vite-environments/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/vite-plugin/reference/vite-environments/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+더 보기[Vite 환경 API](https://vite.dev/guide/api-environment)Vite 6에서 발표 된 , Cloudflare Vite 플러그인을 사용하여 Workers 런타임과 Vite를 직접 통합 할 수있는 주요 기능입니다.
+환경 API의 모든 intricacies를 최종 사용자로 이해하는 것이 필요하지만 높은 수준의 이해를 가지고 유용합니다.
+
+## 기본 동작
+
+Vite는 기본적으로 두 가지 환경을 만듭니다:`client`·`ssr`·
+프론트엔드만 사용`client`환경, 프레임 워크로 만든 풀 스택 응용 프로그램 일반적으로 사용`client`프론트 엔드 코드 및 환경`ssr`서버 측 렌더링을 위한 환경.
+
+기본적으로 Cloudflare Vite 플러그인을 사용하여 Worker를 추가하면 추가 환경이 생성됩니다.
+그것의 이름은 노동자 이름에서 파생됩니다, 어떤 dashes와 underscores 대체.
+이 이름은 reference 환경에 특정한 윤곽을 적용하기 위하여 당신의 Vite 구성에 있는 환경에 있는 환경을 사용될 수 있습니다.
+
+:::참조
+노동자의 기본 Vite 환경 이름은 항상 최고 수준의 노동자 이름입니다.
+이것은 reference로 여러 가지를 사용할 때 Vite config에서 일관되게 작업할 수 있습니다.[모델 번호: Cloudflare 환경분야](/workers/vite-plugin/reference/cloudflare-environments/).
+:::
+
+## 환경 설정
+
+다음 예제에서 우리는 Worker 이름을 가지고`my-worker`Vite 환경과 관련된`my_worker`·
+우리는 Vite config를 사용하여이 환경에 대한 글로벌 일정한 교체 설정:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./src/index.ts"
+  }
+  ```
+</WranglerConfig>
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
+
+export default defineConfig({
+	environments: {
+		my_worker: {
+			define: {
+				__APP_VERSION__: JSON.stringify("v1.0.0"),
+			},
+		},
+	},
+	plugins: [cloudflare()],
+});
+```
+
+Vite의 구성 옵션에 대한 자세한 내용은 참조[Vite 구성](https://vite.dev/config/).
+
+Worker 이름을 사용하여 환경 이름의 기본 동작은 프론트 엔드 응용 프로그램 또는 프론트 엔드 응용 프로그램에 액세스하는 API와 같은 독립 노동자가있을 때 적절합니다.[auxiliary 노동자](/workers/vite-plugin/reference/api/#interface-pluginconfig)그것은 서비스 바인딩을 통해 접근됩니다.
+
+## 풀 스택 프레임 워크
+
+Cloudflare Vite 플러그인을 사용하는 경우[TanStack 시작](https://tanstack.com/start/)또는[모델 번호: React 라우터 v7](https://reactrouter.com/), 다음 작업자는 서버 측 렌더링 및 프레임 워크와 단단히 통합에 사용됩니다.
+이를 지원하기 위해, 당신은 그것을 할당해야`ssr`환경 설정`viteEnvironment.name`플러그인 설정에서.
+
+```ts title="vite.config.ts"
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
+import { reactRouter } from "@react-router/dev/vite";
+
+export default defineConfig({
+	plugins: [cloudflare({ viteEnvironment: { name: "ssr" } }), reactRouter()],
+});
+```
+
+이 프레임 워크의 SSR 구성으로 Worker의 환경 구성을 병합하고 Worker가 프레임 워크의 빌드 출력의 일부로 포함된다는 것을 보장합니다.

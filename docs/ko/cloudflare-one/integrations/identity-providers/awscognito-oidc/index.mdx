@@ -1,0 +1,114 @@
+---
+pcx_content_type: how-to
+title: 아마존 Cognito
+tags:
+  - AWS
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/awscognito-oidc/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/awscognito-oidc/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Amazon Cognito는 웹 및 모바일 앱의 최종 사용자를 위한 SSO ID 관리를 제공합니다. Cloudflare One의 OIDC ID 공급자로 Amazon Cognito를 통합할 수 있습니다.
+
+## 자주 묻는 질문
+
+- 아마존 Cognito[사용자 풀](https://docs.aws.amazon.com/cognito/latest/developerguide/tutorial-create-user-pool.html)
+
+## Amazon Cognito 설정 (OIDC)
+
+### 1. Amazon Cognito 설정 얻기
+
+다음 Amazon Cognito 값은 통합을 설정해야 합니다.
+
+- 앱 (클라이언트) ID
+- 고객 비밀
+- Auth URL을
+- 토큰 URL
+- 인증서 (키) URL
+
+그 값을 검색하려면:
+
+1. Amazon Cognito 관리자 포털에 로그인하십시오.
+
+2. 오시는 길**사용자 풀**사용자 풀을 선택합니다.
+
+3. 선택하기**App 통합**탭.
+
+4. 이름 \***이름 \***, 사용자 풀 도메인 또는 복사[새 도메인 구성](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pools-assign-domain.html).
+
+5. 다음의 주의사항[Amazon Cognito OIDC 엔드포인트](https://docs.aws.amazon.com/cognito/latest/developerguide/federation-endpoints.html):
+   - **Auth URL을**: `https://<your user pool domain>/oauth2/authorize`
+   - **토큰 URL**: `https://<your user pool domain>/oauth2/token`
+   - **인증서 (키) URL**: `https://cognito-idp.<region>.amazonaws.com/<your user pool ID>/.well-known/jwks.json`(이것은**토큰 서명 키 URL**이름 \***사용자 풀 개요**.)
+
+6. 이름 \***앱 고객 목록**, 선택**앱 클라이언트 만들기**.
+
+7. 제품 정보**앱 유형**, 선택**Confidential 클라이언트**.
+
+8. 이름 \***앱 클라이언트 이름**당신의 신청을 위해.
+
+9. 견적 요청**클라이언트 비밀 생성**선택 사항
+
+10. 다음 구성**호스팅 UI 설정**:
+    1. 내 계정**콜백 URL 허용**, 다음 URL을 추가:
+
+       ```txt
+       https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+       ```
+
+       <Render file="find-team-name" product="cloudflare-one" />
+
+    2. 제품정보**Identity 공급자**이 앱 클라이언트와 함께 사용할 수 있습니다. 최소 사용 가능**Cognito 사용자 풀**회사명
+
+    3. 제품 정보**OAuth 2.0 보조금 유형**, 선택**인증 코드 부여**.
+
+    4. 제품 정보**OpenID 연결 범위**, 선택**공지사항**, **이름 \***·**이름 \***.
+
+11. 제품정보**앱 클라이언트 만들기**.
+
+12. Next, 방금 만든 앱 클라이언트를 선택하십시오.
+
+13. 제출하기**고객 ID**·**고객 비밀**.
+
+### 2. Amazon Cognito를 identity 공급자로 추가하십시오
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**통합** > **Identity 공급자**.
+
+2. 이름 \***당신의 ID 공급자**, 선택**새로운 ID 공급자 추가**.
+
+3. 제품정보**OpenID 연결**.
+
+4. 네이티브 공급자를 지명하고 Amazon Cognito에서 얻은 정보와 필요한 필드를 채우십시오.
+
+5. (선택) 사용[키 교환 증명 (PKCE)](https://www.oauth.com/oauth2-servers/pkce/)프로토콜이 IdP에 의해 지원되는 경우. PKCE는 모든 로그인 시도에서 수행됩니다.
+
+6. (선택) 밑에**옵션 구성**, 입력[사용자 정의 OIDC 주장](/cloudflare-one/integrations/identity-providers/generic-oidc/#custom-oidc-claims)사용자의 정체성을 추가하고자 합니다.
+
+7. 제품정보**제품 정보**.
+
+으로[제품정보](/cloudflare-one/integrations/identity-providers/#test-idps-in-cloudflare-one)당신의 연결은 일하고, 선정합니다**제품정보**.
+
+## API 구성 보기
+
+```json
+{
+	"config": {
+		"client_id": "<your client id>",
+		"client_secret": "<your client secret>",
+		"auth_url": "https://<your user pool domain>/oauth2/authorize",
+		"token_url": "https://<your user pool domain>/oauth2/token",
+		"certs_url": "https://cognito-idp.<region>.amazonaws.com/<your user pool ID>/.well-known/jwks.json",
+		"scopes": ["openid", "email", "profile"],
+		"claims": ["sub", "cognito:username", "name", "cognito:groups"]
+	},
+	"type": "oidc",
+	"name": "Amazon Cognito example"
+}
+```

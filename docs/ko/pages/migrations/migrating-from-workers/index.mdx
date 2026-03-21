@@ -1,0 +1,94 @@
+---
+reviewed: 2020-08-13T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: Workers에서 마이그레이션 Pages에 위치
+sidebar:
+  hidden: true
+description: Workers 사이트에서 QXQX2356XQQQXQXQXPages.로 마이그레이션하는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/migrations/migrating-from-workers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/migrations/migrating-from-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이 튜토리얼에서, 당신은 기존의 마이그레이션 방법을 배울 것이다[Cloudflare Workers 사이트 맵](/workers/configuration/sites/)Cloudflare Pages에 신청.
+
+필수품으로 Cloudflare WorkersXQXQXQ Sites 프로젝트, 만든[Wrangler](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler).
+
+Cloudflare Pages는 당신의 위치를 봉사의 각 측면을 위한 붙박이 과태를 제공합니다. 사용자 정의 캐싱 논리와 같은 노동자에 사용자 정의 행동을 포트 할 수 있습니다 - 당신의 Cloudflare Pages 프로젝트에[제품정보](/pages/functions/). 이것은 사용하기 쉬운, 파일 근거한 여정 체계를 가능하게 합니다. 사용자 정의 헤더를 마이그레이션하고 Pages로 리디렉션 할 수도 있습니다.
+
+Pages의 파일 기반 라우팅 시스템에서 이미 복잡한 작업자가있을 수 있습니다. 이 경우, Pages는 개발자가 정의하는 기능을 제공합니다.`_worker.js`Pages 프로젝트의 출력 디렉토리에 파일.
+
+:::참조
+
+사용시`_worker.js`파일, 전체`/functions`디렉토리는 무시됩니다 - 이것은 라우팅 및 미들웨어 특성을 포함합니다. 대신,`_worker.js`파일이 배치되고 사용해야합니다[모듈 Worker 문법](/workers/reference/migrate-to-module-workers/).
+
+:::
+
+Cloudflare PagesXQ, 당신은 같은 특징에 접근할 수 있을 것입니다[관련 기사](/pages/configuration/preview-deployments/)자동 분기에는 추가 구성이 필요하지 않습니다.
+
+## 불필요한 코드를 제거
+
+Workers 사이트 프로젝트는 다음과 같은 조각으로 구성됩니다:
+
+1. 내장 된 응용 프로그램[static 사이트 도구](/pages/how-to/)또는 HTML, CSS 및 JavaScript 파일의 정적 컬렉션.
+2. 정적 사이트 도구를 사용하여 빌드 디렉토리 (called)`bucket`내 계정[Wrangler 구성 파일](/pages/functions/wrangler-configuration/)) 정적 프로젝트가 HTML, CSS 및 JavaScript 파일을 빌드하는 곳.
+3. 디렉토리를 구축하는 데 필요한 작업 응용 프로그램입니다. 대부분의 프로젝트를 위해, 이것은 가능성이`workers-site`디렉토리.
+
+Cloudflare QXPages로 이동할 때, Workers 응용 프로그램을 제거하고 어떤 관련 WranglerXQ 구성 파일 또는 산출을 건설하십시오. 대신, 메모 및 기록`build`명령 (당신이 한 경우), 그리고`bucket`프로젝트의 디렉토리에 Wrangler 파일에서 디렉토리를 작성하거나 빌드합니다.
+
+## Migrate 헤더와 리디렉션
+
+Pages로 리디렉션을 마이그레이션할 수 있습니다.`_redirects`출력 디렉토리에 파일. Pages는 현재 진보된 리디렉션을 위한 한정된 지원을 제안합니다. 더 많은 지원은 미래에 추가될 것입니다. 지원 유형의 목록을 위해, 참조[Redirects 문서](/pages/configuration/redirects/).
+
+:::참조
+
+프로젝트는 2,000개의 정적 리디렉션과 100개의 동적 리디렉션으로 구성되어 있으며, 총 2,100개의 리디렉션이 결합되어 있습니다. 각 리디렉션 선언에는 1,000 리터의 제한이 있습니다. Malformed 정의는 무시됩니다. 동일한 소스 경로에 대한 여러 리디렉션이 있다면, topmost 리디렉션이 적용됩니다.
+
+정적 리디렉션은 동적 리디렉션 전에 확인`_redirects`파일.
+
+:::
+
+더 알아보기`_redirects`파일, Cloudflare 또한 제안[대량 Redirects](/pages/configuration/redirects/#surpass-_redirects-limits)Pages에 의해 2,100 리디렉션 규칙 제한을 초과하는 리디렉션을 처리하는 .
+
+당신의 주문 우두머리는 또한 이동될 수 있습니다`_headers`출력 디렉토리에 파일. 사용자 정의 헤더가 정의 된 것을 주목하는 것이 중요합니다.`_headers`파일은 현재 Functions의 응답에 적용되지 않습니다. 취급 헤더에 대한 자세한 내용을 보려면, 참조[기타 제품](/pages/configuration/headers/).
+
+## 새로운 Pages 프로젝트 만들기
+
+### git 공급자에 연결
+
+당신이 기록 한 후**빌드 명령**·**회사연혁**별도의 위치에서 다른 모든 것을 응용 프로그램에서 제거하고 git 공급자까지 프로젝트의 새로운 버전을 밀어. 자주 묻는 질문[자주 묻는 질문](/pages/get-started/)Cloudflare Pages에 프로젝트를 추가하려면**빌드 명령**·**회사연혁**당신은 이전 저장.
+
+Pages 프로젝트에 대한 사용자 정의 도메인을 사용하려면 현재 배치 된 Workers 응용 프로그램과 동일한 사용자 정의 도메인에 설정할 수 있습니다. 자주 묻는 질문[사용자 정의 도메인 추가](/pages/configuration/custom-domains/#add-a-custom-domain)Pages 프로젝트에.
+
+:::참조
+
+배포하기 전에 기존 Workers 노선을 삭제해야 하며, Cloudflare QXQXQXPagesXQ로 요청을 전송하기 시작합니다.
+
+:::
+
+### 직접 업로드
+
+Workers 사이트가 사용자 정의 빌드 설정이있는 경우 Pages에 미리 구축 된 자산을 가져올 수 있습니다[연락처](/pages/get-started/direct-upload/). 또한 Cloudflare 글로벌 네트워크에 웹 사이트 자산을 사용할 수 있습니다.[Wrangler 클립](/workers/wrangler/install-and-update/)또는 드래그 및 드롭 옵션.
+
+이 옵션은 CLI 또는 대시보드에서 새로운 프로젝트를 만들고 이름을 지정할 수 있습니다. 프로젝트 배포가 완료되면 사용자 정의 도메인을 다음과 같이 설정할 수 있습니다.[사용자 정의 도메인 추가](/pages/configuration/custom-domains/#add-a-custom-domain)Pages 프로젝트 단계.
+
+## 오래된 응용 프로그램을 청소하고 도메인을 할당
+
+Pages 응용 프로그램을 배포 한 후 작업자를 삭제하십시오.
+
+1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 당신의 노동자를 선택하십시오.
+
+3. 오시는 길**계정 관리** > **작업자 삭제**.
+
+Workers 응용 프로그램 제거, 요청은 Pages 응용 프로그램에 이동합니다. Workers 성공적으로 마이그레이션 사이트 프로젝트 Cloudflare Pages

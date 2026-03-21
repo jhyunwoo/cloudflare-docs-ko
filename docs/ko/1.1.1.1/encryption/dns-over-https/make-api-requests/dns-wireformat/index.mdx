@@ -1,0 +1,96 @@
+---
+pcx_content_type: reference
+title: DNS Wireformat 사용하기
+head:
+  - tag: title
+    content: DNS Wireformat 사용하기
+slug: 1.1.1.1/encryption/dns-over-https/make-api-requests/dns-wireformat
+---
+
+Cloudflare는 [RFC 1035](https://www.rfc-editor.org/rfc/rfc1035.html)에 정의된 DNS wireformat 규격을 그대로 준수합니다.
+
+    DNS wireformat으로 질의를 전송할 때는 `accept: application/dns-message` 헤더를 설정하거나, `POST` 요청이라면 `content-type: application/dns-message`를 지정해 질의의 미디어 타입을 알립니다.
+
+DNS wireformat 질의는 `POST` 또는 `GET`으로 전송할 수 있습니다.
+
+## POST 사용 시
+
+`POST` 요청에서는 DNS 질의를 HTTP 요청 본문에 포함시키고, 앞서 언급한 MIME 타입을 `Content-Type` 헤더에 넣습니다. Cloudflare는 전달된 본문을 그대로 사용하므로 별도의 인코딩을 적용하지 마세요.
+
+다음은 예시 요청입니다. `www.example.com` DNS 질의를 POST 방식으로 보낼 경우 다음과 같습니다.
+
+```txt
+:method = POST
+:scheme = https
+:authority = cloudflare-dns.com
+:path = /dns-query
+accept = application/dns-message
+content-type = application/dns-message
+content-length = 33
+
+<33 bytes represented by the following hex encoding>
+00 00 01 00 00 01 00 00  00 00 00 00 03 77 77 77
+07 65 78 61 6d 70 6c 65  03 63 6f 6d 00 00 01 00
+01
+```
+
+응답은 wireformat으로 반환됩니다.
+
+```txt
+:status = 200
+content-type = application/dns-message
+content-length = 64
+cache-control = max-age=128
+
+<64 bytes represented by the following hex encoding>
+00 00 81 80 00 01 00 01  00 00 00 00 03 77 77 77
+07 65 78 61 6d 70 6c 65  03 63 6f 6d 00 00 01 00
+01 03 77 77 77 07 65 78  61 6d 70 6c 65 03 63 6f
+6d 00 00 01 00 01 00 00  00 80 00 04 C0 00 02 01
+```
+
+이를 cURL로 시도하려면 다음과 같이 입력하세요.
+
+```sh
+echo -n 'q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB' | base64 --decode | curl --header 'content-type: application/dns-message' --data-binary @- https://cloudflare-dns.com/dns-query --output - | hexdump
+```
+
+## GET 사용 시
+
+`GET` 요청을 사용할 때는 DNS 질의를 URL에 인코딩합니다. 기본 MIME 타입은 `application/dns-message`이며, 필요에 따라 `accept` 헤더로 원하는 타입을 명시할 수 있습니다.
+
+예시 요청:
+
+```sh
+curl --header 'accept: application/dns-message' --verbose 'https://cloudflare-dns.com/dns-query?dns=q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB' | hexdump
+```
+
+```sh output
+* Using HTTP2, server supports multi-use
+* Connection state changed (HTTP/2 confirmed)
+* Copying HTTP/2 data in stream buffer to connection buffer after upgrade: len=0
+* Using Stream ID: 1 (easy handle 0x7f968700a400)
+GET /dns-query?dns=q80BAAABAAAAAAAAA3d3dwdleGFtcGxlA2NvbQAAAQAB HTTP/2
+Host: cloudflare-dns.com
+User-Agent: curl/7.54.0
+accept: application/dns-message
+
+* Connection state changed (MAX_CONCURRENT_STREAMS updated)!
+HTTP/2 200
+date: Fri, 23 Mar 2018 05:14:02 GMT
+content-type: application/dns-message
+content-length: 49
+cache-control: max-age=0
+set-cookie: \__cfduid=dd1fb65f0185fadf50bbb6cd14ecbc5b01521782042; expires=Sat, 23-Mar-19 05:14:02 GMT; path=/; domain=.cloudflare.com; HttpOnly
+server: cloudflare-nginx
+cf-ray: 3ffe69838a418c4c-SFO-DOG
+
+{ [49 bytes data]
+100    49  100    49    0     0    493      0 --:--:-- --:--:-- --:--:--   494
+* Connection #0 to host cloudflare-dns.com left intact
+0000000 ab cd 81 80 00 01 00 01 00 00 00 00 03 77 77 77
+0000010 07 65 78 61 6d 70 6c 65 03 63 6f 6d 00 00 01 00
+0000020 01 c0 0c 00 01 00 01 00 00 0a 8b 00 04 5d b8 d8
+0000030 22
+0000031
+```

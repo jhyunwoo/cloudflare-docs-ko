@@ -1,0 +1,306 @@
+---
+title: Packet 캡처
+pcx_content_type: how-to
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/insights/network-visibility/diagnostics/packet-captures/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/insights/network-visibility/diagnostics/packet-captures/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Details,
+	GlossaryTooltip,
+	TabItem,
+	Tabs,
+	DashButton,
+} from "~/components";
+
+다음 것<GlossaryTooltip term="data packet">제품정보</GlossaryTooltip>캡처가 요청되고 캡처가 수집되며 출력은 PCAP 파일 형식의 하나 이상의 파일 내에 포함되어 있습니다. 시작하기 전에`full`type 패킷 캡처, 먼저 지침을 따르십시오.[버킷 구성](/cloudflare-network-firewall/packet-captures/pcaps-bucket-setup/).
+
+:::참조
+
+패킷 캡처는 Cloudflare Advanced Network Firewall 사용자에 사용할 수 있습니다. 접근을 위해, 당신의 계정 팀을 접촉하십시오.
+
+:::
+
+## 패킷 캡처 요청 보내기
+
+현재, 패킷 캡처가 요청될 때, Magic Transit 시스템을 통해 Cloudflare의 글로벌 네트워크에 흐르는 패킷이 캡처됩니다. 기본적으로 API 필드는`"system": "magic-transit"`, 둘 다 요구와 응답을 위해.
+
+:::주\[주]
+
+패킷 캡처를 선택하기 위해 데이터 센터를 결정하는 데 도움이되는 경우, 이동[사이트맵](https://cloudflare.com/cdn-cgi/trace)자주 묻는 질문`colo`이름 \* 일부 데이터 센터는 같은 지역이 될 수 있습니다.`ORD`다른 이름은 더 구체적일 수 있습니다.`ord02`. 이 이름 중 하나는 이 동일한 분야를 위해 사용될 수 있습니다.
+
+:::
+
+### Packet 캡처 제한
+
+**표본과 가득 차있는**
+
+- `time_limit`: 최소 값은`1`초 및 최대 값은`300`초.
+- `packet_limit`: 최소 값은`1`패킷과 최대 값은`10000`패킷.
+
+**한국어**
+
+- `byte_limit`: 최소 값은`1`byte 및 최대 값은`1000000000`파일 형식
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. Cloudflare 대시보드에서**네트워크 건강**사이트 맵
+
+       <DashButton url="/?to=/:account/networking-insights/health" />
+
+    2. 오시는 길**진단**탭.
+
+    3. 내 계정**네트워크 패킷 캡처**, 선택**캡처 시작**.
+
+    4. 수행하고 싶은 캡처 유형 선택**이름 \***.
+
+    5. 필요한 필드를 채우고 캡처를 시작 다음 선택**지원하다**.
+
+    더 보기**네트워크 패킷 캡처**페이지는 캡처 목록을 표시합니다.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    PCAPs API 모두 필요`system`·`type`캡처를 시작할 수 있습니다. PCAP의`system`패킷이 캡처되는 제품 또는 논리 서브 시스템이며, PCAP의`type`캡처 된 패킷은 PCAP 파일로 구축 된 방법입니다.
+
+    현재, 샘플 PCAP에 대한 분 당 하나의 수집 요청을 보낼 수 있으며 한 번만 실행하거나 풀 PCAP을 한 번에 보낼 수 있습니다.
+
+    <Details header="전체 PCAP">
+      전체 PCAP 요청을 위해 필요한 매개 변수를 참조하십시오.[전체 PCAP 요청 만들기](/api/resources/magic_transit/subresources/pcaps/methods/create/). 전체 패킷 캡처는 샘플 패킷보다 두 가지 매개 변수가 필요합니다.
+
+      풀 PCAP 요청 엔드포인트는 또한 선택한 필드를 포함하고 있어 패킷의 양을 제한할 수 있습니다. 가득 차있는과 표본 소포 요구는 선택을 포함합니다`filter_v1`매개 변수는 IPv4 소스 주소로 패킷을 필터링하는 데 사용할 수 있습니다. 예를 들어. 필터 옵션의 전체 목록은 위의 매개 변수 목록을 참조합니다.
+
+      이름 \*`filter_v1`어떤 필터링없이 모든 패킷을 수집하는 빈.
+
+      ```bash title="Full PCAP example request"
+      curl https://api.cloudflare.com/client/v4/accounts/{account_id}/pcaps \
+      --header "X-Auth-Email: <EMAIL>" \
+      --header "X-Auth-Key: <API_KEY>" \
+      --header "Content-Type: application/json" \
+      --data '{
+        "filter_v1": {},
+        "time_limit": 300,
+        "packet_limit": 10000,
+        "byte_limit": 100000000,
+        "type": "full",
+        "colo": "ORD",
+        "system": "magic-transit",
+        "destination_conf": "${BUCKET}"
+      }'
+      ```
+
+      수집이 진행중인 동안 응답은 반환`status`본문 바로가기`pending`. 파일을 다운로드하기 전에 PCAP 수집을 완료하려면 기다립니다. PCAP가 다운로드 할 준비가되면 상태 변경`success`.
+
+      ```json title="Full PCAP example response"
+      {
+      	"result": {
+      		"id": "7d7c88382f0b4d5daa9587aa45a1a877",
+      		"submitted": "2022-06-02T18:38:22.269047Z",
+      		"filter_v1": {},
+      		"time_limit": 300,
+      		"status": "pending",
+      		"type": "full",
+      		"system": "magic-transit",
+      		"packet_limit": 10000,
+      		"byte_limit": 100000000,
+      		"colo": "ORD",
+      		"destination_conf": "gs://<bucket-name>" // Ensure you use a bucket that you created and registered in the Cloudflare dashboard
+      	},
+      	"success": true,
+      	"errors": [],
+      	"messages": []
+      }
+      ```
+    </Details>
+
+    <Details header="샘플 PCAP">
+      샘플 PCAP 요청을 만들려면 필요한 매개 변수를 가진 JSON body를 보내주세요.[샘플 PCAP 요청 만들기](/api/resources/magic_transit/subresources/pcaps/methods/create/).
+
+      이름 \*`filter_v1`필터링 없이 모든 패킷을 수집합니다.
+
+      ```bash title="Sample PCAP example request"
+      curl https://api.cloudflare.com/client/v4/accounts/{account_id}/pcaps \
+      --header "X-Auth-Email: <EMAIL>" \
+      --header "X-Auth-Key: <API_KEY>" \
+      --header "Content-Type: application/json" \
+      --data '{
+        "filter_v1": {
+          "source_address": "1.2.3.4",
+          "source_port": 123,
+          "destination_address": "5.6.7.8",
+          "destination_port": 80,
+          "protocol": 6
+        },
+        "time_limit": 300,
+        "packet_limit": 10000,
+        "type": "simple",
+        "system": "magic-transit"
+      }'
+      ```
+
+      응답은 패킷 캡처를 구축하기 위해 작업의 세부 사항을 포함하는 JSON 몸입니다. 응답은 요청에서 보낸 세부 사항과 함께 패킷 캡처 요청에 대한 고유 식별자를 포함합니다.
+
+      ```json title="Sample PCAP example response"
+      {
+      	"result": {
+      		"id": "6d1f0aac13cd40e3900d29f5dd0e8a2b",
+      		"submitted": "2021-12-20T17:29:20.641845Z",
+      		"filter_v1": {
+      			"source_address": "1.2.3.4",
+      			"source_port": 123,
+      			"destination_address": "5.6.7.8",
+      			"destination_port": 80,
+      			"protocol": 6
+      		},
+      		"time_limit": 60,
+      		"status": "pending",
+      		"packets_remaining": 0,
+      		"type": "simple",
+      		"system": "magic-transit"
+      	},
+      	"success": true,
+      	"errors": [],
+      	"messages": []
+      }
+      ```
+    </Details>
+  </TabItem>
+</Tabs>
+
+## 패킷 캡처 상태 확인
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. Cloudflare 대시보드에서 이동[네트워크 건강](https://dash.cloudflare.com/?to=/:account/networking-insights/health).
+    2. 오시는 길**진단**탭.
+    3. 아래에서 캡처를 찾습니다**네트워크 패킷 캡처**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    실행 작업의 상태를 확인하려면 endpoint에 요청을 보내고 PCAP 식별자를 지정하십시오. PCAP 식별자는 이전 단계에서 표시된 수집 요청의 응답에서 수신됩니다.
+
+    ```bash
+    curl https://api.cloudflare.com/client/v4/accounts/{account_id}/pcaps/{pcap_id} \
+    --header 'X-Auth-Email: <EMAIL>' \
+    --header 'X-Auth-Key: <API_KEY>'
+    ```
+
+    응답은 PCAP 수집을 요청할 때 수신된 것과 유사합니다.
+
+    ```json title="Sample PCAP example result"
+    {
+    	"result": {
+    		"id": "6d1f0aac13cd40e3900d29f5dd0e8a2b",
+    		"submitted": "2021-12-20T17:29:20.641845Z",
+    		"filter_v1": {
+    			"source_address": "1.2.3.4",
+    			"source_port": 123,
+    			"destination_address": "5.6.7.8",
+    			"destination_port": 80,
+    			"protocol": 6
+    		},
+    		"time_limit": 120,
+    		"status": "success",
+    		"packets_remaining": 0,
+    		"type": "simple",
+    		"system": "magic-transit"
+    	},
+    	"success": true,
+    	"errors": [],
+    	"messages": []
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+캡처 상태는 다음 옵션 중 하나를 표시합니다.
+
+- **완료:**&#xCEA1;처 요청은 완료 및 다운로드 준비.
+- **진행 중:**&#xCEA1;처 요청은 캡처했지만 여전히 처리되었습니다.
+- **실패:**&#xCEA1;처 실패. 이 발생하면 소유권 정보를 확인합니다.
+
+## 패킷 캡처 다운로드
+
+요청이 처리 완료되면 패킷 캡처를 다운로드 할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com)대시보드, 이동**네트워크 가시성** > **진단**.
+    2. 내 계정**Packet 캡처**, 선택**캡처 시작**.
+    3. 다운로드하고 싶은 패킷 캡처를 찾습니다.**다운로드**.
+
+    Packet 캡처는 다운로드 할 수 있습니다 때**주요연혁**공지사항**지원하다**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    다중 저장된 캡처 파일을 단일 출력 파일로 처리하는 방법에 대한 자세한 내용은 참조[Wireshark의 병합 문서](https://www.wireshark.org/docs/man-pages/mergecap.html).
+
+    **전체 PCAP**
+
+    전체 PCAP를 얻기 위해, 지정된 물통에서 파일을 다운로드`destination_conf`PCAP의 상태 이후`success`. 지정된 여러 파일을 찾을 수 있습니다`pcap_<pcap_id>.pcap`캡처 당 캡처는 여러 기계에서 발생할 수 있습니다.
+
+    **표본 PCAPs**
+
+    샘플 PCAP 컬렉션이 완료되면 PCAP 식별자를 먼저 지정하여 PCAP를 다운로드 할 수 있습니다.
+
+    ```bash
+    curl https://api.cloudflare.com/client/v4/accounts/{account_id}/pcaps/{pcap_id}/download \
+    --header 'X-Auth-Email: <EMAIL>' \
+    --header 'X-Auth-Key: <API_KEY>' \
+    --output download.pcap
+    ```
+  </TabItem>
+</Tabs>
+
+## 패킷 캡처 목록
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. Cloudflare 대시보드에서**네트워크 건강**사이트 맵
+
+       <DashButton url="/?to=/:account/networking-insights/health" />
+
+    2. 오시는 길**진단**탭.
+
+    계정 표시와 관련된 패킷 캡처 목록**네트워크 패킷 캡처**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    전송된 요청 목록을 보려면 다음 명령을 사용하십시오.
+
+    ```bash title="List request example"
+    curl https://api.cloudflare.com/client/v4/accounts/{account_id}/pcaps \
+    --header "X-Auth-Email: <EMAIL>" \
+    --header "X-Auth-Key: <API_KEY>"
+    ```
+
+    응답은 최대 50 전송 요청을 포함하는 배열을 반환, 완료 및 지속적인 요청을 포함.
+
+    ```json title="List response example"
+    {
+    	"result": [
+    		{
+    			"id": "43adab5adeca4dab9c51f4b7f70f2ec3",
+    			"submitted": "2021-12-15T03:04:09.277394Z",
+    			"filter_v1": {},
+    			"time_limit": 120,
+    			"status": "success",
+    			"packets_remaining": 0,
+    			"type": "simple",
+    			"system": "magic-transit"
+    		}
+    	],
+    	"success": true,
+    	"errors": [],
+    	"messages": []
+    }
+    ```
+  </TabItem>
+</Tabs>

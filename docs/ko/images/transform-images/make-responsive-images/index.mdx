@@ -1,0 +1,154 @@
+---
+pcx_content_type: reference
+title: responsive 이미지 만들기
+description: >-
+  HTML srcset 및 width=auto를 사용하여 반응형 이미지를 제공하는 방법을 알아보세요. 높은-DPI 및 유체 레이아웃에
+  이상적입니다.
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/transform-images/make-responsive-images/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/transform-images/make-responsive-images/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+두 가지 다른 방법으로 응답 된 이미지를 제공 할 수 있습니다 :
+
+- HTML 사용`srcset`브라우저가 최적의 이미지를 선택할 수 있도록 기능. 가장 신뢰할 수있는 솔루션입니다.
+- 사용 방법`width=auto`사용 가능한 브라우저 및 장치 정보를 기반으로 최적의 이미지를 제공합니다. Chromium 기반 브라우저에서만 지원되는 서버 측 솔루션입니다.
+
+## HTML로 변환`srcset`
+
+더 보기`srcset` [HTML의 특징](https://developer.mozilla.org/en-US/docs/Learn/HTML/Multimedia_and_embedding/Responsive_images)브라우저는 사용자의 화면 해상도에 가장 적합한 이미지를 자동으로 선택합니다.
+
+`srcset`Cloudflare의 이미지 변환과 더불어 각 이미지의 다수 크기를 제공해야 합니다 이것은 성취하기 쉬운 일입니다.
+
+사용할 수있는 두 개의 다른 시나리오가 있습니다.`srcset`:
+
+- CSS 픽셀 측면에서 고정 크기와 이미지, 그러나 고해상도 화면에 적응 (또한 Retina 디스플레이로 알려진). 이 이미지는 스크린 크기에 관계 없이 페이지에 동일한 양을 가지고 갑니다, 그러나 고해상도 전시에 날카로운. 이것은 아이콘, 썸네일 및 고정 폭 레이아웃이있는 페이지의 대부분의 이미지에 적합합니다.
+- 스크린의 특정 비율을 채우기 위해 기지개하는 책임 이미지 (보통 가득 차있는 폭). 이것은 다양한 화면 크기에 적응하기 위해 미디어 쿼리를 사용하여 페이지와 유체 레이아웃이있는 영웅 이미지 및 페이지에 가장 적합합니다.
+
+### `srcset`High-DPI 디스플레이
+
+높은-DPI 디스플레이를 위해 모든 이미지의 두 가지 버전이 필요합니다. 1 대`1x`전형적인 탁상용 전시를 위해 적당한 조밀도 (HD/1080p 감시자 또는 저 최후 노트북과 같은), 그리고 하나`2x`거의 모든 휴대 전화, 고급 노트북 및 4K 데스크탑 디스플레이에 의해 사용되는 고밀도 디스플레이. 몇몇 휴대전화에는 아주 높 DPI 전시가 있고 조차 사용할 수 있었습니다`3x`해결책. 그러나, 점프에서`1x`으로`2x`명확한 개선, 더 많은 해상도 증가에서 반환 감소. 차이점은`2x`·`3x`시각적으로 불문자이지만`3x`파일은 두 배 더 큰`2x`파일.
+
+이미지를 가지고`product.jpg`내 계정`assets`폴더 및 크기로 표시하려는`960px`, 부호는 다음과 같이 입니다:
+
+```html
+<img
+  src="/cdn-cgi/image/fit=contain,width=960/assets/product.jpg"
+  srcset="/cdn-cgi/image/fit=contain,width=1920/assets/product.jpg 2x"
+/>
+```
+
+이 예제에서 사용되는 URL 경로에서,`src`속성은 보통 "1x" 밀도와 이미지입니다.`/cdn-cgi/image/`이미지 재구성을 위한 특별한 경로입니다. 다음으로`width=960`960 픽셀의 폭을 가지고 이미지를 크기를 조정합니다.`/assets/product.jpg`서버의 소스 이미지에 URL입니다.
+
+더 보기`srcset`속성은 다른, 높은-DPI 이미지를 추가합니다. 브라우저는 자동으로 이미지를 선택하여`src`·`srcset`. 이 경우, 지정`width=1920`(두 번 960 픽셀) 및 추가`2x`끝에서, 이 두 배 조밀도 이미지인 브라우저를 알립니다. 그것은 960 화소 이미지로 동일한 크기에 표시될 것입니다, 그러나 높은-DPI 전시에 예리한 것과 같이 두번 보이게 하는 화소의 수를 두배로 합니다.
+
+사용량을 늘리는 것을 의미하지 않습니다.`srcset`. 그것은 단지 시각적인 질을 개량하지 않고 파일 크기를 증가할 것입니다. 사용해야 하는 소스 이미지`srcset`높은 해상도, 그래서 그들은 단지에 대한 축소`1x`표시, 표시된 as-is 또는 또한 위해 아래로 확장`2x`전시.
+
+### `srcset`responsive 이미지
+
+창 또는 화면 너비의 특정 비율을 가지고 이미지를 표시 할 때, 이미지는 방문자의 화면 크기에 적합한 치수가 있어야합니다. 스크린 크기는 320 픽셀에서 3840 픽셀까지 다양하므로 모든 케이스에 맞는 단일 이미지 크기가 없습니다. 이름 \*`<img srcset>`몇 가지 가능한 크기를 제공 할 수 있으며 가장 적합한 크기를 자동으로 선택할 수 있습니다.
+
+기본적으로 브라우저는 이미지가 화면의 전체 너비에 뻗어있을 것이며 방문자의 화면 크기에 가까운 크기를 선택할 것입니다. 내 계정`src`브라우저는 이해하지 않는 이전 브라우저의 좋은 fallback 어떤 크기를 선택 할 것입니다`srcset`.
+
+```html
+<img
+  width="100%"
+  srcset="
+    /cdn-cgi/image/fit=contain,width=320/assets/hero.jpg   320w,
+    /cdn-cgi/image/fit=contain,width=640/assets/hero.jpg   640w,
+    /cdn-cgi/image/fit=contain,width=960/assets/hero.jpg   960w,
+    /cdn-cgi/image/fit=contain,width=1280/assets/hero.jpg 1280w,
+    /cdn-cgi/image/fit=contain,width=2560/assets/hero.jpg 2560w
+  "
+  src="/cdn-cgi/image/width=960/assets/hero.jpg"
+/>
+```
+
+이전의 경우, 숫자는 다음`x`제품 설명*제품정보*조밀도. 이 경우 다음 번호`w`이름 \**이름 \**&#xD06C;기. 여기에 화면 밀도를 지정할 필요가 없습니다 (`2x`, etc.), 브라우저가 자동으로 계정으로 이동하고 필요할 때 더 높은 해상도 이미지를 선택합니다.
+
+이미지가 화면의 전체 너비에 표시되지 않는 경우 (또는 브라우저 창), 두 가지 옵션이 있습니다.
+
+- 이미지가 고정 폭 열의 전체 폭에 표시되면, 하나의 특정 이미지 크기를 사용하는 최초의 기술을 사용합니다.
+- 스크린의 특정 비율을 가지고 있다면, 또는 전체 폭에 뻗어 (SSC 미디어 쿼리를 사용), 다음 추가`sizes`아래에 설명 된 속성.
+
+#### 더 보기`sizes`이름 \*
+
+이미지가 스크린 (또는 창) 폭의 50%를 가지고 가는 경우에:
+
+```html
+<img style="width: 50vw" srcset="<SAME_AS_BEFORE>" sizes="50vw" />
+```
+
+더 보기`vw`단위는 viewport (스크린 또는 창) 폭의 백분율입니다. 이미지가 미디어 쿼리 또는 기타 CSS 속성에 따라 다른 크기를 가질 수 있다면`max-width`, 다음 모든 조건을 지정합니다.`sizes`특성:
+
+```html
+<img
+  style="max-width: 640px"
+  srcset="
+    /cdn-cgi/image/fit=contain,width=320/assets/hero.jpg   320w,
+    /cdn-cgi/image/fit=contain,width=480/assets/hero.jpg   480w,
+    /cdn-cgi/image/fit=contain,width=640/assets/hero.jpg   640w,
+    /cdn-cgi/image/fit=contain,width=1280/assets/hero.jpg 1280w
+  "
+  sizes="(max-width: 640px) 100vw, 640px"
+/>
+```
+
+이 예제에서,`sizes`640 픽셀보다 작은 화면에 대해 이미지가 전체보기 포트 너비에 표시됩니다. 모든 더 큰 화면에서 이미지는 640px에서 체재합니다. 옵션 중 하나를 참고하십시오.`srcset`640의 CSS 픽셀에 표시된 이미지가 높 dpi에 많은 이미지 픽셀이 필요할 수 있기 때문에 1280 픽셀입니다.`2x`) 전시.
+
+## WebP 이미지
+
+`srcset`PNG, JPEG 및 WebP와 같은 픽셀 기반 형식에 유용합니다. 벡터 기반 SVG 이미지가 불필요합니다.
+
+HTML도[지원하다`<picture>`이름 \*](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/picture)WebP 형식의 이미지를 선택적으로 요청할 수 있지만 필요할 수 없습니다. Cloudflare는 당신이 이용하는 때마다 WebP 이미지를 자동적으로 봉사할 수 있습니다`/cdn-cgi/image/format=auto`URL에서`src`또는`srcset`.
+
+WebP 이미지를 사용하려는 경우, resizing 필요가 없습니다. 두 가지 옵션이 있습니다.
+
+- 자동 활성화[폴란드어의 WebP 변환](/images/polish/activate-polish/). 이 사이트에 모든 이미지를 변환합니다.
+- 대안으로, 당신은 사이트에 특정 이미지 경로를 변경할 수 있습니다`/cdn-cgi/image/format=auto/`. 예를 들면, 변화`https://example.com/assets/hero.jpg`으로`https://example.com/cdn-cgi/image/format=auto/assets/hero.jpg`.
+
+## 연결하기`width`이름 \*
+
+설정할 때[변환 URL](/images/transform-images/transform-via-url/#width), 당신은 적용할 수 있습니다`width=auto`사용자의 브라우저 및 장치에 대한 사용 가능한 정보를 바탕으로 가장 최적의 이미지를 제공합니다.
+
+이 방법은 단일 URL에서 여러 크기를 제공 할 수 있습니다. 현재 이미지는 4개의 크기 중 하나에서 봉사될 것입니다:
+
+- 1200 (대 바탕 화면/모니터)
+- 960 (데스크탑)
+- 768 (테이블)
+- 320 (모바일)
+
+각 폭은 분리된 변환으로 계산됩니다. 예를 들어, 사용 중인 경우`width=auto`그리고 이미지는 320px의 폭으로 한 사용자와 960px의 다른 사용자에 전달되고, 그 후에 이 조사는 2개의 유일한 변환으로 전달됩니다.
+
+기본적으로, 이 기능은 사용자 에이전트에서 정보를 사용합니다. 플랫폼 유형(예: iOS 또는 Android) 및 브라우저를 감지합니다.
+
+### 클라이언트 hints
+
+더 정확한 결과를 위해, 당신은 요청 헤더로 사용자의 브라우저 정보를 보낼 클라이언트 힌트를 사용할 수 있습니다.
+
+Chrome, Edge 및 Opera와 같은 Chromium 기반 브라우저에서만 작동합니다.
+
+클라이언트는 HTML을 통해 다음 태그를 추가 할 수 있습니다.`<head>`다른 요소의 앞에 페이지의 태그:
+
+```txt
+<meta http-equiv="Delegate-CH" content="sec-ch-dpr https://example.com; sec-ch-viewport-width https://example.com"/>
+```
+
+기타 제품`https://example.com`Cloudflare 영역으로 변환이 가능합니다.
+
+또는 HTML 페이지의 응답에 다음 헤더를 추가하여 HTTP를 통해 클라이언트 힌트를 활성화할 수 있습니다.
+
+```txt
+critical-ch: sec-ch-viewport-width, sec-ch-dpr
+
+permissions-policy: ch-dpr=("https://example.com"), ch-viewport-width=("https://example.com")
+```
+
+기타 제품`https://example.com`Cloudflare 영역으로 변환이 가능합니다.

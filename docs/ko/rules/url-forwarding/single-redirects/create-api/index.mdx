@@ -1,0 +1,216 @@
+---
+pcx_content_type: how-to
+title: API를 통해 리디렉션 규칙 만들기
+sidebar:
+  order: 3
+  label: API를 통해 규칙 만들기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/url-forwarding/single-redirects/create-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/url-forwarding/single-redirects/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 리디렉션 규칙을 만들려면.
+
+의 항목 포인트 규칙에 리디렉션 규칙 추가`http_request_dynamic_redirect`영역 수준에서 단계. 더 알아보기[규칙 세트 API](/ruleset-engine/rulesets-api/)더 많은 정보를 원하시면[룰렛 만들기](/ruleset-engine/rulesets-api/create/)규칙에 대한 규칙의 목록을 공급.
+
+<Render file="url-forwarding/requires-proxied-site" product="rules" params={{ forwardingRuleName: "Single Redirects" }} />
+
+## 기본 규칙 설정
+
+리디렉션 규칙은 다음과 같습니다:
+
+- `action`설정하기`redirect`
+- 이름 \*`action_parameters`추가 설정과 객체 — 참조[단일 Redirects 설정](/rules/url-forwarding/single-redirects/settings/)상세 정보
+
+## 예제 요청
+
+다음의 요청[지역 규칙 만들기](/api/resources/rulesets/methods/create/)작업은 단계 항목 포인트 규칙을 만듭니다.`http_request_dynamic_redirect`영역 수준에서 단계, 그리고 동적 URL 리디렉션으로 단일 리디렉션 규칙을 정의합니다. 단계 항목 포인트 규칙을 생성하지 않은 경우이 작업을 사용`http_request_dynamic_redirect`아직 단계.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Redirect rules ruleset",
+  	kind: "zone",
+  	phase: "http_request_dynamic_redirect",
+  	rules: [
+  		{
+  			ref: "redirect_gb_fr_to_localized",
+  			expression:
+  				'(ip.src.country eq "GB" or ip.src.country eq "FR") and http.request.uri.path eq "/"',
+  			description: "Redirect GB and FR users in home page to localized site.",
+  			action: "redirect",
+  			action_parameters: {
+  				from_value: {
+  					target_url: {
+  						expression:
+  							'lower(concat("https://", ip.src.country, ".example.com"))',
+  					},
+  					status_code: 307,
+  					preserve_query_string: true,
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+<Details header="관련 기사">
+  ```json
+  {
+  	"result": {
+  		"id": "528f4f03bf0da53a29907199625867be",
+  		"name": "Redirect rules ruleset",
+  		"kind": "zone",
+  		"version": "1",
+  		"rules": [
+  			{
+  				"ref": "redirect_gb_fr_to_localized",
+  				"id": "235e557b92fd4e5e8753ee665a9ddd75",
+  				"version": "1",
+  				"expression": "(ip.src.country eq \"GB\" or ip.src.country eq \"FR\") and http.request.uri.path eq \"/\"",
+  				"description": "Redirect GB and FR users in home page to localized site.",
+  				"action": "redirect",
+  				"action_parameters": {
+  					"from_value": {
+  						"target_url": {
+  							"expression": "lower(concat(\"https://\", ip.src.country, \".example.com\"))"
+  						},
+  						"status_code": 307,
+  						"preserve_query_string": true
+  					}
+  				},
+  				"last_updated": "2022-09-28T09:20:42Z"
+  			}
+  		],
+  		"last_updated": "2022-09-28T09:20:42Z",
+  		"phase": "http_request_dynamic_redirect"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+</Details>
+
+<Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+
+이미 단계 항목 포인트 규칙이 있다면`http_request_dynamic_redirect`단계, 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)대신 작업, 다음과 같은 예에서:
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+  	name: "Redirect rules ruleset",
+  	kind: "zone",
+  	phase: "http_request_dynamic_redirect",
+  	rules: [
+  		{
+  			ref: "redirect_gb_fr_to_localized",
+  			expression:
+  				'(ip.src.country eq "GB" or ip.src.country eq "FR") and http.request.uri.path eq "/"',
+  			description: "Redirect GB and FR users in home page to localized site.",
+  			action: "redirect",
+  			action_parameters: {
+  				from_value: {
+  					target_url: {
+  						expression:
+  							'lower(concat("https://", ip.src.country, ".example.com"))',
+  					},
+  					status_code: 307,
+  					preserve_query_string: true,
+  				},
+  			},
+  		},
+  		{
+  			ref: "redirect_contacts_to_new_page",
+  			expression: 'http.request.uri.path eq "/contacts.html"',
+  			description: "Redirect to new contacts page.",
+  			action: "redirect",
+  			action_parameters: {
+  				from_value: {
+  					target_url: {
+  						value: "https://example.com/contact-us/",
+  					},
+  					status_code: 308,
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+<Details header="관련 기사">
+  ```json
+  {
+  	"result": {
+  		"id": "528f4f03bf0da53a29907199625867be",
+  		"name": "Redirect rules ruleset",
+  		"description": "",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "redirect_gb_fr_to_localized",
+  				"id": "235e557b92fd4e5e8753ee665a9ddd75",
+  				"version": "1",
+  				"action": "redirect",
+  				"action_parameters": {
+  					"from_value": {
+  						"target_url": {
+  							"expression": "lower(concat(\"https://\", ip.src.country, \".example.com\"))"
+  						},
+  						"status_code": 307,
+  						"preserve_query_string": true
+  					}
+  				},
+  				"expression": "(ip.src.country eq \"GB\" or ip.src.country eq \"FR\") and http.request.uri.path eq \"/\"",
+  				"description": "Redirect GB and FR users in home page to localized site.",
+  				"last_updated": "2022-10-03T15:38:51.658387Z",
+  				"ref": "235e557b92fd4e5e8753ee665a9ddd75",
+  				"enabled": true
+  			},
+  			{
+  				"ref": "redirect_contacts_to_new_page",
+  				"id": "cfad5efbfcd1440fb5b30cf30f95ece3",
+  				"version": "1",
+  				"action": "redirect",
+  				"action_parameters": {
+  					"from_value": {
+  						"target_url": {
+  							"value": "https://example.com/contact-us/"
+  						},
+  						"status_code": 308
+  					}
+  				},
+  				"expression": "http.request.uri.path eq \"/contacts.html\"",
+  				"description": "Redirect to new contacts page.",
+  				"last_updated": "2022-10-03T15:38:51.658387Z",
+  				"ref": "cfad5efbfcd1440fb5b30cf30f95ece3",
+  				"enabled": true
+  			}
+  		],
+  		"last_updated": "2022-10-03T15:38:51.658387Z",
+  		"phase": "http_request_dynamic_redirect"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+</Details>
+
+***
+
+## 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 리디렉션 규칙을 최소한의 권한이 있어야 합니다.
+
+- *지역 명소* > *단일 Redirect* > *제품정보*

@@ -1,0 +1,468 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+summary: >
+  Create a basic key-value store which stores the notification configuration of
+  all users in an application, where each user may have `enabled` or `disabled`
+  notifications.
+reviewed: 2025-05-19T00:00:00.000Z
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/kv/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/kv/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Steps, FileTree, Details, Tabs, TabItem, WranglerConfig, GitHubCode, DashButton } from "~/components";
+
+Workers KV는 당신의 높은 처리량 세계적인 저장을 제공합니다[Cloudflare Workers](/workers/)신청. Workers KV는 사용자 구성 자료, 라우팅 데이터, A/B 테스트 구성 및 인증 토큰을 저장하는 데 이상적입니다. read-heavy 워크로드에 적합합니다.
+
+이 가이드는 당신을 통해 지시합니다:
+
+- KV 네임스페이스 만들기.
+- KV 네임스페이스를 Cloudflare 작업자.
+- KV 네임스페이스에서 키값 쌍을 읽으십시오.
+
+Wrangler CLI를 통해 이러한 작업을 수행하거나 Cloudflare 대시보드Q를 통해 수행 할 수 있습니다.
+
+## 빠른 시작
+
+설정 단계와 시작하기XQ를 신속하게 건너려면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/update/kv/kv/kv-get-started)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다. Cloudflare WorkersXQ에 익숙한 경우 이 옵션을 사용하고 단계별 지도를 건너 뛰기를 바랍니다.
+
+당신은 수동으로 Cloudflare Workers에 새로운 경우에 단계를 따르고 싶을지도 모릅니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker 프로젝트 만들기
+
+:::노트\[Workers?]
+
+더 알아보기[Workers는 어떻게 작동합니까?](/workers/reference/how-workers-works/)Workers Serverless 실행 모델에 대해 알아보세요. 오시는 길[모델 번호: Workers 자주 묻는 질문](/workers/get-started/guide/)첫 번째 노동자를 설정.
+
+:::
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    KV 네임스페이스를 읽고 쓰는 새로운 작업자를 만듭니다.
+
+    <Steps>
+      1. 새 프로젝트 만들기`kv-tutorial`으로 실행:
+
+         <PackageManagers type="create" pkg="cloudflare@latest" args={"kv-tutorial"} />
+
+         <Render
+           file="c3-post-run-steps"
+           product="workers"
+           params={{
+            category: "hello-world",
+            type: "Worker only",
+            lang: "TypeScript",
+            }}
+         />
+
+         이것은 새로운`kv-tutorial`아래에 설명된 디렉토리.
+
+         <FileTree>
+           - 네트워크
+             - 노드 모듈/
+             - 시험/
+             - 사이트맵
+               - **사이트맵**
+             - 패키지-lock.json
+             - 패키지.json
+             - 테스트config.json
+             - 다운로드
+             - 작업자 구성.d.ts
+             - **다운로드**
+         </FileTree>
+
+         당신의 새로운`kv-tutorial`디렉토리 포함:
+
+         - ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)내 계정`index.ts`.
+         - ·[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.`wrangler.jsonc`너의 것`kv-tutorial`Worker는 kv 데이터베이스에 액세스합니다.
+
+      2. 작업자 프로젝트에 대해 만든 디렉토리로 변경:
+
+         ```sh
+         cd kv-tutorial
+         ```
+
+         :::참조
+
+         Cloudflare Workers, 또는 연속 통합 (CI) 환경에서 프로젝트를 초기화하는 경우, 새로운 프로젝트가 비동기적으로 설정하여`CI=true`이름 \*[환경변수](/workers/configuration/environment-variables/)현재 위치`create cloudflare@latest`.
+
+         예를 들면:`CI=true npm create cloudflare@latest kv-tutorial --type=simple --git --ts --deploy=false`기본 "Hello World" 프로젝트를 만들 준비가되었습니다.
+
+         :::
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 제품정보**회사연혁**.
+      3. 제품정보**Hello World로 시작하세요!** > **시작하기**.
+      4. 당신의 노동자를 지명하십시오. 이 튜토리얼의 경우, 당신의 노동자 이름`kv-tutorial`.
+      5. 제품정보**계정 만들기**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 2. KV 네임스페이스 만들기
+
+·[KV 네임스페이스](/kv/concepts/kv-namespaces/)Cloudflare의 글로벌 네트워크에 복제된 핵심 가치 데이터베이스입니다.
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    사용 가능[모델 번호: Wrangler](/workers/wrangler/)새로운 KV 네임스페이스를 만들려면. KV 네임스페이스 내에서, 목록, 가져오기, 삭제 등의 작업을 수행할 수 있습니다.
+
+    :::참조
+
+    KV 가동은 당신의 계정에 배열됩니다.
+    주요 특징
+
+    WranglerX0454XQXQ를 통해 QXKV 네임스페이스를 만들려면:
+
+    <Steps>
+      1. 터미널을 열고 다음 명령을 실행:
+
+         ```sh
+         npx wrangler kv namespace create <BINDING_NAME>
+         ```
+
+         더 보기`npx wrangler kv namespace create <BINDING_NAME>`subcommand는 인수로 새로운 바인딩 이름을 가져옵니다. KV 네임스페이스는 작업자의 이름을 사용하여 생성됩니다 (WranglerXQ 파일에서) 당신은 제공하는 바인딩 이름. ·`<BINDING_ID>`당신을 위해 무작위로 생성됩니다.
+
+         이 튜토리얼에서는 바인딩 이름을 사용합니다.`USERS_NOTIFICATION_CONFIG`.
+
+         ```sh ins="USERS_NOTIFICATION_CONFIG"
+         npx wrangler kv namespace create USERS_NOTIFICATION_CONFIG
+         ```
+
+         ```sh output
+         🌀 Creating namespace with title "USERS_NOTIFICATION_CONFIG"
+         ✨ Success!
+         Add the following to your configuration file in your kv_namespaces array:
+         {
+         	"kv_namespaces": [
+         		{
+         			"binding": "USERS_NOTIFICATION_CONFIG",
+         			"id": "<BINDING_ID>"
+         		}
+         	]
+         }
+         ```
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 갑니다**QXQX0460XQQKV**사이트 맵
+
+         <DashButton url="/?to=/:account/workers/kv/namespaces" />
+      2. 제품정보**인스턴스 생성**.
+      3. namespace의 이름을 입력합니다. 이 튜토리얼의 경우, 사용`kv_tutorial_namespace`.
+      4. 제품정보**이름 \***.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 3. KV namespace에 당신의 노동자를 바짝 죄십시오
+
+KV 네임스페이스로 작업자를 연결하기 위해 바인딩을 작성해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)Workers는 KV, Cloudflare 개발자 플랫폼과 같은 리소스에 액세스 할 수 있습니다.
+
+:::주최\[배경]
+
+묶음은 당신의 노동자가 외부 자원과 어떻게 상호 작용하는지[KV 네임스페이스](/kv/concepts/kv-namespaces/). 바인딩은 Workers 런타임이 코드를 제공합니다. Wrangler 파일에서 변수 이름을 선언할 수 있으며, 이 변수를 통해 해당 리소스에 바인딩할 수 있습니다. 모든 바인딩의 변수 이름과 행동은 노동자를 배치 할 때 결정됩니다.
+
+더 알아보기[환경 정책](/kv/reference/environments/)더 많은 정보.
+
+:::
+
+KV 네임스페이스를 작업자에게 바인딩하려면:
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    <Steps>
+      1. Wrangler 파일에서 터미널에서 생성 된 값과 다음을 추가하십시오.[단계 2](/kv/get-started/#2-create-a-kv-namespace):
+
+         <WranglerConfig>
+           ```jsonc
+           {
+           	"kv_namespaces": [
+           		{
+           			"binding": "USERS_NOTIFICATION_CONFIG",
+           			"id": "<BINDING_ID>"
+           		}
+           	]
+           }
+           ```
+         </WranglerConfig>
+
+         바인딩 이름은 만든 네임스페이스에 대응할 필요가 없습니다. 바인딩 이름은 참고 자료입니다. 특정한:
+
+         - value (string) 설정`binding`참고 자료 이것은 당신의 노동자에 있는 KV namespace에 사용됩니다. 이 튜토리얼의 경우,이 있어야합니다`USERS_NOTIFICATION_CONFIG`.
+         - 바인딩은 있어야 합니다[유효한 JavaScript 가변 이름](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#variables). 예를 들면,`binding = "MY_KV"`또는`binding = "routingConfig"`둘 다 바인딩을 위한 유효한 이름일 것입니다.
+         - 당신의 의무는 당신의 노동자에서 유효합니다`env.<BINDING_NAME>`당신의 노동자 안에. 이 튜토리얼의 경우, 바인딩은 사용할 수 있습니다.`env.USERS_NOTIFICATION_CONFIG`.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 선택하기`kv-tutorial`당신이 만든 노동자[단계 1](/kv/get-started/#1-create-a-worker-project).
+      3. 더 알아보기**회사 소개**탭, 다음 선택**바인딩**.
+      4. 제품정보**KV 네임스페이스** > **바인딩**.
+      5. 이름 당신의 바인딩 (`BINDING_NAME`) 에서**변수 이름**, 다음 KV 네임스페이스 선택 (`kv_tutorial_namespace`) 당신은 안으로 창조했습니다[단계 2](/kv/get-started/#2-create-a-kv-namespace)드롭다운 메뉴에서.
+      6. 제품정보**바인딩**바인딩을 배포합니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 4. KV 네임스페이스와 상호작용
+
+KV 네임스페이스와 상호 작용할 수 있습니다.[Wrangler](/workers/wrangler/install-and-update/)또는 직접 당신의[모델 번호: Workers](/workers/)신청.
+
+### 4.1. 값 작성
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    KV 네임스페이스에 빈값을 작성하려면
+
+    <Steps>
+      1. 시작하기`wrangler kv key put`당신의 맨끝에서 subcommand, 그리고 당신의 열쇠 및 가치를 각각 입력하십시오.`<KEY>`·`<VALUE>`당신의 선택의 값입니다.
+
+         ```sh
+         npx wrangler kv key put --binding=<BINDING_NAME> "<KEY>" "<VALUE>"
+         ```
+
+         이 튜토리얼에서는 키가 추가됩니다.`user_1`값으로`enabled`KV 네임스페이스에[단계 2](/kv/get-started/#2-create-a-kv-namespace).
+
+         ```sh
+         npx wrangler kv key put --binding=USERS_NOTIFICATION_CONFIG "user_1" "enabled"
+         ```
+
+         ```sh output
+         Writing the value "enabled" to key "user_1" on namespace <BINDING_ID>.
+         ```
+    </Steps>
+
+    :::노트\[주]`--namespace-id`·
+    사용 방법`--binding`, 당신은 또한 사용할 수 있습니다`--namespace-id`KV 네임스페이스가 작동을 받아야 하는 것을 지정하려면:
+
+    ```sh "--namespace-id=<BINDING_ID>"
+    npx wrangler kv key put --namespace-id=<BINDING_ID> "<KEY>" "<VALUE>"
+    ```
+
+    ```sh output
+    Writing the value "<VALUE>" to key "<KEY>" on namespace <BINDING_ID>.
+    ```
+
+    :::
+
+    :::note\[ 원격 KV 네임스페이스의 저장값]
+
+    기본적으로 값은 로컬로 작성됩니다. 원격 KV 네임스페이스의 키와 가치를 만들려면`--remote`명령의 끝에 플래그:
+
+    ```sh ins="--remote"
+    npx wrangler kv key put --namespace-id=xxxxxxxxxxxxxxxx "<KEY>" "<VALUE>" --remote
+    ```
+
+    :::
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers KV**사이트 맵
+
+         <DashButton url="/?to=/:account/workers/kv/namespaces" />
+      2. KV 네임스페이스를 선택하세요 (`kv_tutorial_namespace`).
+      3. 오시는 길**KV 쌍**탭.
+      4. 이름 \*`<KEY>`당신의 선택의.
+      5. 이름 \*`<VALUE>`당신의 선택의.
+      6. 제품정보**자주 묻는 질문**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+### 4.2. 값 얻기
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    Wrangler를 사용하여 QXQXQ 네임스페이스에서 값을 접근하려면:
+
+    <Steps>
+      1. 시작하기`wrangler kv key get`당신의 맨끝에서 subcommand, 그리고 당신의 열쇠 가치를 입력하십시오:
+
+         ```sh
+         npx wrangler kv key get --binding=<BINDING_NAME> "<KEY>"
+         ```
+
+         이 튜토리얼에서 키의 값을 얻을 것이다`user_1`KV 네임스페이스에서 생성한[단계 2](/kv/get-started/#2-create-a-kv-namespace).
+
+         :::참조
+         터미널 내에서 직접 값을 볼 수 있도록,`--text`플래그.
+         주요 특징
+
+         ```sh
+         npx wrangler kv key get --binding=USERS_NOTIFICATION_CONFIG "user_1" --text
+         ```
+
+         관련 기사`put`명령,`get`명령은 두 가지 방법으로 KV 네임스페이스에 액세스할 수 있습니다.`--binding`또는`--namespace-id`:
+    </Steps>
+
+    :::카트로션
+
+    견적 요청**한국어**이름 \*`--binding`또는`--namespace-id`참고사항
+    주요 특징
+
+    더 알아보기[`kv bulk`관련 기사](/kv/reference/kv-commands/#kv-bulk)주어진 KV 네임스페이스에 여러 키값 쌍의 파일을 작성합니다.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    대시보드에서 키값 쌍을 직접 볼 수 있습니다.
+
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers KV**사이트 맵
+
+         <DashButton url="/?to=/:account/workers/kv/namespaces" />
+      2. 만든 KV 네임스페이스로 이동 (`kv_tutorial_namespace`).
+      3. 오시는 길**KV 쌍**탭.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 5. 당신의 노동자에서 KV 네임스페이스에 접근
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    :::참조
+
+    사용 방법[`wrangler dev`](/workers/wrangler/commands/#dev)로컬라이제이션을 개발하기 위해 Wrangler 기본적으로 KV의 로컬 버전을 사용하여 KVXQ의 라이브 프로덕션 데이터와 인터페셔닝을 방지합니다. 이것은 로컬로 null을 반환하지 않은 키를 읽는 것을 의미합니다.
+
+    이름 \*`wrangler dev`WorkersQXQXKVXQQQX0514XQXQXQ의 세계적인 네트워크에 달리는 당신의 QXQXQXQXQQXQ 네임스페이스에, 당신은 놓을 수 있습니다`"remote" : true`KV 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보.
+
+    자주 묻는 질문[KV 바인딩 문서](/kv/concepts/kv-bindings/#use-kv-bindings-when-developing-locally).
+
+    :::
+
+    <Steps>
+      1. 작업자 스크립트에서 KV 바인딩을 추가하십시오.`Env`인터페이스. JavaScriptXQ로 프로젝트를 스트래핑 한 경우이 단계는 필요하지 않습니다.
+
+         ```ts
+         interface Env {
+         	USERS_NOTIFICATION_CONFIG: KVNamespace;
+         	//... 다른 바인딩 유형
+         }
+         ```
+
+      2. 사용 방법`put()`관련 제품`USERS_NOTIFICATION_CONFIG`새로운 키 값 쌍을 만들려면. 새로운 키를 추가합니다.`user_2`값으로`disabled`KV 네임스페이스에.
+
+         ```ts
+         let value = await env.USERS_NOTIFICATION_CONFIG.put("user_2", "disabled");
+         ```
+
+      3. KV를 사용하십시오`get()`KV 네임스페이스에 저장되는 데이터를 태깅하는 방법. 키의 값을 fetch합니다.`user_2`KV 네임스페이스에서
+
+         ```ts
+         let value = await env.USERS_NOTIFICATION_CONFIG.get("user_2");
+         ```
+    </Steps>
+
+    당신의 노동자 부호는 다음과 같이 보입니다:
+
+    <GitHubCode repo="cloudflare/docs-examples" file="kv/kv-get-started/src/index.ts" commit="6bf670924bda2684697e141a8b77fc9a98e7d286" lang="ts" lines="1-26" useTypeScriptExample={true} />
+
+    위의 코드 :
+
+    1. KV의 이름을 사용하여 QXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ`put()`방법.
+    2. KV의 동일한 열쇠를 읽으십시오`get()`방법.
+    3. 키가 null이라면 확인하고 반환합니다.`404`그것은인지 응답.
+    4. 키가 null이 아닌 경우, 키의 값을 반환합니다.
+    5. JavaScript의 사용[`try...catch`](https://developer.mozilla.org/docs/Web/JavaScript/Reference/Statements/try...catch)잠재적 오류를 파악하는 예외 처리. Workers QXKV 또는 외부 API와 같은 어떤 서비스든지에서 또는 읽을 때`fetch()`, 당신은 예외적으로 예외를 취급할 것으로 예상한다.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 오시는 길`kv-tutorial`당신이 만든 노동자.
+      3. 제품정보**비밀번호**.
+      4. 자주 묻는 질문`workers.js`파일, 다음 코드를 붙여 넣는다.
+
+         <GitHubCode repo="cloudflare/docs-examples" file="kv/kv-get-started/src/index.ts" commit="6bf670924bda2684697e141a8b77fc9a98e7d286" lang="ts" lines="1-26" useTypeScriptExample={true} />
+
+         위의 코드 :
+
+         1. 키 쓰기`BINDING_NAME`KV의 사용`put()`방법.
+         2. KV의 동일한 열쇠를 읽으십시오`get()`메서드, key가 null이라면 오류를 반환합니다 (또는 키가 설정되지 않거나 존재하지 않습니다).
+         3. JavaScript의 사용[`try...catch`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch)잠재적 오류를 파악하는 예외 처리. Workers QXKVXQ 또는 외부 API와 같은 어떤 서비스든지에서 또는 읽을 때`fetch()`, 당신은 예외적으로 예외를 취급할 것으로 예상한다.
+
+         브라우저는 단순히 반환해야`VALUE`관련 기사`KEY`당신은 지정한`get()`방법.
+      5. 아래 드롭다운 화살표를 선택하십시오.**계정 만들기**선택하기**제품 정보**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 6. 작업자를 배포
+
+Cloudflare의 글로벌 네트워크로 작업자를 배포합니다.
+
+<Tabs syncKey="CLIvsDash">
+  <TabItem label="제품정보">
+    <Steps>
+      1. KV를 Cloudflare의 글로벌 네트워크에 배포하려면 다음 명령을 실행하십시오.
+
+         ```sh
+         npm run deploy
+         ```
+
+      2. 새로 만든 QXQX0543XQQ KV 응용 프로그램에 대한 URL을 방문하십시오.
+
+         예를 들어, 새로운 노동자의 URL이 있다면`kv-tutorial.<YOUR_SUBDOMAIN>.workers.dev`, 접속`https://kv-tutorial.<YOUR_SUBDOMAIN>.workers.dev/`QXQX0545XQ QXKV에서 쓰기 (그리고 읽기)를 쓰는 작업자에게 요청을 보냅니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 자주 묻는 질문`kv-tutorial`작업자.
+      3. 제품정보**계정 만들기**.
+      4. 에 의해**버전 역사**테이블, 선택**배포 버전**.
+      5. 에 의해**배포 버전**페이지, 선택**계정 만들기**.
+
+         이 작업자의 최신 버전을 생산합니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 제품정보
+
+이 튜토리얼을 끝내면 다음이 있습니다.
+
+1. KV 네임스페이스 생성
+2. 작성하고 그 네임스페이스에서 읽는 작업자 만들기
+3. 글로벌 프로젝트 배포
+
+## 다음 단계
+
+어떤 기능 요청이나 버그가 있으면 Cloudflare 팀과 직접 피드백을 공유하십시오.[Cloudflare Discord의 개발자 커뮤니티](https://discord.cloudflare.com).
+
+- 더 알아보기[모델 번호: KV](/kv/api/).
+- 사용 방법[환경분야](/kv/reference/environments/)Workers KV로.
+- Wrangler 읽기[`kv`명령 문서](/kv/reference/kv-commands/).

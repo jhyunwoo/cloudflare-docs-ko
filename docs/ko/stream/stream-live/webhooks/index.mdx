@@ -1,0 +1,100 @@
+---
+pcx_content_type: how-to
+title: 라이브 Webhooks 받기
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/stream-live/webhooks/'
+translation_source_md: 'https://developers.cloudflare.com/stream/stream-live/webhooks/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { AvailableNotifications,DashButton } from "~/components"
+
+Stream Live는 입력이 연결될 때 서비스를 통지하는 웹훅을 제공하거나 스트림 라이브로 오류를 발생시킵니다.
+
+:::참조
+
+Webhooks는 업로드 / 주문형 비디오에 대해 다르게 작동합니다. 더 많은 정보를 원하시면, 참조[Webhooks 사용](/stream/manage-video-library/using-webhooks/).
+
+:::
+
+<AvailableNotifications product="Stream" />
+
+## 라이브 웹훅을 스트리밍 구독
+
+1. Cloudflare dashboard에서, 가십시오**공지사항**사이트 맵
+
+   <DashButton url="/?to=/:account/notifications" />
+
+2. 선택하기**오시는 길**탭.
+
+3. 에 의해**오시는 길**내 계정**웹훅**, 선택**이름 \***.
+
+4. 웹훅에 대한 정보를 입력하고 선택**저장 및 테스트**.
+
+5. 알림을 만들려면**공지사항**페이지, 선택**모든 알림**탭.
+
+6. 이름 \***공지사항**, 선택**더 보기**.
+
+7. 제품의 목록에서, 위치**사이트 맵**선택하기**제품정보**.
+
+8. 이름 및 옵션 설명 입력.
+
+9. 이름 \***웹훅**, 선택**webhook 추가**새로 만든 webhook을 선택합니다.
+
+10. 제품정보**이름 \***.
+
+11. 기본적으로, 모든 라이브 입력에 대한 webhook 알림을 받게 됩니다. 특정 입력에 대한 webhooks를 수신하려면 텍스트 필드에 입력 ID의 comma-delimited 목록을 입력하십시오.
+
+12. 당신이 할 때, 선택**이름 \***.<br /><br />
+
+```json title="Example webhook payload"
+{
+  "name": "Live Webhook Test",
+  "text": "Notification type: Stream Live Input\nInput ID: eb222fcca08eeb1ae84c981ebe8aeeb6\nEvent type: live_input.disconnected\nUpdated at: 2022-01-13T11:43:41.855717910Z",
+  "data": {
+    "notification_name": "Stream Live Input",
+    "input_id": "eb222fcca08eeb1ae84c981ebe8aeeb6",
+    "event_type": "live_input.disconnected",
+    "updated_at": "2022-01-13T11:43:41.855717910Z"
+  },
+  "ts": 1642074233
+}
+```
+
+더 보기`event_type`데이터 객체의 속성은`live_input.connected`, `live_input.disconnected`, 또는`live_input.errored`.
+
+입력으로 검출된 문제가 있는 경우,`event_type`일 수 있습니다`live_input.errored`. 추가 자료는 아래에 있을 것입니다`live_input_errored`json 열쇠는 다음을 포함합니다`code`아래에 나열된 값 중 하나.
+
+## 오류 코드
+
+- `ERR_GOP_OUT_OF_RANGE`– 입력 GOP 크기 또는 키프레임 간격은 범위에서 입니다.
+- `ERR_UNSUPPORTED_VIDEO_CODEC`– 입력 비디오 코덱은 사용 된 프로토콜에 대한 지원되지 않습니다.
+- `ERR_UNSUPPORTED_AUDIO_CODEC`– 입력 오디오 코덱은 사용한 프로토콜을 지원하지 않습니다.
+- `ERR_STORAGE_QUOTA_EXHAUSTED`– 계정 저장 할당량은 초과되었습니다. 더 오래된 내용 또는 purcahse 추가 저장 삭제.
+- `ERR_MISSING_SUBSCRIPTION`– 라이브 스트림을 시작 권한. 구독을 확인하거나 Dash로 로그인하십시오.
+
+```json title="Example live_input.errored webhook payload"
+{
+  "name": "Live Webhook Test",
+  "text": "Notification type: Stream Live Input\nInput ID: 2c28dd2cc444cb77578c4840b51e43a8\nEvent type: live_input.errored\nUpdated at: 2024-07-09T18:07:51.077371662Z\nError Code: ERR_GOP_OUT_OF_RANGE\nError Message: Input GOP size or keyframe interval is out of range.\nVideo Codec: \nAudio Codec: ",
+  "data": {
+    "notification_name": "Stream Live Input",
+    "input_id": "eb222fcca08eeb1ae84c981ebe8aeeb6",
+    "event_type": "live_input.errored",
+    "updated_at": "2024-07-09T18:07:51.077371662Z",
+    "live_input_errored": {
+      "error": {
+        "code": "ERR_GOP_OUT_OF_RANGE",
+        "message": "Input GOP size or keyframe interval is out of range."
+      },
+      "video_codec": "",
+      "audio_codec": ""
+    }
+  },
+  "ts": 1720548474,
+}
+```

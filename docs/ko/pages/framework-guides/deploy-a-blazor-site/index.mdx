@@ -1,0 +1,93 @@
+---
+pcx_content_type: how-to
+title: 인기 카테고리
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/framework-guides/deploy-a-blazor-site/'
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/framework-guides/deploy-a-blazor-site/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+[인기 카테고리](https://blazor.net)브라우저의 JavaScript보다 C# 코드를 사용할 수있는 SPA 프레임 워크입니다. 이 가이드에서 Blazor를 사용하여 사이트를 구축하고 Cloudflare QXPagesXQ를 사용하여 배포합니다.
+
+## .NET 설치
+
+Blazor는 C#를 사용합니다. 최신 버전이 필요합니다.[네트워크](https://dotnet.microsoft.com/download)Blazor 프로젝트를 계속합니다. 시스템에 설치된 SDK가 없다면 설치 프로그램을 다운로드하고 실행하십시오.
+
+## 새로운 Blazor WASM 프로젝트 만들기
+
+Blazor 호스팅 모델의 두 가지 유형이 있습니다 :[Blazor 서버](https://learn.microsoft.com/en-us/aspnet/core/blazor/hosting-models?view=aspnetcore-8.0#blazor-server)Blazor 애플리케이션을 최종 사용자에게 제공하려면 서버가 필요합니다.[Blazor 웹 조립](https://learn.microsoft.com/en-us/aspnet/core/blazor/hosting-models?view=aspnetcore-8.0#blazor-webassembly)브라우저에서 실행합니다. Blazor 서버는 Cloudflare 가장자리 네트워크 모형과 호환이 됩니다, 따라서 이 가이드는 Blazor WebAssembly만 이용합니다.
+
+다음 명령을 실행하여 새로운 Blazor WebAssembly (WASM) 응용 프로그램을 만듭니다.
+
+```sh
+dotnet new blazorwasm -o my-blazor-project
+```
+
+## 빌드 스크립트 만들기
+
+배포하려면 Cloudflare Pages는 Blazor 프로젝트를 구축하는 방법이 필요합니다. 프로젝트의 디렉토리 루트에서, 생성`build.sh`파일. 이 파일을 팝업 (updating)`.dotnet-install.sh`최신 .NET SDK를 사용하지 않는 경우 적절한 라인:
+
+```
+#!/bin/sh
+curl -sSL https://dot.net/v1/dotnet-install.sh > dotnet-install.sh
+chmod +x dotnet-install.sh
+./dotnet-install.sh -c 8.0 -InstallDir ./dotnet
+./dotnet/dotnet --version
+./dotnet/dotnet publish -c Release -o output
+```
+
+내 계정`build.sh`파일은 빌드 명령을 실행할 필요가 있습니다. 실행하여 그렇게 할 수 있습니다.`chmod +x build.sh`.
+
+<Render file="tutorials-before-you-start" product="pages" />
+
+## 이름 \*`.gitignore`이름 \*
+
+구매하기`.gitignore`파일은 필요한 것은 GitHub 저장소에 푸시됩니다. 이름 \*`.gitignore`다음 명령을 실행하여 파일:
+
+```sh
+dotnet new gitignore
+```
+
+<Render file="framework-guides/create-github-repository" product="pages" />
+
+## Cloudflare Pages로 배포
+
+<Render file="deploy-to-pages-steps-no-preset" product="pages" />
+
+<div>
+  | 구성 옵션 | 제품정보             |
+  | ----- | ---------------- |
+  | 생산 지점 | `main`           |
+  | 명령 실행 | `./build.sh`     |
+  | 연락처   | `output/wwwroot` |
+</div>
+
+사이트를 구성하면 첫 번째 배포를 시작할 수 있습니다. 당신은 Cloudflare PagesXQ 설치를 참조하십시오`dotnet`, 당신의 프로젝트 의존성 및 사이트를 구축하기 전에, 배포하기 전에.
+
+:::참조
+
+CloudflareQXPages에 첫 번째 사이트를 배포하는 완벽한 가이드를 위해, 참조[자주 묻는 질문](/pages/get-started/).
+
+:::
+
+사이트를 배포 한 후, 프로젝트에 대한 독특한 하위 도메인을 받게됩니다.`*.pages.dev`·
+Blazor 사이트, Cloudflare PagesXQ에 새로운 코드를 투입하면 자동으로 프로젝트를 재구성하고 배포합니다. 당신은 또한 접근을 얻을 것이다[관련 기사](/pages/configuration/preview-deployments/)새로운 풀 요청에, 그래서 당신은 생산에 배치하기 전에 사이트로 변경 사항을 볼 수 있습니다.
+
+## 문제 해결
+
+### 파일은 25 MiB 제한 이상입니다.
+
+오류 메시지를 수신하는 경우`Error: Asset "/opt/buildhome/repo/output/wwwroot/_framework/dotnet.wasm" is over the 25MiB limit`, 다음 작업 중 하나에 의해 이것을 해결:
+
+1. 다음으로 자산의 크기를 줄입니다.[- 연혁](https://docs.microsoft.com/en-us/aspnet/core/blazor/performance?view=aspnetcore-6.0#minimize-app-download-size).
+
+또는
+
+2. 제거하기`*.wasm`출력에서 파일 ()`rm output/wwwroot/_framework/*.wasm`) Blazor 응용 프로그램을 수정[Brotli 압축 파일로드](https://docs.microsoft.com/en-us/aspnet/core/blazor/host-and-deploy/webassembly?view=aspnetcore-6.0#compression)대신.
+
+<Render file="framework-guides/learn-more" product="pages" params={{ one: "Blazor" }} />

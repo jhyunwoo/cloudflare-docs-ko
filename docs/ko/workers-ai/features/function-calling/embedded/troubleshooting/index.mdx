@@ -1,0 +1,104 @@
+---
+pcx_content_type: concept
+title: 문제 해결
+sidebar:
+  order: 8
+head:
+  - tag: title
+    content: 문제 해결
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/features/function-calling/embedded/troubleshooting/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/function-calling/embedded/troubleshooting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 섹션은 문제 해결 및 주소 일반적인 오류에 대한 도구를 설명합니다.
+
+## 로그아웃
+
+주요사업[로그인](/workers/observability/logs/)Workers를 위한 기능은 또한 묻힌 기능에 적용합니다.
+
+### 기능 invocations
+
+도구의 invocations는 어떤 노동자든지에서 로그인할 수 있습니다`console.log()`:
+
+```ts title="Logging tool invocations" {6}
+export default {
+	async fetch(request, env, ctx) {
+		const sum = (args: { a: number; b: number }): Promise<string> => {
+			const { a, b } = args;
+      //임베디드 기능 invocations 내에서 로깅
+      console.log(`The sum function has been invoked with the arguments a: ${a} and b: ${b}`)
+			return Promise.resolve((a + b).toString());
+		};
+    ...
+  }
+}
+```
+
+### 내 위치`runWithTools`
+
+더 보기`runWithTools`함수는`verbose`함수 호출의 디버깅 및 출력 통계를 위한 유용한 로그를 방출하는 모드.
+
+```ts title="Enabled verbose mode" {13}
+const response = await runWithTools(
+  env.AI,
+  '@hf/nousresearch/hermes-2-pro-mistral-7b',
+  {
+    messages: [
+      ...
+    ],
+    tools: [
+      ...
+    ],
+  },
+  //Enable verbose 형태
+  { verbose: true }
+);
+```
+
+## - 연혁
+
+임베디드 기능으로 LLM 프롬프트에 응답하려면 잠재적으로 여러 AI 인워싱 요청 및 기능 인클루시브가 필요합니다.
+
+성능 향상을 위해 다음을 고려하십시오:
+
+- Shorten prompts (입력 처리 시간 단축)
+- 제공된 공구의 수 감소
+- 최종 사용자에 대한 최종 응답을 스트리밍 (동의 시간을 최소화). 아래 예시:
+
+```ts title="Streamed response example" {15}
+async fetch(request, env, ctx) {
+  const response = (await runWithTools(
+    env.AI,
+    '@hf/nousresearch/hermes-2-pro-mistral-7b',
+    {
+      messages: [
+        ...
+      ],
+      tools: [
+        ...
+      ],
+    },
+    {
+      //Enable 응답 스트리밍
+      streamFinalResponse: true,
+    }
+  )) as ReadableStream;
+
+  //스트리밍을위한 응답 헤더 설정
+  return new Response(response, {
+    headers: {
+      'content-type': 'text/event-stream',
+    },
+  });
+}
+```
+
+## 일반적인 오류
+
+당신이 얻는 경우에`BadInput`오류, 입력은 우리의 모델에 대한 현재 컨텍스트 창을 초과 할 수 있습니다. 이 오류를 해결하기 위해 입력 토큰을 줄입니다.

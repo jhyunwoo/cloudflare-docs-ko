@@ -1,0 +1,74 @@
+---
+pcx_content_type: concept
+title: 시스템 요구 사항
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/system-requirements/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/system-requirements/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, TunnelCalculator } from "~/components";
+
+우리의 연결관,`cloudflared`, 효과적으로 데이터 센터에 Raspberry Pi, 노트북 또는 서버에서 배포 될 경량 및 유연한 수 있도록 설계되었습니다.<Render file="tunnel/availability/tunnel-capacity-intro" product="cloudflare-one" />
+
+## Recommend
+
+대부분의 사용 사례를 위해서는 다음과 같은 기본 구성을 권장합니다.
+
+- 시작하기[`cloudflared`회사 소개](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/#cloudflared-replicas)네트워크 위치 당 두 개의 전용 호스트 기계에. 두 호스트를 사용하여 서버 측 중복이 가능합니다.
+- 크기 최소 4GB RAM 및 4 CPU 코어와 각 호스트.
+- 위치 50,000[항구 항구](#number-of-ports)이름 \*`cloudflared`각 호스트의 프로세스.
+
+이 설정은 일반적으로 8,000 WARP 사용자로부터 트래픽을 처리하는 것이 충분합니다 (주당 4,000). 사용 된 자원의 실제 금액`cloudflared`두 번째, 대역폭, 네트워크 경로 및 하드웨어 당 요청 수를 포함하여 많은 변수에 따라 달라집니다. 추가 사용자는 내장되어 있거나 네트워크 트래픽이 기존보다 증가하는 경우[갱도 수용량](#estimated-throughput), 당신은 당신의 갱도를 추가해서 확장할 수 있습니다`cloudflared`그 위치.
+
+### 항구의 수
+
+시간 :`cloudflared`WARP 장치에서 요청을 수신하면 호스트 기계의 포트를 사용하여 원본 서비스에 대한 요청을 평가하고 전달합니다. 시스템 설계에 의한 모든 기계는 최대 65,535 포트로 하드웨어 제한됩니다. 또한, 기계에 각 서비스는 소비할 수 있는 항구의 한정된 수가 있습니다. 이런 이유로 다음과 같은 배포 모델을 추천합니다:
+
+- `cloudflared`전용 호스트 기계에 배포해야합니다. 이 모델은 일반적으로 적합하지만 전용 호스트가 불가능한 서버 또는 클러스터 워크플로가있을 수 있습니다.
+- 주인 기계는 사용을 위해 유효한 50,000의 항구를 할당해야 합니다`cloudflared`서비스. 나머지 포트는 시스템 관리 프로세스를 위해 예약됩니다.
+
+<Render file="tunnel/availability/port-configuration" product="cloudflare-one" />
+
+### 개인 DNS
+
+DNS 쿼리 활용[더 많은 시스템 리소스](#estimated-throughput)TCP 및 non-DNS UDP 요청에 비해. 서비스 가용성을 최적화하려면 Cloudflare는 분할을 권장합니다.[개인 DNS 트래픽](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/private-dns/)자체 Cloudflare 터널로. 터널은 전용 호스트에서 실행되어야하며 내부 DNS 해결사 IP에 대한 경로 만 포함됩니다.
+
+### ulimits는
+
+<Render file="tunnel/availability/ulimits" product="cloudflare-one" />
+
+## 견적 처리
+
+대부분의 개인 네트워크 트래픽은`cloudflared`두 가지 범주 중 하나에 떨어졌다:
+
+- TCP 요청 (일반, 적은 자원 집중)
+- UDP 요청 (일반적으로, 더 많은 자원 집중)
+
+TCP 트래픽은 거의 즉각적으로 포트를 사용합니다. 이것은 순서에서 과부하에`cloudflared`50,000개의 유효한 항구를 가진 인스턴스, 당신의 조직은 지속적으로 초당 50,001 TCP 요구를 생성합니다.
+
+UDP 트래픽은 더 독특합니다. DNS 쿼리 - 일반적으로 UDP 트래픽의 대량 - 포트에 의해 개최됩니다`cloudflared`5 초 동안. Non-DNS UDP 트래픽은 연결의 지속 시간 동안 각 포트를 보유합니다. 이것은 순서에서 과부하에`cloudflared`50,000개의 유효한 항구를 가진 인스턴스, 당신은 지속적으로 당신의 개인적인 결심자에 10,000의 DNS 쿼리를 초 당 지속적으로 생성해야 할 것입니다, 또는 당신의 연결 리셋 비율 보다는 더 짧은 시간 동안 누락된 50,000 non-DNS UDP 요구.
+
+### 터널 용량 계산
+
+제품 정보[기본 권장 사항](#recommendations)Cloudflare 터널 배포를 위한 출발점 역할을 합니다. 적어도 일주일 동안 네트워크에 참여하는 사용자의 대표 인구가되면 자신의 트래픽 패턴에 따라 터널을 조정할 수 있습니다.
+
+갱도 수용량을 산출하기 위하여:
+
+1. 설정하기[미터 서비스](/cloudflare-one/tutorials/grafana/)터널을 실행할 때.
+2. 일주일 후 또는 그래서, 다음을 쿼리[터널 미터](/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/metrics/#cloudflared-metrics):
+   - `cloudflared_tcp_total_sessions`
+   - `cloudflared_udp_total_sessions`
+3. 평균 Compute**초당 TCP 요청**·**초당 비 DNS UDP 요청**총 세션을 분배함으로써.
+4. 개인 DNS 해결자에서 평균을 얻습니다.**초당 개인 DNS 요청**.
+5. 우리의 sizing 계산기로 값을 입력:
+
+<TunnelCalculator />
+
+이 결과를 사용하여 터널이 적절하게 크기인지 결정할 수 있습니다. 당신의 갱도 수용량을 증가하기 위하여는, 동일한 주인 기계를 달리기 추가하십시오[`cloudflared`회사 소개](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-availability/#cloudflared-replicas).

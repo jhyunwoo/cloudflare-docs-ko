@@ -1,0 +1,185 @@
+---
+title: 알려진 문제
+pcx_content_type: concept
+sidebar:
+  order: 9
+head: []
+description: Workers Vitest 통합과 관련된 알려진 문제를 탐구하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/testing/vitest-integration/known-issues/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Workers Vitest 풀은 현재 오픈 베타에 있습니다. 다음은 문제 Cloudflare는 인식하고 수정 :
+
+### 회사 소개
+
+Native code 적용[사이트맵](https://v8.dev/blog/javascript-code-coverage)지원되지 않습니다. 기기 코드 적용을 사용해야 합니다.[모스크바](https://istanbul.js.org/)대신. 더 알아보기[Vitest 적용 문서](https://vitest.dev/guide/coverage)설정 지침.
+
+### 가짜 타이머
+
+가장 핫한[가짜 타이머](https://vitest.dev/guide/mocking.html#timers)KV, R2 및 캐시 시뮬레이터에 적용되지 않습니다. 예를 들어 가짜 시간을 홍보함으로써 KV 키가 만료 될 수 없습니다.
+
+### ·`import()`자주 묻는 질문`SELF`Durable Objects
+
+·`import()`자주 묻는 질문`export default { ... }`Handlers는 통합 테스트를 작성할 때`SELF`, 또는 튼튼한 목표 사건 handlers 안쪽에. 핸들러를 직접 가져야하거나 정적을 사용해야 합니다.`import`글로벌 범위의 성명.
+
+### 튼튼한 목표 경보
+
+튼튼한 목표 경보는 시험 뛰기 사이 놓고 고립된 저장을 존중하지 않습니다. 모든 알람을 삭제하거나 실행[`runDurableObjectAlarm()`](/workers/testing/vitest-integration/test-apis/#durable-objects)시험 완료하기 전에 각 시험에서 예정.
+
+### 웹소켓
+
+Durable Objects와 WebSockets 사용[`isolatedStorage`](/workers/testing/vitest-integration/isolation-and-concurrency)flag는 지원되지 않습니다. 설정하기`isolatedStorage: false`내 계정`vitest.config.ts`파일.
+
+### 격리된 저장
+
+언제까지`isolatedStorage`flag가 활성화됩니다 (기본값), 테스트 런너는 테스트의 끝에서 저장에 어떤 쓰기를 하지 않습니다.[관련 문서](/workers/testing/vitest-integration/isolation-and-concurrency/). 그러나, Cloudflare는 당신이 어떤 일반적인 문제점을 피하기 위하여 뒤에 오는 활동을 고려하는 것을 추천합니다:
+
+#### Await 모든 저장 작업
+
+(주)`await`모든 것`Promise`저장 서비스에 읽거나 쓰기 s.
+
+```ts
+//예: 씨앗 데이터
+beforeAll(async () => {
+	await env.KV.put('message', 'test message');
+	await env.R2.put('file', 'hello-world');
+});
+```
+
+#### Explicitly 신호 자원 처리
+
+서비스 노동자 또는 내구성 목표의 RPC 방법을 호출 할 때 비 원시 값을 반환 (물자 또는 클래스 확장과 같은)`RpcTarget`), 사용`using`리소스가 분해 될 때 명시적으로 신호 키워드. 이름 \*[이 예제 테스트](https://github.com/cloudflare/workers-sdk/tree/main/fixtures/vitest-pool-workers-examples/rpc/test/unit.test.ts#L155)견적 요청[명시적 자원 관리](/workers/runtime-apis/rpc/lifecycle#explicit-resource-management)더 많은 정보.
+
+```ts
+using result = await stub.getCounter();
+```
+
+#### 응답 몸
+
+자주 묻는 질문`fetch`또는`R2.get()`, 당신이 그것의 내용을 asserting하지 않는 경우에 전체 응답 몸을 소모하십시오. 예를 들면:
+
+```ts
+test('check if file exists', async () => {
+	await env.R2.put('file', 'hello-world');
+	const response = await env.R2.get('file');
+
+	expect(response).not.toBe(null);
+	//당신이 그것을 asserting하지 않는 경우에 조차 응답 몸
+	await response.text()
+});
+```
+
+### Missing 속성`ctx.exports`
+
+더 보기`ctx.exports`속성은 주요 수출에 대한 액세스를 제공합니다 (`SELF`) 노동자. Workers Vitest 통합은 esbuild를 사용하여 노동자 소스 코드를 분석하여 이러한 수출을 자동으로 삽입하려고합니다. 그러나, 복잡한 빌드 설정은 가상 모듈 또는 Wildcard re-exports를 사용하여, esbuild가 따를 수 없다, 결과에 누락 된 속성에서 발생할 수 있습니다`ctx.exports`객체.
+
+예를 들어, 와일드 카드 수출을 사용하여 가상 모듈의 엔트리 포인트를 재 수출하는 노동자를 고려하십시오.
+
+```ts
+//사이트맵
+export * from "@virtual-module";
+```
+
+이 경우에, 어떤 수출든지에서`@virtual-module`(예 :`MyEntrypoint`) 자동적으로 inferred 일 수 없고에서 누락될 것입니다`ctx.exports`.
+
+이 주위에 일하기 위해, 추가`additionalExports`당신의 Vitest 윤곽에 선택권:
+
+```ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		poolOptions: {
+			workers: {
+				wrangler: { configPath: "./wrangler.jsonc" },
+				additionalExports: {
+					MyEntrypoint: "WorkerEntrypoint",
+				},
+			},
+		},
+	},
+});
+```
+
+더 보기`additionalExports`옵션은 키가 수출 이름이며 값은 수출 유형입니다 (`"WorkerEntrypoint"`, `"DurableObject"`, 또는`"WorkflowEntrypoint"`).
+
+### Module 해상도
+
+모듈 해상도 문제와 같은 경우:`Error: Cannot use require() to import an ES Module`또는`Error: No such module`, 당신은 이 종속을 사용하여 묶을 수 있습니다[공장 투어](https://vitest.dev/config/#deps-optimizer)옵션 :
+
+```tsx
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		deps: {
+			optimizer: {
+				ssr: {
+					enabled: true,
+					include: ["your-package-name"],
+				},
+			},
+		},
+		poolOptions: {
+			workers: {
+				//· ...
+			},
+		},
+	},
+});
+```
+
+예를 찾을 수 있습니다.[회사 소개](/workers/testing/vitest-integration/recipes)사이트 맵
+
+### 글로벌 설정 파일에서 모듈 가져 오기
+
+Vitest는 패키지를 해결하기 위해 설정되었지만[`workerd`](https://github.com/cloudflare/workerd)실행 시간, 그것은 Node.js 환경에서 글로벌 설정 파일을 실행. 패키지를 가져올 때 문제가 발생할 수 있습니다.[다운로드](https://github.com/cloudflare/workers-sdk/issues/6465)non-Node 버전을 내보내는 ,`workerd`·
+Vite의 SSR 모듈 로더를 사용하여 정확한 조건에서 글로벌 설정 파일을 가져올 수 있는 래퍼를 만들 수 있습니다. 그런 다음 Vitest 구성을 조정하여이 래퍼에 포인트합니다. 예를 들면:
+
+```ts
+//파일: global-setup-wrapper.ts
+import { createServer } from "vite"
+
+//정확한 설정으로 실제 글로벌 설정 파일을 가져옵니다.
+const mod = await viteImport("./global-setup.ts")
+
+export default mod.default;
+
+//디폴트 노드 설정 파일 가져오기
+async function viteImport(file: string) {
+  const server = await createServer({
+    root: import.meta.dirname,
+    configFile: false,
+    server: { middlewareMode: true, hmr: false, watch: null, ws: false },
+    optimizeDeps: { noDiscovery: true },
+    clearScreen: false,
+  });
+  const mod = await server.ssrLoadModule(file);
+  await server.close();
+  return mod;
+}
+```
+
+```ts
+//파일: vitest.config.ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		//wrapper 파일로 globalSetup을 대체
+		globalSetup: ["./global-setup-wrapper.ts"],
+		poolOptions: {
+			workers: {
+				//· ...
+			},
+		},
+	},
+});
+```

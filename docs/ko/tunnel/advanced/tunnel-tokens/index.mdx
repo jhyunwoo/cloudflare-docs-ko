@@ -1,0 +1,76 @@
+---
+title: 터널 토큰
+pcx_content_type: reference
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/tunnel/advanced/tunnel-tokens/'
+translation_source_md: 'https://developers.cloudflare.com/tunnel/advanced/tunnel-tokens/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	DashButton,
+	Details,
+	GlossaryTooltip,
+	Render,
+	Tabs,
+	TabItem,
+	APIRequest,
+} from "~/components";
+
+·<GlossaryTooltip term="remotely-managed tunnel">원격 관리 터널</GlossaryTooltip>토큰만 실행해야 합니다. 토큰으로 누구나 터널을 실행할 수 있습니다.
+
+## 토큰 받기
+
+원격 관리 터널의 토큰을 얻으려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[Cloudflare 대시보드](https://dash.cloudflare.com/), 이동**사업영역** > **연락처**.
+
+       <DashButton url="/?to=/:account/tunnels" />
+
+    2. 터널을 선택하십시오.
+
+    3. 제품정보**복제 추가**.
+
+    4. 제출하기`cloudflared`설치 명령을 텍스트 편집기로 ( 명령을 실행하지 마십시오). 토큰은`eyJ...`문자열.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    <APIRequest path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}/token" method="GET" />
+  </TabItem>
+</Tabs>
+
+## 토큰 회전
+
+토큰을 정기적으로 회전하여 타협의 위험을 줄일 수 있습니다. 여러 터널[회사 소개](/tunnel/configuration/#replicas-and-high-availability), 배치에 있는 외부 근무 시간 및 갱신 복제를 자전하십시오.
+
+1. 내 계정[Cloudflare 대시보드](https://dash.cloudflare.com/), 이동**사업영역** > **연락처**.
+
+   <DashButton url="/?to=/:account/tunnels" />
+
+2. 터널을 선택하십시오.
+
+3. 제품정보**회전 토큰**·
+   토큰을 회전 한 후,`cloudflared`오래된 토큰과 새로운 연결을 설정할 수 없습니다. Existing 연결관은 재시작될 때까지 능동태 남아 있습니다.
+
+4. 제품정보**비밀번호**새 글`cloudflared`설치 명령.
+
+5. 각 복제에서 재설치`cloudflared`새로운 토큰을 사용하는 서비스:
+
+   ```sh
+   sudo cloudflared service uninstall
+   sudo cloudflared service install <NEW_TOKEN>
+   ```
+
+<Details header="탈중앙화된 토큰">
+  터널 토큰이 손상되면 즉시[토큰 회전](#rotate-a-token), 그 후에 힘 분리 모든 기존하는 연결:
+
+  <APIRequest path="/accounts/{account_id}/cfd_tunnel/{tunnel_id}/connections" method="DELETE" />
+
+  그런 다음 다시 설치`cloudflared`새로운 토큰을 사용하여 모든 복제 서비스.
+</Details>

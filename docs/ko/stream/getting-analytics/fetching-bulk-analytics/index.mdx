@@ -1,0 +1,171 @@
+---
+pcx_content_type: reference
+title: GraphQL 분석 API
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/stream/getting-analytics/fetching-bulk-analytics/
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/getting-analytics/fetching-bulk-analytics/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+스트림은 GraphQL API를 통해 스트림에 업로드 된 라이브 비디오 및 비디오에 대한 분석뿐만 아니라 스트림에**회사 소개**Cloudflare dashboardXQ의 페이지.
+
+<DashButton url="/?to=/:account/stream/analytics" />
+
+Stream Analytics API는 Cloudflare GraphQL Analytics API를 사용하여 많은 Cloudflare 제품에 사용될 수 있습니다. GraphQL, 속도 제한, 필터 및 분류에 대한 자세한 내용은 참조[Cloudflare 그래프QL Analytics API 문서](/analytics/graphql-api).
+
+## 시작하기
+
+1. Cloudflare dashboard에서, 갑니다**계정 API 토큰**사이트 맵
+
+   <DashButton url="/?to=/:account/api-tokens" />
+
+2. API 토큰 생성**계정 분석**이름 \*
+
+3. GraphQL 클라이언트를 사용하여 첫 번째 쿼리를 만들 수 있습니다.[포스트맨](https://www.postman.com/)GraphQL 클라이언트를 사용하여 첫 번째 쿼리를 실행하고 가능한 것을 이해하기 위해 GraphQL 스키마를 소개 할 수 있습니다.
+
+사용 가능한 메트릭, 치수, 필드 및 예 쿼리에 대한 아래의 섹션을 참조하십시오.
+
+## Server 측 분석
+
+Stream은 HLS 또는 DASH를 통해 재생되는 모든 라이브 및 On-demand 동영상에 대한 시청자에게 전달되는 비디오의 몇 분에 대한 데이터를 수집합니다.[스트림 플레이어](/stream/viewing-videos/using-the-stream-player/).
+
+### 필터 및 치수
+
+| 제품정보                | 이름 \*                                                                    |
+| ------------------- | ------------------------------------------------------------------------ |
+| `date`              | 이름 \*                                                                    |
+| `datetime`          | 날짜시간                                                                     |
+| `uid`               | 비디오의 UID                                                                 |
+| `clientCountryName` | ISO 3166 alpha2 국가 코드 클라이언트에서 비디오를 볼                                     |
+| `creator`           | 더 보기[작성자 ID](/stream/manage-video-library/creator-id/)개별 동영상과 관련된 경우, 현재 |
+
+몇몇 여과기, 같이`date`, 통신수와 같은 사용될 수 있습니다`gt`(그 외) 및`lt`(이상), 아래 예제 쿼리에 표시. 더 진보된 거르는 선택권을 위해, 참고하십시오[필터링](/analytics/graphql-api/features/filtering/).
+
+### 미터
+
+| 이름 \*                               | 제품정보            | 이름 \*      |
+| ----------------------------------- | --------------- | ---------- |
+| `streamMinutesViewedAdaptiveGroups` | `minutesViewed` | 배달되는 영상의 분 |
+
+### 이름 \*
+
+#### 국가별 보기
+
+```graphql graphql-api-explorer title="GraphQL request"
+query StreamGetMinutesExample($accountTag: string!, $start: Date, $end: Date) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			streamMinutesViewedAdaptiveGroups(
+				filter: { date_geq: $start, date_lt: $end }
+				orderBy: [sum_minutesViewed_DESC]
+				limit: 100
+			) {
+				sum {
+					minutesViewed
+				}
+				dimensions {
+					uid
+					clientCountryName
+				}
+			}
+		}
+	}
+}
+```
+
+```json title="GraphQL response"
+{
+	"data": {
+		"viewer": {
+			"accounts": [
+				{
+					"streamMinutesViewedAdaptiveGroups": [
+						{
+							"dimensions": {
+								"clientCountryName": "US",
+								"uid": "73c514082b154945a753d0011e9d7525"
+							},
+							"sum": {
+								"minutesViewed": 2234
+							}
+						},
+						{
+							"dimensions": {
+								"clientCountryName": "CN",
+								"uid": "73c514082b154945a753d0011e9d7525"
+							},
+							"sum": {
+								"minutesViewed": 700
+							}
+						},
+						{
+							"dimensions": {
+								"clientCountryName": "IN",
+								"uid": "73c514082b154945a753d0011e9d7525"
+							},
+							"sum": {
+								"minutesViewed": 553
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+## 제품정보
+
+GraphQL API는 pagination을 추구합니다: 필터를 사용하여, 당신은 마지막 비디오 UID를 지정할 수 있습니다 그래서 응답은 마지막 비디오 UID 후 비디오를 위한 자료를 포함합니다.
+
+아래 쿼리는 비디오 UID를 따르는 2 비디오에 대한 데이터를 반환합니다`5646153f8dea17f44d542a42e76cfd`:
+
+```graphql graphql-api-explorer='{"uId": "5646153f8dea17f44d542a42e76cfd"}' title="GraphQL query"
+query StreamPaginationExample(
+	$accountTag: string!
+	$start: Date
+	$end: Date
+	$uId: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			videoPlaybackEventsAdaptiveGroups(
+				filter: { date_geq: $start, date_lt: $end, uid_gt: $uId }
+				orderBy: [uid_ASC]
+				limit: 2
+			) {
+				count
+				sum {
+					timeViewedMinutes
+				}
+				dimensions {
+					uid
+				}
+			}
+		}
+	}
+}
+```
+
+여기에 pagination을 구현하는 단계는 다음과 같습니다.
+
+1. uid gt 필터없이 첫 번째 쿼리를 호출하여 동영상의 첫 번째 세트를 얻을
+2. 첫 번째 쿼리에서 응답에서 마지막 비디오 UID를 잡아
+3. uid gt 속성을 지정하여 다음 쿼리를 호출하고 마지막 비디오 UID로 설정하십시오. 이 동영상의 다음 세트를 반환합니다
+
+질에 더를 위해, 참고하십시오[Cloudflare 그래프QL Analytics API 문서](/analytics/graphql-api/features/pagination/).
+
+## 제한 사항
+
+- 단일 쿼리의 최대 쿼리 간격은 31 일입니다.
+- 최대 데이터 보유 기간은 90일입니다.

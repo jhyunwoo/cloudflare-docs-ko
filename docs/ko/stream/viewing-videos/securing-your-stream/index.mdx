@@ -1,0 +1,388 @@
+---
+pcx_content_type: how-to
+title: Stream 보안
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/viewing-videos/securing-your-stream/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/viewing-videos/securing-your-stream/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 로그인 URL / 토큰
+
+기본적으로 Stream의 동영상은 비디오 ID로 누구나 볼 수 있습니다. 기본적으로 비디오 개인을 만들려면 특정 사용자에게만 액세스 할 수 있습니다. 서명 된 URL 기능을 사용할 수 있습니다. 서명한 URL을 요구하는 비디오를 표시할 때, 더 이상 비디오 ID와 함께 공개적으로 접근할 수 없습니다. 대신 사용자가 서명한 url 토큰이 필요하거나 비디오를 다운로드 할 수 있습니다.
+
+여기에 서명 된 URL을 사용하는 일반적인 사용 사례는 다음과 같습니다.
+
+- 회원이 특정 비디오를 볼 수 있도록 접근 제한
+- 제한된 시간 동안 비디오를 시청하십시오 (예 : 24 시간)
+- Geolocation에 따라 액세스 제한
+
+### 동영상 만들기 로그인 URL
+
+기타 제품`requireSignedURLs`서명된 URL을 사용하여 비디오를 보호합니다. 이 옵션은 방지*어떤 공공 링크*, 등`customer-<CODE>.cloudflarestream.com/<VIDEO_ID>/watch`또는 작업에서 내장 플레이어.
+
+동영상의 메타데이터를 업데이트하여 볼 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/{video_uid}" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json"
+--data "{\"uid\": \"<VIDEO_UID>\", \"requireSignedURLs\": true }"
+```
+
+응답:
+
+```json null {5}
+{
+  "result": {
+    "uid": "<VIDEO_UID>",
+    ...
+    "requireSignedURLs": true
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 로그인 토큰을 생성하는 두 가지 방법
+
+두 가지 방법으로 토큰을 생성하기 위해 앱을 프로그래밍할 수 있습니다:
+
+- **낮은 볼륨 또는 테스트: 사용`/token`짧은 라이브 서명 토큰을 생성하는 엔드포인트.**&#xD14C;스트 목적으로 권장되거나 하루에 1,000 개 이상의 토큰을 생성하는 경우. 그것은 각 토큰을 위해 Cloudflare에 API 통화를 만들고,*이 문서는[비율 제한](/fundamentals/api/reference/limits/).*&#xAE30;본 결과는 1 시간 동안 유효합니다. 이 방법은 지원하지 않습니다.[웹RTC](/stream/webrtc-beta/).
+
+- **추천: 토큰을 만들기 위해 서명 키를 사용합니다.**&#xC218;천 명의 사용자를 가지고 있거나 토큰의 높은 볼륨을 생성해야합니다.[웹RTC](/stream/webrtc-beta/)로그인 키를 사용하여 토큰을 만들 수 있습니다. 이 방법은 Stream API를 호출 할 필요가 없으며 토큰을 생성해야합니다. 따라서*아니다.*&#xC18D;도 제한 작업.
+
+## 옵션 1: /token 엔드포인트 사용
+
+전화할 수 있습니다.`/token`한 시간 안에 만료되는 서명된 URL 토큰을 얻는 개인이 표시된 모든 비디오에 대한 엔드포인트. 이 방법은 지원하지 않습니다.[웹RTC](/stream/webrtc-beta/).
+
+```bash
+curl --request POST \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/{video_uid}/token \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+요청이 성공하면 다음과 같은 응답을 볼 수 있습니다.
+
+```json
+{
+	"result": {
+		"token": "eyJhbGciOiJSUzI1NiIsImtpZCI6ImNkYzkzNTk4MmY4MDc1ZjJlZjk2MTA2ZDg1ZmNkODM4In0.eyJraWQiOiJjZGM5MzU5ODJmODA3NWYyZWY5NjEwNmQ4NWZjZDgzOCIsImV4cCI6IjE2MjE4ODk2NTciLCJuYmYiOiIxNjIxODgyNDU3In0.iHGMvwOh2-SuqUG7kp2GeLXyKvMavP-I2rYCni9odNwms7imW429bM2tKs3G9INms8gSc7fzm8hNEYWOhGHWRBaaCs3U9H4DRWaFOvn0sJWLBitGuF_YaZM5O6fqJPTAwhgFKdikyk9zVzHrIJ0PfBL0NsTgwDxLkJjEAEULQJpiQU1DNm0w5ctasdbw77YtDwdZ01g924Dm6jIsWolW0Ic0AevCLyVdg501Ki9hSF7kYST0egcll47jmoMMni7ujQCJI1XEAOas32DdjnMvU8vXrYbaHk1m1oXlm319rDYghOHed9kr293KM7ivtZNlhYceSzOpyAmqNFS7mearyQ"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+영상을 렌더링하거나 나 같은 자산을 사용하려면 나 엄밀한, 사용`token`영상/입력 ID의 장소에 있는 가치. 예를 들어, 스트림 플레이어를 사용하려면, 사이의 ID를 대체`cloudflarestream.com/`·`/iframe`토큰으로:`https://customer-<CODE>.cloudflarestream.com/<TOKEN>/iframe`.
+
+```html
+<iframe
+	src="https://customer-<CODE>.cloudflarestream.com/eyJhbGciOiJSUzI1NiIsImtpZCI6ImNkYzkzNTk4MmY4MDc1ZjJlZjk2MTA2ZDg1ZmNkODM4In0.eyJraWQiOiJjZGM5MzU5ODJmODA3NWYyZWY5NjEwNmQ4NWZjZDgzOCIsImV4cCI6IjE2MjE4ODk2NTciLCJuYmYiOiIxNjIxODgyNDU3In0.iHGMvwOh2-SuqUG7kp2GeLXyKvMavP-I2rYCni9odNwms7imW429bM2tKs3G9INms8gSc7fzm8hNEYWOhGHWRBaaCs3U9H4DRWaFOvn0sJWLBitGuF_YaZM5O6fqJPTAwhgFKdikyk9zVzHrIJ0PfBL0NsTgwDxLkJjEAEULQJpiQU1DNm0w5ctasdbw77YtDwdZ01g924Dm6jIsWolW0Ic0AevCLyVdg501Ki9hSF7kYST0egcll47jmoMMni7ujQCJI1XEAOas32DdjnMvU8vXrYbaHk1m1oXlm319rDYghOHed9kr293KM7ivtZNlhYceSzOpyAmqNFS7mearyQ/iframe"
+	style="border: none;"
+	height="720"
+	width="1280"
+	allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+	allowfullscreen="true"
+></iframe>
+```
+
+마찬가지로, 자신의 플레이어를 사용하고 있다면, HLS 또는 DASH를 검색하여 나타납니다.`token`가치:
+
+- `https://customer-<CODE>.cloudflarestream.com/<TOKEN>/manifest/video.m3u8`
+- `https://customer-<CODE>.cloudflarestream.com/<TOKEN>/manifest/video.mpd`
+
+### 사용자 정의 기본 제한
+
+전화 번호`/token`어떤 신체없이 엔드포인트, 다른 제한이나 액세스없이 1 시간 동안 만료되는 토큰을 반환합니다.[다운로드](/stream/viewing-videos/download-videos/). 이 토큰은 요청에 추가 속성을 제공함으로써 사용자 정의 할 수 있습니다 :
+
+```javascript
+	const signed_url_restrictions = {
+		//토큰의 수명을 12 시간까지 연장하십시오:
+		exp: Math.floor(Date.now() / 1000) + 12 * 60 * 60,
+		//MP4 또는 오디오 다운로드 URL에 대한 액세스를 허용:
+		downloadable: true,
+		//Geo 또는 IP 접근 제한:
+		accessRules: {
+			//... 아래 예제를 참조
+		}
+	};
+
+	const init = {
+		method: "POST",
+		headers: {
+			Authorization: "Bearer <API_TOKEN>",
+			"content-type": "application/json;charset=UTF-8",
+		},
+		body: JSON.stringify(signed_url_restrictions),
+	};
+
+	const signedurl_service_response = await fetch(
+		"https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/{video_uid}/token",
+		init,
+	);
+
+	return new Response(
+		JSON.stringify(await signedurl_service_response.json()),
+		{ status: 200 },
+	);
+```
+
+그러나, 토큰 프로그래밍을 생성하거나 이러한 사용자 정의를 추가하는 경우, 그것은 신속하고 확장 가능한 서명 키를 사용하고 완전히 응용 프로그램 내에서 토큰을 생성하는 것입니다.
+
+## Option 2: 서명 키를 사용하여 서명 토큰 생성
+
+토큰의 높은 볼륨을 생성하는 경우,[웹RTC](/stream/webrtc-beta/), 또는 액세스 규칙을 사용자 정의 할 필요가, 서명 키를 사용하여 새로운 토큰을 생성 그래서 당신은 스트림 API를 호출 할 필요가 없습니다.
+
+### 단계 1: 전화`/stream/key`끝점*1시간*키 얻기
+
+```bash
+curl --request POST \
+"https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/keys" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+응답은 반환합니다`pem`·`jwk`가치.
+
+```json
+{
+	"result": {
+		"id": "8f926b2b01f383510025a78a4dcbf6a",
+		"pem": "LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBemtHbXhCekFGMnBIMURiWmgyVGoyS3ZudlBVTkZmUWtNeXNCbzJlZzVqemRKTmRhCmtwMEphUHhoNkZxOTYveTBVd0lBNjdYeFdHb3kxcW1CRGhpdTVqekdtYW13NVgrYkR3TEdTVldGMEx3QnloMDYKN01Rb0xySHA3MDEycXBVNCtLODUyT1hMRVVlWVBrOHYzRlpTQ2VnMVdLRW5URC9oSmhVUTFsTmNKTWN3MXZUbQpHa2o0empBUTRBSFAvdHFERHFaZ3lMc1Vma2NsRDY3SVRkZktVZGtFU3lvVDVTcnFibHNFelBYcm9qaFlLWGk3CjFjak1yVDlFS0JCenhZSVEyOVRaZitnZU5ya0t4a2xMZTJzTUFML0VWZkFjdGkrc2ZqMkkyeEZKZmQ4aklmL2UKdHBCSVJZVDEza2FLdHUyYmk0R2IrV1BLK0toQjdTNnFGODlmTHdJREFRQUJBb0lCQUYzeXFuNytwNEtpM3ZmcgpTZmN4ZmRVV0xGYTEraEZyWk1mSHlaWEFJSnB1MDc0eHQ2ZzdqbXM3Tm0rTFVhSDV0N3R0bUxURTZacy91RXR0CjV3SmdQTjVUaFpTOXBmMUxPL3BBNWNmR2hFN1pMQ2wvV2ZVNXZpSFMyVDh1dGlRcUYwcXpLZkxCYk5kQW1MaWQKQWl4blJ6UUxDSzJIcmlvOW1KVHJtSUUvZENPdG80RUhYdHpZWjByOVordHRxMkZrd3pzZUdaK0tvd09JaWtvTgp2NWFOMVpmRGhEVG0wdG1Vd0tLbjBWcmZqalhRdFdjbFYxTWdRejhwM2xScWhISmJSK29PL1NMSXZqUE16dGxOCm5GV1ZEdTRmRHZsSjMyazJzSllNL2tRVUltT3V5alY3RTBBcm5vR2lBREdGZXFxK1UwajluNUFpNTJ6aTBmNloKdFdvwdju39xOFJWQkwxL2tvWFVmYk00S04ydVFadUdjaUdGNjlCRDJ1S3o1eGdvTwowVTBZNmlFNG9Cek5GUW5hWS9kayt5U1dsQWp2MkgraFBrTGpvZlRGSGlNTmUycUVNaUFaeTZ5cmRkSDY4VjdIClRNRllUQlZQaHIxT0dxZlRmc00vRktmZVhWY1FvMTI1RjBJQm5iWjNSYzRua1pNS0hzczUyWE1DZ1lFQTFQRVkKbGIybDU4blVianRZOFl6Uk1vQVo5aHJXMlhwM3JaZjE0Q0VUQ1dsVXFZdCtRN0NyN3dMQUVjbjdrbFk1RGF3QgpuTXJsZXl3S0crTUEvU0hlN3dQQkpNeDlVUGV4Q3YyRW8xT1loMTk3SGQzSk9zUythWWljemJsYmJqU0RqWXVjCkdSNzIrb1FlMzJjTXhjczJNRlBWcHVibjhjalBQbnZKd0k5aUpGVUNnWUVBMjM3UmNKSEdCTjVFM2FXLzd3ekcKbVBuUm1JSUczeW9UU0U3OFBtbHo2bXE5eTVvcSs5aFpaNE1Fdy9RbWFPMDF5U0xRdEY4QmY2TFN2RFh4QWtkdwpWMm5ra0svWWNhWDd3RHo0eWxwS0cxWTg3TzIwWWtkUXlxdjMybG1lN1JuVDhwcVBDQTRUWDloOWFVaXh6THNoCkplcGkvZFhRWFBWeFoxYXV4YldGL3VzQ2dZRUFxWnhVVWNsYVlYS2dzeUN3YXM0WVAxcEwwM3h6VDR5OTBOYXUKY05USFhnSzQvY2J2VHFsbGVaNCtNSzBxcGRmcDM5cjIrZFdlemVvNUx4YzBUV3Z5TDMxVkZhT1AyYk5CSUpqbwpVbE9ldFkwMitvWVM1NjJZWVdVQVNOandXNnFXY21NV2RlZjFIM3VuUDVqTVVxdlhRTTAxNjVnV2ZiN09YRjJyClNLYXNySFVDZ1lCYmRvL1orN1M3dEZSaDZlamJib2h3WGNDRVd4eXhXT2ZMcHdXNXdXT3dlWWZwWTh4cm5pNzQKdGRObHRoRXM4SHhTaTJudEh3TklLSEVlYmJ4eUh1UG5pQjhaWHBwNEJRNTYxczhjR1Z1ZSszbmVFUzBOTDcxZApQL1ZxUWpySFJrd3V5ckRFV2VCeEhUL0FvVEtEeSt3OTQ2SFM5V1dPTGJvbXQrd3g0NytNdWc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=",
+		"jwk": "eyJ1c2UiOiJzaWciLCJrdHkiOiJSU0EiLCJraWQiOiI4ZjkyNmIyYjAxZjM4MzUxNzAwMjVhNzhhNGRjYmY2YSIsImFsZyI6IlJTMjU2IiwibiI6InprR214QnpBRjJwSDFEYlpoMlRqMkt2bnZQVU5GZlFrTXlzQm8yZWc1anpkSk5kYWtwMEphUHhoNkZxOTZfeTBVd0lBNjdYeFdHb3kxcW1CRGhpdTVqekdtYW13NVgtYkR3TEdTVldGMEx3QnloMDY3TVFvTHJIcDcwMTJxcFU0LUs4NTJPWExFVWVZUGs4djNGWlNDZWcxV0tFblREX2hKaFVRMWxOY0pNY3cxdlRtR2tqNHpqQVE0QUhQX3RxRERxWmd5THNVZmtjbEQ2N0lUZGZLVWRrRVN5b1Q1U3JxYmxzRXpQWHJvamhZS1hpNzFjak1yVDlFS0JCenhZSVEyOVRaZi1nZU5ya0t4a2xMZTJzTUFMX0VWZkFjdGktc2ZqMkkyeEZKZmQ4aklmX2V0cEJJUllUMTNrYUt0dTJiaTRHYi1XUEstS2hCN1M2cUY4OWZMdyIsImUiOiJBUUFCIiwiZCI6IlhmS3FmdjZuZ3FMZTktdEo5ekY5MVJZc1ZyWDZFV3RreDhmSmxjQWdtbTdUdmpHM3FEdU9henMyYjR0Um9mbTN1MjJZdE1UcG16LTRTMjNuQW1BODNsT0ZsTDJsX1VzNy1rRGx4OGFFVHRrc0tYOVo5VG0tSWRMWlB5NjJKQ29YU3JNcDhzRnMxMENZdUowQ0xHZEhOQXNJcllldUtqMllsT3VZZ1Q5MEk2MmpnUWRlM05oblN2MW42MjJyWVdURE94NFpuNHFqQTRpS1NnMl9sbzNWbDhPRU5PYlMyWlRBb3FmUld0LU9OZEMxWnlWWFV5QkRQeW5lVkdxRWNsdEg2Zzc5SXNpLU04ek8yVTJjVlpVTzdoOE8tVW5mYVRhd2xnei1SQlFpWTY3S05Yc1RRQ3VlZ2FJQU1ZVjZxcjVUU1Ai2odx5iT0xSX3BtMWFpdktyUSIsInAiOiI5X1o5ZUpGTWI5X3E4UlZCTDFfa29YVWZiTTRLTjJ1UVp1R2NpR0Y2OUJEMnVLejV4Z29PMFUwWTZpRTRvQnpORlFuYVlfZGsteVNXbEFqdjJILWhQa0xqb2ZURkhpTU5lMnFFTWlBWnk2eXJkZEg2OFY3SFRNRllUQlZQaHIxT0dxZlRmc01fRktmZVhWY1FvMTI1RjBJQm5iWjNSYzRua1pNS0hzczUyWE0iLCJxIjoiMVBFWWxiMmw1OG5VYmp0WThZelJNb0FaOWhyVzJYcDNyWmYxNENFVENXbFVxWXQtUTdDcjd3TEFFY243a2xZNURhd0JuTXJsZXl3S0ctTUFfU0hlN3dQQkpNeDlVUGV4Q3YyRW8xT1loMTk3SGQzSk9zUy1hWWljemJsYmJqU0RqWXVjR1I3Mi1vUWUzMmNNeGNzMk1GUFZwdWJuOGNqUFBudkp3STlpSkZVIiwiZHAiOiIyMzdSY0pIR0JONUUzYVdfN3d6R21QblJtSUlHM3lvVFNFNzhQbWx6Nm1xOXk1b3EtOWhaWjRNRXdfUW1hTzAxeVNMUXRGOEJmNkxTdkRYeEFrZHdWMm5ra0tfWWNhWDd3RHo0eWxwS0cxWTg3TzIwWWtkUXlxdjMybG1lN1JuVDhwcVBDQTRUWDloOWFVaXh6THNoSmVwaV9kWFFYUFZ4WjFhdXhiV0ZfdXMiLCJkcSI6InFaeFVVY2xhWVhLZ3N5Q3dhczRZUDFwTDAzeHpUNHk5ME5hdWNOVEhYZ0s0X2NidlRxbGxlWjQtTUswcXBkZnAzOXIyLWRXZXplbzVMeGMwVFd2eUwzMVZGYU9QMmJOQklKam9VbE9ldFkwMi1vWVM1NjJZWVdVQVNOandXNnFXY21NV2RlZjFIM3VuUDVqTVVxdlhRTTAxNjVnV2ZiN09YRjJyU0thc3JIVSIsInFpIjoiVzNhUDJmdTB1N1JVWWVubzIyNkljRjNBaEZzY3NWam55NmNGdWNGanNIbUg2V1BNYTU0dS1MWFRaYllSTFBCOFVvdHA3UjhEU0NoeEhtMjhjaDdqNTRnZkdWNmFlQVVPZXRiUEhCbGJudnQ1M2hFdERTLTlYVF8xYWtJNngwWk1Mc3F3eEZuZ2NSMF93S0V5Zzh2c1BlT2gwdlZsamkyNkpyZnNNZU9fakxvIn0=",
+		"created": "2021-06-15T21:06:54.763937286Z"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+이 값은 다시 표시되지 않습니다 그래서 우리는 그것을 안전하게 저장하는 것이 좋습니다. Cloudflare WorkersXQ를 사용하는 경우에, 당신은 그(것)들을 사용하여 저장할 수 있습니다[계정 관리](/workers/configuration/secrets/). 다른 플랫폼을 사용하는 경우 보안 환경 변수에 저장하십시오.
+
+토큰을 생성하기 위해 나중에 이러한 값을 사용합니다. pem 및 jwk 필드는 base64-encoded이며, 사용하기 전에 디코딩해야 합니다. (이 예제는 단계 2).
+
+### 단계 2: 키를 사용하여 토큰 생성
+
+단계 1에서 키를 생성하면 사용할 수 있습니다.`pem`또는`jwk`자체 서명 URL을 생성하는 값. 이 방법을 사용하여 Stream API를 호출 할 필요가 없습니다.
+
+다음은 Cloudflare 60 분 만에 만료되는 토큰을 생성하고 영국에서 비디오에 액세스하는 사용자 만 작동합니다. 라인 2 및 3에서 구성할 수 있습니다.`id`·`jwk`단계 1의 값:
+
+```javascript
+//글로벌 변수
+const jwkKey = "{PRIVATE-KEY-IN-JWK-FORMAT}";
+const keyID = "<KEY_ID>";
+const videoUID = "<VIDEO_UID>";
+//validsTimeInS는 비디오의 두 번째로 만료 된 시간입니다.
+const expiresTimeInS = 3600;
+
+//주요 기능
+async function streamSignedUrl() {
+	const encoder = new TextEncoder();
+	const expiresIn = Math.floor(Date.now() / 1000) + expiresTimeInS;
+	const headers = {
+		alg: "RS256",
+		kid: keyID,
+	};
+	const data = {
+		sub: videoUID,
+		kid: keyID,
+		exp: expiresIn,
+		//MP4 또는 오디오 다운로드에 대한 `downloadable` boolean 추가 :
+		//다운로드: true,
+		accessRules: [
+			{
+				type: "ip.geoip.country",
+				action: "allow",
+				country: ["GB"],
+			},
+			{
+				type: "any",
+				action: "block",
+			},
+		],
+	};
+
+	const token = `${objectToBase64url(headers)}.${objectToBase64url(data)}`;
+
+	const jwk = JSON.parse(atob(jwkKey));
+
+	const key = await crypto.subtle.importKey(
+		"jwk",
+		jwk,
+		{
+			name: "RSASSA-PKCS1-v1_5",
+			hash: "SHA-256",
+		},
+		false,
+		["sign"],
+	);
+
+	const signature = await crypto.subtle.sign(
+		{ name: "RSASSA-PKCS1-v1_5" },
+		key,
+		encoder.encode(token),
+	);
+
+	const signedToken = `${token}.${arrayBufferToBase64Url(signature)}`;
+
+	return signedToken;
+}
+
+//유틸리티 기능
+function arrayBufferToBase64Url(buffer) {
+	return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+		.replace(/=/g, "")
+		.replace(/\+/g, "-")
+		.replace(/\//g, "_");
+}
+
+function objectToBase64url(payload) {
+	return arrayBufferToBase64Url(
+		new TextEncoder().encode(JSON.stringify(payload)),
+	);
+}
+```
+
+### 단계 3: 비디오를 렌더링
+
+스트림 플레이어를 사용하는 경우, 삽입`token`단계 2의 노동자에 의해 반환 값의 위치`video id`, 사이에 있는 전체 문자열 교체`cloudflarestream.com/`·`/iframe`:
+
+```html
+<iframe
+	src="https://customer-<CODE>.cloudflarestream.com/eyJhbGciOiJSUzI1NiIsImtpZCI6ImNkYzkzNTk4MmY4MDc1ZjJlZjk2MTA2ZDg1ZmNkODM4In0.eyJraWQiOiJjZGM5MzU5ODJmODA3NWYyZWY5NjEwNmQ4NWZjZDgzOCIsImV4cCI6IjE2MjE4ODk2NTciLCJuYmYiOiIxNjIxODgyNDU3In0.iHGMvwOh2-SuqUG7kp2GeLXyKvMavP-I2rYCni9odNwms7imW429bM2tKs3G9INms8gSc7fzm8hNEYWOhGHWRBaaCs3U9H4DRWaFOvn0sJWLBitGuF_YaZM5O6fqJPTAwhgFKdikyk9zVzHrIJ0PfBL0NsTgwDxLkJjEAEULQJpiQU1DNm0w5ctasdbw77YtDwdZ01g924Dm6jIsWolW0Ic0AevCLyVdg501Ki9hSF7kYST0egcll47jmoMMni7ujQCJI1XEAOas32DdjnMvU8vXrYbaHk1m1oXlm319rDYghOHed9kr293KM7ivtZNlhYceSzOpyAmqNFS7mearyQ/iframe"
+	style="border: none;"
+	height="720"
+	width="1280"
+	allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
+	allowfullscreen="true"
+></iframe>
+```
+
+자신의 플레이어를 사용하는 경우, 같은 URL에 비디오 ID를 대체`token`가치:
+
+`https://customer-<CODE>.cloudflarestream.com/eyJhbGciOiJSUzI1NiIsImtpZCI6ImNkYzkzNTk4MmY4MDc1ZjJlZjk2MTA2ZDg1ZmNkODM4In0.eyJraWQiOiJjZGM5MzU5ODJmODA3NWYyZWY5NjEwNmQ4NWZjZDgzOCIsImV4cCI6IjE2MjE4ODk2NTciLCJuYmYiOiIxNjIxODgyNDU3In0.iHGMvwOh2-SuqUG7kp2GeLXyKvMavP-I2rYCni9odNwms7imW429bM2tKs3G9INms8gSc7fzm8hNEYWOhGHWRBaaCs3U9H4DRWaFOvn0sJWLBitGuF_YaZM5O6fqJPTAwhgFKdikyk9zVzHrIJ0PfBL0NsTgwDxLkJjEAEULQJpiQU1DNm0w5ctasdbw77YtDwdZ01g924Dm6jIsWolW0Ic0AevCLyVdg501Ki9hSF7kYST0egcll47jmoMMni7ujQCJI1XEAOas32DdjnMvU8vXrYbaHk1m1oXlm319rDYghOHed9kr293KM7ivtZNlhYceSzOpyAmqNFS7mearyQ/manifest/video.m3u8`
+
+접근을 허용[MP4 또는 오디오 다운로드](/stream/viewing-videos/download-videos/), 비디오가 이미 활성화 된 다운로드 유형이 있는지 확인합니다. 다음 추가`downloadable: true`서명된 URL을 생성할 때 위의 의견에 표시된 대로 payload에. 다운로드 URL에서 비디오 ID를 대체`token`가치:
+
+- `https://customer-<CODE>.cloudflarestream.com/eyJhbGciOiJ.../downloads/default.mp4`
+
+### 키 변경
+
+최대 1,000개의 키로 만들 수 있으며, 편의성에서 회전할 수 있습니다.
+그 키로 만든 모든 토큰을 수정하면 유효하지 않습니다.
+
+```bash
+curl --request DELETE \
+"https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/keys/{key_id}" \
+--header "Authorization: Bearer <API_TOKEN>"
+
+#응답:
+{
+  "result": "Revoked",
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+## 지원되는 제한
+
+| 재산 이름    | 이름 \*                                                                                                                                         |   |
+| -------- | --------------------------------------------------------------------------------------------------------------------------------------------- | - |
+| 계정 만들기   | 만료. 토큰이 작동 중지되는 후 unix epoch 타임스탬프. 토큰이 서명될 때 미래에 24시간이 넘을 수 없습니다.                                                                            |   |
+| 사이트맵     | *시작하기*가치. 토큰이 작동하지 않을 전에 unix epoch 타임스탬프                                                                                                     |   |
+| 다운로드     | 사실, 토큰은 MP4 다운로드에 사용할 수 있습니다 (비디오가 다운로드를 지원)                                                                                                  |   |
+| 액세스Rules | 하나 이상의 IP 및 지오 제한을 지정하는 배열. accessRules는 첫번째 마지막 평가됩니다. 규칙이 일치하면 관련 조치가 적용되고 더 많은 규칙이 평가되지 않습니다. 토큰은 AccessRules 배열에서 대부분의 5명의 회원이 있을 수 있습니다. |   |
+
+### AccessRules 슈마
+
+각 accessRule는 2개의 필수 재산을 포함합니다:
+
+- `type`: 지원된 값은`any`, `ip.src`·`ip.geoip.country`
+- `action`: 지원 값은`allow`·`block`
+
+규칙 유형에 따라, accessRules 지원 2 추가 속성:
+
+- `country`: 2-letter 국가 코드의 배열[ISO 3166-1 알파 2](https://www.iso.org/obp/ui/#search)파일 형식.
+- `ip`: IP 범위의 배열. 가능한 경우 규칙에 IPv4 및 IPv6 변형을 모두 포함하도록 권장합니다. 규칙의 단일 변형 만하면 규칙은 다른 변형을 무시합니다. 예를 들어, IPv4 기반 규칙은 IPv6 주소에서 연결되는 뷰어에 적용되지 않습니다. CIDR은 특정 IP 주소를 선호해야 합니다. 모바일과 같은 일부 장치는보기 과정에서 IP를 변경할 수 있습니다. Video Access Control은 비디오가 볼 때 지속적으로 평가됩니다. 결과적으로 엄격한 IP 규칙은 재생을 방해 할 수 있습니다.
+
+***예 1 : 특정 국가에서 블록보기***
+
+```txt
+...
+"accessRules": [
+	{
+		"type": "ip.geoip.country",
+		"action": "block",
+		"country": ["US", "DE", "MX"],
+	},
+]
+```
+
+국가, 미국, DE 및 MX에 대한 첫 번째 규칙 일치. 그 규칙이 일치할 때, 블록 동작은 토큰이 잘못된 것으로 간주됩니다. 첫 번째 규칙이 일치하지 않는 경우, 더 이상 평가 규칙이 없습니다. 이 상황에서의 행동은 토큰 유효성을 고려하는 것입니다.
+
+***예 2 : 특정 국가 또는 IP에서 만보기 허용***
+
+```txt
+...
+"accessRules": [
+	{
+		"type": "ip.geoip.country",
+		"country": ["US", "MX"],
+		"action": "allow",
+	},
+	{
+		"type": "ip.src",
+		"ip": ["93.184.216.0/24", "2400:cb00::/32"],
+		"action": "allow",
+	},
+	{
+		"type": "any",
+		"action": "block",
+	},
+]
+```
+
+국가, 미국 및 MX에 대한 첫 번째 규칙 일치. 그 규칙이 일치할 때, 허용 조치는 토큰이 유효하다고 간주됩니다. 우리가 계속 evaluating 규칙 일치하지 않는 경우
+
+두 번째 규칙은 CIDR, 93.184.216.0/24 및 2400:cb00::/32에 일치하는 IP 규칙입니다. 규칙이 일치할 때, 허용 행동은 규칙을 유효하게 고려할 것입니다.
+
+첫 번째 두 가지 규칙이 일치하지 않는 경우, 어떤의 최종 규칙은 모든 나머지 요청과 그 레이아웃을 차단합니다.
+
+## 보안 고려사항
+
+### Hotlinking 보호
+
+기본적으로, 스트림 embed 코드는 어떤 도메인에서 사용할 수 있습니다. 필요한 경우 도메인을 스트림 dashboardXQ에서 비디오에 삽입 할 수 있습니다.
+
+dashboard에서, 당신은 각 영상에 의하여 원본 상자를 표시할 것입니다`Enter allowed origin domains separated by commas`. 클릭하면 Stream embed code가 사용될 수 있는 도메인을 나열할 수 있습니다.
+₢ 킹
+
+- `*.badtortilla.com`관련 상품`a.badtortilla.com`, `a.b.badtortilla.com`그리고 커버하지 않습니다`badtortilla.com`
+- `example.com`적용되지 않음[사이트 맵](http://www.example.com)또는 example.com의 하위 도메인
+- `localhost`포트 80 포트 또는 포트 443에 HTTPS를 초과하지 않는 경우 포트가 필요
+- 경로 지원은 없습니다 -`example.com`관련 상품`example.com/\*`
+
+또한 Stream API를 사용하여 embed limit programmatically를 제어 할 수 있습니다.`uid`아래 예에서 비디오 ID를 나타냅니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/stream/{video_uid} \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data "{\"uid\": \"<VIDEO_UID>\", \"allowedOrigins\": [\"example.com\"]}"
+```
+
+### 관련 상품
+
+허용 된 Origins 기능은 재생할 수 있는 원산지를 지정할 수 있습니다. 이 기능은 자신의 비디오 플레이어를 사용하는 경우에도 작동합니다. 자신의 비디오 플레이어를 사용할 때, 허용 된 Origins는 HLS / DASH가 나타나고 비디오 세그먼트가 요청 될 수 있습니다.
+
+### 로그인 URL
+
+연결 제한이있는 서명 된 URL을 결합하면 비디오를 보는 방법을 강력하게 제어 할 수 있습니다. 신뢰할 수 있는 사용자만 제공 할 수 있습니다. 서명된 URL을 방지하는 것은 알 수없는 사이트에서 호스팅됩니다.

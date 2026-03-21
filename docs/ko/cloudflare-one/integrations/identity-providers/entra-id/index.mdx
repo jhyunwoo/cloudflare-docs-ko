@@ -1,0 +1,332 @@
+---
+pcx_content_type: how-to
+title: 마이크로 소프트 엔트라 ID
+tags:
+  - Microsoft Entra ID
+  - SCIM
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/entra-id/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/entra-id/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, APIRequest } from "~/components";
+
+Cloudflare를 사용하여 Microsoft Entra ID (이전 Azure Active Directory)를 통합 할 수 있습니다. 사용자 정체성 및 그룹 회원을 기반으로 한 정책 사용자는 Cloudflare에 정통합니다 Entra ID 자격 증명을 사용하여 하나.
+
+## Entra ID를 정체 공급자로 설정
+
+### 1. Entra ID 설정 얻기
+
+다음 Entra ID 값은 통합을 설정해야 합니다.
+
+- 신청 (클라이언트) ID
+- 디렉토리 ID
+- 고객 비밀
+
+그 값을 검색하려면:
+
+1. 로그인하기[Microsoft Entra 관리자 센터](https://entra.microsoft.com/).
+
+2. 오시는 길**이름 \*** > **Enterprise 응용**.
+
+3. 제품정보**새로운 신청**, 다음 선택**자주 묻는 질문**.
+
+4. 이름 당신의 신청.
+
+5. 제품정보**Microsoft Entra ID와 통합하는 응용 프로그램을 등록 (앱 개발)**. 제공된 경우 갤러리 응용 프로그램 중 하나를 선택하지 마십시오. 제품정보**이름 \***.
+
+6. 이름 \***리디렉션 URI**, 선택*웹 사이트*플랫폼은 다음 URL을 입력합니다.
+
+   ```txt
+   https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+   ```
+
+   <Render file="find-team-name" product="cloudflare-one" />
+
+   ![Azure의 응용 프로그램 등록](~/assets/images/cloudflare-one/identity/azure/name-app.png)
+
+7. 제품정보**이름 \***.
+
+8. 다음, Microsoft Entra ID로 돌아와 이동**이름 \*** > **앱 등록**.
+
+9. 제품정보**모든 신청**앱을 선택하면 됩니다. 제출하기**신청 (클라이언트) ID**·**디렉토리 ID**. 이 값이 필요할 때[Entra ID를 단계 3에 있는 정체 공급자로 추가하십시오](/cloudflare-one/integrations/identity-providers/entra-id/#3-add-entra-id-as-an-identity-provider).
+
+   ![Azure의 애플리케이션 ID 및 디렉토리 ID보기](~/assets/images/cloudflare-one/identity/azure/azure-values.png)
+
+10. 같은 페이지에서, 아래**고객 자격**, 이동**인증서 또는 비밀 추가**. 선택**새로운 클라이언트 비밀**.
+
+11. 클라이언트 비밀을 이름을 지정하고 만료 기간을 선택합니다.
+
+    :::참조
+    클라이언트 비밀이 만료될 때, 사용자는 접근을 통해 로그인할 수 없습니다. 로그인 오류를 방지하고 필요한 경우 클라이언트 비밀을 갱신하기 위해 만료 날짜를주의하십시오.
+    주요 특징
+
+12. 클라이언트 비밀이 생성된 후, 복사**제품정보**이름 \* 안전한 장소에 있는 클라이언트 비밀을 저장하십시오, 그것은 창조 후에 즉시 전망될 수 있기 때문에. 이 클라이언트 비밀 값이 필요할 때[Entra ID를 단계 3에 있는 정체 공급자로 추가하십시오](/cloudflare-one/integrations/identity-providers/entra-id/#3-add-entra-id-as-an-identity-provider).
+
+    ![Azure의 클라이언트 비밀](~/assets/images/cloudflare-one/identity/azure/client-cert-value.png)
+
+### 2. Entra ID에서 API 권한 구성
+
+1. 오시는 길**앱 등록** > **모든 신청**> 신청 선택 >**API 권한**.
+
+2. 제품정보**권한 추가**.
+
+3. 제품정보**Microsoft 그래픽**.
+
+4. 제품정보**법적 고지**다음을 수행[이름 \*](https://learn.microsoft.com/graph/permissions-reference):
+   - `email`
+   - `offline_access`
+   - `openid`
+   - `profile`
+   - `User.Read`
+   - `Directory.Read.All`
+   - `GroupMember.Read.All`
+
+:::참조
+더 좁은 권한이 사용될 수 있지만 Cloudflare에 의해 테스트 및 지원되는 권한 세트입니다.
+주요 특징
+
+5. 모든 7개의 권한이 활성화되면, 선택**자주 묻는 질문**.
+
+6. 제품정보**Grant 관리자 동의**.
+
+   ![Azure에서 권한 목록 구성](~/assets/images/cloudflare-one/identity/azure/configured-perms.png)
+
+### 3. Entra ID를 identity 공급자로 추가하십시오
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**통합** > **Identity 공급자**.
+
+    2. 이름 \***당신의 ID 공급자**, 선택**새로운 ID 공급자 추가**.
+
+    3. 제품정보**Azure 광고**.
+
+    4. 이름 \***신청 (클라이언트) ID**, **고객 비밀**·**디렉토리 ID**Microsoft Entra ID에서 획득.
+
+    5. 제품정보**제품 정보**.
+
+    6. 으로[제품정보](/cloudflare-one/integrations/identity-providers/#test-idps-in-cloudflare-one)당신의 연결은 일하고, 선정합니다**제품정보**.
+
+    7. (선택 사항) 다음 설정을 구성:
+       - **Code Exchange를 위한 증거 열쇠**: 공연[사이트맵](https://www.oauth.com/oauth2-servers/pkce/)모든 로그인 시도.
+       - **지원 그룹**: Cloudflare를 허용하여 사용자의 Entra ID 그룹 회원을 읽습니다.
+       - **Entra ID 정책 동기화**: 우리를 참조하십시오[Entra ID 조건 액세스 자습서](/cloudflare-one/tutorials/entra-id-conditional-access/).
+       - **SCIM 지원**: 참고[사용자 및 그룹 동기화](#synchronize-users-and-groups).
+       - **이메일 청구**: 사용자 식별을 위해 사용하려는 Entra ID 주장을 입력하십시오 (예 :`preferred_username`).
+       - **OIDC 클레임**: 입력[사용자 정의 OIDC 주장](/cloudflare-one/integrations/identity-providers/generic-oidc/#custom-oidc-claims)사용자의 정체성에 추가하고자 합니다.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    더 보기`POST`요청하기[Identity 공급자](/api/resources/zero_trust/subresources/identity_providers/methods/create/)엔드포인트:
+
+    <APIRequest
+      path="/accounts/{account_id}/access/identity_providers"
+      method="POST"
+      json={{
+  	name: "Entra ID example",
+  	type: "azureAD",
+  	config: {
+  		client_id: "<your client id>",
+  		client_secret: "<your client secret>",
+  		directory_id: "<your azure directory uuid>",
+  		support_groups: true,
+  	},
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="옵션 정보">
+    :::노트\[Provider version]
+    다음 예제는 Cloudflare 공급자 버전이 필요합니다.`4.40.0`또는 더 큰.
+    주요 특징
+
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+       - `Access: Organizations, Identity Providers, and Groups Write`
+
+    2. 설정하기[`cloudflare_zero_trust_access_identity_provider`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_access_identity_provider)자료:
+
+       <Render file="access/entra-id-terraform" product="cloudflare-one" />
+  </TabItem>
+</Tabs>
+
+#### UPN 및 이메일
+
+조직의 UPNs가 사용자의 이메일 주소와 일치하지 않는 경우, 이메일에 대한 사용자 정의 청구를 추가해야합니다. 예를 들어, 조직의 이메일 형식이면`user@domain.com`그러나 UPN은`u908080@domain.com`, 이메일 기반 정책을 구성하는 경우 이메일 청구를 작성해야 합니다.
+
+기본적으로 Cloudflare는 Cloudflare에서 생성하고 구성하는 고유의 클레임 이름을 먼저 살펴봅니다. 이메일(예:`email_identifier`) 에서`id_token`JSON 응답. 독특한 클레임 이름을 구성하지 않았다면 Cloudflare는 그런 다음`email`이름 \* 마지막으로, 존재하지 않는 경우, Cloudflare는 UPN 청구를 살펴볼 것입니다.
+
+이메일을 수신하려면`id_token`Microsoft Entra에서 다음을 수행해야합니다.
+
+1. 내 계정[Microsoft Entra 관리자 센터](https://entra.microsoft.com/), 이동**제품 설명** > **앱 등록** > **모든 신청**관련 응용 프로그램을 선택.
+
+2. 이름 \***계정 관리**, 선택**토큰 구성**.
+
+3. 이메일 청구
+
+   ![Entra의 이메일 청구](~/assets/images/cloudflare-one/identity/azure/entra-email-claim.png)
+
+   위의 예에는 UPN 청구 및 이메일 청구가 포함됩니다. 이메일 청구가 Microsoft Entra 구성에서 생성되었기 때문에 Cloudflare는`email`JSON 응답의 키 값 쌍.
+
+4. 이메일이 다른 이름보다 청구되는 경우`email`Cloudflare에 있는 당신의 윤곽을 새롭게 해야 합니다 1개:
+
+   a. 에서[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**통합** > **Identity 공급자** > **Azure 광고** > **제품정보**.
+
+   b. 아래**옵션 구성** > **이메일 청구**, 조직의 이메일 주소를 나타내는 주장의 이름을 입력하십시오.
+
+#### 오브젝트 ID
+
+사용자의 이메일 또는 UPNs가 변경 될 수 있는지 여부에 관계없이 사용자의 객체 ID를 통과 할 수 있습니다 (`oid`) Microsoft Entra에서 Cloudflare 액세스. 객체 ID를 수신하는 Access를 구성하려면, 참조[사용자 정의 OIDC 주장](/cloudflare-one/integrations/identity-providers/generic-oidc/#custom-oidc-claims). 추가 구성이 Microsoft Entra에 필요하지 않습니다.
+
+## 사용자 및 그룹 동기화
+
+Microsoft Entra ID 통합을 통해 IdP 그룹과 자동으로 사용자를 동기화 할 수 있습니다.[사이트맵](/cloudflare-one/team-and-resources/users/scim/).
+
+### 자주 묻는 질문
+
+- Microsoft Entra ID P1 또는 P2 라이센스
+
+### 1. Cloudflare에 있는 가능하게 하는 SCIM 한국어
+
+<Render file="access/enable-scim-on-dashboard" product="cloudflare-one" params={{ idp: "Entra ID", supportgroups: "Support groups" }} />
+
+### 2. Entra ID에서 SCIM 구성
+
+:::참조
+SCIM은 한 곳에서 만든 별도의 엔터프라이즈 애플리케이션을 요구합니다.[초기 설정](#set-up-entra-id-as-an-identity-provider).
+:::
+
+1. Microsoft Entra ID 메뉴에서 이동**Enterprise 응용**.
+
+2. 제품정보**새로운 신청** > **자주 묻는 질문**.
+
+3. 신청 이름 (예를 들면,`Cloudflare Access SCIM`).
+
+4. 제품정보**갤러리에서 찾을 수없는 다른 응용 프로그램을 통합 (Non-gallery)**. 제공된 경우 갤러리 응용 프로그램 중 하나를 선택하지 마십시오. 제품정보**이름 \***.
+
+5. 응용 프로그램을 만든 후, 이동**회사연혁**> 선택**새로운 구성**.
+
+6. 내 계정**Tenant URL 정보**필드, 입력**SCIM 엔드포인트**Cloudflare One에서 Entra ID 통합 획득[이전 단계에서](/cloudflare-one/integrations/identity-providers/entra-id/#1-enable-scim-in-zero-trust).
+
+7. 내 계정**비밀 토큰**필드, 입력**SCIM 비밀**Cloudflare One에서 Entra ID 통합 획득[이전 단계에서](/cloudflare-one/integrations/identity-providers/entra-id/#1-enable-scim-in-zero-trust).
+
+8. 제품정보**시험 연결**자격 증명이 올바르게 입력되었는지 확인합니다. 테스트가 실패하면 Cloudflare에서 Entra ID 통합으로 이동 1, 선택**비밀번호**, 선택**제품 정보**, 새로운 입력**SCIM 비밀**내 계정**비밀 토큰**이름 \*
+
+9. 제품정보**이름 \***.
+
+10. SCIM 응용 프로그램이 생성되면,[사용자 및 그룹을 응용](https://learn.microsoft.com/entra/identity/enterprise-apps/assign-user-or-group-access-portal).
+
+:::참조
+이 SCIM 애플리케이션의 그룹은 다른 그룹과 일치해야합니다.[사이트맵 Access 기업 신청](/cloudflare-one/integrations/identity-providers/entra-id/#set-up-entra-id-as-an-identity-provider). SCIM 그룹 회원 업데이트가 사용자의 정체성에 어떤 그룹을 덮기 때문에 각 앱에 동일한 그룹을 할당하는 것은 일관된 정책 평가를 보장합니다.
+주요 특징
+
+11. 오시는 길**회사연혁**선택하기**결제하기**.
+
+12. 제품 정보**Provisioning 형태**, 기본 모드는 Microsoft에서 설정해야 합니다.*제품정보*.
+
+13. 에 의해**제품정보**Entra ID의 페이지, 동기화 상태를 볼 수 있습니다.
+
+사용자 및 그룹이 동기화 된 확인하려면, 선택**Provisioning 로그**.
+
+<Render file="access/verify-scim-provisioning" product="cloudflare-one" />
+
+Cloudflare Access 및 Microsoft Entra ID 사이의 ID 세부 정보를 모니터링하려면[사이트맵 한국어](https://one.dash.cloudflare.com) > **관련 기사** > **로그인** > **SCIM 규정 로그**그리고 보기[SCIM 활동 로그](/cloudflare-one/insights/logs/scim-logs/).
+
+### Provisioning 속성
+
+Provisioning 속성은 Entra ID가 Cloudflare Access와 동기화되는 사용자 속성을 정의합니다. 프로비저닝 속성을 수정하려면**Attribute 매핑**선택하기**Provision Microsoft Entra ID 사용자**.
+
+이미 구성되지 않은 경우 Cloudflare는 다음 사용자 속성 매핑을 가능하게 권장합니다.
+
+| customappsso 특성                | Entra ID 특성                 | Recommend                               |
+| ------------------------------ | --------------------------- | --------------------------------------- |
+| `userName`                     | `userPrincipalName`또는`mail` | 견적 요청 Cloudflare One의 이메일 주소와 일치해야 합니다. |
+| `emails[type eq "work"].value` | `mail`                      | 견적 요청 Cloudflare One의 이메일 주소와 일치해야 합니다. |
+| `name.givenName`               | `givenName`                 | (주)                                     |
+| `name.familyName`              | `surname`                   | (주)                                     |
+
+## Zero Trust 정책 그룹
+
+### 연락처
+
+시간 :[SCIM 동기화 활성화](#synchronize-users-and-groups), Entra 그룹 이름은 자동으로 액세스 및 게이트웨이 정책 빌더에 나타납니다.
+
+액세스 정책을 구축하면*Azure 그룹*옵션 정보
+![Access Policy Builder에 표시된 Azure 그룹 이름](~/assets/images/cloudflare-one/identity/azure/azure-scim-groups.png)
+
+Gateway 정책을 구축하면[*사용자 그룹 이름*](/cloudflare-one/traffic-policies/identity-selectors/#user-group-names)옵션 정보
+
+### 수동 입력
+
+SCIM과 동기화되지 않은 그룹에 대한 액세스 및 게이트웨이 정책을 만들 수 있습니다. Entra ID는 임의 문자열로 구성된 형식의 디렉토리 그룹을 노출,`Object Id`, 그것은 구별된다`Name`.
+
+1. 사용 가능**지원 그룹**Cloudflare One에서 Microsoft Entra ID를 설정합니다.
+
+2. Microsoft Entra 대시보드에서 노트`Object Id`Entra 그룹 아래 예에서 Admins라는 그룹은 ID가 있습니다.`61503835-b6fe-4630-af88-de551dd59a2`.
+
+   ![Azure 대시보드에 Azure 그룹 ID 보기](~/assets/images/cloudflare-one/identity/azure/object-id.png)
+
+3. 액세스 정책을 구축하면*Azure 그룹*옵션 정보 Gateway 정책을 구축하면*사용자 그룹 ID*옵션 정보
+
+4. 내 계정**제품정보**필드, 입력`Object Id`Entra 그룹
+
+   ![Cloudflare One의 Azure 그룹 ID 입력](~/assets/images/cloudflare-one/identity/azure/configure-group-n.png)
+
+### 그룹 별
+
+#### 인증현황
+
+Entra 그룹에 대한 액세스 및 게이트웨이 정책은 모두 적용됩니다.[그룹 그룹](https://learn.microsoft.com/entra/fundamentals/how-to-manage-groups#add-a-group-to-another-group). 예를 들어, 사용자가 그룹에 속한 경우`US devs`·`US devs`더 넓은 그룹의 일부입니다`Devs`, 사용자는 생성된 모든 정책에 의해 허용되거나 차단될 것입니다`Devs`.
+
+#### SCIM 제공
+
+SCIM 규정을 위해,[배열된 그룹은 지원되지 않습니다](https://learn.microsoft.com/en-us/entra/identity/app-provisioning/how-provisioning-works#assignment-based-scoping). Microsoft Entra ID's SCIM 구현은 Cloudflare에 배열 된 그룹 회원에 대한 정보를 보내지 않습니다. 명시적으로 할당 된 그룹의 직접 회원 만 제공 될 것입니다. 그룹 회원이 올바르게 동기화되도록하려면 Entra ID에서 그룹을 직접 지정하여 프로비저닝을 원하는 그룹에 할당해야 합니다.
+
+Microsoft에서 SCIM 요청이 배열 된 그룹 정보를 포함하지 않기 때문에 Cloudflare 또는 Microsoft는 그룹이 동기화되지 않는 알림을 제공 할 수 있습니다.
+
+## WARP의 힘 사용자 상호 작용
+
+사용자가 Entra ID로 자격 증명을 할 수 있습니다.[WARP 세션](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-sessions/). 이 설정을 구성하려면:
+
+1. 더 보기`GET`요청하기[ID 공급자 endpoint](/api/resources/zero_trust/subresources/identity_providers/)Entra ID identity 공급자를 위한 응답을 복사하십시오.
+
+   <APIRequest path="/accounts/{account_id}/access/identity_providers/{identity_provider_id}" method="GET" />
+
+2. [Entra ID 정체 공급자 업데이트](/api/resources/zero_trust/subresources/identity_providers/methods/update/)사용 방법`PUT`이름 \* 요청 몸에서 모든 기존 구성을 포함하고 설정`prompt`매개 변수`login`또는`select_account`. 예를 들면:
+
+   <APIRequest
+     path="/accounts/{account_id}/access/identity_providers/{identity_provider_id}"
+     method="PUT"
+     json={{
+     		id: "f174e90a-fafe-4643-bbbc-4a0ed4fc8415",
+     		type: "azureAD",
+     		uid: "f174e90a-fafe-4643-bbbc-4a0ed4fc8415",
+     		name: "Entra ID",
+     		version: "31e74e9b4f033e16b604552091a72295",
+     		config: {
+     			azure_cloud: "default",
+     			client_id: "<CLIENT_ID>",
+     			conditional_access_enabled: false,
+     			directory_id: "<AZURE_DIRECTORY_ID>",
+     			redirect_url: "https://<TEAM_NAME>.cloudflareaccess.com/cdn-cgi/access/callback",
+     			prompt: "login",
+     			support_groups: true,
+     		},
+     		scim_config: {
+     			enabled: true,
+     			user_deprovision: true,
+     			seat_deprovision: false,
+     			group_member_deprovision: false,
+     			identity_update_behavior: "automatic",
+     		},
+     		scim_base_url: "https://<TEAM_NAME>.cloudflareaccess.com/populations/f174e90a-fafe-4643-bbbc-4a0ed4fc8415/scim/v2",
+     	}}
+     code={{
+     		mark: [16]
+     	}}
+   />

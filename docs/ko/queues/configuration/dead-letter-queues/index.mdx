@@ -1,0 +1,46 @@
+---
+title: 죽은 편지 Queues
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/configuration/dead-letter-queues/'
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/configuration/dead-letter-queues/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Dead Letter Queue (DLQ)는 메시징 시스템의 일반적인 개념이며, 전달 실패가 소비자와 함께 발생하는 경우 메시지가 전송되는 곳을 나타냅니다.`max_retries`오시는 길 Dead Letter Queue는 다른 큐와 같고 독립적으로 소비 할 수 있습니다.
+
+Cloudflare Queues로, Dead Letter Queue는 당신의 안에 정의됩니다[소비자 구성](/queues/configuration/configure-queues/). 메시지는 DLQ에 전달될 때 그들은 소비자를 위한 형성한 재량 한계에 도달합니다. DLQ를 구성하지 않고, 리트리 한계에 도달하는 메시지는 영구적으로 삭제됩니다.
+
+예를 들어, 다음과 같은 소비자 구성은 우리의 DLQ에 메시지를 보낼 것입니다`"my-other-queue"`retrying 납품 후에 (기본값으로, 3배):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "my-queue",
+  				"dead_letter_queue": "my-other-queue"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+명령행에서 소비자를 만들 때 DLQ를 구성할 수 있습니다.`wrangler`:
+
+```sh
+wrangler queues consumer add $QUEUE_NAME $SCRIPT_NAME --dead-letter-queue=$NAME_OF_OTHER_QUEUE
+```
+
+DLQ에 배치된 메시지를 처리하기 위하여, 당신은 필요로 합니다[고객 설정](/queues/configuration/configure-queues/)당신이 다른 큐와 함께 할 때 그 큐.
+
+활성 소비자없이 DLQ로 전달 된 메시지는 큐에서 삭제되기 전에 4 일 동안 지속됩니다.

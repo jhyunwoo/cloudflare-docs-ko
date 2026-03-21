@@ -1,0 +1,237 @@
+---
+order: 3
+title: 버전 2에서 마이그레이션
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/testing/miniflare/migrations/from-v2/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/testing/miniflare/migrations/from-v2/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Miniflare v3 지금 사용[`workerd`](https://github.com/cloudflare/workerd)·
+오픈 소스 Cloudflare Workers 런타임. 이것은 배포 된 동일한 실행 시간입니다.
+Cloudflare의 네트워크에서 버그에 대 한 버그 호환성 및 실질적으로
+부정 행위 mismatches. 더 알아보기
+[미니 플레어 v3](https://blog.cloudflare.com/miniflare-and-workerd/)·
+[Wrangler v3 발표](https://blog.cloudflare.com/wrangler3/)더 보기
+정보.
+
+## CLI 변경
+
+Miniflare v3 더 이상 독립 CLI가 포함되어 있지 않습니다. 같은 기능을 얻으려면,
+당신은 위에 전환해야합니다
+[모델 번호: Wrangler](/workers/wrangler/). Wrangler의 v3
+Miniflare v3를 기본으로 사용합니다. 로컬 개발 서버를 시작하려면:
+
+```sh
+$ npx wrangler@3 dev
+```
+
+Miniflare CLI의 기능이있는 경우 Wrangler에서 볼 수 있습니다.
+자주 묻는 질문
+[프로젝트](https://github.com/cloudflare/workers-sdk/issues/new/choose).
+
+## API 변경
+
+Miniflare v3의 API를 Miniflare v2로 유지하려고했습니다.
+하지만 많은 옵션과 방법이 제거되거나 스위치로 변경되었습니다.
+공지사항`workerd`실행 시간. 이름 \*[새로운 API docs에 대한 시작 가이드](/workers/testing/miniflare/get-started)
+
+### 업데이트 옵션
+
+- `kvNamespaces/r2Buckets/d1Databases`
+  - 더 알아보기`string[]`s, 이 옵션은 지금 받아 들인다
+    `Record<string, string>`s, namespace IDs/bucket에 바인딩 이름을 매핑
+    이름/데이터베이스 ID. 이것은 다수 WorkersXQ가 동일에 묶을 수 있다는 것을 의미합니다
+    namespace/bucket/database 다른 이름의 밑에.
+
+- `queueBindings`
+  - 이름 \*`queueProducers`. 이 사람은 받아들입니다`Record<string, string>`queue 이름에 바인딩 이름을 매기, 또는 a`string[]`관련 이름
+    같은 이름의 큐.
+
+- `queueConsumers`
+  - 어느 쪽이든`Record<string, QueueConsumerOptions>`mapping 큐 이름
+    소비자 옵션, 또는`string[]`queue 이름의 기본
+    옵션.`QueueConsumerOptions`뒤에 오는 유형이 있습니다:
+
+    ```ts
+    interface QueueConsumerOptions {
+    	///queues / 플랫폼 / 구성 / #consumer
+    	maxBatchSize?: number; //기본: 5
+    	maxBatchTimeout?: number /*지원하다*/; //기본: 1
+    	maxRetries?: number; //기본값: 2
+    	deadLetterQueue?: string; //기본: 없음
+    }
+    ```
+
+- `cfFetch`
+  - 이름 \*`cf`. 누구든지 받아들입니다`boolean`, `string`(이전), 또는
+    객체를 사용하여`cf`수신 요청에 대한 객체.
+
+### 제거된 옵션
+
+- `wranglerConfigPath/wranglerConfigEnv`
+  - Miniflare 더 이상 손잡이 Wrangler의 윤곽. 프로그램
+    Wrangler 구성을 기반으로 작업자를 시작, 사용
+    [`unstable_dev()`](/workers/wrangler/api/#unstable_dev)API.
+
+- `packagePath`
+  - Miniflare 더 이상 로드 스크립트 경로에서`package.json`파일. 사용 방법
+    `scriptPath`대신 스크립트를 지정하는 옵션.
+
+- `watch`
+  - Miniflare의 API는 주로 사용 사례를 테스트하기위한 것입니다.
+    보고는 보통 요구되지 않습니다. 이 옵션은 Miniflare's를 사용할 수 있게 되었습니다.
+    지금 제거 된 CLI. 파일을 볼 필요가 있다면, 고려
+    별도의 파일 watcher
+    [`fs.watch()`](https://nodejs.org/api/fs.html#fswatchfilename-options-listener)또는[`chokidar`](https://github.com/paulmillr/chokidar), 그리고 호출
+    `setOptions()`변경에 대한 원래 구성으로.
+
+- `logUnhandledRejections`
+  - 제거된 거부는 Workers에서 취급될 수 있습니다
+    [`addEventListener("unhandledrejection")`](https://community.cloudflare.com/t/2021-10-21-workers-runtime-release-notes/318571).
+
+- `globals`
+  - arbitrary 세계를 주사하는 것은 지원되지 않습니다
+    [`workerd`](https://github.com/cloudflare/workerd). 사용중인 경우
+    서비스 노동자,`bindings`세계로 주사될 것, 그러나 이러한 해야 한다
+    JSON-serialisable.
+
+- `https/httpsKey(Path)/httpsCert(Path)/httpsPfx(Path)/httpsPassphrase`
+  - Miniflare는 아직 HTTPS 서버를 시작하지 않습니다. 이 옵션은
+    미래에 다시 추가.
+
+- `crons`
+  - [`workerd`](https://github.com/cloudflare/workerd)지원하지 않음
+    아직 예정된 이벤트를 트리거. 이 옵션은 미래에 다시 추가 될 수있다
+    다운로드
+
+- `mounts`
+  - Miniflare 더 이상 부모와 아이 Workers의 개념이 없습니다. 대신,
+    모든 Workers는 새로운 것을 사용하여 동일한 수준에, 정의될 수 있습니다`workers`옵션. 서비스 바인딩을 사용하는 예입니다.
+    공유 KV 네임스페이스에서:
+
+    ```ts
+    import { Miniflare, Response } from "miniflare";
+
+    const message = "The count is ";
+    const mf = new Miniflare({
+    	//WorkersXQ와 같은 HTTP와 persistence 윤곽 사이 공유하는 선택권
+    	//항상 최고 수준에서 정의해야합니다.
+    	host: "0.0.0.0",
+    	port: 8787,
+    	kvPersist: true,
+
+    	workers: [
+    		{
+    			name: "worker",
+    			kvNamespaces: { COUNTS: "counts" },
+    			serviceBindings: {
+    				INCREMENTER: "incrementer",
+    				//서비스 바인딩은 또한 접근과 더불어 관례 기능으로, 정의될 수 있습니다
+    				//Miniflare 이외의 모든 것을 정의합니다.
+    				async CUSTOM(request) {
+    					//`request`는 들어오는 `Request` 목표입니다.
+    					return new Response(message);
+    				},
+    			},
+    			modules: true,
+    			script: `export default {
+            async fetch(request, env, ctx) {
+              //외부에 정의된 메시지를 가져옵니다.
+              const response = await env.CUSTOM.fetch("http://host/");
+              const message = await response.text();
+
+              //계산 3 배
+              await env.INCREMENTER.fetch("http://host/");
+              await env.INCREMENTER.fetch("http://host/");
+              await env.INCREMENTER.fetch("http://host/");
+              const count = await env.COUNTS.get("count");
+
+              return new Response(message + count);
+            }
+          }`,
+    		},
+    		{
+    			name: "incrementer",
+    			//우리는 이전과 동일한 `COUNTS` 네임스페이스를 사용하지만 바인딩
+    			//대신 `NUMBERS`에.
+    			kvNamespaces: { NUMBERS: "counts" },
+    			//Worker 형식은 혼합 및 일치 할 수 있습니다.
+    			script: `addEventListener("fetch", (event) => {
+            event.respondWith(handleRequest());
+          })
+          async function handleRequest() {
+            const count = parseInt((await NUMBERS.get("count")) ?? "0") + 1;
+            await NUMBERS.put("count", count.toString());
+            return new Response(count.toString());
+          }`,
+    		},
+    	],
+    });
+    const res = await mf.dispatchFetch("http://localhost");
+    console.log(await res.text()); //"수는 3"
+    await mf.dispose();
+    ```
+
+- `metaProvider`
+  - 더 보기`cf`객체 및`X-Forwarded-Proto`/`X-Real-IP`headers는 지정될 수 있습니다
+    전화 번호`dispatchFetch()`대신. 기본값`cf`객체가 될 수 있습니다.
+    새로운 사용`cf`옵션도.
+
+- `durableObjectAlarms`
+  - Miniflare는 이제 항상 튼튼한 개체 알람을 가능하게합니다.
+
+- `globalAsyncIO/globalTimers/globalRandom`
+  - [`workerd`](https://github.com/cloudflare/workerd)지원할 수 없습니다.
+    기본 변경 없이 옵션.
+
+- `actualTime`
+  - Miniflare 이제 항상 현재 시간을 반환합니다.
+
+- `inaccurateCpu`
+  - 설정하기`inspectorPort: 9229`V8 검사기를 가능하게 하는 선택권. 기타
+    `chrome://inspect`Google Chrome에서 DevTools를 열고 CPU를 수행합니다.
+    감사합니다.
+
+### 업데이트 된 방법
+
+- `setOptions()`
+  - Miniflare v3는 이제 전체 구성 객체가 전달되어야합니다. 대신
+    부분 패치의.
+
+### 제거 된 방법
+
+- `reload()`
+  - 이름 \*`setOptions()`원래 구성 객체로 reload
+    미니 플레어.
+- `createServer()/startServer()`
+  - Miniflare 지금 항상 시작
+    [`workerd`](https://github.com/cloudflare/workerd)서버 듣기
+    설치하기`host`·`port`, 그래서이 방법은 중복.
+- `dispatchScheduled()/startScheduled()`
+  - 기능의 기능`dispatchScheduled`이제 수행 할 수 있습니다`getWorker()`. 더 많은 정보를 읽으십시오[자주 묻는 질문](/workers/testing/miniflare/core/scheduled#dispatching-events).
+- `dispatchQueue()`
+  - 사용 방법`queue()`관련 제품
+    [서비스 바인딩](/workers/runtime-apis/bindings/service-bindings)또는
+    [큐 프로듀서 바인딩](/queues/configuration/configure-queues/#producer-worker-configuration)대신.
+- `getGlobalScope()/getBindings()/getModuleExports()`
+  - 이 방법은 QXQX0866XQ 샌드박스 내부에서 객체를 반환합니다. 이름 \*
+    Miniflare 지금 사용[`workerd`](https://github.com/cloudflare/workerd)·
+    다른 과정에서 실행, 이 방법은 더 이상 지원할 수 없습니다.
+- `addEventListener()`/`removeEventListener()`
+  - Miniflare 더 이상 방출`reload`이벤트. Miniflare 더 이상 시계로
+    파일, 재로드는 초기화 또는`setOptions()`전화.
+    이 경우에, 그것은 하나의 재로드를 기다릴 수
+    `await mf.ready`또는`await mf.setOptions()`각각.
+- `Response#waitUntil()`
+  - [`workerd`](https://github.com/cloudflare/workerd)지원 대기
+    모든 것`waitUntil()`아직 약속.
+
+### 제거된 포장
+
+- `@miniflare/*`
+  - Miniflare는 이제 Single 안에 포함되어 있습니다.`miniflare`패키지.

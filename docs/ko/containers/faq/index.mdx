@@ -1,0 +1,199 @@
+---
+pcx_content_type: navigation
+title: 자주 묻는 질문
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/containers/faq/'
+translation_source_md: 'https://developers.cloudflare.com/containers/faq/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+자주 묻는 질문:
+
+## 컨테이너 로그는 어떻게 작동합니까?
+
+대시보드에 로그를 받으려면 로그의 라이브 테스팅, toggle`observability`진정한
+작업자의 wrangler 구성에서:
+
+<WranglerConfig>
+  ```json
+  {
+  	"observability": {
+  		"enabled": true
+  	}
+  }
+  ```
+</WranglerConfig>
+
+로그는 동일합니다.[Worker 로그로 제한](/workers/observability/logs/workers-logs/#limits)그들이 있다는 것을 의미한다
+무료 계획 3 일 및 유료 계획 7 일 동안 유지.
+
+이름 \*[Workers 로그 가격](/workers/observability/logs/workers-logs/#pricing)비용에 대한 세부 사항.
+
+Enterprise 사용자 인 경우 컨테이너 로그를 통해 수출 할 수 있습니다.[다운로드](/logs/logpush/)당신의 선호한 목적지에.
+
+## 컨테이너 인스턴스 위치는 어떻게 선택됩니까?
+
+컨테이너를 처음 배포할 때 Cloudflare는 다양한 위치를 선택할 것입니다.
+인스턴스를 배포하는 네트워크. 이 위치는 다수 지구를 경간할 것입니다.
+
+컨테이너 인스턴스가 요청되면`this.ctx.container.start`, 가장 가까운 무료
+컨테이너 인스턴스는 사전 시작된 위치에서 선택됩니다. 이 것
+외부 요청과 같은 지역에 있을 수 있지만, 할 수 없습니다. 콘테이너를 한 번에
+인스턴스가 실행되고, 미래의 요청은 초기 위치로 이동합니다.
+
+예:
+
+- 사용자는 컨테이너를 배치합니다. Cloudflare는 자동적으로 그것의 네트워크의 맞은편에 인스턴스를 읽습니다.
+- 요청은 Bariloche, 아르헨티나의 클라이언트에서 이루어집니다. 그것은 노동자에 도달
+  Cloudflare의 위치, 아르헨티나.
+- 이 Worker 요청 호출`MY_CONTAINER.get("session-1337")`내구성이 뛰어납니다.
+  객체, 즉 호출`this.ctx.container.start`.
+- 이 요청은 가장 가까운 무료 컨테이너 인스턴스.
+- Cloudflare는 부에노스 아이레스, 아르헨티나 및 그 인스턴스가 자유롭다는 것을 인식합니다.
+  시작하세요.
+- 다른 사용자는 동일한 콘테이너에 노선을 필요로 합니다. 이 사용자의 요청 도달
+  샌디에고의 Cloudflare의 위치에서 실행되는 노동자.
+- 노동자는 다시 호출`MY_CONTAINER.get("session-1337")`.
+- 초기 컨테이너 인스턴스가 여전히 실행되는 경우, 요청은 위치로 이동합니다.
+  부에노스 아이레스. 초기 컨테이너가 수면에 사라지면 Cloudflare가 한 번
+  컨테이너의 가장 가까운 "free" 인스턴스를 찾을 수 있도록 다시 시도, 가능성이
+  북미에서 하나, 그리고 거기에 인스턴스를 시작.
+
+## 컨테이너 업데이트 및 롤아웃은 어떻게 작동합니까?
+
+이름 \*[롤아웃 문서](/containers/platform-details/rollouts/)상세 정보
+
+## 어떻게 작동합니까?
+
+이름 \*[관련 문서](/containers/platform-details/scaling-and-routing/)상세 정보
+
+## 추운 시작은? 얼마나 빨리 그들은?
+
+찬 시작은 컨테이너 인스턴스가 완전히 중단 된 상태로 시작될 때입니다.
+
+전화 번호`env.MY_CONTAINER.get(id)`완전히 새로운 ID와 출시
+이 인스턴스는 첫 번째 시간 동안, 그것은 콜드 시작에서 결과.
+
+처음에는 컨테이너 이미지를 시작합니다. 제품정보
+이 엔트리 포인트가 무엇인지에, 그것은 시작 할 시간의 변수 금액을 취할 것입니다.
+
+콘테이너 찬 시작은 수시로 2-3 초 범위일 수 있습니다, 그러나 이것은 의존합니다
+이미지 크기 및 코드 실행 시간, 다른 요인 중.
+
+## 기존의 컨테이너 이미지를 어떻게 사용하나요?
+
+이름 \*[이미지 관리 문서](/containers/platform-details/image-management/#using-existing-images)상세 정보
+
+## Disk persistent는 무엇입니까? 내 컨테이너가 잠을 때 디스크에 무슨 일이?
+
+모든 디스크는 ephemeral입니다. 컨테이너 인스턴스가 잠에 갈 때, 다음 시간
+그것은 시작, 그것은 컨테이너 이미지에 의해 정의 된 신선한 디스크가있을 것입니다.
+
+Persistent 디스크는 Cloudflare 팀은 미래에 탐구하고 있습니다, 그러나
+가까운 기간 동안 슬링되지 않습니다.
+
+## 메모리를 실행하면 어떻게됩니까?
+
+메모리를 실행하면 인스턴스가 메모리 (OOM) 오류를 발생시키고
+재시작합니다.
+
+Containers는 교체 메모리를 사용하지 않습니다.
+
+## 어떤 경우를 위해 실행할 수 있습니까? 호스트 서버가 종료되면 어떻게됩니까?
+
+Cloudflare는 특정한 양 후에 콘테이너 인스턴스를 활성화하지 않을 것입니다
+시간. 설정하지 않는 경우`sleepAfter`컨테이너 클래스에, 또는 인스턴스를 중지
+수동으로 호스트 서버가 재시작하지 않는 한 계속 실행됩니다. 이름 \*
+Cloudflare가 아닌, 불규칙한 cadence에 발생하지만, 자주 충분히
+모든 인스턴스가 설정된 기간 동안 실행되도록 보장합니다.
+
+컨테이너 인스턴스가 종료 될 때, 그것은 전송됩니다`SIGTERM`신호,
+그리고 그 후에`SIGKILL`15 분 후에 신호. 필요한 것을 수행해야합니다.
+이 시간에 우아한 폐쇄를 보장하기 위해 정리. 컨테이너 인스턴스
+이 후 다른 곳에서 재부팅됩니다.
+
+## 어떻게 내 컨테이너에 비밀을 전달할 수 있습니까?
+
+사용 가능[작업자 비밀](/workers/configuration/secrets/)또는[비밀번호](/secrets-store/integrations/workers/)Workers에 대한 비밀을 정의합니다.
+
+그런 다음 컨테이너에 이러한 비밀을 전달할 수 있습니다.`envVars`이름:
+
+```javascript
+class MyContainer extends Container {
+	defaultPort = 5000;
+	envVars = {
+		MY_SECRET: this.env.MY_SECRET,
+	};
+}
+```
+
+또는 튼튼한 개체에 컨테이너 인스턴스를 시작할 때:
+
+```javascript
+this.ctx.container.start({
+	env: {
+		MY_SECRET: this.env.MY_SECRET,
+	},
+});
+```
+
+이름 \*[Env Vars 및 비밀 예제](/containers/examples/env-vars-and-secrets/)상세 정보
+
+## 컨테이너 내부 도커를 실행할 수 있습니다 (Docker-in-Docker)?
+
+예. 사용 방법`docker:dind-rootless`컨테이너의 기본 이미지는 root 특권없이 실행됩니다.
+
+컨테이너가 IPtables 조작을 지원하지 않기 때문에 Docker daemon을 시작할 때 IPtables를 비활성화해야합니다.
+
+```dockerfile title="Dockerfile"
+FROM docker:dind-rootless
+
+# Start dockerd with iptables disabled, then run your app
+ENTRYPOINT ["sh", "-c", "dockerd-entrypoint.sh dockerd --iptables=false --ip6tables=false & exec /path/to/your-app"]
+```
+
+응용 프로그램이 Docker를 사용하기 전에 준비하기 위해 Dockerd를 기다릴 필요가 있다면 위의 인라인 명령 대신 엔트리포인트 스크립트를 사용하십시오.
+
+```sh title="entrypoint.sh"
+#!/bin/sh
+set -eu
+
+#준비하기 위해 dockerd를 기다립니다
+until docker version >/dev/null 2>&1; do
+  sleep 0.2
+done
+
+exec /path/to/your-app
+```
+
+<Render file="dind-network-host-caveat" product="containers" />
+
+완전한 작업 예제의 경우,[Docker-in-Docker 컨테이너 예](https://github.com/th0m/containers-dind).
+
+## 내 용기에서 egress를 허용하거나 비활성화합니까?
+
+컨테이너를 부팅하면 지정할 수 있습니다.`enableInternet`toggle는
+인터넷 접속
+
+그것을 비활성화하려면 컨테이너 클래스에 구성:
+
+```javascript
+class MyContainer extends Container {
+	defaultPort = 7000;
+	enableInternet = false;
+}
+```
+
+또는 튼튼한 개체에 컨테이너 인스턴스를 시작할 때:
+
+```javascript
+this.ctx.container.start({
+	enableInternet: false,
+});
+```

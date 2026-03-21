@@ -1,0 +1,90 @@
+---
+pcx_content_type: how-to
+title: 임의 TCP
+sidebar:
+  order: 11
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/cloudflared-authentication/arbitrary-tcp/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/cloudflared-authentication/arbitrary-tcp/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+사이트맵 Access는 단일 서명 (SSO) 공급자와 인증하는 최종 사용자를위한 메커니즘을 제공하며 가상 개인 네트워크 (VPN)에없는 임의 TCP를 통해 리소스에 연결합니다.
+
+## 제품 정보
+
+- Cloudflare 계정
+- Cloudflare에 활동하는 사이트
+- 더 보기`cloudflared`daemon는 호스트 및 클라이언트 기계에 설치
+
+> 사이트맵 오시는 길[사이트 추가](https://dash.cloudflare.com/sign-up)Cloudflare에. 당신은 등록 된 모든 사이트를 사용할 수 있습니다; 사이트는 고객 트래픽에 사용할 동일한 것일 필요가 없으며 내부 DNS에서 사이트에 일치 할 필요가 없습니다.
+>
+> Cloudflare 사이트에 추가하면 도메인의 권한이 있는 DNS를 Cloudflare의 네임서버로 변경해야 합니다. 구성되면 모든 요청은 Cloudflare의 네트워크로 전송됩니다. 액세스 정책이 적용될 수 있습니다.
+
+## **Cloudflare에 호스트 연결**
+
+### 1. 주인 기계에 Cloudflare daemon 설치
+
+Cloudflare 데몬,`cloudflared`, 안전, persistent, 기계에서 Cloudflare에 아웃바운드 전용 연결을 유지할 것입니다. Arbitrary TCP 트래픽은 이 연결에 proxied[Cloudflare 갱도](https://www.cloudflare.com/products/tunnel/).
+
+이름 \*[이 지침](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)다운로드 및 설치`cloudflared`기계에 자원 호스팅.
+
+### 2. Cloudflare 데몬 인증
+
+다음 명령을 실행하여 인증`cloudflared`Cloudflare 계정으로.
+
+```sh
+cloudflared tunnel login
+```
+
+`cloudflared`브라우저 창을 열고 Cloudflare 계정에 로그인하십시오. 브라우저가 없거나 브라우저 창이 실행되지 않는 기계에서 작업하는 경우 명령줄 출력에서 URL을 복사하고 브라우저에서 URL을 방문하십시오.
+
+로그인하면 Cloudflare가 계정에 추가 된 사이트를 표시합니다. 리소스를 나타내는 하위 도메인을 만들 수있는 사이트를 선택하십시오. 예를 들어, 서비스를 공유 할 계획이라면`tcp.site.com`제품정보`site.com`목록에서.
+
+선택하면`cloudflared`사이트에 야생 카드 인증서를 다운로드합니다. 이 인증서는 허용`cloudflared`사이트의 하위 도메인에 DNS 레코드를 만듭니다.
+
+### 3. Cloudflare 액세스와 하위 도메인을 확보
+
+Next, Cloudflare 액세스 정책에 등록 할 수있는 하위 도메인을 보호합니다. 이름 \*[이 지침](/cloudflare-one/access-controls/policies/)자원에 연결할 수있는 새로운 정책을 구축 할 수 있습니다.
+
+예를 들어, 리소스를 공유하면`tcp.site.com`, 그 하위 도메인에 연결하는 팀 구성원만 허용하는 정책을 구축.
+
+### 4. Cloudflare에 자원 연결
+
+`cloudflared`비표준 포트에 프록시 연결을 할 수 있습니다.
+
+다음 명령을 실행하여 리소스를 Cloudflare에 연결하여 교체`tcp.site.com`·`7870`사이트 및 포트로 값.
+
+```sh
+cloudflared tunnel --hostname tcp.site.com --url tcp://localhost:7870
+```
+
+`cloudflared`연결이 설치되었는지 확인합니다. 프로세스는 살아있고 autostart를 유지하기 위해 구성해야합니다. 프로세스가 종료되면 최종 사용자는 연결할 수 없습니다.
+
+## **클라이언트 기계에서 연결**
+
+### 1. 클라이언트 기계에 Cloudflare daemon를 설치하십시오
+
+위의 동일한 단계를 따라 다운로드 및 설치`cloudflared`리소스에 연결할 클라이언트 데스크톱에.`cloudflared`연결될 각 사용자 장치에 설치되어야 합니다.
+
+### 2. 자원에 연결
+
+다음 명령을 실행하여 장치에서 Cloudflare에 연결을 만듭니다. 어떤 유효한 항구든지 지정될 수 있습니다.
+
+```sh
+cloudflared access tcp --hostname tcp.site.com --url localhost:9210
+```
+
+이 명령은 최종 사용자가 명령 줄을 사용하지 않도록 데스크탑 단축키로 감싸일 수 있습니다.
+
+선택된 포트에 클라이언트 응용 프로그램을 포인트.
+
+클라이언트가 시작할 때,`cloudflared`브라우저 창을 시작하고 SSO 공급자와 인증하는 사용자를 프롬프트합니다.
+
+**일반적인 문제**
+
+- 기계의 방화벽은 포트 80 및 443의 egress를 허용한다는 것을 보증합니다.`cloudflared`오류를 반환합니다.

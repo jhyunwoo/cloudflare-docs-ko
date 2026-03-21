@@ -1,0 +1,400 @@
+---
+title: '배팅, 리트리 및 지연'
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/configuration/batching-retries/'
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/configuration/batching-retries/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample, Tabs, TabItem } from "~/components";
+
+## 팟캐스트
+
+설정할 때[소비자 노동자](/queues/reference/how-queues-works#consumers)queue의 경우 메시지가 전달되는 것과 같이 일괄 처리되는 방법을 정의 할 수 있습니다.
+
+Batching 깡통:
+
+1. 소비자 노동자의 총 수를 줄인다 (비용을 줄일 수 있음).
+2. 외부 API 또는 서비스(reducing writes)로 작성할 때 일괄 메시지가 허용됩니다.
+3. 생산자 Workers가 user-facing 활동과 관련되어 있는 경우에 시간, 특히에 짐을 분산하십시오.
+
+메시지가 일괄 처리되는 방법을 구성하는 두 가지 방법이 있습니다. 소비자 노동자를 큐에 연결할 때 일괄 처리 구성.
+
+- `max_batch_size`- 소비자에게 배달되는 배치의 최대 크기 (10 메시지에 과태).
+- `max_batch_timeout`- 한국어*지원하다*소비자에게 배치를 전달하기 전에 대기 시간의 양 (과태 5 초)
+
+:::note\[배치 크기 구성]
+
+모두 보기`max_batch_size`·`max_batch_timeout`함께 일하십시오. 어느 제한이 도달 첫 번째 배치의 배달을 트리거합니다.
+
+:::
+
+예를 들어,`max_batch_size = 30`·`max_batch_timeout = 10`30 메시지가 큐에 기록되면 소비자는 30 메시지의 배치를 받게됩니다. 그러나, 그 30 메시지에 대한 10 초 이상 걸리면 큐에 기록 될 수 있습니다. 그 다음 소비자는 많은 메시지를 포함하는 메시지의 배치를 얻을 것이다 그러나 많은 메시지는 시간에 큐에있었습니다 (이 경우 1과 29 사이).
+
+:::노트\[Empty queues]
+
+큐가 비어지면 푸시 기반 (Worker) 소비자`queue`핸들러는 메시지를 전달할 때까지 호출되지 않습니다. queue는 소비자에게 빈 배치를 밀어 시도하지 않고 불필요한 읽을 수 없습니다.
+
+[풀 기반 소비자](/queues/configuration/pull-consumers/)그것은 queue에서 당겨려고, 심지어 빈 때, 읽힌 작업을 수행 할 것입니다.
+
+:::
+
+크기와 타임 아웃 설정이 구성될 때, 지연 시간을 고려해야 할 것입니다 (당신은 메시지 수신을 기다릴 수?), 전체 일괄 크기 (외부 시스템에 쓰기 할 때), 및 비용 (범죄 판).
+
+### 일괄 설정
+
+다음 배치 수준 설정은 Queues가 설정된 소비자에게 배치를 전달하는 방법을 조정할 수 있습니다.
+
+<table-wrap>
+  | 설치하기                             | 기본 정보  | 이름 \* | 지원하다    |
+  | -------------------------------- | ------ | ----- | ------- |
+  | 최대 배치 크기`max_batch_size`         | 10 메시지 | 1 메시지 | 100 메시지 |
+  | 최대 배치 Timeout`max_batch_timeout` | 5 초    | 0 초   | 60 초    |
+</table-wrap>
+
+## Explicit 인정 및 retries
+
+각 메시지가 처리됩니다. 명시적으로 인정 된 메시지는 재 배달되지 않습니다, 당신의 큐 소비자가 후속 메시지에 실패하고 / 또는 일괄 처리 할 때 성공적으로 반환 실패 경우에도.
+
+- 각 메시지는 일괄 처리 중에 오류를 발생하면 재 배달되는 전체 배치를 피할 수 있습니다.
+- Acknowledging 개별 메시지는 외부 API를 호출 할 때 유용합니다. 데이터베이스에 메시지를 작성하거나 개별 메시지에서 비-idempotent (state changing) 작업을 수행하십시오.
+
+전달된 메시지를 명시적으로 인정하기 위해, 호출`ack()`메시지의 방법.
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    export default {
+    	async queue(batch, env, ctx): Promise<void> {
+    		for (const msg of batch.messages) {
+    			//TODO : 메시지와 무언가를
+    			//Explicitly는 전달된 메시지를 인정합니다.
+    			msg.ack();
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def queue(self, batch):
+            for msg in batch.messages:
+                #TODO : 메시지와 무언가를
+                #Explicitly는 전달된 메시지를 인정합니다.
+                msg.ack()
+    ```
+  </TabItem>
+</Tabs>
+
+전화 번호`retry()`명시적으로 나중에 일괄 처리에 적색 메시지를 강제합니다. 이것은 "negativecogniment"라고합니다. 이것은 당신이 빨갛게 할 전체 배치를 강제 할 수있는 오류를 던지지 않고 그 배치에 메시지의 나머지를 처리 할 때 특히 유용합니다.
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    export default {
+    	async queue(batch, env, ctx): Promise<void> {
+    		for (const msg of batch.messages) {
+    			//TODO: 실패한 메시지와 뭔가
+    			msg.retry();
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def queue(self, batch):
+            for msg in batch.messages:
+                #TODO: 실패한 메시지와 뭔가
+                msg.retry()
+    ```
+  </TabItem>
+</Tabs>
+
+일괄 처리 수준에서 메시지를 인식하거나 부정적으로 인정할 수 있습니다.`ackAll()`·`retryAll()`. 전화`ackAll()`메시지의 배치에 (`MessageBatch`) 소비자 노동자에 전달된 소비자 노동자는 성공적으로 반환하는 소비자 노동자와 동일하게 행동합니다 (오류를 던지는 것은 아닙니다).
+
+자주 묻는 질문`ack()`, `retry()`그리고 그들의`ackAll()` / `retryAll()`동등은 다음과 같습니다.
+
+- 전화 번호`ack()`메시지에, 후속 호출`ack()`또는`retry()`자주 묻는 질문
+- 전화 번호`retry()`메시지에 다음 호출`ack()`: 한국어`ack()`무시됩니다. 첫 번째 방법 호출은 모든 경우에 승리.
+- 자주 묻는 질문`ack()`또는`retry()`단일 메시지에, 다음 중 / 어떤`ackAll()`또는`retryAll()`일괄 처리에, 단일 메시지의 호출은 선행. 즉, 일괄 통화는 메시지에 적용되지 않습니다 (또는 메시지, 여러 통화가 만든 경우).
+
+## 납품 실패
+
+메시지가 전달되지 않을 때, 기본 동작은 실패로 배달을 표시하기 전에 세 번 재발 배송하는 것입니다. 설정할 수 있습니다.`max_retries`(과태는 3) 소비자를 구성 할 때, 그러나 대부분의 경우 우리는 기본적으로 이것을 떠날 것을 권장합니다.
+
+구성 된 최대 retries에 도달하는 메시지는 큐에서 삭제됩니다, 또는 경우[죽은 letter 큐](/queues/configuration/dead-letter-queues/)(DLQ)는 대신 DLQ로 작성된 구성입니다.
+
+:::참조
+
+각 리트리는 추가 읽기 작업으로 계산합니다.[Queues 가격](/queues/platform/pricing/).
+
+:::
+
+일괄 처리 내에서 단일 메시지가 전달되지 않을 때 전체 배치는 검색되지 않는 한,[명시적으로 인정](#explicit-acknowledgement-and-retries)그 배치 내에서 메시지 (또는 메시지). 예를 들어, 10 메시지의 배치가 전달되었지만 8 번째 메시지는 전달되지 않습니다. 모든 10 메시지는 재조합되며 따라서 전체 소비자에게 재배됩니다.
+
+:::caution\[메시지 및 소비자 통화에 대한 노출]
+
+메시지 복원`retry()`또는 전화`retryAll()`배치에**아니다.**&#xC18C;비자 통화가 활성화된 경우 자동화된 소비자가 발생합니다. 더 알아보기[소비자 concurrency](/queues/configuration/consumer-concurrency/)더 알아보기.
+
+:::
+
+## Delay 메시지
+
+queue에 메시지를 게시 할 때, 또는 때[retry에 대한 메시지 또는 배치 표시](#explicit-acknowledgement-and-retries), 당신은 시간의 기간 동안 처리되는 메시지가 지연될 수 있습니다.
+
+지연 메시지는 나중에까지 실행 작업을 할 수 있으며 / 또는 큐에서 소모 할 때 backpressure에 응답합니다. 예를 들어, upstream API가 호출되는 경우`HTTP 429: Too Many Requests`, 당신은 신속하게 처리되기 전에 그들을 소모하는 방법을 느리게 메시지를 지연 할 수 있습니다.
+
+메시지는 최대 24 시간 지연 될 수 있습니다.
+
+:::참조
+
+배송 및 재량 지연 구성`wrangler`CLI 또는 언제[현지화](/queues/configuration/local-development/)견적 요청`wrangler`이름 \*`3.38.0`또는 더 큰. 제품 정보`npx wrangler@latest`항상 최신 버전의 사용`wrangler`.
+
+:::
+
+### 연락처
+
+메시지 또는 메시지의 배치를 지연 할 때 큐에 전송, 당신은 제공 할 수 있습니다`delaySeconds`메시지를 보낼 때 매개 변수.
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    //600초 (10분)
+    await env.YOUR_QUEUE.send(message, { delaySeconds: 600 });
+
+    //300 초 (5 분)로 메시지 배치 지연
+    await env.YOUR_QUEUE.sendBatch(messages, { delaySeconds: 300 });
+
+    //이 메시지를 지연하지 마십시오.
+    //큐에 구성된 글로벌 지연이 있다면, 무시합니다.
+    await env.YOUR_QUEUE.sendBatch(messages, { delaySeconds: 0 });
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    #600초 (10분)
+    await env.YOUR_QUEUE.send(message, delaySeconds=600)
+
+    #300 초 (5 분)로 메시지 배치 지연
+    await env.YOUR_QUEUE.sendBatch(messages, delaySeconds=300)
+
+    #이 메시지를 지연하지 마십시오.
+    #큐에 구성된 글로벌 지연이 있다면, 무시합니다.
+    await env.YOUR_QUEUE.sendBatch(messages, delaySeconds=0)
+    ```
+  </TabItem>
+</Tabs>
+
+또한 전달을 통해 디폴트, 글로벌 지연을 구성할 수 있습니다.`--delivery-delay-secs`queue를 만들 때`wrangler`클립:
+
+```sh
+#기본으로 5분마다 모든 메시지 지연
+npx wrangler queues create $QUEUE-NAME --delivery-delay-secs=300
+```
+
+### retry에 지연
+
+시간 :[queue의 메시지](/queues/reference/how-queues-works/#consumers), 당신은 선택할 수 있습니다[명시적으로 메시지 표시](#explicit-acknowledgement-and-retries). 메시지는, 또는 전체 배치로 retried 및 지연될 수 있습니다.
+
+일괄 처리 내에서 개별 메시지 지연:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    export default {
+    	async queue(batch, env, ctx): Promise<void> {
+    		for (const msg of batch.messages) {
+    			//retry를 위한 표시 및 단말 메시지 지연
+    			//3600 초 (1 시간)
+    			msg.retry({ delaySeconds: 3600 });
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def queue(self, batch):
+            for msg in batch.messages:
+                #retry를 위한 표시 및 단말 메시지 지연
+                #3600 초 (1 시간)
+                msg.retry(delaySeconds=3600)
+    ```
+  </TabItem>
+</Tabs>
+
+메시지의 배치를 지연하려면:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    export default {
+    	async queue(batch, env, ctx): Promise<void> {
+    		//retry를 위한 표 및 메시지의 배치를 연기하십시오
+    		//600초 (10분)
+    		batch.retryAll({ delaySeconds: 600 });
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def queue(self, batch):
+            #retry를 위한 표 및 메시지의 배치를 연기하십시오
+            #600초 (10분)
+            batch.retryAll(delaySeconds=600)
+    ```
+  </TabItem>
+</Tabs>
+
+당신은 또한 임의 실패 또는 호출 할 때 어떤 메시지에 기본 재량 지연을 설정할 수 있습니다`retry()`견적 요청 소비자 수준에서 설정하고 푸시 기반 (Worker) 및 풀 기반 (HTTP) 소비자 모두에서 지원됩니다.
+
+지연은 형성될 수 있습니다`wrangler`클립:
+
+```sh
+#푸시 기반 소비자
+#기본적으로 60 초 (1 분)에 의해 재생되는 모든 메시지 지연.
+npx wrangler@latest queues consumer worker add $QUEUE-NAME $WORKER_SCRIPT_NAME --retry-delay-secs=60
+
+#풀 기반 소비자
+#기본적으로 60 초 (1 분)에 의해 재생되는 모든 메시지 지연.
+npx wrangler@latest queues consumer http add $QUEUE-NAME --retry-delay-secs=60
+```
+
+지연도 설정할 수 있습니다.[Wrangler 구성 파일](/workers/wrangler/configuration/#queues)이름 \*`delivery_delay`프로듀서 설정 (송출시) 및 / 또는`retry_delay`(재난) per-consumer:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"producers": [
+  			{
+  				"binding": "<BINDING_NAME>",
+  				"queue": "<QUEUE-NAME>",
+  				"delivery_delay": 60 //지연 각 메시지 배달 1 분
+  			}
+  		],
+  		"consumers": [
+  			{
+  				"queue": "my-queue",
+  				"retry_delay": 300 //re-attempting 납품의 앞에 5 분에 의하여 어떤 retried 메시지를 연기하십시오
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+둘 다 사용한다면`wrangler`CLI와[Wrangler 구성 파일](/workers/wrangler/configuration/)queue 또는 queue 소비자와 관련된 설정을 변경하려면 가장 최근의 구성 변경이 효력을 발생합니다.
+
+더 알아보기[Queues REST API 문서](/api/resources/queues/subresources/consumers/methods/get/)메시지 지연 및 리트리 지연을 구성하는 방법을 배우기 위해 programmatically.
+
+### 메시지 지연
+
+메시지는 queue 수준 또는 per-message (또는 배치)에 기본적으로 지연될 수 있습니다.
+
+- Per-message/batch 지연 조정은 queue 수준 조정에 precedence를 가지고 갑니다.
+- 설치하기`delaySeconds: 0`메시지를 보낼 때 메시지 또는 retrying 어떤 queue-level 지연을 무시하고 다음 배치에서 전달되는 메시지를 발생.
+- 메시지를 보내거나 retried`delaySeconds: <any positive integer>`짧은 기본 지연으로 큐에 여전히 메시지 수준 설정을 존중합니다.
+
+### backoff 알고리즘 적용
+
+더 많은 지연 메시지에 메시지를 전달하는 시도의 현재 수를 기준으로 백오프 알고리즘을 적용 할 수 있습니다.
+
+소비자에게 전달된 각 메시지에는`attempts`배달 시도의 수를 추적하는 속성.
+
+예를 들어, 생성하기[exponential 백오프](https://en.wikipedia.org/wiki/Exponential_backoff)메시지를 위해, 당신은 당신을 위해 이것을 산출하는 도우미 기능을 창조할 수 있습니다:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    function calculateExponentialBackoff(
+    	attempts: number,
+    	baseDelaySeconds: number,
+    ): number {
+    	return baseDelaySeconds ** attempts;
+    }
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    def calculate_exponential_backoff(attempts, base_delay_seconds):
+        return base_delay_seconds ** attempts
+    ```
+  </TabItem>
+</Tabs>
+
+당신의 소비자에서, 당신은 그 후에 가치의 통과합니다`msg.attempts`인자로 원하는 지연 인자`delaySeconds`전화 번호`retry()`개별 메시지:
+
+<Tabs syncKey="workersExamples">
+  <TypeScriptExample filename="index.ts" omitTabs={true}>
+    ```ts
+    const BASE_DELAY_SECONDS = 30;
+
+    export default {
+    	async queue(batch, env, ctx): Promise<void> {
+    		for (const msg of batch.messages) {
+    			//exponential backoff를 가진 retry를 위한 표
+    			msg.retry({
+    				delaySeconds: calculateExponentialBackoff(
+    					msg.attempts,
+    					BASE_DELAY_SECONDS,
+    				),
+    			});
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TypeScriptExample>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint
+
+    BASE_DELAY_SECONDS = 30
+
+    class Default(WorkerEntrypoint):
+        async def queue(self, batch):
+            for msg in batch.messages:
+                #retry를 위한 표시 및 단말 메시지 지연
+                #3600 초 (1 시간)
+                msg.retry(
+                    delaySeconds=calculate_exponential_backoff(
+                        msg.attempts,
+                        BASE_DELAY_SECONDS,
+                    )
+                )
+    ```
+  </TabItem>
+</Tabs>
+
+## 이름 \*
+
+- 자주 묻는 질문[모델 번호: JavaScript](/queues/configuration/javascript-apis/)Queues에 대한 문서.
+- 더 알아보기[Queues 이름 \*](/queues/reference/how-queues-works/).
+- 이름 \*[사용 가능](/queues/observability/metrics/)backlog 및 지연된 메시지 카운트를 포함한 큐에 대한.

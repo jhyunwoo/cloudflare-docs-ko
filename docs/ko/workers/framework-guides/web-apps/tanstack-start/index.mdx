@@ -1,0 +1,397 @@
+---
+pcx_content_type: how-to
+title: TanStack 시작
+sidebar:
+  order: 7
+head: []
+tags:
+  - full-stack
+description: Cloudflare QXWorkersXQ에 TanStack 시작 응용 프로그램을 배포합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack-start/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/tanstack-start/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	AutoconfigDiagram,
+	Description,
+	Details,
+	Render,
+	PackageManagers,
+	Steps,
+	TypeScriptExample,
+	WranglerConfig,
+} from "~/components";
+
+[TanStack 시작](https://tanstack.com/start)서버 측 렌더링, 스트리밍, 서버 기능 및 번들링과 웹 응용 프로그램을 구축하기위한 풀 스택 프레임 워크입니다.
+
+:::tip\[Already에는 TanStack 시작 프로젝트가 있습니까?]
+지원하다`wrangler deploy`WranglerXQ 설정 파일 및 Wrangler가 자동으로 TanStack Start를 감지하고 필요한 구성을 생성하고 프로젝트를 배포합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+더 알아보기[자동 프로젝트 구성](/workers/framework-guides/automatic-configuration/).
+:::
+
+<AutoconfigDiagram
+  framework="TanStack Start"
+  configs={[
+  	{ label: "main", file: "wrangler.jsonc", value: ".output/server/index.mjs" },
+  	{ label: "assets", file: "wrangler.jsonc", value: "directory: .output/public" },
+  	{ label: "compatibility_flags", file: "wrangler.jsonc", value: "nodejs_compat" },
+  	{ label: "observability", file: "wrangler.jsonc", value: "enabled: true" },
+  ]}
+/>
+
+## 새 신청서 작성
+
+Cloudflare Workers를 위해 미리 구성되는 TanStack 시작 신청:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args="my-tanstack-start-app --framework=tanstack-start" />
+
+개발 중에 프로젝트를 미리 보기 위해 로컬 개발 서버를 시작하십시오:
+
+<PackageManagers type="run" args="dev" />
+
+## 기존 애플리케이션 구성
+
+기존 TanStack 시작 응용 프로그램이 있다면 Cloudflare Workers에서 실행할 수 있습니다.
+
+<Steps>
+  1. 설치하기`@cloudflare/vite-plugin`·`wrangler`:
+
+     <PackageManagers type="add" pkg="@cloudflare/vite-plugin wrangler" args="-D" />
+
+  2. Vite 구성에 Cloudflare 플러그인 추가:
+
+     <TypeScriptExample filename="vite.config.ts">
+       ```ts
+       import { defineConfig } from "vite";
+       import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+       import { cloudflare } from "@cloudflare/vite-plugin";
+       import react from "@vitejs/plugin-react";
+
+       export default defineConfig({
+       	plugins: [
+       		cloudflare({ viteEnvironment: { name: "ssr" } }),
+       		tanstackStart(),
+       		react(),
+       	],
+       });
+       ```
+     </TypeScriptExample>
+
+  3. 추가하기`wrangler.jsonc`구성 파일:
+
+     <WranglerConfig>
+       ```jsonc
+       {
+       	"$schema": "node_modules/wrangler/config-schema.json",
+       	"name": "<YOUR_PROJECT_NAME>",
+       	"compatibility_date": "$today",
+       	"compatibility_flags": ["nodejs_compat"],
+       	"main": "@tanstack/react-start/server-entry",
+       	"observability": {
+       		"enabled": true,
+       	},
+       }
+       ```
+     </WranglerConfig>
+
+  4. 업데이트`scripts`내 계정`package.json`:
+
+     ```json title="package.json"
+     {
+     	"scripts": {
+     		"dev": "vite dev",
+     		"build": "vite build",
+     		"preview": "vite preview",
+     		"deploy": "npm run build && wrangler deploy",
+     		"cf-typegen": "wrangler types"
+     	}
+     }
+     ```
+</Steps>
+
+## 계정 만들기
+
+에 배치`*.workers.dev`하위 도메인 또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 기계 또는 어떤 CI/CD 체계든지에서,[모델 번호: Workers 회사연혁](/workers/ci-cd/builds/).
+
+<PackageManagers type="run" args={"deploy"} />
+
+:::참조
+
+배포하기 전에 로컬로 빌드 미리보기:
+
+<PackageManagers type="run" args="preview" />
+
+:::
+
+## 사용자 이름
+
+TanStack 시작 용도`@tanstack/react-start/server-entry`기본 엔트리 포인트로. 추가 Workers 핸들러를 추가하기 위해 사용자 정의 서버 엔트리 포인트를 만듭니다.[모델 번호: Queues](/queues/)·[Cron 트리거](/workers/configuration/cron-triggers/). 또한 당신이 추가 수출을 추가 할 수있는 곳[모델 번호: Durable Objects](/durable-objects/)·[Workflows](/workflows/).
+
+<Steps>
+  1. 사용자 정의 서버 Entrypoint 파일 만들기:
+
+     <TypeScriptExample filename="src/server.ts">
+       ```ts
+       import handler from "@tanstack/react-start/server-entry";
+
+       //수출 이름 수출으로 Durable Objects
+       export { MyDurableObject } from "./my-durable-object";
+
+       export default {
+       	fetch: handler.fetch,
+
+       	//핸들 큐 메시지
+       	async queue(batch, env, ctx) {
+       		for (const message of batch.messages) {
+       			console.log("Processing message:", message.body);
+       			message.ack();
+       		}
+       	},
+
+       	//손잡이 Cron Triggers
+       	async scheduled(event, env, ctx) {
+       		console.log("Cron triggered:", event.cron);
+       	},
+       };
+       ```
+     </TypeScriptExample>
+
+  2. Wrangler 구성을 업데이트하여 사용자 지정 엔트리 포인트에 포인트를 지정하십시오.
+
+     <WranglerConfig>
+       ```jsonc
+       {
+       	"main": "app/server.ts",
+       }
+       ```
+     </WranglerConfig>
+</Steps>
+
+### 현지에서 계획된 핸들러를 시험하십시오
+
+자주 묻는 질문`/cdn-cgi/handler/scheduled`엔드포인트:
+
+```sh
+curl "http://localhost:3000/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"
+```
+
+<Details header="예: Workflows 사용">
+  사용자 정의 항목 포인트에서 워크 플로우 클래스를 내보내 내구성, 멀티 스텝 작업을 실행:
+
+  <TypeScriptExample filename="app/server.ts">
+    ```ts
+    import {
+    	WorkflowEntrypoint,
+    	WorkflowStep,
+    	WorkflowEvent,
+    } from "cloudflare:workers";
+
+    export class MyWorkflow extends WorkflowEntrypoint<Env> {
+    	async run(event: WorkflowEvent<{ input: string }>, step: WorkflowStep) {
+    		const result = await step.do("process data", async () => {
+    			return `Processed: ${event.payload.input}`;
+    		});
+
+    		await step.sleep("wait", "10 seconds");
+
+    		await step.do("finalize", async () => {
+    			console.log("Workflow complete:", result);
+    		});
+    	}
+    }
+    ```
+  </TypeScriptExample>
+
+  Wrangler 구성에 Workflow 구성 추가:
+
+  <WranglerConfig>
+    ```jsonc
+    {
+    	"workflows": [
+    		{
+    			"name": "my-workflow",
+    			"binding": "MY_WORKFLOW",
+    			"class_name": "MyWorkflow",
+    		},
+    	],
+    }
+    ```
+  </WranglerConfig>
+</Details>
+
+<Details header="예제: 서비스 바인딩 사용">
+  TanStack Start 애플리케이션에서 다른 Worker의 RPC 메소드를 호출하는 서비스 바인딩을 추가하십시오.
+
+  <WranglerConfig>
+    ```jsonc
+    {
+    	"services": [
+    		{
+    			"binding": "AUTH_SERVICE",
+    			"service": "auth-worker",
+    		},
+    	],
+    }
+    ```
+  </WranglerConfig>
+
+  서버 함수에서 경계 노동자의 메소드를 호출:
+
+  <TypeScriptExample filename="app/routes/index.tsx">
+    ```ts
+    import { createServerFn } from "@tanstack/react-start";
+    import { env } from "cloudflare:workers";
+
+    const verifyUser = createServerFn()
+    	.inputValidator((token: string) => token)
+    	.handler(async ({ data: token }) => {
+    		const result = await env.AUTH_SERVICE.verify(token);
+    		return result;
+    	});
+    ```
+  </TypeScriptExample>
+</Details>
+
+## 회사 소개
+
+귀하의 TanStack 시작 응용 프로그램은 Cloudflare 개발자 플랫폼과 완전히 통합 될 수 있으며 로컬 개발 및 생산 분야에서[관련 제품](/workers/runtime-apis/bindings/).
+
+액세스 바인딩 by[수입하기`env`기타 제품](/workers/runtime-apis/bindings/#importing-env-as-a-global)서버 측 부호에서:
+
+<TypeScriptExample filename="app/routes/index.tsx">
+  ```tsx
+  import { createFileRoute } from "@tanstack/react-router";
+  import { createServerFn } from "@tanstack/react-start";
+  import { env } from "cloudflare:workers";
+
+  export const Route = createFileRoute("/")({
+  	loader: () => getData(),
+  	component: RouteComponent,
+  });
+
+  const getData = createServerFn().handler(() => {
+  	//env를 통해 액세스 바인딩
+  	//예를 들면: env.MY KV, env.MY BUCKET, env.AI, 등.
+  });
+
+  function RouteComponent() {
+  	//· ...
+  }
+  ```
+</TypeScriptExample>
+
+TypeScriptXQ를 Wrangler 구성에 근거를 둔 당신의 바인딩을 위한 생성:
+
+<PackageManagers type="run" args="cf-typegen" />
+
+<Render file="frameworks-bindings" product="workers" />
+
+### 서버 기능에서 R2를 사용하십시오
+
+이름 \*[R2 물통 바인딩](/r2/api/workers/workers-api-usage/#4-bind-your-bucket-to-a-worker)Wrangler 윤곽에:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "<YOUR_BUCKET_NAME>",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+서버 기능에 있는 물통을 접근하십시오:
+
+<TypeScriptExample filename="app/routes/index.tsx">
+  ```tsx
+  import { createServerFn } from "@tanstack/react-start";
+  import { env } from "cloudflare:workers";
+
+  const uploadFile = createServerFn({ method: "POST" })
+  	.validator((data: { key: string; content: string }) => data)
+  	.handler(async ({ data }) => {
+  		await env.MY_BUCKET.put(data.key, data.content);
+  		return { success: true };
+  	});
+
+  const getFile = createServerFn()
+  	.validator((key: string) => key)
+  	.handler(async ({ data: key }) => {
+  		const object = await env.MY_BUCKET.get(key);
+  		return object ? await object.text() : null;
+  	});
+  ```
+</TypeScriptExample>
+
+## 정체되는 prerendering
+
+빌드 시간에 정적 HTML에 응용 프로그램을 렌더링하고 역할을[정적 자산](/workers/static-assets/).
+
+<TypeScriptExample filename="vite.config.ts">
+  ```ts
+  import { defineConfig } from "vite";
+  import { cloudflare } from "@cloudflare/vite-plugin";
+  import { tanstackStart } from "@tanstack/react-start/plugin/vite";
+  import react from "@vitejs/plugin-react";
+
+  export default defineConfig({
+  	plugins: [
+  		cloudflare({ viteEnvironment: { name: "ssr" } }),
+  		tanstackStart({
+  			prerender: {
+  				enabled: true,
+  			},
+  		}),
+  		react(),
+  	],
+  });
+  ```
+</TypeScriptExample>
+
+더 많은 옵션을 위해, 참조[TanStack 시작 정체되는 prerendering](https://tanstack.com/start/latest/docs/framework/react/guide/static-prerendering).
+
+:::참조
+
+이름 \*`@tanstack/react-start`v1.138.0 이상.
+
+:::
+
+:::카트로션
+
+Prerendering는 빌드 중에 실행되며 로컬 환경 변수, 비밀 및 바인딩 저장 데이터를 사용합니다. 제품 정보[먼 바인딩](/workers/development-testing/#remote-bindings)생산 자료로 prerender에.
+
+:::
+
+### CI 환경
+
+CI에서 사전 렌더링 할 때, 작업자 코드는 빌드 환경에서 사용할 수없는 환경 변수 또는 비밀이 필요할 수 있습니다. 다음 것`.env`referenceS를 사용하여 CI 환경의 가치를 해결합니다.
+
+```sh title=".env"
+API_KEY=${API_KEY}
+DATABASE_URL=${DATABASE_URL}
+```
+
+설치하기`CLOUDFLARE_INCLUDE_PROCESS_ENV=true`CI 환경에서 환경변수로 필요한 값을 제공합니다. 사용 방법[Workers 회사연혁](/workers/ci-cd/builds/), 당신의 갱신[설정 설정](/workers/ci-cd/builds/configuration/#build-settings).
+
+:::참조
+
+현지 개발의 경우,`.env.local`실제 값으로 파일. 이 파일을 저장소에 투입하지 마십시오. 가치에`.env.local`override references에`.env`:
+
+```sh title=".env.local"
+API_KEY=my-local-dev-key
+DATABASE_URL=postgres://localhost/mydb
+```
+
+:::

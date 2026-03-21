@@ -1,0 +1,159 @@
+---
+pcx_content_type: how-to
+title: 연락처
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/time-services/roughtime/recipes/'
+translation_source_md: 'https://developers.cloudflare.com/time-services/roughtime/recipes/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+sync에 있는 당신의 시계를 지키는 거친 시간을 사용할 수 있는 각종 방법이 있습니다. 이 요리법[Cloudflare의 이동 포장](https://github.com/cloudflare/roughtime)Google에 기반한 ,[이름 \*
+고객 지원](https://roughtime.googlesource.com/roughtime/+/master/go/client/).
+
+프로토콜은 또한 구현된다[사이트맵](https://roughtime.googlesource.com/roughtime/+/master), [모델 번호: Rust](https://github.com/int08h/roughenough)·
+[다운로드](https://github.com/int08h/nearenough).
+
+## Client 구성
+
+클라이언트 구성은 거친 서버의 목록으로 구성됩니다.
+JSON 객체로 포맷. 예를 들면:
+
+```json
+{
+  "servers": [
+    {
+      "name": "Cloudflare-Roughtime-2",
+      "publicKeyType": "ed25519",
+      "publicKey": "0GD7c3yP8xEc4Zl2zeuN2SlLvDVVocjsPSL8/Rl/7zg=",
+      "addresses": [
+        {
+          "protocol": "udp",
+          "address": "roughtime.cloudflare.com:2003"
+        }
+      ]
+    }
+  ]
+}
+```
+
+각 서버의 포함*루트 공개 키*. 서버가 시작되면
+생성하기*한국어*public/secret 열쇠 쌍. 루트 비밀 키는 생성에 사용*이름 \**&#xC628;라인 공개 키 및 온라인 비밀 키는 응답을 서명하는 데 사용됩니다.
+
+delegation는 전통적인 것과 동일한 기능을 봉사합니다[X.509 인증서](https://en.wikipedia.org/wiki/X.509)웹에. 클라이언트는 첫째로 delegation를 확인하기 위하여 뿌리 공공 열쇠를 이용합니다, 그 후에 응답을 확인하기 위하여 온라인 공중 열쇠를 이용합니다.
+
+응답이기 때문에*감사합니다.*, 의정서는 각 클라이언트에게 정확한 시간을 제공하기 위하여 회계하게 합니다.
+
+구성은 서명 알고리즘의 유형을 인코딩합니다.
+서버 (현재만[에드25519](https://en.wikipedia.org/wiki/EdDSA)지원되는). 마지막으로, 구성은 서비스가 도달 할 수있는 주소 목록을 포함하고 그 (현재 UDP 만 지원됩니다)에 도달하기 위해 프로토콜을 전송하는 것입니다.
+
+## 사이트맵
+
+좋은 시작 예제는 단일 거친 서버를 사용하여 TLS 클라이언트 또는 서버를 동기화 할 것입니다. 그것은 우리의 시계와 거친 sever의 시간 차이를 계산할 것입니다.
+
+첫 번째 단계는 구성 파일을로드하는 것입니다 (확인해야합니다)
+제품정보`github.com/cloudflare/roughtime`):
+
+```go
+servers, skipped, err := roughtime.LoadConfig("roughtime.config")
+```
+
+이 예제에서 변수`servers`입력 파일에서 파싱된 유효한 서버 구성의 목록입니다. 변수`skipped`예를 들어, 서명 알고리즘이나 운송 프로토콜이 지원되지 않은 경우, 건너뛰는 서버 수를 나타냅니다.
+
+다음, 우리는 시스템 시간을 얻을하고 목록에서 첫 번째 서버를 쿼리합니다 :
+
+```go
+t0 := time.Now()
+rt, err := roughtime.Get(&servers[0], attempts, timeout, nil)
+```
+
+이 서버에 요청을 보내고 응답을 확인합니다. 변수`rt`유형의`*roughtime.Roughtime`그리고 쿼리의 결과를 나타냅니다. 입력은:
+
+1. 서버의 구성.
+2. 서버를 호출하는 시도의 수.
+3. 각 다이얼 시도를 기다립니다.
+4. 선택 사항`*roughtime.Roughtime`, 이전 쿼리의 결과.
+
+마지막 매개 변수가 제공되면 사용되지 않습니다.
+요청 (이 나중에 더).
+
+더 보기`crypto/tls`패키지는 사용자가
+[콜백 지정](https://golang.org/pkg/crypto/tls/#Config)인증서, 세션 티켓, 기타를 검증할 때 사용하는 현재 시간 다음과 같이 이 콜백을 컴파일할 수 있습니다:
+
+```go
+t1, radius := rt.Now()
+delta := t1.Sub(t0.Now())
+now := func() time.Time {
+  return time.Now().Add(delta)
+}
+```
+
+변수`t1`서버가 보고된 시간입니다.`radius`서버의 uncertainty 반경입니다.
+
+전체 작업 예제의 경우, 우리의 체크 아웃
+[프로젝트](https://github.com/cloudflare/roughtime/blob/master/recipes/tls.go).
+
+## 데스크탑 경고
+
+거친 시간을 사용할 수있는 더 일반적인 방법은 시계가 갈 때 경고 바탕 화면 경고를 만들 것입니다.
+
+Ubuntu GNU/Linux에서 다음과 같은 것을 할 수 있습니다.
+
+```go
+skew := time.Duration(math.Abs(float64(delta)))
+if skew > 10*time.Second {
+  summary := "Check your clock!"
+  body := fmt.Sprintf("%s says it's off by %v.", servers[0].Name, skew)
+  cmd := exec.Command("notify-send", "-i", "clock", summary, body)
+  if err := cmd.Run(); err != nil {
+    // error handling ...
+  }
+}
+```
+
+전체 작업 예제의 경우, 우리의 체크 아웃[프로젝트](https://github.com/cloudflare/roughtime/tree/master/recipes/alerter.go)( 우분투에 테스트 18.04). 이 프로그램을 cron 작업으로 주기적으로 시계가 동기화되어 있는지 확인하십시오.
+
+## 여러 소스 사용
+
+거친 시간의 여러 소스를 사용하여 쉽게 (그리고 매우 권장):
+
+```go
+t0 := time.Now()
+res := roughtime.Do(servers, attempts, timeout, nil)
+```
+
+첫번째 모수는 서버의 순서이고 나머지 모수는 안으로 동일입니다`roughtime.Get()`. 이 쿼리 각 서버에서 순서`servers`주문. 산출`res`같은 길이를 슬라이스`servers`.
+
+각 요소는 서버에 쿼리의 결과를 나타냅니다. 쿼리가 성공한 경우, 그 결과는 서버의 시간을 포함합니다. 실패한 경우, 그 결과가 발생한 오류가 들어 있습니다. 시계와 유효한 응답 사이의 미디어 차이를 계산하려면:
+
+```go
+thresh := 10 * time.Second
+delta, err := roughtime.MedianDeltaWithRadiusThresh(res, t0, thresh)
+```
+
+10 초를 초과하지 않는 불확실한 레이디가 응답을 거부합니다. 오류가 유효하지 않은 경우 반환됩니다.
+
+### 당신의 소스 감사
+
+제품정보`roughtime.Do()`마지막으로 성공적인 쿼리에 서버의 응답을 사용하여 각 nonce를 생성하는 유효한 응답을 함께 사슬. 우리가 더 자세히 논의하기 때문에[블로그](https://blog.cloudflare.com/roughtime/), 이 방식으로 함께 쿼리를 연결하는 것은 암호 증거에 결과가 순서로 만들어졌다. 결과를 확인하려면 다음을 수행 할 수 있습니다.
+
+```go
+chain := roughtime.NewChain(results)
+ok, err := chain.Verify(nil)
+if err != nil || !ok {
+  // error handling ...
+}
+```
+
+변수`chain`첫번째 성공적인 쿼리를 포함하는 구조입니다`results`. 그것은 분야가,`chain.Next`, 다음 성공적인 쿼리에 점. 입력 매개 변수`Verify()`체인을 검증하기 위한 시작점으로 이전 결과를 사용할 수 있습니다. 예를 들어,`chain.Verify(nil)`유효하다, 그때`chain.Next.Verify(chain.Roughtime)`유효하다, 너무.
+
+### 버블로스
+
+할 수 있습니다`roughtime.Do()`그것의 쿼리를 실행으로 유용한 정보를 출력. 이렇게하려면, invoke`roughtime.SetLogger()`로그를 설정한다. 예를 들면:
+
+```go
+roughtime.SetLogger(log.New(os.Stdout, "", 0))
+```

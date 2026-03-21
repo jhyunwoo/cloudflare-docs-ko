@@ -1,0 +1,654 @@
+---
+title: API를 통해 JWT validation 구성하기
+pcx_content_type: how-to
+
+sidebar:
+  order: 2
+  label: API
+head:
+  - tag: title
+    content: API를 통해 JWT validation 구성하기
+
+---
+
+import { GlossaryTooltip } from "~/components"
+
+Cloudflare API를 사용해 [JWT validation](/api-shield/security/jwt-validation/)을 구성할 수 있습니다. 이를 위해서는 token configurations와 token validation rules가 필요합니다.
+
+## Token configurations
+
+token configuration은 JSON Web Key Set(JWKs)을 정의합니다. 이 JWKs는 클라이언트가 보내는 JSON Web Tokens(JWT)를 검증하는 데 사용되며, 요청 안에서 해당 JWT가 어디에 전달되는지도 함께 지정합니다.
+
+:::note
+
+하나의 zone에는 최대 4개의 token configurations를 가질 수 있습니다.
+:::
+
+token configurations에는 다음 정보가 필요합니다.
+
+| <div style="width:120px">필드 이름</div> | 설명 | 예시 | 참고 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| `title`                                   | 구성의 목적을 빠르게 식별할 수 있도록 도와주는 사람이 읽을 수 있는 이름 | Production JWT configuration | 최대 50자 |
+| `description `                            | `title`보다 더 자세한 설명을 제공하여 고객이 이 구성의 용도를 더 잘 문서화할 수 있도록 하는 사람이 읽을 수 있는 설명 | This configuration is used for all endpoints in endpoint management and checks the JWT in the authorization header. | 최대 500자 |
+| `token_sources`                           | 요청에서 JWT를 찾을 수 있는 가능한 위치 목록 | `http.request.headers[\"authorization\"][0]` <br /> `http.request.cookies[\"Authorization\"][0]` | 아래 [information](#token-sources) 참고 |
+| `token_type`                              | 검증할 토큰 유형 | `jwt` | 현재는 `jwt`만 지원 |
+| `credentials`                             | JWT 검증에 사용할 암호학적 공개 키를 설명 | 아래 예시 참고 | 아래 [information](#credentials) 참고 |
+
+<div id="token-sources"></div>
+
+### Token sources
+
+각 항목은 문자열로 해석되는 Ruleset Engine expression이어야 합니다.
+
+현재 지원되는 필드는 `http.request.headers`와 `http.request.cookies`입니다.
+
+최대 4개의 token source를 설정할 수 있습니다. 요청에 이 필드들 중 둘 이상이 존재하더라도 하나만 사용됩니다. 요청 토큰 앞에 붙은 `Bearer: ` 문자열은 자동으로 무시됩니다.
+
+Ruleset Engine fields를 다루는 방법에 대한 자세한 내용은 [Ruleset Engine documentation](/ruleset-engine/rules-language/fields)를 참고하세요.
+
+<div id="credentials"></div>
+
+### Credentials
+
+API Shield는 `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`, `ES256`, `ES384` 타입의 credentials를 지원합니다. RSA 키는 최소 2048-bit여야 합니다. 각 JSON web key는 “KID”를 가져야 하며, API Shield가 키를 매칭할 수 있도록 JWT header에도 그 KID가 존재해야 합니다.
+
+키 롤오버를 돕기 위해 최대 4개의 서로 다른 키를 허용합니다.
+
+Cloudflare는 각 키에서 불필요한 필드를 제거하고, 지원하지 않는 키는 삭제합니다.
+
+결과 키가 의도한 대로 보이는지 확인하기 위해 API 호출 출력 결과를 검증하는 것을 강력히 권장합니다.
+
+## Token configuration JSON 객체
+
+아래 예시는 Cloudflare API를 사용해 token configuration을 만들 때 필요한 모든 정보를 포함한 JSON object입니다. 테스트용 JWKs를 만들고 싶다면 [mkjwk JSON Web Key Generator](https://mkjwk.org/)를 참고하세요.
+
+```json title="Example"
+{
+    "title": "Production JWT configuration",
+    "description": "This configuration checks the JWT in the authorization header or cookie.",
+    "token_sources": [
+        "http.request.headers[\"authorization\"][0]",
+        "http.request.cookies[\"Authorization\"][0]"
+    ],
+    "token_type": "jwt",
+    "credentials": {
+        "keys": [
+            {
+                "kty": "EC",
+                "use": "sig",
+                "crv": "P-256",
+                "kid": "93UrzmNu1mqXs5cZcvCPkTlMHB2Jya30vSTkiBb0vhU",
+                "x": "QG3VFVwUX4IatQvBy7sqBvvmticCZ-eX5-nbtGKBOfI",
+                "y": "A3PXCshn7XcG7Ivvd2K_DerW4LHAlIVKdqhrUnczTD0",
+                "alg": "ES256"
+            }
+        ]
+    }
+}
+```
+
+## Cloudflare API로 token configuration 생성하기
+
+cURL 또는 다른 API 클라이언트 도구를 사용해 새 configuration을 Cloudflare API로 전송하여 JWT validation을 활성화하세요. `{zone_id}`를 올바른 zone ID로 바꾸고 [authentication credentials](/fundamentals/api/get-started/create-token/) 헤더를 추가해야 합니다.
+
+```bash title="Example using cURL"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/config" \
+--header 'Content-Type: application/json' \
+--data '{
+    "title": "Production JWT configuration",
+    "description": "This configuration checks the JWT in the authorization header or cookie.",
+    "token_sources": [
+        "http.request.headers[\"authorization\"][0]",
+        "http.request.cookies[\"Authorization\"][0]"
+    ],
+    "token_type": "jwt",
+    "credentials": {
+        "keys": [
+            {
+                "kty": "EC",
+                "use": "sig",
+                "crv": "P-256",
+                "kid": "93UrzmNu1mqXs5cZcvCPkTlMHB2Jya30vSTkiBb0vhU",
+                "x": "QG3VFVwUX4IatQvBy7sqBvvmticCZ-eX5-nbtGKBOfI",
+                "y": "A3PXCshn7XcG7Ivvd2K_DerW4LHAlIVKdqhrUnczTD0",
+                "alg": "ES256"
+            }
+        ]
+    }
+}'
+```
+
+응답은 Cloudflare `v4` response envelope 형식이며, 결과에는 생성된 configuration이 포함됩니다. 반환된 ID는 API로 token validation rules를 만들 때 token configuration을 참조하는 데 사용되므로 기록해 두세요.
+
+```json title="Example response"
+{
+    "result": {
+        "id": "d5902294-00c3-4aed-b517-57e752e9cd58",
+        "token_type": "JWT",
+        "title": "Production JWT configuration",
+        "description": "This configuration checks the JWT in the authorization header or cookie.",
+        "token_sources": [
+            "http.request.headers[\"authorization\"][0]",
+            "http.request.cookies[\"Authorization\"][0]"
+        ],
+        "credentials": {
+            "keys": [
+                {
+                    "x": "QG3VFVwUX4IatQvBy7sqBvvmticCZ-eX5-nbtGKBOfI",
+                    "y": "A3PXCshn7XcG7Ivvd2K_DerW4LHAlIVKdqhrUnczTD0",
+                    "alg": "ES256",
+                    "crv": "P-256",
+                    "kid": "93UrzmNu1mqXs5cZcvCPkTlMHB2Jya30vSTkiBb0vhU",
+                    "kty": "EC"
+                }
+            ]
+        },
+        "created_at": "2023-11-08T16:45:17.236841Z",
+        "last_updated": "2023-11-08T16:45:17.236841Z"
+    },
+    "success": true,
+    "errors": [],
+    "messages": []
+}
+```
+
+## Token validation rules
+
+token validation rules를 사용하면 기존 token configurations를 이용해 보안 정책을 강제할 수 있습니다.
+
+token validation rules는 Cloudflare API 또는 [dashboard](/api-shield/security/jwt-validation/#add-a-jwt-validation-rule)로 구성할 수 있습니다.
+
+| <div style="width:120px">필드 이름</div> | 설명 | 예시 | 참고 |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `title`                                   | 빠르게 식별할 수 있도록 도와주는 사람이 읽을 수 있는 이름 | JWT validation on `v1` and `v2.example.com` | 최대 50자 |
+| `description`                             | `title`보다 더 많은 세부 정보를 주고 문서화를 돕는 사람이 읽을 수 있는 설명 | Log requests without a valid `authorization` header. | 최대 500자 |
+| `action`                                  | `expression`을 만족하지 않는 요청에 대해 수행할 Firewall Action | `log` | 가능한 값: `log`, `block` |
+| `enabled`                                 | 규칙 활성화 여부 | `true` | 가능한 값: `true`, `false` |
+| `expression`                              | 규칙의 보안 정책 | `is_jwt_valid ("00170473-ec24-410e-968a-9905cf0a7d03")` | API로 규칙을 만들 때는 따옴표를 이스케이프해야 합니다. 아래 [Define a security policy](#define-a-security-policy) 참고 |
+| `selector`                                | 이 규칙이 어떤 operations에 적용되는지 구성 |  | 아래 [Applying a rule to operations](#apply-a-rule-to-operations) 참고 |
+
+### Selectors
+
+selectors는 token validation rule의 적용 범위를 제어합니다.
+
+apex domain의 특정 hostnames 또는 subdomains에만 JWT validation이 필요하다면, selector에서 hostname을 사용해 규칙에 포함하세요.
+
+정상적으로는 유효한 JWT를 사용하지 않는 엔드포인트, 예를 들어 JWT를 처음 발급받기 위한 path와 method는 JWT validation에서 제외해야 할 수 있습니다. 이 경우 endpoint의 operation ID를 사용해 selector에서 제외해야 합니다.
+
+operation ID를 찾으려면 [Endpoint Management](/api-shield/management-and-monitoring/)를 참고하거나 [Cloudflare API](/api/resources/api_gateway/subresources/operations/methods/list/)를 사용하세요.
+
+<div id="define-a-security-policy"></div>
+
+## 보안 정책 정의하기
+
+:::note
+
+요청은 이 규칙이 다루는 operation에도 매치되어야 action이 트리거됩니다.
+
+자세한 내용은 [Apply a rule to operations](#apply-a-rule-to-operations)를 참고하세요.
+:::
+
+token validation rule의 expression은 요청이 충족해야 할 보안 정책을 정의합니다.
+
+예를 들어 `is_jwt_valid("51231d16-01f1-48e3-93f8-91c99e81288e") or is_jwt_valid("51231d16-01f1-48e3-93f8-91c99e81288e")` 식은, 들어오는 요청에 유효한 인증 토큰이 하나도 없을 때 트리거됩니다.
+
+이러한 식은 [Ruleset Engine](/ruleset-engine/rules-language/)에서 사용하는 expressions와 유사하지만, 몇 가지 차이가 있습니다.
+
+- token validation rule actions는 식이 `false`로 평가될 때 트리거되며, 이는 Ruleset expressions와 반대입니다.
+- token validation rules는 token configurations를 참조하는 전용 함수를 사용할 수 있습니다.
+
+`or`, `and`, `eq` 같은 연산자는 Ruleset Engine expressions에서와 같은 방식으로 사용할 수 있습니다.
+
+다음 함수들을 사용해 요청의 JWT Tokens와 상호작용할 수 있습니다.
+
+| <div style="width:150px">함수</div> | 설명 | 참고 |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `is_jwt_valid(token_configuration_id String) bool`   | 요청이 `token_configuration_id` ID를 가진 token configuration에 따라 유효한 토큰을 가지고 있으면 `True` | `token_configuration_id`는 기존 token configuration의 ID여야 합니다. 요청에 토큰이 없으면 `false`를 반환합니다. |
+| `is_jwt_present(token_configuration_id String) bool` | 요청이 해당 token configuration에 정의된 위치에 토큰을 포함하면 `True` | `token_configuration_id`는 기존 token configuration의 ID여야 합니다. |
+
+### 일반적인 사용 사례
+
+다음 예시를 참고해 어떤 보안 정책을 사용해야 하는지 이해할 수 있습니다. 대부분의 경우 Cloudflare는 API 전반에서 유효한 토큰을 요구하고, selectors를 사용해 토큰을 발급하거나 갱신하는 경로는 제외할 것을 권장합니다.
+
+#### 토큰 요구
+
+`is_jwt_present("51231d16-01f1-48e3-93f8-91c99e81288e")` 식은 요청에 JWT가 없을 때 action을 트리거합니다.
+
+이를 token validation rule의 `log` action과 결합하면 인증 헤더가 없는 요청을 기록할 수 있습니다.
+
+#### 유효한 토큰 요구
+
+`is_jwt_valid("51231d16-01f1-48e3-93f8-91c99e81288e")` 식은 요청에 유효한 JWT가 없을 때 action을 트리거합니다.
+
+이를 token validation rule의 `block` action과 결합하면, 자격 증명이 없거나 유효하지 않은 요청을 차단할 수 있습니다.
+
+#### 두 개의 가능한 토큰 중 하나 이상 요구
+
+`is_jwt_valid("51231d16-01f1-48e3-93f8-91c99e81288e") or  is_jwt_valid("fddfc39e-3686-4683-ab23-bf917da6bb43")` 식은 요청에 적어도 하나의 유효한 토큰이 없을 때 action을 트리거합니다.
+
+이는 JWKs를 여러 token configurations로 분리해야 하는 경우에 발생할 수 있습니다.
+
+#### 유효한 토큰은 요구하지만, 토큰이 없는 요청은 무시
+
+`is_jwt_valid("51231d16-01f1-48e3-93f8-91c99e81288e") or not is_jwt_present("51231d16-01f1-48e3-93f8-91c99e81288e")` 식은 유효하지 않은 토큰이 있는 요청에 대해서만 action을 트리거하고, 토큰이 전혀 없는 요청은 무시합니다.
+
+<div id="apply-a-rule-to-operations"></div>
+
+## 규칙을 operations에 적용하기
+
+하나의 operation에는 하나의 token validation rule만 적용될 수 있습니다. 어떤 operation이 여러 규칙에 의해 덮이는 경우, 우선순위가 가장 높은 규칙이 적용됩니다.
+
+`selector` 필드를 사용해 JWT validation이 어떤 operations에 강제될지 구성할 수 있습니다.
+
+:::note
+
+selectors는 새 operations에도 적용됩니다. 기존 selector와 일치하는 새 operations는 해당 token validation rule의 적용 대상이 됩니다.
+:::
+
+예를 들어 다음 selector는 `v1.example.com`과 `v2.example.com`의 모든 operations에 규칙을 적용하되, 이들 호스트의 두 operations는 제외합니다.
+
+```json title="Selector example"
+{
+    "include": [
+        {
+            "host": [
+                "v1.example.com",
+                "v2.example.com"
+            ]
+        }
+    ],
+    "exclude": [
+        {
+            "operation_ids": [
+                "f9c5615e-fe15-48ce-bec6-cfc1946f1bec", // POST v1.example.com/login
+                "56828eae-035a-4396-ba07-51c66d680a04"  // POST v2.example.com/login
+            ]
+        }
+    ]
+}
+```
+
+operations는 host 수준으로 포함시키고, operation 단위로 제외시킬 수 있습니다.
+
+`POST /zones/{zone_id}/token_validation/rules/preview` endpoint를 사용하면 이 규칙이 다루는 operations를 볼 수 있습니다.
+
+```bash title="Example using cURL"
+curl --request PUT \
+'https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/preview' \
+--header 'Content-Type: application/json' \
+--data '{
+    "include": [
+        {
+            "host": [
+                "v1.example.com",
+                "v2.example.com"
+            ]
+        }
+    ],
+    "exclude": [
+        {
+            "operation_ids": [
+                "f9c5615e-fe15-48ce-bec6-cfc1946f1bec", // POST v1.example.com/login
+                "56828eae-035a-4396-ba07-51c66d680a04"  // POST v2.example.com/login
+            ]
+        }
+    ]
+}'
+```
+
+응답에는 zone의 모든 operations와 추가 `state` 필드가 포함됩니다.
+
+`state`는 `ignored`, `excluded`, `included`가 될 수 있습니다. included operations는 지정한 hostname selectors와 일치합니다. excluded operations는 selector에서 지정한 operation IDs와 일치합니다. ignored operations는 selector의 어떤 항목과도 일치하지 않는 작업입니다.
+
+```json title="Result"
+{
+    "result": {
+        "operations": [
+            {
+                "operation_id": "ed15fcb6-5a73-41cd-91af-8c61e5bb1cdb",
+                "method": "GET",
+                "host": "example.com",
+                "endpoint": "/api/accounts/{var1}",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "ignored"
+            },
+            {
+                "operation_id": "e7a582cd-3cfb-4061-ab5b-722e6e42f545",
+                "method": "GET",
+                "host": "v1.example.com",
+                "endpoint": "/api/accounts/{var1}",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "included"
+            },
+            {
+                "operation_id": "ddd5df5a-795c-40ce-b38c-38e9d7ef9ae8",
+                "method": "GET",
+                "host": "v2.example.com",
+                "endpoint": "/api/accounts/{var1}",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "included"
+            },
+            {
+                "operation_id": "4d20befb-0120-45d5-9b29-5835fd41b44e",
+                "method": "GET",
+                "host": "v3.example.com",
+                "endpoint": "/api/accounts/{var1}",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "ignored"
+            },
+            {
+                "operation_id": "f9c5615e-fe15-48ce-bec6-cfc1946f1bec",
+                "method": "POST",
+                "host": "v1.example.com",
+                "endpoint": "/login",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "excluded"
+            },
+            {
+                "operation_id": "56828eae-035a-4396-ba07-51c66d680a04",
+                "method": "POST",
+                "host": "v2.example.com",
+                "endpoint": "/login",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "excluded"
+            },
+            {
+                "operation_id": "cf86874c-8d0c-4337-ae14-4e2459b541ac",
+                "method": "GET",
+                "host": "v3.example.com",
+                "endpoint": "login",
+                "last_updated": "2023-05-24T14:54:34.806506Z",
+                "state": "ignored"
+            }
+        ],
+        "total": 7,
+        "included": 2,
+        "excluded": 2,
+        "ignored": 3,
+        "selected_hosts": [
+            "v1.example.com",
+            "v2.example.com"
+        ],
+        "available_hosts": [
+            "example.com",
+            "v1.example.com",
+            "v1.example.com",
+            "v3.example.com"
+        ]
+    },
+    "success": true,
+    "errors": [],
+    "messages": [],
+    "result_info": {
+        "page": 1,
+        "per_page": 20,
+        "count": 20,
+        "total_count": 1631
+    }
+}
+```
+
+`included` 상태의 operations가 token validation rule의 적용 대상입니다. 응답에는 `result.selected_hosts`에 포함된 hostnames와 `result.available_hosts`에 zone의 모든 operation이 사용하는 모든 hostnames도 표시됩니다.
+
+요청 본문으로 빈 객체를 보낼 수도 있습니다.
+
+```bash title="Example using cURL"
+curl --request PUT \
+'https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/preview' \
+--header 'Content-Type: application/json' \
+--data '{ }'
+```
+
+응답은 zone의 모든 operations와 가능한 모든 hosts를 보여 주며, 이를 이용해 직접 selector를 만들 수 있습니다.
+
+## Token validation rule JSON 객체
+
+아래 예시는 Cloudflare API를 사용해 token validation rule을 만들 때 필요한 모든 정보를 담은 JSON object입니다.
+
+token configuration IDs와 operation IDs는 zone에 존재하는 실제 ID로 바꾸세요.
+
+```json title="Token Validation Rule JSON example"
+[
+    {
+        "title": "JWT Validation on v1 and v2.example.com",
+        "description": "Log requests without a valid authorization header.",
+        "action": "log",
+        "enabled": true,
+        "expression": "is_jwt_valid(\"00170473-ec24-410e-968a-9905cf0a7d03\")",
+        "selector": {
+            "include": [
+                {
+                    "host": [
+                        "v1.example.com",
+                        "v2.example.com"
+                    ]
+                }
+            ],
+            "exclude": [
+                {
+                    "operation_ids": [
+                        "f9c5615e-fe15-48ce-bec6-cfc1946f1bec",
+                        "56828eae-035a-4396-ba07-51c66d680a04"
+                    ]
+                }
+            ]
+        }
+    }
+]
+```
+
+## Cloudflare API로 token Validation rule 생성하기
+
+cURL 또는 다른 API 클라이언트 도구를 사용해 새 configuration을 Cloudflare API로 전송하여 JWT validation을 활성화하세요. `{zone_id}`를 올바른 zone ID로 바꾸고 [authentication credentials](/fundamentals/api/get-started/create-token/) 헤더를 추가해야 합니다.
+
+token configuration IDs와 operation IDs는 zone에 존재하는 실제 ID로 바꾸세요.
+
+하나의 요청으로 여러 규칙을 만들 수 있습니다. 그렇게 하려면 요청 본문의 JSON 배열에 여러 rule objects를 넣으면 됩니다.
+
+```bash title="Example using cURL"
+curl "https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/bulk" \
+--header 'Content-Type: application/json' \
+--data '[
+    {
+        "title": "JWT Validation on v1 and v2.example.com",
+        "description": "Log requests without a valid authorization header.",
+        "action": "log",
+        "enabled": true,
+        "expression": "is_jwt_valid(\"00170473-ec24-410e-968a-9905cf0a7d03\")",
+        "selector": {
+            "include": [
+                {
+                    "host": [
+                        "v1.example.com",
+                        "v2.example.com"
+                    ]
+                }
+            ],
+            "exclude": [
+                {
+                    "operation_ids": [
+                        "f9c5615e-fe15-48ce-bec6-cfc1946f1bec",
+                        "56828eae-035a-4396-ba07-51c66d680a04"
+                    ]
+                }
+            ]
+        }
+    }
+]'
+```
+
+응답은 Cloudflare `v4` response envelope 형식이며, 결과에는 생성된 rules가 포함됩니다. 각 rule의 반환된 ID는 기존 rule을 수정하거나 삭제할 때 사용할 수 있으므로 기록해 두세요.
+
+```json title="Result"
+{
+    "result": [
+        {
+            "id": "5ec7c417-6964-4b24-b82c-a23a7ec8f90c",
+            "title": "JWT Validation on v1 and v2.example.com",
+            "description": "Log requests without a valid authorization header.",
+            "action": "log",
+            "enabled": true,
+            "expression": "is_jwt_valid(\"00170473-ec24-410e-968a-9905cf0a7d03\")",
+            "selector": {
+                "include": [
+                    {
+                        "host": [
+                            "v1.example.com",
+                            "v2.example.com"
+                        ]
+                    }
+                ],
+                "exclude": [
+                    {
+                        "operation_ids": [
+                            "f9c5615e-fe15-48ce-bec6-cfc1946f1bec",
+                            "56828eae-035a-4396-ba07-51c66d680a04"
+                        ]
+                    }
+                ]
+            },
+            "created_at": "2023-10-18T12:08:09.575388Z",
+            "last_updated": "2023-10-18T12:08:09.575388Z",
+            "modified_by": "user@cloudflare.com"
+        }
+    ],
+    "success": true,
+    "errors": [],
+    "messages": []
+}
+```
+
+## 유지보수
+
+### Token configuration 업데이트
+
+시간이 지나면 키를 교체하는 것이 모범 사례입니다. 키 업데이트를 지원하기 위해 Cloudflare는 configuration당 최대 4개의 키를 허용합니다. 이를 통해 기존 키 옆에 새 키를 추가할 수 있습니다. 이후 새 키로만 JWT를 발급하기 시작하고, 일정 시간이 지난 뒤 이전 키를 제거할 수 있습니다. 또한 이 기능은 프로덕션 키와 함께 테스트 또는 개발 키를 배포하는 것도 가능하게 합니다.
+
+키 업데이트 입력 형식은 최초 configuration 생성 시 `credentials` 키로 전달한 형식과 동일하며, JWK여야 합니다.
+
+:::note
+
+Cloudflare는 각 키에서 불필요한 필드를 제거하고, 지원하지 않는 키는 삭제합니다.
+
+결과 키가 의도한 대로 보이는지 확인하려면 <GlossaryTooltip term="API call">API call</GlossaryTooltip> 출력 결과를 검증하는 것이 강력히 권장됩니다.
+:::
+
+키 업데이트에는 `PUT` 명령을 사용하세요.
+
+```bash title="Example using cURL"
+curl --request PUT \
+'https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/config/{config_id}/credentials' \
+--header 'Content-Type: application/json' \
+--data '{
+    "keys": [
+        {
+            "kty": "EC",
+            "use": "sig",
+            "kid": "test",
+            "x": "-0LNzBheJPn-Zy6JmanTIUX7xc3jgqU714IQY0oU6mw",
+            "y": "KONxBybUcRsJQmtu17jMAHsILSw009AuU3ulfUGv3FI",
+            "alg": "ES256"
+        },
+        {
+            "kty": "EC",
+            "crv": "P-256",
+            "kid": "test-2",
+            "x": "iIbPRbOeLzjGPvv7iwmzCOTU03R0xDqbenp2D6GUcWo",
+            "y": "tDkEh95PnfWwIXciCtdBBVA7wfghx_egmZ1Zcvu2lWw",
+            "alg": "ES256"
+        }
+    ]
+}'
+```
+
+`{zone_id}`를 올바른 zone ID로 바꾸고 [authentication credentials](/fundamentals/api/get-started/create-token/) 헤더를 추가해야 합니다.
+
+### Token validation rules 업데이트
+
+token validation rules는 `PATCH` 요청으로 업데이트할 수 있습니다. 하나의 `PATCH` 요청으로 여러 규칙을 동시에 업데이트할 수 있습니다.
+
+`PATCH` 요청은 요청 본문에 JSON 배열로 지정됩니다. 배열의 각 항목은 `id`로 정의되는 하나의 규칙에 대한 업데이트를 담습니다.
+
+다음 예시는 하나의 규칙을 수정하고 다른 하나는 비활성화합니다.
+
+```bash title="Example using cURL"
+curl --request PATCH \
+"https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/bulk"  \
+--header "Content-Type: application/json" \
+--data '[
+    {
+        "id": "714d3dd0-cc59-4911-862f-8a27e22353cc",
+        "action": "log",
+        "title": "updated title"
+    },
+    {
+        "id": "7124f9bc-d6b5-430d-b488-b6bc2892f2fb",
+        "enabled": false
+    }
+]'
+```
+
+규칙은 `PATCH` 본문에 position 필드를 설정하여 순서를 바꿀 수 있습니다.
+
+다음 예시는 규칙 `714d3dd0-cc59-4911-862f-8a27e22353cc`를 규칙 `7124f9bc-d6b5-430d-b488-b6bc2892f2fb` 뒤에 배치합니다.
+
+```bash title="Example using cURL"
+curl --request PATCH \
+"https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/bulk" \
+--header 'Content-Type: application/json' \
+--data '[
+    {
+        "id": "714d3dd0-cc59-4911-862f-8a27e22353cc",
+        "position": {
+            "after": "7124f9bc-d6b5-430d-b488-b6bc2892f2fb"
+        }
+    }
+]'
+```
+
+다음 예시는 규칙 `714d3dd0-cc59-4911-862f-8a27e22353cc`를 규칙 `7124f9bc-d6b5-430d-b488-b6bc2892f2fb` 앞에 배치합니다.
+
+```bash title="Example using cURL"
+curl --request PATCH \
+"https://api.cloudflare.com/client/v4/zones/{zone_id}/token_validation/rules/bulk" \
+--header 'Content-Type: application/json' \
+--data '[
+    {
+        "id": "714d3dd0-cc59-4911-862f-8a27e22353cc",
+        "position": {
+            "before": "7124f9bc-d6b5-430d-b488-b6bc2892f2fb"
+        }
+    }
+]'
+```
+
+## JWT validation 수행
+
+JWT validation이 들어오는 요청을 처리하는 방식은 다음과 같습니다.
+
+1. 구성에 따라 들어오는 요청에서 JWT를 추출합니다.
+2. JWT를 디코드하고 JWT header의 KID claim을 찾습니다.
+3. KID와 ALG claim을 사용해 제공된 키 목록에서 올바른 키를 찾습니다.
+
+:::note
+
+일치하는 키가 없으면 JWT는 즉시 invalid로 표시됩니다.
+:::
+
+4. 선택한 키로 signature를 검사해 JWT의 진위 여부를 검증합니다.
+5. JWT에 EXP claim(expiration time)이 있다면, JWT가 만료되지 않았는지 검증합니다.
+
+:::note
+
+Cloudflare 네트워크와 JWT issuer 사이의 clock drift를 고려해 최대 60초의 차이를 허용합니다. 두 시계가 완벽히 동기화되어 있어도 토큰은 원래 만료 시점보다 1분까지는 유효한 것으로 간주될 수 있습니다.
+:::
+
+6. JWT에 NBF claim(not before time)이 있다면, JWT가 이미 유효해졌는지 검증합니다.
+
+:::note
+
+EXP claims와 동일한 정확도가 적용됩니다. 따라서 issuer와 validator가 완벽히 동기화된 경우, 토큰은 NBF claim보다 1분 일찍 유효한 것으로 간주될 수 있습니다.
+:::
+
+7. 최종 validation 결과와 토큰 존재 여부는 WAF에 전달되며, WAF는 정책에 구성된 action(`log`/`block`)을 적용합니다.
+8. Cloudflare dashboard의 `API Shield - Token Validation` 서비스에 대한 Security Analytics events는 이벤트의 `Token validation violations` 섹션에서 위반 이유를 설명합니다.

@@ -1,0 +1,78 @@
+---
+title: Cloudflare origin CA 문제 해결
+pcx_content_type: troubleshooting
+description: Cloudflare origin CA 사용 시 NET::ERR_CERT_AUTHORITY_INVALID 같은 문제를 해결합니다.
+sidebar:
+  order: 2
+  label: 문제 해결
+---
+
+import { GlossaryTooltip, Render, DashButton } from "~/components";
+
+[Cloudflare origin CA](/ssl/origin-configuration/origin-ca/) 사용 시 자주 발생하는 문제와 해결 단계를 아래에서 확인하세요.
+
+## NET::ERR_CERT_AUTHORITY_INVALID
+
+### 원인
+
+<Render file="origin-ca-pause-error" product="ssl" />
+
+이는 SSL Labs 같은 SSL 검증 도구가 해당 인증서를 유효하지 않은 것으로 표시하는 것도 정상이라는 뜻입니다.
+
+### 해결 방법
+
+- DNS 레코드의 [proxy status](/dns/proxy-status/)와 존재하는 경우 [page rules](/rules/page-rules/) 설정이 올바른지 확인하세요. 설정이 맞다면 프록시를 껐다가 다시 켠 후 몇 분 기다려 보세요.
+- 클라이언트와 오리진 서버 간 직접 연결이 반드시 필요하다면, 오리진에 공개적으로 신뢰되는 인증서를 설치하는 것을 고려하세요. 이 작업은 Cloudflare 외부에서, 원하는 <GlossaryTooltip term="Certificate Authority (CA)">certificate authority (CA)</GlossaryTooltip>에서 직접 인증서를 발급해 수행합니다. CA가 [Cloudflare trust store](https://github.com/cloudflare/cfssl_trust)에 포함되어 있다면 [encryption mode](/ssl/origin-configuration/ssl-modes/)를 Full (strict)로 계속 사용할 수 있습니다.
+
+## 이 인증서의 발급자를 찾을 수 없습니다
+
+### 원인
+
+일부 오리진 웹 서버는 Cloudflare origin CA root certificate 또는 certificate chain을 업로드해야 합니다.
+
+### 해결 방법
+
+다음 링크에서 ECC 또는 RSA 버전을 다운로드하여 오리진 웹 서버에 업로드하세요.
+
+- [Cloudflare Origin ECC PEM](/ssl/static/origin_ca_ecc_root.pem) (Apache cPanel에는 사용하지 마세요)
+- [Cloudflare Origin RSA PEM](/ssl/static/origin_ca_rsa_root.pem)
+
+## 인증서가 모든 웹 브라우저에서 신뢰되지 않습니다
+
+### 원인
+
+Apache cPanel은 Cloudflare origin CA root certificate 또는 certificate chain 업로드를 요구합니다.
+
+### 해결 방법
+
+아래 링크에서 루트 인증서의 RSA 버전을 다운로드해 오리진 웹 서버에 업로드하세요.
+
+- [Cloudflare Origin RSA PEM](/ssl/static/origin_ca_rsa_root.pem)
+
+## This zone is either not part of your account, or you do not have access to it
+
+대시보드에서 Origin CA를 생성하려고 할 때 `Failed to validate requested hostname <hostname>: This zone is either not part of your account, or you do not have access to it` 오류가 표시될 수 있습니다.
+
+### 원인
+
+이는 알려진 문제로, Cloudflare 대시보드에서 Origin CA를 생성할 때 인증서를 생성하는 사용자에게 API access가 필요합니다.
+사용자에게 **API Access**가 없으면 이 오류가 반환됩니다.
+
+### 해결 방법
+
+인증서를 생성하는 사용자에게 API 접근 권한이 있는지 확인하세요. 계정 **Members** 페이지에서 확인할 수 있습니다.
+
+   <DashButton url="/?to=/:account/members" />
+
+- 계정 기본 설정은 **Enable API Access** 카드에 표시됩니다.
+- 특정 사용자 API Access(기본값을 덮어쓸 수 있음)는 멤버 목록에서 사용자를 선택하면 표시됩니다.
+
+## Origin Server 페이지에 같은 계정의 다른 zone 인증서가 표시됩니다
+
+### 원인
+
+여러 zone에 대해 Origin Server 페이지를 연속으로 열었을 때 첫 번째 zone의 인증서가 계속 표시되는 알려진 문제입니다.
+
+### 해결 방법
+
+브라우저에서 페이지를 새로고침하여 현재 zone의 올바른 origin certificates 목록을 확인하세요.

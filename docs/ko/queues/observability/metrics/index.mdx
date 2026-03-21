@@ -1,0 +1,170 @@
+---
+pcx_content_type: concept
+title: 미터
+sidebar:
+  order: 20
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/observability/metrics/'
+translation_source_md: 'https://developers.cloudflare.com/queues/observability/metrics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Queues는 queue backlog, 소비자 concurrency 및 메시지 작업을 측정 할 수있는 미터를 노출합니다.
+
+표시된 미터[Cloudflaredashboard](https://dash.cloudflare.com/)Cloudflare의 정복[GraphQL 분석 API](/analytics/graphql-api/). 미터에 접근할 수 있습니다[프로그램](#query-via-the-graphql-api)GraphQL 또는 HTTP 클라이언트를 통해.
+
+## 미터
+
+### 백로그
+
+Queues는 아래에 미터를 안으로 수출합니다`queuesBacklogAdaptiveGroups`데이터셋.
+
+| 기본 정보       | GraphQL 필드 이름 | 이름 \*            |
+| ----------- | ------------- | ---------------- |
+| Backlog 바이트 | `bytes`       | 백로의 평균 크기, 바이트   |
+| Backlog 메시지 | `messages`    | 백로의 평균 크기, 메시지 수 |
+
+더 보기`queuesBacklogAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `queueID`- 큐의 ID
+- `datetime`- 메시지가 전송되면 Timestamp
+- `date`- 메시지가 전송되면 Timestamp, 하루의 시작에 truncated
+- `datetimeHour`- 메시지가 전송될 때 타임스탬프, 시간의 시작에 truncated
+- `datetimeMinute`- 메시지가 전송되었을 때 타임스탬프, 분의 시작에 truncated
+
+### 소비자 concurrency
+
+Queues는 아래에 미터를 안으로 수출합니다`queueConsumerMetricsAdaptiveGroups`데이터셋.
+
+| 기본 정보       | GraphQL 필드 이름 | 이름 \*              |
+| ----------- | ------------- | ------------------ |
+| Avg. 소비자 통화 | `concurrency` | 기간 동안 동시 소비자의 평균 수 |
+
+더 보기`queueConsumerMetricsAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `queueID`- 큐의 ID
+- `datetime`- 소비자 측정을 위한 Timestamp
+- `date`- 소비자 미터를 위한 타임스탬프, 하루의 시작에 truncated
+- `datetimeHour`- 소비자 미터를 위한 타임스탬프, 시간의 시작에 truncated
+- `datetimeMinute`- 소비자 미터를 위한 타임스탬프, 분의 시작에 truncated
+
+### 메시지 작업
+
+Queues는 아래에 미터를 안으로 수출합니다`queueMessageOperationsAdaptiveGroups`데이터셋.
+
+| 기본 정보           | GraphQL 필드 이름        | 이름 \*                                          |
+| --------------- | -------------------- | ---------------------------------------------- |
+| Total 청구 가능한 작업 | `billableOperations` | 시간 동안 청구 가능한 작업 (쓰기, 읽기 및 삭제)의 합계              |
+| 전체 Bytes        | `bytes`              | 읽는 바이트의 합계, 쓰기 및 queue에서 삭제                    |
+| 사이트맵            | `lagTime`            | 메시지가 작성되었을 때 사이 밀리 초의 평균 지연 시간 및 메시지를 소비하는 작업. |
+| 이름 \*           | `retryCount`         | 메시지 당 retries의 평균 수                            |
+| 이름 \*           | `messageSize`        | 지정된 기간에 최대 메시지 크기                              |
+
+더 보기`queueMessageOperationsAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리에 대한 다음 크기를 제공합니다:
+
+- `queueID`- 큐의 ID
+- `actionType`- 메시지 작업의 유형. 수 있습니다`WriteMessage`, `ReadMessage`또는`DeleteMessage`
+- `consumerType`- queue 소비자 유형. 수 있습니다`worker`또는`http`. 만 적용 가능`ReadMessage`·`DeleteMessage`작업 유형
+- `outcome`- mesage 가동의 결과. 적용 대상`DeleteMessage`활동 유형. 수 있습니다`success`, `dlq`또는`fail`.
+- `datetime`- 메시지 작업을위한 Timestamp
+- `date`- 메시지 작업을위한 타임스탬프, 하루의 시작에 truncated
+- `datetimeHour`- 메시지 작업을위한 타임스탬프, 시간의 시작에 truncated
+- `datetimeMinute`- 메시지 작업을위한 타임스탬프, 분의 시작에 truncated
+
+## 예제 GraphQL 쿼리
+
+### 시간 동안 평균 queue backlog 받기
+
+```graphql graphql-api-explorer
+query QueueBacklog(
+	$accountTag: string!
+	$queueId: string!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			queueBacklogAdaptiveGroups(
+				limit: 10000
+				filter: {
+					queueId: $queueId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+			) {
+				avg {
+					messages
+					bytes
+				}
+			}
+		}
+	}
+}
+```
+
+### 시간당 평균 소비자 통화
+
+```graphql graphql-api-explorer
+query QueueConcurrencyByHour(
+	$accountTag: string!
+	$queueId: string!
+	$datetimeStart: Time!
+	$datetimeEnd: Time!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			queueConsumerMetricsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					queueId: $queueId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+				orderBy: [datetimeHour_DESC]
+			) {
+				avg {
+					concurrency
+				}
+				dimensions {
+					datetimeHour
+				}
+			}
+		}
+	}
+}
+```
+
+### 메시지 작업을 분당으로
+
+```graphql graphql-api-explorer
+query QueueMessageOperationsByMinute(
+	$accountTag: string!
+	$queueId: string!
+	$datetimeStart: Date!
+	$datetimeEnd: Date!
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			queueMessageOperationsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					queueId: $queueId
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+				}
+				orderBy: [datetimeMinute_DESC]
+			) {
+				count
+				sum {
+					bytes
+				}
+				dimensions {
+					datetimeMinute
+				}
+			}
+		}
+	}
+}
+```

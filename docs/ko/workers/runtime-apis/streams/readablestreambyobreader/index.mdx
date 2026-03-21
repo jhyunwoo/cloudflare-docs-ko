@@ -1,0 +1,71 @@
+---
+title: ReadableStream BYOBReader 사용
+pcx_content_type: configuration
+head:
+  - tag: title
+    content: ReadableStreamBYOB자세히 보기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/runtime-apis/streams/readablestreambyobreader/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/runtime-apis/streams/readablestreambyobreader/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+{/* <!-- The space in the title was introduced to create a pleasing line-break in the title in the sidebar. --> */}
+
+{/* <!-- TODO: See EW-2105. Should we document this if it isn’t effectively using buffer space? --> */}
+
+## 이름 \*
+
+`BYOB`자신의 버퍼를 가져의 약어입니다. ·`ReadableStreamBYOBReader`개발자 공급 버퍼로 읽을 수 있습니다. 따라서 복사를 최소화합니다.
+
+예를 들어`ReadableStreamBYOBReader`기능적으로 동일[`ReadableStreamDefaultReader`](/workers/runtime-apis/streams/readablestreamdefaultreader/)예외로`read`방법.
+
+·`ReadableStreamBYOBReader`그것의 constructor를 통해 즉석이 아닙니다. Rather, 그것은에서 재생됩니다[`ReadableStream`](/workers/runtime-apis/streams/readablestream/):
+
+```js
+const { readable, writable } = new TransformStream();
+const reader = readable.getReader({ mode: 'byob' });
+```
+
+***
+
+## 제품 설명
+
+- <code>읽기 (bufferArrayBufferView)</code>: Pro\<miseReadableStreamBYOBReadResult>
+
+  - 데이터의 다음 사용 가능한 펑크와 약속을 반환은 전달 버퍼로 읽습니다.
+
+- <code>readAtLeast(minBytes, 버퍼ArrayBufferView)</code>: Pro\<miseReadableStreamBYOBReadResult>
+
+  - 데이터의 다음 사용 가능한 펑크와 약속을 반환은 전달 버퍼로 읽습니다. 약속은 적어도 해결할 수 없습니다`minBytes`바이트는 읽었습니다. 그러나, 더 적은 보다는`minBytes`스트림의 끝이 도달하거나 밑으로 스트림이 닫히면 바이트가 반환 될 수 있습니다. 특정한:
+
+    - 이름 \*`minBytes`또는 더 많은 바이트를 사용할 수 있습니다, 약속과 해결`{ value: <buffer view sized to bytes read>, done: false }`.
+    - 스트림이 몇 바이트가 읽은 후 종료되었지만 몇 개`minBytes`, 약속은 부분적인 자료로 해결합니다:`{ value: <buffer view sized to bytes actually read>, done: false }`. 다음 호출`read`또는`readAtLeast`다음 반환`{ value: undefined, done: true }`.
+    - 스트림이 0 바이트로 종료되면 (즉, 스트림은 EOF에서 이미), 약속은 해결`{ value: <zero-length view>, done: true }`.
+    - 스트림 오류가 있다면, 약속 거부.
+    - `minBytes`적어도 1이어야하며 바이트 길이를 초과하지 않아야합니다.`bufferArrayBufferView`, 또는 약속은`TypeError`.
+
+***
+
+## 일반적인 문제
+
+:::카트로션\[Warning]
+
+`read`버퍼에 읽을 필요가 있는 바이트의 최소 수에 통제를 제공하지 않습니다. 1 MiB 버퍼를 할당하면 커널이 단일 바이트로 읽거나 EOF이 즉시 따르는지 여부를 충족하기 위해 권한 내에서 완벽하게됩니다.
+
+연습에서 Workers 팀은 그 것을 발견했습니다`read`일반적으로 제공 된 버퍼의 1 % 만 채웁니다.
+
+`readAtLeast`Streams API에 비표준 확장은 사용자가 최소한을 지정할 수 있도록 합니다.`minBytes`바이트는 읽기를 해결하기 전에 버퍼로 읽어야합니다. 스트림이 전에 종료되면`minBytes`바이트를 사용할 수 있습니다, 읽은 부분 데이터는 여전히 오류를 던져보다 오히려 반환됩니다 — 참조[`readAtLeast`위의 문서](#methods)자세한 내용은.
+
+:::
+
+***
+
+## 관련 자료
+
+- [사이트 맵](/workers/runtime-apis/streams/)
+- [스트림 API WHATWG 사양의 BYOB 리더에 대한 배경](https://streams.spec.whatwg.org/#byob-readers)

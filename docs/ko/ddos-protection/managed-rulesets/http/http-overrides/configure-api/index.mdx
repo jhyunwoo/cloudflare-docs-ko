@@ -1,0 +1,228 @@
+---
+title: API를 통해 구성
+pcx_content_type: concept
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: API를 통해 HTTP DDoS 공격 보호 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/http/http-overrides/configure-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/http/http-overrides/configure-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+HTTP DDoS 공격 보호 관리 규칙 구성[규칙 세트 API](/ruleset-engine/rulesets-api/).
+
+각 영역에는 기본적으로 HTTP DDoS 공격 보호 관리 규칙이 있습니다. 관리 규칙을 배포 할 필요가 없다는 것을 의미합니다.`ddos_l7`명시적으로 단계 규칙. 당신은 당신이 overrides를 구성해야하는 경우 관리 규칙을 배치하는 단계 규칙에 규칙을 만들 필요가있다.
+
+Terraform을 사용하는 경우, 참조[Terraform을 이용한 DDoS 관리 규정](/terraform/additional-configurations/ddos-managed-rulesets/#example-configure-http-ddos-attack-protection).
+
+## HTTP DDoS 공격 보호 관리 규정에 대한 override 구성
+
+overrides를 사용하여 HTTP DDoS 공격 보호 관리 규칙을 구성합니다. Overrides는 기본 값에서 다른 행동 또는 감도 수준을 정의 할 수 있습니다. 사용 가능한 행동과 감도 수준 값에 대한 자세한 내용은 참조[Ruleset 매개 변수](/ddos-protection/managed-rulesets/http/override-parameters/).
+
+Overrides는 규칙, 태그, 또는 규칙 범위를 가질 수 있습니다. 태그 및 규칙 구성에는 규칙 구성보다 더 큰 우선 순위가 있습니다.
+
+영역 수준과 계정 수준에서 오버라이드를 만들 수 있습니다. Account-level overrides는 단일 규칙으로 계정에 여러 영역에서 동일한 override를 적용 할 수 있습니다. 예를 들어, 특정 관리 규정 규칙의 감도를 낮추기 위해 계정 수준의 오버라이드를 사용할 수 있습니다.[IP 목록](/waf/tools/lists/custom-lists/#ip-lists)다수 지역을 위해. 그러나 주어진 영역이 HTTP DDoS 공격 보호 관리 규칙에 대한 과도한 경우, 계정 수준의 과도는 해당 영역에 대해 평가되지 않습니다.
+
+:::카ution\[중요]
+
+- HTTP DDoS 공격 보호 관리 규칙은 항상 활성화됩니다 - 당신은 과도한 기능을 사용하여 규칙을 비활성화 할 수 없습니다`"enabled": false`.
+- <Render file="managed-rulesets/read-only-rules-note" product="ddos-protection" />
+- 계정 레벨과 영역 레벨 오버라이드를 구성하면 Zone-level overrides만 평가됩니다.
+- 현재 HTTP DDoS 공격 보호 관리 규정에 대한 계정 수준 overrides는 API를 통해만 사용할 수 있습니다.
+
+:::
+
+### 여러 규칙 만들기
+
+:::참조
+고급 DDoS 보호 가입을 통해 엔터프라이즈 고객에게만 사용할 수 있으며 최대 10개의 규칙을 만들 수 있습니다.
+주요 특징
+
+<Render file="managed-rulesets/evaluation-behavior" product="ddos-protection" />
+
+## API 호출
+
+### Zone-level 구성 예제
+
+다음 것`PUT`예제는 새로운 단계 규칙 (또는 기존의 것을 업데이트)을 만듭니다.`ddos_l7`영역 수준에서 단계. 요청은 HTTP DDoS 공격 보호 관리 규칙의 기본 동작을 조정하기 위해 여러 overrides를 포함합니다. 이 overrides는 다음과 같습니다.
+
+- 관리 규칙의 모든 규칙은`managed_challenge`행동과 감도 수준이 있다`medium`.
+- 모든 규칙 태그`<TAG_NAME>`감도 수준이 있을 것입니다`low`.
+- ID를 가진 규칙`<MANAGED_RULESET_RULE_ID>`이용안내`block`활동.
+
+```bash title="Request"
+curl --request PUT \
+https://api.cloudflare.com/client/v4/zones/{zone_id}/rulesets/phases/ddos_l7/entrypoint \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "description": "Execute HTTP DDoS Attack Protection managed ruleset in the zone-level phase entry point ruleset",
+  "rules": [
+    {
+      "action": "execute",
+      "action_parameters": {
+        "id": "<MANAGED_RULESET_ID>",
+        "overrides": {
+          "sensitivity_level": "medium",
+          "action": "managed_challenge",
+          "categories": [
+            {
+              "category": "<TAG_NAME>",
+              "sensitivity_level": "low"
+            }
+          ],
+          "rules": [
+            {
+              "id": "<MANAGED_RULESET_RULE_ID>",
+              "action": "block"
+            }
+          ]
+        }
+      },
+      "expression": "true"
+    }
+  ]
+}'
+```
+
+응답은 생성 (또는 업데이트) 단계 항목 포인트 규칙을 반환합니다.
+
+<Details header="관련 기사">
+  ```json
+  {
+  	"result": {
+  		"id": "<PHASE_ENTRY_POINT_RULESET_ID>",
+  		"name": "default",
+  		"description": "Execute HTTP DDoS Attack Protection managed ruleset in the zone-level phase entry point ruleset",
+  		"kind": "zone",
+  		"version": "1",
+  		"rules": [
+  			{
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "execute",
+  				"action_parameters": {
+  					"id": "<MANAGED_RULESET_ID>",
+  					"version": "latest",
+  					"overrides": {
+  						"action": "managed_challenge",
+  						"categories": [
+  							{
+  								"category": "<TAG_NAME>",
+  								"sensitivity_level": "low"
+  							}
+  						],
+  						"rules": [
+  							{
+  								"id": "<MANAGED_RULESET_RULE_ID>",
+  								"action": "block"
+  							}
+  						],
+  						"sensitivity_level": "medium"
+  					}
+  				},
+  				"expression": "true",
+  				"last_updated": "2021-06-16T04:14:47.977741Z",
+  				"ref": "<RULE_REF>",
+  				"enabled": true
+  			}
+  		],
+  		"last_updated": "2021-06-16T04:14:47.977741Z",
+  		"phase": "ddos_l7"
+  	}
+  }
+  ```
+</Details>
+
+Rulesets API를 사용하여 관리 된 규칙에 대한 자세한 내용은 참조[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/)Ruleset Engine 문서에서.
+
+### 계정 수준 설정 예
+
+다음 것`PUT`예제는 새로운 단계 규칙 (또는 기존의 것을 업데이트)을 만듭니다.`ddos_l7`계정 수준에서 단계. 예를 들어 IP 주소에서 나오는 요청에 대한 단일 규칙을 무시한다.`allowlisted_ips` [IP 목록](/waf/tools/lists/custom-lists/#ip-lists), 뒤에 오는 윤곽으로:
+
+- ID를 가진 규칙`<MANAGED_RULESET_RULE_ID>`HTTP DDoS 공격 보호 관리 규정에 속하는 , (ID 포함)`<MANAGED_RULESET_ID>`), 있을 것입니다`eoff` (*자주 묻는 질문*) 감도 수준 및 그것은 실행할 것입니다`log`활동.
+
+:::참조
+사용자 정의 규칙 표현 (different from`"true"`)와`log`동작은 고급 DDoS 보호 가입으로 엔터프라이즈 플랜이 필요합니다.
+주요 특징
+
+```bash title="Request"
+curl --request PUT \
+https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/phases/ddos_l7/entrypoint \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "description": "Disable a managed ruleset rule for allowlisted IP addresses",
+  "rules": [
+    {
+      "expression": "ip.src in $allowlisted_ips",
+      "action": "execute",
+      "action_parameters": {
+        "id": "<MANAGED_RULESET_ID>",
+        "overrides": {
+          "rules": [
+            {
+              "id": "<MANAGED_RULESET_RULE_ID>",
+              "action": "log",
+              "sensitivity_level": "eoff"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}'
+```
+
+응답은 생성 (또는 업데이트) 단계 항목 포인트 규칙을 반환합니다.
+
+<Details header="관련 기사">
+  ```json
+  {
+  	"result": {
+  		"id": "<PHASE_ENTRY_POINT_RULESET_ID>",
+  		"name": "default",
+  		"description": "Disable a managed ruleset rule for allowlisted IP addresses",
+  		"kind": "root",
+  		"version": "1",
+  		"rules": [
+  			{
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "execute",
+  				"action_parameters": {
+  					"id": "<MANAGED_RULESET_ID>",
+  					"version": "latest",
+  					"overrides": {
+  						"rules": [
+  							{
+  								"id": "<MANAGED_RULESET_RULE_ID>",
+  								"action": "log",
+  								"sensitivity_level": "eoff"
+  							}
+  						]
+  					}
+  				},
+  				"expression": "ip.src in $allowlisted_ips",
+  				"last_updated": "2022-10-16T04:14:47.977741Z",
+  				"ref": "<RULE_REF>",
+  				"enabled": true
+  			}
+  		],
+  		"last_updated": "2022-10-16T04:14:47.977741Z",
+  		"phase": "ddos_l7"
+  	}
+  }
+  ```
+</Details>
+
+Rulesets API를 사용하여 관리 된 규칙에 대한 자세한 내용은 참조[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/)Ruleset Engine 문서에서.

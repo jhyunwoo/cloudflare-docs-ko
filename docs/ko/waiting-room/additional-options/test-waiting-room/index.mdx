@@ -1,0 +1,122 @@
+---
+pcx_content_type: tutorial
+title: 대기실 테스트하기
+sidebar:
+  order: 9
+description: >-
+  부하에 대한 대기실 반응을 테스트하려면 이 튜토리얼을 따르세요. 트래픽을 정확히 시뮬레이션하려면 테스트 스크립트 또는 플래너를 1분보다 길게, 이상적으로는 2~3분 이상 실행하세요.
+---
+
+import { Details } from "~/components";
+
+부하에 대한 대기실 반응을 테스트하려면 이 튜토리얼을 따르세요. 부하 테스트로 대기실을 통과하는 트래픽을 정확히 시뮬레이션하려면 테스트 스크립트나 플래너를 1분보다 길게, 이상적으로는 2~3분 이상 실행하세요. 부하 테스트에는 [loader.io](http://loader.io), [jmeter](http://jmeter.apache.org), [postman.com](http://postman.com) 등 다양한 도구를 사용할 수 있습니다. 각 요청이 서로 다른 사용자를 나타내는 일반 셸 스크립트를 직접 작성해도 됩니다.
+
+:::caution[Warning]
+
+이 튜토리얼은 Cloudflare가 만들거나 지원하지 않는 오픈소스 부하 테스트 도구를 사용합니다.
+:::
+
+---
+
+## 시작하기 전에
+
+이 튜토리얼을 시작하기 전에 다음을 확인하세요.
+
+- Waiting Room [소개](/waiting-room/about/) 페이지를 검토했습니다.
+- 이 튜토리얼에서는 Apache의 오픈소스 도구인 [JMeter](https://jmeter.apache.org/)를 사용합니다. 바이너리는 [JMeter 웹사이트](https://jmeter.apache.org/download_jmeter.cgi)에서 다운로드할 수 있습니다.
+
+---
+
+## 1. 샘플 스크립트 다운로드
+
+먼저 GitHub에서 [샘플](https://github.com/yj7o5/cf-waiting-room-testing/blob/main/plan.jmx) JMeter 플랜(구성 파일)을 다운로드하세요.
+
+이 샘플 플랜은 200명의 활성 사용자가 사이트를 방문하는 상황을 시뮬레이션하며, 첫 1분 동안 트래픽을 천천히 증가시키고 이후 3분 동안 200명의 활성 사용자를 유지합니다. 이 튜토리얼의 테스트 플랜은 다음 단계에 설명된 설정을 따릅니다.
+
+## 2. 샘플 플랜 수정 및 실행
+
+샘플 플랜을 실행하기 전에 테스트 플랜의 대기실 대상을 사용자의 대기실로 수정하세요.
+
+1. 테스트 플랜을 펼치기 위해 **Waiting Room Simulation**을 선택한 다음, 테스트 구성을 업데이트하기 위해 **Request origin with waiting room**을 선택합니다.
+
+![Select Request origin with waiting room in the Waiting Room Simulation panel](~/assets/images/waiting-room/simulation-panel.png)
+
+2. **HTTP Request** 섹션에서 **Protocol**, **Server Name or IP**, **Path** 필드를 사용자의 대기실이 활성화된 테스트 URL에 맞게 수정합니다. 예를 들어 전체 URL이 `https://www.example.com/deals/summer`라면 각 필드는 다음과 같아야 합니다.
+
+| Field | Value |
+| --- | --- |
+| Protocol | https |
+| Server Name or IP | [www.example.com](http://www.example.com) |
+| Path | deals/summer |
+
+![Update the HTTP Request section](~/assets/images/waiting-room/http-request-section.png)
+
+그런 다음 **play** 버튼을 선택해 테스트를 시작합니다. 이 과정은 대략 3~4분 정도 걸립니다.
+
+![Select the play button](~/assets/images/waiting-room/navigation.png)
+
+- 각 시뮬레이션 사용자는 다음 특성을 가집니다.
+  - 쿠키 지속성을 위한 Cookie jar를 포함합니다.
+  - 20회 반복합니다.
+    - 대기실이 활성화된 origin 사이트로 요청을 보냅니다.
+    - 요청 세부 정보를 기록합니다.
+    - 10초 동안 대기한 뒤 페이지를 새로고침하며 origin 사이트에 또 다른 요청을 보냅니다.
+
+![User attributes](~/assets/images/waiting-room/user-attributes.png)
+
+위 플랜에 따르면 각 [Thread Group](https://jmeter.apache.org/usermanual/test_plan.html#thread_group)은 위 동작을 한 번 수행합니다. 사용자 트래픽은 첫 1분 동안 증가하고 이후 3분 동안 지속되다가 사용자가 사이트를 떠납니다. 이 예시보다 더 많거나 적은 트래픽을 보내고 싶다면 해당 속성 값을 수정하면 됩니다.
+
+![Visualizing number of threads](~/assets/images/waiting-room/threads.png)
+
+## 3. 결과 분석
+
+테스트 결과를 분석하려면 Cloudflare의 GraphQL API를 통해 Waiting Room Analytics(Beta)를 조회해 부하 테스트의 각 분마다 Total Active Users와 Queued Users를 확인할 수 있습니다.
+
+<Details header="예시 Curl 구문">
+
+```bash
+echo '{
+  "operationName": "UsersQueuedOverTimeQuery",
+  "variables": {
+    "filter": {
+      "datetime_geq": "2022-10-17T15:34:00Z",
+      "datetime_leq": "2022-10-17T15:40:00Z",
+      "waitingRoomId": "<YOUR_WAITING_ROOM_ID>"
+    },
+    "zoneId": "<YOUR_ZONE_ID>"
+  },
+  "query": "query UsersQueuedOverTimeQuery($zoneId: string, $filter: ZoneWaitingRoomAnalyticsAdaptiveGroupsFilter_InputObject) {\n  viewer {\n    zones(filter: {zoneTag: $zoneId}) {\n      timeseries: waitingRoomAnalyticsAdaptiveGroups(limit: 5000, filter: $filter, orderBy: [datetimeMinute_ASC]) {\n        avg {\n          totalActiveUsers\n          totalActiveUsersConfig\n          totalQueuedUsers\n          __typename\n        }\n        max {\n          totalQueuedUsers\n          totalActiveUsers\n          totalActiveUsersConfig\n          __typename\n        }\n        min {\n          totalActiveUsersConfig\n          __typename\n        }\n        dimensions {\n          ts: datetimeMinute\n          __typename\n        }\n        __typename\n      }\n      total: waitingRoomAnalyticsAdaptiveGroups(limit: 1, filter: $filter) {\n        max {\n          totalQueuedUsers\n          totalActiveUsers\n          __typename\n        }\n        __typename\n      }\n      __typename\n    }\n    __typename\n  }\n}\n"
+}' | tr -d '\n' | curl \
+  -X POST
+```
+
+</Details>
+
+우리 테스트에서는 다음 결과를 얻었습니다(가독성을 위해 쿼리 결과에서 일부만 발췌).
+
+- 15:35:00 UTC
+  - `"totalActiveUsers": 137,`
+  - `"totalActiveUsersConfig": 300,`
+  - `"totalQueuedUsers": 0`
+
+- 15:36:00 UTC
+  - `"totalActiveUsers": 200,`
+  - `"totalActiveUsersConfig": 300,`
+  - `"totalQueuedUsers": 0`
+
+- 15:37:00 UTC
+  - `"totalActiveUsers": 200,`
+  - `"totalActiveUsersConfig": 300,`
+  - `"totalQueuedUsers": 0`
+
+- 15:38:00 UTC
+  - `"totalActiveUsers": 200,`
+  - `"totalActiveUsersConfig": 300,`
+  - `"totalQueuedUsers": 0`
+
+첫 번째 분 단위 시점인 15:35:00 UTC에는 대기실을 지난 활성 사용자가 137명으로 나타납니다. 이는 트래픽이 첫 1분 동안 점진적으로 증가하도록 설정되어 있었고, 테스트 시작 시점이 정확히 분 경계와 일치하지 않았기 때문입니다. 그 다음 분에 데이터가 집계된 15:36:00 UTC에는 각 "사용자"가 하위 요청을 만들면서 사이트에서 예상한 총 200명의 활성 사용자가 보고되었습니다. 부하 테스트가 보내는 트래픽으로부터 하위 요청이 계속 들어오는 동안 활성 사용자 수는 200으로 안정적으로 유지되었습니다.
+
+:::note[Note]
+
+API 토큰은 대시보드에서 얻으세요. API 토큰이 **Analytics** 리소스에 접근 권한을 부여하는지 확인해야 합니다. 토큰을 얻는 방법은 [Configure Analytics API token](/analytics/graphql-api/getting-started/authentication/api-token-auth/) 가이드를 참고하세요.
+:::

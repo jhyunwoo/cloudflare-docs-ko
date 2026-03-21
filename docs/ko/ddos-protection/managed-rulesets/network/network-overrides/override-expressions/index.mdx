@@ -1,0 +1,69 @@
+---
+title: 과도한 표현
+pcx_content_type: reference
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: Network-layer DDoS 공격 보호에 대한 Override 표현
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/network/network-overrides/override-expressions/
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/managed-rulesets/network/network-overrides/override-expressions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components"
+
+Network-layer DDoS 공격 보호 관리 규정에 대한 과도한 표현을 설정하여 특정 범위를 정의합니다.[감도 수준](/ddos-protection/managed-rulesets/network/override-parameters/#sensitivity-level)또는[이름 \*](/ddos-protection/managed-rulesets/network/override-parameters/#action)조정.
+
+어떤 것을 고려할 때, 당신이 사용해야 하는 표현은, 네트워크 레이어 DDoS 공격 보호 관리 규칙이 보호하는 특정 서비스에 범위 overrides로 도구로 표현의 생각. 대부분의 서비스는 포트 또는 IP에 반대하는 목적지 포트 및 IP에 의해 정의됩니다. 더 알아보기[Imporant 말](/ddos-protection/managed-rulesets/network/network-overrides/#important-remarks)더 많은 정보.
+
+예를 들어, 다른 목적지 IP 주소 또는 포트에 대한 다른 감도 수준을 설정할 수 있습니다. 대상 IP 주소의 중간 감도 수준`A`대상 IP 주소의 낮은 감도 수준`B`.
+
+## 본문 바로가기
+
+다음 필드는 override expressions에서 사용할 수 있습니다.
+
+표현에서 사용하는 것이 좋습니다.
+
+- `ip.dst`
+- `ip.proto.num`
+- `tcp.dstport`
+- `tcp.flags`
+- `tcp.flags.ack`
+- `tcp.flags.fin`
+- `tcp.flags.push`
+- `tcp.flags.reset`
+- `tcp.flags.syn`
+- `tcp.flags.urg`
+- `udp.dstport`
+
+필드의 목록은 표현에서 사용할 것을 권하지 않습니다 :
+
+- `ip.src`
+- `ip.len`
+- `ip.ttl`
+- `tcp.srcport`
+- `udp.srcport`
+
+더 알아보기[필드 참고 자료](/ruleset-engine/rules-language/fields/reference/)더 많은 정보를 위한 규칙 언어 문서에.
+
+## 중요한 말
+
+### 권장 vs. 비추천 분야
+
+Override 표현은 허용되지 않습니다. Overrides는 검출에 적용되며 결과 완화에 적용되지 않습니다. 이것은 DDoS 관리 규정에 의해 생성 된 공격 지문이 발생하면 과도한 영향을받습니다. 따라서 소스 필드의 사용은 다음과 같습니다.`ip.src`, `ip.len`, `ip.ttl`, `tcp.srcport`·`udp.srcport`믿을 수 있는.
+
+비추천 필드의 사용은 예기치 않은 행동에서 발생할 수 있습니다. 소스 속성을 활용하기 위해 경사 될 수 있지만, 표현은 허용되지 않으며 소스 트래픽 속성을 포함하여 false 긍정적 인 결과를 가져올 수 있습니다.
+
+예를 들어, 감도 설정으로 오버라이드를 만들면`Essentially Off`제품 정보`ip.src eq 192.0.2.1`, 그것은 단지 지문이 포함되는 경우에 적용합니다`ip.src`. 그러나, DDoS 공격은 종종 많은 소스 IP를 가로지르기 때문에 지문은 포함되지 않을 수 있습니다`ip.src`모든 것. 그런 경우, 당신의 override는 적용되지 않습니다.
+
+일반적인 시나리오에서, IP의 수천에서 시작된 공격은 단일 대상 IP 및 포트를 대상으로 할 수 있습니다. 지문은 공격 패턴의 강한 신호를 나타내는 대상 IP, 포트 및 추가 패킷 필드와 같은 공유 속성에 중점을 둡니다. 당신의 override가 특정한 근원 IP를 일치하더라도, 그 분야가 지문에서 출석하지 않는 경우에 적용하지 않을 것입니다. 결과적으로, 시스템은 기본 높은 감도를 사용하여 공격을 완화하고 지정된 IP에서 트래픽은 여전히 차단 될 수 있습니다. 프로토콜, 대상 IP 및 대상 포트와 같은 더 안정적인 표현을 사용하는 것이 좋습니다.
+
+### 문자 제한
+
+각 표현은 4,000 문자로 제한되며 단일 표현식의 최대 200 IP 주소를 입력할 수 있습니다. 그러나 CIDR 형식의 IP 주소를 입력 할 수 있습니다. IP 주소의 더 큰 숫자를 포함 할 수 있습니다. 예를 들어, 사용할 수 있습니다.`192.0.0.0/24`IP 주소 일치`192.0.0.0`으로`192.0.0.255`.

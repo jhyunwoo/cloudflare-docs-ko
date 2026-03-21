@@ -1,0 +1,326 @@
+---
+pcx_content_type: concept
+title: 관련 상품
+tags:
+  - MCP
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/model-context-protocol/transport/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/model-context-protocol/transport/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample } from "~/components";
+
+Model Context Protocol (MCP) 사양은 두 가지 표준을 정의합니다.[수송 기계장치](https://spec.modelcontextprotocol.io/specification/draft/basic/transports/)클라이언트와 서버 간의 통신:
+
+1. **사이트맵**- 로컬 MCP 연결을 위해 설계된 표준 및 표준에 대한 통신.
+2. **스트리밍 HTTP**— 먼 MCP 연결을 위한 표준 수송 방법,[제품정보](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports#streamable-http)3월 2025일 양방향 메시징을 위한 단일 HTTP 엔드포인트를 사용합니다.
+
+:::참조
+Server-Sent Events (SSE)는 이전에 원격 MCP 연결을 위해 사용되었지만 스트리밍 가능한 HTTP의 호의로 간주되었습니다. 레거시 클라이언트를 위한 SSE 지원을 필요로 하는 경우에, 사용[`McpAgent`](/agents/api-reference/mcp-agent-api/)수업.
+주요 특징
+
+MCP 서버 내장[에이전트 SDK](/agents)제품 정보[`createMcpHandler`](/agents/api-reference/mcp-handler-api/)Streamable HTTP 전송을 처리합니다.
+
+## 원격 MCP 운송 구현
+
+제품 정보[`createMcpHandler`](/agents/api-reference/mcp-handler-api/)Streamable HTTP 수송을 처리하는 MCP 서버를 만들려면. 이 새로운 MCP 서버에 대한 권장된 접근법입니다.
+
+#### 빠른 시작
+
+"Deploy to Cloudflare" 버튼을 사용하여 원격 MCP 서버를 만들 수 있습니다.
+
+[![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agents/tree/main/examples/mcp-worker)
+
+#### 원격 MCP 서버 (인증 없이)
+
+MCP 서버 만들기`createMcpHandler`. 보기[GitHub에서 보기](https://github.com/cloudflare/agents/tree/main/examples/mcp-worker).
+
+<TypeScriptExample>
+  ```ts
+  import { createMcpHandler } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  function createServer() {
+  	const server = new McpServer({
+  		name: "My MCP Server",
+  		version: "1.0.0",
+  	});
+
+  	server.registerTool(
+  		"hello",
+  		{
+  			description: "Returns a greeting message",
+  			inputSchema: { name: z.string().optional() },
+  		},
+  		async ({ name }) => {
+  			return {
+  				content: [{ text: `Hello, ${name ?? "World"}!`, type: "text" }],
+  			};
+  		},
+  	);
+
+  	return server;
+  }
+
+  export default {
+  	fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+  		//요청 당 새로운 서버 인스턴스 만들기
+  		const server = createServer();
+  		return createMcpHandler(server)(request, env, ctx);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+#### MCP 서버 인증
+
+MCP 서버가 인증 및 인증을 실행하는 경우[Workers OAuth 공급자](https://github.com/cloudflare/workers-oauth-provider)도서관, 사용`createMcpHandler`이름 \*`apiRoute`·`apiHandler`이름 \* 더 보기[GitHub에서 보기](https://github.com/cloudflare/agents/tree/main/examples/mcp-worker-authenticated).
+
+<TypeScriptExample>
+  ```ts
+  export default new OAuthProvider({
+  	apiRoute: "/mcp",
+  	apiHandler: {
+  		fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+  			//요청 당 새로운 서버 인스턴스 만들기
+  			const server = createServer();
+  			return createMcpHandler(server)(request, env, ctx);
+  		},
+  	},
+  	//... 기타 OAuth 구성
+  });
+  ```
+</TypeScriptExample>
+
+### MCP 서버
+
+MCP 서버가 요청을 통해 상태를 유지해야하는 경우, 사용`createMcpHandler`한국어`WorkerTransport`내 계정[이름 \*](/agents/)수업. 이것은 튼튼한 목표 저장에 있는 persist 회의 국가를 허용하고 진보된 MCP 특징을 좋아합니다[한국어](https://modelcontextprotocol.io/specification/draft/client/elicitation)·[샘플링](https://modelcontextprotocol.io/specification/draft/client/sampling).
+
+이름 \*[MCP 소개 서버](/agents/api-reference/mcp-handler-api#stateful-mcp-servers)구현 세부 사항.
+
+## RPC 수송
+
+더 보기**RPC 수송**MCP 서버와 에이전트가 모두 'Cloudflare'에서 실행되는 내부 애플리케이션을 위해 설계되었습니다. JSON-RPC 메시지를 직접 Cloudflare\`에 보냅니다.[RPC 바인딩](/workers/runtime-apis/bindings/service-bindings/rpc/)공공 인터넷을 넘어하지 않고.
+
+- **더 빠른**- 네트워크 오버 헤드 없음, Durable Objects간의 직접 함수 호출
+- **더 보기**— HTTP 엔드포인트 없음, 연결 관리 없음
+- **내부 만**— 같은 노동자 내에서 MCP 서버를 호출하는 에이전트에 적합
+
+RPC 수송은 입증을 지원하지 않습니다. OAuth를 요구하는 외부 연결을 위한 Streamable HTTP를 사용하십시오.
+
+### RPC를 통해 McpAgent에 에이전트 연결
+
+#### 1. MCP 서버 정의
+
+내 계정`McpAgent`노출하려는 도구와 함께:
+
+<TypeScriptExample>
+  ```ts
+  import { McpAgent } from "agents/mcp";
+  import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+  import { z } from "zod";
+
+  type State = { counter: number };
+
+  export class MyMCP extends McpAgent<Env, State> {
+  	server = new McpServer({ name: "MyMCP", version: "1.0.0" });
+  	initialState: State = { counter: 0 };
+
+  	async init() {
+  		this.server.tool(
+  			"add",
+  			"Add to the counter",
+  			{ amount: z.number() },
+  			async ({ amount }) => {
+  				this.setState({ counter: this.state.counter + amount });
+  				return {
+  					content: [
+  						{
+  							type: "text",
+  							text: `Added ${amount}, total is now ${this.state.counter}`,
+  						},
+  					],
+  				};
+  			},
+  		);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+#### 2. MCP 서버에 에이전트를 연결
+
+내 계정`Agent`, 전화`addMcpServer()`튼튼한 목표 바인딩으로`onStart()`:
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "@cloudflare/ai-chat";
+
+  export class Chat extends AIChatAgent<Env> {
+  	async onStart(): Promise<void> {
+  		//직접 DO namespace 바인딩을 통과
+  		await this.addMcpServer("my-mcp", this.env.MyMCP);
+  	}
+
+  	async onChatMessage(onFinish) {
+  		const allTools = this.mcp.getAITools();
+
+  		const result = streamText({
+  			model,
+  			tools: allTools,
+  			//· ...
+  		});
+
+  		return createUIMessageStreamResponse({ stream: result });
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+RPC 연결은 튼튼한 목표 hibernation 후에, 다만 HTTP 연결을 좋아합니다. 바인딩 이름과 버팀대는 저장에 persisted 그래서 연결은 어떤 여분 부호도 없이 다시 설치될 수 있습니다.
+
+RPC 수송을 위해,`addMcpServer`이미 활성 연결을 가지고있는 이름으로 호출됩니다, 기존 연결은 중복 만들기 대신 반환됩니다. HTTP 수송의 경우, 두 서버 이름과 URL에 deduplication 일치 (refer to[MCP 클라이언트 API](/agents/api-reference/mcp-client-api/)상세 정보). 이 호출에 안전`onStart()`.
+
+#### 3. 튼튼한 목표 바인딩을 구성하십시오
+
+내 계정`wrangler.jsonc`, Durable Objects에 대한 바인딩을 정의:
+
+```jsonc
+{
+	"durable_objects": {
+		"bindings": [
+			{ "name": "Chat", "class_name": "Chat" },
+			{ "name": "MyMCP", "class_name": "MyMCP" }
+		]
+	},
+	"migrations": [
+		{
+			"new_sqlite_classes": ["MyMCP", "Chat"],
+			"tag": "v1"
+		}
+	]
+}
+```
+
+#### 4. Worker fetch 핸들러 설정
+
+채팅 에이전트에 경로 요청:
+
+<TypeScriptExample>
+  ```ts
+  import { routeAgentRequest } from "agents";
+
+  export default {
+  	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+  		const url = new URL(request.url);
+
+  		//선택적으로 HTTP를 통해 MCP 서버를 노출
+  		if (url.pathname.startsWith("/mcp")) {
+  			return MyMCP.serve("/mcp").fetch(request, env, ctx);
+  		}
+
+  		const response = await routeAgentRequest(request, env);
+  		if (response) return response;
+
+  		return new Response("Not found", { status: 404 });
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### MCP 서버에 대한 제안 전달
+
+RPC 수송은 OAuth 교류가 없기 때문에, 당신은 직업으로 사용자 상황에 직접 통과할 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  await this.addMcpServer("my-mcp", this.env.MyMCP, {
+  	props: { userId: "user-123", role: "admin" },
+  });
+  ```
+</TypeScriptExample>
+
+내 계정`McpAgent`다음이 props에 접근할 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  export class MyMCP extends McpAgent<
+  	Env,
+  	State,
+  	{ userId?: string; role?: string }
+  > {
+  	async init() {
+  		this.server.tool("whoami", "Get current user info", {}, async () => {
+  			const userId = this.props?.userId || "anonymous";
+  			const role = this.props?.role || "guest";
+
+  			return {
+  				content: [
+  					{ type: "text", text: `User ID: ${userId}, Role: ${role}` },
+  				],
+  			};
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+Props는 type-safe입니다 (TypeScript는 props type을 추출합니다.`McpAgent`generic), persistent ( 내구재 목표 저장에서 저장), 그리고 즉시 어떤 공구 통화든지 만들어지기 전에.
+
+### RPC 수송 서버 timeout 구성
+
+RPC 수송은 공구 응답을 기다리는 configurable timeout가 있습니다. 기본적으로 서버가 기다립니다**60 초**도구 핸들러에 대한 응답. 당신은 overriding에 의해 이것을 주문을 받아서 만들 수 있습니다`getRpcTransportOptions()`내 계정`McpAgent`:
+
+<TypeScriptExample>
+  ```ts
+  export class MyMCP extends McpAgent<Env, State> {
+  	server = new McpServer({ name: "MyMCP", version: "1.0.0" });
+
+  	protected getRpcTransportOptions() {
+  		return { timeout: 120000 }; //2 분
+  	}
+
+  	async init() {
+  		this.server.tool(
+  			"long-running-task",
+  			"A tool that takes a while",
+  			{ input: z.string() },
+  			async ({ input }) => {
+  				await longRunningOperation(input);
+  				return {
+  					content: [{ type: "text", text: "Task completed" }],
+  				};
+  			},
+  		);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 수송 선택
+
+| 관련 상품         | 사용시                   | 지원하다                 | 제품 정보                  |
+| ------------- | --------------------- | -------------------- | ---------------------- |
+| **스트리밍 HTTP** | 외부 MCP 서버, 생산 앱       | 표준 프로토콜, 보안, 지원 auth | Slight 네트워크 오버 헤드      |
+| **사이트맵**      | "Cloudflare"의 내부 에이전트 | 가장 빠른, 가장 간단한 설정     | auth, 튼튼한 목표 바인딩 없음    |
+| **사이트맵**      | Legacy 호환성            | 뒤로 호환                | 사전, Streamable HTTP 사용 |
+
+### McpAgent에서 마이그레이션
+
+기존 MCP 서버가 있는 경우`McpAgent`종류:
+
+- **국가를 사용하지?**&#xC0AC;용자 정의`McpAgent`클래스와`McpServer`이름 \*`@modelcontextprotocol/sdk`관련 기사`createMcpHandler(server)`직장에서`fetch`핸들러.
+- **국가 사용?**&#xC81C;품 정보`createMcpHandler`한국어`WorkerTransport`내 계정[이름 \*](/agents/)수업. 이름 \*[MCP 소개 서버](/agents/api-reference/mcp-handler-api#stateful-mcp-servers)상세 정보
+- **SSE 지원 필요?**&#xACC4;속 사용`McpAgent`이름 \*`serveSSE()`레거시 클라이언트 호환성을 위해. 이름 \*[McpAgent API는 다음과 같습니다.](/agents/api-reference/mcp-agent-api/).
+
+### MCP 클라이언트와 테스트
+
+원격 연결을 지원하는 MCP 클라이언트를 사용하여 MCP 서버를 테스트하거나 사용[`mcp-remote`](https://www.npmjs.com/package/mcp-remote), MCP 클라이언트가 원격 MCP 서버와 로컬 연결 작업을 지원하는 어댑터.
+
+이름 \*[이 가이드](/agents/guides/test-remote-mcp-server/)원격 MCP 서버에 Claude Desktop, Cursor, Windsurf 및 기타 MCP 클라이언트에 연결하는 방법에 대한 지침.

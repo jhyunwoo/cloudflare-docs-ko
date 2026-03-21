@@ -1,0 +1,220 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 누출 검출 시작
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/leaked-credentials/get-started/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/leaked-credentials/get-started/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	TabItem,
+	Tabs,
+	Details,
+	Steps,
+	GlossaryTooltip,
+	APIRequest,
+	DashButton,
+} from "~/components";
+
+## 1. 검출을 켜십시오
+
+<Render file="leaked-credentials-detection-enable" product="waf" />
+
+:::참조
+최적의 대기 시간 성능을 달성하기 위해 Cloudflare는 당신이 꺼지는 것을 권장합니다[노출된 Credentials 검사](/waf/managed-rules/reference/exposed-credentials-check/)(이전 구현) 누출 된 자격 검출을 켜고 다음 단계에 설명 된대로 완화 전략을 설정 한 후.
+주요 특징
+
+## 2. 누출 된 자격 증명 탐지 동작을 검증
+
+제품 정보[보안 Analytics](/waf/analytics/security-analytics/)그리고 HTTP 로그는 Cloudflare가 들어오는 요청에서 누출 된 자격 증명을 정확하게 감지하는 것을 검증합니다.
+
+더 알아보기[설정 테스트](#test-your-configuration)테스트 자격 증명에 대한 자세한 내용은 구성을 검증하는 데 사용할 수 있습니다.
+
+대안으로, 다음 단계에서 설명 한 것과 같은 사용자 정의 규칙을 만듭니다.*로그인*행동 (기업 고객에게만 제공). 이 규칙은 생성됩니다[보안 이벤트](/waf/analytics/security-events/)구성을 검증할 수 있습니다.
+
+## 3. 누출된 credentials를 가진 Mitigate 요구
+
+무료 플랜에 있다면, 제안 된 배포[비율 제한 규칙](/waf/rate-limiting-rules/)유효한 템플릿:
+
+- 오래된 대시보드:**사이트맵** > **비율 제한 규칙**
+- 새로운 안전 대시보드:**보안 보안** > **보안 규칙**
+
+이 템플릿을 사용하여 규칙을 배포하면 IPs에 대한 즉각적인 보호가 누출 된 암호로 응용 프로그램에 액세스 할 수 10 초 당 5 배 이상. 이 규칙은 시간이 지남에 따라 공격을 지연시킬 수 있습니다. 또는 사용자 정의 규칙을 만들 수 있습니다.
+
+유료 계획은 규칙을 만들 때 더 많은 과립 통제에 액세스해야합니다. 유료 플랜에 있다면,[사용자 정의 규칙 만들기](/waf/custom-rules/create-dashboard/)누출된 자격 증명을 포함하는 그 도전 요청:
+
+| 제품정보          | 회사연혁  | 제품정보 |
+| ------------- | ----- | ---- |
+| 사용자 및 비밀번호 유출 | 이름 \* | 한국어  |
+
+Expression Editor를 사용하면 다음과 같은 표현식을 입력합니다.
+
+```txt
+(cf.waf.credential_check.username_and_password_leaked)
+```
+
+규칙 활동:*관리 도전*
+
+이 규칙은 Cloudflare가 이전에 압흔 (username 및 password)의 유출 된 세트를 감지하는 요청을 일치합니다. 누출 검출에 의해 제공 된 필드 목록, 참조[유출된 자격 분야](/waf/detections/leaked-credentials/#leaked-credentials-fields).
+
+<Details header="다른 규칙 언어 필드와 결합">
+  이전 표현식을 다른 사람들과 결합할 수 있습니다.[주요연혁](/ruleset-engine/rules-language/fields/)·[제품정보](/ruleset-engine/rules-language/functions/)규칙의 언어. 이것은 규칙 범위를 사용자 정의하거나 다른 보안 기능으로 누출 된 자격 검사를 결합 할 수 있습니다. 예를 들면:
+
+  - 다음과 같은 표현은 인증 엔드포인트에 새겨진 자격 증명을 포함하는 요청과 일치합니다.
+
+    | 제품정보          | 회사연혁  | 제품정보               | 로그인   |
+    | ------------- | ----- | ------------------ | ----- |
+    | 사용자 및 비밀번호 유출 | 이름 \* | 한국어                | 이름 \* |
+    | URI 경로        | 지원하다  | `/admin/login.php` |       |
+
+    편집자를 사용할 때 표현:<br />
+    `(cf.waf.credential_check.username_and_password_leaked and http.request.uri.path contains "/admin/login.php")`
+
+  - 다음과 같은 표현은 인증 자격 증명을 포함하는 봇에서 오는 요청과 일치합니다.
+
+    | 제품정보  | 회사연혁     | 제품정보 | 로그인   |
+    | ----- | -------- | ---- | ----- |
+    | 인증 감지 | 이름 \*    | 한국어  | 이름 \* |
+    | 봇 점수  | 더 적은 보다는 | `10` |       |
+
+    편집자를 사용할 때 표현:<br />
+    `(cf.waf.auth_detected and cf.bot_management.score lt 10)`
+</Details>
+
+추가 예제의 경우, 참조[사례 완화 규칙](/waf/detections/leaked-credentials/examples/).
+
+### 핸들은 근원 서버에서 누출된 자격 증명을 검출했습니다
+
+또한 Cloudflare에 의해 검출된 누출된 자격 증명을 처리할 수 있습니다.<GlossaryTooltip term="origin server">소스 서버</GlossaryTooltip>:
+
+<Steps>
+  1. [기타 제품](/rules/transform/managed-transforms/configure/)이름 \***유출된 Credentials 체크 Header 추가**관리 변환.
+
+  2. 요청은 Origin 서버에서 수신`Exposed-Credential-Check`header, 이전에 유출된 credentials를 검출할 때 당신의 리셋 암호 페이지에 당신의 최종 사용자를 리디렉션할 수 있었습니다.
+</Steps>
+
+## 4. (선택) 주문 탐지 위치를 형성하십시오
+
+기본 설정에 의해 덮지 않는 방법으로 누출 된 자격 증명을 확인하려면 추가[사용자 정의 감지 위치](/waf/detections/leaked-credentials/#custom-detection-locations).
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="새로운 대시보드" icon="rocket">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. (선택) 필터 로**검색 툴**.
+
+      3. 이름 \***누출 검출** > **제품 설명**, 편집 아이콘을 선택합니다.
+
+      4. 제품정보**사용자 정의 사용자 이름 및 암호 위치 추가**.
+
+      5. 내 계정**사용자 이름 위치**·**비밀번호**(옵션), HTTP 요청에서 사용자 이름과 암호를 얻기위한 표현식을 입력합니다. 예를 들어 다음과 같은 표현을 사용할 수 있습니다.
+
+         - 사용자 이름 위치:<br />
+           `lookup_json_string(http.request.body.raw, "user")`
+         - 비밀번호:<br />
+           `lookup_json_string(http.request.body.raw, "secret")`
+
+         이 구성은 다음과 같은 구조로 JSON body를 포함하는 HTTP 요청을 스캔합니다.
+
+         ```js
+         {"user": "<USERNAME>", "secret": "<PASSWORD>"}
+         ```
+
+         더 알아보기[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)이 기능에 대한 자세한 내용은 문서.
+
+      6. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="오래된 대시보드">
+    <Steps>
+      1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정과 도메인을 선택합니다.
+
+      2. 오시는 길**보안 보안** > **계정 설정**.
+
+      3. 이름 \***교통 감지**, 선택**새소식**다음 선택**사용자 정의 사용자 이름 및 암호 위치 추가**.
+
+      4. 내 계정**사용자 이름 위치**·**비밀번호**(옵션), HTTP 요청에서 사용자 이름과 암호를 얻기위한 표현식을 입력합니다. 예를 들어 다음과 같은 표현을 사용할 수 있습니다.
+
+         - 사용자 이름 위치:<br />
+           `lookup_json_string(http.request.body.raw, "user")`
+         - 비밀번호:<br />
+           `lookup_json_string(http.request.body.raw, "secret")`
+
+         이 구성은 다음과 같은 구조로 JSON body를 포함하는 HTTP 요청을 스캔합니다.
+
+         ```js
+         {"user": "<USERNAME>", "secret": "<PASSWORD>"}
+         ```
+
+         더 알아보기[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)이 기능에 대한 자세한 내용은 문서.
+
+      5. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    지원하다`POST`다음과 같은 요청 :
+
+    <APIRequest
+      path="/zones/{zone_id}/leaked-credential-checks/detections"
+      method="POST"
+      json={{
+  	username: 'lookup_json_string(http.request.body.raw, "user")',
+  	password: 'lookup_json_string(http.request.body.raw, "secret")',
+  }}
+    />
+
+    이 쌍의 lookup expressions (사용자 이름 및 암호에 대 한) 다음과 비슷한 구조와 함께 JSON 몸을 포함하는 HTTP 요청을 스캔 합니다:
+
+    ```js
+    {"user": "<USERNAME>", "secret": "<PASSWORD>"}
+    ```
+
+    더 알아보기[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)이 기능에 대한 자세한 내용은 문서.
+  </TabItem>
+
+  <TabItem label="옵션 정보">
+    <Render file="detections/leaked-credentials-configure-location-terraform" product="waf" />
+
+    더 알아보기[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)이 기능에 대한 자세한 내용은 문서.
+  </TabItem>
+</Tabs>
+
+사용자 정의 검색 위치에 있는 사용자의 표현만 제공해야 합니다.
+
+다른 요청 유형에 대한 사용자 정의 검색 위치의 더 많은 예제, 참조[주문 감지 위치](/waf/detections/leaked-credentials/#custom-detection-locations).
+
+***
+
+## 설정 테스트
+
+Cloudflare는 누출 검출의 윤곽을 시험하는 케이스 과민한 credentials의 특별한 세트를 제공합니다.
+
+탐지를 활성화하고 구성하면 테스트 HTTP 요청에이 섹션에서 언급 한 자격 증명을 사용할 수 있습니다.
+
+무료 계획에 대한 사용자를위한 자격 증명을 테스트 (또한 유료 계획에서 일할 수 있음) :
+
+- 사용자 이름:`CF_LEAKED_USERNAME_FREE`
+- 비밀번호:`CF_LEAKED_PASSWORD`
+
+유료 계획에 대한 사용자를위한 자격 증명을 테스트 (무료 계획에서 작동하지 않습니다) :
+
+- 사용자 이름:`CF_EXPOSED_USERNAME`또는`CF_EXPOSED_USERNAME@example.com`
+- 비밀번호:`CF_EXPOSED_PASSWORD`
+
+Cloudflare는 이전에 누출 된 것과 같은 특정한 자격 증명을 고려합니다. 현재 구성의 동작을 확인하기 위해 테스트에서 그들을 사용합니다.

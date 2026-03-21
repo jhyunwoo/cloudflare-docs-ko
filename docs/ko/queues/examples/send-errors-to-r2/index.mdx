@@ -1,0 +1,95 @@
+---
+title: Queues를 사용하여 R2
+summary: Example of how to use Queues to batch data and store it in an R2 bucket.
+pcx_content_type: example
+sidebar:
+  order: 1001
+head:
+  - tag: title
+    content: CloudflareQueues - Queues & R2
+description: Queues를 일괄 데이터에 사용하는 방법의 예와 R2 버킷에 저장하십시오.
+reviewed: 2022-09-27T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/examples/send-errors-to-r2/'
+translation_source_md: 'https://developers.cloudflare.com/queues/examples/send-errors-to-r2/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+다음 노동자는 JavaScript 오류를 잡고 큐에 보냅니다. 동일한 노동자는 배치에 그 오류를 받고 R2 물통에 로그 파일에 저장합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"queues": {
+  		"producers": [
+  			{
+  				"queue": "my-queue",
+  				"binding": "ERROR_QUEUE"
+  			}
+  		],
+  		"consumers": [
+  			{
+  				"queue": "my-queue",
+  				"max_batch_size": 100,
+  				"max_batch_timeout": 30
+  			}
+  		]
+  	},
+  	"r2_buckets": [
+  		{
+  			"bucket_name": "my-bucket",
+  			"binding": "ERROR_BUCKET"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+```ts
+interface ErrorMessage {
+	message: string;
+	stack?: string;
+}
+
+interface Env {
+	readonly ERROR_QUEUE: Queue<ErrorMessage>;
+	readonly ERROR_BUCKET: R2Bucket;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    try {
+      return doRequest(req);
+    } catch (e) {
+      const error: ErrorMessage = {
+        message: e instanceof Error ? e.message : String(e),
+        stack: e instanceof Error ? e.stack : undefined,
+      };
+      await env.ERROR_QUEUE.send(error);
+      return new Response(error.message, { status: 500 });
+    }
+  },
+  async queue(batch, env, ctx): Promise<void> {
+    let file = "";
+    for (const message of batch.messages) {
+      const error = message.body;
+      file += error.stack ?? error.message;
+      file += "\r\n";
+    }
+    await env.ERROR_BUCKET.put(`errors/${Date.now()}.log`, file);
+  },
+} satisfies ExportedHandler<Env, ErrorMessage>;
+
+function doRequest(request: Request): Response {
+  if (Math.random() > 0.5) {
+    return new Response("Success!");
+  }
+  throw new Error("Failed!");
+}
+```

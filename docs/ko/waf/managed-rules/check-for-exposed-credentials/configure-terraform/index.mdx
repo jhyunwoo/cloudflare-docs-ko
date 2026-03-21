@@ -1,0 +1,93 @@
+---
+title: Terraform을 사용하여 노출 된 자격 검사 구성
+pcx_content_type: configuration
+sidebar:
+  order: 5
+  label: Terraform을 사용하여 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/check-for-exposed-credentials/configure-terraform/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/check-for-exposed-credentials/configure-terraform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+다음 Terraform 구성 예제는 노출된 자격 검사의 일반적인 사용 사례를 지정합니다.
+
+더 많은 정보를 원하시면, 참조[Terraform Cloudflare 공급자 문서](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs).
+
+Cloudflare API를 사용하는 경우, 참조[API를 통해 노출된 자격 검사 구성](/waf/managed-rules/check-for-exposed-credentials/configure-api/).
+
+<Render file="leaked-credentials-recommend-detection" product="waf" />
+
+## 노출된 자격 증명을 확인하기 위한 사용자 정의 규칙 추가
+
+다음 구성은 단일 규칙과 사용자 정의 규칙을 만듭니다.[노출된 자격 증명을 위한 체크](/waf/managed-rules/check-for-exposed-credentials/configure-api/#create-a-custom-rule-checking-for-exposed-credentials).
+
+사용자 정의 규칙에 규칙에 노출 된 자격 검사를 추가 할 수 있습니다 (그, 규칙과`kind = "custom"`).
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_firewall_custom_ruleset_exposed_creds" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Custom ruleset checking for exposed credentials"
+  description = ""
+  kind        = "custom"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    ref         = "check_for_exposed_creds_add_header"
+    description = "Add header when there is a rule match and exposed credentials are detected"
+    expression  = "http.request.method == \"POST\" && http.request.uri == \"/login.php\""
+    action      = "rewrite"
+    action_parameters {
+      headers {
+        name      = "Exposed-Credential-Check"
+        operation = "set"
+        value     = "1"
+      }
+    }
+    exposed_credential_check {
+      username_expression = "url_decode(http.request.body.form[\"username\"][0])"
+      password_expression = "url_decode(http.request.body.form[\"password\"][0])"
+    }
+  }
+}
+```
+
+<Render file="add-new-rule" params={{ ruleType: "rule" }} product="terraform" />
+
+다음 구성은 사용자 정의 규칙을 배치합니다. 그것은에 의존성을 정의`account_firewall_custom_ruleset_exposed_creds`자원과 생성 된 사용자 정의 규칙의 ID를 얻을:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_firewall_custom_entrypoint" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Account-level entry point ruleset for the http_request_firewall_custom phase deploying a custom ruleset checking for exposed credentials"
+  description = ""
+  kind        = "root"
+  phase       = "http_request_firewall_custom"
+
+  depends_on = [cloudflare_ruleset.account_firewall_custom_ruleset_exposed_creds]
+
+  rules {
+    ref         = "deploy_custom_ruleset_example_com"
+    description = "Deploy custom ruleset for example.com"
+    expression  = "(cf.zone.name eq \"example.com\")"
+    action      = "execute"
+    action_parameters {
+      id = cloudflare_ruleset.account_firewall_custom_ruleset_exposed_creds.id
+    }
+  }
+}
+```
+
+## 더 많은 리소스
+
+추가 Terraform 구성 예제의 경우, 참조[WAF Terraform을 사용하여 사용자 정의 규칙 구성](/terraform/additional-configurations/waf-custom-rules/).

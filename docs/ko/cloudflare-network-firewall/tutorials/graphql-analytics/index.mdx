@@ -1,0 +1,190 @@
+---
+title: GraphQL 분석
+pcx_content_type: tutorial
+tags:
+  - GraphQL
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: GraphQL 분석
+reviewed: 2022-03-02T00:00:00.000Z
+difficulty: Medium
+description: >-
+  GraphQL Analytics API를 사용하여 Cloudflare Network Firewall 네트워크 트래픽에 대한 데이터를 검토하여
+  트래픽을 일치시키는 규칙과 관련시켰습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/tutorials/graphql-analytics/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/tutorials/graphql-analytics/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, Render } from "~/components";
+
+GraphQL Analytics API를 사용하여 Cloudflare Network Firewall (이전 Magic Firewall) 네트워크 트래픽에 대한 데이터를 검토합니다. 이것은 네트워크 방화벽 대시보드에서 구성되는 규칙과 Cloudflare에 의해 관리되는 규칙을 포함합니다[Network Firewall 관리 규칙](/cloudflare-network-firewall/how-to/enable-managed-rulesets/)·[네트워크 방화벽 IDS](/cloudflare-network-firewall/about/ids/)이름 \*
+
+시작하기 전에 반드시 해야 합니다.[API 토큰](/analytics/graphql-api/getting-started/authentication/). GraphQL Analytics로 시작하는 추가적인 도움으로, 참조[GraphQL 분석 API](/analytics/graphql-api/).
+
+## Cloudflare 인증 획득 계정 ID
+
+오브젝트에 대한 Network Firewall GraphQL 쿼리를 구성하려면 Cloudflare 계정 ID가 필요합니다.
+
+### Cloudflare를 취득 계정 ID
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/), 귀하의 계정을 선택합니다.
+2. 브라우저의 주소 표시줄의 URL은 표시해야 합니다.`https://dash.cloudflare.com/`hex 문자열에 의해. hex 문자열은 Cloudflare 계정 ID입니다.
+
+### 방화벽 규칙에 대한 규칙 ID 획득
+
+특정 규칙에 대한 분석을 수집하기 위해 쿼리를 구성하려면 각 방화벽 규칙에 대한 규칙 ID가 필요합니다.
+
+1. Cloudflare 대시보드에서[방화벽 정책](https://dash.cloudflare.com/?to=/:account/network-security/magic_firewall)사이트 맵
+2. 내 계정**주문 정책**탭에서 규칙 ID가 필요한 규칙을 찾아 3 점을 선택하십시오 >**제품정보**.
+3. 자주 묻는 질문**이름 \***&#xBCF5;사 버튼을 선택합니다.
+4. 제품정보**이름 \***&#xBC18;환하기**방화벽 정책**사이트 맵
+
+## Cloudflare Network Firewall 쿼리 예제와 GraphQL 스키마를 탐색
+
+이 섹션에서 5 분 간격 내에서 구성 된 네트워크 방화벽 규칙의 5 분 수를 검색하는 테스트 쿼리를 실행합니다. 아래 코드를 GraphiQL로 복사하고 붙여넣을 수 있습니다.
+
+Analytics schema에 대한 추가 정보, 참조[GraphiQL과 Analytics 스키마를 탐험](/analytics/graphql-api/getting-started/explore-graphql-schema/).
+
+```graphql graphql-api-explorer
+query MagicFirewallExample($accountTag: string!, $start: Time, $end: Time) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			magicFirewallSamplesAdaptiveGroups(
+				filter: { datetime_geq: $start, datetime_leq: $end }
+				limit: 2
+				orderBy: [datetimeFiveMinute_DESC]
+			) {
+				sum {
+					bits
+					packets
+				}
+				dimensions {
+					datetimeFiveMinute
+					ruleId
+				}
+			}
+		}
+	}
+}
+```
+
+## Cloudflare 네트워크 방화벽에 대한 예 쿼리
+
+### 특정 규칙에 대한 분석
+
+아래 예제를 사용하여 패킷의 총 수와 비트를 표시하고 마지막 시간 내에 상위 10 의심의 여지없이 악의적인 트래픽 스트림. 결과 수신 후, 5 분 평균 패킷 비율로 정렬 할 수 있습니다.
+
+<Render file="case-sensitivity-note" product="analytics" />
+
+각 시내를 위해, 전시:
+
+- 소스 및 대상 IP 주소
+- Ingress Cloudflare 데이터 센터 수신
+- 비트 및 패킷의 총 트래픽량은 시간 내에 수신
+- 방화벽 규칙에 의해 촬영된 행동
+
+```graphql graphql-api-explorer
+query MagicFirewallObtainRules(
+	$accountId: string!
+	$ruleId: string
+	$start: Time
+	$end: Time
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			magicFirewallNetworkAnalyticsAdaptiveGroups(
+				filter: { ruleId: $ruleId, datetime_geq: $start, datetime_leq: $end }
+				limit: 10
+				orderBy: [avg_packetRateFiveMinutes_DESC]
+			) {
+				sum {
+					bits
+					packets
+				}
+				dimensions {
+					coloCity
+					ipDestinationAddress
+					ipSourceAddress
+					outcome
+				}
+			}
+		}
+	}
+}
+```
+
+### IDS 분석
+
+아래 예제를 사용하여 네트워크 방화벽 IDS가 지난 시간에 감지 한 상위 10 트래픽 스트림에 대한 패킷 및 비트의 총 수를 표시하기 위해.
+
+설정하기`verdict`으로`drop`·`outcome`이름 \*`pass`, 우리는 탐지로 표시 된 트래픽에 대한 필터링 (즉, verdict was drop) 하지만 떨어졌다 (예를 들어, outcome was`pass`). 이것은 현재, 네트워크 방화벽 IDS는 악의적인 트래픽을 감지하지만 트래픽을 떨어뜨리지 않습니다.
+
+각 시내를 위해, 전시:
+
+- 소스 및 대상 IP 주소.
+- Ingress Cloudflare 데이터 센터를 수신했습니다.
+- 비트 및 패킷의 총 트래픽량은 시간 내에 수신됩니다.
+
+```graphql graphql-api-explorer
+query MagicFirewallObtainIDS($accountTag: string!, $start: Time, $end: Time) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			magicIDPSNetworkAnalyticsAdaptiveGroups(
+				filter: {
+					datetime_geq: $start
+					datetime_leq: $end
+					verdict: drop
+					outcome: pass
+				}
+				limit: 10
+				orderBy: [avg_packetRateFiveMinutes_DESC]
+			) {
+				sum {
+					bits
+					packets
+				}
+				dimensions {
+					coloCity
+					ipDestinationAddress
+					ipSourceAddress
+				}
+			}
+		}
+	}
+}
+```
+
+또는 분석 된 모든 트래픽을 검사하기 위해, 그러나 악의적인 교통 및 기타 트래픽으로 그룹화 된, 아래의 예는 사용할 수 있습니다. 응답은 각 5 분 타임스탬프를 위한 2개의 입장을 포함합니다.`verdict`설정한다`drop`악의적인 교통 및`verdict`설정한다`pass`IDS 규칙과 일치하지 않은 트래픽.
+
+```graphql graphql-api-explorer
+query MagicFirewallTraffic($accountTag: string!, $start: Time, $end: Time) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			magicIDPSNetworkAnalyticsAdaptiveGroups(
+				filter: { datetime_geq: $start, datetime_leq: $end }
+				limit: 10
+				orderBy: [avg_packetRateFiveMinutes_DESC]
+			) {
+				sum {
+					bits
+					packets
+				}
+				dimensions {
+					coloCity
+					ipDestinationAddress
+					ipSourceAddress
+					verdict
+				}
+			}
+		}
+	}
+}
+```

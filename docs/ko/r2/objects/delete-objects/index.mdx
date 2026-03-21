@@ -1,0 +1,105 @@
+---
+title: 객체 삭제
+pcx_content_type: how-to
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/objects/delete-objects/'
+translation_source_md: 'https://developers.cloudflare.com/r2/objects/delete-objects/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, DashButton } from "~/components";
+
+dashboard, Workers API, S3 API 또는 명령줄 도구를 사용하여 QXR2XQXQXQXQXQ에서 개체를 삭제할 수 있습니다.
+
+## dashboard를 통해 삭제
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 당신의 물통을 찾아내고 선정하십시오.
+3. 삭제하려는 객체를 찾습니다. 한 번에 여러 개체를 삭제할 수 있습니다.
+4. 개체를 선택하고 선택**이름 \***.
+5. 선택하여 당신의 선택 확인**이름 \***.
+
+## Workers API를 통해 삭제
+
+사용 R2[관련 제품](/workers/runtime-apis/bindings/)Workers에서 객체를 삭제하려면:
+
+```ts ins={3}
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		await env.MY_BUCKET.delete("image.png");
+		return new Response("Deleted");
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+완전한 문서의 경우, 참조[모델 번호: Workers](/r2/api/workers/workers-api-usage/).
+
+## S3 API를 통해 삭제
+
+S3-compatible SDK를 사용하여 객체를 삭제합니다. 당신은 당신의 필요[계정 ID](/fundamentals/account/find-account-and-zone-ids/)·[R2 API 토큰](/r2/api/tokens/).
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript">
+    ```ts
+    import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
+
+    const S3 = new S3Client({
+    	region: "auto", //SDK에 의해 필요하지만 R2XQ에 의해 사용되지 않음
+    	//Cloudflare 계정 ID 제공
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	//API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (보기 : https://developers.cloudflare.com/r2/api/tokens)
+    	credentials: {
+    		accessKeyId: '<ACCESS_KEY_ID>',
+    		secretAccessKey: '<SECRET_ACCESS_KEY>',
+    	},
+    });
+
+    await S3.send(
+    	new DeleteObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "image.png",
+    	}),
+    );
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+    	service_name="s3",
+    	#Cloudflare 계정 ID 제공
+    	endpoint_url=f"https://{ACCOUNT_ID}.r2.cloudflarestorage.com",
+    	#API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+    	aws_access_key_id=ACCESS_KEY_ID,
+    	aws_secret_access_key=SECRET_ACCESS_KEY,
+    	region_name="auto", #SDK에 의해 필요하지만 R2
+    )
+
+    s3.delete_object(Bucket="my-bucket", Key="image.png")
+    ```
+  </TabItem>
+</Tabs>
+
+완전한 S3 API 문서의 경우, 참조[사이트맵](/r2/api/s3/api/).
+
+## Wrangler를 통해 삭제
+
+:::카트로션
+
+물통에서 물체를 삭제할 수 없습니다.
+
+:::
+
+제품 정보[모델 번호: Wrangler](/workers/wrangler/install-and-update/)객체를 삭제합니다. 시작하기[`r2 object delete`이름 \*](/workers/wrangler/commands/#r2-object-delete):
+
+```sh
+wrangler r2 object delete test-bucket/image.png
+```

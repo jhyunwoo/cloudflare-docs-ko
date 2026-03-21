@@ -1,0 +1,95 @@
+---
+pcx_content_type: concept
+title: 데이터베이스에 연결
+sidebar:
+  order: 1
+head: []
+description: 다양한 종류의 데이터베이스 통합 Cloudflare 지원에 대해 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/databases/connecting-to-databases/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/databases/connecting-to-databases/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Workers는 SQL 및 NoSQL 데이터베이스 모두에서 데이터를 연결하고 쿼리 할 수 있습니다.
+
+- Cloudflare의 자체[D1](/d1/), serverless SQL 기반 데이터베이스.
+- 전통적인 호스팅 관계 데이터베이스, 포함 Postgres 및 MySQL, 사용[Hyperdrive](/hyperdrive/)(recommended)는 두드러지게 접근을 가속화합니다.
+- Supabase, MongoDB Atlas, PlanetScale 및 Prisma를 포함한 Serverless 데이터베이스.
+
+### D1 SQL 데이터베이스
+
+D1는 Cloudflare의 자체 SQL 기반 서버 데이터베이스입니다. Workers의 세계적인 접근을 위해 낙관되고, per-user, per-tenant 또는 per-entity 데이타베이스와 같은 다수, 더 작은 (10GB) 데이타베이스로 확장할 수 있습니다. 일부 서버가 없는 데이터베이스와 마찬가지로 D1 가격은 쿼리 및 저장 비용을 기준으로 합니다.
+
+| 관련 기사      | 도서관 또는 드라이버                                                                                                   | 연결 방법                                                                                                |
+| ---------- | ------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [D1](/d1/) | [Workers 바인딩](/d1/worker-api/), 통합[프리즈마](https://www.prisma.io/), [제품 소개](https://orm.drizzle.team/), 다른 ORMs | [Workers 바인딩](/d1/worker-api/), [REST API를](/api/resources/d1/subresources/database/methods/create/) |
+
+### 전통적인 SQL 데이터베이스
+
+전통적인 데이터베이스 사용 SQL 드라이버 사용[TCP 소켓](/workers/runtime-apis/tcp-sockets/)데이터베이스에 연결하기. TCP는 PostgreSQL과 MySQL과 같은 많은 데이터베이스가 있는 de-facto 표준 프로토콜입니다. 클라이언트 연결을 위한 사용.
+이 드라이버는 또한 선호하는 ORM 라이브러리 및 쿼리 빌더와 널리 호환됩니다.
+
+또한 PostgreSQL 또는 MySQL과 같은 serverless 데이터베이스가 포함되어 있습니다.[스파베이스](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/supabase/), [이름 \*](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/neon/), 또는 PlanetScale (이더[기본 정보](/hyperdrive/examples/connect-to-mysql/mysql-database-providers/planetscale/)또는[프로젝트](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/planetscale-postgres/)),
+네이티브를 사용하여 연결 가능[TCP 소켓 및 Hyperdrive](/hyperdrive/)또는[Serverless HTTP 기반 드라이버](/workers/databases/connecting-to-databases/#serverless-databases)(아래로 정렬).
+
+| 관련 기사                                 | 통합    | 도서관 또는 드라이버                                                                                | 연결 방법                                                                                                      |
+| ------------------------------------- | ----- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| [글 RSS](/workers/tutorials/postgres/) | 직접 연결 | [노드-postgres](https://node-postgres.com/),[다운로드](https://github.com/porsager/postgres)     | [TCP 소켓](/workers/runtime-apis/tcp-sockets/)데이터베이스 드라이버를 통해[모델 번호: Hyperdrive](/hyperdrive/)최적의 성능(옵션, 권장) |
+| [기본 정보](/workers/tutorials/mysql/)    | 직접 연결 | [사이트맵](https://github.com/sidorares/node-mysql2), [사이트맵](https://github.com/mysqljs/mysql) | [TCP 소켓](/workers/runtime-apis/tcp-sockets/)데이터베이스 드라이버를 통해[Hyperdrive](/hyperdrive/)최적의 성능(옵션, 권장)        |
+
+:::note\[Hyperdrive와 데이터베이스 연결을 가속화]
+
+TCP 소켓과 SQL 데이터베이스에 연결하면 데이터베이스에 쿼리 전에 보안 연결을 설정할 수 있습니다.
+연결은 모든 작업자 invocation에 다시 설치해야하므로 불필요한 대기 시간을 추가합니다.
+
+[Hyperdrive](/hyperdrive/)풀링 데이터베이스 연결에 의해 이것을 해결하기 전 세계적으로 불필요한 왕복을 제거하고 데이터베이스 액세스를 가속화합니다. 더 알아보기[Hyperdrive는 어떻게 작동합니까?](/hyperdrive/concepts/how-hyperdrive-works/).
+
+:::
+
+### Serverless 데이터베이스
+
+Serverless 데이터베이스는 하위 데이터베이스에 직접 연결을 제공하거나 HTTP 기반 프록시 및 드라이버를 제공 할 수 있습니다 (서버 드라이버라고도 함).
+
+PostgreSQL 및 MySQL 서버리스 데이터베이스의 경우 기본 데이터베이스 드라이버 및 ORM을 사용하여 하위 데이터베이스에 직접 연결할 수 있으며 Hyperdrive (추천)을 사용하여 연결 및 풀 데이터베이스 연결을 가속화 할 수 있습니다. HyperdriveXQ를 사용할 때 연결 풀은 Cloudflare 지역의 모든 곳에서 관리되며 WorkersQQ의 사용을 위해 최적화되었습니다.
+
+서버리스 드라이버 라이브러리를 사용하여 데이터베이스 공급자에 의해 관리되는 HTTP 기반 프록시에 연결할 수 있습니다. 이러한 기존 SQL 데이터베이스에 대한 연결 풀링을 제공 할 수 있으며 Hyperdrive와 유사한 보안 연결을 설정하기 위해 필요한 라운드 스트립의 양을 줄일 수 있습니다.
+
+| 관련 기사                                                                                                   | 도서관 또는 드라이버                                                                                                                                                                                                                                                                                | 연결 방법                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [플래닛](https://planetscale.com/blog/introducing-the-planetscale-serverless-driver-for-javascript)        | [Hyperdrive (MySQL)](/hyperdrive/examples/connect-to-mysql/mysql-database-providers/planetscale), [Hyperdrive (PostgreSQL)](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/planetscale-postgres/), [@planetscale/데이터베이스](https://github.com/planetscale/database-js) | [사이트맵](/hyperdrive/examples/connect-to-mysql/mysql-drivers-and-libraries/mysql2/), [사이트맵](/hyperdrive/examples/connect-to-mysql/mysql-drivers-and-libraries/mysql/), [노드-postgres](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/node-postgres/), [다운로드](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/postgres-js/)클라이언트 라이브러리를 통해 API |
+| [스파베이스](https://github.com/supabase/supabase/tree/master/examples/with-cloudflare-workers)              | [모델 번호: Hyperdrive](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/supabase/), [@supabase/supabase-js에](https://github.com/supabase/supabase-js)                                                                                                                     | [노드-postgres](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/node-postgres/),[다운로드](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/postgres-js/)클라이언트 라이브러리를 통해 API                                                                                                                                                                       |
+| [프리즈마](https://www.prisma.io/docs/guides/deployment/deployment-guides/deploying-to-cloudflare-workers)  | [프리즘](https://github.com/prisma/prisma)                                                                                                                                                                                                                                                    | 클라이언트 라이브러리를 통해 API                                                                                                                                                                                                                                                                                                                                                                         |
+| [이름 \*](https://blog.cloudflare.com/neon-postgres-database-from-workers/)                               | [Hyperdrive](/hyperdrive/examples/connect-to-postgres/postgres-database-providers/neon/), [@neondatabase / 서버리스](https://neon.tech/blog/serverless-driver-for-postgres/)                                                                                                                   | [노드-postgres](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/node-postgres/),[다운로드](/hyperdrive/examples/connect-to-postgres/postgres-drivers-and-libraries/postgres-js/)클라이언트 라이브러리를 통해 API                                                                                                                                                                       |
+| [스낵 바](https://hasura.io/blog/building-applications-with-cloudflare-workers-and-hasura-graphql-engine/) | 사이트맵                                                                                                                                                                                                                                                                                       | fetch()를 통해 GraphQL API                                                                                                                                                                                                                                                                                                                                                                     |
+| [Upstash 레드리스](https://blog.cloudflare.com/cloudflare-workers-database-integration-with-upstash/)       | [@upstash/제거](https://github.com/upstash/upstash-redis)                                                                                                                                                                                                                                    | 클라이언트 라이브러리를 통해 API                                                                                                                                                                                                                                                                                                                                                                         |
+| [TiDB 클라우드](https://docs.pingcap.com/tidbcloud/integrate-tidbcloud-with-cloudflare)                     | [@tidbcloud / 서버리스](https://github.com/tidbcloud/serverless-js)                                                                                                                                                                                                                            | 클라이언트 라이브러리를 통해 API                                                                                                                                                                                                                                                                                                                                                                         |
+
+필요한 패키지를 설치하면 이 패키지에 의해 제공된 API를 사용하여 데이터베이스에 연결하고 작업을 수행합니다. 서비스별 지침에 대한 상세한 링크 참조.
+
+## 인증현황
+
+데이터베이스가 인증되면 Wrangler 비밀을 사용하여 자격 증명을 안전하게 저장하십시오. 이렇게하려면 다음을 사용하여 Cloudflare QXWorkers 프로젝트에서 비밀을 만듭니다.[`wrangler secret`](/workers/wrangler/commands/#secret)명령:
+
+```sh
+wrangler secret put <SECRET_NAME>
+```
+
+그런 다음 다음 다음 코드 스니펫을 사용하여 코드의 비밀 값을 검색하십시오.
+
+```js
+const secretValue = env.<SECRET_NAME>;
+```
+
+외부 서비스로 인증된 비밀 값을 사용합니다. 예를 들어, 외부 서비스는 API 키 또는 데이터베이스 사용자 이름 및 암호 인증을 요구하면 해당 서비스 라이브러리 또는 API를 사용하여 이러한 기능을 포함합니다.
+
+mTLS 인증을 요구하는 서비스[mTLS 인증서](/workers/runtime-apis/bindings/mtls)클라이언트 인증서를 제시합니다.
+
+## 다음 단계
+
+- 연결 방법 알아보기[기존 PostgreSQL 데이터베이스](/hyperdrive/)Hyperdrive로.
+- 제품정보[다른 저장 옵션](/workers/platform/storage-options/)WorkersXQ와 사용을 위해.
+- [첫 번째 데이터베이스 만들기](/d1/get-started/)Cloudflare D1로.

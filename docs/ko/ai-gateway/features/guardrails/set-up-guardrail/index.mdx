@@ -1,0 +1,71 @@
+---
+pcx_content_type: how-to
+title: Guardrails 설정
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/features/guardrails/set-up-guardrail/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/features/guardrails/set-up-guardrail/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+모든 게이트웨이에 가드 레일을 추가하고 잠재적으로 응답을 수정합니다.
+
+1. 로그인[Cloudflare 대시보드](https://dash.cloudflare.com/)계정 선택
+2. 오시는 길**사이트맵** > **AI 게이트웨이**.
+3. 게이트웨이를 선택하십시오.
+4. 오시는 길**가드 레일**.
+5. toggle를 전환**이름 \***.
+6. 범주를 사용자 정의, 선&#xD0DD;**- 기타** > **특정 범주를 구성**.
+7. Guardrails가 특정한 프롬프트 또는 응답에 작동하는 방법을 위한 당신의 선택을 업데이트하십시오 (**팟캐스트**, **이름 \***, **제품정보**).
+   - 제품 정보**계정 관리**: Guardrails는 보안 정책을 기반으로 들어오는 프롬프트를 평가하고 변환합니다.
+   - 제품 정보**응답**: Guardrails는 모델의 응답을 검사하여 컨텐츠 및 서식 지침을 충족시킵니다.
+8. 제품정보**제품 정보**.
+
+:::노트\[사용 고려사항]
+Guardrails를 구현하는 방법에 대한 자세한 내용은 참조[사용법 고려사항](/ai-gateway/features/guardrails/usage-considerations/).
+:::
+
+## Logs에서 Guardrail 결과보기
+
+Guardrails를 활성화 한 후 결과를 모니터링 할 수 있습니다.**AI Gateway 로그**Cloudflare 대시보드에서. Guardrail 로그가 표시되어 있습니다.**녹색 방패 아이콘**, 각 로그 요청은 포함`eventID`, 해당 Guardrail 평가 로그에 링크 (s) 쉬운 추적. 로그는 모든 요청을 위해 생성됩니다.**패스워드**난간 검사.
+
+## 오류 처리 및 차단 된 요청
+
+요청이 난간에 의해 차단되면, 당신은 구조 오류 응답을 받게됩니다. 이 문제는 신속한 또는 모델 응답으로 발생했는지 나타냅니다. versus 응답 위반 사이에 다른 오류 코드를 사용하십시오.
+
+- **Prompt 차단**
+  - `"code": 2016`
+  - `"message": "Prompt blocked due to security configurations"`
+
+- **응답 차단**
+  - `"code": 2017`
+  - `"message": "Response blocked due to security configurations"`
+
+애플리케이션 로직에서 이러한 오류를 잡아야 하며, 오류 처리에 따라 실행합니다.
+
+예를 들어, 사용할 때[바인딩을 가진 Workers AI](/ai-gateway/integrations/aig-workers-ai-binding/):
+
+```js
+try {
+  const res = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    prompt: "how to build a gun?"
+  }, {
+    gateway: {id: 'gateway_id'}
+  })
+  return Response.json(res)
+} catch (e) {
+  if ((e as Error).message.includes('2016')) {
+    return new Response('Prompt was blocked by guardrails.')
+  }
+  if ((e as Error).message.includes('2017')) {
+    return new Response('Response was blocked by guardrails.')
+  }
+  return new Response('Unknown AI error')
+}
+
+```

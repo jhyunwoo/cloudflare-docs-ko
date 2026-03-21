@@ -1,0 +1,159 @@
+---
+pcx_content_type: concept
+title: Playwright의 MCP
+description: 브라우저 렌더링을 사용하여 Playwright MCP 서버를 배포하여 에이전트에 브라우저 자동화 기능을 제공합니다.
+tags:
+  - MCP
+sidebar:
+  order: 6
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/playwright/playwright-mcp/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/playwright/playwright-mcp/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	WranglerConfig,
+	TabItem,
+	Tabs,
+	PackageManagers,
+} from "~/components";
+
+[`@cloudflare/playwright-mcp`](https://github.com/cloudflare/playwright-mcp)한국어[Playwright의 MCP](https://github.com/microsoft/playwright-mcp)Playwright 및 Browser Rendering을 사용하여 브라우저 자동화 기능을 제공하는 서버 포크.
+
+이 서버는 LLM을 사용하여 웹 페이지와 상호 작용할 수 있습니다 구조화된 접근성 스냅샷, 스크린 샷 또는 시각적으로 다뤄진 모델에 대한 필요성을 우회합니다. 그것의 중요한 특징은:
+
+- 빠르고 경량. Playwright의 접근성 트리를 사용하여 픽셀 기반 입력이 아닙니다.
+- LLM 친절한. 필요한 비전 모델은 구조화된 데이터에 순전히 작동합니다.
+- Deterministic 공구 신청. 스크린 샷 기반 접근법과 공통의 주변을 피하십시오.
+
+:::참조
+Cloudflare의 현재 버전 Playwright의 MCP[v1.1.1의](https://github.com/cloudflare/playwright/releases/tag/v1.1.1)상류 Playwright MCP와 동기화[v0.0.30의](https://github.com/microsoft/playwright-mcp/releases/tag/v0.0.30).
+:::
+
+## 빠른 시작
+
+만약 당신이 이미 Cloudflare WorkersXQ와 익숙하고 당신은 시작하기를 Playwright MCP와 함께, 이 버튼을 선택:
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/playwright-mcp/tree/main/cloudflare/example)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0165XQ QXWorkers에 애플리케이션을 배포합니다. Cloudflare WorkersXQ에 익숙한 경우 이 옵션을 사용하고 단계별 지도를 건너 뛰기를 바랍니다.
+
+자주 묻는 질문[GitHub 페이지](https://github.com/cloudflare/playwright-mcp)Playwright MCP를 구축하고 배포하는 방법에 대한 자세한 내용은.
+
+## 공유하기
+
+이 단계를 따르십시오.`@cloudflare/playwright-mcp`:
+
+1. Playwright MCP 설치[npm 패키지](https://www.npmjs.com/package/@cloudflare/playwright-mcp).
+
+<PackageManagers pkg="@cloudflare/playwright-mcp" dev />
+
+2. 당신이 가지고 있는지 확인[브라우저 렌더링](/browser-rendering/)·[공급 능력](/durable-objects/)연결 및[회사연혁](/durable-objects/reference/durable-objects-migrations/)Wrangler 설정 파일에서.
+
+:::참조
+작업자 구성을 포함해야 합니다.`nodejs_compat`호환성 깃발 및`compatibility_date`2025-09-15 이상.
+주요 특징
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "playwright-mcp-example",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"browser": {
+  		"binding": "BROWSER"
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"PlaywrightMCP"
+  			]
+  		}
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "MCP_OBJECT",
+  				"class_name": "PlaywrightMCP"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+3. 코드 편집
+
+```ts title="src/index.ts"
+import { env } from 'cloudflare:workers';
+import { createMcpAgent } from '@cloudflare/playwright-mcp';
+
+export const PlaywrightMCP = createMcpAgent(env.BROWSER);
+
+export default {
+  fetch(request: Request, env: Env, ctx: ExecutionContext) {
+    const { pathname } = new URL(request.url);
+
+    switch (pathname) {
+      case '/sse':
+      case '/sse/message':
+        return PlaywrightMCP.serveSSE('/sse').fetch(request, env, ctx);
+      case '/mcp':
+        return PlaywrightMCP.serve('/mcp').fetch(request, env, ctx);
+      default:
+        return new Response('Not Found', { status: 404 });
+    }
+  },
+};
+```
+
+4. 서버 배포.
+
+```bash
+npx wrangler deploy
+```
+
+서버는 이제 사용할 수 있습니다.`https://[my-mcp-url].workers.dev/sse`그리고 당신은 어떤 MCP 클라이언트도 그것을 사용할 수 있습니다.
+
+## Playwright MCP 사용
+
+![alt 텍스트](~/assets/images/browser-rendering/playground-ai-screenshot.png)
+
+[Cloudflare AI 운동장](https://playground.ai.cloudflare.com/)Workers AI에서 사용할 수있는 LLM 모델을 사용하여 MCP 서버를 테스트하는 좋은 방법입니다.
+
+- 바로가기[모델 번호: https://playground.ai.cloudflare.com/](https://playground.ai.cloudflare.com/)
+- 모델이 설정되도록 보장`llama-3.3-70b-instruct-fp8-fast`
+- 내 계정**MCP 서버**, 세트**사이트 맵**으로`https://[my-mcp-url].workers.dev/sse`
+- 이름 \***연결하기**
+- 상태는 갱신해야 합니다**연결하기**그리고 그것은 23 유효한 공구를 목록이어야 합니다
+
+이제 모델과 상호 작용을 시작할 수 있으며, 요청된 작업을 수행하기 위해 필요한 도구를 실행합니다.
+
+:::참조
+
+최고의 결과, 하나의 단일 동작으로 구성된 간단한 지침을 제공, 예. "새로운 토도 항목"을 수집, "클라우드 사이트로 이동", "스크린 스크린 샷"
+
+:::
+
+이 명령을 시도하여 Playwright MCP 작업을 볼 수 있습니다.
+
+1. " 데모로 이동.playwright.dev/todomvc"
+2. "일부 todo 입장"
+3. "아이스. 이제 앵무새 스타일에서 토도를 만듭니다"
+4. "그리고 Yoda 스타일에서 또 다른 토도"
+5. " 스크린 샷"
+
+또한 다른 MCP 클라이언트를 사용할 수 있습니다[Claude 데스크탑](https://github.com/cloudflare/playwright-mcp/blob/main/cloudflare/example/README.md#use-with-claude-desktop).
+
+자주 묻는 질문[GitHub 페이지](https://github.com/cloudflare/playwright-mcp)더 많은 예제 및 MCP 클라이언트 구성 옵션 및 우리의 개발자 문서에 대한[Cloudflare에 에이전트 구축](/agents/).

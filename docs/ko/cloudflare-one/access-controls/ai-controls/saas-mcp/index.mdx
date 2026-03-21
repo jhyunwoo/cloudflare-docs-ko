@@ -1,0 +1,297 @@
+---
+pcx_content_type: how-to
+title: SaaS에 대한 액세스 보안 MCP 서버
+tags:
+  - MCP
+sidebar:
+  order: 2
+  label: SaaS에 대한 액세스 보안 MCP 서버
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/saas-mcp/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/saas-mcp/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	GlossaryTooltip,
+	Tabs,
+	TabItem,
+	APIRequest,
+	DashButton
+} from "~/components";
+
+보안할 수 있습니다.[모형 Context 의정서 (MCP) 서버](https://www.cloudflare.com/learning/ai/what-is-model-context-protocol-mcp/)Cloudflare를 사용하여 OAuth Single Sign-On (SSO) 공급자로 액세스하십시오.
+
+이 가이드는 원격을 배포하는 방법을 통해 산책<GlossaryTooltip term="MCP server">MCP 서버</GlossaryTooltip>에 의해[Cloudflare Workers](/workers/)인증 Cloudflare 액세스가 필요합니다. 사용자가 MCP 서버에 연결할 때<GlossaryTooltip term="MCP client">MCP 클라이언트</GlossaryTooltip>, 그들은 당신의 것에 로그인 할 것이다[회사 소개](/cloudflare-one/integrations/identity-providers/)그리고 그들이 너의 통과한 경우에만 접근권[오시는 길](/cloudflare-one/access-controls/policies/#selectors).
+
+## 자주 묻는 질문
+
+- 이름 \*[Zero Trust 조직](/cloudflare-one/setup/#create-a-zero-trust-organization).
+- 설정하기[1회 PIN](/cloudflare-one/integrations/identity-providers/one-time-pin/)또는 제3자 연결[회사 소개](/cloudflare-one/integrations/identity-providers/).
+
+## 1. MCP 서버 배포
+
+우리를 배치[MCP 서버](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access)Cloudflare 계정으로:
+
+<Tabs>
+  <TabItem label="대시보드">
+    1. Quickstart 흐름을 시작하려면 다음 버튼을 선택하십시오.
+
+       [![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-cf-access)
+
+    2. Zero Trust 조직을 포함하는 계정을 선택하십시오.
+
+    3. 에 의해**앱 만들기**페이지, 다음 필드를 구성:
+
+       - **Git 계정**: 기존 계정을 선택하거나 새로운 GitHub 또는 GitLab 계정을 연결하십시오.
+       - **개인 Git 저장소 만들기**: 프로젝트 저장소가 공개 또는 개인이어야한다는 것을 선택하십시오.
+       - **프로젝트 이름**: `mcp-server-cf-access`
+       - **KV 네임스페이스 선택**: *새로운 기능*
+       - **KV 네임스페이스**: `OAUTH_KV`
+
+       구성`ACCESS_CLIENT_ID`그리고 나중에 단계의 다른 비밀 값.
+
+    4. 제품정보**생성 및 배포**.
+
+    MCP 서버가 배포됩니다.`*.workers.dev`하위 도메인`mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev`. 새로운 git 저장소는 MCP 서버의 GitHub 또는 GitLab 계정에서 설정될 것이며, 자동으로 Cloudflare로 배포하도록 구성되며, 변경을 밀어주거나 저장소의 주요 지점에 Pull 요청을 병합할 수 있습니다.
+  </TabItem>
+
+  <TabItem label="제품정보">
+    당신은 사용할 수 있습니다[Wrangler 클립](/workers/wrangler)로컬 머신에서 MCP 서버를 만들고 Cloudflare에 배포합니다.
+
+    :::노트\[필수]
+
+    - 설치하기[₢ 킹](https://docs.npmjs.com/getting-started)
+    - 설치하기[사이트맵](https://nodejs.org/en/)
+      :::
+
+    1. 터미널을 열고 우리의 예 프로젝트를 클론:
+
+       ```sh
+       npm create cloudflare@latest -- mcp-server-cf-access --template=cloudflare/ai/demos/remote-mcp-cf-access
+       ```
+
+       설정 중 다음 옵션을 선택하십시오:
+
+       - 제품 정보*AI 코딩 도구를 이해하는 데 도움이 AGENTS.md 파일을 추가하려면
+         Cloudflare API는?*, 선택`No`.
+       - 제품 정보*버전 컨트롤에 대한 git을 사용하려면?*, 선택`No`.
+       - 제품 정보*응용 프로그램을 배포하려면?*, 선택`No`(우리는 배치하기 전에 약간의 변화를 만들 것입니다).
+
+    2. 프로젝트 디렉토리로 이동:
+
+       ```sh
+       cd mcp-server-cf-access
+       ```
+
+    3. 이름 \*[Workers KV 네임스페이스](/kv/concepts/kv-namespaces/)키 저장. 바인딩 이름은`OAUTH_KV`작성한 예를 실행하려면.
+
+       ```sh
+       npx wrangler kv namespace create "OAUTH_KV"
+       ```
+
+       명령은 바인딩 이름과 KV 네임스페이스 ID를 출력합니다.
+
+       ```sh output
+       {
+       	"kv_namespaces": [
+       		{
+       			"binding": "OAUTH_KV",
+       			"id": "<YOUR_KV_NAMESPACE_ID>"
+       		}
+       	]
+       }
+       ```
+
+    4. 기타`wrangler.jsonc`편집기에서 당신의 삽입`OAUTH_KV`네임스페이스 ID:
+
+       ```jsonc
+       "kv_namespaces": [
+       	{
+       		"binding": "OAUTH_KV",
+       		"id": "<YOUR_KV_NAMESPACE_ID>"
+       	}
+       ],
+       ```
+
+    5. 이제 Cloudflare의 글로벌 네트워크에 Worker를 배포할 수 있습니다.
+
+       ```sh
+       npx wrangler deploy
+       ```
+
+    Worker가 배포됩니다.`*.workers.dev`하위 도메인`mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev`.
+  </TabItem>
+</Tabs>
+
+## 2. SaaS 앱에 대한 액세스 만들기
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**액세스 제어** > **이름 \***.
+
+    2. 제품정보**앱 추가**.
+
+    3. 제품정보**SaaS 서비스**.
+
+    4. 내 계정**제품 설명**, custom name (예를 들어,`MCP server`) 아래 보이는 textbox를 선택합니다.
+
+    5. 제품정보**OIDC 소개**인증 프로토콜로.
+
+    6. 제품정보**앱 추가**.
+
+    7. 내 계정**리디렉션 URL**, MCP 서버에 대한 인증 콜백 URL을 입력합니다. 우리의 콜백 URL[MCP 서버](#1-deploy-an-example-mcp-server)이름 \*
+       `https://mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev/callback`.
+
+    8. 다음 값을 복사하여 MCP 서버로 입력합니다. 다른 MCP 서버는 입력 값의 다른 세트를 요구할 수 있습니다.
+       - **고객 비밀**
+       - **고객 ID**
+       - **토큰 엔드포인트**
+       - **인증 endpoint**
+       - **키 엔드포인트**
+
+    9. (선택) 밑에**고급 설정**, 켜기[**토큰 판매**](/cloudflare-one/access-controls/applications/http-apps/saas-apps/generic-oidc-saas/#advanced-settings)사용자가 ID 공급자에 로그인해야 할 시간의 수를 줄이려면.
+
+    10. 설정하기[오시는 길](/cloudflare-one/access-controls/policies/)MCP 서버에 액세스 할 수있는 사용자 정의.
+
+    11. <Render file="access/access-choose-idps" product="cloudflare-one" params={{ appType: "saas" }} />
+
+    12. 신청 저장.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    1. 더 보기`POST`요청하기[오시는 길](/api/resources/zero_trust/subresources/access/subresources/applications/methods/create/)엔드포인트:
+
+       <APIRequest
+         path="/accounts/{account_id}/access/apps"
+         method="POST"
+         json={{
+          name: "MCP server",
+          type: "saas",
+          saas_app: {
+          	auth_type: "oidc",
+          	redirect_uris: [
+          		"https://mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev/callback",
+          	],
+          	grant_type: ["authorization_code", "refresh_tokens"],
+          	refresh_token_options: {
+          		lifetime: "90d",
+          	},
+          },
+          policies: ["f174e90a-fafe-4643-bbbc-4a0ed4fc8415"],
+          allowed_idps: [],
+       }}
+       />
+
+    2. 제출하기`client_id`·`client_secret`응답에 반환.
+
+    3. OAuth 엔드포인트 URL을 빌드<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>그리고`client_id`응답에서 반환:
+
+       | 끝점          | 사이트 맵                                                                                        |
+       | ----------- | -------------------------------------------------------------------------------------------- |
+       | 토큰 엔드포인트    | `https://<TEAM_NAME>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<CLIENT_ID>/token`         |
+       | 인증 endpoint | `https://<TEAM_NAME>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<CLIENT_ID>/authorization` |
+       | 키 엔드포인트     | `https://<TEAM_NAME>.cloudflareaccess.com/cdn-cgi/access/sso/oidc/<CLIENT_ID>/jwks`          |
+  </TabItem>
+</Tabs>
+
+## 3. MCP 서버 구성
+
+MCP 서버는 OAuth 2.0 인증 흐름을 수행해야`access_token`SaaS 앱에서 만든[단계 1](#1-create-an-access-for-saas-app). MCP 서버에서 OAuth 클라이언트를 설정할 때, SaaS 앱 액세스에서 OAuth 엔드포인트 및 자격 증명을 붙여야 합니다.
+
+OAuth endpoints와 credentials를 추가하려면[MCP 서버](#1-deploy-an-example-mcp-server):
+
+<Tabs>
+  <TabItem label="대시보드">
+    1. 내 계정[Cloudflare 대시보드](https://dash.cloudflare.com/), 이동**Workers 및 Pages**사이트 맵
+
+       <DashButton url="/?to=/:account/workers-and-pages" />
+
+    2. 선택하기`mcp-server-cf-access`작업자.
+
+    3. 오시는 길**계정 설정**.
+
+    4. 이름 \***변수 및 비밀**, 각 비밀을 대응 값으로 업데이트[SaaS 앱 액세스](#2-create-an-access-for-saas-app).
+
+       | Workers 비밀                 | SaaS 앱 필드   |
+       | -------------------------- | ----------- |
+       | `ACCESS_CLIENT_ID`         | 고객 ID       |
+       | `ACCESS_CLIENT_SECRET`     | 고객 비밀       |
+       | `ACCESS_TOKEN_URL`         | 토큰 엔드포인트    |
+       | `ACCESS_AUTHORIZATION_URL` | 인증 endpoint |
+       | `ACCESS_JWKS_URL`          | 키 엔드포인트     |
+
+       :::참조
+       클라이언트 ID, 클라이언트 비밀 및 Cloudflare One 대시보드에서 복사 된 OAuth 엔드 포인트를 사용하십시오. OAuth 값을 사용하지 마십시오.[제3자 ID 공급자](/cloudflare-one/integrations/identity-providers/generic-oidc/).
+       :::
+
+    5. 제품 정보`COOKIE_ENCRYPTION_KEY`, 다음 명령을 사용하여 임의 문자열을 생성 할 수 있습니다.
+
+       ```sh
+       openssl rand -hex 32
+       ```
+
+       이 명령의 출력을 입력하여`COOKIE_ENCRYPTION_KEY`.
+  </TabItem>
+
+  <TabItem label="제품정보">
+    1. 다음 것[Workers 비밀](/workers/configuration/secrets/):
+
+       ```sh
+       npx wrangler secret put ACCESS_CLIENT_ID
+       npx wrangler secret put ACCESS_CLIENT_SECRET
+       npx wrangler secret put ACCESS_TOKEN_URL
+       npx wrangler secret put ACCESS_AUTHORIZATION_URL
+       npx wrangler secret put ACCESS_JWKS_URL
+       ```
+
+    2. 비밀 값을 입력할 때, 지정된 값을 붙여넣기[SaaS 앱 액세스](#2-create-an-access-for-saas-app).
+
+       | Workers 비밀                 | SaaS 앱 필드   |
+       | -------------------------- | ----------- |
+       | `ACCESS_CLIENT_ID`         | 고객 ID       |
+       | `ACCESS_CLIENT_SECRET`     | 고객 비밀       |
+       | `ACCESS_TOKEN_URL`         | 토큰 엔드포인트    |
+       | `ACCESS_AUTHORIZATION_URL` | 인증 endpoint |
+       | `ACCESS_JWKS_URL`          | 키 엔드포인트     |
+
+       :::참조
+       클라이언트 ID, 클라이언트 비밀 및 Cloudflare One 대시보드에서 복사 된 OAuth 엔드 포인트를 사용하십시오. OAuth 값을 사용하지 마십시오.[제3자 ID 공급자](/cloudflare-one/integrations/identity-providers/generic-oidc/).
+       :::
+
+    3. 쿠키 암호화 키에 대한 무작위 문자열 생성 :
+
+       ```sh
+       openssl rand -hex 32
+       ```
+
+       Workers 비밀에서 이 명령의 출력을 저장:
+
+       ```sh
+       npx wrangler secret put COOKIE_ENCRYPTION_KEY
+       ```
+  </TabItem>
+</Tabs>
+
+## 4. 연결을 시험하십시오
+
+이제 MCP 서버에 연결할 수 있습니다.`https://mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev/mcp`이름 \*[사이트맵 회사연혁](https://playground.ai.cloudflare.com/), [MCP 검사기](https://github.com/modelcontextprotocol/inspector), 또는[다른 MCP 클라이언트](/agents/guides/remote-mcp-server/#connect-your-mcp-server-to-claude-and-other-mcp-clients)원격 MCP 서버를 지원합니다.
+
+Workers AI 운동장 시험에:
+
+1. 오시는 길[사이트맵 회사연혁](https://playground.ai.cloudflare.com/).
+
+2. 이름 \***MCP 서버**, 입력`https://mcp-server-cf-access.<YOUR_SUBDOMAIN>.workers.dev/mcp`MCP 서버 URL의 경우.
+
+3. 제품정보**연결하기**.
+
+4. 팝업 창은 MCP 서버에 대한 액세스를 요청합니다. 제품정보**앱로드**.
+
+5. 정체성 공급자에 로그인할 수 있는 프롬프트를 따르십시오.
+
+사이트맵 놀이터는 표시됩니다**연결하기**이름 \* MCP 서버는 성공적으로 취득해야 합니다`access_token`Cloudflare에서 오시는 길

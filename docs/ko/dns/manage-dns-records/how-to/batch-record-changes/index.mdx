@@ -1,0 +1,168 @@
+---
+pcx_content_type: how-to
+title: 레코드 일괄 변경
+sidebar:
+  order: 10
+---
+
+import { GlossaryTooltip, Example, Render, DashButton } from "~/components";
+
+Cloudflare를 사용하면 zone 레코드에 대한 여러 변경 사항을 한 번의 작업으로 적용할 수 있습니다. [대시보드](#use-the-dashboard)를 사용해 DNS 레코드를 삭제하거나 <GlossaryTooltip term="proxy status">proxy status</GlossaryTooltip>를 일괄 업데이트할 수 있고, [API](#use-the-api)를 사용해 더 다양한 일괄 작업을 수행할 수도 있습니다.
+
+:::caution[Cloudflare 네트워크를 통한 전파]
+Cloudflare는 일괄 작업을 하나의 [데이터베이스 트랜잭션](https://en.wikipedia.org/wiki/Database_transaction)으로 실행하지만, Cloudflare의 분산 KV 저장소는 각 레코드 변경을 하나의 키-값 쌍으로 처리해야 합니다. 이는 변경 전파가 원자적으로 이뤄지지 않는다는 뜻입니다. 자세한 내용은 [블로그 게시물](https://blog.cloudflare.com/batched-dns-changes/)을 참고하세요.
+:::
+
+## 제공 여부 및 제한
+
+DNS 레코드 일괄 변경은 모든 요금제에서 사용할 수 있습니다.
+
+한 번의 작업으로 처리할 수 있는 레코드 수는 zone 요금제에 따라 다릅니다.
+
+- Free: 200
+- Pro: 3,500
+- Business: 3,500
+- Enterprise: 3,500
+
+---
+
+## 대시보드 사용
+
+### proxy status 일괄 편집
+
+`A`,`AAAA`, `CNAME` 레코드는 [proxied](/dns/proxy-status/)로 설정할 수 있습니다. DNS 레코드의 **Proxy status**는 [Cloudflare가 해당 레코드에 대한 DNS 질의에 어떻게 응답하는지](/fundamentals/concepts/how-cloudflare-works/)에 영향을 줍니다.
+
+<Render file="mix-proxied-and-unproxied" product="dns" />
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. proxy status를 설정할 DNS 레코드를 선택합니다. `A`, `AAAA`, `CNAME` 레코드만 proxied 상태로 설정할 수 있습니다.
+3. **Edit records**를 선택합니다.
+4. 선택한 레코드에 적용할 proxy status를 선택합니다.
+5. 확인을 위해 **Save**를 선택합니다.
+
+레코드를 일괄로 설정할 때는 **Proxied** 또는 **DNS only** 중 하나로만 바꿀 수 있습니다. 따라서 선택한 레코드에 proxied 레코드와 DNS-only 레코드가 섞여 있으면, 일부는 proxy status가 업데이트되고 나머지는 기존 값을 유지합니다.
+
+<Example>
+
+예를 들어 다음 레코드를 선택한 뒤 proxy status를 일괄 편집하면서 [위 4단계](#edit-proxy-status-in-bulk)에서 **Proxied**를 선택하면 결과는 다음과 같습니다.
+
+| 선택한 레코드 | 기존 proxy status | 변경 후 proxy status |
+| ---------------- | --------------------- | ---------------------- |
+| `www`            | DNS only              | Proxied                |
+| `blog`           | DNS only              | Proxied                |
+| `docs`           | Proxied               | Proxied                |
+
+</Example>
+
+### 레코드 일괄 삭제
+
+:::caution
+
+DNS 레코드를 삭제하면 서비스 중단이 발생할 수 있으며 되돌릴 수 없습니다. 안전하게 삭제할 수 있는 DNS 레코드만 선택했는지 확인하세요.
+
+:::
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. 삭제할 DNS 레코드를 선택합니다.
+3. **Delete records**를 선택합니다.
+4. **Delete DNS records** 프롬프트에서 `DELETE`를 입력한 뒤, 확인을 위해 **Delete**를 선택합니다.
+
+## API 사용
+
+:::note
+
+이 옵션을 사용하려면 API 사용 방식과 관련 개념에 익숙해야 합니다. Cloudflare API에 대한 자세한 내용은 [Fundamentals](/fundamentals/api/get-started/)를 참고하세요.
+
+:::
+
+[Batched DNS record changes](/api/resources/dns/subresources/records/methods/batch/) 엔드포인트를 사용하면 하나의 요청 안에서 `DELETES`, `PATCHES`, `PUTS`, `POSTS` 실행을 트리거할 수 있습니다.
+
+[태그와 댓글](/dns/manage-dns-records/reference/record-attributes/)도 일괄 변경에서 지원됩니다.
+
+`/batch` 요청 본문에 지정한 작업은 항상 다음 순서로 실행됩니다.
+
+1. Deletes
+2. Patches
+3. Puts
+4. Posts
+
+각 목록 안에서는 개별 작업이 사용자가 제공한 DNS 레코드 순서대로 실행됩니다. 개별 작업 중 하나라도 실패하면 아무 변경도 적용되지 않으며, API는 처음 마주친 오류를 반환합니다.
+
+### 고려해야 할 사항
+
+:::caution[Cloudflare 네트워크를 통한 전파]
+Cloudflare는 일괄 작업을 하나의 [데이터베이스 트랜잭션](https://en.wikipedia.org/wiki/Database_transaction)으로 실행하지만, Cloudflare의 분산 KV 저장소는 각 레코드 변경을 하나의 키-값 쌍으로 처리해야 합니다. 이는 변경 전파가 원자적으로 이뤄지지 않는다는 뜻입니다. 자세한 내용은 [블로그 게시물](https://blog.cloudflare.com/batched-dns-changes/)을 참고하세요.
+:::
+
+`/batch` 요청 본문에 나열하는 각 작업에 대해, 필요한 정보와 지정하지 않은 필드가 어떻게 동작하는지 고려해야 합니다.
+
+- **`deletes`**: 각 레코드 객체에 `id`만 필요합니다. 가독성을 위해 `name` 같은 추가 매개변수를 유지할 수는 있지만, `id` 외 다른 필드는 이 경우 무시됩니다.
+- **`patches`**: 각 레코드의 `id` 외에도 업데이트하려는 필드를 지정해야 합니다. 지정하지 않은 필드는 기존 값을 유지합니다.
+- **`puts`**: 각 레코드의 `id`, `content`, `name`, `type`을 지정해야 합니다. 기본값이 아닌 값으로 설정하려는 다른 필드도 함께 지정해야 합니다. 지정하지 않은 필드는 각 [레코드 유형](/dns/manage-dns-records/reference/dns-record-types/)의 기본값을 따릅니다. 이 작업은 덮어쓰기 방식이므로, 주어진 레코드의 모든 필드에 항상 영향을 줍니다.
+- **`posts`**: 새 레코드를 생성하는 것이므로 `id`는 필요하지 않습니다. 필드 정의는 [Create DNS Record](/api/resources/dns/subresources/records/methods/create/) 엔드포인트에서 요청 본문 명세 아래 원하는 레코드 유형을 선택해 참고하세요.
+
+### 예시 요청
+
+이 예시에서 `"puts"` 아래 첫 번째 레코드의 `proxied` 필드는 기본값(`false`)을 사용합니다.
+
+```bash
+{
+    "deletes": [
+        {
+            "id": "2bff0ebc4df64beaa44b0dca93e37a28"
+        },
+        {
+            "id": "31d1d6e79ce04b8d93cbc5a13401d728"
+        }
+    ],
+    "patches": [
+        {
+            "id": "62276440f783445380480484648c1017",
+            "content": "192.0.2.46"
+        },
+        {
+            "id": "c942d948dc2343b9b97aed78479c9fb9",
+            "name": "update.example.com",
+            "proxied": true
+        }
+    ],
+    "puts": [
+        {
+            "id": "a50364543094428abde0f14061d42b0e",
+            "content": "192.0.2.50",
+            "name": "change.example.com",
+						"type": "A",
+            "ttl:": 1
+        },
+        {
+            "id": "3bce0920f19d43949498bd067b05dfa9",
+            "content": "192.0.2.45",
+            "name": "no-change.example.com",
+						"type": "A",
+            "proxied": false,
+            "ttl:": 3000
+        }
+    ],
+    "posts": [
+        {
+            "name": "@",
+            "type": "A",
+            "content": "192.0.2.41",
+            "proxied": false,
+            "ttl": 3000
+        },
+        {
+            "name": "a.example.com",
+            "type": "A",
+            "content": "192.0.2.42",
+            "proxied": true
+        }
+    ]
+}
+```

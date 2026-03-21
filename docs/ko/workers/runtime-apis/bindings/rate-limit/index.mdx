@@ -1,0 +1,230 @@
+---
+pcx_content_type: configuration
+title: 비율 제한
+description: 정의 속도 제한 및 Cloudflare에서 직접 그들과 상호 작용 작업자
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components"
+
+레이트 제한 API를 사용하면 속도 제한을 정의하고 작업자의 주위에 코드를 작성할 수 있습니다.
+
+시행할 수 있습니다:
+
+- 작업자가 시작 후 적용되는 비율 제한, 코드의 특정 부분을 한 번만 도달
+- 고객 또는 사용자의 다른 유형에 대한 다른 비율 제한 (예 : 무료 vs. 유료)
+- 리소스 별 또는 경로 별 제한 (예 : API 경로 당 제한)
+- 위의 모든 조합
+
+API를 제한하는 비율은 동일한 인프라로 백업됩니다.[비율 제한 규칙](/waf/rate-limiting-rules/).
+
+:::참조
+버전 4.36.0 이상을 사용해야 합니다.[Wrangler 클립](/workers/wrangler).
+:::
+
+## 시작하기
+
+첫째, 추가[관련 제품](/workers/runtime-apis/bindings)API를 제한하는 비율에 접근하는 노동자에:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"main": "src/index.js",
+  	"ratelimits": [
+  		{
+  			"name": "MY_RATE_LIMITER",
+  			//Cloudflare 계정에 고유한 식별자.
+  			//정수가 있어야 합니다.
+  			"namespace_id": "1001",
+  			//제한 : 단일 기간 내에 허용된 토큰 수
+  			//Cloudflare 위치
+  			//기간: 기간의 기간, 초. 10개 또는 60개
+  			"simple": {
+  				"limit": 100,
+  				"period": 60
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이 바인딩은 만듭니다`MY_RATE_LIMITER`사용할 수 있는 바인딩`limit()`방법:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```javascript
+    export default {
+      async fetch(request, env) {
+        const { pathname } = new URL(request.url)
+
+        const { success } = await env.MY_RATE_LIMITER.limit({ key: pathname }) //열쇠는 당신의 선택의 어떤 끈일 수 있습니다
+        if (!success) {
+          return new Response(`429 Failure – rate limit exceeded for ${pathname}`, { status: 429 })
+        }
+
+        return new Response(`Success!`)
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {
+      MY_RATE_LIMITER: RateLimit;
+    }
+
+    export default {
+      async fetch(request, env): Promise<Response> {
+        const { pathname } = new URL(request.url)
+
+        const { success } = await env.MY_RATE_LIMITER.limit({ key: pathname }) //열쇠는 당신의 선택의 어떤 끈일 수 있습니다
+        if (!success) {
+          return new Response(`429 Failure – rate limit exceeded for ${pathname}`, { status: 429 })
+        }
+
+        return new Response(`Success!`)
+      }
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`limit()`API는 단일 인수를 허용합니다 — 구성 객체와`key`이름 \*
+
+- 제공하는 열쇠는 무엇이든 일 수 있습니다`string`가치.
+- 일반적인 패턴은 사용자 ID 또는 고객 ID (예 : 사용자 ID 또는 고객 ID) 및 특정 리소스 (예 : 특정 API 경로)를 식별하는 문자열을 결합하여 키를 정의하는 것입니다.
+
+애플리케이션 또는 업스트림 API를 보호하기 위해 필요한 경우 수신 요청 및/또는 사용자 매개 변수에 대한 다른 제한을 정의하고 구성할 수 있습니다.
+
+예를 들어, 무료 및 유료 계층 사용자에 대한 두 가지 비율 제한 구성을 정의 할 수있는 방법은 다음과 같습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"main": "src/index.js",
+  	"ratelimits": [
+  		//무료 사용자 비율 제한
+  		{
+  			"name": "FREE_USER_RATE_LIMITER",
+  			"namespace_id": "1001",
+  			"simple": {
+  				"limit": 100,
+  				"period": 60
+  			}
+  		},
+  		//유료 사용자 비율 제한
+  		{
+  			"name": "PAID_USER_RATE_LIMITER",
+  			"namespace_id": "1002",
+  			"simple": {
+  				"limit": 1000,
+  				"period": 60
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 제품 설명
+
+제한되는 비율에는 뒤에 오는 조정이 있습니다:
+
+| 설치하기            | 제품정보     | 이름 \*                                                                                                                 |
+| --------------- | -------- | --------------------------------------------------------------------------------------------------------------------- |
+| `namespace_id`  | `string` | Cloudflare 계정 내의 이 비율 제한 네임스페이스를 고유하게 정의하는 긍정적인 정수를 포함하는 문자열 (예를 들면,`"1001"`). 값은 유효한 정수이어야하지만 문자열로 지정됩니다. 이것은 의도입니다. |
+| `simple`        | `object` | 속도 제한 설정.`simple`지원되는 유형입니다.                                                                                          |
+| `simple.limit`  | `number` | 허용된 요청의 수 (또는 호출`limit()`) 주어진 안에`period`.                                                                            |
+| `simple.period` | `number` | 제한 창의 지속 시간, 초. 한국어`10`또는`60`.                                                                                        |
+
+:::참조
+동일한 것을 공유하는 2개의 비율 제한 의무`namespace_id`— 동일한 계정에 다른 Workers의 맞은편에 조차 — 주어진 열쇠를 위한 동일한 비율 한계 카운터를 공유합니다. 이것은 의도하고 여러 Workers에서 단일 속도 제한을 시행 할 수 있습니다.
+
+바인딩 사이에 제한 상태를 공유하지 않으려면 고유 한 사용`namespace_id`각 바인딩을 위해.
+주요 특징
+
+예를 들어, 분 당 1500 요청의 속도 제한을 적용하려면 다음과 같은 비율 제한 구성을 정의 할 것입니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ratelimits": [
+  		{
+  			"name": "MY_RATE_LIMITER",
+  			"namespace_id": "1001",
+  			//1500 요청 - 이 제한 호출 () 증가
+  			"simple": {
+  				"limit": 1500,
+  				"period": 60
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 좋은 관행
+
+더 보기`key`이름 \*`limit`기능, 즉, 제한을 평가하고 싶은 사용자 또는 클래스의 고유 한 특성을 나타냅니다.
+
+- 좋은 선택은 API 열쇠를 안으로 포함합니다`Authorization`HTTP 헤더, URL 경로 또는 경로, 응용 프로그램에 의해 사용되는 특정 쿼리 매개 변수, 및 / 또는 사용자 ID 및 tenant ID. 이 모든 안정적인 식별자이며 요청을 변경할 수 없습니다.
+- IP 주소 또는 위치 (지역 또는 국가)를 사용하는 것이 권장되지 않습니다. 이는 많은 유효한 경우에 많은 사용자가 공유 할 수 있기 때문에. 이 키에 제한되는 비율에 따라 사용자가 더 넓은 그룹을 제한하는 자신에게 불확실한 비율을 찾을 수 있습니다.
+
+```ts
+//권장: 사용자의 특정 사용자 또는 클래스를 나타내는 키 사용
+const url = new URL(req.url)
+const userId = url.searchParams.get("userId") || ""
+const { success } = await env.MY_RATE_LIMITER.limit({ key: userId })
+
+//권장하지 않음 : 많은 사용자는 모바일 네트워크에서 단일 IP를 공유 할 수 있습니다.
+//프록시를 사용할 때
+const ipAddress = req.headers.get("cf-connecting-ip") || ""
+const { success } = await env.MY_RATE_LIMITER.limit({ key: ipAddress })
+```
+
+## 한국어
+
+Worker에서 정의하고 시행하는 비율 제한은 현지에서[Cloudflare 위치](https://www.cloudflare.com/network/)작업자가 실행됩니다.
+
+예를 들어, 요청이 시드니, 호주에서 오는 경우, 위의 작업자에, 60 초 창에서 100 요청 후, 특정 경로에 대한 추가 요청이 거부되고, 429 HTTP 상태 코드가 반환됩니다. 그러나 이것은 시드니에서 제공되는 요청에만 적용됩니다. 각 고유한 열쇠를 위해 당신은 당신의 비율 제한 의무에 전달합니다, Cloudflare 위치 당 유일한 한계가 있습니다.
+
+## - 연혁
+
+Workers에 있는 API를 제한하는 비율은 빨리 디자인됩니다.
+
+underlying 카운터는 당신의 노동자가 안으로 실행하고, 동일한 Cloudflare 위치 안에 있는 역행 상점과 communicating에 의해 배경에서 비동기적으로 개정하는 동일한 기계에 캐시됩니다.
+
+이것은 당신이 당신의 코드에서 그 의미`await`자주 묻는 질문`limit()`방법:
+
+```javascript
+const { success } = await env.MY_RATE_LIMITER.limit({ key: customerId })
+```
+
+네트워크 요청을 기다리지 않습니다. 어떤 의미있는 대기 시간을 소개하지 않고도 제한 API를 사용할 수 있습니다.
+
+## 제품정보
+
+위도 API를 제한하는 비율이 허용되고, 결국 일관되고, 의도적으로 정확한 회계 체계로 사용될 것을 디자인한다는 것을 의미합니다.
+
+예를 들어, 많은 요청이 단일 Cloudflare 위치의 Worker에 와서 동일한 키에 제한 된 모든 속도,[사이트맵](/workers/reference/how-workers-works)각 요청을 제공하는 것은 로컬로 캐시 된 값의 비율 제한을 확인합니다. 아주 빨리, 그러나 즉시, 이 요구는 그것의 QXQX0571XQQ 위치 안에 비율 한계를 극복할 것입니다.
+
+## 관련 기사
+
+제한 바인딩은 현재 Cloudflare dashboardXQ에서 볼 수 없습니다. 당신의 노동자에게서 비율 한정된 요구를 감시하기 위하여:
+
+- **[모델 번호: Workers 옵션 정보](/workers/observability/)**— 사용[Workers 로그인](/workers/observability/logs/workers-logs/)·[팟캐스트](/workers/observability/traces/)HTTP를 관찰하기 위해 429 응답은 제한이 초과 될 때 노동자에 의해 반환됩니다.
+- **[Workers Analytics 엔진](/analytics/analytics-engine/)**— Worker에 Analytics Engine 바인딩을 추가하고 사용자 정의 데이터 포인트를 방출하십시오 (예를 들어,`rate_limited`이벤트)`limit()`이름 \*`{ success: false }`. 이것은 당신이 dashboards를 건축하고 시간에 미터를 제한하는 조회 비율을 줍니다.
+
+## 이름 \*
+
+- [`@elithrar/workers-hono-rate-limit`](https://github.com/elithrar/workers-hono-rate-limit)— Middleware that lets you easily add rate limits to routes in your[호노](https://hono.dev/)신청.
+- [`@hono-rate-limiter/cloudflare`](https://github.com/rhinobase/hono-rate-limiter)— Middleware that lets you easily add rate limits to routes in your[호노](https://hono.dev/)응용 프로그램, 여러 데이터 매장에서 선택할 수 있습니다.
+- [`hono-cf-rate-limit`](https://github.com/bytaesu/hono-cf-rate-limit)- Cloudflare WorkersXQ에 제한되는 비율을 적용하는 Hono 신청을 위한 Middleware, Wrangler의 붙박이 특징에 의해 강화하는.

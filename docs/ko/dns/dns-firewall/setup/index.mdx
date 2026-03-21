@@ -1,0 +1,75 @@
+---
+title: 설정
+pcx_content_type: how-to
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: DNS Firewall 설정
+description: DDoS 공격으로부터 업스트림 네임서버를 보호하고 DNS 응답을 캐시해 부하를 줄이도록 DNS Firewall을 설정합니다.
+---
+
+import { TabItem, Tabs, DashButton } from "~/components";
+
+## 사전 요구 사항
+
+DNS Firewall을 설정하기 전에 다음이 필요합니다.
+
+- DNS Firewall에 대한 계정 액세스 권한(Enterprise 계정 팀이 제공).
+- 계정에서 **DNS Administrator** 또는 **Super Administrator** 권한.
+- 네임서버에 사용할 새로 업데이트된 IP 주소(이전에 노출되었을 수 있는 IP 주소로부터 보호하기 위함).
+
+## DNS Firewall 구성
+
+### DNS Firewall 클러스터 만들기
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Firewall Clusters** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/dns-firewall/clusters" />
+
+2. **Add Firewall Cluster**를 선택합니다.
+3. 다음을 포함한 필수 필드를 입력합니다.
+   - **IP Addresses**: authoritative nameserver의 업스트림 IPv4 및/또는 IPv6 주소.
+   - **Minimum Cache TTL**: 권장 설정은 **30초**.
+   - **Maximum Cache TTL**: 권장 설정은 **4시간**. 값이 커질수록 캐시 적중률은 높아지지만 DNS 변경 사항이 전파되는 시간도 길어집니다.
+   - **ANY queries**: DDoS 공격의 일부로 자주 사용되므로 권장 설정은 **Off**입니다. 관련 내용은 [블로그 게시물](https://blog.cloudflare.com/rfc8482-saying-goodbye-to-any/)도 참고하세요.
+4. **Continue**를 클릭합니다.
+5. 다음 화면에서 **Your new DNS Firewall IP Addresses** 값을 저장합니다.
+
+:::note[참고:]
+
+새 IP 주소를 저장하는 것을 잊었다면 클러스터를 찾아 **IP Addresses**를 클릭하세요.
+
+클러스터를 삭제하면 할당된 IP 세트도 함께 사라집니다. 클러스터를 다시 만들면 다른 IP 세트가 할당됩니다.
+
+:::
+
+</TabItem> <TabItem label="API">
+
+API로 [`POST` 요청](/api/resources/dns_firewall/methods/create/)을 보내 DNS Firewall 클러스터를 생성할 수도 있습니다.
+
+</TabItem> </Tabs>
+
+### 등록기관 설정 업데이트
+
+DNS Firewall 클러스터 IP 주소를 사용하도록 등록기관의 네임서버 호스트명용 `A/AAAA` glue 레코드를 업데이트합니다.
+
+### DNS 서버 업데이트
+
+DNS 서버에서 DNS zone 파일의 네임서버 호스트명에 대한 `A/AAAA` 레코드를 DNS Firewall 클러스터 IP 주소로 업데이트합니다.
+
+### DNS 해석 테스트
+
+`dig` 명령을 실행해 네임서버가 올바르게 동작하는지 확인합니다.
+
+### 보안 정책 업데이트
+
+DNS 서버와 Firewall의 보안 정책을 구성하여 [Cloudflare IP](https://cloudflare.com/ips)와 TCP/UDP 53 포트만 허용합니다.
+
+## 추가 옵션
+
+API를 사용할 때는 속도 제한(데이터 센터당 초당 쿼리 수) 같은 다른 매개변수도 지정할 수 있습니다. 매개변수 설명과 예시는 [API 문서](/api/resources/dns_firewall/methods/create/)에서 확인할 수 있습니다.
+
+이미 존재하는 클러스터의 속도 제한과 기타 옵션을 구성하려면 [Update DNS Firewall Cluster](/api/resources/dns_firewall/methods/edit/) 엔드포인트를 사용하세요.

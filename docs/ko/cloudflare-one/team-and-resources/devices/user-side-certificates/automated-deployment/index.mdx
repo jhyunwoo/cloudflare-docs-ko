@@ -1,0 +1,131 @@
+---
+pcx_content_type: how-to
+title: WARP를 사용하여 인증서 설치
+sidebar:
+  order: 1
+head: []
+description: 자동 데스크톱 기기에서 루트 인증서를 배포합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/user-side-certificates/automated-deployment/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | 모든 모드                                                                                 | 모든 계획                                                      |
+
+  | 시스템              | 적용분야 | 최소 WARP 버전    |
+  | ---------------- | ---- | ------------- |
+  | 윈도우              | ✅    | 2024.12.554.0 |
+  | 맥 OS             | ✅    | 2024.12.554.0 |
+  | 리눅스<sup>\*</sup> | ✅    | 2024.12.554.0 |
+  | iOS 앱            | ❌    |               |
+  | 다운로드             | ❌    |               |
+  | 크롬 OS            | ❌    |               |
+
+  <sup>\*</sup>Debian 기반 시스템에서만 지원됩니다.
+</Details>
+
+더 보기[WARP 클라이언트](/cloudflare-one/team-and-resources/devices/warp/)Cloudflare 인증서를 자동으로 설치할 수 있습니다.[주문 루트 인증서](/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/)Windows, macOS 및 Debian/Ubuntu Linux 장치에서. 모바일 장치 및 Red Hat 기반 시스템에는 필요할 것입니다.[인증서를 수동으로 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/).
+
+인증서가 필요한 경우[HTTP 정책을 암호화 웹 사이트에 적용](/cloudflare-one/traffic-policies/http-policies/tls-decryption/), 전시 관례[블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/), 더 많은 것.
+
+## WARP를 이용한 인증서 설치
+
+WARP를 구성하려면 조직의 장치에 루트 인증서를 설치하십시오.
+
+1. (선택)[제품정보](/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/)Cloudflare에 사용자 정의 루트 인증서.
+2. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보** > **회사연혁**.
+3. 이름 \***WARP 설정**, 켜기[**시스템 인증서 저장소에 CA 설치**](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#install-ca-to-system-certificate-store).
+4. [설치하기](/cloudflare-one/team-and-resources/devices/warp/download-warp/)장치에서 WARP 클라이언트.
+5. [관련 제품](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/)Zero Trust 조직에서.
+6. (선택) 장치가 macOS Big Sur 또는 newer를 실행하는 경우,[수동으로 인증서 신뢰](#manually-trust-the-certificate).
+
+WARP 지금 다운로드[인증서 설정**이용안내**](/cloudflare-one/team-and-resources/devices/user-side-certificates/#activate-a-root-certificate). 다운로드 후 WARP는 장치의 시스템 인증서 저장소에 인증서를 추가합니다.`installed_certs/<certificate_id>.pem`본문 바로가기`installed_cert.pem`파일. 어떤 스크립트를 사용하는 경우`installed_cert.pem`Cloudflare는 개별 파일을 사용하도록 설정할 것을 권장합니다.`installed_certs/`대신 디렉토리.`installed_certs.pem`2025-06-31에 의해 deprecated.
+
+:::참조
+
+<Render file="warp/client-notification-lag" product="cloudflare-one" />
+
+:::
+
+WARP는 개별 응용 프로그램에 인증서를 설치하지 않습니다. 당신은 필요[수동으로 인증서 추가](/cloudflare-one/team-and-resources/devices/user-side-certificates/manual-deployment/#add-the-certificate-to-applications)시스템 인증서 저장소 대신 자신의 인증서 저장소에 의존하는 응용 프로그램에.
+
+## 설치된 인증서 접근
+
+WARP를 사용하여 인증서를 설치 한 후 장치의 시스템 인증서 저장소에 액세스하여 성공적인 설치를 확인할 수 있습니다.
+
+### 맥 OS
+
+macOS의 설치 인증서에 액세스하려면:
+
+1. 오픈 키 체인 액세스.
+2. 내 계정**시스템 키 체인**, 이동**시스템** > **인증서**.
+3. 인증서를 엽니다. 기본 Cloudflare 인증서 이름은**게이트웨이 CA - Cloudflare 관리 G1**.
+4. 인증서가 모든 사용자에 의해 신뢰할 경우, 키 체인 액세스 표시**이 인증서는 모든 사용자에 대한 신뢰로 표시됩니다.**.
+
+WARP 클라이언트도 인증서를 배치합니다.`/Library/Application Support/Cloudflare/installed_cert.pem`스크립트나 도구로 참고 자료를 위해.
+
+#### 수동으로 인증서를 신뢰
+
+macOS Big Sur와 newer는 WARP를 자동으로 인증서를 신뢰하지 않습니다. 수동으로 인증서를 신뢰하려면:
+
+1. Keychain 접근에서,[자주 묻는 질문](#macos).
+2. 기타**지원하다**.
+3. 설치하기**이 인증서를 사용할 때**으로*항상 신뢰*.
+4. (선택 사항) Zero Trust에 연결 재설정 장치.
+
+또는 모바일 장치 관리 (MDM)를 구성하여 조직의 모든 장치에 인증서를 자동으로 신뢰 할 수 있습니다.
+
+### 윈도우
+
+Windows에서 설치된 인증서에 액세스하려면:
+
+1. 시작 메뉴를 열고 선택**지원하다**.
+2. 이름 \*`certlm.msc`.
+3. 오시는 길**신뢰할 수있는 루트 인증 기관** > **인증서**. 기본 Cloudflare 인증서 이름은**게이트웨이 CA - Cloudflare 관리 G1**.
+
+WARP 클라이언트도 인증서를 배치합니다.`%PROGRAMDATA%\Cloudflare\installed_cert.pem`스크립트나 도구로 참고 자료를 위해.
+
+### Debian 기반 Linux 배포
+
+Debian 기반 Linux 배포에서 인증서가 저장됩니다.`/usr/local/share/ca-certificates`. 기본 설치된 Cloudflare 인증서 이름은`managed-warp.pem`. WARP 클라이언트는 상징적인 연결을 창조할 것입니다`managed-warp.crt`루트 인증서로 사용. 시스템이 사용되지 않는 경우`managed-warp.crt`, 다음 명령을 실행하여 시스템 저장소를 업데이트합니다.
+
+1. 사용자 정의 CA 인증서의 목록을 업데이트합니다.
+
+   ```sh
+   sudo update-ca-certificates
+   ```
+
+2. 시스템 인증서 저장소로 이동.
+
+   ```sh
+   cd /usr/local/share/ca-certificates
+   ```
+
+3. 시스템을 검증하십시오.`managed-warp.pem`파일 및`managed-warp.crt`기호 링크. 예를 들면:
+
+   ```sh
+   ls -l
+   ```
+
+   ```sh output
+   lrwxrwxrwx 1 root root   49 Jan  3 21:46 managed-warp.crt -> /usr/local/share/ca-certificates/managed-warp.pem
+   -rw-r--r-- 1 root root 1139 Jan  3 21:46 managed-warp.pem
+   ```
+
+WARP 클라이언트도 인증서를 배치합니다.`/var/lib/cloudflare-warp/installed_cert.pem`스크립트나 도구로 참고 자료를 위해.
+
+## 인증서 제거
+
+WARP 클라이언트에 의해 인증서가 설치되면 Cloudflare의 검사를 위해 다른 인증서를 켜면 자동으로 제거됩니다. 하나, 꺼짐**시스템 인증서 저장소에 CA 설치**, 또는[WARP 제거](/cloudflare-one/team-and-resources/devices/warp/remove-warp/). WARP는 수동으로 설치 된 인증서를 제거하지 않습니다 (예 : 타사 응용 프로그램에 추가 된 인증서).
+
+수동으로 인증서를 제거하려면 운영 체제 또는 타사 응용 프로그램에 의해 공급 된 지침을 참조하십시오.

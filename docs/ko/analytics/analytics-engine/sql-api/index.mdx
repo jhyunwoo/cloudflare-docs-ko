@@ -1,0 +1,125 @@
+---
+title: SQL API
+pcx_content_type: reference
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: Workers Analytics Engine SQL API
+description: Workers Analytics Engine용 SQL API
+
+---
+
+Workers Analytics Engine SQL API는 Workers Analytics Engine 데이터셋에 대해 SQL 쿼리를 실행할 수 있는 HTTP API입니다.
+
+API는 `https://api.cloudflare.com/client/v4/accounts/<account_id>/analytics_engine/sql`에서 제공됩니다.
+
+## 인증
+
+인증은 bearer token 방식으로 수행됩니다. API에 대한 모든 요청에는 `Authorization: Bearer <token>` 헤더를 포함해야 합니다.
+
+대시보드에서 계정의 분석 데이터를 읽을 수 있는 권한을 가진 토큰을 만드세요.
+
+1. Cloudflare 대시보드의 [API tokens](https://dash.cloudflare.com/profile/api-tokens) 페이지로 이동합니다.
+2. **Create Token**을 선택합니다.
+3. **Create Custom Token**을 선택합니다.
+4. **Create Custom Token** 양식을 다음과 같이 작성합니다.
+   * 토큰에 설명적인 이름을 지정합니다.
+   * **Permissions**에서 *Account* | *Account Analytics* | *Read*를 선택합니다.
+   * 필요하면 계정/IP 제한과 TTL을 설정합니다.
+   * 양식을 제출하고 확인하여 토큰을 생성합니다.
+5. 토큰 문자열을 따로 기록해 둡니다.
+
+## API 조회하기
+
+쿼리 텍스트를 API 주소로 보내는 `POST` 요청의 본문에 담아 전송합니다. 반환되는 데이터 형식은 쿼리에서 [`FORMAT`](/analytics/analytics-engine/sql-reference/statements/#format-clause) 옵션으로 선택할 수 있습니다.
+
+다음과 같이 cURL로 API를 테스트할 수 있습니다. `<account_id>`는 대시보드에서 확인할 수 있는 32자리 계정 ID로, `<token>`은 위에서 만든 토큰 문자열로 바꾸세요.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data "SELECT 'Hello Workers Analytics Engine' AS message"
+```
+
+이미 데이터를 일부 게시했다면 다음 쿼리를 실행해 DB에 데이터셋이 생성되었는지 확인할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/analytics_engine/sql" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--data "SHOW TABLES"
+```
+
+지원되는 전체 쿼리 문법은 Workers Analytics Engine [SQL reference](/analytics/analytics-engine/sql-reference/)를 참고하세요.
+
+## 테이블 구조
+
+새 테이블은 Worker에서 데이터셋에 이벤트를 쓰기 시작하면 각 데이터셋마다 자동으로 생성됩니다.
+
+테이블에는 다음 열이 포함됩니다.
+
+| Name                         | Type     | Description                                                                                                                                                                                                                                    |
+| ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| dataset                      | string   | 모든 행에서 데이터셋 이름이 들어 있는 열입니다.                                                                                                                                                                                                |
+| timestamp                    | DateTime | Worker에서 이벤트가 기록된 시각입니다.                                                                                                                                                                                                         |
+| \_sample\_interval           | integer  | 데이터가 샘플링된 경우, 이 열은 해당 행의 샘플 비율을 나타냅니다. 즉 원본 데이터의 몇 개 행이 이 행으로 대표되는지를 의미합니다. 자세한 내용은 아래 [sampling](#sampling) 섹션을 참고하세요.                                             |
+| index1                       | string   | 이벤트와 함께 기록된 인덱스 값입니다. 이 열의 값은 샘플링 키로 사용됩니다.                                                                                                                                                                     |
+| blob1<br/>...<br/>blob20     | string   | 이벤트와 함께 기록된 blob 값입니다.                                                                                                                                                                                                            |
+| double1<br/>...<br/>double20 | double   | 이벤트와 함께 기록된 double 값입니다.                                                                                                                                                                                                          |
+
+## 샘플링
+
+데이터 양이 매우 많아지면 Analytics Engine은 성능 유지를 위해 데이터를 다운샘플링합니다. 샘플링은 쓰기 시점과 읽기 시점 모두에서 발생할 수 있습니다.
+샘플링은 데이터셋의 인덱스를 기준으로 수행되므로, 많은 이벤트를 받는 인덱스만 샘플링됩니다. 예를 들어 Worker가 여러 고객을 서비스한다면 고객 ID를 인덱스 필드로 사용하는 것을 고려할 수 있습니다. 그러면 특정 고객이 매우 높은 요청률을 보이더라도 그 고객의 이벤트만 샘플링되고 다른 고객 데이터는 샘플링되지 않은 상태로 유지될 수 있습니다.
+
+Cloudflare는 이 샘플링 시스템을 수년간 자사 환경에서 검증해 왔으며, 그 결과 웹 분석 시스템을 매우 높은 처리량까지 확장하면서도 웹사이트 트래픽 규모와 무관하게 통계적으로 의미 있는 결과를 제공할 수 있었습니다.
+
+데이터가 어떤 비율로 샘플링되었는지는 `_sample_interval` 열을 통해 확인할 수 있습니다. 따라서 데이터에 대해 통계 분석을 수행한다면 이 열을 고려해야 할 수 있습니다. 예를 들면 다음과 같습니다.
+
+| 원래 쿼리                     | 샘플링을 고려한 쿼리                                                   |
+| ---------------------------- | ---------------------------------------------------------------------- |
+| `SELECT COUNT() FROM ... `   | `SELECT SUM(_sample_interval) FROM ...`                                |
+| `SELECT SUM(double1) FROM ...` | `SELECT SUM(_sample_interval * double1) FROM ...`                    |
+| `SELECT AVG(double1) FROM ...` | `SELECT SUM(_sample_interval * double1) / SUM(_sample_interval) FROM ...` |
+
+또한 [QUANTILEEXACTWEIGHTED](/analytics/analytics-engine/sql-reference/aggregate-functions/#quantileexactweighted) 함수는 세 번째 인수로 sample interval을 사용하도록 설계되었습니다.
+
+## 예제 쿼리
+
+### 열 별칭을 사용해 데이터 선택하기
+
+쿼리에서 열 별칭을 사용해 데이터셋의 blobs와 doubles에 이름을 붙일 수 있습니다.
+
+```sql
+SELECT
+    timestamp,
+    blob1 AS location_id,
+    double1 AS inside_temp,
+    double2 AS outside_temp
+FROM temperatures
+WHERE timestamp > NOW() - INTERVAL '1' DAY
+```
+
+### 샘플 간격을 고려한 집계
+
+지난 7일 동안 각 위치에서 수행된 측정 수를 계산합니다. 이 경우 인덱스 필드로 그룹화하므로 데이터가 샘플링되었더라도 정확한 개수를 계산할 수 있습니다.
+
+```sql
+SELECT
+    index1 AS location_id,
+    SUM(_sample_interval) AS n_readings
+FROM temperatures
+WHERE timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY index1
+```
+
+지난 7일 동안 각 위치의 평균 온도를 계산합니다. 샘플 간격이 반영됩니다.
+
+```sql
+SELECT
+    index1 AS location_id,
+    SUM(_sample_interval * double1) / SUM(_sample_interval) AS average_temp
+FROM temperatures
+WHERE timestamp > NOW() - INTERVAL '7' DAY
+GROUP BY index1
+```

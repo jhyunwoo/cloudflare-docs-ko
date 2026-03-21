@@ -1,0 +1,120 @@
+---
+title: QueuesXQ를 Durable Objects에서 사용하십시오
+summary: Publish to a queue from within a Durable Object.
+pcx_content_type: example
+sidebar:
+  order: 20
+head:
+  - tag: title
+    content: Queues - Queues 및 Durable Objects
+description: 튼튼한 개체 내에서 큐에 게시.
+reviewed: 2023-09-13T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/queues/examples/use-queues-with-durable-objects/
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/examples/use-queues-with-durable-objects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+다음 예제는 Worker 스크립트를 작성하는 방법을 보여줍니다.[Cloudflare Queues](/queues/)내 계정[튼튼한 목표](/durable-objects/).
+
+필수품:
+
+- ·[queue 생성](/queues/get-started/#3-create-a-queue)Cloudflare dashboard 또는[wrangler 클립](/workers/wrangler/install-and-update/).
+- ·[설치하기**회사 소개**관련 제품](/queues/configuration/configure-queues/#producer-worker-configuration)Cloudflare dashboard 또는 Wrangler 파일에서.
+- ·[튼튼한 목표 namespace 바인딩](/workers/wrangler/configuration/#durable-objects).
+
+다음과 같이 Wrangler 파일을 구성하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"queues": {
+  		"producers": [
+  			{
+  				"queue": "my-queue",
+  				"binding": "YOUR_QUEUE"
+  			}
+  		]
+  	},
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "YOUR_DO_CLASS",
+  				"class_name": "YourDurableObject"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"YourDurableObject"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+다음 작업자 스크립트:
+
+1. 튼튼한 Object stub를 생성하거나 userId를 기반으로 기존의 것을 검색합니다.
+2. 튼튼한 개체에 요청 데이터를 전달합니다.
+3. 튼튼한 개체 내에서 큐에 게시.
+
+확장하기`DurableObject`기본 클래스는`Env`이용안내`this.env`그리고 유효한 튼튼한 목표 국가`this.ctx`내 계정[`fetch()`회사 소개](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)튼튼한 목표에서.
+
+```ts
+import { DurableObject } from "cloudflare:workers";
+
+interface Env {
+  YOUR_QUEUE: Queue;
+  YOUR_DO_CLASS: DurableObjectNamespace<YourDurableObject>;
+}
+
+export default {
+  async fetch(req, env, ctx): Promise<Response> {
+    //각 튼튼한 개체가 쿼리 매개 변수에서 userId로 맵핑됩니다.
+    //생산 신청에서, 이것은 사용자에 의해 정의 될 것이다
+    //(및 / 또는 인증) 먼저.
+    const url = new URL(req.url);
+    const userIdParam = url.searchParams.get("userId");
+
+    if (userIdParam) {
+      //튼튼한 개체를 호출 할 수있는 stub를 가져옵니다
+      const durableObjectStub = env.YOUR_DO_CLASS.getByName(userIdParam);
+
+      //그 튼튼한 개체에 요청을 전달하고 응답을 기다립니다
+      //이 생성기에서 한 번 튼튼한 개체 클래스 (더 아래로 정의)
+      //첫번째 초기화에, 그리고 각 요구에 fetch 방법.
+      //우리는 튼튼한 개체의 fetch 방법에 대한 원래 요청을 전달
+      const response = await durableObjectStub.fetch(req);
+
+      //이것은 "queue에 wrote",하지만 당신은 어떤 응답을 반환 할 수 있습니다.
+      return response;
+    }
+    return new Response("userId must be provided", { status: 400 });
+  },
+} satisfies ExportedHandler<Env>;
+
+export class YourDurableObject extends DurableObject<Env> {
+  async fetch(req: Request): Promise<Response> {
+    //brevity를 위해 elided 오류 처리.
+    //당신의 큐에 게시
+    await this.env.YOUR_QUEUE.send({
+      id: this.ctx.id.toString(), //튼튼한 개체의 ID를 큐에 쓰기
+      //당신의 큐에 다른 속성을 작성
+    });
+
+    return new Response("wrote to queue");
+  }
+}
+```

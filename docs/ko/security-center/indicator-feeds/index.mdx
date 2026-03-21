@@ -1,0 +1,156 @@
+---
+pcx_content_type: concept
+title: 사용자 정의 표시 피드
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/security-center/indicator-feeds/'
+translation_source_md: 'https://developers.cloudflare.com/security-center/indicator-feeds/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Cloudflare의 위협 인텔리전스 팀 crowdsources 공격 동향을 보호하고 사용자가 0 일 취약점과 같이 자동으로 보호합니다.[HTTP / 2 급 리셋 공격](https://blog.cloudflare.com/technical-breakdown-http2-rapid-reset-ddos-attack/). 그러나 일부 경우에, Cloudflare는 'Cloudflare\` 사용자와 공유할 수 있는 자신의 피드를 가진 외부 엔티티티와 파트너가 될 것입니다.
+
+Custom Indicator Feeds로, Cloudflare는 다양한 사이버 방어 그룹에서 수신된 데이터를 기반으로 위협 인텔리전스 피드를 제공합니다. 보안 필터링 기능은 해당 공공 및 민간 부문 조직에 사용할 수 있습니다.
+
+## 자주 묻는 질문
+
+Cloudflare는 공급자 관계를 수립하지 않고 Gateway 사용자에게 몇 가지 피드를 제공합니다.
+
+| 이름 \*                                                                                                                             | 이름 \*                                                                                                      | 적용분야      |
+| --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- | --------- |
+| [재무 초기 지표 피드](https://www.cloudflare.com/press-releases/2024/us-department-of-treasury-pnnl-finserv-threat-intel-feed/), 급식 ID 14 | 미국 재무부 및 Pacific Northwest National Laboratory (PNNL)에서 제공하는 금융 기관에 대한 위협 데이터. 더 많은 정보를 원하시면 계정 팀에 문의하십시오. | 금융 서비스 조직 |
+| [영국 NCSC 공개 위협 지표](https://www.ncsc.gov.uk/information/pdns)급식 ID 24                                                              | UK National Cyber Security Centre (NCSC)에서 DNS 기반 맬웨어를 차단하는 Recursive DNS 서비스.                             | 모든 사용자    |
+| Cloudforce One - 공공 피드 ID 34                                                                                                      | 표시의 피드.                                                                                                    | 모든 사용자    |
+
+## 시작하기
+
+<Render file="indicator-feeds-overview" product="security-center" />
+
+귀하의 조직이 공급자 또는 가입자가되기에 관심이 있다면 계정 팀에 문의하십시오.
+
+### 사용자 정의 표시 피드 만들기
+
+공급자는 Custom Indicator Feed를 만들고 관리할 수 있습니다.[사용자 정의 표시 피드 API endpoints](/api/resources/intel/subresources/indicator_feeds/methods/list/):
+
+1. 계정 팀에 문의하여 계정 구성 지표 공급 업체.
+
+2. 피드 만들기[새로운 지표 피드 endpoint 만들기](/api/resources/intel/subresources/indicator_feeds/methods/create/). 주의사항`feed_id`당신의 피드에 대 한 생성. 예를 들면:
+
+   ```bash title="Create new indicator feed"
+   curl "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/intel/indicator-feeds" \
+   	--header 'Content-Type: application/json' \
+   	--header 'X-Auth-Email: <EMAIL>' \
+   	--header 'X-Auth-Key: <API_KEY>' \
+   	--data '{
+   	"description": "Custom indicator feed to detect threats",
+   	"name": "threat_indicator_feed"
+   }'
+   ```
+
+   ```json output {3}
+   {
+   	"result": {
+   		"id": 10,
+   		"name": "threat_indicator_feed",
+   		"description": "Custom indicator feed to detect threats",
+   		"created_on": "2024-09-17T21:16:09.412Z",
+   		"modified_on": "2024-09-17T21:16:09.412Z"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+3. 데이터 업로드[업데이트 표시기 피드 데이터 엔드포인트](/api/resources/intel/subresources/indicator_feeds/subresources/snapshots/methods/update/). 업로드된 지표 데이터는 있어야 합니다.[`.stix2`](https://oasis-open.github.io/cti-documentation/stix/intro)파일 형식. 더 보기[파일 크기](/r2/platform/limits/)이다 4.995 GiB.
+
+   ```bash title="Update indicator feed data"
+   curl --request PUT \
+   	"https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/intel/indicator-feeds/<FEED_ID>/snapshot" \
+   	--header 'Content-Type: multipart/form-data' \
+   	--header 'X-Auth-Email: <EMAIL>' \
+   	--header 'X-Auth-Key: <API_KEY>' \
+   	--form 'source=@/path/to/file'
+   ```
+
+   ```json output
+   {
+   	"result": {
+   		"file_id": 1,
+   		"filename": "snapshot_file.unified",
+   		"status": "unified"
+   	},
+   	"errors": [],
+   	"messages": [],
+   	"success": true
+   }
+   ```
+
+   :::참조
+   Indicator feeds는 스냅 샷 시스템을 사용합니다. 새 데이터로 피드를 업데이트하려면, 공급자는 이전과 새로운 지표를 포함하는 파일을 업로드해야합니다.
+   주요 특징
+
+4. (선택 사항) 피드 업로드의 상태를 확인[표시기 피드 데이터 endpoint](/api/resources/intel/subresources/indicator_feeds/methods/data/). 예를 들면:
+
+   ```bash title="Get indicator feed data"
+   curl --request GET \
+   	"https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/intel/indicator-feeds/<FEED_ID>/data" \
+   	--header 'Content-Type: application/json' \
+   	--header 'X-Auth-Email: <EMAIL>' \
+   	--header 'X-Auth-Key: <API_KEY>'
+   ```
+
+   ```json output {8}
+   {
+   	"result": {
+   		"id": 10,
+   		"name": "threat_indicator_feed",
+   		"description": "Custom indicator feed to detect threats",
+   		"created_on": "2023-08-01T18:00:26.65715Z",
+   		"modified_on": "2023-08-01T18:00:26.65715Z",
+   		"latest_upload_status": "Complete"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+5. 가입자에게 권한을 부여[지표 피드 endpoint에 부여 권한](/api/resources/intel/subresources/indicator_feeds/subresources/permissions/methods/create/). 당신은 피드의 허용 가입자 목록에 가입자를 추가 할 수 있습니다[계정 ID](/fundamentals/account/find-account-and-zone-ids/). 예를 들면:
+
+   ```bash title="Update indicator feed data"
+   curl --request PUT \
+   	"https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/intel/indicator-feeds/<FEED_ID>/snapshot" \
+   	--header 'Content-Type: multipart/form-data' \
+   	--header 'X-Auth-Email: <EMAIL>' \
+   	--header 'X-Auth-Key: <API_KEY>' \
+   	--data '{
+   	"account_tag": "823f45f16fd2f7e21e1e054aga4d2859",
+   	"feed_id": 10
+   }'
+   ```
+
+### Gateway에서 피드 사용
+
+계정이 피드에 액세스 권한을 부여되면 트래픽과 일치 할 수 있습니다.[Gateway DNS 정책의 선택](/cloudflare-one/traffic-policies/dns-policies/#indicator-feeds).
+
+1. 내 계정['Cloudflare' 1개](https://one.dash.cloudflare.com/), 이동**교통 정책** > **방화벽 정책**. 선택**DNS 보호**.
+
+2. 새로운 DNS 정책을 만들려면, 선택**정책 추가**.
+
+3. 당신의 정책.
+
+4. 내 계정**교통안내**, 조건을 추가**표시 피드**옵션 정보 계정이 Custom Indicator Feed에 액세스 권한을 부여 한 경우 Gateway는 피드를 나열합니다.**제품정보**. 예를 들어, 피드에 나타나는 사이트를 차단할 수 있습니다.
+
+   | 옵션 정보 | 회사연혁 | 제품정보       | - 연혁 |
+   | ----- | ---- | ---------- | ---- |
+   | 표시 피드 | 내 계정 | *위협 인텔 피드* | 제품정보 |
+
+5. 제품정보**공지사항**.
+
+Gateway 정책을 만들기에 대한 자세한 내용은 참조[DNS 정책](/cloudflare-one/traffic-policies/dns-policies/).

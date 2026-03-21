@@ -1,0 +1,395 @@
+---
+pcx_content_type: concept
+title: 회사연혁
+head: []
+description: 작업자가 대기 시간을 줄이기 위해 실행되는 제어.
+sidebar:
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/configuration/placement/'
+translation_source_md: 'https://developers.cloudflare.com/workers/configuration/placement/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, DashButton, Tabs, TabItem } from "~/components";
+
+기본적으로,[Workers](/workers/)·[Pages 제품정보](/pages/functions/)요청이 수신된 데이터 센터에서 실행됩니다. Worker가 데이터베이스 또는 API와 같은 백엔드 인프라를 요청하는 경우, 최종 사용자보다 더 많은 작업을 수행 할 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"placement": {
+  		//다음 옵션 중 하나를 사용하십시오 (전적으로 독점):
+  		"mode": "smart", //Cloudflare는 당신의 노동자를 가장 요구와 상류에 가장 가까운 위치를 자동적으로 둡니다
+  		"region": "gcp:us-east4", //당신의 노동자가 가까이에 실행하는 Explicit 구름 지역 - 예를들면 "gcp:us-east4"또는 "aws:us-east-1"
+  		"host": "db.example.com:5432", //프로브 호스트 (TCP/layer 4) - e.g. 데이터베이스 호스트 - 당신의 노동자가 가장 가까운 곳
+  		"hostname": "api.example.com", //프로브에 호스트 이름 (HTTP/layer 7) - e.g. a API 엔드포인트 - 당신의 작업자가 가장 가까운 곳
+  	},
+  }
+  ```
+</WranglerConfig>
+
+배치는 노동자와 백엔드 서비스 간의 요청에 따라 노동자 요청의 전체 대기 시간을 줄일 수 있습니다. 레거시 클라우드 인프라에서 실행되는 데이터베이스, API 및 기타 서비스에 단일 자리 밀리 초 대기 시간을 달성할 수 있습니다.
+
+| 옵션 정보     | 제품 정보                      | 제품 설명              |
+| --------- | -------------------------- | ------------------ |
+| **스마트**   | 다중 백업 서비스, 또는 알 수없는 인프라 위치 | `mode = "smart"`   |
+| **(주)**   | 알려진 클라우드 지역의 단일 백엔드 서비스    | `region`           |
+| **이름 \*** | 주요 클라우드 공급자에 없는 단일 백엔드 서비스 | `host`또는`hostname` |
+
+## 관련 상품
+
+Workers에서 실행되는 응용 프로그램에 액세스하는 시드니에서 사용자를 고려하십시오. 이 응용 프로그램은 프랑크푸르트, 독일의 데이터베이스에 여러 라운드 여행을합니다.
+
+![시드니에 위치한 사용자 인 AU는 같은 지역에서 노동자에 연결하여 프랑크푸르트에 위치한 데이터베이스에 여러 라운드 여행을합니다.](~/assets/images/workers/platform/workers-smart-placement-disabled.png)
+
+시드니와 프랑크푸르트 사이의 여러 라운드 여행에서 대기 시간까지 추가합니다. 데이터베이스 근처의 노동자를 배치함으로써 Cloudflare는 총 요청 기간을 줄일 수 있습니다.
+
+![시드니에 위치한 사용자는 프랑크푸르트에서 노동자에 AU 연결, DE는 또한 프랑크푸르트에 위치한 데이터베이스에 여러 라운드 여행을한다, DE.](~/assets/images/workers/platform/workers-smart-placement-enabled.png)
+
+## Smart Placement 사용
+
+Smart Placement는 작업자의 트래픽 패턴을 자동으로 분석하고 최적의 위치에 배치합니다. Smart Placement 사용:
+
+- 작업자는 여러 백엔드 서비스에 연결
+- 인프라의 정확한 위치를 알 수 없습니다.
+- 귀하의 백엔드 서비스는 배포 또는 복제됩니다.
+
+Smart Placement는 per-Worker 기초에 활성화됩니다. 일단 활성화되면 분석[자주 묻는 질문](/workers/observability/metrics-and-analytics/#request-duration)일반 기초에 다른 Cloudflare 위치에 노동자의.
+
+각 후보 위치에 대한 Smart Placement는 요청을 전달하여 Worker의 성능과 네트워크 대기 시간을 고려합니다. 후보 위치가 크게 빠르면 요청이 전달됩니다. 그렇지 않으면, Worker는 요청에 가장 가까운 기본 위치에 실행합니다.
+
+Smart Placement는 이전에 직장인이 운영하는 위치를 고려합니다. 일반적으로 트래픽을받지 않는 위치에 노동자를 배치 할 수 없습니다.
+
+### 리뷰 제한
+
+- Smart Placement는 실행에 영향을 미칩니다.[fetch 이벤트 핸들러](/workers/runtime-apis/handlers/fetch/). 그것은 영향을 미치지 않습니다[RPC 방법](/workers/runtime-apis/rpc/)또는[엔트리포인트](/workers/runtime-apis/bindings/service-bindings/rpc/#named-entrypoints).
+- Workers는 fetch 이벤트 핸들러가 Smart Placement에 의해 무시됩니다.
+- [정적 자산](/workers/static-assets/)항상 들어오는 요청에 가장 가까운 위치에서 제공됩니다. 코드를 검색하면 자산을 통해[정적 자산 바인딩](/workers/static-assets/binding/), 자산은 직장인이 실행되는 위치에서 제공됩니다.
+
+### 스마트 배치
+
+스마트 배치는 모든 Workers 계획에 사용할 수 있습니다.
+
+#### Wrangler로 구성
+
+Wrangler 구성 파일에 다음을 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"placement": {
+  		"mode": "smart",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+Smart Placement는 배포 후 근로자를 분석하는 데 최대 15 분이 걸릴 수 있습니다.
+
+#### dashboard의 구성
+
+1. 오시는 길**Workers & Pages**.
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 당신의 노동자를 선택하십시오.
+
+3. 오시는 길**계정 설정** > **주요사업**.
+
+4. 이름 \***회사연혁**, 선택**스마트**.
+
+Smart Placement는 여러 위치에서 작업자에게 일관된 트래픽을 요구합니다. 분석 과정은 15 분까지 걸릴 수 있습니다.
+
+### 본문 바로가기
+
+Workers API를 통해 작업자의 배치 상태를 쿼리하십시오:
+
+```bash
+curl -X GET https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/services/$WORKER_NAME \
+-H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+-H "Content-Type: application/json" | jq .
+```
+
+가능한 배치 국가:
+
+| 주요연혁                       | 이름 \*                                                           |
+| -------------------------- | --------------------------------------------------------------- |
+| *(현재)*                     | 노동자는 아직 분석되지 않았습니다. 요청에 가까운 기본 위치에서 실행됩니다.                      |
+| `SUCCESS`                  | 작업자는 분석하고 Smart Placement에 의해 최적화 될 것입니다.                       |
+| `INSUFFICIENT_INVOCATIONS` | Worker는 여러 위치에서 충분한 요청을받지 못했습니다.                                |
+| `UNSUPPORTED_APPLICATION`  | Smart Placement는 더 느리고 배치를 되돌렸습니다. 이 상태는 드물게 (Workers의 1% 보다는). |
+
+### 자주 묻는 질문
+
+Smart Placement가 활성화되면 요청 기간에 대한 데이터가 수집됩니다. 요청 기간은 최종 사용자에 가까운 데이터 센터에서 측정됩니다. 기본적으로, 1%의 요청은 Smart Placement로 전달되지 않습니다.
+
+작업자의 보기[자주 묻는 질문](/workers/observability/metrics-and-analytics/#request-duration)Smart Placement의 영향을 측정합니다.
+
+### 자주 묻는 질문`cf-placement`기타 제품
+
+Cloudflare 추가`cf-placement`배치가 활성화되면 모든 요청에 헤더. 이 헤더를 사용하여 요청이 Smart Placement로 전달되고 Worker가 요청을 처리했는지 확인하십시오.
+
+헤더 값에는 배치 유형과 데이터 센터 위치를 나타내는 공항 코드가 포함됩니다.
+
+- `remote-LHR`— 이 요청은 런던 근처의 데이터 센터에 Smart Placement를 사용했습니다.
+- `local-EWR`- 요청은 Smart Placement를 사용하지 않았습니다. Newark 근처의 기본 위치에 Worker ran.
+
+:::카트로션
+더 보기`cf-placement`헤더는 Smart Placement 종료 베타 전에 제거 될 수 있습니다.
+주요 특징
+
+## 지정된 배치 Hints 구성
+
+Placement Hints는 직장인이 실행되는 곳을 명시적으로 지정합니다. 배치 힌트를 사용할 때:
+
+- 백엔드 인프라의 정확한 위치를 알고 있습니다.
+- 작업자는 단일 데이터베이스, API 또는 서비스에 연결
+- 귀하의 인프라는 단일 주택 ( 복제 또는 예측되지 않음)
+
+예시에는 기본 데이터베이스, 가상 머신, 또는 특정 지역에서 쿠버네티스 클러스터가 포함되어 있습니다. 쿼리 당 20 \~ 30 밀리 초에서 1 \~ 3 밀리 초까지 왕복 대기 시간이 단축됩니다.
+
+:::참조
+Workers 실행[Cloudflare의 글로벌 네트워크](https://www.cloudflare.com/network/)클라우드 공급자 지역 안 아닙니다. Placement Hints는 지정된 클라우드 지역에 가장 낮은 대기 시간으로 데이터 센터에서 작업자를 실행합니다. 매우 높은 요청 볼륨에 (초 또는 더 많은 당 수천 요청의 금), Cloudflare는 균형 트래픽에 더 분산 된 영역에 걸쳐 인스턴스를 실행할 수 있습니다.
+주요 특징
+
+### 클라우드 영역 지정
+
+인프라가 AWS, GCP 또는 Azure에서 실행되는 경우`placement.region`형식을 사용하여 속성`{provider}:{region}`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"placement": {
+  		"region": "aws:us-east-1", //당신의 노동자가 가까이에 실행하는 Explicit 구름 지역 - 예를들면 "gcp:us-east4"또는 "aws:us-east-1"
+  	},
+  }
+  ```
+</WranglerConfig>
+
+Cloudflare는 해당 지역에 가장 낮은 대기시간을 가진 데이터 센터에 지정된 클라우드 지역을 맵니다. Cloudflare는 네트워크 정비 또는 변경을 위해 배치를 자동적으로 조정합니다, 그래서 당신은 실패한 지역을 지정할 필요가 없습니다.
+
+### 호스트 엔드포인트 지정
+
+인프라가 주요 클라우드 공급자가 아닌 경우 Cloudflare에 대한 엔드포인트를 프로브에 지정할 수 있습니다. Cloudflare는 외부 주인의 위치를 재판하고 가까운 지역에 있는 WorkersXQ를 배치할 것입니다.
+
+:::참조
+호스트 기반 배치는 실험입니다.
+주요 특징
+
+설치하기`placement.host`층 4 서비스를 식별합니다. Cloudflare는 TCP CONNECT를 사용하여 대기 시간을 측정하고 최고의 데이터 센터를 선택하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"placement": {
+  		"host": "my_database_host.com:5432", //프로브 호스트 (TCP/layer 4) - e.g. 데이터베이스 호스트 - 당신의 노동자가 가장 가까운 곳
+  	},
+  }
+  ```
+</WranglerConfig>
+
+설치하기`placement.hostname`층 7 서비스를 식별합니다. Cloudflare는 HTTP HEAD 체크를 사용하여 대기 시간을 측정하고 최고의 데이터 센터를 선택하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"placement": {
+  		"hostname": "my_api_server.com", //프로브에 호스트 이름 (HTTP/layer 7) - e.g. a API 엔드포인트 - 당신의 작업자가 가장 가까운 곳
+  	},
+  }
+  ```
+</WranglerConfig>
+
+Probes는 Cloudflare IP 범위가 아닌 공공 IP 범위에서 전송됩니다. Cloudflare는 일정한 간격에 서비스 위치를 재검사합니다. 이 프로브는 단일 홈 리소스를 찾아 방송, anycast, multicast 또는 복제 된 리소스를 올바르게 작동하지 않습니다.
+
+### 지원되는 지역
+
+배치 힌트 지원 아마존 웹 서비스 (AWS), 구글 클라우드 플랫폼 (GCP), 및 Microsoft Azure 지역 식별자:
+
+| 회사 소개      | 지원하다             | 이름 \*                                                     |
+| ---------- | ---------------- | --------------------------------------------------------- |
+| 사이트맵       | `aws:{region}`   | `aws:us-east-1`, `aws:us-west-2`, `aws:eu-central-1`      |
+| 사이트맵       | `gcp:{region}`   | `gcp:us-east4`, `gcp:europe-west1`, `gcp:asia-east1`      |
+| Azure 클라우드 | `azure:{region}` | `azure:westeurope`, `azure:eastus`, `azure:southeastasia` |
+
+지역 코드의 전체 목록을 보려면, 참조[AWS 지구](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html), [GCP 지역](https://cloud.google.com/compute/docs/regions-zones), 또는[Azure 지역](https://learn.microsoft.com/en-us/azure/reliability/regions-list).
+
+## 배치 Behavior
+
+Workers 배치는 똑똑한 배치 또는 배치 힌트가 사용될 때 유사한 유행에서 행동합니다. 다음 행동은 모두에 적용됩니다.
+
+### 리뷰 제한
+
+다음 제한은 Smart Placement 및 Placement Hints 모두에 적용됩니다.
+
+- 배치는 단지 실행에 영향을 미치는[fetch 이벤트 핸들러](/workers/runtime-apis/handlers/fetch/). 그것은 영향을 미치지 않습니다[RPC 방법](/workers/runtime-apis/rpc/)또는[엔트리포인트](/workers/runtime-apis/bindings/service-bindings/rpc/#named-entrypoints).
+  - Workers는 fetch 이벤트 핸들러가 배치에 의해 무시됩니다.
+  - [정적 자산](/workers/static-assets/)항상 들어오는 요청에 가장 가까운 위치에서 제공됩니다. 코드를 검색하면 자산을 통해[정적 자산 바인딩](/workers/static-assets/binding/), 자산은 직장인이 실행되는 위치에서 제공됩니다.
+
+### `cf-placement`기타 제품
+
+Cloudflare 추가`cf-placement`배치가 활성화되면 모든 요청에 헤더. 이 헤더를 사용하여 요청이 배치되고 Worker가 요청을 처리했는지 확인하십시오.
+
+헤더 값에는 배치 유형과 데이터 센터 위치를 나타내는 공항 코드가 포함됩니다.
+
+- `remote-LHR`— 이 요청은 런던 근처의 데이터 센터에 Smart Placement를 사용했습니다.
+- `local-EWR`- 요청은 Smart Placement를 사용하지 않았습니다. Newark 근처의 기본 위치에 Worker ran.
+
+:::카트로션
+더 보기`cf-placement`헤더는 Smart Placement 종료 베타 전에 제거 될 수 있습니다.
+주요 특징
+
+## 다수 Workers
+
+WorkersXQ에 전체 스택 응용 프로그램을 구축하고, 당신의 가장자리 논리를 분할 (authentication, 라우팅) 및 백 엔드 논리 (데이터베이스 쿼리, API 호출) 별도 WorkersXQ. 제품 정보[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)Type-safe RPC와 연결하기
+
+![스마트 배치 및 서비스 바인딩](~/assets/images/workers/platform/smart-placement-service-bindings.png)
+
+백엔드 Worker에서 데이터베이스에 가깝게 호출할 수 있지만 Edge Worker는 사용자에 가까운 인증을 처리합니다.
+
+### 예제: 배치 백엔드와 Edge 인증
+
+이 예는 2 Workers를 보여줍니다:
+
+- `auth-worker`- 가장자리에서 실행 (위치 없음), 인증 처리
+- `app-worker`— 데이터베이스 근처에 배치, 데이터 쿼리 처리
+
+<Tabs>
+  <TabItem label="auth 노동자">
+    <WranglerConfig filename="auth-worker/wrangler.jsonc">
+      ```jsonc
+      {
+      	"name": "auth-worker",
+      	"main": "src/index.ts",
+      	"services": [{ "binding": "APP", "service": "app-worker" }],
+      }
+      ```
+    </WranglerConfig>
+
+    ```ts title="auth-worker/src/index.ts"
+    import { AppWorker } from "../app-worker/src/index";
+
+    interface Env {
+    	APP: Service<AppWorker>;
+    }
+
+    export default {
+    	async fetch(request: Request, env: Env): Promise<Response> {
+    		const authHeader = request.headers.get("Authorization");
+    		if (!authHeader?.startsWith("Bearer ")) {
+    			return new Response("Unauthorized", { status: 401 });
+    		}
+
+    		const userId = await validateToken(authHeader.slice(7));
+    		if (!userId) {
+    			return new Response("Invalid token", { status: 403 });
+    		}
+
+    		//RPC를 통해 배치 백엔드 노동자를 호출
+    		const data = await env.APP.getUser(userId);
+    		return Response.json(data);
+    	},
+    };
+
+    async function validateToken(token: string): Promise<string | null> {
+    	return token === "valid" ? "user-123" : null;
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="앱 작업자">
+    <WranglerConfig filename="app-worker/wrangler.jsonc">
+      ```jsonc
+      {
+      	"name": "app-worker",
+      	"main": "src/index.ts",
+      	"placement": {
+      		//다음 옵션 중 하나를 사용하십시오 (전적으로 독점):
+      		//"mode": "smart", // Cloudflare는 대부분의 요청으로 업스트림에 닫힙니다.
+      		"region": "aws:us-east-1", //당신의 노동자가 가까이에 실행하는 Explicit 구름 지역 - 예를들면 "gcp:us-east4"또는 "aws:us-east-1"
+      		//"host": "db.example.com:5432", // 프로브 호스트 (TCP/layer 4) - e.g. 데이터베이스 호스트 - 작업자가 가장 가까운 곳
+      		//"hostname": "api.example.com", // 프로브에 호스트명 (HTTP/layer 7) - e.g. API 엔드포인트 - 작업자가 가장 가까운 곳
+      	},
+      }
+      ```
+    </WranglerConfig>
+
+    ```ts title="app-worker/src/index.ts"
+    import { WorkerEntrypoint } from "cloudflare:workers";
+
+    export default class AppWorker extends WorkerEntrypoint {
+    	async fetch() {
+    		return new Response(null, { status: 404 });
+    	}
+
+    	//각 방법은 데이터베이스 근처에 실행 - 여러 쿼리는 빠른 유지
+    	async getUser(userId: string) {
+    		const user = await this.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+    			.bind(userId)
+    			.first();
+    		return user;
+    	}
+
+    	async getUserListings(userId: string) {
+    		//DB에 여러 라운드 스트립은 인근에 배치 할 때 낮경입니다.
+    		const user = await this.env.DB.prepare("SELECT * FROM users WHERE id = ?")
+    			.bind(userId)
+    			.first();
+    		const listings = await this.env.DB.prepare(
+    			"SELECT * FROM listings WHERE owner_id = ?",
+    		)
+    			.bind(userId)
+    			.all();
+    		const reviews = await this.env.DB.prepare(
+    			"SELECT * FROM reviews WHERE listing_id IN (SELECT id FROM listings WHERE owner_id = ?)",
+    		)
+    			.bind(userId)
+    			.all();
+
+    		return { user, listings: listings.results, reviews: reviews.results };
+    	}
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+더 보기`auth-worker`신속하게 무단 요청을 거부하기 위해 가장자리에서 실행합니다. 인증 요청은 RPC를 통해 전달됩니다.`app-worker`, 빠른 쿼리에 대한 데이터베이스 근처에 실행.
+
+### Durable Objects
+
+[모델 번호: Durable Objects](/durable-objects/)구성없이 자동 배치를 제공합니다. 튼튼한 개체의 임베디드에 쿼리[SQLite 데이터베이스](/durable-objects/api/sqlite-storage-api/)자주 묻는 질문[0 하락](https://blog.cloudflare.com/sqlite-in-durable-objects/)compute는 데이터와 동일한 프로세스에서 실행하기 때문에.
+
+튼튼한 개체 내에서 가능한 한 많은 작업을 수행 하 고 합성 결과 반환, 오히려 당신의 노동자에서 여러 라운드 스트립을 만들기 보다는:
+
+```ts title="src/index.ts"
+import { DurableObject } from "cloudflare:workers";
+
+type Session = { id: string; user_id: string; created_at: number };
+type PromptHistory = {
+	id: string;
+	session_id: string;
+	role: string;
+	content: string;
+};
+
+export class AgentHistory extends DurableObject {
+	async getSessionContext(sessionId: string) {
+		//모든 쿼리는 Zero Network latency로 실행됩니다. - compute 및 data는 colocated입니다.
+		const session = this.ctx.storage.sql
+			.exec<Session>("SELECT * FROM sessions WHERE id = ?", sessionId)
+			.one();
+		const prompts = this.ctx.storage.sql
+			.exec<PromptHistory>(
+				"SELECT * FROM prompt_history WHERE session_id = ? ORDER BY created_at",
+				sessionId,
+			)
+			.toArray();
+
+		return { session, prompts };
+	}
+}
+```

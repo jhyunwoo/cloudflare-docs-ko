@@ -1,0 +1,436 @@
+---
+pcx_content_type: configuration
+title: 웹 암호화
+head: []
+description: 일반적인 암호화 작업에 대한 낮은 수준의 기능 세트.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/web-crypto/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/web-crypto/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components"
+
+## 이름 \*
+
+Web Crypto API는 일반적인 암호화 작업에 대한 낮은 수준의 기능을 제공합니다. Workers 런타임은 이 API의 전체 표면을 구현하지만 일부 차이점은[지원되는 알고리즘](#supported-algorithms)대부분의 브라우저에서 구현된 사람들에 비해.
+
+Web Crypto API를 사용하여 암호화 작업을 수행하면 JavaScript에서 순전히 수행 할 수 있습니다. CPU 기반 암호화 작업을 수행하려면 웹 Crypto API를 사용하여 고려해야합니다.
+
+Web Crypto API가 구현되었습니다.`SubtleCrypto`인터페이스, 글로벌을 통해 접근`crypto.subtle`바인딩. digest (일컬어 hash)를 계산하는 간단한 예는:
+
+```js
+const myText = new TextEncoder().encode('Hello world!');
+
+const myDigest = await crypto.subtle.digest(
+  {
+    name: 'SHA-256',
+  },
+  myText //arrayBuffer로 해시 할 데이터
+);
+
+console.log(new Uint8Array(myDigest));
+```
+
+몇몇 일반적인 용도는 포함합니다[서명 요청](/workers/examples/signing-requests/).
+
+:::카트로션
+
+Web Crypto API는 크게 다릅니다.[Node.js 암호화 API](/workers/runtime-apis/nodejs/crypto/). Node.js Crypto API에 의존하는 코드로 작업하는 경우, 활성화하여 사용할 수 있습니다.[`nodejs_compat`호환성 깃발](/workers/runtime-apis/nodejs/).
+:::
+
+***
+
+## 회사연혁
+
+- <code>암호화.DigestStream(algorithm)</code>프로젝트
+
+  - 비표준 확장`crypto`스트리밍 데이터에서 hash digest 생성을 지원하는 API. 더 보기`DigestStream`그 자체는[`WritableStream`](/workers/runtime-apis/streams/writablestream/)그것은 그것에 기록 된 데이터를 유지하지 않습니다. 대신 데이터의 흐름이 종료되면 해체를 자동으로 생성합니다.
+
+### 매개 변수
+
+- <code>언어 선택</code>문자열 | 객체
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#Syntax).
+
+### 제품 정보
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+      async fetch(req) {
+        //원래에서 Fetch
+        const res = await fetch(req);
+
+        //우리는 두 번 몸을 읽을 필요가 그래서 우리는 `tee` 그것을 (두 개의 인스턴스를 씁니다)
+        const [bodyOne, bodyTwo] = res.body.tee();
+        //새로운 응답을 만드십시오 그래서 우리는 헤더를 설정할 수 있습니다 (`fetch`에서 응답은 immutable입니다)
+        const newRes = new Response(bodyOne, res);
+        //SHA-256 digest 스트림을 생성하고 몸체를
+        const digestStream = new crypto.DigestStream("SHA-256");
+        bodyTwo.pipeTo(digestStream);
+        //마지막 결과를 얻기
+        const digest = await digestStream.digest;
+        //hex 문자열로 설정
+        const hexString = [...new Uint8Array(digest)]
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+        //SHA-256 해시와 헤더를 설정하고 응답을 반환
+        newRes.headers.set("x-content-digest", `SHA-256=${hexString}`);
+        return newRes;
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+      async fetch(req): Promise<Response> {
+        //원래에서 Fetch
+        const res = await fetch(req);
+
+        //우리는 두 번 몸을 읽을 필요가 그래서 우리는 `tee` 그것을 (두 개의 인스턴스를 씁니다)
+        const [bodyOne, bodyTwo] = res.body.tee();
+        //새로운 응답을 만드십시오 그래서 우리는 헤더를 설정할 수 있습니다 (`fetch`에서 응답은 immutable입니다)
+        const newRes = new Response(bodyOne, res);
+        //SHA-256 digest 스트림을 생성하고 몸체를
+        const digestStream = new crypto.DigestStream("SHA-256");
+        bodyTwo.pipeTo(digestStream);
+        //마지막 결과를 얻기
+        const digest = await digestStream.digest;
+        //hex 문자열로 설정
+        const hexString = [...new Uint8Array(digest)]
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+        //SHA-256 해시와 헤더를 설정하고 응답을 반환
+        newRes.headers.set("x-content-digest", `SHA-256=${hexString}`);
+        return newRes;
+      }
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+</Tabs>
+
+## 제품 설명
+
+- <code>암호화.randomUUID()</code>: 문자열
+
+  - 새로운 임의 (버전 4) UUID를 정의[RFC 4122년](https://www.rfc-editor.org/rfc/rfc4122.txt).
+
+- <code>암호화.getRandomValues(bufferArrayBufferView)</code>: 배열BufferView
+
+  - 패스워드<code>배열BufferView</code>Cryptographically 사운드 임의 값과 반환<code>기본 정보</code>.
+
+### 매개 변수
+
+- <code>기본 정보</code>배열BufferView
+
+  - Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | BigInt64Array | BigUint64Array | BigUint64Array | BigUint64Array | BigUint64Array
+
+## SubtleCrypto 방법
+
+이 방법은 모두 통해 액세스됩니다.[`crypto.subtle`](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto#Methods)또한 MDN에 상세하게 문서화됩니다.
+
+### 암호화
+
+- <code>암호화 (algorithm, 키, 데이터)</code>: 프로\<miseArrayBuffer>
+
+  - clear text, 알고리즘, key에 대응하는 암호화된 데이터로 수행되는 Promise를 반환합니다.
+
+#### 매개 변수
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+- <code>자료실</code>버퍼소스
+
+### 암호 해독
+
+- <code>decrypt(algorithm, 키, 데이터)</code>: 프로\<miseArrayBuffer>
+
+  - ciphertext, 알고리즘 및 매개 변수에 해당하는 명확한 데이터와 함께 수행되는 Promise를 반환합니다.
+
+#### 매개 변수
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/decrypt#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+- <code>자료실</code>버퍼소스
+
+### 이름 \*
+
+- <code>sign(algorithm, 키, 데이터)</code>: 프로\<miseArrayBuffer>
+
+  - 텍스트, 알고리즘 및 키와 일치하는 서명을 충족하는 약속을 반환합니다.
+
+#### 매개 변수
+
+- <code>언어 선택</code>문자열 | 객체
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/sign#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+- <code>자료실</code>배열Buffer
+
+### 제품정보
+
+- <code>인증(algorithm, 키, 서명, 데이터)</code>: 프로\<miseboolean>
+
+  - 매개 변수가 텍스트, 알고리즘 및 매개 변수와 일치하면 표시된 Boolean 값으로 수행되는 Promise를 반환합니다.
+
+#### 매개 변수
+
+- <code>언어 선택</code>문자열 | 객체
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/verify#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+- <code>주요특징</code>배열Buffer
+
+- <code>자료실</code>배열Buffer
+
+### 뚱 베어
+
+- <code>digest(algorithm, 데이터)</code>: 프로\<miseArrayBuffer>
+
+  - 매개변수로 주어진 알고리즘과 텍스트에서 생성된 digest로 이뤄지는 Promise를 반환합니다.
+
+#### 매개 변수
+
+- <code>언어 선택</code>문자열 | 객체
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/digest#Syntax).
+
+- <code>자료실</code>배열Buffer
+
+### 생성키
+
+- <code>generateKey(algorithm, 추출 가능, keyUsages)</code>: Promise\<CryptoKey> | 프로미스\<CryptoKeyPair>
+
+  - 새로 생성 된 약속을 반환`CryptoKey`, 대칭 알고리즘, 또는 a`CryptoKeyPair`, 두 개의 새로 생성 된 키 포함, 비대칭 알고리즘. 예를 들어, 새로운 AES-GCM 키 생성 :
+
+  ```js
+  let keyPair = await crypto.subtle.generateKey(
+    {
+      name: 'AES-GCM',
+      length: 256,
+    },
+    true,
+    ['encrypt', 'decrypt']
+  );
+  ```
+
+#### 매개 변수
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/generateKey#Syntax).
+
+- <code>관련 제품</code>한국어
+
+- <code>키Usages</code>지원하다
+
+  - 문자열의 배열[새로운 열쇠의 가능한 사용법](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/generateKey#Syntax).
+
+### 다운로드
+
+- <code>deriveKey (algorithm, baseKey, 파생된KeyAlgorithm, 추출 가능, keyUsages)</code>: 프로미스\<CryptoKey>
+
+  - 새로 생성된 프로미스를 반환합니다.`CryptoKey`매개 변수로 주어진 기본 키 및 특정 알고리즘에서 파생.
+
+#### 매개 변수
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#Syntax).
+
+- <code>기본KeyCryptoKey</code>
+
+- <code>파생키Algorithmobject</code>
+
+  - 파생된 키가 사용될 알고리즘을 무시합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#Syntax).
+
+- <code>추출 물</code>
+
+- <code>키UsagesArray</code>
+
+  - 문자열의 배열[새로운 열쇠의 가능한 사용법](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveKey#Syntax)
+
+### deriveBits의 장점
+
+- <code>deriveBits (algorithm, baseKey, 길이)</code>: 프로\<miseArrayBuffer>
+
+  - 매개 변수로 주어진 기본 키 및 특정 알고리즘에서 파생 된 가짜 랜덤 비트의 새로 생성 된 버퍼와 함께 수행되는 약속을 반환합니다. Promise를 반환합니다.`ArrayBuffer`파생된 비트를 포함. 이 방법은 매우 유사합니다.`deriveKey()`, 그것을 제외하고`deriveKey()`계정 만들기`CryptoKey`대신 객체`ArrayBuffer`. 필수,`deriveKey()`구성`deriveBits()`다음으로`importKey()`.
+
+#### 매개 변수
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/deriveBits#Syntax).
+
+- <code>기본키트</code>암호화 키
+
+- <code>제품정보</code>뚱 베어
+
+  - 비트 문자열의 길이 derive.
+
+### 수입키
+
+- <code>importKey(format, keyData, 알고리즘, 추출 가능, keyUsages)</code>: 프로미스\<CryptoKey>
+
+  - 일부 외부에서 키를 변환, 휴대용 형식으로`CryptoKey`웹 암호화 API와 함께 사용.
+
+#### 매개 변수
+
+- <code>지원하다</code>이름 \*
+
+  - 이름 \*[수입되는 열쇠의 체재](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#Syntax).
+
+- <code>키데이터</code>배열Buffer
+
+- <code>언어 선택</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함한 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#Syntax).
+
+- <code>관련 제품</code>한국어
+
+- <code>키Usages</code>지원하다
+
+  - 문자열의 배열[새로운 열쇠의 가능한 사용법](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/importKey#Syntax)
+
+### 수출키
+
+- <code>exportKey(formatstring, keyCryptoKey)의 경우</code>: 프로\<miseArrayBuffer>
+
+  - 변환하기`CryptoKey`휴대용 형식으로, if`CryptoKey`이름 \*`extractable`.
+
+#### 매개 변수
+
+- <code>지원하다</code>이름 \*
+
+  - 설명[키가 수출되는 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/exportKey#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+### 랩키
+
+- <code>wrapKey (format, 키, wrappingKey, wrapAlgo)</code>: 프로\<miseArrayBuffer>
+
+  - 변환하기`CryptoKey`휴대용 형식으로 다른 키로 암호화합니다. 이 렌더링`CryptoKey`신뢰할 수없는 환경에서 저장 또는 전송에 적합합니다.
+
+#### 매개 변수
+
+- <code>지원하다</code>이름 \*
+
+  - 설명[키가 수출되는 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey#Syntax)암호화되기 전에.
+
+- <code>주요 특징</code>암호화 키
+
+- <code>랩핑키</code>암호화 키
+
+- <code>랩알고</code>기타 제품
+
+  - 필요한 모든 매개 변수를 포함하여 수출 된 키를 암호화하는 데 사용되는 알고리즘을 설명합니다.[알고리즘 별 형식](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/wrapKey#Syntax).
+
+### 다운로드
+
+- <code>unwrapKey (형식, 키, unwrappingKey, unwrapAlgo,<br />unwrappedKeyAlgo, 추출 가능, keyUsages)</code>: 프로미스\<CryptoKey>
+
+  - 감싸인 열쇠를 변형시키십시오`wrapKey()`뒤로`CryptoKey`.
+
+#### 매개 변수
+
+- <code>지원하다</code>이름 \*
+
+  - 설명[key의 데이터 포맷은 unwrapped](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey#Syntax).
+
+- <code>주요 특징</code>암호화 키
+
+- <code>다운로드</code>암호화 키
+
+- <code>카테고리</code>기타 제품
+
+  - 포장 된 키를 암호화하는 데 사용되는 알고리즘을 설명합니다.[알고리즘 별 형식으로](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey#Syntax).
+
+- <code>unwrappedKey알고</code>기타 제품
+
+  - unwrapped 일 열쇠를 설명하십시오,[알고리즘 별 형식으로](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey#Syntax).
+
+- <code>관련 제품</code>한국어
+
+- <code>키Usages</code>지원하다
+
+  - 문자열의 배열[새로운 열쇠의 가능한 사용법](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/unwrapKey#Syntax)
+
+### 타이밍안전
+
+- <code>타이밍안전(a, b)</code>: 불
+
+  - 타이밍 공격에 저항하는 방법에 있는 2개의 완충기를 비교하십시오. 이것은 Web Crypto API에 비표준 확장입니다.
+
+#### 매개 변수
+
+- <code>한국어</code>ArrayBuffer | 타입
+
+- <code>₢ 킹</code>ArrayBuffer | 타입
+
+### 지원된 알고리즘
+
+Workers는 모든 가동을 실행합니다[WebCrypto 표준](https://www.w3.org/TR/WebCryptoAPI/), 뒤에 오는 테이블에서 보이는 것과 같이.
+
+checkmark (✓)는이 기능은 spec에 따라 완전히 지원되는 것으로 믿고 있음을 나타냅니다.<br />x (SYNC)는 이 기능은 사양의 일부이지만 구현되지 않습니다.<br />기능은 부분적으로 작동을 구현하는 경우, 세부 사항은 나열되어 있습니다.
+
+| Algorithm, 그리스                                       | 로그인()<br />인증() | 암호화()<br />암호() | 소화 () | deriveBits()에 대하여<br />deriveKey ()를 | 생성키() | 포장키()<br />unwrapKey ()를 | ExportKey ()를 | importKey()를 |
+| :--------------------------------------------------- | :-------------- | :-------------- | :---- | :----------------------------------- | :---- | :----------------------- | :------------ | :----------- |
+| RSASSA PKCS1의 v1.5                                   | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| RSS 피드                                               | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| RSS 피드                                               |                 | ✓               |       |                                      | ✓     | ✓                        | ✓             | ✓            |
+| 사이트맵                                                 | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| 사이트맵                                                 |                 |                 |       | ✓                                    | ✓     |                          | ✓             | ✓            |
+| 에드25519<sup><a href="#footnote-1">1</a></sup>        | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| 모델 번호: X25519<sup><a href="#footnote-1">1</a></sup>  |                 |                 |       | ✓                                    | ✓     |                          | ✓             | ✓            |
+| 모델 번호: ED25519<sup><a href="#footnote-2">2</a></sup> | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| 사이트맵                                                 |                 | ✓               |       |                                      | ✓     | ✓                        | ✓             | ✓            |
+| 아스 CBC                                               |                 | ✓               |       |                                      | ✓     | ✓                        | ✓             | ✓            |
+| 사이트맵                                                 |                 | ✓               |       |                                      | ✓     | ✓                        | ✓             | ✓            |
+| 단위 KW                                                |                 |                 |       |                                      | ✓     | ✓                        | ✓             | ✓            |
+| 사이트맵                                                 | ✓               |                 |       |                                      | ✓     |                          | ✓             | ✓            |
+| 모델 1                                                 |                 |                 | ✓     |                                      |       |                          |               |              |
+| SHA 256의                                             |                 |                 | ✓     |                                      |       |                          |               |              |
+| 샤 384                                                |                 |                 | ✓     |                                      |       |                          |               |              |
+| 샤 512                                                |                 |                 | ✓     |                                      |       |                          |               |              |
+| 사이트맵<sup><a href="#footnote-3">3</a></sup>           |                 |                 | ✓     |                                      |       |                          |               |              |
+| 장바구니                                                 |                 |                 |       | ✓                                    |       |                          |               | ✓            |
+| PBKDF2의 특징                                           |                 |                 |       | ✓                                    |       |                          |               | ✓            |
+
+**발주자:**
+
+1. <a name="footnote-1" />지정된 알고리즘[안전한 곡선 API](https://wicg.github.io/webcrypto-secure-curves).
+
+2. <a name="footnote-2" />레거시 비표준 EdDSA는 Secure Curves 버전 외에도 Ed25519 곡선에 대해 지원됩니다. 이 알고리즘이 비표준이기 때문에 다음과 같은 것을 사용합니다.
+
+   - 제품 정보<code>모델 번호: NODE-ED25519</code>알고리즘과`namedCurve`모수.
+   - NodeJS와는 달리, Cloudflare는 개인적인 열쇠의 익지않는 수입품을 지원하지 않을 것입니다.
+   - 알고리즘 구현은 시간이 초과될 수 있습니다. Cloudflare는 이 시간에 그것을 보장할 수 없더라도, Cloudflare는 NodeJS의 행동과 후방 겸용성 및 겸용성을 유지하기 위하여 노력할 것입니다. 모든 주목할만한 호환성 노트는 릴리스 노트와 개발자 문서를 통해 통신됩니다.
+
+3. <a name="footnote-3" />MD5는 WebCrypto 표준의 일부가 아니지만 MD5가 요구하는 레거시 시스템과 상호 작용하는 경우 QXQX0688XQQ WorkersXQ에서 지원됩니다. MD5는 약한 알고리즘으로 간주됩니다. 보안을 위해 MD5에 의존하지 마십시오.
+
+***
+
+## 관련 자료
+
+- [MDN 문서](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto)
+- [W3C 웹 암호화 API 사양의 일부로 하위 암호화 문서](https://www.w3.org/TR/WebCryptoAPI//#subtlecrypto-interface)
+- [예: 서명 요청](/workers/examples/signing-requests/)

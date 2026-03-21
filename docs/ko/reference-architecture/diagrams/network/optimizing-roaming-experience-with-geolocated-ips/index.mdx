@@ -1,0 +1,79 @@
+---
+title: Geolocated IPs로 최적화된 장치 roaming 경험
+pcx_content_type: reference-architecture-diagram
+products:
+  - gateway
+  - cloudflare-wan
+sidebar:
+  order: 1
+  label: Geolocated IPs와 함께하는 장치
+reviewed: 2024-12-13T00:00:00.000Z
+description: Cloudflare는 지역 인터넷 차단을 통해 다수 국가를 통해 장치 roaming를 연결하기 위하여 개인 이동할 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/network/optimizing-roaming-experience-with-geolocated-ips/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/network/optimizing-roaming-experience-with-geolocated-ips/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+개인 정보[액세스 포인트 이름](https://en.wikipedia.org/wiki/Access_Point_Name)(APN)는 연결된 차량, 연결된 용기, 의료 기기 또는 무인 항공기와 같은 장치가 서로 다른 국가를 가로 질러 갈 때 연결됩니다. 이 장치는 SIM 또는 eSIM 카드와 함께 전용 네트워크에 연결하고 장치가 새로운 나라로 이동함에 따라 자동으로 로컬 공급자에 적합한 개인 APN을 선택합니다.
+
+APN 트래픽은 일반적으로 통신 회사와 같은 제 3 자 제공 업체에 의해 관리되며 특정 지역 인터넷 차단을 통해 인터넷에 액세스 할 수 있습니다. 이 아키텍처는 해당 트래픽의 현지화에 대한 도전을 만들 수 있습니다. 예를 들어, 프랑스의 장치 로밍은 영국 기반 인터넷 브레이크 아웃에서 인터넷으로 트래픽 출구가있을 수 있습니다. 따라서 웹 사이트 및 기타 인터넷 서비스는 영국에있는 경우 장치를 치료하고 잘못된 언어의 콘텐츠를 전달하거나 지역 제한을 적용합니다.
+
+이 문서에서는, 우리는 Cloudflare가 이 문제를 해결하기 위해 사용될 수 있는 방법을 토론하고 지역 인터넷 차단을 통해 다수 국가를 roaming 장치 연결하기 위하여 개인 이동 통신망 (APNs)를 사용하여 서비스 공급자의 예를 이용할 것입니다. 이 사용 사례는 지역 사무실, 연결된 차량, 또는 로밍 장치에 대한 일관성, 보안 및 지역별 연결을 유지하기 위해 필요한 모든 조직과 관련된 것입니다.
+
+![Figure 1: Internet breakouts가 국가와 일치하지 않는 egress IP를 제시할 수 있는 방법을 보여주십시오.](~/assets/images/reference-architecture/optimizing-roaming-experience-with-geolocated-ips/figure1.svg "Figure 1: Showing how Internet breakouts can present an egress IP that doesn't match the country the device is in.")
+
+# Cloudflare 글로벌 네트워크에 연결하여 정확한 위치 및 보안 장치
+
+Cloudflare는 Cloudflare 데이터 센터가 인터넷 차단에 가까운 Cloudflare 데이터 센터에서 트래픽을 처리하는 인터넷 차단에서 장치 트래픽을 라우팅함으로써 이러한 문제를 해결합니다. 이 두 가지 이점을 허용합니다:
+
+1. Cloudflare는 트래픽을 분석 할 수 있으며 원래의 국가를 결정하고, 그 트래픽이 IP 주소에서 인터넷에 진입한다는 것을 보증합니다. 이는 원산지의 동일한 국가에 위치합니다.
+2. Cloudflare는에 근거를 둔 교통을 거를 수 있습니다[보안 웹 게이트웨이](/cloudflare-one/traffic-policies/)정책, 위험 인터넷 호스트에 액세스하여 장치를 보호 할 수 있습니다. 또한 특정 인터넷 호스트에 대한 액세스를 차단 할 수 있습니다, 뿐만 아니라 장치가 자신의 기능을 지원하는 APIs에 요청을 만들 수 있습니다.
+
+아래 건축 다이어그램은이 솔루션의 시각적 표현을 제공하며, 다양한 국가에서 트래픽을 보여주는 - 다른 모바일 네트워크 APN을 통해 경로화 - Internet Breakouts를 통해 지시됩니다. Cloudflare는 레버리지로 인터넷 연결을 최적화하고 안전한[IP 위치](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/), 트래픽이 안전하고 지역적으로 장치에 로컬화된다는 것을 보장합니다.
+
+이 다이어그램은 네트워크 엔지니어, IT 건축가 및 end-users에 대한 서비스 relevance 및 성능 향상을 찾는 의사 결정자를위한 것입니다. 주요 사용 사례는 사용자의 네이티브 언어에서 빠르고, 지역별 인터넷 액세스 및 서비스를 제공하는 다국적 기업을 포함하고 다양한 지리적 위치에 걸쳐 우수한 사용자 경험을 보장합니다.
+
+![그림 2 : Cloudflare를 사용하여 인터넷 사이트에서 볼 수있는 egress IP를 보장 할 수 있습니다. 국가는 장치가 roaming입니다.](~/assets/images/reference-architecture/optimizing-roaming-experience-with-geolocated-ips/figure2.svg "Figure 2: Using Cloudflare you can ensure the egress IP as seen by Internet sites matches the country the device is roaming in.")
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+1. **데이터 수집 및 지역 라우팅**.
+
+   roaming 장치에서 트래픽은 서비스 제공 업체의 개인 APN을 통해 안전하게 수집되며 타사 지역 인터넷 차단으로 전환됩니다. 네트워크의 각 국가는 특정 RFC1918 IP 서브넷을 할당하고 트래픽 세그먼트 및 관리를 단순화합니다.
+
+2. **교통 정렬**.
+
+   인터넷 브레이크 아웃은 별도의 버킷으로 트래픽을 분류하여 원산지의 국가를 식별합니다. 예를 들어 각 국가의 APN은 전용 IP 서브넷을받습니다.
+
+3. **연결 옵션**.
+
+   Cloudflare는 지역 중단 건축과 통합하는 다수 연결 방법을 지원합니다:
+
+   - [**GRE 터널**](/cloudflare-wan/reference/gre-ipsec-tunnels/)사용의 용이함
+   - [**IPsec 터널**](/cloudflare-wan/reference/gre-ipsec-tunnels/)암호화 통신.
+   - [**Cloudflare 네트워크 상호 연결 (CNI)**](/cloudflare-wan/network-interconnect/)직접, 고성능 연결을 위해.
+
+4. **Localized 인터넷 차단 사용[Cloudflare 대만](/cloudflare-wan/)(이전 매직 WAN) 및[오시는 길](/cloudflare-one/traffic-policies/)**.
+
+   Cloudflare WAN 및 사용[관련 egress](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/)우리의 제품[보안 웹 게이트웨이](/cloudflare-one/traffic-policies/)Cloudflare는 원한 국가에 등록된 근원 IPs로 출구에 인터넷 트래픽을 가능하게 합니다. Geolocalized 콘텐츠 및 서비스에 대한 최종 사용자의 혜택이 보장됩니다.
+
+5. **고급 보안 및 필터링 옵션**.
+
+   Cloudflare는 진보된 특징을 가진 인터넷 차단의 안전을 포함하여 강화합니다:
+
+   - [**DNS 필터링**](/cloudflare-one/traffic-policies/get-started/dns/)원치 않는 높은 위험 도메인에 대한 액세스를 관리하고 차단합니다.
+   - [**네트워크 방화벽**](/cloudflare-one/traffic-policies/network-policies/)상세한 보안 정책을 위해. 예를 들어, 다른 모든 트래픽을 차단하는 동안 인터넷에 데이터를 전송할 수 있습니다.
+   - [**전체 SSL 검사**](/cloudflare-one/traffic-policies/http-policies/tls-decryption/)정교한 위협에 대해 보호하고 암호화 된 트래픽에 트래픽 가시성을 제공합니다. 그것은 안티 바이러스 스캐닝, 악성 코드 방지 및 파일 샌드 박스와 같은 추가 보호를 가능하게한다.
+
+# 관련 자료
+
+- [오시는 길](/cloudflare-one/traffic-policies/)
+- [Cloudflare 대만](/cloudflare-wan/)
+- [Cloudflare 서버는 더 이상 IPs를 소유하지 않습니다](https://blog.cloudflare.com/cloudflare-servers-dont-own-ips-anymore/)

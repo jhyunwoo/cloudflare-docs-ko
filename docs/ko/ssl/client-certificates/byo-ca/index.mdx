@@ -1,0 +1,139 @@
+---
+pcx_content_type: how-to
+title: mTLS에 자체 CA 사용
+sidebar:
+  order: 6
+head: []
+description: Cloudflare mTLS는 이제 Cloudflare CA에서 발급되지 않은 클라이언트 인증서도 지원합니다. 자체 CA를 가져와 Cloudflare mTLS와 함께 사용하는 방법을 알아보세요.
+---
+
+import { APIRequest, Render, TabItem, Tabs, DashButton } from "~/components";
+
+이 페이지는 Cloudflare CA에서 발급되지 않은 클라이언트 인증서를 관리하는 방법을 설명합니다. 더 넓은 개요는 [Cloudflare에서의 mTLS 학습 경로](/learning-paths/mtls/concepts/)를 참고하세요.
+
+Bring your own CA(BYOCA)는 이미 mTLS를 구현했고 [클라이언트 인증서가 이미 장치에 설치되어 있는](/ssl/client-certificates/#how-it-works) 경우 특히 유용합니다.
+
+## 사용 가능 여부
+
+- 현재 업로드한 CA는 API를 통해서만 관리할 수 있으며, 호스트 이름 연결은 [대시보드](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/client-certificates/)에 **반영되지 않습니다**.
+- 이 절차는 Enterprise 계정에서만 사용할 수 있습니다.
+- 각 Enterprise 계정은 최대 5개의 CA를 업로드할 수 있습니다. 이 할당량은 [Cloudflare Access](/cloudflare-one/access-controls/service-credentials/mutual-tls-authentication/)를 통해 업로드한 CA에는 적용되지 않습니다.
+
+## CA 인증서 요구 사항
+
+CA를 업로드하면 Cloudflare는 특정 요구 사항에 따라 인증서를 검증합니다.
+
+<Render file="byo-ca-mtls-cert-requirements" product="ssl" />
+
+:::note
+[Zero Trust 차단 페이지](/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/)를 사용하려는 경우에만 CA 개인 키 업로드가 필요합니다. mTLS 작동 방식에 대한 자세한 배경은 [Learning Center](https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/)를 참고하세요.
+:::
+
+## 자체 CA로 mTLS 설정
+
+1. [mTLS certificate 업로드 엔드포인트](/api/resources/mtls_certificates/methods/create/)를 사용하여 CA 루트 인증서를 업로드합니다.
+
+- `ca` 불리언 필수
+  - CA 인증서임을 나타내려면 `true`로 설정합니다.
+
+- `certificates` 문자열 필수
+  - CA 인증서와 연결된 `.pem` 파일의 내용을 입력하며, 줄바꿈은 `\n`으로 치환한 단일 문자열 형식이어야 합니다.
+
+- `name` 문자열 선택 사항
+  - CA 인증서의 고유 이름을 지정합니다.
+
+2. API 응답으로 반환되는 인증서 ID(`id`)를 기록합니다.
+3. [Replace Hostname Associations 엔드포인트](/api/resources/certificate_authorities/subresources/hostname_associations/methods/update/)를 사용하여 mTLS 검증에 해당 CA를 사용해야 하는 각 호스트 이름에 mTLS를 활성화합니다. 다음 파라미터를 사용하세요.
+
+- `hostnames` 배열 필수
+  - 클라이언트 인증서 검증을 위해 해당 CA를 사용할 호스트 이름 목록입니다.
+
+    :::caution
+
+    빈 배열을 제출하면 모든 호스트 이름 연결이 제거됩니다.
+    :::
+
+- `mtls_certificate_id` 문자열 필수
+  - 이전 단계에서 얻은 인증서 ID를 지정합니다.
+
+    :::caution
+
+    `mtls_certificate_id`를 제공하지 않으면 작업은 Cloudflare 관리형 CA를 대상으로 수행됩니다.
+    :::
+
+4. (선택 사항) 이 절차는 API 전용이며, 업로드한 CA 인증서를 사용하는 호스트 이름은 **대시보드에 표시되지 않으므로**, [GET 요청](#ca-호스트-이름-연결-목록-보기)을 보내 CA 호스트 이름 연결을 확인할 수 있습니다.
+
+5. 클라이언트 인증서 검증을 강제하는 사용자 지정 규칙을 만듭니다.
+   이 작업은 [대시보드](/api-shield/security/mtls/configure/) 또는 [API](/waf/custom-rules/create-api/)를 통해 수행할 수 있습니다.
+
+```txt
+  "expression": "(http.host in {\"<HOSTNAME_1>\" \"<HOSTNAME_2>\"} and not cf.tls_client_auth.cert_verified)",
+  "action": "block"
+```
+
+:::note
+CNAME을 사용할 때는 mTLS를 검사해야 하는 특정 호스트 이름에 대해 mTLS를 강제해야 합니다. CNAME 대상에만 설정하는 것으로는 충분하지 않습니다.
+:::
+
+### 하나의 호스트 이름에 여러 CA 사용
+
+동일한 호스트 이름에 여러 CA(Cloudflare 관리형 또는 BYOCA)를 연결할 수 있습니다. BYOCA 인증서의 경우 가장 최근에 배포된 인증서가 우선됩니다.
+
+Cloudflare 관리형 인증서와의 연결을 제거하고 BYOCA 인증서만 사용하려면:
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. Cloudflare 대시보드에서 **Client Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/client-certificates" />
+
+2. **Client Certificates** 카드의 **Hosts** 섹션에서 **Edit**를 선택합니다.
+3. 제거하려는 호스트 이름 옆의 교차표를 선택합니다. 호스트 이름 연결 목록이 업데이트됩니다.
+4. **Save**를 선택하여 확인합니다.
+
+</TabItem> <TabItem label="API">
+
+1. `mtls_certificate_id` 파라미터 없이 [호스트 이름 연결 목록](/api/resources/certificate_authorities/subresources/hostname_associations/methods/get/)을 조회합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/certificate_authorities/hostname_associations"
+	method="GET"
+/>
+
+2. API가 반환한 `hostnames` 배열을 복사한 뒤 업데이트하여, 더 이상 Cloudflare 관리형 CA를 사용하지 않아야 하는 호스트 이름을 제거합니다.
+3. `mtls_certificate_id` 파라미터 없이 [Replace Hostname Associations 엔드포인트](/api/resources/certificate_authorities/subresources/hostname_associations/methods/update/)를 사용해 Cloudflare 관리형 CA를 대상으로 작업을 수행합니다. `hostnames`에는 이전 단계의 목록을 사용합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/certificate_authorities/hostname_associations"
+	method="PUT"
+	json={{
+		hostnames: ["<UPDATED_HOSTNAME_ASSOCIATIONS>"],
+	}}
+/>
+
+</TabItem> </Tabs>
+
+## 업로드한 CA 삭제
+
+이전에 업로드한 CA를 제거하려면 먼저 해당 CA가 가진 모든 호스트 이름 연결을 제거해야 합니다.
+
+1. [Replace Hostname Associations 엔드포인트](/api/resources/certificate_authorities/subresources/hostname_associations/methods/update/)에 `hostnames`를 빈 배열로 설정하고, `mtls_certificate_id`에는 해당 CA 인증서 ID를 지정하여 요청합니다.
+
+```txt
+  "hostnames": [],
+  "mtls_certificate_id": "<CERTIFICATE_ID>"
+```
+
+2. [Delete mTLS certificate 엔드포인트](/api/resources/mtls_certificates/methods/delete/)를 사용하여 인증서를 삭제합니다.
+
+## CA 호스트 이름 연결 목록 보기
+
+[API](/api/resources/certificate_authorities/subresources/hostname_associations/methods/get/)를 사용해 호스트 이름 연결 목록을 조회할 수도 있습니다. `mtls_certificate_id` 쿼리 파라미터를 반드시 포함해야 하며, 여기서 `mtls_certificate_id`는 업로드한 CA의 인증서 ID입니다(위 2단계).
+
+<APIRequest
+	path="/zones/{zone_id}/certificate_authorities/hostname_associations"
+	method="GET"
+	parameters={{
+		mtls_certificate_id: "ID_FROM_STEP_2",
+	}}
+/>

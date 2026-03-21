@@ -1,0 +1,130 @@
+---
+title: 일반 설정
+pcx_content_type: overview
+sidebar:
+  order: 1
+  label: 일반 설정
+head:
+  - tag: title
+    content: 고급 DDoS 보호 시스템
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ddos-protection/advanced-ddos-systems/overview/
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/advanced-ddos-systems/overview/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render, Steps, DashButton } from "~/components";
+
+고급 DDoS 보호 시스템 포함[고급 TCP 보호](/ddos-protection/advanced-ddos-systems/overview/advanced-tcp-protection/), [고급 DNS 보호](/ddos-protection/advanced-ddos-systems/overview/advanced-dns-protection/)·[풀그릴 교류 보호](/ddos-protection/advanced-ddos-systems/overview/programmable-flow-protection/). 이 시스템은 일반 설정을 사용하여 구성되지만 자체 전용 설정을 구성합니다.
+고급 DDoS 보호 체계는 유효합니다[매직 트레인](/magic-transit/)고객.
+
+단순 TCP 또는 DNS 기반 DDoS 공격에 대한 보호는 일부로 포함되어 있습니다.[Network-layer DDoS 공격 보호 관리 규정](/ddos-protection/managed-rulesets/network/).
+
+일반 설정은 고급 TCP 보호 및 고급 DNS 보호 시스템의 사용을 활성화하고 제어하며 임계값, 접두사, 규칙 및 활성화로 구성됩니다.
+
+## 관련 기사
+
+Thresholds는 네트워크의 독특한 트래픽을 기반으로하며, Cloudflare로 구성됩니다. 감도 수준은 문턱을 조작합니다.
+
+고급 DDoS 보호 시스템에 액세스 할 때, 당신은[자동 지급](#automatic-thresholds)모니터링 모드에서 기본 설정.
+
+Thresholds는 'Cloudflare'에 의해 모니터링 된 트래픽 프로파일에서 파생 된 네트워크의 개별 행동을 기반으로합니다. 문턱을 정의하는 것은 효과적으로*사이트맵*, *한국어*·*이름 \** [센서](/ddos-protection/advanced-ddos-systems/concepts/#burst-sensitivity)당신의 특정한 케이스를 위해 일 것입니다.
+
+필요한 경우, 기본 설정에서 고급 TCP 보호 및 고급 DNS 보호를 위해 임계값을 조작하는 감도 수준을 변경할 수 있습니다.
+
+임계 값이 구성되면 고급 DDoS 보호 시스템은 초기화되고 모니터링 모드에서 활성화되었습니다.
+
+### 자동 임계 값
+
+'Cloudflare'의 고급 DDoS 차단 시스템을 위한 자동 임계 값은 각 고객 계정에 적합한 트래픽 임계값을 자동으로 계산하여 DDoS 공격의 탐지 및 완화를 최적화합니다. 이 시스템은 고급 TCP 보호 (특히 SYN 홍수 보호 및 아웃-of-State TCP 홍수 보호) 및 고급 DNS 보호에 적용됩니다.
+
+고급 DDoS 보호 시스템에 제대로 내장되어있어 자동 임계값에서 혜택을 누릴 수 있습니다.
+
+#### 회사연혁
+
+자동 임계 값 시스템은 새로운 기존 Magic Transit 계정 모두 10 분마다 임계값을 계산하여 아래 프로세스에서 처리되는 요구 사항을 충족합니다.
+
+- 더 보기`flowtrackd`계정은 지난 7일\~10일 내에 생성되었습니다.
+- 계정은 적어도 하나의 구성 된 글로벌 임계 값 (rate 및 파열)이 있습니다. 이것은 시스템에서 자동으로 제공되었거나 수동으로 Cloudflare에 의해 제공 된 임계 값이 될 수 있습니다.
+
+이러한 검사는 SYN 홍수 보호, Out-of-State TCP 홍수 보호 및 고급 DNS 보호를 위해 독립적으로 수행됩니다. 모든 규칙의 존재가 구성되지 않습니다. 자동 시스템에 의해 초기 규정 된 계정은 기본 임계 값이 있습니다. 그렇지 않으면, 임계 값은 Cloudflare로 설정되지 않은 경우 구성될 수 있습니다.
+
+7 일 후에, 체계는 보호 성분의 각을 위한 비율 그리고 파열 문턱을 산출합니다. 그러나 그들은 적용되지 않습니다. Cloudflare는 트래픽의 실제 임계값을 만들기 전에 자동 계산 시스템에 의해 생성 된 초안 임계 값을 검토해야합니다.
+
+Threshold는 계정 당 세계적으로 적용됩니다. 임계 값 계산에 대한 최소 패킷-per-second (pps) 요구 사항이 없습니다. 그러나 100 pps 미만의 경우 시스템은 합리적인 비-zero 비율과 파열로 기본값입니다.
+
+Thresholds는 95 %ile (P95)를 사용하여 7 일 동안 관찰 된 트래픽을 사용합니다.
+
+- SYN 홍수 보호 : SYN 및 SYN-ACK 트래픽을 기반으로합니다.
+- Out-of-State TCP Flood Protection: 다른 모든 TCP 플래그 트래픽을 기반으로 합니다.
+- 고급 DNS 보호: UDP 트래픽에 DNS에 기반.
+
+계산은 일반적으로 7 일 후에 자동으로 발생하지만, Cloudflare는 사전에 보호 모드에서 시스템을 활성화하려는 경우 이전 계산을 강제 할 수 있습니다.
+
+자동 임계 값 계산 시스템은 합법적이고 공격 트래픽을 구별하지 않습니다. 7일 관측 기간 동안 온보딩 또는 경험 공격이 있는 경우, 계산된 임계 값은 공격의 크기, 기간 및 합법적인 교통 상대 주파수에 따라 부정확한 될 수 있습니다. 그런 경우, Cloudflare는 recalculation을 트리거해야합니다. 미래 개선은 'Cloudflare\` 계정 팀의 도움없이 재순환을 실행할 수 있습니다.
+
+#### - 연혁
+
+자동 규정을 활성화해야합니다. 초기에는, 이러한 규칙은 기본 값이 있으며 모니터 모드에서 동작합니다. 7일 후, 임계값이 계산된 후, 패킷이 떨어졌거나 허용된 것을 관찰하기 위해 Network Analytics 대시보드를 사용할 수 있으며, 안전하게 모기지 모드에서 규칙을 활성화합니다. 네트워크 분석 대시보드에서 관찰되는 것에 따라 (예를 들어, 합법적인 트래픽은 모니터 모드에서 파쇄됩니다), 감도 수준을 변경하고 완화 모드에서 활성화하기 전에 관찰을 계속할 수 있습니다. 규칙 및 필터, 지원되는 곳, 추가 과립을 허용하기 위해 범위가 될 수있다.
+
+#### 관련 기사
+
+자동 임계 값은 한 번만 계산됩니다. Cloudflare를 수동으로 트리거 할 수 있습니다. 추가, 승인, 제거, 위임, 광고, 또는 초기 내장 후 접두사를 철회하는 것은 자동으로 계산을 다시 트리거하지 않습니다. 트래픽 레벨에 영향을 미치는 변경하기 전에 관련 시스템을 모니터 모드로 이동하고 Cloudflare에서 재순환을 요청하는 것이 좋습니다. 미래 개선은 이러한 이벤트를 고려할 것입니다.
+
+#### 더 알아보기
+
+자동 계산 된 임계 값은 overridden 일 수 있습니다. Cloudflare는 수동으로 임계값을 정의할 수 있습니다.
+
+#### 관련 기사
+
+'Cloudflare'에 대한 공격 및 디버깅 트래픽을 적극적으로 수행하면 자동 임계 값 계산은 공격 트래픽을 통합 할 때 효과적 일 수 있습니다. 이 시나리오에서 Cloudflare는 여전히 임계값을 구성해야합니다. 트래픽을 디버깅하면서 공격을 하지 않으면, Cloudflare는 사용할 수 있는 데이터로 임계값 계산을 강제할 수 있습니다. 그러나, 몇몇 일 또는 관측의 시간과 같은 더 적은 자료는, 더 적은 정확한 문턱에서 유래할 것입니다.
+
+#### 제한 사항
+
+현재 고객은 계산된 임계값 또는 임계값이 형성된지 표시에 가시성이 없습니다. 미래 개선은 문턱이 형성되었을 때 표시하는 것을 목표로하고 그들은 마지막으로 업데이트되었을 때.
+
+auto-threshold 계산 구성 요소는 현재 PDX에서만 실행됩니다. 따라서이 기능은 데이터 로컬라이제이션 서비스(DLS)를 활성화하고 EU CMB와 같은 미국 밖에 있습니다. 미래 개선은이 제한을 해결합니다.
+
+***
+
+## 연락처
+
+당신이 가지고있는 접두사[관련 기사](/magic-transit/how-to/advertise-prefixes/)Cloudflare에 의해 승인 및 시스템에 대한 트래픽을 지시.
+
+[접두사 추가](/ddos-protection/advanced-ddos-systems/how-to/add-prefix/)고급 TCP 및 DNS 보호와 함께 사용할 수 있습니다. 이전의 접두사를 등록할 수 있습니다.[Magic Transit에 내장](/magic-transit/how-to/advertise-prefixes/)또는 이 접두사의 하위 집합.
+
+추가할 수 없습니다. prefixes to Advanced DDoS 차단 시스템. 계정 팀에 연락하여 prefix 승인에 도움을 받으십시오.
+
+선택적으로, 당신은 할 수 있습니다[Allowlist에 prefixes 추가](/ddos-protection/advanced-ddos-systems/how-to/add-prefix-allowlist/)트래픽이 고급 DDoS 보호 규칙을 우회해야 하는 경우.
+
+더 보기<GlossaryTooltip term="allowlist">관련 상품</GlossaryTooltip>소스 IP에 만 적용 - 그것은 자신의 IP 또는 접두사에 적용되지 않습니다. 당신은 또한 할 수 있습니다[내장된 접두사의 subset를 제외하고](/ddos-protection/advanced-ddos-systems/how-to/exclude-prefix/)고급 TCP 보호에서.
+
+더 알아보기[회사 소개](/ddos-protection/advanced-ddos-systems/concepts/)더 많은 정보.
+
+***
+
+## 이름 \*
+
+[규칙 만들기](/ddos-protection/advanced-ddos-systems/how-to/create-rule/)고급 TCP 및 고급 DNS 보호에 대한 (필수) 완화를 가능하게합니다.
+
+SYN 홍수 보호 규칙과 외부 TCP 보호를위한 또 다른 규칙을 만들 수 있습니다, 글로벌 범위와 모니터링 모드 모두. 이 규칙은 모든 수신에 적용됩니다.<GlossaryTooltip term="data packet">제품정보</GlossaryTooltip>.
+
+선택적으로, 당신은 창조할 수 있습니다[제품정보](/ddos-protection/advanced-ddos-systems/concepts/#filter)각 보호 시스템 구성 요소 (SYN 홍수 보호 및 아웃 상태 TCP 보호).<Render file="atp-filter-definition" product="ddos-protection" />
+
+***
+
+## 계정 관리
+
+고급 DDoS 시스템을 활성화하고 트래픽을 routing 시작합니다.
+
+<Steps>
+  1. 'Cloudflare'에서 '대시보드'로 이동**L3/4 DDoS 보호**사이트 맵
+
+     <DashButton url="/?to=/:account/network-security/ddos" />
+  2. 오시는 길**고급 보호** > **일반 설정**.
+  3. 이름 \***일반 설정**, toggle 특징 상태**이름 \***.
+</Steps>

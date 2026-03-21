@@ -1,0 +1,227 @@
+---
+title: Sandbox 옵션
+pcx_content_type: configuration
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/configuration/sandbox-options/'
+translation_source_md: >-
+  https://developers.cloudflare.com/sandbox/configuration/sandbox-options/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+sandbox 인스턴스를 만들 때 옵션을 통과하여 sandbox 동작을 구성`getSandbox()`.
+
+## 사용 가능한 옵션
+
+```ts
+import { getSandbox } from '@cloudflare/sandbox';
+
+const sandbox = getSandbox(binding, sandboxId, options?: SandboxOptions);
+```
+
+### 계속하기
+
+**제품정보**: `boolean`
+**기본 정보**: `false`
+
+자동 폐쇄를 방지하여 컨테이너를 살아 숨깁니다. 시간 :`true`, 콘테이너는 자동적으로 심장 박동을 30 초마다 완화를 방지하고 결코 자동 시간 초과하지 않을 것입니다.
+
+**어떻게 작동합니까?**: 샌드박스는 30초마다 컨테이너에 경량 핑 요청을 자동으로 일정합니다. 이 컨테이너는 정수를 최소화하면서 Inactivity로 인해 발생되는 용기를 방지합니다. 당신은 또한 활성화 / 비활성화 KeepAlive 동적 사용[`setKeepAlive()`](/sandbox/api/lifecycle/#setkeepalive).
+
+더 보기`keepAlive`튼튼한 목표 hibernation와 Wakeup 주기의 맞은편에 깃발 persists. 일단 활성화되면 sandbox가 hibernation에서 깨어난 후 다시 설정할 필요가 없습니다.
+
+<TypeScriptExample>
+  ```ts
+  //컨테이너가 살아야 할 긴 실행 프로세스
+  const sandbox = getSandbox(env.Sandbox, 'user-123', {
+    keepAlive: true
+  });
+
+  //긴 실행 프로세스를 실행
+  await sandbox.startProcess('python long_running_script.py');
+
+  //중요 : 수행 할 때 명시적으로 파괴해야합니다.
+  try {
+    //현재 위치
+  } finally {
+    await sandbox.destroy(); //indefinitely를 실행하는 콘테이너를 방지하는 필수
+  }
+  ```
+</TypeScriptExample>
+
+:::caution\[초기와 자원 관리]
+시간 :`keepAlive: true`세트, 콘테이너는 자동적으로 심장 박동을 방지하기 위하여 pings를 보내고 자동적으로 운동을 하지 않을 것입니다. 그들은 명시적으로 파괴되어야한다.`destroy()`또는 비활성화`setKeepAlive(false)`컨테이너를 무한하게 실행하고 계정 제한으로 계산하기 위해.
+주요 특징
+
+### 잠자는후
+
+**제품정보**: `string | number`
+**기본 정보**: `"10m"`(10 분)
+
+sandbox 자동적으로 잠의 앞에 inactivity의 내구. 내구 문자열을 수락 (`"30s"`, `"5m"`, `"1h"`) 또는 숫자 (둘째로).
+
+:::note\[V0.2.17에서 수정]
+v0.2.17 이전에,`sleepAfter`옵션에 전달`getSandbox()`타이밍 문제로 인해 무시되었습니다. sandbox 인스턴스를 만들 때 옵션이 제대로 적용됩니다.
+주요 특징
+
+<TypeScriptExample>
+  ```ts
+  //활동의 30 초 후에 잠
+  const sandbox = getSandbox(env.Sandbox, 'user-123', {
+    sleepAfter: '30s'
+  });
+
+  //5 분 후에 잠 (번호를 사용하는)
+  const sandbox2 = getSandbox(env.Sandbox, 'user-456', {
+    sleepAfter: 300  //300 초 = 5 분
+  });
+  ```
+</TypeScriptExample>
+
+:::note\[Alive가 true일 때 무시]
+시간 :`keepAlive: true`세트,`sleepAfter`무시하고 sandbox는 자동으로 잠을 수 없습니다.
+주요 특징
+
+### containerTimeouts의 장점
+
+**제품정보**: `object`
+
+컨테이너 시작 작업을 위한 타임아웃 구성.
+
+<TypeScriptExample>
+  ```ts
+  //사용자 정의 Dockerfile 작업과 확장 시작
+  //(패키지 설치, SDK 이전 서비스)
+  const sandbox = getSandbox(env.Sandbox, 'data-processor', {
+    containerTimeouts: {
+      portReadyTimeoutMS: 180_000  //스타트업 3분
+    }
+  });
+
+  //교통 스파이크 중 더 긴 대기
+  const sandbox2 = getSandbox(env.Sandbox, 'user-env', {
+    containerTimeouts: {
+      instanceGetTimeoutMS: 60_000   //1분
+    }
+  });
+  ```
+</TypeScriptExample>
+
+**유효한 timeout 선택권**:
+
+- `instanceGetTimeoutMS`- Cloudflare가 새로운 컨테이너 인스턴스를 제공하도록 기다리는 방법. 많은 컨테이너가 동시에 제공 할 때 트래픽 스파이크 중 증가.**기본 정보**: `30000`(30 초)
+- `portReadyTimeoutMS`- 샌드박스 API를 기다리는 방법 사용자 정의 시작 작업 (설치 패키지, 시작 서비스) 기본 Dockerfile을 확장하면 증가합니다.**기본 정보**: `90000`(90 초)
+
+**환경 변수 overrides**:
+
+- `SANDBOX_INSTANCE_TIMEOUT_MS`- 오버라이드`instanceGetTimeoutMS`
+- `SANDBOX_PORT_TIMEOUT_MS`- 오버라이드`portReadyTimeoutMS`
+
+주의:`options` > `env vars`> SDK 기본
+
+### 로그아웃
+
+**제품정보**: 환경변수
+
+디버깅 및 모니터링을 위한 SDK 로깅을 제어합니다. 당신의 노동자의`wrangler.jsonc`파일.
+
+**사용 가능한 옵션**:
+
+- `SANDBOX_LOG_LEVEL`- 최소 로그 레벨:`debug`, `info`, `warn`, `error`. **기본 정보**: `info`
+- `SANDBOX_LOG_FORMAT`- 산출 체재:`json`, `pretty`. **기본 정보**: `json`
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"SANDBOX_LOG_LEVEL": "debug",
+  		"SANDBOX_LOG_FORMAT": "pretty"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::노트\[시동]
+작업자가 시작될 때 로깅 구성을 읽고 실행 시간에 변경할 수 없습니다. 변화는 당신의 노동자를 redeploying 요구합니다.
+주요 특징
+
+제품 정보`debug` + `pretty`현지 개발 제품 정보`info`또는`warn` + `json`생산용 (structured logging)
+
+### 사이트맵
+
+**제품정보**: `boolean`
+**기본 정보**: `false`(일 수 있음)`true`미래 버전)
+
+sandbox를 만들 때 Lowercase sandbox ID. 시간 :`true`, 당신이 제공하는 ID는 내구재 목표 (예를들면, "MyProject-123" → "myproject-123").
+
+**왜 이 문제**: 미리보기 URL은 호스트명에서 샌드박스 ID를 추출합니다. 이는 항상 DNS case-insensitivity로 인해 낮은 케이스입니다. 정상화없이, "MyProject-123"로 만든 샌드 박스는 URL 라우팅이 "myproject-123" (다른 튼튼한 개체)에 대한 모습 때문에 미리보기 URL을 통해 제한되지 않습니다.
+
+<TypeScriptExample>
+  ```ts
+  //정상화 없이 (과태)
+  const sandbox1 = getSandbox(env.Sandbox, 'MyProject-123');
+  //ID를 가진 튼튼한 목표를 창조하십시오: "MyProject-123"
+  //미리보기 URL: 8000-myproject-123.example.com
+  //문제 : URL 경로 "myproject-123"(다른 DO)
+
+  //정상화로
+  const sandbox2 = getSandbox(env.Sandbox, 'MyProject-123', {
+    normalizeId: true
+  });
+  //ID를 가진 튼튼한 목표 창조: "myproject-123"
+  //미리보기 URL: 8000-myproject-123.example.com
+  //작품 : URL 경로 "myproject-123"(same DO)
+  ```
+</TypeScriptExample>
+
+:::caution\[다른 정상화Id 값 = 다른 sandboxes]
+`getSandbox(ns, 'MyProject-123')`·`getSandbox(ns, 'MyProject-123', { normalizeId: true })`2개의 분리되는 Durable Objects를 창조하십시오. 상부 ID가있는 기존 샌드 박스가있는 경우 정상화가 새로운 샌드 박스를 만들 수 있습니다. 오래된 것들에 액세스하지 않습니다.
+주요 특징
+
+:::노트\[Future default]
+미래의 SDK 버전에서,`normalizeId`기본값으로`true`. 모든 sandbox ID는 입력 케이스에 관계 없이 더 낮출 것입니다. 더 낮은 케이스 ID를 지금 사용하거나 명시적으로 설정`normalizeId: true`이 변경을 준비합니다.
+주요 특징
+
+## NormalizeId를 사용할 때
+
+제품 정보`normalizeId: true`현재 위치:
+
+- **미리보기 URL 사용**- ID가 uppercase 문자를 포함하면 포트 노출에 필요한 경우
+- **새로운 프로젝트**- 이 옵션을 활성화하거나 시작에서 더 낮은 케이스 ID를 사용 (both work)
+- **기존 코드를 마이그레이션**-이 활성화 된 새로운 샌드 박스를 만들; 이전 uppercase 샌드 박스 결국 파괴 될 것이다 (explicitly or after timeout)
+
+**좋은 연습**: 시작에서 더 낮은 케이스 ID 사용 (`'my-project-123'`대신에`'MyProject-123'`).
+
+## 때 사용 sleepAfter
+
+사용자 정의`sleepAfter`값 :
+
+- **비용 절감**- 짧은 타임 아웃 (e.g.,`"1m"`infrequent workloads를 위한 )
+- **확장 가능**- 더 긴 타임 아웃 (예 :,`"30m"`) 인터랙티브 워크플로우
+- **균형 성과**- 애플리케이션의 사용 패턴을 기반으로 한 Fine-tune
+
+기본 10 분 타이머는 대부분의 응용 프로그램에 잘 작동합니다. 당신의 필요에 따라 조정하십시오.
+
+## keepAlive를 사용할 때
+
+제품 정보`keepAlive: true`제품 정보:
+
+- **긴 실행 빌드**- CI/CD 파이프라인은 단계 사이 유휴 기간이 있을 수 있습니다.
+- **일괄 처리**- 일괄 처리 사이의 간격으로 파도에서 데이터를 처리하는 작업
+- **모니터링 작업**- 주기적으로 외부 서비스를 확인하는 프로세스
+- **대화 형 세션**- 컨테이너가 사용할 수 있는 사용자 중심의 워크플로우
+
+이름 \*`keepAlive`, 콘테이너는 eviction를 방지하기 위하여 30 초마다 자동적인 heartbeat pings를 보내고 결코 자동적으로 잠을 수 없습니다. Lifecycle을 명시적으로 제어하는 시나리오에 사용됩니다.
+
+## 관련 자료
+
+- [Expose 서비스 안내](/sandbox/guides/expose-services/)- 사용`normalizeId`미리보기 URL
+- [미리보기 URL 개념](/sandbox/concepts/preview-urls/)- DNS 케이스 감지
+- [배경 프로세스 가이드](/sandbox/guides/background-processes/)- 사용`keepAlive`긴 실행 과정
+- [라이프사이클 API](/sandbox/api/lifecycle/)- 모래 상자 만들기 및 관리`setKeepAlive()`
+- [Sandboxes 개념](/sandbox/concepts/sandboxes/)- 샌드박스 수명주기 이해

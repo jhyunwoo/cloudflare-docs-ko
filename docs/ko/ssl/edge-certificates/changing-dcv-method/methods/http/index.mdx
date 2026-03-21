@@ -1,0 +1,65 @@
+---
+title: HTTP
+pcx_content_type: how-to
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: HTTP 방법 — 도메인 제어 유효성 검사 — SSL/TLS
+---
+
+import { Details, Render } from "~/components";
+
+HTTP DCV를 선택하면 Cloudflare가 도메인에 검증용 HTTP 토큰을 자동으로 추가합니다.
+
+도메인이 몇 분 정도의 다운타임을 감수할 수 있을 때만 이 방법을 사용하세요.
+
+:::note
+
+HTTP DCV에서 문제가 발생하면 [문제 해결 가이드](/ssl/edge-certificates/changing-dcv-method/troubleshooting/)를 참고하세요.
+
+:::
+
+## 제한 사항
+
+HTTP DCV는 [프록시된 도메인](/dns/proxy-status/)에서만 사용할 수 있습니다. 인증서를 사전 검증하려면 오리진 웹 서버의 `.well-known/pki-validation/` 디렉터리에 DCV 토큰을 수동으로 추가할 수도 있습니다.
+
+HTTP DCV 검증은 와일드카드 인증서에서는 동작하지 않습니다. 와일드카드 인증서를 사용하려면 [TXT 검증](/ssl/edge-certificates/changing-dcv-method/methods/txt/)을 사용하세요.
+
+선택한 인증 기관(CA)에 따라 [Advanced certificate](/ssl/edge-certificates/advanced-certificate-manager/)에서 HTTP 검증을 사용할 수 없는 경우도 있습니다.
+
+## 설정
+
+### DCV 방법 지정
+
+<Render file="http-cname-validation-process" product="ssl" />
+
+어느 경우든 `"validation_method":"http"` 파라미터를 설정해야 합니다.
+
+### 다른 Cloudflare 설정 검토
+
+도메인이 실수로 HTTP DCV를 차단하지 않도록 [일반적인 설정 문제](/ssl/edge-certificates/changing-dcv-method/troubleshooting/)에 대한 Cloudflare 설정을 검토하세요.
+
+### DCV 완료
+
+인증 기관은 사용자가 [부분 도메인 설정](/dns/zone-setups/partial-setup/setup/#3-add-dns-records)을 마치는 즉시 HTTP 토큰에 접근할 수 있게 됩니다.
+
+즉, 권한 있는 DNS에서 Cloudflare로 향하는 CNAME 레코드를 추가하고 Cloudflare 내부에서 호스트 이름에 대한 [프록시된 DNS 레코드](/dns/proxy-status/)를 생성해야 합니다.
+
+이 과정에는 몇 분 정도의 다운타임이 포함될 수 있습니다.
+
+<Details header="레코드를 생성한 뒤 발생하는 일">
+
+<Render file="cname-cert-verification" product="ssl" />
+
+</Details>
+
+<Render file="acm-validate-cert" product="ssl" />
+
+## 갱신
+
+<Render file="dcv-certificate-renewal" product="ssl" />
+
+조건이 충족되었음에도 HTTP DCV가 연속해서 실패하면 프로세스는 TXT로 대체됩니다. 이 일정은 인증서 유효 기간에 따라 달라집니다.
+
+<Render file="http-to-txt-schedule" product="ssl" />

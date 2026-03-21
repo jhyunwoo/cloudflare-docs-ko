@@ -1,0 +1,390 @@
+---
+pcx_content_type: concept
+title: 공유하기
+description: >-
+  브라우저 자동화를 위해 Cloudflare WorkersXQ를 사용하여 Playwright를 사용하는 방법을 알아보세요. Access
+  Playwright API, 세션 관리, 브라우저 렌더링 최적화.
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/playwright/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/playwright/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	WranglerConfig,
+	TabItem,
+	Tabs,
+	PackageManagers,
+} from "~/components";
+
+[공유하기](https://playwright.dev/)브라우저 자동화 작업을 수행 할 수있는 Microsoft가 개발 한 오픈 소스 패키지입니다. 그것은 일반적으로 frontend 테스트를 작성하는 데 사용됩니다, 스크린 샷을 만들거나, crawl 페이지.
+
+Workers 팀은 위조했습니다[Playwright의 버전](https://github.com/cloudflare/playwright)그것은 호환 될 수 있었다[Cloudflare Workers](/workers/)·[브라우저 렌더링](/browser-rendering/).
+
+우리의 버전은 열려있는 sourced이고에서 찾아낼 수 있습니다[Cloudflare의 포크 Playwright](https://github.com/cloudflare/playwright). npm 포장은에서 설치될 수 있습니다[프로젝트](https://www.npmjs.com/)이름 \*[@cloudflare/플레이라이트](https://www.npmjs.com/package/@cloudflare/playwright):
+
+<PackageManagers pkg="@cloudflare/playwright" dev />
+
+:::참조
+현재 버전은[`@cloudflare/playwright`₢ 킹](https://github.com/cloudflare/playwright/releases/tag/v1.1.0), 기반[재생 v1.57.0](https://playwright.dev/docs/release-notes#version-157).
+:::
+
+## Worker에서 Playwright 사용
+
+이 글[이름 \*](https://github.com/cloudflare/playwright/tree/main/packages/playwright-cloudflare/examples/todomvc)Cloudflare에서 Playwright 테스트를 실행합니다. 작업자 사용[뚱 베어](https://demo.playwright.dev/todomvc)신청.
+
+단계와 시작하기를 신속하게 건너뛰고 싶다면,**Cloudflare에 배포**아래.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/playwright/tree/main/packages/playwright-cloudflare/examples/todomvc)
+
+당신이 가지고 있는지 확인[브라우저 바인딩](/browser-rendering/reference/wrangler/#bindings)Wrangler 설정 파일에서 구성:
+
+:::참조
+최신 버전을 사용하려면`@cloudflare/playwright`, 당신의 노동자 윤곽은 포함해야 합니다`nodejs_compat`호환성 깃발 및`compatibility_date`2025-09-15 이상. 이 변경은 라이브러리의 기능이 네이티브를 필요로하기 때문에 필요합니다.`node.fs`API.
+주요 특징
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "cloudflare-playwright-example",
+  	"main": "src/index.ts",
+  	"workers_dev": true,
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"compatibility_date": "$today",
+  	"upload_source_maps": true,
+  	"browser": {
+  		"binding": "MYBROWSER"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+npm 패키지 설치:
+
+<PackageManagers pkg="@cloudflare/playwright" dev />
+
+Playwright를 사용하는 방법의 몇 가지 예를 살펴봅시다.
+
+### 스크린 샷 찍기
+
+웹 페이지의 스크린 샷을 찍는 브라우저 자동화를 사용하여 일반적인 사용 사례입니다. 이 스크립트는 브라우저가 탐색하는 것을 말합니다.[https://demo.playwright.dev/todomvc](https://demo.playwright.dev/todomvc), 일부 항목을 만들, 페이지의 스크린 샷을 가지고, 응답에 이미지를 반환.
+
+```ts
+import { launch } from "@cloudflare/playwright";
+
+export default {
+	async fetch(request: Request, env: Env) {
+		const browser = await launch(env.MYBROWSER);
+		const page = await browser.newPage();
+
+		await page.goto("https://demo.playwright.dev/todomvc");
+
+		const TODO_ITEMS = [
+			"buy some cheese",
+			"feed the cat",
+			"book a doctors appointment",
+		];
+
+		const newTodo = page.getByPlaceholder("What needs to be done?");
+		for (const item of TODO_ITEMS) {
+			await newTodo.fill(item);
+			await newTodo.press("Enter");
+		}
+
+		const img = await page.screenshot();
+		await browser.close();
+
+		return new Response(img, {
+			headers: {
+				"Content-Type": "image/png",
+			},
+		});
+	},
+};
+```
+
+### 제품 정보
+
+Playwright 추적은 사용자의 클릭 및 탐색 행동, 페이지의 스크린 샷 및 디버깅에 사용되는 모든 콘솔 메시지와 같은 정보를 캡처하는 작업 흐름 실행의 상세한 로그입니다. 개발자는 할 수 있습니다`trace.zip`파일 중 하나를 열고[한국어](https://playwright.dev/docs/trace-viewer#opening-the-trace)또는 업로드[Playwright 추적기](https://trace.playwright.dev/), 당신이 데이터를 탐구하는 데 도움이 GUI 도구.
+
+추적 파일을 생성하는 worker의 예입니다.
+
+```ts
+import fs from "fs";
+import { launch } from "@cloudflare/playwright";
+
+export default {
+	async fetch(request: Request, env: Env) {
+		const browser = await launch(env.MYBROWSER);
+		const page = await browser.newPage();
+
+		//페이지로 이동
+		await page.context().tracing.start({ screenshots: true, snapshots: true });
+
+		await page.goto("https://demo.playwright.dev/todomvc");
+
+		const TODO_ITEMS = [
+			"buy some cheese",
+			"feed the cat",
+			"book a doctors appointment",
+		];
+
+		const newTodo = page.getByPlaceholder("What needs to be done?");
+		for (const item of TODO_ITEMS) {
+			await newTodo.fill(item);
+			await newTodo.press("Enter");
+		}
+
+		//추적을 중지하고 zip 파일에 추적을 저장
+		await page.context().tracing.stop({ path: "trace.zip" });
+		await browser.close();
+		const file = await fs.promises.readFile("trace.zip");
+
+		return new Response(file, {
+			status: 200,
+			headers: {
+				"Content-Type": "application/zip",
+			},
+		});
+	},
+};
+```
+
+### 관련 기사
+
+Playwright를 사용하는 가장 일반적인 사용 사례 중 하나는 소프트웨어 테스트입니다. Playwright는 API에서 테스트 assertion 기능을 포함합니다; 참조[관련 기사](https://playwright.dev/docs/test-assertions)자세한 내용은 Playwright 문서에 있습니다. 여기 노동자의 예입니다.`expect()`시험의 assertions[뚱 베어](https://demo.playwright.dev/todomvc)데모 페이지:
+
+```ts
+import { launch } from "@cloudflare/playwright";
+import { expect } from "@cloudflare/playwright/test";
+
+export default {
+	async fetch(request: Request, env: Env) {
+		const browser = await launch(env.MYBROWSER);
+		const page = await browser.newPage();
+
+		await page.goto("https://demo.playwright.dev/todomvc");
+
+		const TODO_ITEMS = [
+			"buy some cheese",
+			"feed the cat",
+			"book a doctors appointment",
+		];
+
+		const newTodo = page.getByPlaceholder("What needs to be done?");
+		for (const item of TODO_ITEMS) {
+			await newTodo.fill(item);
+			await newTodo.press("Enter");
+		}
+
+		await expect(page.getByTestId("todo-title")).toHaveCount(TODO_ITEMS.length);
+
+		await Promise.all(
+			TODO_ITEMS.map((value, index) =>
+				expect(page.getByTestId("todo-title").nth(index)).toHaveText(value),
+			),
+		);
+	},
+};
+```
+
+### 저장 상태
+
+Playwright 지원[저장 상태](https://playwright.dev/docs/api/class-browsercontext#browsercontext-storage-state)쿠키 및 기타 저장 데이터를 얻을 수 있습니다. 이 예제에서는 저장 상태와 persist 쿠키 및 기타 저장 데이터를 사용합니다.[Workers KV](/kv).
+
+먼저 KV 네임스페이스가 있습니다. 새로운 것을 만들 수 있습니다:
+
+```bash
+npx wrangler kv namespace create KV
+```
+
+그런 다음 KV 네임스페이스를 Wrangler 구성 파일에 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "storage-state-examples",
+  	"main": "src/index.ts",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"compatibility_date": "$today",
+  	"browser": {
+  		"binding": "MYBROWSER"
+  	},
+  	"kv_namespaces": [
+  		{
+  			"binding": "KV",
+  			"id": "<YOUR-KV-NAMESPACE-ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+지금, 당신은 KV에 있는 persist 과자 그리고 다른 저장 자료에 저장 국가를 사용할 수 있습니다:
+
+```ts title="src/index.ts"
+//KVXQ 또는 존재하지 않는 경우에 persisted 저장 국가를 가져옵니다
+const storageStateJson = await env.KV.get('storageState');
+const storageState = storageStateJson ? await JSON.parse(storageStateJson) as BrowserContextOptions['storageState'] : undefined;
+
+await using browser = await launch(env.MYBROWSER);
+//KV
+await using context = await browser.newContext({ storageState });
+
+await using page = await context.newPage();
+
+//클라이언트 측 저장을 업데이트 할 수있는 페이지의 일부 작업을 수행
+
+//업데이트된 저장 상태: 쿠키, localStorage 및 IndexedDB
+const updatedStorageState = await context.storageState({ indexedDB: true });
+
+//persists는 KV에 있는 저장 국가를 새롭게 했습니다
+await env.KV.put('storageState', JSON.stringify(updatedStorageState));
+```
+
+### 계속 Alive
+
+사용자가 omit을 하는 경우`browser.close()`문, 브라우저 인스턴스는 열려있을 것이다, 다시 연결될 준비 및[재사용](/browser-rendering/workers-bindings/reuse-sessions/)그러나 기본적으로, 불완전의 1 분 후에 자동적으로 닫을 것입니다. 사용자는 10 분까지 이 idle 시간을, 사용해서 선택적으로 늘릴 수 있습니다`keep_alive`옵션, 밀리 초에서 설정:
+
+```js
+const browser = await playwright.launch(env.MYBROWSER, { keep_alive: 600000 });
+```
+
+위와 같이 브라우저는 최대 10 분 동안 열려있을 것입니다.
+
+:::참조
+이것은 inactivity timeout, 최대 세션 기간입니다. 세션은 10 분보다 오래 지속될 수 있습니다. inactivity timeout을 넘어 세션을 계속 유지하려면, 구성된 창 내에서 적어도 한 번 명령을 보내 (예를 들어, 10 분마다). 더 알아보기[세션 기간 제한](/browser-rendering/limits/#is-there-a-maximum-session-duration)더 많은 정보.
+주요 특징
+
+### 세션 재사용
+
+브라우저 렌더링 작업자의 성능을 개선하는 가장 좋은 방법은 브라우저를 유지함으로써 세션을 재사용하는 것입니다. 브라우저가 완료된 후, 그 세션에 연결하면 새로운 요청이 있습니다. Playwright 핸들[`browser.close`](https://playwright.dev/docs/api/class-browser#browser-close)Puppeteer에서 다르게. Playwright에서 브라우저가 사용되었는지`connect`세션은 종료됩니다. 브라우저가 얻은 경우`launch`세션은 종료됩니다.
+
+```js
+import { env } from "cloudflare:workers";
+import { acquire, connect } from "@cloudflare/playwright";
+
+async function reuseSameSession() {
+	//새로운 세션 취득
+	const { sessionId } = await acquire(env.BROWSER);
+
+	for (let i = 0; i < 5; i++) {
+		//이전에 취득한 세션에 연결
+		const browser = await connect(env.BROWSER, sessionId);
+
+		//· ...
+
+		//이 세션에서 브라우저를 차단하지만 세션은 살아있을 것입니다.
+		await browser.close();
+	}
+}
+```
+
+### 사용자 정의 에이전트 설정
+
+Playwright의 사용자 에이전트를 지정하려면 새로운 브라우저 컨텍스트를 만들 때 옵션을 설정하십시오.`browser.newContext()`. 이 문맥에서 만든 모든 페이지는 새로운 사용자 에이전트를 사용합니다. 대상 웹 사이트가 사용자 에이전트에 따라 다른 콘텐츠를 제공 하는 경우 유용합니다.
+
+```js
+const context = await browser.newContext({
+  userAgent:
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+});
+```
+
+:::참조
+더 보기`userAgent`매개변수는 bot 보호를 우회하지 않습니다. 브라우저 렌더링에서 요청은 항상 봇으로 식별됩니다.
+주요 특징
+
+## 세션 관리
+
+브라우저 세션 관리를 용이하게하기 위해 Playwright API를 확장했습니다.
+
+### 열린 세션
+
+`playwright.sessions()`현재 실행 세션을 나열합니다. 그것은 이것과 유사한 산출을 돌려보낼 것입니다:
+
+```json
+[
+	{
+		"connectionId": "2a2246fa-e234-4dc1-8433-87e6cee80145",
+		"connectionStartTime": 1711621704607,
+		"sessionId": "478f4d7d-e943-40f6-a414-837d3736a1dc",
+		"startTime": 1711621703708
+	},
+	{
+		"sessionId": "565e05fb-4d2a-402b-869b-5b65b1381db7",
+		"startTime": 1711621703808
+	}
+]
+```
+
+세션 공지`478f4d7d-e943-40f6-a414-837d3736a1dc`활성 노동자 연결 (Active worker connection)`connectionId=2a2246fa-e234-4dc1-8433-87e6cee80145`), 세션`565e05fb-4d2a-402b-869b-5b65b1381db7`무료. 연결이 활성화되어 있지만 다른 근로자는 그 세션에 연결할 수 있습니다.
+
+### 최근 세션
+
+`playwright.history()`최근 세션 목록, 오픈 및 폐쇄 모두. 당신의 현재 사용법의 감각을 얻는 것이 유용합니다.
+
+```json
+[
+	{
+		"closeReason": 2,
+		"closeReasonText": "BrowserIdle",
+		"endTime": 1711621769485,
+		"sessionId": "478f4d7d-e943-40f6-a414-837d3736a1dc",
+		"startTime": 1711621703708
+	},
+	{
+		"closeReason": 1,
+		"closeReasonText": "NormalClosure",
+		"endTime": 1711123501771,
+		"sessionId": "2be00a21-9fb6-4bb2-9861-8cd48e40e771",
+		"startTime": 1711123430918
+	}
+]
+```
+
+회사연혁`2be00a21-9fb6-4bb2-9861-8cd48e40e771`명시적으로 닫히는`browser.close()`클라이언트에 의해, 세션`478f4d7d-e943-40f6-a414-837d3736a1dc`최대 유휴 시간에 도달하기 때문에 닫혔다 (check)[제한 사항](/browser-rendering/limits/)).
+
+대시보드, 약간의 지연을 가진 albeit에 이 정보를 접근할 수 있어야 합니다.
+
+### 활동 제한
+
+`playwright.limits()`활동 제한 목록:
+
+```json
+{
+	"activeSessions": [
+		{ "id": "478f4d7d-e943-40f6-a414-837d3736a1dc" },
+		{ "id": "565e05fb-4d2a-402b-869b-5b65b1381db7" }
+	],
+	"allowedBrowserAcquisitions": 1,
+	"maxConcurrentSessions": 2,
+	"timeUntilNextAllowedBrowserAcquisition": 0
+}
+```
+
+- `activeSessions`현재 열린 세션의 ID 목록
+- `maxConcurrentSessions`여러 브라우저가 동시에 열 수 있는지 정의합니다.
+- `allowedBrowserAcquisitions`새로운 브라우저 세션이 비율에 따라 열 수 있는지 확인합니다.[제한 사항](/browser-rendering/limits/)내 계정
+- `timeUntilNextAllowedBrowserAcquisition`새로운 브라우저가 시작되기 전에 대기 기간을 정의합니다.
+
+## Playwright API를
+
+전체 Playwright API에서 찾을 수 있습니다[Playwright API 문서](https://playwright.dev/docs/api/class-playwright).
+
+다음 기능은 아직 완전히 지원되지 않습니다. 그러나 우리는 그들에 적극적으로 일하고 있습니다.
+
+- [Playwright 테스트](https://playwright.dev/docs/test-configuration)이름 \*[관련 기사](https://playwright.dev/docs/test-assertions)
+- [제품정보](https://playwright.dev/docs/test-components)
+- [파이어 폭스](https://playwright.dev/docs/api/class-playwright#playwright-firefox), [다운로드](https://playwright.dev/docs/api/class-android)·[사이트맵](https://playwright.dev/docs/api/class-electron)크롬의 다른 버전
+- [이름 \*](https://playwright.dev/docs/next/videos)
+
+이것은**잘못된 목록**— 우리는 본래 특징 세트를 가진 더 넓은 parity를 향해 일하기 때문에 급속한 변화를 예상합니다. 당신은 또한 체크 할 수 있습니다[시험 결과](https://playwright-full-test-report.pages.dev/)완전히 지원되는 기능의 날짜 목록까지 과립을 위해.

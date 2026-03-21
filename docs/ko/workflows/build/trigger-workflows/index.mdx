@@ -1,0 +1,218 @@
+---
+title: 방아쇠 Workflows
+pcx_content_type: concept
+tags:
+  - Bindings
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/build/trigger-workflows/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/build/trigger-workflows/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+WorkflowsXQ 모두 프로그래밍 및 Workflows API를 통해 트리거 할 수 있습니다.
+
+1. 이름 \*[모델 번호: Workers](/workers)HTTP 요청을 통해`fetch`핸들러 또는 바인딩`queue`또는`scheduled`회사 소개
+2. 사용 방법[Workflows 등급 API](/api/resources/workflows/methods/list/)
+3. 오시는 길[wrangler 클립](/workers/wrangler/commands/#workflows)당신의 맨끝에서
+
+## Workers API (생각)
+
+Workflows프로그램과 상호작용할 수 있습니다. 노동자는 다른 Workers 프로젝트 (문자)에서 정의된 QXQXQXQXQXQ를 포함하여 WorkflowsXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ 프로젝트 (문자)에, QXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ
+
+작업 흐름과 상호 작용할 수 있습니다:
+
+- HTTP를 통해 직접[`fetch`](/workers/runtime-apis/handlers/fetch/)회사 소개
+- 에 의해[Queue 소비자](/queues/configuration/javascript-apis/#consumer)내 계정`queue`회사 소개
+- 에 의해[Cron 방아쇠](/workers/configuration/cron-triggers/)내 계정`scheduled`회사 소개
+- 이름 \*[튼튼한 목표](/durable-objects/)
+
+:::참조
+
+Workflows에 새로운? 시작하기[Workflows 튜토리얼](/workflows/get-started/guide/)Workflows 개념을 사용하여 첫 번째 워크플로를 배포하고 자신에게 익숙합니다.
+
+:::
+
+Workers 코드에서 작업 흐름에 바인딩하려면, 당신은 정의해야[관련 제품](/workers/wrangler/configuration/)특정 작업 흐름에. 예를 들어, Workflow에 정의된 바인딩[get started 가이드](/workflows/get-started/guide/), 당신은 구성할 것 이다[Wrangler 구성 파일](/workers/wrangler/configuration/)아래에로:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "workflows-tutorial",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"workflows": [
+  		{
+  			//Workflow의 이름
+  			"name": "workflows-tutorial",
+  			//유효한 JavaScript 가변 이름이어야 하는 바인딩 이름. 이것은
+  			//다른 Workers 핸들러에서 작업 흐름을 호출하는 방법 또는
+  			//스크립트.
+  			"binding": "MY_WORKFLOW",
+  			//Workflow 클래스를 확장하는 코드에서 정의된 클래스와 일치해야 합니다.
+  			"class_name": "MyWorkflow"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+더 보기`binding = "MY_WORKFLOW"`라인은 JavaScript 변수를 정의하여 워크 플로우 메소드가 접근할 수 있음을 정의합니다.`create`(새로운 인스턴스를 트리거) 또는`get`(현재 인스턴스의 상태를 반환).
+
+다음 예제에서는 Workflows를 Worker 내에서 관리할 수 있는 방법을 보여줍니다.
+
+- ID로 기존 Workflow 인스턴스의 상태를 검색
+- 새로운 Workflow 인스턴스 만들기
+- 주어진 인스턴스 ID의 상태를 반환
+
+```ts title="src/index.ts"
+interface Env {
+	MY_WORKFLOW: Workflow;
+}
+
+export default {
+	async fetch(req: Request, env: Env) {
+		//쿼리 매개 변수에서 인스턴스를 가져옵니다.
+		const instanceId = new URL(req.url).searchParams.get("instanceId");
+
+		//?instanceId=<id> 쿼리 매개 변수가 제공되면 상태를 fetch
+		//기존의 Workflow의 ID로
+		if (instanceId) {
+			let instance = await env.MY_WORKFLOW.get(instanceId);
+			return Response.json({
+				status: await instance.status(),
+			});
+		}
+
+		//Else는, 우리의 워크 플로우의 새로운 인스턴스를 만듭니다, (선택 사항)
+		//램과 ID를 반환합니다.
+		const newId = crypto.randomUUID();
+		let instance = await env.MY_WORKFLOW.create({ id: newId });
+		return Response.json({
+			id: instance.id,
+			details: await instance.status(),
+		});
+	},
+};
+```
+
+### Workflow의 상태 검사
+
+호출하여 실행된 Workflow 인스턴스의 상태를 검사할 수 있습니다.`status`특정 인스턴스 ID에 대해. 이것은 프로그래밍 할 수 있습니다. 인스턴스가 할당되는지 여부를 검사 (예정), 적극적으로 실행, 일시 중지, 또는 오류.
+
+```ts
+let instance = await env.MY_WORKFLOW.get("abc-123");
+let status = await instance.status(); //InstanceStatus를 반환합니다
+```
+
+상태의 가능한 값은 다음과 같습니다.
+
+```ts
+  status:
+    | "queued" //그 인스턴스가 시작될 때까지 기다리는 것을 의미합니다. (자본 제한 참조)
+    | "running"
+    | "paused"
+    | "errored"
+    | "terminated" //사용자가 실행된 동안 인스턴스를 종료했습니다.
+    | "complete"
+    | "waiting" //예를 들어 수면이나 수면을 기다리는 것이 좋습니다.
+    | "waitingForPause" //인스턴스는 일시 중지에 현재 작업을 완료
+    | "unknown";
+  error?: {
+    name: string,
+    message: string
+  };
+	output?: unknown;
+```
+
+### Explicitly 일시 중지
+
+당신은 명시적으로 Workflow 인스턴스를 일시 중지 할 수 있습니다 (그리고 나중에 다시 시작) 호출`pause`특정 인스턴스 ID에 대해.
+
+```ts
+let instance = await env.MY_WORKFLOW.get("abc-123");
+await instance.pause(); //반환 Promise<void>
+```
+
+### 작업 흐름을 다시
+
+호출하여 일시적인 Workflow 인스턴스를 재개할 수 있습니다.`resume`특정 인스턴스 ID에 대해.
+
+```ts
+let instance = await env.MY_WORKFLOW.get("abc-123");
+await instance.resume(); //반환 Promise<void>
+```
+
+전화 번호`resume`현재 사용되지 않은 인스턴스에 영향을 미치지 않습니다.
+
+:::카트로션
+작업 흐름의 최대 동시 인스턴스에 도달하면 인스턴스를 재시작하지 못할 수 있습니다. 인스턴스는 concurrency 슬롯이 사용할 때까지 할당됩니다.
+주요 특징
+
+### 작업 흐름을 중지
+
+호출하여 Workflow 인스턴스를 중지/변경할 수 있습니다.`terminate`특정 인스턴스 ID에 대해.
+
+```ts
+let instance = await env.MY_WORKFLOW.get("abc-123");
+await instance.terminate(); //반환 Promise<void>
+```
+
+중지 / 종료되면 Workflow 인스턴스*수 없습니다*재시작
+
+### 작업 흐름을 복원
+
+```ts
+let instance = await env.MY_WORKFLOW.get("abc-123");
+await instance.restart(); //반환 Promise<void>
+```
+
+인스턴스를 재시작하면 즉시 취소할 수 있으며, 중간 상태를 지우며, 첫번째로 실행된 경우 Workflow를 치료합니다.
+
+### 다른 Workflow에서 작업 흐름을 트리거
+
+다른 Workflow의 단계 내에서 새로운 Workflow 인스턴스를 만들 수 있습니다. 부모 워크 플로우는 자식 워크 플로우에 대한 대기를 막지 않습니다. 아이 인스턴스가 성공적으로 생성 된 후 즉시 실행됩니다.
+
+<TypeScriptExample>
+  ```ts
+  export class ParentWorkflow extends WorkflowEntrypoint<Env, Params> {
+  	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+  		//초기 작업 수행
+  		const result = await step.do("initial processing", async () => {
+  			//... 처리 논리
+  			return { fileKey: "output.pdf" };
+  		});
+
+  		//추가 처리를위한 어린이 워크플로우
+  		const childInstance = await step.do("trigger child workflow", async () => {
+  			return await this.env.CHILD_WORKFLOW.create({
+  				id: `child-${event.instanceId}`,
+  				params: { fileKey: result.fileKey },
+  			});
+  		});
+
+  		//학부모는 즉시 진행되지 않습니다.
+  		await step.do("continue with other work", async () => {
+  			console.log(`Started child workflow: ${childInstance.id}`);
+  			//아이 워크플로 상태에 관계없이 바로 실행
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+아이 워크플로가 시작될 때, 단계가 실패하고 재량 구성에 따라 재량화됩니다. 아이 인스턴스가 성공적으로 생성되면 부모로부터 독립적으로 실행됩니다.
+
+## REST API (HTTP)
+
+더 알아보기[Workflows REST API 문서](/api/resources/workflows/subresources/instances/methods/create/).
+
+## 명령 선 (CLI)
+
+더 알아보기[CLI 빠른 시작](/workflows/get-started/guide/)명령행을 통해 WorkflowsXQ를 관리하고 트리거하는 방법에 대해 자세히 알아보세요.

@@ -1,0 +1,91 @@
+---
+pcx_content_type: concept
+title: 멀티탭 만들기
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/how-to/multitenancy/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/how-to/multitenancy/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree } from "~/components"
+
+AI Search는 각 사용자, 고객, 또는 작업 공간에 의해 당신에게 세그먼트 내용을 전달함으로써 멀티텐시브를 지원합니다. 이 문서를 per-tenant 폴더로 정리하여 일반적으로 수행[metadata 필터](/ai-search/configuration/metadata/)쿼리 시간에.
+
+## 1. Tenant의 콘텐츠 구성
+
+R2에 파일을 업로드할 때, 고유 폴더 경로를 사용하여 열거하여 콘텐츠를 구성합니다.
+
+예제 폴더 구조 :
+
+<FileTree>
+  - 고객-a
+    - 로그 /
+    - 계약/
+  - 고객 B
+    - 계약/
+</FileTree>
+
+인덱스 할 때, AI Search는 자동으로 메타데이터로 폴더 경로를 저장합니다.`folder`이름 \* 업로드 중 폴더 분리를 시행하거나 임베디드 데이터 액세스를 방지하는 것이 좋습니다.
+
+## 2. 폴더 필터를 사용하여 검색
+
+10만 건의 서류를 검색할 수 있도록`folder`검색을 수행 할 때 필터.
+
+예제 사용[Workers 회사 소개](/ai-search/usage/workers-binding/):
+
+```js
+const response = await env.AI.autorag("my-autorag").search({
+	query: "When did I sign my agreement contract?",
+	filters: {
+		type: "eq",
+		key: "folder",
+		value: `customer-a/contracts/`,
+	},
+});
+```
+
+여러 폴더를 필터링하거나 날짜 기반 필터링을 추가하려면 다양한 폴더를 사용하여 화합물 필터를 사용할 수 있습니다.[비교 필터](/ai-search/configuration/metadata/#compound-filter).
+
+## 팁 : "Starts with" 필터 사용
+
+한국어`eq`특정 폴더에서 대상 파일을 필터링하면 하위 폴더에 파일이 있는 경우, 파일에 상관없이 모든 문서를 검색할 수 있습니다. 예를 들어, 모든 파일`customer-a/`같은 구조로:
+
+<FileTree>
+  - 고객-a
+    - 프로파일.md
+    - 계약서
+      - 이름 \*
+        - 계약-1.pdf
+</FileTree>
+
+이를 달성하기 위해[시작하기](/ai-search/configuration/metadata/#starts-with-filter-for-folders)행동, 같은 화합물 필터를 사용:
+
+```js
+filters: {
+    type: "and",
+    filters: [
+      {
+        type: "gt",
+        key: "folder",
+        value: "customer-a//",
+      },
+      {
+        type: "lte",
+        key: "folder",
+        value: "customer-a/z",
+      },
+    ],
+  },
+```
+
+이 필터는 시작된 경로 식별`customer-a/`사용 :
+
+- 더 보기`and`조건의 효과를 결합`gt`·`lte`이름 \*
+- 더 보기`gt`더 큰 길을 포함 하는 조건`/`ASCII 캐릭터.
+- 더 보기`lte`더 낮은 케이스를 포함하여 경로 더 적은을 포함하는 상태`z`ASCII 캐릭터.
+
+이 필터는 두 파일을 캡처`profile.md`·`contract-1.pdf`.

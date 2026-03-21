@@ -1,0 +1,102 @@
+---
+pcx_content_type: navigation
+title: 분석 및 로그
+sidebar:
+  order: 3
+---
+
+import { Badge, FeatureTable, Details, DashButton } from "~/components";
+
+아래 섹션을 참고하여 DNS Firewall의 분석과 로그에 접근하는 방법을 알아보세요.
+
+## 분석
+
+DNS Firewall 분석을 사용하면 계정의 DNS 쿼리에 관한 데이터를 평가할 수 있습니다.
+
+### 제공 범위와 제한
+
+사용 가능한 과거 데이터는 62일을 다루며, 데이터를 조회할 수 있는 최대 기간도 62일입니다.
+
+### 대시보드
+
+빠른 요약을 보려면 대시보드에서 DNS Firewall 분석을 확인하세요. DNS 분석 대시보드에는 [네 개의 주요 패널](#panels)이 있으며, 페이지 상단에서 지정한 필터와 기간이 모두에 적용됩니다.
+
+Cloudflare 대시보드에서 **DNS Firewall Analytics** 페이지로 이동합니다.
+
+<DashButton url="/?to=/:account/dns-firewall/analytics" />
+
+#### 사용 가능한 차원
+
+- Query name
+- Query type(DNS 레코드 타입과 동일)
+- Cluster
+- Cluster IP
+- Response code
+- Response reason(아래 [설명](#response-reasons) 참고)
+- Response cached(캐시됨 또는 캐시되지 않음)
+- Response stale(오래됨 또는 새로움)
+- Data center
+- Source IP
+- Upstream nameserver IP
+- Protocol(UDP 또는 TCP)
+- IP version(IPv4 또는 IPv6)
+
+#### 패널
+
+페이지 상단에서 지정한 필터와 기간은 모든 패널에 적용됩니다.
+
+- **Query summary**: 쿼리 수와 시간에 따른 분포를 보여 줍니다. 이 정보는 각 [사용 가능한 차원](#available-dimensions)별로 세분화됩니다. 그래프 위의 탭을 통해 차원을 선택할 수 있으며, 값 위에 마우스를 올린 뒤 **Filter** 또는 **Exclude**를 선택해 결과에서 특정 값을 빠르게 포함하거나 제외할 수 있습니다.
+
+- **Query statistics**: 쿼리 메트릭의 개요입니다. 즉 **Total queries**, **Cached queries**, **Uncached queries**, **Stale cache queries**를 표시합니다.
+
+  <Details header="처리 시간과 응답 시간">
+  	{" "}
+  	처리 시간은 DNS Firewall 내부에서 쿼리를 처리하는 데 걸린 총 시간을 의미하며, Cloudflare 서버에서 직접 제공된 캐시된 쿼리에 해당합니다. 캐시되지 않은 쿼리의 경우에는 사용자의 업스트림 nameserver에서 응답을 받아오는 시간까지 고려한 응답 시간이 사용됩니다. 처리 시간과 응답 시간은 모두 밀리초 단위로 표시됩니다.
+  </Details>
+
+      <Details header="90번째 백분위수(p90)">처리 시간과 응답 시간의 평균값 외에도 `p90` 값은 전체 쿼리의 90%가 해결되는 데 걸린 최대 시간을 보여 줍니다. 예를 들어 p90이 1밀리초라면, 쿼리의 90%가 1밀리초 이내에 해결되었다는 뜻입니다.</Details>
+
+- **DNS queries by data center**: 어떤 Cloudflare 데이터 센터가 계정의 DNS 쿼리를 처리했는지 보여 주는 지도입니다. 상위 10개 결과 목록도 확인할 수 있으며, 데이터 센터 위에 마우스를 올린 뒤 **Filter** 또는 **Exclude**를 선택해 결과에서 특정 데이터 센터를 빠르게 포함하거나 제외할 수 있습니다.
+
+- **Top query statistics**: [사용 가능한 차원](#available-dimensions)별로 그룹화된 상위 쿼리의 세부 내역입니다. 각 카드를 확장해 더 많은 결과를 나열할 수 있고 특정 값을 검색할 수도 있습니다.
+
+### GraphQL
+
+[GraphQL API](/analytics/graphql-api/)를 사용해 DNS Firewall 분석에 접근할 수 있습니다. 시작 방법은 GraphQL Analytics API 문서의 [get started](/analytics/graphql-api/getting-started/) 가이드를 참고하세요.
+
+DNS Firewall 분석에는 두 가지 [스키마](/analytics/graphql-api/getting-started/querying-basics/)가 있습니다.
+
+- `dnsFirewallAnalyticsAdaptive`: 개별 DNS Firewall 쿼리에 대한 정보를 가져옵니다.
+- `dnsFirewallAnalyticsAdaptiveGroups`: 집계 정보만 포함한 리포트를 가져옵니다.
+
+### API <Badge text="Legacy" variant="caution" size="medium" />
+
+DNS Firewall API의 [reports endpoint](/api/resources/dns_firewall/subresources/analytics/subresources/reports/)를 사용할 수도 있습니다.
+
+---
+
+## 로그
+
+[Logpush](/logs/logpush/)를 설정해 [DNS Firewall 로그](/logs/logpush/logpush-job/datasets/account/dns_firewall_logs/)를 스토리지 서비스, SIEM 또는 로그 관리 제공업체로 전송할 수 있습니다.
+
+## 응답 사유
+
+특정 쿼리에 대해 Cloudflare DNS Firewall이 어떤 방식으로 응답했는지 분석할 때는 `responseReason` 로그 필드를 참고하세요.
+
+다음 표는 응답 사유로 반환될 수 있는 각 값의 설명입니다.
+
+| Value                     | Description                                                                                                                                                    |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `success`                 | 응답이 Cloudflare 캐시에서 제공되었거나 업스트림에서 전달되어 성공적으로 반환되었습니다.                                                                 |
+| `upstream_failure`        | 업스트림이 응답하지 않아 업스트림에서 응답을 가져오지 못했습니다.                                                                                           |
+| `upstream_servfail`       | 업스트림이 `SERVFAIL`로 응답하여 업스트림에서 응답을 가져오지 못했습니다.                                                                                   |
+| `invalid_query`           | 쿼리가 유효하지 않아 처리할 수 없습니다.                                                                                                                     |
+| `any_type_blocked`        | 사용자의 [DNS Firewall 설정](/dns/dns-firewall/setup/)에 따라 `ANY` 타입 쿼리가 차단되었습니다([RFC 8482](https://www.rfc-editor.org/rfc/rfc8482.html)). |
+| `rate_limit`              | 사용자의 [DNS Firewall 설정](/dns/dns-firewall/setup/)에 따라 쿼리가 속도 제한되었습니다.                                                                  |
+| `chaos_success`           | [Chaos class](https://en.wikipedia.org/wiki/Chaosnet)에 대한 응답이 성공적으로 제공되었습니다.                                                             |
+| `attack_mitigation_block` | [랜덤 프리픽스 공격 완화](/dns/dns-firewall/random-prefix-attacks/)의 일부로 쿼리가 차단되었습니다.                                                        |
+| `unknown`                 | 알 수 없는 오류가 발생했습니다.                                                                                                                              |
+
+[^1]: DNS Firewall 내부에서 쿼리를 처리하는 데 걸린 총 시간입니다.
+
+[^2]: 응답이 캐시되지 않아 Cloudflare가 업스트림 nameserver에서 응답을 받아와야 할 때 걸리는 시간입니다.

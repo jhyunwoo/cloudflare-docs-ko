@@ -1,0 +1,187 @@
+---
+title: 범용 엔드포인트
+pcx_content_type: get-started
+sidebar:
+  order: 2
+  hidden: true
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/usage/universal/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/usage/universal/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Badge, WranglerConfig } from "~/components";
+
+:::참조
+
+모델 fallback 기능을 구현하기 위해 Dynamic Route를 사용하는 것이 좋습니다.
+
+:::
+
+Universal Endpoint를 사용하여 모든 공급자에게 연락할 수 있습니다.
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}
+```
+
+AI Gateway는 각 게이트웨이에 대한 여러 엔드포인트를 제공합니다 - 공급자당 1개의 엔드포인트, 1개의 유니버셜 엔드포인트. Universal Endpoint는 스키마에 어떤 조정이 필요하지만 추가 기능을 지원합니다. 이러한 기능 중 일부는 예를 들어, 요청을 복원하는 경우 첫 번째 시간 또는 구성[fallback 모형/제공](/ai-gateway/configuration/fallbacks/).
+
+유니버셜 엔드포인트를 사용하여 모든 공급자에게 연락할 수 있습니다. 페이로드는 메시지의 배열을 기대하고, 각 메시지는 다음과 같은 매개 변수를 가진 객체입니다:
+
+- `provider`: 이 메시지를 전달하고 싶습니다. OpenAI, workers-ai 또는 지원되는 공급자의 무엇이든 일 수 있습니다.
+- `endpoint`: 공급자 API의 경로명은 도달하려고 합니다. 예를 들어, OpenAI에서 할 수 있습니다.`chat/completions`Workers AIXQ를 위해 이것은 일 수 있습니다[`@cf/meta/llama-3.1-8b-instruct`](/workers-ai/models/llama-3.1-8b-instruct/). 특정한 단면도에서 더 보기[각 공급자](/ai-gateway/usage/providers/).
+- `authorization`: 이 공급자에게 연락할 때 사용해야 하는 권한 HTTP 헤더의 내용. 이것은 일반적으로 'Token'또는 'Bearer'로 시작합니다.
+- `query`: 공급자로서의 페이로드는 공식 API에서 기대합니다.
+
+## cURL 예제
+
+<Render file="universal-gateway-example" product="ai-gateway" />
+
+위는 Workers AI Inference API에 대한 요청을 보낼 것입니다. 필요한 만큼 많은 fallbacks를 추가할 수 있습니다.
+
+## 웹소켓 API<Badge text="beta" variant="tip" size="small" />
+
+Universal Endpoint는 또한 접근할 수 있습니다.[웹소켓 API](/ai-gateway/usage/websockets-api/)단일 지속적 연결을 제공하는 것은 연속 통신을 가능하게합니다. 이 API는 WebSockets를 기본적으로 지원하지 않는 사람들을 포함하여 AI Gateway에 연결된 모든 AI 공급자를 지원합니다.
+
+## WebSockets 예제
+
+```javascript
+import WebSocket from "ws";
+const ws = new WebSocket(
+	"wss://gateway.ai.cloudflare.com/v1/my-account-id/my-gateway/",
+	{
+		headers: {
+			"cf-aig-authorization": "Bearer AI_GATEWAY_TOKEN",
+		},
+	},
+);
+
+ws.send(
+	JSON.stringify({
+		type: "universal.create",
+		request: {
+			eventId: "my-request",
+			provider: "workers-ai",
+			endpoint: "@cf/meta/llama-3.1-8b-instruct",
+			headers: {
+				Authorization: "Bearer WORKERS_AI_TOKEN",
+				"Content-Type": "application/json",
+			},
+			query: {
+				prompt: "tell me a joke",
+			},
+		},
+	}),
+);
+
+ws.on("message", function incoming(message) {
+	console.log(message.toString());
+});
+```
+
+## 모델 번호: Workers 바인딩 예제
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+```typescript title="src/index.ts"
+type Env = {
+	AI: Ai;
+};
+
+export default {
+	async fetch(request: Request, env: Env) {
+		return env.AI.gateway("my-gateway").run({
+			provider: "workers-ai",
+			endpoint: "@cf/meta/llama-3.1-8b-instruct",
+			headers: {
+				authorization: "Bearer my-api-token",
+			},
+			query: {
+				prompt: "tell me a joke",
+			},
+		});
+	},
+};
+```
+
+## 헤더 구성 hierarchy
+
+Universal Endpoint는 낙하 모델 또는 공급자를 설정하고 각 공급자 또는 요청에 대한 헤더를 사용자 정의 할 수 있습니다. 3단계에서 헤더를 구성할 수 있습니다:
+
+1. **공급자 수준**: 특정 공급자에 특정한 우두머리.
+2. **주문 수준**: 개별 요청에 포함 된 헤더.
+3. **Gateway 설정**: 게이트웨이 대시보드XQ로 구성된 기본 헤더.
+
+동일한 설정이 여러 위치에서 구성될 수 있기 때문에, AI Gateway는 구성이 우선적으로 진행되는 것을 결정하기 위해 hierarchy를 적용합니다:
+
+- **공급자 수준 headers**다른 모든 구성을 무시합니다.
+- **요청 레벨 헤더**공급자 수준 우두머리가 놓인 경우에 사용됩니다.
+- **Gateway-level 설정**헤더가 공급자 또는 요청 수준에서 구성되지 않는 경우에만 사용됩니다.
+
+이 계층은 일관된 행동을 보장, 가장 특정 구성 우선. 공급 업체 레벨 및 요청 레벨 헤더를 사용하여 미세 조정 컨트롤, 일반 기본값의 게이트웨이 설정.
+
+## Hierarchy 예제
+
+이 예제는 다른 수준의 충격 캐싱 행동에 설정하는 방법을 보여줍니다 :
+
+- **요청 레벨 헤더**: 한국어`cf-aig-cache-ttl`설정`3600`초, 이 캐싱 지속 시간을 기본으로 요청합니다.
+- **공급자 수준 header**: fallback 공급자 (OpenAI)를 위해,`cf-aig-cache-ttl`명시적으로 설정`0`초, 요청 레벨 헤더를 overriding 및 OpenAI가 공급자로 사용될 때 응답을 위해 캐싱 해제.
+
+이것은 공급자 수준 우두머리가 요구 수준 우두머리에 precedence를 가지고 가는 방법, 캐싱 행동의 과립 통제를 허용하.
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id} \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-cache-ttl: 3600' \
+  --data '[
+    {
+      "provider": "workers-ai",
+      "endpoint": "@cf/meta/llama-3.1-8b-instruct",
+      "headers": {
+        "Authorization": "Bearer {cloudflare_token}",
+        "Content-Type": "application/json"
+      },
+      "query": {
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are a friendly assistant"
+          },
+          {
+            "role": "user",
+            "content": "What is Cloudflare?"
+          }
+        ]
+      }
+    },
+    {
+      "provider": "openai",
+      "endpoint": "chat/completions",
+      "headers": {
+        "Authorization": "Bearer {open_ai_token}",
+        "Content-Type": "application/json",
+        "cf-aig-cache-ttl": "0"
+      },
+      "query": {
+        "model": "gpt-4o-mini",
+        "stream": true,
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is Cloudflare?"
+          }
+        ]
+      }
+    }
+  ]'
+```

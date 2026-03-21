@@ -1,0 +1,81 @@
+---
+pcx_content_type: how-to
+title: 개인 DNS
+tags:
+  - DNS
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/private-dns/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/private-dns/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components"
+
+기본적으로 모든 DNS 요청은 Cloudflare가 해결됩니다.[공용 DNS 해결자](/1.1.1.1/)로컬 해상도에 사용되는 일반적인 최상위 도메인 제외 (예 :`localhost`). Cloudflare에 내부 DNS 리플렉서를 연결할 수 있으며 비공개 경로를 해결하는 데 사용할 수 있습니다.
+
+## 개인 DNS 구성
+
+개인 DNS 쿼리를 해결하려면:
+
+1. [개인 네트워크 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/)Cloudflare 갱도로.
+
+2. 이름 \***네트워크** > **오시는 길**, 내부 DNS 의 IP 주소가 터널에 포함되어 있는지 확인합니다.
+
+   :::참조
+
+   견적 요청**분할 터널**설정하기[개인 IP 및 호스트 이름에 트래픽을 포함](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-cidr/#3-route-private-network-ips-through-warp).
+
+   :::
+
+3. 특정 DNS 쿼리는 다음과 같은 옵션 중 하나를 사용하여 내부 DNS 해결자에:
+
+   - [Local Domain Fallback 항목 만들기](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)내부 DNS 해결자에게 점. 예를 들어, WARP 클라이언트가 모든 요청을 해결할 수 있습니다.`myorg.privatecorp`내부 결선을 통해`10.0.0.25`이 공개적으로 해결하려고 시도보다 오히려.
+   - 대안으로,[해결사 정책](/cloudflare-one/traffic-policies/resolver-policies/#create-a-resolver-policy)내부 DNS 해결자에게 점.<Render file="gateway/resolver-policies-intro" product="cloudflare-one" />
+
+4. [Gateway 프록시 활성화](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy)TCP 및 UDP의 경우.
+
+5. 마지막으로, 당신의 갱도는 기본적으로 QUIC를 이용합니다[수송 의정서](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#protocol). 이 활성화`cloudflared`대부분의 경우 DNS 쿼리를 해결하려면 프록시 UDP 기반 트래픽.
+
+WARP 클라이언트는 이제 내부 DNS 해결자에게 DNS 쿼리를 보낼 것입니다. 더 알아보기[WARP 클라이언트가 DNS 요청을 처리하는 방법](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/#how-the-warp-client-handles-dns-requests).
+
+## 설정 테스트
+
+테스트를 위해, 실행`dig`내부 DNS 서비스에 대한 명령:
+
+```sh
+dig AAAA www.myorg.privatecorp
+```
+
+더 보기`dig`명령이 작동하기 때문에`myorg.privatecorp`위의 설정은 fallback 도메인. 그 단계를 건너면 여전히 강제 할 수 있습니다.`dig`개인 DNS 해설기를 사용하려면:
+
+```sh
+dig @10.0.0.25 AAAA www.myorg.privatecorp
+```
+
+모두 보기`dig`명령은 WARP 클라이언트가 최종 사용자의 장치에 비활성화되면 실패합니다.
+
+## 문제 해결
+
+Cloudflare 터널을 사용하여 개인 DNS를 구성하면서 문제 해결 전략을 사용하십시오.
+
+- 견적 요청`cloudflared`Cloudflare에 연결**네트워크** > **연결관** > **사이트맵 연락처**Cloudflare에 한국어
+
+- 견적 요청`cloudflared`함께 실행`quic`프로토콜 (search for`Initial protocol quic`로그인
+
+- 기계가 있는지 확인하십시오.`cloudflared`실행은 UDP를 통해 Cloudflare에 이야기하기 위해 7844 포트를 통해 egress에 허용됩니다.
+
+- 최종 사용자 장치가 WARP에 등록되어 있는지 확인하십시오.[사이트맵](https://help.teams.cloudflare.com).
+
+- 더블 체크[우선순위](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence)제품 정보[Gateway 네트워크 정책](/cloudflare-one/traffic-policies/network-policies/). 더 많은 글로벌 블록이거나 정책을 허용하지 않는 것을 보장한다.
+
+- 자주 묻는 질문[Gateway 네트워크 로그](/cloudflare-one/insights/logs/gateway-logs/#network-logs)UDP DNS 해상도가 허용되거나 차단되는지 확인하십시오.
+
+- 내부 DNS 해결자가 routable Private IP 주소에서 사용할 수 있는지 확인하십시오. 당신은 시도 할 수 있습니다`dig`기계 실행 명령`cloudflared`.
+
+- 자주 묻는 질문`dig ... +tcp`UDP 대신 TCP를 사용하는 DNS 해상도를 강제합니다.

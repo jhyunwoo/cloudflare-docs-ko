@@ -1,0 +1,104 @@
+---
+title: 단기 인증서 (legacy)
+tags:
+  - SSH
+pcx_content_type: how-to
+sidebar:
+  order: 6
+  label: 단기 인증서 (legacy)
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/short-lived-certificates-legacy/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/non-http/short-lived-certificates-legacy/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+:::참조
+새로운 배포를 권장하지 않습니다. 자주 묻는 질문[접근성 준수](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/ssh-infrastructure-access/)SSH에 대한 짧은 인증서를 구성합니다.
+주요 특징
+
+<Render file="access/short-lived-certs-intro" product="cloudflare-one" params={{ intro: "Cloudflare Access can replace" }} />
+
+## 1. Cloudflare 액세스 뒤에 서버를 확보
+
+사이트맵 Access Short-lived 인증서는 모든 현대 SSH 서버와 함께 작동 할 수 있습니다. 액세스 또는 아닙니다. 그러나, 우리는 추가 보안 및 기능에 대한 액세스 뒤에 서버를 넣어 권장합니다. 감사 및 브라우저 기반 터미널과 같은.
+
+Cloudflare 액세스 뒤에 서버를 확보하려면:
+
+1. [Cloudflare에 서버 연결](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/)게시된 응용 프로그램으로.
+2. 이름 \*[셀프 호스팅 액세스 응용](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)서버의 경우
+
+:::참조
+액세스를 사용하지 않는 경우, 대신 참조[SSH 프록시 지침](/cloudflare-one/traffic-policies/network-policies/ssh-logging/).
+:::
+
+## 2. 사용자 SSO 식별자를 보장
+
+사이트맵 액세스는 토큰의 정체성을 가지고 있으며, 부족한 인증서를 사용하여 대상 인프라에서 사용자를 승인합니다.
+
+<Render file="ssh/usernames" product="cloudflare-one" />
+
+## 3. 짧은 라이브 인증서 공개 키 생성
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**액세스 제어** > **서비스 자격** > **사이트맵**.
+
+2. 제품정보**인증서 추가**.
+
+3. 내 계정**제품 설명**dropdown, SSH 서버를 나타내는 액세스 응용 프로그램을 선택합니다.
+
+4. 제품정보**인증현황**. 새로운 행은 액세스 응용 프로그램의 이름과 짧은 라이브 인증서 테이블에 나타납니다.
+
+5. 당신의 신청을 위한 단기적인 증명서를 선정하십시오.
+
+6. 제출하기**CA 공공 키**. 당신은 언제든지 이 공공 키를 복사 할 수 있습니다.
+
+## 4. 당신의 공중 열쇠를 저장하십시오
+
+1. 대시보드에서 생성 된 공공 키 복사 단계 3.
+
+<Render file="ssh/public-key" product="cloudflare-one" />
+
+## 5. 수정`sshd_config`이름 \*
+
+<Render file="ssh/modify-sshd" product="cloudflare-one" />
+
+## 6. SSH 서버를 재시작
+
+<Render file="ssh/restart-server" product="cloudflare-one" />
+
+## 7. 사용자로 연결
+
+### 클라이언트 SSH 구성
+
+클라이언트 측에,[장치 구성](/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/ssh/)Cloudflare 액세스를 사용하여 보호 된 기계를 도달합니다. 짧은 라이브 인증서를 사용하려면 SSH config 파일에 다음 설정을 포함해야합니다 (`~/.ssh/config`).
+
+시간을 절약하려면 필요한 구성 명령을 인쇄하려면 다음 Cloudflared 명령을 사용할 수 있습니다.
+
+```sh
+cloudflared access ssh-config --hostname vm.example.com --short-lived-cert
+```
+
+수동으로 구성하려면 생성 된 SSH 구성의 예입니다.
+
+```txt
+Match host vm.example.com exec "/usr/local/bin/cloudflared access ssh-gen --hostname %h"
+    HostName vm.example.com
+    ProxyCommand /usr/local/bin/cloudflared access ssh --hostname %h
+    IdentityFile ~/.cloudflared/vm.example.com-cf_key
+    CertificateFile ~/.cloudflared/vm.example.com-cf_key-cert.pub
+```
+
+### 브라우저 기반 터미널을 통해 연결
+
+최종 사용자는 Cloudflare의 브라우저 기반 터미널을 사용하여 구성 없이 SSH 세션에 연결할 수 있습니다. 사용 가능, 참조[브라우저 렌더링 터미널](/cloudflare-one/access-controls/applications/non-http/browser-rendering/).
+
+기본적으로, 브라우저 기반 터미널은 사용자의 사용자를 사용자 / 패스워드 로그인합니다. 인증서 기반 인증을 사용하고 싶다면, 반드시 해야 합니다.[단기 인증](#3-generate-a-short-lived-certificate-public-key)브라우저 렌더링 SSH에 대한 특정 액세스 응용 프로그램에 대한.
+
+***
+
+SSH 서버는 이제 Cloudflare Access 뒤에 보호됩니다. 사용자는 연결하기 전에 정체성 공급자로 인증됩니다. SSH 명령 로깅을 활성화 할 수 있습니다.[Gateway 감사 SSH 정책](/cloudflare-one/traffic-policies/network-policies/ssh-logging/).

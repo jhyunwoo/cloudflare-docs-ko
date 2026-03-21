@@ -1,0 +1,91 @@
+---
+pcx_content_type: troubleshooting
+title: 문제 해결
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/platform/troubleshooting/'
+translation_source_md: 'https://developers.cloudflare.com/r2/platform/troubleshooting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree } from "~/components";
+
+## 문제 해결 403 / R2와 CORS 문제
+
+모든 것을 올바르게 설정하지 않고 CORS 오류가 발생하면이 문제 해결 가이드를 따라야합니다.
+
+브라우저 콘솔에서 CORS 오류 위의 401/403 오류를 볼 경우, 다른 문제 (CORS 관련이 아닙니다)로 처리됩니다.
+
+CORS 문제가 있는 경우, 참조[CORS 문제 해결](#if-it-is-actually-cors).
+
+### 사용자 정의 도메인을 사용하는 경우
+
+1. 브라우저에서 개발자 도구를 엽니 다.
+2. 오시는 길**회사연혁**탭 및 실패 요청을 찾습니다. 개발자 도구가 열릴 때만 로그인한 것과 같이 페이지를 다시로드해야 할 수도 있습니다.
+3. 다음 두 개의 헤더에 대한 응답 헤더를 확인:
+
+- `cf-cache-status`
+- `cf-mitigated`
+
+#### 당신이 있는 경우에`cf-mitigated`기타 제품
+
+귀하의 요청은 WAF 규칙 중 하나에 의해 차단되었습니다. 감사합니다.[보안 이벤트](/waf/analytics/security-events/)블록의 원인을 식별합니다.
+
+#### 당신이없는 경우`cf-cache-status`기타 제품
+
+귀하의 요청이 차단되었습니다.[Hotlink 보호](/waf/tools/scrape-shield/hotlink-protection/).
+
+Hotlink Protection 설정 편집[구성 규칙](/rules/configuration-rules/), 또는 완전히 비활성화.
+
+### S3 API를 사용하는 경우
+
+자주 묻는 질문 컬 위에 요청을 시도하여 더 나은 오류 메시지를 얻을 수 있습니다.
+
+작업 S3 서명 예제에 대한 참조[이름 \*](/r2/examples/aws/)사이트 맵
+
+### 실제로 CORS라면
+
+다음은 CORS 구성과 몇 가지 일반적인 문제입니다.
+
+- `ExposeHeaders`같은 누락된 헤더`ETag`
+- `AllowedHeaders`같은 누락된 헤더`Authorization`또는`Content-Type`
+- `AllowedMethods`같은 누락 된 방법`POST`/`PUT`
+
+## Cloudflare QXR2XQ의 HTTP 5XX 오류 및 용량 제한
+
+HTTP 5XX 오류가 발생하면 Cloudflare R2 버킷이 너무 많은 동시 요청으로 압도되었습니다. 이 오류는 버킷 전체 읽기 및 쓰기 잠금을 트리거 할 수 있으며 모든 지속적인 작업의 성능에 영향을줍니다.
+
+이러한 혼란을 피하기 위해 요청 볼륨을 관리하기위한 전략을 구현하는 것이 중요합니다.
+
+여기에 당신이 고용 할 수있는 몇 가지 완화:
+
+### 감시 concurrent 요구
+
+당신의 물통에 concurrent 요구의 수를 추적하십시오. 클라이언트가 5XX 오류를 발생하면 작동을 중지하고 다른 고객과 의사 소통합니다. 조정에 의하여, 클라이언트는, 요청 비율을 감소시키고 성공적인 가동의 안정되어 있는 교류를 유지하.
+
+사용자가 물통에 직접 업로드하면 (예를 들면, S3 또는 Workers API를 사용하여), 당신은 concurrency 제한을 모니터링하거나 시행 할 수 없습니다. 그 경우에, 우리는 물통 sharding를 추천합니다.
+
+### 물통 sharding
+
+추가 복잡성의 비용에 더 높은 용량, 버킷 sharding 고려. 이 접근법은 여러 개의 버킷을 통해 읽기 및 쓰기를 배포하고 단일 버킷에 부하를 줄입니다. sharding는 배출 수용량에서 단 하나 뜨거운 목표를 막을 수 없습니다, 그것은 전반적인 충격을 완화하고 체계 탄력을 개량할 수 있습니다.
+
+## 이름 \*`This object is unnamed`
+
+Cloudflare QXdashboard에서, 당신은 물체를 전망하기 위하여 선택할 수 있습니다`/`선택하여 폴더 이름으로**본문 바로가기**.
+
+예를 들어, 이름의 객체`example/object`아래와 같이 표시됩니다.
+
+<FileTree>
+  - 이름 \*
+    - 기타 제품
+</FileTree>
+
+끝나는 개체 이름`/`Cloudflare QXdashboard를 생성하여 폴더를 unnamed 객체로 렌더링합니다.
+
+예를 들어, 지정된 객체 업로드`example/`R2 물통으로 아래에로 표시될 것입니다.
+
+<FileTree>
+  - 이름 \*
+    - `This object is unnamed`
+</FileTree>

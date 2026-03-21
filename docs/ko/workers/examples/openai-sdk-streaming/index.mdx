@@ -1,0 +1,114 @@
+---
+summary: Use the OpenAI v4 SDK to stream responses from OpenAI.
+tags:
+  - AI
+  - JavaScript
+  - TypeScript
+pcx_content_type: example
+title: Stream OpenAI API 응답
+sidebar:
+  order: 1001
+head: []
+description: OpenAI v4 SDK를 사용하여 OpenAI의 응답을 스트림합니다.
+reviewed: 2023-08-16T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/openai-sdk-streaming/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/openai-sdk-streaming/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get startedXQ로 빠르게 원하는 경우 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/openai-sdk-streaming)
+
+GitHub 계정의 저장소를 만들고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+이 코드를 실행하려면, 실행하여 OpenAI SDK를 설치해야 합니다.`npm i openai`.
+
+:::참조
+
+분석, 캐싱, 제한 속도, 그리고 더 많은, 당신은 또한 CloudflareQ를 통해 같은 요청을 보낼 수 있습니다[AI 게이트웨이](/ai-gateway/usage/providers/openai/).
+
+:::
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import OpenAI from "openai";
+
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		const openai = new OpenAI({
+    			apiKey: env.OPENAI_API_KEY,
+    		});
+
+    		//TransformStream을 생성하여 스트리밍 데이터를 처리
+    		let { readable, writable } = new TransformStream();
+    		let writer = writable.getWriter();
+    		const textEncoder = new TextEncoder();
+
+    		ctx.waitUntil(
+    			(async () => {
+    				const stream = await openai.chat.completions.create({
+    					model: "gpt-4o-mini",
+    					messages: [{ role: "user", content: "Tell me a story" }],
+    					stream: true,
+    				});
+
+    				//데이터에 대한 반복은 스트림 및 쓰기 가능
+    				for await (const part of stream) {
+    					writer.write(
+    						textEncoder.encode(part.choices[0]?.delta?.content || ""),
+    					);
+    				}
+    				writer.close();
+    			})(),
+    		);
+
+    		//본문 바로가기
+    		return new Response(readable);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { streamText } from "hono/streaming";
+    import OpenAI from "openai";
+
+    interface Env {
+    	OPENAI_API_KEY: string;
+    }
+
+    const app = new Hono<{ Bindings: Env }>();
+
+    app.get("*", async (c) => {
+    	const openai = new OpenAI({
+    		apiKey: c.env.OPENAI_API_KEY,
+    	});
+
+    	const chatStream = await openai.chat.completions.create({
+    		model: "gpt-4o-mini",
+    		messages: [{ role: "user", content: "Tell me a story" }],
+    		stream: true,
+    	});
+
+    	return streamText(c, async (stream) => {
+    		for await (const message of chatStream) {
+    			await stream.write(message.choices[0].delta.content || "");
+    		}
+    		stream.close();
+    	});
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

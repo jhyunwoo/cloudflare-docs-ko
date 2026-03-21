@@ -1,0 +1,263 @@
+---
+pcx_content_type: reference
+title: 중첩 구조
+sidebar:
+  order: 17
+---
+
+지원되는 중첩 구조는 두 가지입니다. **배열**과 **맵**입니다. 이 두 타입의 필드는 모두 배열이며, 이미 객체 배열인 쿼리 결과의 일부가 되면 중첩 배열이 됩니다.
+
+## 배열
+
+GraphQL API는 두 가지 종류의 배열을 지원합니다.
+
+- 일부 배열은 스칼라 타입(예: `[String]`)을 포함하며 일반 필드처럼 동작하고 [필터링할 수 있습니다](/analytics/graphql-api/features/filtering/).
+- 일부 배열은 더 복잡한 타입(예: `[Subrequest]`)을 포함합니다. 다음 섹션에서 이 동작을 설명합니다.
+
+비스칼라 타입 배열은 하나의 단일 값처럼 동작합니다. 배열을 페이지네이션하거나, 필터링하거나, 배열 기준으로 필터링하거나, 그룹화하거나, 배열 기준으로 그룹화할 수는 없습니다.
+
+반면, 내부 타입에서 어떤 필드를 가져올지는 선택할 수 있습니다.
+
+예를 들어 다음과 같은 배열이 있다고 가정해 보겠습니다.
+
+```javascript
+type SubRequest {
+    url: String!
+    status: Int
+}
+
+type Request {
+    date: Date!
+    datetime: DateTime!
+    subRequests: [SubRequest!]!
+}
+```
+
+하위 요청별 상태를 가져오는 쿼리는 다음과 같습니다.
+
+```javascript
+{
+    requests {
+        date
+        subRequests {
+            # url은 버리고 status만 필요합니다.
+            status
+        }
+    }
+}
+```
+
+결과는 다음과 같습니다.
+
+```javascript
+{
+    "requests": [
+        {
+            "date": "2018-01-01",
+            "subRequests": [{"status": 404}, {"status": 200}, {"status": 404}]
+        },
+        {
+            "date": "2018-01-01",
+            "subRequests": [{"status": 200}]
+        }
+    ]
+}
+```
+
+## 맵
+
+맵은 배열처럼 동작하지만 `sum` 함수를 사용해 그룹화할 수 있습니다. `httpRequest1dGroups` 같은 집계 데이터세트에서 사용됩니다.
+
+맵 예시:
+
+```javascript
+type URLStatsMapElem {
+    url: String!
+    requests: Int
+    bytes: Int
+}
+
+type Request {
+    date: Date!
+    datetime: DateTime!
+    urlStatsMap: [URLStatsMapElem!]!
+}
+```
+
+쿼리:
+
+```javascript
+{
+    requests {
+        sum {
+            urlStatsMap {
+                url
+                requests
+                bytes
+            }
+        }
+        dimensions {
+            date
+        }
+    }
+}
+```
+
+응답:
+
+```javascript
+{
+    "requests": [
+        {
+            "sum": {
+                "urlStatsMap": [
+                    {
+                        "url": "hello-world.org/1",
+                        "requests": 123,
+                        "bytes": 1024
+                    },
+                    {
+                        "url": "hello-world.org/10",
+                        "requests": 1230,
+                        "bytes": 10240
+                    }
+                ]
+            }
+            "dimensions" {
+                "date": "2018-10-19"
+            }
+        },
+        ...
+    ]
+}
+```
+
+## 예시
+
+원시 데이터세트에서 배열 필드 조회:
+
+```graphql graphql-api-explorer
+query NestedFields($zoneTag: string, $start: Time, $end: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			events(limit: 2, filter: { datetime_geq: $start, datetime_leq: $end }) {
+				matches {
+					ruleId
+					action
+					source
+				}
+			}
+		}
+	}
+}
+```
+
+응답 예시:
+
+```javascript
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "events": [
+            {
+              "matches": [
+                {
+                  "action": "allow",
+                  "ruleId": "rule-id-one",
+                  "source": "asn"
+                },
+                {
+                  "action": "block",
+                  "ruleId": "rule-id-two",
+                  "source": "asn"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+집계 데이터세트에서 맵 필드 조회:
+
+```graphql graphql-api-explorer
+query MapCapacity(
+	$zoneTag: string
+	$dateStart: Date
+	$dateEnd: Date
+	$start: Time
+	$end: Time
+) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			httpRequests1mGroups(
+				limit: 10
+				filter: {
+					date_geq: $dateStart
+					date_leq: $dateEnd
+					datetime_geq: $start
+					datetime_lt: $end
+				}
+			) {
+				sum {
+					countryMap {
+						clientCountryName
+						requests
+						bytes
+						threats
+					}
+				}
+				dimensions {
+					datetimeHour
+				}
+			}
+		}
+	}
+}
+```
+
+응답 예시:
+
+```javascript
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "httpRequests1mGroups": [
+            {
+              "dimensions": {
+                "datetime": "2019-03-08T17:00:00Z"
+              },
+              "sum": {
+                "countryMap": [
+                  {
+                    "bytes": 51911317,
+                    "clientCountryName": "XK",
+                    "requests": 4492,
+                    "threats": 0
+                  },
+                  {
+                    "bytes": 1816103586,
+                    "clientCountryName": "T1",
+                    "requests": 132423,
+                    "threats": 0
+                  },
+                  ...
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```

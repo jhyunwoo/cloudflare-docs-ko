@@ -1,0 +1,204 @@
+---
+title: 사이트맵
+pcx_content_type: how-to
+learning_center:
+  title: 데이터 마이그레이션이란?
+  link: 'https://www.cloudflare.com/learning/cloud/what-is-data-migration/'
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-migration/sippy/'
+translation_source_md: 'https://developers.cloudflare.com/r2/data-migration/sippy/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, DashButton, Steps } from "~/components";
+
+Sippy는 다른 클라우드 공급자로부터 R2에 데이터를 복사할 수 있는 데이터 마이그레이션 서비스로서, 불필요한 클라우드 egress 수수료를 지불하지 않고, 데이터의 다량을 이동할 수 있습니다.
+
+마이그레이션 특정 egress 수수료는 이미 R2에 객체를 복사하기 위해 egress 수수료를 지불 할 수있는 응용 프로그램의 흐름 내에서 요청을 레버링함으로써 감소됩니다.
+
+## 어떻게 작동합니까?
+
+R2 Bucket을 사용할 때 Sippy는 다음 마이그레이션 전략을 실행합니다.[모델 번호: Workers](/r2/api/workers/), [사이트맵](/r2/api/s3/)·[대중적인 물통](/r2/buckets/public-buckets/):
+
+- 객체가 요청되면 R2 Bucket에서 찾을 수 있습니다.
+- 객체가 R2에서 찾을 수없는 경우, 객체는 소스 저장 물통에서 동시에 반환되며 R2Q에 복사됩니다.
+- 다른 모든 작업, 넣어 및 삭제를 포함하여, 평소처럼 작업 계속.
+
+## Sippy는 언제 유용합니까?
+
+이동 전략의 일부로 Sippy를 사용하면 좋은 선택이 될 수 있습니다.
+
+- 데이터 마이그레이션을 시작하려면, 먼저 데이터 마이그레이션을 촉진하기 위해 상향 egress 수수료를 지불하고 싶습니다.
+- R2에서 자주 액세스 된 개체를 제공하여 실험하고 데이터 마이그레이션 시간에 투자하지 않고 egress 수수료를 제거하고 싶습니다.
+- 당신은 종종 데이터를 변경하고 가동 중단을 피하면서 마이그레이션을 수행 할 수 있습니다. Sippy는 요청을 제공 할 수 있습니다.[슈퍼 Slurper](/r2/data-migration/super-slurper/)나머지 데이터를 마이그레이션할 수 있습니다.
+
+기존 클라우드 공급자로부터 R2XQ에 이르기까지 모든 데이터를 마이그레이션하려는 경우[슈퍼 Slurper](/r2/data-migration/super-slurper/).
+
+## Sippy 시작하기
+
+시작하기 전에, 당신은 필요합니다:
+
+- 기존 R2 버킷. 이미 아무도없는 경우, 참조[버킷 만들기](/r2/buckets/create-buckets/).
+- [API 자격](/r2/data-migration/sippy/#create-credentials-for-storage-providers)당신의 근원 목표 저장 물통을 위해.
+- (Wrangler 전용) Cloudflare R2 액세스 키 ID 및 비밀 액세스 키 읽기 및 쓰기 권한. 더 많은 정보를 원하시면, 참조[인증현황](/r2/api/tokens/).
+
+### Dashboard를 통해 Sippy 활성화
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+  2. 물체를 migrate 객체와 같은 버킷을 선택합니다.
+  3. 전환하기**계정 설정**탭, 다음으로 스크롤**수요 마이그레이션**카드.
+  4. 제품정보**이름 \***&#x41;WS / GCS 버킷에 대한 세부 정보를 입력하여 객체를 마이그레이션합니다. 입력해야 할 자격은이 물통에서 읽을 수있는 권한이 있어야합니다. Cloudflare는 또한 이 물통에서 읽는 것을 허용하기 위하여 당신의 credentials를 scoping 추천합니다.
+  5. 제품정보**이름 \***.
+</Steps>
+
+### Wrangler
+
+#### 설치 Wrangler
+
+시작하기[`npm`](https://docs.npmjs.com/getting-started)·[Wrangler, 개발자 플랫폼 CLI 설치](/workers/wrangler/install-and-update/).
+
+#### R2 물통에 Sippy를 가능하게 하십시오
+
+Wrangler에 로그인[`wrangler login`이름 \*](/workers/wrangler/commands/#login). 다음 실행[`r2 bucket sippy enable`이름 \*](/workers/wrangler/commands/#r2-bucket-sippy-enable):
+
+```sh
+npx wrangler r2 bucket sippy enable <BUCKET_NAME>
+```
+
+지원되는 개체 저장 공급자 사이에서 선택하고 설치를 통해 당신을 이끌 것입니다.
+
+### API를 통해 Sippy 사용
+
+필요한 매개 변수와 예를 들어 Sippy를 활성화하는 방법, 참조[API 문서](/api/resources/r2/subresources/buckets/subresources/sippy/methods/update/). Cloudflare API로 시작하는 정보를 위해, 참조[API 호출](/fundamentals/api/how-to/make-api-calls/).
+
+:::참조
+
+버킷이 설정되면[관할 구역](/r2/reference/data-location/#jurisdictional-restrictions), 당신은 통과해야 할 것입니다`cf-r2-jurisdiction`해당 관할 구역에 요청 헤더. 예를 들어,`cf-r2-jurisdiction: eu`.
+
+:::
+
+### 이전 미터보기
+
+활성화되면 Sippy는 지속적인 마이그레이션의 진행 상황을 이해하는 데 도움이되는 메트릭을 노출합니다.
+
+| 기본 정보             | 이름 \*                                                        |
+| ----------------- | ------------------------------------------------------------ |
+| Sippy의 요청         | 전체 요청의 비율은 R2에 의해 제공됩니다. 더 높은 백분율은 소스 버킷으로 만들 필요가 있음을 나타냅니다. |
+| Sippy의 데이터 마이그레이션 | 소스 버킷에서 시간 동안 R2에 복사 된 데이터의 양. 바이트에 보고.                      |
+
+현재와 역사적인 미터를 전망하기 위하여:
+
+<Steps>
+  1. Cloudflare dashboard에서,**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+  2. 당신의 물통을 선택하십시오.
+  3. 선택하기**미터**탭.
+</Steps>
+
+쿼리에 시간 창을 선택 할 수 있습니다. 이 기본값은 마지막 24시간입니다.
+
+## R2 버킷에 Sippy 사용
+
+### 대시보드
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+  2. 당신을 위해 Sippy를 비활성화하고 싶은 물통을 선택하십시오.
+  3. 전환하기**계정 설정**탭과 스크롤**수요 마이그레이션**카드.
+  4. 제품정보**사용 방법**.
+</Steps>
+
+### 모델 번호: Wrangler
+
+Sippy를 비활성화하려면[`r2 bucket sippy disable`이름 \*](/workers/wrangler/commands/#r2-bucket-sippy-disable):
+
+```sh
+npx wrangler r2 bucket sippy disable <BUCKET_NAME>
+```
+
+### 사이트맵
+
+필요한 매개 변수와 Sippy를 비활성화하는 방법의 예에 대한 자세한 내용은 참조[API 문서](/api/resources/r2/subresources/buckets/subresources/sippy/methods/delete/).
+
+## 클라우드 스토리지 제공
+
+Cloudflare는 현재 뒤에 오는 구름 목표 저장 공급자에서 R2에 자료 복사를 지원합니다:
+
+- 아마존 S3
+- Google 클라우드 스토리지 (GCS)
+
+## R2 API 상호 작용
+
+Sippy가 활성화되면 QXQX0528XQ 물통에서 특정 행동의 동작을 변경합니다.[Workers](/r2/api/workers/), [사이트맵](/r2/api/s3/)·[대중적인 물통](/r2/buckets/public-buckets/).
+
+| - 연혁             | 새로운 행동                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GetObject에 대해서   | GetObject 호출은 먼저 R2 Bucket에서 객체를 검색하려고 합니다. 객체가 존재하지 않는 경우, 객체는 소스 스토리지 버킷과 동시에 요청된 R2 버킷에 업로드됩니다.<br /><br />추가 고려사항:<ul><li>근원 물통에 있는 목표에 수정은 처음 사본 후에 R2에서 반영되지 않을 것입니다. 객체가 R2에 저장되면 재기록 및 업데이트되지 않습니다.</li><li>사용자가 지정한 메타데이터만`x-amz-meta-`HTTP 응답에서 migrated. 메타데이터가 omitted일 것입니다.</li><li>더 큰 물체 (199 MiB 보다는 더 많은 것)를 위해, 다수 GET 요구는 R2에 목표를 완전히 복사하기 위하여 요구될지도 모릅니다.</li><li>R2에 완전히 복사되지 않은 객체에 대한 여러 가지 동시 GET 요청이 있다면 Sippy는 소스 저장 물통에서 객체를 여러 번 끌어 들일 수 있습니다.</li></ul> |
+| HeadObject의 장점   | GetObject와 유사하지만, 객체 메타데이터만 검색합니다. 요청된 R2 물통에 개체를 복사하지 않을 것입니다.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| 팟캐스트             | 행동의 변화 없음. PutObject를 호출하면 요청된 R2 버킷에 객체를 추가합니다.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| DeleteObject를 삭제 | 행동의 변화 없음. DeleteObject 호출은 요청된 R2 버킷의 객체를 삭제합니다.<br /><br />추가 고려사항:<ul><li>R2의 객체를 삭제하면 소스 저장 버킷에서 생성되지 않습니다. 후속 GetObject 요청은 소스 버킷에서 재생되고 R2XQ에 복사 된 객체에서 발생합니다.</li></ul>                                                                                                                                                                                                                                                                                                        |
+
+위의 행동은 행동의 변화가 없습니다. 더 많은 정보를 원하시면, 참조[Workers API reference](/r2/api/workers/workers-api-reference/)또는[S3 API 호환성](/r2/api/s3/api/).
+
+## 저장 공급자를 위한 credentials 만들기
+
+### 아마존 S3
+
+Amazon S3에서 개체를 복사하려면 Sippy는 물통에 액세스 권한을 요구합니다. AWS Identity 및 Access Management (IAM) 사용자 자격 증명을 올바른 권한으로 사용할 수 있지만, CloudflareXQXQ는 사용자가 좁은 권한으로 만들 것을 권장합니다.
+
+올바른 권한을 가진 자격 증명을 만들려면:
+
+<Steps>
+  1. AWS IAM 계정으로 로그인하세요.
+  2. 다음 형식으로 정책을 작성하고 교체하십시오.`<BUCKET_NAME>`에 액세스 권한을 부여하고 싶은 물통:
+     ```json
+     {
+     	"Version": "2012-10-17",
+     	"Statement": [
+     		{
+     			"Effect": "Allow",
+     			"Action": ["s3:ListBucket*", "s3:GetObject*"],
+     			"Resource": [
+     				"arn:aws:s3:::<BUCKET_NAME>",
+     				"arn:aws:s3:::<BUCKET_NAME>/*"
+     			]
+     		}
+     	]
+     }
+     ```
+  3. 새로운 사용자를 만들고 만든 정책을 사용자에 첨부합니다.
+</Steps>
+
+Sippy를 활성화할 때 Access Key ID와 Secret Access Key를 모두 사용할 수 있습니다.
+
+### Google 클라우드 스토리지
+
+Google Cloud Storage (GCS)에서 개체를 복사하려면 Sippy는 물통에 액세스 권한을 요구합니다. Cloudflare는 Google Cloud predefined를 사용하는 것이 좋습니다.`Storage Object Viewer`역할.
+
+올바른 권한을 가진 자격 증명을 만들려면:
+
+<Steps>
+  1. Google Cloud 콘솔에 로그인하십시오.
+  2. 오시는 길**IAM 및 관리자** > **서비스 계정**.
+  3. predefined로 서비스 계정 만들기`Storage Object Viewer`역할.
+  4. 오시는 길**주요 특징**당신이 만든 서비스 계정 탭.
+  5. 제품정보**키 추가** > **새로운 키 만들기**JSON 키 파일을 다운로드합니다.
+</Steps>
+
+이제 Wrangler 또는 API를 통해 Sippy를 활성화 할 때이 JSON 키 파일을 사용할 수 있습니다.
+
+## 관광 명소
+
+### 기타
+
+<Render file="migrator-etag-caveat" params={{ one: "Sippy" }} product="r2" />

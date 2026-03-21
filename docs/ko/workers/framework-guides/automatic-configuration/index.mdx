@@ -1,0 +1,198 @@
+---
+pcx_content_type: concept
+title: 기존 프로젝트 배포
+sidebar:
+  order: 1
+description: Wrangler를 자동으로 감지하고 Cloudflare Workers에 대한 프로젝트를 구성하는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/framework-guides/automatic-configuration/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/automatic-configuration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers, WranglerConfig } from "~/components";
+
+Wrangler는 자동적으로 당신의 기구를 검출하고 Cloudflare Workers를 위한 당신의 프로젝트를 구성할 수 있습니다. 이것은 구성 파일을 수동으로 설정하거나 어댑터를 설치하지 않고 단일 명령으로 기존 프로젝트를 배포 할 수 있습니다.
+
+:::참조
+최소 필요한 Wrangler 버전:**4.68.0**. 실행하여 버전 확인`wrangler --version`. Wrangler를 업데이트하려면, 참조[설치/업데이트 Wrangler](/workers/wrangler/install-and-update/).
+:::
+
+## 어떻게 작동합니까?
+
+당신이 실행할 때`wrangler deploy`또는`wrangler setup`Wrangler 구성 파일없이 프로젝트 디렉토리에서 Wrangler는 다음과 같습니다.
+
+1. **당신의 프레임을 감지**- 프로젝트를 분석하여 사용 중인 프레임워크를 식별합니다.
+2. **자주 묻는 질문**- 검출된 설정을 표시하고 변경하기 전에 확인해야 합니다.
+3. **어댑터 설치**- 프레임 워크에 필요한 Cloudflare 어댑터를 설치
+4. **구성**- 만들기`wrangler.jsonc`적절한 설정 파일
+5. **업데이트 package.json**- 유용한 스크립트 추가`deploy`, `preview`·`cf-typegen`
+6. **git 구성**- Wrangler-specific 항목 추가`.gitignore`
+
+## 지원된 기구
+
+자동적인 윤곽은 뒤에 오는 기구를 지원합니다:
+
+| 관련 기사                                                                    | 접합기/도구                         | 지원하다                                                                       |
+| ------------------------------------------------------------------------ | ------------------------------ | -------------------------------------------------------------------------- |
+| [Next.js](/workers/framework-guides/web-apps/nextjs/)                    | `@opennextjs/cloudflare`       | 다운로드`@opennextjs/cloudflare migrate`자동.[R2 캐싱](#nextjs-caching)설정할 수 있습니다. |
+| [Astro](/workers/framework-guides/web-apps/astro/)                       | `@astrojs/cloudflare`          | 다운로드`astro add cloudflare`제품정보                                             |
+| [SvelteKit](/workers/framework-guides/web-apps/sveltekit/)               | `@sveltejs/adapter-cloudflare` | 다운로드`sv add sveltekit-adapter`제품정보                                         |
+| [사이트맵](/workers/framework-guides/web-apps/more-web-frameworks/nuxt/)     | 붙박이 Cloudflare preset          |                                                                            |
+| [React 관련 링크](/workers/framework-guides/web-apps/react-router/)          | Cloudflare Vite 플러그인           |                                                                            |
+| [연락처](/workers/framework-guides/web-apps/more-web-frameworks/solid/)     | 붙박이 Cloudflare preset          |                                                                            |
+| [TanStack 시작](/workers/framework-guides/web-apps/tanstack-start/)        | Cloudflare Vite 플러그인           |                                                                            |
+| [이름 \*](/workers/framework-guides/web-apps/more-web-frameworks/angular/) |                                |                                                                            |
+| [채용정보](/workers/framework-guides/web-apps/more-web-frameworks/analog/)   | 붙박이 Cloudflare preset          |                                                                            |
+| [뚱 베어](/workers/vite-plugin/)                                            | 모델 번호: Cloudflare Vite 플러그인    |                                                                            |
+| [인기 카테고리](/workers/framework-guides/web-apps/vike/)                      |                                |                                                                            |
+| [와쿠](/workers/framework-guides/web-apps/more-web-frameworks/waku/)       |                                |                                                                            |
+| 정적 위치                                                                    | 이름 \*                          | 모든 디렉토리`index.html`                                                        |
+
+자동적인 윤곽은 또한 React 또는 Vue SPA와 같은 다른 프로젝트도 일할지도 모릅니다. 실행하기`wrangler deploy`또는`wrangler setup`프로젝트가 감지되면 볼 수 있습니다.
+
+## 파일 생성 및 수정
+
+자동 설정이 실행되면 다음 파일이 생성되거나 수정 될 수 있습니다.
+
+### `wrangler.jsonc`
+
+새로운 Wrangler 구성 파일은 프레임 워크에 적합한 설정으로 만들어집니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "node_modules/wrangler/config-schema.json",
+  	"name": "my-project",
+  	"main": "dist/_worker.js/index.js",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"assets": {
+  		"binding": "ASSETS",
+  		"directory": "dist",
+  	},
+  	"observability": {
+  		"enabled": true,
+  	},
+  }
+  ```
+</WranglerConfig>
+
+정확한 구성은 프레임 워크에 따라 다릅니다.
+
+### `package.json`
+
+새로운 스크립트가 추가되었습니다.`package.json`:
+
+```json
+{
+	"scripts": {
+		"deploy": "npm run build && wrangler deploy",
+		"preview": "npm run build && wrangler dev",
+		"cf-typegen": "wrangler types"
+	}
+}
+```
+
+### `.gitignore`
+
+Wrangler-specific 항목은 추가됩니다.
+
+```txt
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+```
+
+### `.assetsignore`
+
+출력 디렉토리에서 worker 파일을 생성하는 프레임워크`.assetsignore`파일은 정적 자산 업로드에서 제외됩니다 :
+
+```txt
+_worker.js
+_routes.json
+```
+
+## 자동 설정 사용
+
+### 자동 설정으로 배포
+
+기존 프로젝트를 배포하려면, 실행[`wrangler deploy`](/workers/wrangler/commands/#deploy)프로젝트 디렉토리에:
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+Wrangler는 프레임 워크를 감지하고 구성을 표시하고 변경 및 배포하기 전에 확인해야합니다.
+
+### 배포하지 않고 구성
+
+배포없이 프로젝트를 구성하려면, 사용[`wrangler setup`](/workers/wrangler/commands/#setup):
+
+<PackageManagers type="exec" pkg="wrangler" args="setup" />
+
+배포하기 전에 생성 된 구성을 검토 할 때 유용합니다.
+
+### 건조 실행으로 미리보기 변경
+
+실제로 어떤 파일을 수정하지 않고 변경을 볼 수 있습니다 :
+
+<PackageManagers type="exec" pkg="wrangler" args="setup --dry-run" />
+
+이 출력은 생성 될 구성의 요약입니다.
+
+## Non-interactive 형태
+
+확인 프롬프트를 건너, 사용[`--yes`계정 만들기](/workers/wrangler/commands/#deploy):
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy --yes" />
+
+이것은 sensible defaults를 사용하여 구성을 자동으로 적용합니다. 이것은 CI/CD 환경에서 유용하거나 그(것)들을 검토하지 않고 검출한 설정을 받아들일 때 유용합니다.
+
+## dashboard
+
+Cloudflare dashboardXQ를 통해 GitHub 또는 GitLab 저장소를 가져올 때, autoconfig는 비동기적으로 실행됩니다. 저장소가 Wrangler 구성 파일이 없는 경우,[Workers 회사연혁](/workers/ci-cd/builds/)필요한 구성으로 풀 요청을 만들 것입니다.
+
+PR은 위의 모든 구성 변경 사항을 포함합니다. 미리보기 배포가 생성되어 merging 전에 변경 사항을 테스트 할 수 있습니다. 일단 합병되면 프로젝트가 배포 준비됩니다.
+
+더 자세한 내용은 참조[자동적인 잡아당기기 요구](/workers/ci-cd/builds/automatic-prs/).
+
+## 자동 설정 건너뛰기
+
+자동 설정이 실행되지 않는 경우, 유효한 Wrangler 구성 파일이 있는지 확인하십시오 (`wrangler.toml`, `wrangler.json`, 또는`wrangler.jsonc`) 실행하기 전에 프로젝트에서`wrangler deploy`.
+
+프레임 워크별 가이드를 따라 프로젝트를 수동으로 구성할 수 있습니다.[Framework 가이드](/workers/framework-guides/).
+
+## Next.js 캐싱
+
+Next.js 프로젝트를 위해, 자동적인 윤곽은 설치될 것입니다[R2](/r2/)Cloudflare 계정이 R2가 활성화된 경우 캐싱을 위해. R2 캐싱은 성능 향상[공전 재생 (ISR)](https://opennext.js.org/cloudflare/caching)그리고 다른 Next.js 캐싱 특징.
+
+- **R2가 계정에 활성화된 경우**: 자동 구성은 R2 버킷을 만들고 캐싱을 자동으로 구성합니다.
+- **R2가 활성화되지 않은 경우**: 당신의 프로젝트는 캐싱 없이 구성될 것입니다. 당신은 할 수[R2를 활성화하십시오](/r2/get-started/)나중에 수동으로 캐싱을 구성[OpenNext 캐싱 문서](https://opennext.js.org/cloudflare/caching).
+
+R2가 활성화되거나 활성화되면**스토리지 및 데이터베이스** > **R2**내 계정[Cloudflare dashboard](https://dash.cloudflare.com/).
+
+## 문제 해결
+
+### 검출되는 다수 기구
+
+저장소를 가져올 때[Workers 회사연혁](/workers/ci-cd/builds/)Cloudflare dashboard에서, 당신의 프로젝트가 다수 기구를 포함하는 경우에 자동적인 윤곽 실패할 것입니다. 이 문제를 해결하기 위해[루트 디렉토리](/workers/ci-cd/builds/configuration/#build-settings)하나의 프레임 워크를 포함하는 경로에. monorepos를 위해, 참고하십시오[monorepo 설정](/workers/ci-cd/builds/advanced-setups/#monorepos).
+
+현재 위치`wrangler deploy`또는`wrangler setup`로컬로, Wrangler는 여러 프레임 워크가 감지되는 경우 프레임 워크를 선택할 수 있습니다.
+
+### 기구가 감지되지 않음
+
+프레임 워크가 감지되지 않은 경우, 당신의`package.json`의존성으로 프레임워크를 포함합니다.
+
+### 이미 존재하는 구성
+
+Wrangler 설정 파일이 이미 존재하면 자동 설정이 실행되지 않습니다. 프로젝트를 재구성하려면 기존 구성 파일을 삭제하고 실행`wrangler deploy`또는`wrangler setup`다시.
+
+### 작업 공간
+
+monorepos와 npm/yarn/pnpm 작업 공간에 대한 지원은 현재 제한됩니다. Wrangler는 명령을 실행하는 프로젝트 디렉토리를 분석하지만 workspace root에 설치된 의존성을 감지하지 않습니다. 이 프레임 워크가 작업 공간의 루트의 의존성으로 나열된 경우 프레임 워크 감지를 일으킬 수 있습니다.`package.json`오히려 개별 프로젝트의`package.json`.
+
+문제가 발생하면보고[Wrangler GitHub 저장소](https://github.com/cloudflare/workers-sdk/issues/new/choose).

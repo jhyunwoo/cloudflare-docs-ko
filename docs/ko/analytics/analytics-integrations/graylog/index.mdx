@@ -1,0 +1,202 @@
+---
+pcx_content_type: tutorial
+title: Graylog
+sidebar:
+  order: 102
+description: >-
+  이 튜토리얼은 Graylog를 사용해 Cloudflare Logs를 분석하는 방법을 설명합니다. Graylog 통합은 GitHub에서 제공됩니다.
+---
+
+이 튜토리얼은 [Graylog](https://github.com/Graylog2/graylog-s3-lambda/blob/master/content-packs/cloudflare/cloudflare-logpush-content-pack.json)를 사용해 [Cloudflare Logs](https://www.cloudflare.com/products/cloudflare-logs/)를 분석하는 방법을 설명합니다.
+
+## 개요
+
+Cloudflare Logs를 처음 사용한다면 자세한 내용은 [Logs 문서](/logs/)를 참고하세요. 계정에서 로그 기능을 활성화하려면 Cloudflare 고객 계정 팀에 문의하세요.
+
+### 사전 요구 사항
+
+Cloudflare 로그 데이터를 Graylog로 보내기 전에 다음을 확인하세요.
+
+* 기존 Graylog 설치가 있어야 합니다. 단일 노드와 클러스터 구성을 모두 지원합니다.
+* Cloudflare Logs가 활성화된 Cloudflare Enterprise 계정이 있어야 합니다.
+* [Logpush](/logs/logpush/)를 구성해야 합니다.
+
+:::note[참고]
+
+
+Cloudflare 로그는 JSON 형식의 HTTP/HTTPS 요청 로그이며, 전 세계 200개 이상의 데이터 센터에서 수집됩니다. 기본적으로 타임스탬프는 UNIX 나노초 정수로 반환됩니다. Graylog는 모든 타임스탬프 형식을 지원합니다.
+
+
+:::
+
+## 작업 1 - 준비
+
+Cloudflare 로그를 Graylog에 가져오기 전에 다음을 수행하세요.
+
+1. 원하는 모든 필드를 포함하도록 Cloudflare [Logpush](/logs/logpush/)를 구성하여 선택한 AWS S3 버킷으로 로그를 전송합니다.
+2. 최신 [Graylog Integration for Cloudflare](https://github.com/Graylog2/graylog-s3-lambda/blob/master/content-packs/cloudflare/cloudflare-logpush-content-pack.json)를 다운로드합니다.
+3. zip 파일의 압축을 풉니다.
+
+압축을 해제하면 통합 패키지에는 다음이 포함됩니다.
+
+* *graylog-s3-lambda.jar*
+* *content-packs/cloudflare/cloudflare-logpush-content-pack.json*
+* *content-packs/cloudflare/threat-lookup.csv*
+
+## 작업 2 - AWS Lambda 함수 생성 및 구성
+
+1. AWS 웹 콘솔에서 Lambda 서비스 페이지로 이동합니다.
+2. 새 Lambda 함수를 생성하고 원하는 *function name*과 *Java-8 runtime*을 지정합니다.
+3. 다음 권한이 있는 실행 역할을 생성하거나 지정합니다. 환경에 맞게 리소스 권한을 더 제한할 수도 있습니다.
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "Policy",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup"
+        "s3:GetObject",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents"
+      ],
+      "Resource": [
+        "arn:aws:logs:your-region:your-account-number:*",
+        "arn:aws:s3:your-region::cloudflare-bucket-name/*"
+      ]
+    }
+  ]
+}
+```
+
+**참고:** Graylog 클러스터가 VPC에서 실행 중이라면, Lambda 함수가 VPC로 트래픽을 라우팅할 수 있도록 *AWSLambdaVPCAccessExecutionRole* 관리형 역할을 추가해야 할 수 있습니다.
+
+4. Lambda 함수를 생성한 후 [작업 1](#작업-1---준비)에서 다운로드한 함수 코드 ***graylog-s3-lambda.jar***를 업로드합니다. Handler에는 *org.graylog.integrations.s3.GraylogS3Function::handleRequest*를 지정합니다.
+
+5. Lambda 함수를 Graylog 클러스터에 맞게 구성하려면 최소한 다음 환경 변수를 지정하세요.
+
+   * **CONTENT\_TYPE** (필수) - Lambda 함수가 Cloudflare 로그를 처리함을 나타내는 *application/x.cloudflare.log* 값
+   * **COMPRESSION\_TYPE** ***(필수*** **)** - Cloudflare 로그가 gzip 압축되므로 *gzip*
+   * **GRAYLOG\_HOST** *(필수)* - Graylog 호스트 또는 클러스터 로드 밸런서의 호스트명 또는 IP 주소
+   * **GRAYLOG\_PORT** *(선택 사항 - 기본값 12201)* - Graylog 서비스 포트
+   * **CONNECT\_TIMEOUT** *(선택 사항 - 기본값 10000)* - 연결이 성립될 때까지 대기하는 밀리초 수
+   * **LOG\_LEVEL** *(선택 사항 - 기본값 INFO)* - Lambda 함수가 생성하는 CloudWatch 로그에 포함할 상세 수준입니다. 지원 값은 *OFF*, *ERROR*, *WARN*, *INFO*, *DEBUG*, *TRACE*, *ALL*입니다. 문제 해결을 위해 로그 수준을 높일 수 있습니다. 자세한 내용은 [Defining Custom Log Levels in Code](https://logging.apache.org/log4j/2.0/manual/customloglevels.html)를 참고하세요.
+   * **CLOUDFLARE\_LOGPUSH\_MESSAGE\_FIELDS** *(선택 사항 - 기본값은 전체)* - 메시지에서 파싱할 필드입니다. 필드 이름을 쉼표로 구분해 지정합니다.
+   * **CLOUDFLARE\_LOGPUSH\_MESSAGE\_SUMMARY\_FIELDS** *(선택 사항 - 기본값은 ClientRequestHost, ClientRequestPath, OriginIP, ClientSrcPort, EdgeServerIP, EdgeResponseBytes)* - Graylog에서 각 메시지 상단에 표시되는 메시지 요약에 포함할 필드입니다. 필드 이름을 쉼표로 구분해 지정합니다.
+     ![List of required Graylog environment variables](~/assets/images/fundamentals/graylog/screenshots/graylog-environment-variables.png)
+
+     **참고:** 함수 구성을 세밀하게 조정하기 위한 추가 변수는 Graylog Lambda S3 [README](https://github.com/Graylog2/graylog-s3-lambda/blob/master/README.md#step-2-specify-configuration) 파일에서 확인할 수 있습니다.
+
+6. Lambda 함수가 기록되는 각 Cloudflare 로그 필드를 처리할 수 있도록 AWS S3 Trigger를 생성합니다. [작업 1](#작업-1---준비)과 동일한 S3 버킷을 지정하고 *All object create events* 옵션을 선택하세요. 필요하면 원하는 파일 필터를 적용할 수 있습니다.
+   ![Add trigger dialog with an example AWS S3 Trigger](~/assets/images/fundamentals/graylog/screenshots/aws-s3-add-trigger.png)
+
+7. Graylog 클러스터가 VPC 내부에 있다면 [Lambda 함수가 VPC 리소스에 접근하도록 구성](https://docs.aws.amazon.com/lambda/latest/dg/configuration-vpc.html)해야 합니다. 또한 [AWS S3 서비스용 VPC 엔드포인트](https://docs.aws.amazon.com/vpc/latest/userguide/vpc-endpoints.html#create-vpc-endpoint)를 생성해야 할 수도 있습니다. 이렇게 하면 VPC 안에서 실행되는 Lambda 함수가 S3에 직접 접근할 수 있습니다.
+
+:::note[참고]
+
+
+기본적으로 모든 로그 메시지는 TCP를 통해 전송됩니다. 현재 Lambda 함수와 Graylog 사이의 TLS 암호화는 지원되지 않습니다. Graylog 노드 또는 클러스터가 실행되는 안전한 VPC 서브넷 내부에 Lambda 함수를 배치하는 등, 전송 중 로그 메시지를 보호하기 위한 적절한 조치를 권장합니다.
+
+
+:::
+
+## 작업 3 - Graylog에서 콘텐츠 팩 가져오기
+
+Cloudflare Logpush 콘텐츠 팩을 Graylog로 가져오면 Cloudflare 로그 수신에 필요한 구성이 로드되고 Cloudflare 대시보드가 설치됩니다.
+
+콘텐츠 팩과 함께 설치되는 구성 요소는 다음과 같습니다.
+
+* Cloudflare 대시보드([작업 4](#작업-4---cloudflare-대시보드-보기))
+* Graylog가 Cloudflare 로그를 수신할 수 있도록 하는 Cloudflare GELF (TCP) 입력
+* Cloudflare 메시지 [stream](https://docs.graylog.org/en/3.1/pages/streams.html)
+* Cloudflare 로그 필드 처리 및 파싱을 돕는 [Pipeline](https://docs.graylog.org/en/3.1/pages/pipelines/pipelines.html) 규칙
+
+콘텐츠 팩을 가져오려면 다음 단계를 따르세요.
+
+1. [작업 1](#작업-1---준비)에서 다운로드하고 압축을 해제한 *cloudflare-logpush-content-pack.json* 파일을 찾습니다.
+
+2. Graylog에서 **System** > **Content Packs**로 이동한 뒤 오른쪽 상단의 **Upload**를 클릭합니다. 업로드가 완료되면 Cloudflare Logpush 콘텐츠 팩이 업로드된 콘텐츠 팩 목록에 나타납니다.
+   ![Uploading Graylog content packs](~/assets/images/fundamentals/graylog/screenshots/graylog-content-packs.png)
+
+3. **Install**을 클릭합니다.
+   ![Installing Graylog content packs](~/assets/images/fundamentals/graylog/screenshots/graylog-content-packs-uploaded.png)
+
+4. **Install** 대화상자에서 선택적 설치 코멘트를 입력하고, 모든 구성 매개변수에 올바른 값이 입력되어 있는지 확인합니다.
+
+   * MaxMind™️ 데이터베이스 경로가 필요하며, [https://dev.maxmind.com/geoip/](https://dev.maxmind.com/geoip/)에서 받을 수 있습니다.
+   * [작업 1](#작업-1---준비)에서 압축 해제한 *Threat Lookup* CSV 파일 경로도 필요합니다.
+
+   ![Adding an install comment and configuring parameters in Install Dialog screen](~/assets/images/fundamentals/graylog/screenshots/graylog-content-pack-install.png)
+
+5. 설치가 완료되면 Graylog 클러스터는 Lambda 함수로부터 Cloudflare 로그를 수신할 준비가 됩니다.
+
+추가 정보와 문제 해결 팁은 Graylog Lambda S3 [README](https://github.com/Graylog2/graylog-s3-lambda/blob/master/README.md)를 참고하세요.
+
+## 작업 4 - Cloudflare 대시보드 보기
+
+[Graylog Cloudflare integration page](https://go.graylog.com/cloudflare)에서 대시보드를 볼 수 있습니다. 대시보드는 다음과 같습니다.
+
+### Cloudflare - Snapshot
+
+이 대시보드는 Cloudflare 네트워크 상의 웹사이트와 애플리케이션에서 가장 중요한 메트릭을 한눈에 보여 줍니다. 대시보드 필터를 사용해 이벤트와 추세를 더 세밀하게 분석할 수 있습니다.
+
+이 대시보드의 용도는 다음과 같습니다.
+
+* Cloudflare 네트워크 상 웹사이트와 애플리케이션의 가장 중요한 웹 트래픽 메트릭 모니터링
+* 트래픽이 어느 국가와 IP에서 오는지 확인하고 모바일/데스크톱 트래픽, 프로토콜, 메서드, 콘텐츠 유형 분포 분석
+
+![Visualizing Cloudflare log metrics in the Graylog dashboard](~/assets/images/fundamentals/graylog/dashboards/snapshot-cloudflare-dashboard-graylog.png)
+
+### Cloudflare - Security
+
+이 개요는 차단된 위협 수, 시간 경과에 따른 위협, 상위 위협 국가 등 웹사이트와 애플리케이션에 대한 위협 인사이트를 제공합니다.
+
+이 대시보드의 용도는 다음과 같습니다.
+
+* 웹사이트와 애플리케이션에 대한 가장 중요한 보안 및 위협 메트릭 모니터링
+* IP 방화벽을 세밀하게 조정하고 구성
+
+![Visualizing an analysis of Cloudflare threat traffic in the Graylog dashboard](~/assets/images/fundamentals/graylog/dashboards/security-cloudflare-dashboard-graylog.png)
+
+### Cloudflare - Performance
+
+이 대시보드는 성능 문제와 캐시 구성 오류를 식별하고 해결하는 데 도움이 됩니다. 메트릭에는 총/캐시된 대역폭, 절약된 대역폭, 총 요청, 캐시 비율, 상위 비캐시 요청 등이 포함됩니다.
+
+이 대시보드의 용도는 다음과 같습니다.
+
+* 캐싱 동작 모니터링 및 구성 오류 식별
+* 구성 및 캐시 비율 개선
+
+![Visualizing Cloudflare Performance metrics in the Graylog dashboard](~/assets/images/fundamentals/graylog/dashboards/performance-cloudflare-dashboard-graylog.png)
+
+### Cloudflare - Reliability
+
+이 대시보드는 웹사이트와 애플리케이션의 가용성에 대한 인사이트를 제공합니다. 메트릭에는 원본 응답 오류 비율, 시간 경과에 따른 원본 응답 상태, 시간 경과에 따른 3xx/4xx/5xx 오류 비율 등이 포함됩니다.
+
+이 대시보드의 용도는 다음과 같습니다.
+
+* 엣지와 원본 응답 상태 코드를 확인하여 웹사이트와 애플리케이션의 오류 조사
+* 국가, 클라이언트 IP, 호스트명 및 기타 메트릭 기준으로 상태 코드별 오류 추가 분석
+
+![Graylog dashboard Cloudflare Reliability](~/assets/images/fundamentals/graylog/dashboards/reliability-cloudflare-dashboard-graylog.png)
+
+### Cloudflare - Bots
+
+이 대시보드를 사용하면 악성 봇을 탐지하고 완화하여 자격 증명 대입 공격, 스팸 등록, 콘텐츠 스크래핑, 클릭 사기, 재고 선점 등 각종 악의적 활동을 방지할 수 있습니다.
+
+:::note[참고]
+
+
+봇 요청이 올바르게 식별되게 하려면 *Interactive Challenge* 동작으로 구성된 WAF 사용자 지정 규칙(또는 방화벽 규칙)을 하나만 사용하세요. 사용자 지정 규칙에 대한 자세한 내용은 [WAF 문서](/waf/custom-rules/)를 참고하세요.
+
+
+:::
+
+이 대시보드의 용도는 다음과 같습니다.
+
+* 웹사이트의 봇 활동을 조사하고 콘텐츠 스크래핑, 결제 사기, 스팸 등록 및 기타 악의적 활동 방지
+* 얻은 인사이트를 바탕으로 웹사이트, 애플리케이션, API 엔드포인트 전반에서 과도한 사용과 악용을 방지하도록 Cloudflare 튜닝
+
+![Graylog dashboard Cloudflare Bot Management](~/assets/images/fundamentals/graylog/dashboards/bot-management-cloudflare-dashboard-graylog.png)

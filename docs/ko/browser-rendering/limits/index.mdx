@@ -1,0 +1,170 @@
+---
+pcx_content_type: configuration
+title: 제한 사항
+description: Browser Rendering과 관련된 제한에 대해 알아보세요.
+sidebar:
+  order: 12
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/limits/'
+translation_source_md: 'https://developers.cloudflare.com/browser-rendering/limits/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Plan, Tabs, TabItem, DashButton } from "~/components";
+
+Browser Rendering limits는 사용자를 기반으로 합니다.[QXQX0109XQQ Workers 계획](/workers/platform/pricing/).
+
+가격 정보, 참조[Browser Rendering 가격](/browser-rendering/pricing/).
+
+## Workers 무료 다운로드
+
+:::노트\[이상한 한계?]
+Workers 무료 플랜에 있으면 제한을 늘리고 WorkersXQ로 업그레이드하십시오. 유료 플랜**Workers 계획**Cloudflare 대시보드의 페이지:
+
+<DashButton url="/?to=/:account/workers/plans" />
+
+:::
+
+| 제품 정보                           | 지원하다             |
+| ------------------------------- | ---------------- |
+| 브라우저 시간                         | 1일 10분           |
+| 계정 당 동시 브라우저 (Workers 바인딩만)[^1] | 계정 당 3           |
+| 새로운 브라우저 인스턴스 (Workers 바인딩만)    | 분 당 3            |
+| 브라우저 timeout                    | 60 초[^2]         |
+| 전체 요청 (REST API 전용)[^3]         | 분 당 6 (1 매 10 초) |
+
+### `/crawl`endpoint 제한
+
+더 보기[REST API를`/crawl`끝점](/browser-rendering/rest-api/crawl-endpoint/)Workers에 대한 추가 제한이 있습니다. 무료 계획 사용자:
+
+| 제품 정보        | 지원하다    |
+| ------------ | ------- |
+| 하루 평균 작업     | 5 일     |
+| 크롤러 당 최대 페이지 | 100 페이지 |
+
+## Workers 계정 만들기
+
+:::노트\[이상한 한계?]
+Workers Paid 계획에 있는 경우에 당신은 그 목록으로 만들어진 그들 저쪽에 당신의 한계를 증가시키고 싶은 경우에, Cloudflare는 교부금할 것입니다[더 높은 한계를 위한 요구](https://forms.gle/CdueDKvb26mTaepa9)사례별로.
+주요 특징
+
+| 제품 정보                            | 지원하다                                           |
+| -------------------------------- | ---------------------------------------------- |
+| 브라우저 시간                          | 제한 없음 ([가격 보기](/browser-rendering/pricing/))   |
+| 계정 당 동시 브라우저 (Workers 바인딩만)[^1]  | 계정 당 30 ([가격 보기](/browser-rendering/pricing/)) |
+| 분 당 새로운 브라우저 인스턴스 (Workers 바인딩만) | 분 당 30                                         |
+| 브라우저 timeout                     | 60 초[^2]                                       |
+| 최소 (REST API 전용)[^3]             | 분 당 600 (10 초당)                                |
+
+[^1]: 작업 완료 또는 정적의 6 초에 가까운 브라우저 (당신이하지 않는 경우[브라우저 타임아웃을 확장](#can-i-increase-the-browser-timeout)). 따라서, 연습에서, 많은 작업 흐름은 동시 브라우저의 높은 수를 요구하지 않습니다.
+
+[^2]: 기본적으로 브라우저는 60초 후에 비활성화됩니다. 이 10 분까지 확장 할 수 있습니다.[`keep_alive`옵션 정보](/browser-rendering/puppeteer/#keep-alive). 전화`browser.close()`브라우저 인스턴스를 즉시 해제합니다.
+
+[^3]: 고정된 per-second 충분한 비율로 강화해, 파열 허용량으로 아닙니다. 이것은 당신이 한 번에 모든 요청을 보낼 수 없습니다. API는 1 분 동안 균등하게 퍼질 것으로 예상됩니다. 제한을 초과하면, 참조[문제 해결`429 Too many requests`오류 수정](#error-429-too-many-requests).
+
+## 제품 정보
+
+<Render file="manage-concurrency-faq" product="browser-rendering" />
+
+### 브라우저 타임아웃을 늘릴 수 있나요?
+
+기본적으로 브라우저 인스턴스는 60초 후에 비활성화됩니다. 브라우저를 계속 유지하려면, 당신은 사용할 수 있습니다[`keep_alive`옵션 정보](/browser-rendering/puppeteer/#keep-alive)최대 10 분으로 타임 아웃을 확장 할 수 있습니다.
+
+### 최대 세션 기간은 있습니까?
+
+브라우저 세션에 고정된 최대 수명이 없습니다. 기본적으로 Browser Rendering은 불확실한 사용법을 방지하기 위해 inactivity의 1 분 후에 세션을 닫습니다. 당신은 할 수[증가 이 inactivity timeout](/browser-rendering/puppeteer/#keep-alive)10 분까지.
+
+세션이 더 오래 유지되도록 유지하려면 구성 요소 창 내에서 적어도 한 번 명령을 전송하여 활성화하십시오 (예를 들어, 10 분마다). Browser Rendering이 새로운 릴리스를 해제 할 때 세션도 닫습니다.
+
+### Workers에서 업그레이드 무료 플랜이지만, 하루 제한 당 10 분을 타격합니다. 나는 무엇을해야합니까?
+
+최근 업그레이드된 경우[모델 번호: Workers 유료 플랜](/workers/platform/pricing/)하지만 여전히 하루 제한 당 10 분, 당신의 작업자가 새로운 계획과 제대로 연관되도록 재정의.
+
+### 왜 내 브라우저 사용은 예상보다 높습니까?
+
+당신은 매일 제한을 타격하거나 예상보다 높은 사용을보고 있다면, 가장 일반적인 원인은 제대로 닫지 않는 브라우저 세션입니다. 브라우저 세션이 명시적으로 닫지 않을 때`browser.close()`, 그것은 열 유지 하 고 계속 브라우저 시간을 사용 하 여 계속 (60 초 기본적으로, 또는 최대 10 분 당신이 사용 하는 경우`keep_alive`옵션).
+
+사용 최소화:
+
+- 항상 전화`browser.close()`브라우저 세션을 완료하면 됩니다.
+- 브라우저 코드를 랩`try/finally`보호하다`browser.close()`오류가 발생하면도 호출됩니다.
+- 제품 정보[`puppeteer.history()`](/browser-rendering/puppeteer/#list-recent-sessions)또는[`playwright.history()`](/browser-rendering/playwright/#list-recent-sessions)최근 세션을 검토하고 그로 인해 닫히는 것을 확인합니다.`BrowserIdle`대신에`NormalClosure`. idle timeout에 가까운 세션은 브라우저가 명시적으로 닫히지 않았습니다.
+
+Cloudflare 대시보드XQ에서 사용 및 시청 세션 닫기 이유를 모니터링 할 수 있습니다**브라우저 렌더링**이름:
+
+<DashButton url="/?to=/:account/workers/browser-rendering" />
+
+더 알아보기[브라우저 닫기 이유](/browser-rendering/reference/browser-close-reasons/)더 많은 정보.
+
+## 문제 해결
+
+### 오류:`429 Too many requests`
+
+짧은 시간에 너무 많은 요청을 만들 때, 브라우저 렌더링 HTTP 상태 코드와 응답 할 것이다`429 Too many requests`. 계정의 비율 제한을 볼 수 있습니다.[Workers 무료 다운로드](#workers-free)·[Workers 계정 만들기](#workers-paid)위 단면도.
+
+아래 예시는 밝히는 비율을 처리하는 방법을 설명합니다.`Retry-After`그 지연 후 요청 값과 재량.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="REST API를">
+    ```js
+    const response = await fetch('https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/content', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer <your-token>',
+        },
+        body: JSON.stringify({ url: 'https://example.com' })
+    });
+
+    if (response.status === 429) {
+    const retryAfter = response.headers.get('Retry-After');
+    console.log(`Rate limited. Waiting ${retryAfter} seconds...`);
+    await new Promise(resolve => setTimeout(resolve, retryAfter \* 1000));
+
+        //자주 묻는 질문
+        const retryResponse = await fetch(/*위에 것과 같이 동일한 요구*/);
+
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="Workers 회사 소개">
+    ```js
+    import puppeteer from "@cloudflare/puppeteer";
+
+    try {
+    	const browser = await puppeteer.launch(env.MYBROWSER);
+
+    	const page = await browser.newPage();
+    	await page.goto("https://example.com");
+    	const content = await page.content();
+
+    	await browser.close();
+    } catch (error) {
+    	if (error.status === 429) {
+    		const retryAfter = error.headers.get("Retry-After");
+    		console.log(
+    			`Browser instance limit reached. Waiting ${retryAfter} seconds...`,
+    		);
+    		await new Promise((resolve) => setTimeout(resolve, retryAfter * 1000));
+
+    		//Retry 발사 브라우저
+    		const browser = await puppeteer.launch(env.MYBROWSER);
+    	}
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### 오류:`429 Browser time limit exceeded for today`
+
+이름 \*`Error processing the request: Unable to create new browser: code: 429: message: Browser time limit exceeded for today`오류는 Workers 무료 계획에 매일 브라우저 제한을 명중합니다.[Workers 무료 플랜 계정은 제한됩니다.](#workers-free)매일 브라우저 렌더링 사용 10 분. 그 한계를 초과하면,`429`다음 UTC의 날까지 오류.
+
+당신은 할 수[당신의 한계를 증가](#workers-paid)Workers 유료 플랜으로 업그레이드**Workers 계획**Cloudflare 대시보드의 페이지:
+
+<DashButton url="/?to=/:account/workers/plans" />
+
+최근에 업그레이드했지만 여전히 하루 제한 당 10 분 동안 발생하면 작업자가 새로운 플랜과 제대로 연관되도록합니다.

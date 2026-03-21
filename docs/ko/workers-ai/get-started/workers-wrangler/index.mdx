@@ -1,0 +1,152 @@
+---
+title: '모델 번호: Workers 회사 소개'
+pcx_content_type: get-started
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 시작 - Workers 및 Wrangler
+description: CLI를 사용하여 첫 Cloudflare Workers AIXQ 프로젝트를 배포합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/get-started/workers-wrangler/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/get-started/workers-wrangler/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig, TypeScriptExample } from "~/components";
+
+이 가이드는 설정하고 첫 번째 Workers AI 프로젝트 배포를 통해 당신을 안내합니다. 이용안내[모델 번호: Workers](/workers/), Workers AI 바인딩, 큰 언어 모델 (LLM) Cloudflare 글로벌 네트워크에 최초의 AI 전원 응용 프로그램을 배포합니다.
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker 프로젝트 만들기
+
+새로운 Worker 프로젝트를 만들 것입니다.`create-cloudflare`CLI (C3).[사이트맵](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare)Cloudflare에 새 응용 프로그램을 설정하고 배치하는 데 도움이되는 명령줄 도구입니다.
+
+새 프로젝트 만들기`hello-ai`으로 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"hello-ai"} />
+
+(주)`npm create cloudflare@latest`설치하기[`create-cloudflare`제품 설명](https://www.npmjs.com/package/create-cloudflare), 그리고 설치를 통해 당신을 지도하십시오. C3도 설치[모델 번호: Wrangler](/workers/wrangler/)Cloudflare 개발자 플랫폼 CLI.
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새로운 것`hello-ai`디렉토리. 당신의 새로운`hello-ai`디렉토리는 다음과 같습니다:
+
+- ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)에 의해`src/index.ts`.
+- ·[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일.
+
+앱 디렉토리로 이동:
+
+```sh
+cd hello-ai
+```
+
+## 2. Workers AI에 당신의 노동자를 연결하십시오
+
+당신은 Workers AI에 연결하기 위하여 노동자를 위한 AI 바인딩을 창조해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)Workers는 Workers AI, Cloudflare 개발자 플랫폼과 같은 리소스와 상호 작용할 수 있습니다.
+
+노동자에 Workers AI를 바인딩하려면 Wrangler 파일의 끝에 다음을 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+당신의 바인딩은 입니다[당신의 노동자 부호에서 유효한](/workers/reference/migrate-to-module-workers/#bindings-in-es-modules-format)에 의해[`env.AI`](/workers/runtime-apis/handlers/fetch/).
+
+{/* <!-- TODO update this once we know if we'll have it --> */}
+
+당신은 또한 QXWorkers AIXQ를 PagesQ 기능을 결합할 수 있습니다. 더 많은 정보를 원하시면, 참조[기능 바인딩](/pages/functions/bindings/#workers-ai).
+
+## 3. 당신의 노동자에 있는 inference 업무를 실행하십시오
+
+당신은 지금 당신의 노동자에 inference 업무를 실행할 준비가되어 있습니다. 이 경우 LLM을 사용할 것입니다.[`llama-3.1-8b-instruct`](/workers-ai/models/llama-3.1-8b-instruct/), 질문에 대답하기.
+
+업데이트`index.ts`파일 형식`hello-ai`다음 코드와 응용 프로그램 디렉토리:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  export interface Env {
+  	//Wrangler config 파일의 이름을 'binding'의 값으로 설정하면
+  	//정의 된 변수 이름과 "AI"를 대체합니다.
+  	AI: Ai;
+  }
+
+  export default {
+  	async fetch(request, env): Promise<Response> {
+  		const response = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+  			prompt: "What is the origin of the phrase Hello, World",
+  		});
+
+  		return new Response(JSON.stringify(response));
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+이 점까지, 당신은 당신의 노동자를 위한 AI 바인딩을 창조하고 Llama 3.1 모형을 실행할 수 있는 노동자를 형성했습니다. 로컬로 프로젝트를 테스트할 수 있습니다.
+
+## 4. Wrangler에 국부적으로 개발
+
+프로젝트 디렉토리에서 Workers AI 로컬로 테스트하는 동안[`wrangler dev`](/workers/wrangler/commands/#dev):
+
+```sh
+npx wrangler dev
+```
+
+<Render file="ai-local-usage-charges" product="workers" />
+
+실행 후 로그인할 수 있습니다.`wrangler dev`. 실행할 때`npx wrangler dev`, Wrangler는 당신에게 URL을 줄 것입니다 (최대 가능성`localhost:8787`) 당신의 노동자를 검토하는. URL Wrangler에 들어가면 다음 예와 비슷한 메시지가 표시됩니다.
+
+```json
+{
+	"response": "Ah, a most excellent question, my dear human friend! *adjusts glasses*\n\nThe origin of the phrase \"Hello, World\" is a fascinating tale that spans several decades and multiple disciplines. It all began in the early days of computer programming, when a young man named Brian Kernighan was tasked with writing a simple program to demonstrate the basics of a new programming language called C.\nKernighan, a renowned computer scientist and author, was working at Bell Labs in the late 1970s when he created the program. He wanted to showcase the language's simplicity and versatility, so he wrote a basic \"Hello, World!\" program that printed the familiar greeting to the console.\nThe program was included in Kernighan and Ritchie's influential book \"The C Programming Language,\" published in 1978. The book became a standard reference for C programmers, and the \"Hello, World!\" program became a sort of \"Hello, World!\" for the programming community.\nOver time, the phrase \"Hello, World!\" became a shorthand for any simple program that demonstrated the basics"
+}
+```
+
+## 5. AI Worker 배포
+
+AI Worker를 전세계에 배포하기 전에 Cloudflare 계정으로 로그인하십시오.
+
+```sh
+npx wrangler login
+```
+
+QXQX0073XQQ dashboard에 로그인하려면 웹 페이지로 이동합니다. 로그인한 후 Wrangler가 Cloudflare 계정에 변경할 수 있는 경우 요청됩니다. 스크롤 다운 및 선택**지원하다**계속.
+
+마지막으로 Worker를 배포하여 인터넷에 접근할 수 있는 프로젝트를 만들 수 있습니다. 노동자를 배포하려면, 실행:
+
+```sh
+npx wrangler deploy
+```
+
+```sh output
+https://hello-ai.<YOUR_SUBDOMAIN>.workers.dev
+```
+
+당신의 노동자는 당신의 관례에 배치될 것입니다[`workers.dev`](/workers/configuration/routing/workers-dev/)하위 도메인. 이제 AI Worker를 실행하는 URL을 방문할 수 있습니다.
+
+이 튜토리얼을 끝내면 Worker를 만들었습니다. AI 바인딩을 통해 Workers AIXQ에 연결하고 Llama 3 모델의 인스퍼 작업을 ran.
+
+## 관련 자료
+
+- [Cloudflare Discord의 개발자 커뮤니티](https://discord.cloudflare.com)- QXQX0077XQ Discord 서버에 가입하여 기능 요청, 보고서 버그 및 Cloudflare 팀과 직접 피드백을 공유하십시오.
+- [모델 번호:](/workers-ai/models/)- Workers AI 모델 카탈로그를 찾아보십시오.
+- [AI SDK 지원](/workers-ai/configuration/ai-sdk)- AI 모델과 통합하는 방법을 알아보세요.

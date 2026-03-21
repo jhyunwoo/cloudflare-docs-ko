@@ -1,0 +1,234 @@
+---
+pcx_content_type: reference
+title: 필터링
+sidebar:
+  order: 11
+---
+
+필터는 예를 들어 특정 account 또는 zone 집합, 날짜 기준 요청, 특정 user agent에서 발생한 요청 등으로 쿼리를 제한합니다. 필터가 없으면 쿼리 성능이 저하될 수 있고, 결과가 지원 범위를 초과할 수 있으며, 반환되는 데이터에 노이즈가 많아질 수 있습니다.
+
+## 필터 구조
+
+GraphQL 필터는 노드에서 불리언 대수를 제공하는 [GraphQL Input Object](https://graphql.github.io/graphql-spec/June2018/#sec-Input-Objects)로 표현됩니다.
+
+다음 리소스에서 필터를 인수로 사용할 수 있습니다.
+
+- zones
+- accounts
+- tables (datasets)
+
+### Zone 필터
+
+zone ID(`zoneTag`)로 zone 관련 데이터를 조회할 수 있습니다.
+
+```graphql
+zones(filter: {zoneTag: "your Zone ID"}) {
+    ...
+}
+```
+
+zone 필터는 다음 문법을 따라야 합니다.
+
+```graphql
+filter
+    { zoneTag: t }
+    { zoneTag_gt: t }
+    { zoneTag_in: [t, ...] }
+```
+
+복합 필터(쉼표 구분, `AND`, `OR`)는 지원되지 않습니다.
+
+zone ID를 알고 있다면 `zoneTag: t`와 `zoneTag_in: [t, ...]` 형식을 사용하세요. zone ID를 모를 때는 limit와 함께 `zoneTag_gt: t` 형식을 사용해 모든 zone을 순회할 수 있습니다. zone은 항상 영숫자 순으로 정렬됩니다.
+
+모든 zone 결과를 얻으려면(지원 한도 내에서) 필터를 생략하세요.
+
+### Account 필터
+
+account 필터는 zone 필터와 같은 구조와 규칙을 사용하지만, zone ID(`zoneTag`) 대신 account ID(`accountTag`)를 사용합니다.
+
+account 범위 쿼리를 만들 때는 반드시 account 필터를 지정해야 하며, 여러 account를 동시에 조회할 수는 없습니다.
+
+:::note[Note]
+
+Network Analytics 쿼리에는 account ID(`accountTag`) 필터가 필요합니다.
+
+:::
+
+### 테이블(데이터세트) 필터
+
+테이블 필터를 사용하려면 최소 하나의 노드를 조회해야 합니다. 다중 노드 필터를 만들고 결합하려면 `AND` 연산자를 사용하세요. 테이블 필터는 `OR` 연산자도 지원하지만, 반드시 명시적으로 지정해야 합니다.
+
+다음 문법은 테이블 필터를 설명합니다. 여기서 `k`는 필터링 대상 GraphQL 노드이고, `op`는 해당 노드에서 지원하는 연산자 중 하나입니다.
+
+```graphql
+filter
+  { kvs }
+kvs
+  kv
+  kv, kvs
+kv
+  k: v
+  k_op: v
+  AND: [filters]
+  OR: [filters]
+filters
+  filter
+  filter, filters
+```
+
+### 연산자
+
+지원되는 연산자는 노드 타입과 노드 이름에 따라 다릅니다.
+
+#### 배열 연산자
+
+다음 연산자는 모든 배열 타입에서 지원됩니다.
+
+| Operator | Comparison                                      |
+| -------- | ----------------------------------------------- |
+| `has`    | 배열에 값이 포함됨                              |
+| `hasall` | 배열에 값 목록 전체가 포함됨                    |
+| `hasany` | 배열에 값 목록 중 하나 이상이 포함됨            |
+
+#### 스칼라 연산자
+
+다음 연산자는 모든 스칼라 타입에서 지원됩니다.
+
+| Operator | Comparison          |
+| -------- | ------------------- |
+| `gt`     | 초과                |
+| `lt`     | 미만                |
+| `geq`    | 이상                |
+| `leq`    | 이하                |
+| `neq`    | 같지 않음           |
+| `in`     | 포함됨              |
+
+#### 문자열 연산자
+
+문자열 비교에는 `like` 연산자를 사용할 수 있으며, 와일드카드로 `%` 문자를 지원합니다.
+
+## 예시
+
+:::note
+
+필터링 시간은 이벤트 시작 타임스탬프를 기준으로 하므로, 필터 이후에 종료된 요청도 시작 시점이 주어진 시간 범위 안에 있으면 쿼리에 포함될 수 있습니다.
+:::
+
+### 일반 예시
+
+```graphql graphql-api-explorer
+query GeneralExample($zoneTag: string, $start: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			httpRequestsAdaptiveGroups(
+				filter: { datetime_gt: $start, clientCountryName: "GB" }
+				limit: 1
+			) {
+				count
+			}
+		}
+	}
+}
+```
+
+### 특정 노드에 필터 적용
+
+다음 GraphQL 예시는 특정 노드를 필터링하는 방법을 보여줍니다. 이어서 SQL에 해당하는 예시가 나옵니다.
+
+#### GraphQL
+
+```graphql
+httpRequestsAdaptiveGroups(filter: {datetime: "2018-01-01T10:00:00Z"}) {
+    ...
+}
+```
+
+#### SQL
+
+```sql
+WHERE datetime="2018-01-01T10:00:00Z"
+```
+
+### 여러 필드에 필터 적용
+
+다음 GraphQL 예시는 여러 필드에 필터를 적용하는 방법을 보여줍니다. 이 경우 두 개의 datetime 필드를 사용합니다. 이어서 SQL에 해당하는 예시가 나옵니다.
+
+#### GraphQL
+
+```graphql
+httpRequests1hGroups(filter: {datetime_gt: "2018-01-01T10:00:00Z", datetime_lt: "2018-01-01T11:00:00Z"}) {
+    ...
+}
+```
+
+#### SQL
+
+```sql
+WHERE (datetime > "2018-01-01T10:00:00Z") AND (datetime < "2018-01-01T10:00:00Z")
+```
+
+### `OR` 연산자를 사용한 필터
+
+다음 GraphQL 예시는 필터에서 `OR` 연산자를 사용하는 방법을 보여줍니다. 이 `OR` 연산자는 `clientCountryName` 필드가 `US` 또는 `GB`인 값을 필터링합니다.
+
+#### GraphQL
+
+```graphql
+httpRequestsAdaptiveGroups(
+        filter: {
+          datetime: "2018-01-01T10:00:00Z",
+          OR:[{clientCountryName: "US"}, {clientCountryName: "GB"}]) {
+    ...
+}
+```
+
+#### SQL
+
+```sql
+WHERE datetime="2018-01-01T10:00:00Z"
+  AND ((clientCountryName = "US") OR (clientCountryName = "GB"))
+```
+
+### 배열을 하나의 값으로 필터링
+
+다음 GraphQL 예시는 배열 필드에 특정 값이 포함된 데이터만 반환하도록 필터링하는 방법을 보여줍니다. 이어서 SQL에 해당하는 예시가 나옵니다.
+
+#### GraphQL
+
+```graphql
+mnmFlowDataAdaptiveGroups(filter: {ruleIDs_has: "rule-id"}) {
+    ...
+}
+```
+
+#### SQL
+
+```sql
+WHERE has(ruleIDs, 'rule-id')
+```
+
+### 배열을 여러 값으로 필터링
+
+다음 GraphQL 예시는 배열 필드에 여러 값이 모두 포함된 데이터만 반환하도록 필터링하는 방법을 보여줍니다. 이어서 SQL에 해당하는 예시가 나옵니다.
+
+#### GraphQL
+
+```graphql
+mnmFlowDataAdaptiveGroups(filter: {ruleIDs_hasall: ["rule-id-1", "rule-id-2"]}) {
+    ...
+}
+```
+
+#### SQL
+
+```sql
+WHERE has(ruleIDs, 'rule-id-1') AND has(ruleIDs, 'rule-id-2')
+```
+
+### 최종 사용자 필터링
+
+`eyeball`용 `requestSource` 필터를 추가하면 웹사이트의 최종 사용자에 대한 요청, 데이터 전송, 방문 데이터만 반환할 수 있습니다. 이렇게 하면 zone에서 Cloudflare 제품이 수행한 작업(예: cache purge, healthchecks, Workers subrequests)은 제외됩니다.
+
+## 서브쿼리(고급 필터)
+
+현재는 서브쿼리를 지원하지 않습니다. 이 제한을 우회하려면 GraphQL 쿼리를 두 번 사용하는 방법을 쓸 수 있습니다.

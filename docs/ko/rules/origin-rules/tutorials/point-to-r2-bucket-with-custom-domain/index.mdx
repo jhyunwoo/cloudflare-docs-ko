@@ -1,0 +1,124 @@
+---
+reviewed: 2025-04-12T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: 주문 도메인을 가진 R2 물통에 점
+products:
+  - r2
+  - origin-rules
+description: 이 튜토리얼은 사용자 정의 도메인으로 구성된 R2 버킷에 대한 소스 규칙과 DNS 레코드를 구성하는 방법을 지시합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/point-to-r2-bucket-with-custom-domain/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/origin-rules/tutorials/point-to-r2-bucket-with-custom-domain/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example, DashButton, Steps } from "~/components";
+
+이 튜토리얼은 사용자 정의 도메인으로 구성된 R2 버킷에 대한 소스 규칙과 DNS 레코드를 구성하는 방법을 지시합니다.
+
+절차는 다음과 같은 예 값을 사용합니다.
+
+|                          |                                  |
+| -----------------------: | -------------------------------- |
+| 웹 사이트 방문자가 액세스 할 수있는 URL | `mycustomerexample.com/images/*` |
+|             R2 물통 관례 도메인 | `imagesbucket.example.com`       |
+
+R2 버킷의 사용자 정의 도메인을 구성 할 때 생산에서 사용 할 계획이 없다는 사용자 정의 도메인을 사용하십시오 (`imagesbucket.example.com`이 예).
+
+## 1. Pages 프로젝트에서 사용자 정의 도메인 구성
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+
+  2. 당신의 물통을 선택하십시오.
+
+  3. 버킷 페이지에서 선택**계정 설정**.
+
+  4. 이름 \***본문 바로가기** > **사용자 정의 도메인**, 선택**도메인 연결**.
+
+  5. 연결하려는 도메인 이름을 입력하십시오 —`imagesbucket.example.com`이 예제에서 - 그리고 선택**계속하기**.
+
+  6. DNS 테이블에 추가 될 새로운 레코드를 검토하고 선택**도메인 연결**.
+</Steps>
+
+귀하의 도메인은 이제 연결됩니다. 상태는 몇 분 정도 걸립니다.**초기화**으로**지원하다**, 당신은 상태를 업데이트 검토하기 위해 새로 고침해야 할 수 있습니다. 상태가 변경되지 않은 경우, 선&#xD0DD;**...**&#xB2F9;신의 물통과 선택의 옆에**Retry 연결**.
+
+추가 DNS 레코드를 보려면, 선&#xD0DD;**...**&#xC5F0;결된 도메인 옆에 선택**DNS 관리**.
+
+:::참조
+사용되는 도메인은 R2 버킷과 같은 계정에 속해야 합니다.
+주요 특징
+
+## 2. 호스트 헤더 및 override DNS 레코드를 다시 작성하는 기원 규칙을 만듭니다.
+
+내 계정`mycustomerexample.com`영역은 다음과 같은 구성을 가진 근원 규칙을 만듭니다:
+
+<Example>
+  **자주 묻는 질문**
+
+  | 제품정보   | 회사연혁  | 제품정보        |
+  | ------ | ----- | ----------- |
+  | URI 경로 | 와일드카드 | `/images/*` |
+
+  Expression Editor를 사용하면 다음과 같은 표현식을 입력합니다.
+
+  ```txt
+  (http.request.uri.path wildcard "/images/*")
+  ```
+
+  **세트 근원 모수**
+
+  - 후에 가치**호스트 헤더** > **자주 묻는 질문**: `imagesbucket.example.com`
+  - 후에 가치**DNS 기록** > **관련 기사**: `imagesbucket.example.com`
+</Example>
+
+## 3. (선택) URL rewrite를 구성하십시오
+
+웹 사이트 방문자가 액세스하는 URL에서`/images`. 그러나, 예를 들면 R2 물통에 저장된 이미지는 이 처음 URL 세그먼트가 없습니다.
+
+URL을 사용하여 제거`/images`URL 경로의 세그먼트. Cloudflare는 대시보드에 있는 규칙 템플렛을 제공합니다**Object Storage Bucket에 대한 경로 작성**필요한 rewrite를 구성할 수 있습니다.
+
+<Steps>
+  1. Cloudflare 대시보드에서 규칙에 가십시오**제품정보**사이트 맵
+
+     <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+  2. 제품정보**규칙 만들기** > **URL Rewrite 규칙**.
+
+  3. 규칙에 대한 설명 이름 입력**규칙 이름**.
+
+  4. 내 계정**자주 묻는 질문**, 선택**Wildcard 패턴**.
+
+  5. 다음 값을 입력하십시오.**URL 요청**:
+
+     ```txt
+     https://<YOUR_HOSTNAME>/images/*
+     ```
+
+     현재 예시에서 값은`https://mycustomerexample.com/images/*`.
+
+  6. 내 계정**그런 다음 경로 및 / 또는 쿼리를 다시 작성**, 아래의 값을 입력**오시는 길**:
+
+     | 대상 경로             | 자주 묻는 질문      |
+     | ----------------- | ------------- |
+     | \[`/`] `images/*` | \[`/`] `${1}` |
+
+  7. 제품정보**계정 만들기**.
+</Steps>
+
+:::참조
+Cloudflare는 대시보드에 있는 규칙 템플렛을 제공합니다**Object Storage Bucket에 대한 경로 작성**URL rewrite 규칙을 구성하고 적응할 수 있습니다.
+주요 특징
+
+## 더 많은 리소스
+
+- [튜토리얼: URI 경로 변경 및 호스트 헤더](/rules/origin-rules/tutorials/change-uri-path-and-host-header/)
+- [Cloudflare R2: 공중 물통](/r2/buckets/public-buckets/)
+- [DNS 레코드](/dns/manage-dns-records/)

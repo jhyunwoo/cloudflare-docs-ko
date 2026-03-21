@@ -1,0 +1,121 @@
+---
+title: 관련 규칙
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/account/managed-rulesets/'
+translation_source_md: 'https://developers.cloudflare.com/waf/account/managed-rulesets/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, Details, APIRequest } from "~/components";
+
+:::참조
+이 기능은 유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+주요 특징
+
+<Render file="waf-managed-rules-intro" product="waf" />
+
+## 계정 수준 배치
+
+계정 수준에서 각각 배포할 수 있습니다.[WAF 관리 규정](/waf/managed-rules/#available-managed-rulesets)한 번 이상. 이것은 당신이 당신의 계정에 있는 기업 지역을 위한 들어오는 교통의 다른 subsets에 다른 윤곽을 가진 동일한 관리한 통치자를 적용할 수 있다는 것을 의미합니다.
+
+예를 들어, 배포할 수 있습니다.[Cloudflare OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/)다른 paranoia 수준과 다른 행동을 가진 다수 시간 (*관리 도전*PL3 및*로그인*PL4의 동작.
+
+<Details header="예제: 두 가지 다른 구성을 가진 OWASP 배포">
+  다음 예제를 배치[Cloudflare OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/)다음 실행 규칙을 통해 계정 수준에서 여러 번:
+
+  - 첫 번째 실행 규칙 : 파라노아 수준 3 (PL3)까지 OWASP 규칙을 활성화하고 행동을 설정*관리 도전*.
+  - 두 번째 규칙을 실행 : PL4까지 OWASP 규칙을 활성화하고 행동을 설정*로그인*.
+
+  이 구성은 PL3 규칙을 활성화하여 추가 보호를 제공합니다, 그러나 요청을 차단하지 않고, 더 높은 파라노아 수준은 거짓 긍정적으로 더 많은 장점입니다.
+
+  두 번째 규칙은 PL4 규칙에 대한 모든 경기를 기록합니다. 규칙의 가장 엄격한 규칙은 라이브 트래픽에 영향을 미치지 않습니다. 이 구성을 사용하여 트래픽이 PL4 규칙에 영향을 줄 수 있습니다.
+
+  <Tabs syncKey="dashPlusAPI">
+    <TabItem label="대시보드">
+      1. 다음으로 Cloudflare OWASP Core Ruleset 배포[대시보드 지침](/waf/account/managed-rulesets/deploy-dashboard/#deploy-a-managed-ruleset), 이러한 설정을 사용하여 규칙 행동을 사용자 정의:
+         - **OWASP Anomaly 점수 위협**: *중간 - 40 이상*
+         - **OWASP 파라노아 수준**: *공장 투어*
+         - **OWASP 활동**: *관리 도전*
+
+      2. 제품정보**계정 만들기**.
+
+      3. OWASP 규칙에 대한 배포 절차를 반복, 하지만 다음과 같은 규칙 구성:
+         - **OWASP Anomaly 점수 위협**: *중간 - 40 이상*
+         - **OWASP 파라노아 수준**: *공장 투어*
+         - **OWASP 활동**: *로그인*
+
+      구성을 완료하면,**관련 규칙**목록은 2를 보여줄 것입니다*계정 관리*Cloudflare OWASP Core Ruleset의 규칙.
+    </TabItem>
+
+    <TabItem label="사이트맵">
+      다음 것`POST`요청사항[계정 규칙 만들기](/api/resources/rulesets/methods/create/)작업 생성[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)제품정보`http_request_firewall_managed`계정 수준에서 단계. 규칙에는 Cloudflare OWASP Core Ruleset을 두 번 배치하는 두 가지 규칙이 포함되어 있습니다.
+
+      <APIRequest
+        path="/accounts/{account_id}/rulesets"
+        method="POST"
+        json={{
+  	name: "My ruleset",
+  	description: "Entry point ruleset for WAF managed rulesets (account)",
+  	kind: "root",
+  	phase: "http_request_firewall_managed",
+  	rules: [
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "4814384a9e5d4991b9815dcfc25d2f1f",
+  				overrides: {
+  					categories: [
+  						{
+  							category: "paranoia-level-4",
+  							enabled: false,
+  						},
+  					],
+  					rules: [
+  						{
+  							id: "6179ae15870a4bb7b2d480d4843b323c",
+  							action: "managed_challenge",
+  						},
+  					],
+  				},
+  			},
+  			expression: 'cf.zone.plan eq "ENT"',
+  			description:
+  				"Execute OWASP ruleset at PL3 with Managed Challenge action",
+  		},
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "4814384a9e5d4991b9815dcfc25d2f1f",
+  				overrides: {
+  					rules: [
+  						{
+  							id: "6179ae15870a4bb7b2d480d4843b323c",
+  							action: "log",
+  						},
+  					],
+  				},
+  			},
+  			expression: 'cf.zone.plan eq "ENT"',
+  			description: "Execute OWASP ruleset at PL4 with Log action",
+  		},
+  	],
+  }}
+        roles="account"
+      />
+    </TabItem>
+  </Tabs>
+</Details>
+
+<Render
+  file="managed-ruleset-config-options"
+  product="waf"
+  params={{
+  	overridesUrl:
+  		"/waf/account/managed-rulesets/deploy-dashboard/#configure-a-managed-ruleset",
+  }}
+/>

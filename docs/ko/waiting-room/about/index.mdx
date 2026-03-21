@@ -1,0 +1,47 @@
+---
+title: 소개
+pcx_content_type: concept
+sidebar:
+  order: 2
+
+---
+
+import { LinkButton, Render } from "~/components"
+
+Waiting Room은 트래픽이 미리 정의한 임계값에 가까워져 애플리케이션이 다운될 수 있는 상황에서 방문자를 대기열에 넣습니다.
+
+![Cloudflare가 요청을 관리하고 origin 웹사이트에 도달하기 전에 대기실에 배치하는 방식을 보여주는 Waiting Room 프로세스 흐름](~/assets/images/waiting-room/waiting-room-process-flow.png)
+
+## 사용자 흐름
+
+특정 애플리케이션 페이지에 대해 [대기실을 만들고 활성화](/waiting-room/get-started/)하면:
+
+- 페이지에 트래픽이 많지 않으면 방문자는 페이지에 직접 접근합니다.
+- 페이지 트래픽이 [사용자 정의 임계값](/waiting-room/reference/configuration-settings/#session-duration)에 가까워지면 방문자는 페이지에 접근할 차례가 올 때까지 가상 대기실에 들어갑니다.
+
+  - 각 사용자는 [쿠키](/waiting-room/reference/waiting-room-cookie/)를 받아, 대기실에서 origin 웹사이트로 나가는 요청의 동적 유출량을 [선입선출(FIFO)](/waiting-room/reference/queueing-methods/#first-in-first-out-fifo) 순서로 관리합니다.
+  - 대기실에 있는 동안 사용자의 브라우저는 20초마다 자동 새로고침되어 예상 대기 시간에 대한 최신 정보를 제공합니다.
+  - 사용자가 대기실을 나와 애플리케이션에 도달하면, [session duration](/waiting-room/reference/configuration-settings/#session-duration)에서 지정한 시간 동안은 사이트를 떠났다가 다시 들어와도 다시 기다릴 필요가 없습니다.
+  - 대기실은 동적인 유입량과 [유출량](/waiting-room/reference/configuration-settings/#session-duration)을 지원하므로, 새로운 자리가 더 빠르게 생기고 예상 대기 시간이 더 짧고 정확해집니다.
+
+## 아키텍처
+
+Waiting Room은 Cloudflare 데이터 센터의 글로벌 네트워크 전반에서 실행되는 [Workers](/workers/) 기반으로 구축되어 있습니다.
+
+요청이 Waiting Room이 적용되는 호스트나 경로로 들어오면, 그 요청은 가장 가까운 지리적 데이터 센터의 Waiting Room Worker로 전달됩니다. 그러면 Worker는 사용자를 대기열로 보낼지 웹사이트로 보낼지 결정해야 합니다.
+
+이 결정은 두 가지 요인, 즉 [관리자가 정의한 임계값](/waiting-room/reference/configuration-settings/)과 Waiting Room 상태에 따라 달라집니다.
+
+관리자 정의 임계값에서 중요한 두 가지 지표는 `total active users`와 `new users per minute`입니다.
+
+- `total active users`는 대기실이 적용되는 페이지에서 동시에 허용하고자 하는 사용자 수의 목표 임계값입니다.
+
+- `new users per minute`는 분당 웹사이트로 유입되는 최대 사용자 수에 대한 목표 임계값을 정의합니다.
+
+이 값들 가운데 하나라도 급격히 증가하면 대기열이 시작될 수 있습니다. `total active users`를 계산하는 데 영향을 주는 또 다른 설정은 `session duration`입니다. 사용자는 대기실이 적용되는 페이지에 요청을 보낸 시점부터 `session duration`분 동안 활성 상태로 간주됩니다.
+
+또 다른 요인은 Waiting Room 상태입니다. 이 상태는 로컬 데이터 센터 수준에서 유지되지만, 전 세계의 트래픽을 반영해 계속 변화합니다. 각 데이터 센터는 자체 Waiting Room 상태를 사용합니다. 이 상태는 해당 시점에 전 세계 웹사이트 트래픽 패턴을 스냅샷으로 담은 것입니다. 이 접근 방식, 즉 Worker 수준에서 결정을 내리는 방식의 장점은 요청에 유의미한 지연 시간을 추가하지 않고도 결정을 내릴 수 있다는 점입니다. Waiting Room 알고리즘은 Waiting Room 상태에 따라 각 Worker에 사용할 수 있는 슬롯 수를 동적으로 할당합니다. Worker 내부의 슬롯이 소진되면 대기열이 시작됩니다. 추가 지연이 없기 때문에 고객은 사용자에게 추가 지연을 걱정하지 않고 항상 대기실을 켜 둘 수 있습니다.
+
+Waiting Room 상태는 몇 초마다 전역 정보를 반영해 업데이트됩니다. Cloudflare [Durable Objects](/durable-objects/) 안에 구성된 파이프라인이 있어 트래픽 변화가 전 세계로 전파되도록 보장합니다. 이 아키텍처는 추가 지연을 도입하지 않으면서도 가능한 한 실시간에 가깝게 의사 결정을 내리도록 해 줍니다.
+
+아키텍처와 이러한 설계 결정을 내린 이유에 대한 더 자세한 내용은 [기술 심화 블로그](https://blog.cloudflare.com/how-waiting-room-queues)를 참고하세요.

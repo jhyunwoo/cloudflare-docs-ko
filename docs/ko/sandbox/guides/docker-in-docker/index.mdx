@@ -1,0 +1,104 @@
+---
+title: Docker-in-Docker 실행
+pcx_content_type: how-to
+sidebar:
+  order: 10
+description: Sandbox 컨테이너 안에 Docker 명령을 실행하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/docker-in-docker/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/docker-in-docker/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TypeScriptExample } from "~/components";
+
+이 가이드는 Sandbox 내부 Docker를 실행하는 방법을 보여줍니다. 보안 샌드박스 내에서 컨테이너 이미지를 구축하고 실행할 수 있습니다.
+
+## Docker-in-Docker를 사용할 때
+
+필요한 경우 Docker-in-Docker 사용:
+
+- **컨테이너화된 애플리케이션 개발**- 실행`docker build`Dockerfiles에서 이미지를 생성하기
+- **CI/CD의 일부로 Docker 실행**- Cloudflare 컨테이너를 사용하여 코드 변경 및 빌드 및 푸시 이미지에 응답
+- **arbitrary 컨테이너 이미지를 실행**- end-user 제공된 이미지에서 컨테이너 시작
+
+## Docker-enabled 이미지 만들기
+
+Cloudflare 컨테이너는 루트 권한없이 실행되므로 rootless Docker 이미지를 사용해야합니다. Docker와 sandbox 바이너리를 결합하는 사용자 정의 Dockerfile 만들기:
+
+```dockerfile title="Dockerfile"
+FROM docker:dind-rootless
+USER root
+
+# Use the musl build so it runs on Alpine-based docker:dind-rootless
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /container-server/sandbox /sandbox
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /usr/lib/libstdc++.so.6 /usr/lib/libstdc++.so.6
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /usr/lib/libgcc_s.so.1 /usr/lib/libgcc_s.so.1
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /bin/bash /bin/bash
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /usr/lib/libreadline.so.8 /usr/lib/libreadline.so.8
+COPY --from=docker.io/cloudflare/sandbox:0.7.4-musl /usr/lib/libreadline.so.8.2 /usr/lib/libreadline.so.8.2
+
+# Create startup script that starts dockerd with
+# iptables disabled, waits for readiness, then keeps running
+RUN printf '#!/bin/sh\n\
+  set -eu\n\
+  dockerd-entrypoint.sh dockerd --iptables=false --ip6tables=false &\n\
+  until docker version >/dev/null 2>&1; do sleep 0.2; done\n\
+  echo "Docker is ready"\n\
+  wait\n' > /home/rootless/boot-docker-for-dind.sh && chmod +x /home/rootless/boot-docker-for-dind.sh
+
+ENTRYPOINT ["/sandbox"]
+CMD ["/home/rootless/boot-docker-for-dind.sh"]
+
+```
+
+<Render file="dind-network-host-caveat" product="containers" />
+
+## Sandbox의 Docker 사용
+
+배포되면 Docker 명령을 sandbox로 실행할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "docker-sandbox");
+
+  //본문 바로가기
+  await sandbox.writeFile(
+  	"/workspace/Dockerfile",
+  	`
+  FROM alpine:latest
+  RUN apk add --no-cache curl
+  CMD ["echo", "Hello from Docker!"]
+  `,
+  );
+
+  const build = await sandbox.exec(
+  	"docker build --network=host -t my-image /workspace",
+  );
+  if (!build.success) {
+  	console.error("Build failed:", build.stderr);
+  }
+
+  //컨테이너 실행
+  const run = await sandbox.exec("docker run --network=host --rm my-image");
+  console.log(run.stdout); //"독서에서 헬로!"
+  ```
+</TypeScriptExample>
+
+## 제한 사항
+
+Cloudflare 콘테이너에는 뒤에 오는 제한이 있습니다:
+
+- **iptables 없음**- IPtables에 의존하는 네트워크 고립 특징은 유효하지 않습니다
+- **Rootless 모드만**- 특정 컨테이너 또는 루트가 필요한 기능을 사용할 수 없습니다.
+- **Ephemeral 저장**- 내장된 이미지와 용기는 sandbox 수면 때 손실됩니다. 자주 묻는 질문
+
+## 관련 자료
+
+- [도커파일 reference](/sandbox/configuration/dockerfile/)- sandbox 이미지를 사용자 정의
+- [명령 실행](/sandbox/guides/execute-commands/)- sandbox에서 명령 실행
+- [배경 프로세스](/sandbox/guides/background-processes/)- 긴 실행 프로세스 관리

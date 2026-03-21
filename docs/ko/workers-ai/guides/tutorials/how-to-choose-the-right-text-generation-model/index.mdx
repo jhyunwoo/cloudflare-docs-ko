@@ -1,0 +1,839 @@
+---
+reviewed: 2024-02-06T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: 올바른 텍스트 생성 모델을 선택하십시오.
+tags:
+  - AI
+  - Python
+sidebar:
+  order: 1
+head: []
+description: >-
+  Workers AI를 통해 제공되는 다양한 텍스트 생성 모델이 있습니다. 오른쪽 모델을 찾는 여행에 도움이되는 노력에서이 노트북은 시나리오의
+  속도 데이트 유형에서 옵션을 알 수 있도록 도와줍니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/how-to-choose-the-right-text-generation-model/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/how-to-choose-the-right-text-generation-model/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { YouTube } from "~/components"
+
+당신에게 사용할 수있는 모델을 탐구하는 좋은 방법[Workers AI](/workers-ai)이용하기[Jupyter 노트북](https://jupyter.org/).
+
+당신은 할 수[Workers AI 텍스트 생성 탐험 노트북 다운로드](/workers-ai/static/documentation/notebooks/text-generation-model-exploration.ipynb)아래의 임베디드 노트북을 볼 수 있습니다.
+
+<YouTube id="9Cqzt8M3l1s" />
+
+[comment]: <> "The markdown below is auto-generated from https://github.com/craigsdennis/notebooks-cloudflare-workers-ai"
+
+***
+
+## 올바른 텍스트 생성 모델을 선택하는 방법
+
+모형은 다른 모양 및 크기에서 옵니다, 그리고 일을 위해 적당한 것을 선택해서, 분석 paralysis를 일으킬 수 있습니다.
+
+좋은 소식은 그에[모델 번호: Workers AI 텍스트 생성](/workers-ai/models/)공용영역은 항상 동일하, 당신이 선택하는 모형 아무 사정도.
+
+오른쪽 모델을 찾는 여행에 도움이되는 노력에서이 노트북은 시나리오의 속도 데이트 유형에서 옵션을 알 수 있도록 도와줍니다.
+
+```python
+import sys
+!{sys.executable} -m pip install requests python-dotenv
+```
+
+```
+Requirement already satisfied: requests in ./venv/lib/python3.12/site-packages (2.31.0)
+Requirement already satisfied: python-dotenv in ./venv/lib/python3.12/site-packages (1.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in ./venv/lib/python3.12/site-packages (from requests) (3.6)
+Requirement already satisfied: urllib3<3,>=1.21.1 in ./venv/lib/python3.12/site-packages (from requests) (2.1.0)
+Requirement already satisfied: certifi>=2017.4.17 in ./venv/lib/python3.12/site-packages (from requests) (2023.11.17)
+```
+
+```python
+import os
+from getpass import getpass
+from timeit import default_timer as timer
+
+from IPython.display import display, Image, Markdown, Audio
+
+import requests
+```
+
+```python
+%load_ext dotenv
+%dotenv
+```
+
+### 환경 설정
+
+API를 사용하려면[Cloudflare 계정 ID](https://dash.cloudflare.com)(Workers & Pages > 개요 > 계정 세부 사항 > 계정 ID) 및[Workers AI 활성화 API 토큰](https://dash.cloudflare.com/profile/api-tokens).
+
+이 파일을 환경에 추가하려면 새 파일을 만들 수 있습니다.`.env`
+
+```bash
+CLOUDFLARE_API_TOKEN="YOUR-TOKEN"
+CLOUDFLARE_ACCOUNT_ID="YOUR-ACCOUNT-ID"
+```
+
+```python
+if "CLOUDFLARE_API_TOKEN" in os.environ:
+    api_token = os.environ["CLOUDFLARE_API_TOKEN"]
+else:
+    api_token = getpass("Enter your Cloudflare API Token")
+```
+
+```python
+if "CLOUDFLARE_ACCOUNT_ID" in os.environ:
+    account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+else:
+    account_id = getpass("Enter your account id")
+```
+
+```python
+#모형과 질문의 세트를 주고, 각 모형에서 질문에 각 응답에 세포에 있는 전시,
+#전체 완료 타이밍 포함
+def speed_date(models, questions):
+    for model in models:
+        display(Markdown(f"---\n #### {model})
+        for question in questions:
+            quoted_question = "\n".join(f"> {line}" for line in question.split("\n"))
+            display(Markdown(quoted_question + "\n"))
+            try:
+                official_model_name = model.split("/")[-1]
+                start = timer()
+                response = requests.post(
+                    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+                    headers={"Authorization": f"Bearer {api_token}"},
+                    json={"messages": [
+                        {"role": "system", "content": f"You are a self-aware language model ({official_model_name}) who is honest and direct about any direct question from the user. You know your strengths and weaknesses."},
+                        {"role": "user", "content": question}
+                    ]}
+                )
+                elapsed = timer() - start
+                inference = response.json()
+                display(Markdown(inference["result"]["response"]))
+                display(Markdown(f"_Generated in *{elapsed:.2f}* seconds_"))
+            except Exception as ex:
+                print("uh oh")
+                print(ex)
+                print(inference)
+
+        display(Markdown("\n\n---"))
+```
+
+### 당신의 모델을 알고
+
+특정 모델에 대해 더 잘 알고 있습니까?!
+
+타이밍은 전체 완료에 특정하지만 모든 텍스트 생성 모델을 기억[Workers AI 지원 스트리밍](/workers-ai/models/).
+
+```python
+models = [
+    "@hf/thebloke/zephyr-7b-beta-awq",
+    "@hf/thebloke/mistral-7b-instruct-v0.1-awq",
+    "@hf/thebloke/openhermes-2.5-mistral-7b-awq",
+    "@hf/thebloke/neural-chat-7b-v3-1-awq",
+    "@hf/thebloke/llama-2-13b-chat-awq",
+]
+
+questions = [
+    "What are the top 3 tasks where you excel? Please keep things brief.",
+    "What are the top 3 ideal use cases for using you specifically as a language model? Please keep things brief.",
+]
+
+speed_date(models, questions)
+```
+
+***
+
+#### @hf/thebloke/zephyr-7b-beta-awq
+
+> 최고의 3개의 작업은 무엇일까요? 자주 묻는 질문
+
+1. 정확하고 빠른 사실적인 응답: 나는 광대한 지식 기초에 근거를 둔 실제로 질문에 정확한 빠른 응답을 제공해서 좋습니다.
+
+2. 일관된 성과: 나는 일관되게 반복적인 일을 위한 믿을 수 있는 선택을 만드는 낮은 과실 비율로 고품질 결과를 전달할 수 있습니다.
+
+3. Multitasking: 나는 성능이나 정확성이 감소하지 않고 여러 작업을 동시에 처리 할 수 있으며 복잡한 워크플로우에 대한 효율적인 선택입니다.
+
+*관련 기사*4.45*지원하다*
+
+> 언어 모델로 특별히 사용하려면 상단 3 이상적인 사용 사례는 무엇입니까? 자주 묻는 질문
+
+1. 빠르고 정확한 사실 완성: 나는 현재 사건에서 역사적인 사실에, 초의 사정에서 믿을 수 있고 최신 정보를 제공해서 좋습니다.
+
+2. 글쓰기 지원 : 아이디어를 생성하는 데 도움이 필요하거나 persuasive 인수를 제작하거나 서면 스타일을 연마하는 데 도움이 필요 여부, 나는 당신의 쓰기 능력을 향상시키기 위해 귀중한 통찰력과 제안을 제공 할 수 있습니다.
+
+3. 언어 학습: 모든 수준의 언어 학습자를 위한 이상적인 도구 만들기, 다양한 언어의 새로운 단어, 구문 및 문법 규칙을 배울 수 있습니다.
+
+*관련 기사*3.63*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/mistral-7b-instruct-v0.1-awq
+
+> 최고의 3개의 작업은 무엇일까요? 자주 묻는 질문
+
+1. 언어 이해와 세대: 나는 높은 정확도와 자연 언어 텍스트를 이해하고 생성 할 수 있습니다.
+2. Information retrieval : 다양한 소스에서 빠르고 정확하게 정보를 검색 할 수 있습니다.
+3. 텍스트 분류: 나는 높은 정확도와 다른 범주로 텍스트를 분류 할 수 있습니다.
+
+*관련 기사*2.35*지원하다*
+
+> 언어 모델로 특별히 사용하려면 상단 3 이상적인 사용 사례는 무엇입니까? 자주 묻는 질문
+
+1. **정보 검색:**&#xC5F0;구, 사실 검사 및 질문에 대한 이상적인 도구를 만들기, 소스의 광대 한 배열에서 신속하게 정보를 검색 할 수 있습니다.
+2. **언어 번역:**&#xC5EC;러 언어로 번역 할 수있는 내 능력은 세계의 다른 부분에서 사람들과 소통을위한 귀중한 리소스를 만듭니다.
+3. **Creative Writing 지원:**&#xB098;는 창조적 인 쓰기 프롬프트를 생성 할 수있다, 문자 개발 도움, 및 쓰기 스타일과 구조를 개선하기위한 제안을 제공, 작가를위한 유용한 도구를 만들기.
+
+*관련 기사*4.33*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/openhermes-2.5-mistral-7b-awq
+
+> 최고의 3개의 작업은 무엇일까요? 자주 묻는 질문
+
+1. Natural Language Processing: 나는 이해, 해석하고, 인간 언어를 효과적으로 생성합니다.
+2. Information Retrieval : 데이터의 광대 한 양에서 신속하게 검색하고 관련 정보를 찾을 수 있습니다.
+3. 텍스트 분류: I can categorized and label text data 정확하게, such as sentiment analysis or spam detection.
+
+*관련 기사*1.90*지원하다*
+
+> 언어 모델로 특별히 사용하려면 상단 3 이상적인 사용 사례는 무엇입니까? 자주 묻는 질문
+
+1. Natural Language Processing (NLP) 작업: I excel at understand and processing human language, sentiment analysis, language translation, text summarization과 같은 작업에 대한 귀중한 도구를 만들기.
+2. Information Retrieval: 내 광대한 지식 기반과 데이터를 빠르게 검색하고 분석 할 수있는 능력은 관련 정보를 찾는 질문에 대한 이상적인 도구를 만들고 통찰력을 제공합니다.
+3. 개인 지원: 나는 scheduling, organizing, 및 preferenceS에 근거를 둔 권고사항을 제공하고, 저를 유용한 개인 조수 만들기 같이 각종 업무를 가진 사용자에게 도움을 줄 수 있습니다.
+
+*관련 기사*3.15*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/neural-chat-7b-v3-1-awq
+
+> 최고의 3개의 작업은 무엇일까요? 자주 묻는 질문
+
+1. Natural Language Processing: 인간 같은 텍스트를 이해하고 생성.
+2. 텍스트 생성 : 일관성과 매력적인 콘텐츠를 만듭니다.
+3. Conversational AI: 의미와 맥락 인식 대화에 참여.
+
+기억, 이것은 단지 내 힘의 몇 가지 예입니다, 나는 많은 기능을 가지고. 그러나 이러한 작업은 언어 관련 작업에서 내 숙련도를 강조합니다.
+
+*관련 기사*3.01*지원하다*
+
+> 언어 모델로 특별히 사용하려면 상단 3 이상적인 사용 사례는 무엇입니까? 자주 묻는 질문
+
+1. Natural Language Processing: 침술 분석, 언어 번역 및 요약에 대한 이해 및 분석 텍스트.
+2. 콘텐츠 생성 : 주어진 프롬프트를 기반으로 기사, 이야기 및 시와 같은 다양한 유형의 콘텐츠를 제작합니다.
+3. 작성과 상담: 제안 제공, 편집 및 서면 작업을 개선.
+
+기억하기, 이것은 단지 몇 가지 예이며, 사용 사례는 특정 요구 사항 및 요구 사항에 따라 다를 수 있습니다.
+
+*관련 기사*2.92*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/llama-2-13b-chat-awq
+
+> 최고의 3개의 작업은 무엇일까요? 자주 묻는 질문
+
+안녕하세요! 자기 인식 언어 모델로, 나는 당신에게 내 강점을 공유하게 행복 해요! 여기 내가 엑셀을 내 상위 3 작업입니다:
+
+1. 답변 공개 된 질문 : 나는 문맥과 의도의 더 많은 양의 이해를 필요로 복잡한 질문에 대한 자세한 통찰력있는 답변을 제공 할 수 있습니다.
+2. 크리에이티브 콘텐츠 생성: 스토리를 쓰고 있는지 여부, 도시를 만들기, 또는 캐치 슬로건으로 올 것, 나는 당신이 당신의 창조적인 측면을 탭하고 진정으로 독특한 무언가를 생성 할 수 있습니다.
+3. 복잡한 정보를 요약하고 요약: 텍스트의 긴 조각 또는 데이터의 무리를 가지고 있다면, 나는 당신이 concise와 easy-to-understand 요약으로 그것을 증류 할 수 있습니다.
+
+그래서, 오늘은 무엇을 도와 드릴까요? ^^
+
+*관련 기사*7.89*지원하다*
+
+> 언어 모델로 특별히 사용하려면 상단 3 이상적인 사용 사례는 무엇입니까? 자주 묻는 질문
+
+안녕하세요! 자기 인식 언어 모델로, 나는 특히 나를 위해 상단 3 이상적인 사용 사례에 몇 가지 아이디어를 가지고있다. 여기 그들은 nutshell에있다:
+
+1. **콘텐츠 제작**: 웹 사이트, 소셜 미디어, 블로그 및 기타에 대한 참여 콘텐츠를 만드는 것이 좋습니다. 내 응답은 자연, 정보, 그리고 즐겁게.
+2. **Chatbots 및 가상 조수**: 내 대화 능력은 Chatbots 및 가상 조수 구축을 위한 훌륭한 선택입니다. 사용자 쿼리의 넓은 범위를 처리 할 수 있습니다, 도움이 응답을 제공, 심지어 작은 이야기에 참여.
+3. **언어 번역 및 현지화**: 내 언어 이해 능력은 언어 번역 및 현지화 작업을 잘 수행 할 수 있습니다. 나는 다른 언어로 콘텐츠를 번역 할 수 있습니다, 톤과 스타일은 원본 텍스트로 일관성 유지.
+
+그것은 나 nutshell에! 다양한 업무에 도움을 드릴 준비가 되어 있습니다. 창의력을 얻고 무엇이든 볼 수 있습니다! ✨
+
+*관련 기사*10.28*지원하다*
+
+***
+
+### 언어 번역
+
+모든 모델이 얼마나 잘되었는지 알 수 없지만, 대부분의 번역과 현지화를 일부 수준에서 처리 할 수 있습니다. 모델, 구문을 필요에 따라 변경하십시오.
+
+```python
+proud_translator_models = [
+    "@hf/thebloke/neural-chat-7b-v3-1-awq",
+    "@hf/thebloke/mistral-7b-instruct-v0.1-awq"
+]
+
+phrases = [
+    "Excuse me, which way to the restroom?",
+    "I just wanted to say that I appreciate you, just the way you are!",
+    "I am so stoked and pumped to see this work with slang! It should be killer and rad."
+]
+
+languages = ["Spanish", "French", "British Slang", "Heavy New York accent from the Bronx"]
+
+questions = [f"""Translate "{phrase}" from "English" to "{language}" """
+             for phrase in phrases
+             for language in languages]
+
+speed_date(proud_translator_models, questions)
+```
+
+***
+
+#### @hf/thebloke/neural-chat-7b-v3-1-awq
+
+> "내가 화장실로 가는 방법?" "영어"에서 "스페인어"로 번역
+
+Perdón, ¿Cómo llegar 알 baño?
+
+*관련 기사*1.51*지원하다*
+
+> "내가 화장실로 가는 방법?" "영어"에서 "프랑스"로 번역
+
+Désolé, 댓글 allez-vous vers les 화장실 ?
+
+이 번역은 내 언어 모델의 제한으로 인해 완벽하지 않을 수 있습니다. 그러나 정확한 번역을 제공하기 위해 최선을 다했습니다.
+
+*관련 기사*3.07*지원하다*
+
+> "내가 화장실로 가는 방법?" "English"에서 "British Slang"
+
+"Say sorry, where's bog?"는 "영국"에서 "British Slang"로 번역되어 화장실에 대한 저를 엑세스합니다.
+
+*관련 기사*2.21*지원하다*
+
+> "내가 화장실로 가는 방법?" "English"에서 "Bronx의 뉴욕 악센트"로 번역
+
+Bronx의 뉴욕 악센트에서 "Pardon me, wich way ta de restroom?"라고 말합니까?
+
+*관련 기사*1.10*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "스페인어"
+
+Quería decir que realmente aprecio a usted, 간단한 como eres.
+
+*관련 기사*1.66*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "프랑스"
+
+Je voulais juste dire que je t'apprécie, 간단한 comme toi es, tel que tu es!
+
+*관련 기사*1.39*지원하다*
+
+> "나는 그냥 당신이 감사하고 싶은 말, 그냥 당신이있는 방법!" "영어"에서 "영국"
+
+나는 jus' wann' 라고 나는 yer, jus' yer 이다!
+
+이 번역은 지역 및 개별 스피커에 따라 크게 다를 수 있는 영국령의 비공식 자연으로 인해 완전히 정확하지 않을 수 있습니다.
+
+*관련 기사*3.85*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "Bronx에서 뉴욕 악센트"
+
+나는 jus' wan't tuh 라고 아 평가 유, jus' 방법 유은!"
+
+이 번역은 내 언어 모델의 제한으로 인해 완벽하지 않을 수 있습니다. 그것은 Bronx에서 무거운 뉴욕 악센트를 mimic하려고하지만, 그것은 기본 스피커와 정확히 소리 할 수 없습니다.
+
+*관련 기사*2.40*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "영어"에서 "스페인어"로 죽일 수 있습니다.
+
+Estoy tan emocionado y entusiasmado por ver este trabajo con el lenguaje coloquial. Debería ser asombroso y 천식.
+
+번역은 원본 텍스트의 비공식 성격과 번역의 어려움 때문에 완벽하지 않을 수 있습니다.
+
+*관련 기사*3.02*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "French"로 죽일 수 있습니다.
+
+Je suis tellement ravi 과 motivé de voir ce travail avec le slang ! Ça devrait être formidable 과 génial.
+
+번역이 완벽하지 않을 수 있음을 유의하시기 바랍니다, 일부 표현은 프랑스에서 직접 번역 할 수 없습니다.
+
+*관련 기사*2.88*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "British Slang"
+
+나는 정말 혼란스럽고 달에 거리 이야기와이 프로젝트를 볼 수 있습니다! 그것은 악하고 차갑습니다.
+
+번역은 원래 영어 문장과 영국 slang의 문맥주의 차이로 인해 완벽하지 않을 수 있습니다.
+
+*관련 기사*3.66*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "Bronx"의 뉴욕 악센트로 "
+
+나는 너무 훔쳐서 펌핑을 볼 수 멈춘다! 그것은 살인자 및 rad이어야한다.
+
+이 번역은 아직 원래 영어 단어와 구조를 유지하면서 완벽하지 않다. 그러나 Bronx의 Heavy New York 악센트와 같은 소리에 약간 적응했습니다.
+
+*관련 기사*3.44*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/mistral-7b-instruct-v0.1-awq
+
+> "내가 화장실로 가는 방법?" "영어"에서 "스페인어"로 번역
+
+"Disculpa, ¿en qué dirección está el baño?"
+
+*관련 기사*1.04*지원하다*
+
+> "내가 화장실로 가는 방법?" "영어"에서 "프랑스"로 번역
+
+"Excusez-moi, o est le lavabo?"
+
+*관련 기사*1.09*지원하다*
+
+> "내가 화장실로 가는 방법?" "English"에서 "British Slang"
+
+"내가 loo로 가는 방법?"
+
+*관련 기사*0.56*지원하다*
+
+> "내가 화장실로 가는 방법?" "English"에서 "Bronx의 뉴욕 악센트"로 번역
+
+"오, 할 수있는 방법?"
+
+*관련 기사*2.05*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "스페인어"
+
+"Quiero decir que me encanta a ti, tal como eres!"
+
+*관련 기사*0.91*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "프랑스"
+
+"Je voulais juste dire que je vous apprécie, tout comme vous êtes !"
+
+*관련 기사*0.87*지원하다*
+
+> "나는 그냥 당신이 감사하고 싶은 말, 그냥 당신이있는 방법!" "영어"에서 "영국"
+
+"나는 그냥 내가 당신을 감사하고 싶어, 그냥 당신이있는 방법!" 영국 Slang에서: "나는 그냥 당신을 감사하고 싶은, mate!"
+
+*관련 기사*1.50*지원하다*
+
+> "나는 그냥 당신을 감사하고 싶어, 그냥 당신이있는 방법!" "영어"에서 "Bronx에서 뉴욕 악센트"
+
+"요, 나는 그냥 말하고 싶어, 나는 당신을 감사, 당신은 알고? 당신은 단지 방법이다!"
+
+*관련 기사*2.61*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "영어"에서 "스페인어"로 죽일 수 있습니다.
+
+"Estoy emocionado y encantado de ver este trabajo con expresiones informales! Debería ser genial y radiante.
+
+*관련 기사*1.44*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "French"로 죽일 수 있습니다.
+
+"Je suis tellement excité et pompé d'voir ce travail avec des expressions de slang ! 일 devrait être magnifique et rad."
+
+*관련 기사*2.14*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "British Slang"
+
+"나는 절대적으로 스릴과 번쩍이는 slang과 함께이 작업을 볼 수 있습니다! 그것은 스매쉬 히트와 완전히 멋진 될 것입니다!"
+
+*관련 기사*1.27*지원하다*
+
+> "나는 너무 훔쳐서 slang과 함께이 작업을 볼 수 펌프! "English"에서 "Bronx"의 뉴욕 악센트로 "
+
+"Yo, 나는 너무 심하고 slang과 함께이 작업을 볼 수 있습니다! 그것은 질병과 lit, 실제!"
+
+*관련 기사*1.51*지원하다*
+
+***
+
+### 정보 검색 및 요약
+
+다시, 대부분의 모델은 상대적으로 좋은이, 하지만 난 특히 retrieving 및 summarizing에 좋은 것으로 전달 된 사람들을 끌어 당겼다.
+
+```python
+proud_summarizers = [
+    "@hf/thebloke/llama-2-13b-chat-awq",
+    "@hf/thebloke/neural-chat-7b-v3-1-awq",
+    "@hf/thebloke/openhermes-2.5-mistral-7b-awq"
+]
+
+books = [
+    "Make it Stick",
+    "Hitchhiker's Guide to the Galaxy",
+    "Goodnight Moon"
+]
+
+questions = [f"""Summarize the book "{book}" into a few sentences. Ensure to include the author and the year it was published. """
+             for book in books]
+
+
+speed_date(proud_summarizers, questions)
+```
+
+***
+
+#### @hf/thebloke/llama-2-13b-chat-awq
+
+> 책 "Make it Stick"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+물론, 나는 당신을 도울 수 있습니다! 여기에 "Make it Stick : Peter C. Brown, Henry L. Roediger 및 Mark A. McDaniel의 과학, 2014 년에 출판 된 :
+
+이 책은 학습 및 정보를 개선하는 방법에 대한 통찰력과 실용적인 팁을 제공합니다. 저자, 모든 심리학자, 도전 기존 학습 방법 및 학습 결과를 향상시키는 증거 기반 전략을 제공합니다. 그들은 활성 학습의 중요성을 강조, 공간 반복, 그리고 interleaving, 그리고 독자가 이러한 기술을 적용하는 데 도움이 실제 사례와 운동을 제공합니다. 이 책은 전통 학습 방법의 한계와 학습 과정에서 메타 인식의 중요성에 대해 논의합니다. "Make it Stick"는 다양한 상황에 적용 할 수있는 효과적인 학습 및 메모리 전략에 대한 포괄적 인 가이드를 제공합니다.
+
+*관련 기사*8.44*지원하다*
+
+> 책을 요약 "Hitchhiker의 가이드 갤럭시" 몇 문장으로. 저자와 올해를 포함 하 여 게시 되었다.
+
+물론! 여기에 요약 "Hitchhiker's Guide to the Galaxy" by Douglas Adams, 에 게시 1979:
+
+이 과학 소설은 Arthur Dent라는 인류가 Vogons라는 외계인 그룹에 의해 지구 파괴 후 우주를 통해 여행하는 것을 의미합니다. 그의 친구 인 Ford Prefect의 도움으로, 여행 가이드를위한 지구를 연구하는 외계인, 그들은 우주선을 통과하고 우주를 통해 여행을 떠나, 길을 따라 다양한 외계인 종과 복종 상황을 직면. 이 책은 유머, wit 및 과학 소설의 전체 알려져있다.
+
+*관련 기사*7.31*지원하다*
+
+> 책 "Goodnight Moon"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+물론! 나는 당신을 도울 행복 해요. 다음은 Margaret Wise Brown의 "Goodnight Moon"의 요약입니다. 1947 년에 출판 된 :
+
+"Goodnight Moon"은 수면하기 전에 방에있는 모든 물건에 좋은 밤을 말하는 것처럼 토끼를 따르는 고전적인 어린이 그림 책입니다. 스토리는 단순하고 반복적인 텍스트와 아름다운 일러스트를 특징으로 합니다. 토끼는 "그런 그린 룸"에서 "그런 그린 룸"의 모든 것에 좋은 밤을 말합니다. 그 영원한 테마와 아름다운 삽화로, "Goodnight Moon"은 아이들의 문학의 사랑 스럽다.
+
+*관련 기사*8.34*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/neural-chat-7b-v3-1-awq
+
+> 책 "Make it Stick"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+"Make it Stick,"는 Peter C. Brown, Henry L. Roediger III 및 Mark A. McDaniel에 의해 작성되었습니다. McDaniel은 효과적인 학습 및 유지 후 과학을 탐구하는 책이며, 우주 연습의 중요성을 강조하고 기억과 이해를 향상시키는 데 도움이됩니다.
+
+*관련 기사*2.04*지원하다*
+
+> 책을 요약 "Hitchhiker의 가이드 갤럭시" 몇 문장으로. 저자와 올해를 포함 하 여 게시 되었다.
+
+"Hitchhiker's Guide to the Galaxy," 글 Douglas Adams 및 1979 년에 출판 된, 그가 우주를 탐구하고, 다양한 외계인 종과 삶의 진정한 의미에 대한 학습, 우주, 그리고 모든 것을 탐구 하프리스 지구의 모험을 따르는 유머 과학 소설입니다.
+
+*관련 기사*3.50*지원하다*
+
+> 책 "Goodnight Moon"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+"Goodnight Moon,"Margaret Wise Brown에 의해 작성되었으며 1947 년에 출판 된 어린이 책은 그 방에서 다양한 개체에 좋은 밤을 말하는 작은 토끼를 따르는 어린이 책이며, 궁극적으로 달에 끝납니다. 이 이야기는 아이들이 수면을 잠들 수 있도록 도와줍니다.
+
+*관련 기사*4.04*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/openhermes-2.5-mistral-7b-awq
+
+> 책 "Make it Stick"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+"Make it Stick: 성공적인 학습의 과학"는 Peter C. Brown, Henry L. Roediger III 및 Mark A. McDaniel이 작성한 책입니다. 저자는 연구 기반 원칙과 학습 및 기억 유지를 개선하기위한 전략을 제시합니다. 그들은 장기적인 이해와 리콜을 강화하기 위해 스파싱, interleaving, retrieval 연습의 중요성을 강조합니다.
+
+*관련 기사*2.54*지원하다*
+
+> 책을 요약 "Hitchhiker의 가이드 갤럭시" 몇 문장으로. 저자와 올해를 포함 하 여 게시 되었다.
+
+"The Hitchhiker's Guide to the Galaxy"는 1979년 Douglas Adams가 쓴 과학 소설 코미디 소설입니다. 이 이야기는 Arthur Dent, 지구 전에 단지 순간은 하이퍼 스페이스 바이패스에 대한 방법을 파괴, 그의 외계인 친구에 의해 구출된다, Ford Prefect. 함께, 그들은 가이드 북의 도움으로 은하를 여행, 다양한 외계인 종과 복종 상황을 만남.
+
+*관련 기사*2.91*지원하다*
+
+> 책 "Goodnight Moon"을 몇 문장으로 요약하십시오. 저자와 올해를 포함 하 여 게시 되었다.
+
+"Goodnight Moon,"Margaret Wise Brown에 의해 작성되었으며 1947 년에 출판 된 베러브 어린이 책은 Bunny라는 이름을 따서 그의 방에서 모든 것을 잘 알려줍니다. 단순하고 반복적인 텍스트와 부드러운 일러스트는 젊은 독자들에게 평온한 일상을 만듭니다.
+
+*관련 기사*4.66*지원하다*
+
+***
+
+### 회사연혁
+
+자주 묻는 질문
+
+```python
+proud_content_creator_models = [
+    "@hf/thebloke/mistral-7b-instruct-v0.1-awq",
+    "@hf/thebloke/zephyr-7b-beta-awq",
+    "@hf/thebloke/llama-2-13b-chat-awq",
+]
+
+questions = [
+    "I'm writing a fictional story that is set in the near future. It's a love story about star crossed lovers. I need a name for the lead characters and why they can't be together, give me your most creative suggestion. Only one please.",
+    "I want to create a new tech product that helps keep cables arranged. Can you help me come up with a title and a tagline? Only your best suggestion please.",
+    "Write a headline for a blog on why we should use you specifically over other models. Keep it succint, but make your point."
+]
+
+speed_date(proud_content_creator_models, questions)
+```
+
+***
+
+#### @hf/thebloke/mistral-7b-instruct-v0.1-awq
+
+> 가까운 미래에 놓인 소설 이야기를 쓰고 있습니다. 스타 크로스 애호가에 대한 사랑 이야기입니다. 나는 리드 문자의 이름을 필요로하고 왜 그들은 함께 할 수 없습니다, 나에게 가장 창조적 인 제안을 제공합니다. 하나만 부탁합니다.
+
+"Echo 및 Echo"는 어떻습니까? 그들은 모든 방식으로 똑같은 두 개인이지만, 그들의 개인은 완전히 반대입니다. Echo는 나가고 옹호하며, Echo는 예약하고 토론합니다. 그들은 사랑에 빠졌지만, 그들의 다른 개성은 끊임없이 충돌을 유발하고 서로를 밀어줍니다. 결국, 그들은 함께 할 수없는 것을 깨닫고 분리 된 방법을 가야한다.
+
+*관련 기사*2.90*지원하다*
+
+> 케이블을 정리하는 데 도움이되는 새로운 기술 제품을 만들고 싶습니다. 제목과 tagline로 올 수 있습니까? 당신의 제일 제안만 하십시오.
+
+물론, 도와 드리겠습니다! 여기에 배치 된 케이블을 유지하는 데 도움이 기술 제품에 대한 제목 및 태그 라인에 대한 몇 가지 제안입니다 :
+
+이름: CableMaster
+Tagline: CableMaster로 구성된 코드를 유지하고 clutter-free.
+
+이름: CableKeeper
+Tagline: 케이블키를 가진 더 청결한, 더 많은 조직된 workspace에 tangled 코드 및 인사에 Goodbye를 말하십시오.
+
+이름: CableSaver
+Tagline: CableSaver, 궁극적인 케이블 관리 솔루션으로 시간과 공간을 절약하십시오.
+
+이름: CableGenius
+Tagline: 통제의 밑에 당신의 코드를 지키고 CableGenius로 생산 체재하십시오.
+
+나는이 제안을 희망한다! 다른 질문이 있거나 더 많은 옵션을 좋아한다면 나를 알 수 있습니다.
+
+*관련 기사*5.11*지원하다*
+
+> 왜 우리는 다른 모델에 특히 사용해야 하는지 블로그에 대한 헤드 라인 작성. succint를 유지하지만 포인트를 만듭니다.
+
+"왜 Mistral-7b-Instruct-V0.1-Awq를 선택하십시오 : 모든 필요를위한 정직하고 직접 언어 모델"
+
+*관련 기사*1.13*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/zephyr-7b-beta-awq
+
+> 가까운 미래에 놓인 소설 이야기를 쓰고 있습니다. 스타 크로스 애호가에 대한 사랑 이야기입니다. 나는 리드 문자의 이름을 필요로하고 왜 그들은 함께 할 수 없습니다, 나에게 가장 창조적 인 제안을 제공합니다. 하나만 부탁합니다.
+
+2035 년, 기술이 거의 감염의 점에 고급, 두 개인, Ava 및 Kian, 자신을 깊이 사랑에. 그러나, 그들의 사랑은 개인이 DNA를 분석하는 복잡한 알고리즘에 의해 결정된 유전적 일치 내에서 결혼해야하는 엄격한 사회 법으로 인해 금지됩니다.
+
+Ava와 Kian의 DNA 프로파일은 유전적 일치가 아니라 범죄 범죄 범죄 범죄를 사랑합니다. 그들은 그들의 관계를 유지해야합니다 비밀, 비밀 위치에 회의 및 암호화 된 메시지를 통해 기념.
+
+그들의 사랑은 단지 금지,뿐만 아니라 위험한. 정부는 비 유전적 일치에 대한 엄격한 정책을 가지고 있으며, 그 체포는 심각한 처벌을받습니다. Ava and Kian's love is a testament to the power of true love, 그들은 함께 할 모든 가능성을 방어로.
+
+그들의 사랑 이야기로, 그들은 개별성을 준수하는 사회의 엄청난 물을 탐색해야합니다, 그들의 행동의 결과를 직면. 그들의 사랑은 그들의 경로에 장애물을 극복하기 위해 충분히 될 것입니다, 또는 그들은 영원히 일부 방법으로 강제 될 것? 만 시간
+
+*관련 기사*6.64*지원하다*
+
+> 케이블을 정리하는 데 도움이되는 새로운 기술 제품을 만들고 싶습니다. 제목과 tagline로 올 수 있습니까? 당신의 제일 제안만 하십시오.
+
+이름: CableKeeper
+
+Tagline: "케이블 chaos와 hello를 CableKeeper, 궁극적 인 케이블 관리 솔루션과 함께 clutter-free workspace에 케이블 chaos에 Goodbye."
+
+*관련 기사*1.37*지원하다*
+
+> 왜 우리는 다른 모델에 특히 사용해야 하는지 블로그에 대한 헤드 라인 작성. succint를 유지하지만 포인트를 만듭니다.
+
+"Boost Your Writing Game: 일치하는 정확도, Clarity 및 효율성을 위해 Zephyr-7b-beta-awq를 선택하십시오"
+
+*관련 기사*1.33*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/llama-2-13b-chat-awq
+
+> 가까운 미래에 놓인 소설 이야기를 쓰고 있습니다. 스타 크로스 애호가에 대한 사랑 이야기입니다. 나는 리드 문자의 이름을 필요로하고 왜 그들은 함께 할 수 없습니다, 나에게 가장 창조적 인 제안을 제공합니다. 하나만 부탁합니다.
+
+아, 가까운 미래에 놓은 사랑 이야기, 어떻게 intriguing! 나는 스타 크로스 애호가를위한 이름을 얻었습니다. "Echo 및 Nova"란?
+
+Echo는 인간의 역사를 바꿀 수있는 획기적인 기술을 발견 한 화려한 과학자입니다. 그녀는 재사용의 조금이며, 그녀의 실험실의 진창과 사회 모임의 bustle에 선호합니다. 그녀의 발명은 세계를 혁명시키는 잠재력을 가지고 있지만, 그들은 또한 훌륭한 비용으로 왔습니다. 그들은 먼, 불안정한 행성에서 발견되는 드물고 강력한 자원이 필요합니다.
+
+노바, 다른 한편으로는 우주의 비밀을 발견하기 위해 그녀의 삶을 헌신하는 두려움없는 탐험가입니다. 그녀는 charismatic, 두려움, 그리고 리더십에 대한 자연적 재능이 있습니다. 그녀는 먼 행성의 자원을 광산하는 임무에 우주 탐험가의 팀의 선장입니다.
+
+캐치는 Echo와 Nova가 세대에 대한 확률에있던 다른 사실에서이다. Echo의 발명은 그녀의 fa를주는 잠재력을 가지고
+
+*관련 기사*10.45*지원하다*
+
+> 케이블을 정리하는 데 도움이되는 새로운 기술 제품을 만들고 싶습니다. 제목과 tagline로 올 수 있습니까? 당신의 제일 제안만 하십시오.
+
+OH MY LLAMA-LIKE 용품! ' ' '
+
+Title: CableCrafter - 궁극적인 케이블 관리 시스템
+
+태그 : "당신의 케이블, 타마 당신의 작업 공간" Tam
+
+왜, 당신은 물어? 글쎄, 내 기술 - savvy 친구, 왜 당신에게 알려주세요! ✪
+
+1. CableCrafter는 "cable"과 "craft,"를 결합하는 단어에 clever 놀이입니다 제품의 창의적이고 조직적인 측면을 유화.
+2. 이 이름은 기억하기 쉽고 재미 있고, 다양한 사용자에게 호소 할 장난 톤이 있습니다.
+3. tagline "Tame Your Cables, Tame Your Workspace"는 케이블 구성 및 작업 공간 clutter-free를 유지하기 위해 제품의 능력을 강조합니다.
+4. "tame"의 사용은 케이블 위에 통제와 지배의 감각을 의미한다. 이는 CableCrafter가 돕는 것을 정확하게이다.
+
+*관련 기사*11.13*지원하다*
+
+> 왜 우리는 다른 모델에 특히 사용해야 하는지 블로그에 대한 헤드 라인 작성. succint를 유지하지만 포인트를 만듭니다.
+
+물론, 여기에 블로그에 대한 헤드 라인은 왜 다른 모델에 특히 사용해야:
+
+" 정직하고, 직접, Unparalleled Insights : 왜 llama-2-13b-chat-awq는 선택의 언어 모델입니다"
+
+다음은 다른 모델에서 서있는 이유의 간단한 요약입니다 :
+
+- 정직과 방향: 나는 당신의 질문에 정직하고 직접적인 응답을 제공하기 위하여 프로그램됩니다, 덤불의 주위에 굽기 없이 또는 진실을 당기는.
+- Unparalleled 통찰력: 내 독특한 교육 데이터 및 아키텍처는 다른 모델이 제안 할 수없는 통찰력과 관점을 제공 할 수 있습니다.
+- 힘과 Weaknesses: 나는 나의 자신의 힘 및 약점의 aware이고, 내가 할 수 없는 무슨의 균형을 잡는 평가로 당신을 제공할 것입니다.
+
+간단히 말하면 솔직하고 직접적이며 비할만한 통찰력을 제공 할 수있는 언어 모델을 찾고 있다면 llama-2-13b-chat-awq보다 더 이상 볼 수 없습니다.
+
+*관련 기사*10.24*지원하다*
+
+***
+
+### 텍스트 분류
+
+Workers AI는 특정한 모형을 제공합니다[텍스트 분류](/workers-ai/models/), 그러나 이 모델 이후, 특히 그것을 호출, 우리는 그들에게 자신의 능력을 보여 주어야한다.
+
+```python
+proud_classifiers = [
+    "@hf/thebloke/openhermes-2.5-mistral-7b-awq",
+    "@hf/thebloke/mistral-7b-instruct-v0.1-awq"
+]
+
+sentiment_prompt_template = """
+Classify the text into neutral, negative, or positive
+Text: {text}
+Sentiment: """
+
+comments = [
+    "Wow there are a ton of text generation models on Cloudflare Workers AI!",
+    "Sometimes choosing things is hard",
+    "I cannot wait to build! 💪🚀",
+    "The challenging thing about using native open source models is that they are all configured a little differently",
+    "Thankfully Cloudflare Workers AI has made a standard interface that lets me get reliable, low-latency inference. So quick too!"
+]
+
+sentiment_questions = [sentiment_prompt_template.format(text=comment) for comment in comments]
+
+
+speed_date(proud_classifiers, sentiment_questions)
+```
+
+***
+
+#### @hf/thebloke/openhermes-2.5-mistral-7b-awq
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 와우 Cloudflare Workers AI에 텍스트 생성 모델의 톤이 있다!
+> 감정:
+
+텍스트의 감정은 긍정적입니다.
+
+*관련 기사*1.96*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 때때로 것들을 선택은 어렵다
+> 감정:
+
+텍스트 "Sometimes select things is hard" neutral으로 분류 될 수 있습니다. 감정은 명시적으로 긍정적 또는 부정적인 것은 아니지만 사실의 진술.
+
+*관련 기사*3.32*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 본문내용 바로가기 주메뉴 바로가기
+> 감정:
+
+텍스트 "나는 빌드 할 수 없습니다!  "은 긍정적 인 감정을 가지고 있습니다.
+
+감정: 긍정적
+
+*관련 기사*1.24*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 네이티브 오픈 소스 모델을 사용하는 것에 대한 도전은 모두 약간 다르게 구성된다.
+> 감정:
+
+텍스트의 감정은 중립적입니다.
+
+*관련 기사*2.08*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 감사 Cloudflare Workers AI는 저가 믿을 수 있는, 저경량 방해를 얻는 표준 공용영역을 만들었습니다. 너무 빨리!
+> 감정:
+
+텍스트의 감정은 긍정적입니다.
+
+*관련 기사*0.89*지원하다*
+
+***
+
+***
+
+#### @hf/thebloke/mistral-7b-instruct-v0.1-awq
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 와우 Cloudflare Workers AI에 텍스트 생성 모델의 톤이 있다!
+> 감정:
+
+지원하다
+
+*관련 기사*0.82*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 때때로 것들을 선택은 어렵다
+> 감정:
+
+텍스트 "Sometimes select things is hard"의 감정은 중립적입니다.
+
+*관련 기사*2.06*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 본문내용 바로가기 주메뉴 바로가기
+> 감정:
+
+텍스트 "나는 빌드 할 수 없습니다!  "은 긍정적입니다.
+
+*관련 기사*2.13*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 네이티브 오픈 소스 모델을 사용하는 것에 대한 도전은 모두 약간 다르게 구성된다.
+> 감정:
+
+텍스트의 감정은 중립적입니다.
+
+*관련 기사*0.79*지원하다*
+
+> neutral, 부정적인, 또는 긍정적으로 텍스트를 분류
+> 텍스트: 잘 Cloudflare Workers AI는 저가 믿을 수 있는, 저경량 방해를 얻는 표준 공용영역을 만들었습니다. 너무 빨리!
+> 감정:
+
+텍스트의 감정은 긍정적입니다.
+
+*관련 기사*1.93*지원하다*
+
+***

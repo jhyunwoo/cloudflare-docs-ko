@@ -1,0 +1,235 @@
+---
+pcx_content_type: how-to
+title: Next.js
+sidebar:
+  order: 4
+tags:
+  - full-stack
+description: Next.js 응용 프로그램을 만들고 Cloudflare WorkersXQXQXQXQXQXQXQ 자산에 배포합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	AutoconfigDiagram,
+	Description,
+	Details,
+	Render,
+	PackageManagers,
+	Steps,
+	WranglerConfig,
+} from "~/components";
+
+**CLI에서 시작**- Workers에 Next.js 프로젝트를 비계하십시오.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args="my-next-app --framework=next" />
+
+간단한 시작 가이드입니다. Cloudflare OpenNext 어댑터를 사용하는 방법에 대한 자세한 문서[OpenNext 웹 사이트](https://opennext.js.org/cloudflare).
+
+## Next.js는 무엇입니까?
+
+[모델 번호: Next.js](https://nextjs.org/)한국어[모델 번호: React](https://react.dev/)전체 스택 응용 프로그램을 구축하기위한 프레임 워크.
+
+Next.js는 서버 측과 클라이언트 측 연출, 뿐 아니라 동일한 노선에 있는 정체되는 그리고 동적인 성분을 결합할 수 있는 부분적인 연출을 지원합니다.
+
+QXNext.js 앱을 Cloudflare WorkersXQXQ로 배포할 수 있습니다.
+
+## Next.js 지원되는 특징
+
+대부분의 Next.js 특징은 Cloudflare OpenNext 접합기에 의해 지원됩니다:
+
+| 제품 정보                  | Cloudflare 어댑터 | 지원하다                                       |
+| ---------------------- | -------------- | ------------------------------------------ |
+| 앱 라우터                  | 지원             |                                            |
+| Pages 관련 링크            | 지원             |                                            |
+| 노선 핸들러                 | 지원             |                                            |
+| React 서버 구성 요소         | 지원             |                                            |
+| 정체되는 위치 발생 (SSG)       | 지원             |                                            |
+| 서버 측 렌더링 (SSR)         | 지원             |                                            |
+| 공전 재생 (ISR)            | 지원             |                                            |
+| 서버 활동                  | 지원             |                                            |
+| 응답 스트리밍                | 지원             |                                            |
+| 비동기 작업`next/after`     | 지원             |                                            |
+| 기타 제품                  | 지원             |                                            |
+| Image 최적화              | 지원             | 지원되는 via[모델 번호: Cloudflare 제품정보](/images/) |
+| 부분적인 렌더링 (PPR)         | 지원             | PPR는 Next.js에서 실험적입니다                      |
+| Composable 캐싱 (사용 캐시)  | 지원             | Composable Caching는 Next.js에서 실험적입니다       |
+| Middleware에 있는 Node.js | 아직 지원되지 않음     | 15.2에 소개된 Node.js 미들웨어는 아직 지원되지 않습니다       |
+
+## Workers의 새로운 Next.js 프로젝트 배포
+
+<Steps>
+  1. **Create-cloudflare CLI (C3)로 새로운 프로젝트를 만듭니다.**
+
+     <PackageManagers type="create" pkg="cloudflare@latest" args="my-next-app --framework=next" />
+
+     <Details header="장면 뒤에 무슨 일이 일어나는가?">
+       이 명령을 실행할 때, C3는 새로운 프로젝트 디렉토리를 생성, initiates
+       [Next.js의 공식 설정
+       제품정보](https://nextjs.org/docs/app/api-reference/cli/create-next-app)·
+       Cloudflare에 대한 프로젝트를 구성합니다. 다음 옵션을 제공합니다
+       즉시 Cloudflare에 응용 프로그램을 배포합니다.
+     </Details>
+
+  2. **현지 개발**
+
+     프로젝트를 작성한 후 프로젝트 디렉토리에서 다음 명령을 실행하여 로컬 개발 서버를 시작합니다.
+     명령은 Next.js 개발 서버를 사용합니다. 그것은 신속하게 앱을 다시로드하여 최고의 개발자 경험을 제공합니다. 소스 코드가 업데이트됩니다.
+
+     <PackageManagers type="run" args="dev" />
+
+  3. **Cloudflare 어댑터로 사이트를 테스트하고 미리보기합니다.**
+
+     <PackageManagers type="run" args="preview" />
+
+     <Details header="dev와 preview의 차이점은 무엇입니까?">
+       이전 단계에서 사용되는 명령은 Next.js 개발 서버를 사용,
+       Node.js에서 실행되는. 그러나 배포 된 응용 프로그램은 실행됩니다.
+       Cloudflare Workers를 사용하는`workerd`실행 시간. 견적 요청
+       통합 테스트 및 응용 프로그램을 미리보기, 당신은 사용해야
+       미리 명령, 생산에 더 정확하고, 실행으로
+       당신의 신청에`workerd`runtime 사용`wrangler dev`.
+     </Details>
+
+  4. **프로젝트 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="run" args="deploy" />
+
+     :::참조
+     [**모델 번호: Workers 회사연혁**](/workers/ci-cd/builds/)환경 변수를 설정해야 합니다.["건축 가변 및 비밀"](/workers/ci-cd/builds/configuration/#:~:text=Build%20variables%20and%20secrets)이름 \*
+
+     다음 빌드는 공공 모두에 필요한 액세스를 제공합니다`NEXT_PUBLC...`변수 및[비-`NEXT_PUBLIC_...`](https://nextjs.org/docs/pages/guides/environment-variables#bundling-environment-variables-for-the-browser)inlining 및 building SSG 페이지와 같은 작업에 필수적입니다.
+
+     더 알아보기[OpenNext 환경 변수 가이드](https://opennext.js.org/cloudflare/howtos/env-vars#workers-builds)
+     :::
+</Steps>
+
+## 기존 Next.jsXQ 프로젝트 배포
+
+:::tip\[자동 설정]
+지원하다`wrangler deploy`WranglerXQ 구성 파일 및 WranglerXQ가 자동으로 Next.js를 감지하고 필요한 구성을 생성하고 프로젝트를 배포합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+더 알아보기[자동 프로젝트 구성](/workers/framework-guides/automatic-configuration/).
+:::
+
+<AutoconfigDiagram
+  framework="Next.js"
+  configs={[
+  	{ label: "main", file: "wrangler.jsonc", value: ".open-next/worker.js" },
+  	{ label: "assets", file: "wrangler.jsonc", value: "directory: .open-next/assets" },
+  	{ label: "compatibility_flags", file: "wrangler.jsonc", value: "nodejs_compat" },
+  	{ label: "observability", file: "wrangler.jsonc", value: "enabled: true" },
+  	{ label: "adapter", file: "package.json", value: "@opennextjs/cloudflare" },
+  ]}
+/>
+
+## 수동 구성
+
+프로젝트를 수동으로 구성하려면 아래 단계를 따르십시오.
+
+<Steps>
+  1. **설치하기[`@opennextjs/cloudflare`](https://www.npmjs.com/package/@opennextjs/cloudflare)**
+
+     <PackageManagers pkg="@opennextjs/cloudflare@latest" />
+
+  2. **설치하기[`wrangler CLI`](https://developers.cloudflare.com/workers/wrangler)devDependency로**
+
+     <PackageManagers pkg="wrangler@latest" dev />
+
+  3. **Wrangler 설정파일 추가**
+
+     프로젝트 루트에서, 생성[Wrangler 구성 파일](/workers/wrangler/configuration/)다음 내용으로:
+
+     <WranglerConfig>
+       ```jsonc
+       {
+       	"$schema": "./node_modules/wrangler/config-schema.json",
+       	"main": ".open-next/worker.js",
+       	"name": "my-app",
+       	"compatibility_date": "$today",
+       	"compatibility_flags": [
+       		"nodejs_compat"
+       	],
+       	"assets": {
+       		"directory": ".open-next/assets",
+       		"binding": "ASSETS"
+       	}
+       }
+       ```
+     </WranglerConfig>
+
+     :::참조
+     위와 같이, 당신은 활성화해야 합니다[`nodejs_compat`호환성 깃발](/workers/runtime-apis/nodejs/) *·*&#xC124;정하기[호환성 날짜](/workers/configuration/compatibility-dates/)으로`2024-09-23`또는 나중에 Next.js 앱을 사용하여 @opennextjs/cloudflare로 작업합니다.
+     주요 특징
+
+  4. **OpenNext에 대한 구성 파일 추가**
+
+     프로젝트 루트에서, OpenNext 구성 파일을 이름을 생성합니다.`open-next.config.ts`다음 내용으로:
+
+     ```ts
+     import { defineCloudflareConfig } from "@opennextjs/cloudflare";
+
+     export default defineCloudflareConfig();
+     ```
+
+     :::참조
+     `open-next.config.ts`캐싱을 구성 할 수있는 곳, 참조[어댑터 문서](https://opennext.js.org/cloudflare/caching)더 많은 정보
+     주요 특징
+
+  5. **(주)`package.json`**
+
+     다음 스크립트를 추가할 수 있습니다.`package.json`:
+
+     ```json
+     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
+     ```
+
+     <Details header="제품 정보">
+       - `preview`: 앱을 구축하고 로컬로 서비스를 제공합니다.
+         빨리 Workers 런타임에서 로컬로 실행되는 앱을 미리,
+         단일 명령.
+       - `deploy`: 앱을 구축하고, 그 다음 그것을 배포합니다.
+         모델 번호: Cloudflare
+       - `cf-typegen`: 생성`cloudflare-env.d.ts`파일에
+         env에 대한 유형이 포함된 프로젝트의 뿌리.
+     </Details>
+
+  6. **현지 개발**
+
+     프로젝트를 작성한 후 프로젝트 디렉토리에서 다음 명령을 실행하여 로컬 개발 서버를 시작합니다.
+     명령은 Next.js 개발 서버를 사용합니다. 소스 코드가 업데이트 된 후 앱을 신속하게 다시로드하여 최고의 개발자 경험을 제공합니다.
+
+     <PackageManagers type="run" args="dev" />
+
+  7. **Cloudflare 어댑터로 사이트를 테스트하십시오.**
+
+     이전 단계에서 사용되는 명령은 Next.js 개발 서버를 사용하여 훌륭한 개발자 경험을 제공합니다.
+     그러나 귀하의 응용 프로그램은 Cloudflare Workers에서 실행되므로 통합 테스트를 실행하고 응용 프로그램이이 환경에서 올바르게 작동한다는 것을 확인합니다.
+
+     <PackageManagers type="run" args="preview" />
+
+  8. **프로젝트 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[모델 번호: Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="run" args="deploy" />
+
+     :::참조
+     [**Workers 회사연혁**](/workers/ci-cd/builds/)환경 변수를 설정해야 합니다.["건축 가변 및 비밀"](/workers/ci-cd/builds/configuration/#:~:text=Build%20variables%20and%20secrets)이름 \*
+
+     다음 빌드는 공공 모두에 필요한 액세스를 제공합니다`NEXT_PUBLC...`변수 및[비-`NEXT_PUBLIC_...`](https://nextjs.org/docs/pages/guides/environment-variables#bundling-environment-variables-for-the-browser)inlining 및 building SSG 페이지와 같은 작업에 필수적입니다.
+
+     더 알아보기[OpenNext 환경 변수 가이드](https://opennext.js.org/cloudflare/howtos/env-vars#workers-builds)
+     :::
+</Steps>

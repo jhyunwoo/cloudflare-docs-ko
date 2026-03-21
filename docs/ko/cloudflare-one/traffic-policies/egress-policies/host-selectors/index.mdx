@@ -1,0 +1,113 @@
+---
+pcx_content_type: configuration
+title: 호스트 선택기
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/egress-policies/host-selectors/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/egress-policies/host-selectors/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Details, APIRequest, Render } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 형태](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | 교통 및 DNS 모드                                                                           | 회사 소개                                                      |
+
+  | 시스템   | 적용분야 | 최소 WARP 버전   |
+  | ----- | ---- | ------------ |
+  | 윈도우   | ✅    | 2025.4.929.0 |
+  | 맥 OS  | ✅    | 2025.4.929.0 |
+  | 리눅스   | ✅    | 2025.4.929.0 |
+  | iOS 앱 | ✅    | 1.11         |
+  | 다운로드  | ✅    | 2.4.2        |
+  | 크롬 OS | ✅    | 2.4.2        |
+</Details>
+
+Gateway가 DNS 쿼리를 수신할 때[제품 설명](/cloudflare-one/traffic-policies/egress-policies/#application), [제품 분류](/cloudflare-one/traffic-policies/egress-policies/#content-categories), [이름 \*](/cloudflare-one/traffic-policies/egress-policies/#domain)·[이름 \*](/cloudflare-one/traffic-policies/egress-policies/#host)Egress 정책의 선택자인 Gateway는 처음 DNS를 IP로 해결합니다.`100.80.0.0/16`또는`2606:4700:0cf1:4000::/64`범위. 이 프로세스는 Gateway를 사용하여 대상 IP를 호스트 이름으로 맵핑할 수 있습니다.[층 4](https://www.cloudflare.com/learning/ddos/glossary/open-systems-interconnection-model-osi/)( Gateway는 Egress 정책을 평가합니다). hostname의 대상 IP는 일반적으로 레이어 4에 알려져 있지 않습니다. Egress 정책을 평가하기 전에 처음 해결 된 IP는 올바른 목적지 IP로 과잉됩니다.
+
+![예 egress 정책 흐름](~/assets/images/cloudflare-one/policies/host-selector-diagram.png)
+
+이 선택자에 대한 정책 사용시 추가 구성이 필요합니다.
+
+## 호스트 선택기
+
+계정을 위한 selectors를 켜려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정**.
+    2. 내 계정**정책 설정**, 켜기**egress 정책 호스트 선택자 허용**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    사용 방법[패치 Zero Trust 계정 구성](/api/resources/zero_trust/subresources/gateway/subresources/configurations/methods/edit/)Zero Trust 윤곽을 새롭게 하기 위하여 엔드포인트. 예를 들면:
+
+    <APIRequest
+      path="/accounts/{account_id}/gateway/configuration"
+      method="PATCH"
+      json={{
+  	settings: {
+  		host_selector: {
+  			enabled: true,
+  		},
+  	},
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+## 자주 묻는 질문
+
+교통은 다음과 같은 방법으로 게이트웨이로 이동해야합니다 :
+
+| On-ramp 방법                                                                                    | 지원하다 |
+| --------------------------------------------------------------------------------------------- | ---- |
+| [모델 번호: WARP](/cloudflare-one/team-and-resources/devices/warp/)                               | ✅    |
+| [PAC 파일](/cloudflare-one/networks/resolvers-and-proxies/proxy-endpoints/)                     | ✅    |
+| [브라우저 고립](/cloudflare-one/remote-browser-isolation/)                                          | ✅    |
+| [WARP 연결관](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/) | ❌    |
+| [Cloudflare 대만](/cloudflare-wan/zero-trust/cloudflare-gateway/)                               | ✅    |
+
+지원되지 않은 트래픽은 기본 게이트웨이 설정으로 해결됩니다. DNS 위치를 사용하여 DNS 쿼리를 IPv4, IPv6, DoT, 또는 DoH로 게이트웨이에 보내려면 게이트웨이가 지원되는 트래픽에 대한 초기 해결 IP를 반환하지 않으며 지원되지 않은 트래픽을 해결하지 않습니다.
+
+### 구성 변경
+
+Zero Trust 조직을 구성하려면 Egress 정책을 사용하여 호스트 선택자를 사용합니다.
+
+1. 사용자의 장치에 WARP의 다음 버전을 배포했는지 확인하십시오.
+
+   - **제품정보**: [WARP 버전 2025.4.929.0](/cloudflare-one/team-and-resources/devices/warp/download-warp/)또는 나중에
+   - **iOS 앱**: [WARP 버전 1.11](/cloudflare-one/team-and-resources/devices/warp/download-warp/#ios)또는 나중에
+   - **안드로이드와 크롬 OS**: [WARP 버전 2.4.2](/cloudflare-one/team-and-resources/devices/warp/download-warp/#android)또는 나중에.
+
+   WARP의 이전 버전을 실행하는 장치를 지원하는 경우, 다음 키 값 쌍을 장치에 추가하고 배치[WARP 구성 파일](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/) (`mdm.xml`Windows 및 Linux 또는`com.cloudflare.warp.plist`macOS에서:
+
+   ```diff lang="xml"
+   <array>
+   	<dict>
+   +		<key>doh_in_tunnel</key>
+   +		<true/>
+   	</dict>
+   </array>
+   ```
+
+{/* prettier-ignore-start */}
+
+2. <Render file="gateway/egress-selector-split-tunnels" product="cloudflare-one" />
+
+WARP 클라이언트는 놓이어야 합니다*교통 및 DNS 모드*이러한 선택자에 의해 영향을받는 트래픽의 모드는 올바르게 경로를.
+
+{/* prettier-ignore-end */}
+
+## 알려진 문제
+
+### Google Chrome은 로컬 네트워크 액세스를 제한합니다.
+
+<Render file="gateway/egress-selector-chrome-issue" product="cloudflare-one" />

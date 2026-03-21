@@ -1,0 +1,137 @@
+---
+pcx_content_type: configuration
+title: 테이블 정비
+description: R2 Data Catalog Automates 테이블 유지 보수
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/table-maintenance/'
+translation_source_md: 'https://developers.cloudflare.com/r2/data-catalog/table-maintenance/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+테이블 유지 보수는 Apache Iceberg 테이블 실행 및 시간 대비 비용 효율적인 작업의 집합을 우회합니다. 데이터가 기록되고 업데이트되고 삭제 된 테이블은 메타데이터를 축적하고 시간이 지남에 쿼리 성능을 향상시킬 수있는 파일입니다.
+
+R2 Data Catalog는 두 가지 중요한 유지 보수 작업을 자동화합니다.
+
+- **압축**: 작은 데이터 파일을 더 크게 결합하여 쿼리 성능 향상
+- **Snapshot 만료**: 메타데이터 오버헤드 및 스토리지 비용을 줄이기 위해 오래된 테이블 스냅샷 제거
+
+일정한 정비 없이, 테이블은에서 겪을 수 있습니다:
+
+- **Query 성능 향상**: 더 많은 파일을 스캔하는 것은 느린 쿼리와 더 높은 compute 비용
+- **증가된 저장 비용**: 작은 파일 및 오래된 스냅 샷의 축적은 불필요한 저장을 소비
+- **메타데이터 오버헤드**: 큰 메타데이터 파일은 쿼리 계획 및 테이블 운영을 늦게
+
+자동 테이블 유지 보수를 가능하게함으로써 R2 Data Catalog는 수동으로 실행하지 않고 테이블을 최적화합니다.
+
+## 왜 조밀함을 필요로 합니까?
+
+모든 쓰기 작업[아파치 Iceberg](https://iceberg.apache.org/), 작거나 큰 방법, 생성되는 새로운 파일의 시리즈에 있는 결과. 시간이 지남에 따라, 파일의 수는 언바운드 될 수 있습니다. 이것은에 지도할 수 있습니다:
+
+- 느린 쿼리 및 증가 I / O 작업 : 컴팩트하지 않고 쿼리 엔진은 더 긴 쿼리 시간 및 증가 비용으로 인해 각 개별 파일을 열고 읽을 수 있습니다.
+- 증가 된 메타 데이터 오버 헤드 : Query 엔진은 메타 데이터 파일을 스캔해야합니다. 수천 개의 작은 파일로, 쿼리 계획은 데이터가 액세스되기 전에 더 오래 걸립니다.
+- 압축 효율 감소: 작은 파일 압축 더 큰 파일보다 덜 효율적으로 압축, 더 높은 저장 비용과 더 많은 데이터 쿼리 중 전송.
+
+## R2 Data Catalog 자동 압축
+
+R2 데이터 카탈로그는 지금 할 수 있습니다[압축 관리](/r2/data-catalog/manage-catalogs/)R2에 저장된 Apache Iceberg 테이블을 위해. 활성화되면 압축은 자동으로 실행되고 압축되지 않은 새로운 파일을 결합합니다.
+
+압축된 파일은 prefixed`compacted-`내 계정`/data/`각 테이블의 디렉토리.
+
+### 이름 \*
+
+```bash
+#Enable Catalog-level 컴팩트 (모든 테이블)
+npx wrangler r2 bucket catalog compaction enable my-bucket \
+  --target-size 128 \
+  --token $R2_CATALOG_TOKEN
+
+#특정 테이블에 대한 Enable compaction
+npx wrangler r2 bucket catalog compaction enable my-bucket my-namespace my-table \
+  --target-size 256
+
+#카탈로그 수평 압축
+npx wrangler r2 bucket catalog compaction disable my-bucket
+
+#특정 테이블에 대한 압축
+npx wrangler r2 bucket catalog compaction disable my-bucket my-namespace my-table
+```
+
+컴팩트 관리에 대한 자세한 내용은, 참조[카탈로그](/r2/data-catalog/manage-catalogs/).
+
+### 오른쪽 대상 파일 크기를 선택하십시오.
+
+컴팩트한 대상 파일 크기를 구성할 수 있습니다. 현재 최소 64MB이며 최대 512MB입니다.
+
+다른 compute 엔진은 다른 최적의 파일 크기를 가지고 있으므로 설명서를 확인하십시오.
+
+성과 거래는 당신의 사용 케이스에 달려 있습니다. 예를 들어, 데이터의 작은 금액을 반환하는 쿼리는 더 작은 파일로 수행 할 수 있으므로 더 큰 파일이 불필요한 데이터를 읽을 수 있습니다.
+
+- 더 늦게 민감한 작업 부하에 대 한, 더 작은 대상 파일 크기를 고려 (예를 들어, 64 MB - 128 MB)
+- ingest workloads 스트리밍을 위해, 중간 파일 크기를 고려하십시오 (예를 들면, 128 MB - 256 MB)
+- 많은 데이터를 스캔해야 할 OLAP 스타일 쿼리에 대해 더 큰 파일 크기를 고려하십시오 (예 : 256 MB - 512 MB)
+
+## 왜 스냅 샷 만료가 필요합니까?
+
+Iceberg 테이블에 모든 쓰기— 삽입, 업데이트, 또는 삭제—새 스냅 샷을 만듭니다. 시간이 지남에, 이 스냅샷 축적 및 성능 문제 발생:
+
+- **메타데이터 오버헤드**: 각 스냅 샷은 테이블의 메타 데이터 파일에 항목을 추가합니다. snapshots의 수가 성장함에 따라 metadata 파일은 더 커지고, 쿼리 계획 및 테이블 작업을 단축
+- **증가된 저장 비용**: 긴 스냅 샷 reference 데이터 파일이 더 이상 필요하지 않을 수 있으며 청소 및 불필요한 저장을 방지합니다.
+- **Slower 테이블 작업**: listing snapshots 또는 accessing table history와 같은 작업은 시간이 더 느립니다.
+
+## R2 데이터 카탈로그 자동 스냅 샷 만료
+
+### 스냅 샷 만료 구성
+
+Snapshot expiration은 제거하기 위해 스냅 샷을 결정하는 두 가지 매개 변수를 사용합니다.
+
+- `--older-than-days`: 이 많은 일보다 이전 스냅 샷 제거 (과태 : 30 일)
+- `--retain-last`: 최근 스냅 샷의 최소 수를 유지 (기본 : 5 스냅 샷)
+
+두 조건은 만료 될 스냅 샷을 위해 충족해야합니다. 이것은 항상 나이 임계 값보다 오래된 경우에도 최근 스냅 샷을 유지합니다.
+
+### 이름 \*
+
+```bash
+#전체 카탈로그에 대한 Snapshot expiration
+#최소 10 스냅 샷 유지, 7 일 이상 만료
+npx wrangler r2 bucket catalog snapshot-expiration enable my-bucket \
+  --token $R2_CATALOG_TOKEN \
+  --older-than-days 7 \
+  --retain-last 10
+
+#특정 테이블에 대 한 사용
+#최소 5 스냅 샷을 유지하고 2 일 이상 만료
+npx wrangler r2 bucket catalog snapshot-expiration enable my-bucket my-namespace my-table \
+  --token $R2_CATALOG_TOKEN \
+  --older-than-days 2 \
+  --retain-last 5
+
+#카탈로그에 대한 Disable snapshot expiration
+npx wrangler r2 bucket catalog snapshot-expiration disable my-bucket
+```
+
+### 자주 묻는 질문
+
+다른 작업대는 다른 스냅샷 유지 전략을 요구합니다:
+
+- **개발/테스트 테이블**: 저장 비용을 최소화하기 위해 짧은 보존 (2-7 일, 5 스냅 샷)
+- **생산 분석 표**: 디버깅 및 분석을위한 중간 보존 (7-30 일, 10-20 스냅 샷)
+- **Compliance/audit 테이블**: 장기 유지 (30-90 일, 50 + 스냅 샷) 규제 요구 사항을 충족
+- **고주파 ingest**: 더 높은 최소 스냅 샷 카운트는 더 많은 과립 역사를 보존
+
+이들은 일반적인 권고이며 고려해야 합니다.
+
+- 시간 여행 필요조건
+- 규정 준수
+- 저장 비용
+
+## 현재 제한
+
+- 오픈 베타 중, 컴팩트는 각 테이블에 대한 시간 당 한 번 파일의 2 GB 가치까지 압축됩니다.
+- parquet 형식에 저장된 데이터 파일은 현재 Compaction과 함께 지원됩니다.
+- Orphan 파일 정리는 아직 지원되지 않습니다.
+- 컴팩트의 최소 대상 파일 크기는 64 MB이며 최대 512 MB입니다.

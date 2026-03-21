@@ -1,0 +1,92 @@
+---
+pcx_content_type: overview
+title: 이름공간
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/key-transparency/api/namespaces/'
+translation_source_md: 'https://developers.cloudflare.com/key-transparency/api/namespaces/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare Key Transparency API는 namespaces에서 구성되며, 각각 Cloudflare Auditor에 의해 모니터링된 로그를 나타냅니다. 네임스페이스를 등록하려면, 저희에게 연락하십시오.
+
+## namespace 만들기
+
+다음 필드가 필요할 때`POST`요구 사항:
+
+- `name`
+- `public`
+- `root`
+- `signature_version`:
+  - 0x0001 용[Protobuf 직렬화](https://github.com/cloudflare/plexi/blob/main/plexi_core/src/proto/specs/types.proto)감사인의 Ed25519 서명
+  - 0x0002 용[bincode 직렬화](https://github.com/bincode-org/bincode/blob/trunk/docs/spec.md)감사의 E25519 serialisation
+
+더 보기`log_directory`분야는 선택적입니다. 설정된 경우, Cloudflare는 감사의 증거를 가져오고 그들을 검증하는 데 사용됩니다.
+
+이 API를 통해 인증[사이트맵](https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/).
+
+```sh
+curl 'https://plexi.key-transparency.cloudflare.com/namespaces' \
+        	--header 'Content-Type: application/json' \
+        	--data '{
+ 	"name": "your.new.log.com",
+ 	"root": "1/1111111111111111111111111111111111111111111111111111111111111111",
+ 	"log_directory": "https://your.new.log.com/path/to/proofs",
+	"signature_version": 1
+  }'
+{
+  "name": "your.new.log.com",
+  "log_directory": "https://your.new.log.com/path/to/proofs",
+  "root": "1/1111111111111111111111111111111111111111111111111111111111111111",
+  "status": "Initialization",
+  "reports_uri": "/namespaces/your.new.log.com/reports",
+  "audits_uri": "/namespaces/your.new.log.com/audits",
+  "signature_version": 1
+}
+```
+
+첫 번째 epoch를 게시 한 후,`status`공지사항`Online`. 가능한 상태는 다음을 포함합니다:
+
+- `Online`
+- `Initialization`
+- `Disabled`
+
+## 모든 namespaces 목록
+
+아래 예제를 참조하여 모든 public namespaces에 대한 정보를 얻을 수 있습니다.
+
+```sh
+curl 'https://plexi.key-transparency.cloudflare.com/namespaces'
+{
+   "namespaces": [
+       { "name": "your.new.log.com", "root": "1/abc", "reports_uri": "/namespaces/your.new.log.com/reports", "audits_uri": "/namespaces/your.new.log.com/audits", "log_directory": "https://your.new.log.com/path/to/proofs", "status": "online" },
+       { "name": "my.new.log.com", "reports_uri": "/namespaces/meta-bt-2024/reports", "audits_uri": "/namespaces/meta-bt-2024/audits", "status": "initialization" }
+   ]
+}
+```
+
+## namespace 비활성화
+
+로그 상태가 손상된 경우, 분실되거나, 유지 보수가 될 필요가있다면, 감사자는 로그 연산자가 네임 스페이스를 표시 할 수 있습니다`Disabled`.
+
+이 API를 통해 인증[사이트맵](https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/).
+
+```sh
+curl -X PATCH 'https://plexi.key-transparency.cloudflare.com/namespaces/{namespace}' \
+        	-H 'Content-Type: application/json' \
+        	-d '{
+ 	"status": "Disabled"
+  }'
+{
+  "name": "your.new.log.com",
+  "log_directory": "https://your.new.log.com/path/to/proofs",
+  "root": "1/1111111111111111111111111111111111111111111111111111111111111111",
+  "status": "Disabled",
+  "reports_uri": "/namespaces/your.new.log.com/reports",
+  "audits_uri": "/namespaces/your.new.log.com/audits",
+  "signature_version": 1
+}
+```

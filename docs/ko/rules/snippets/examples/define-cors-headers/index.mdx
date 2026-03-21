@@ -1,0 +1,65 @@
+---
+summary: >-
+  Adjust [Cross-Origin Resource Sharing
+  (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) headers and
+  handle preflight requests.
+tags:
+  - Headers
+  - Request modification
+  - Response modification
+products:
+  - snippets
+pcx_content_type: example
+title: CORS 헤더 정의
+description: >-
+  [Cross-Origin Resource Sharing (CORS)]
+  (https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS) 헤더를 조정하고 사전 조명 요청을
+  처리하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/define-cors-headers/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/define-cors-headers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+//CORS 헤더 정의
+const corsHeaders = {
+	"Access-Control-Allow-Origin": "*", //* 허용된 근원으로 대체하십시오 (s)
+	"Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS", //필요한 방법 조정
+	"Access-Control-Allow-Headers": "Content-Type, Authorization", //필요에 따라 허용된 헤더를 조정하십시오
+	"Access-Control-Max-Age": "86400", //최대 연령 조정 (초에서) 필요에 따라
+};
+
+export default {
+	async fetch(request) {
+		//헤더를 수정하려면 요청의 사본을 만드십시오.
+		const modifiedRequest = new Request(request);
+
+		//핸들 preflight 요청 (OPTIONS)
+		if (request.method === "OPTIONS") {
+			return new Response(null, {
+				headers: {
+					...corsHeaders,
+				},
+				status: 200, //preflight 요청에 대한 OK 상태와 대응
+			});
+		}
+
+		//수정된 요청을 전달합니다.
+		const response = await fetch(modifiedRequest);
+
+		//헤더를 수정하기 위해 응답의 사본을 만드십시오
+		const modifiedResponse = new Response(response.body, response);
+
+		//응답에 CORS 헤더 설정
+		Object.keys(corsHeaders).forEach((header) => {
+			modifiedResponse.headers.set(header, corsHeaders[header]);
+		});
+
+		return modifiedResponse;
+	},
+};
+```

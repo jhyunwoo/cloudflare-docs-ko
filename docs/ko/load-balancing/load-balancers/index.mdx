@@ -1,0 +1,71 @@
+---
+pcx_content_type: concept
+title: 로드 밸런서
+sidebar:
+  order: 3
+---
+
+import { Render } from "~/components";
+
+<Render file="load-balancer-definition" product="load-balancing" />
+
+:::note
+
+Cloudflare Load Balancing 솔루션이 동작하는 방식의 개요는 [Load Balancing components](/load-balancing/understand-basics/load-balancing-components/)를 참고하세요. 로드 밸런서가 무엇인지에 대한 더 자세한 배경 정보는 Cloudflare [Learning Center](https://www.cloudflare.com/learning/performance/what-is-load-balancing/)를 참고하세요.
+
+:::
+
+---
+
+## 일반적인 구성
+
+권장 구성은 [Common load balancer configurations](/load-balancing/load-balancers/common-configurations/)를 참고하세요.
+
+## Public Load Balancer와 Private Load Balancer 비교
+
+Public Load Balancer는 퍼블릭 인터넷에서 들어오는 트래픽을 처리하도록 설계되었습니다. 배포되면 자동으로 호스트명이 할당되므로 즉시 접근할 수 있습니다. 이러한 로드 밸런서는 퍼블릭 호스트명, 퍼블릭 IP 주소, 프라이빗 IP 주소를 포함한 다양한 대상으로 트래픽을 전달할 수 있습니다.
+
+반대로 Private Load Balancer는 프라이빗 네트워크 내부에서 사용하도록 설계되었습니다. 자동으로 호스트명이 부여되지는 않지만 Gateway Firewall Policies 또는 내부 DNS 시스템을 통해 호스트명을 할당할 수 있습니다. Private Load Balancer는 [Cloudflare WARP](/warp-client/) 또는 [Cloudflare WAN](/cloudflare-wan/) 같은 프라이빗 네트워크 온램프를 통한 트래픽만 수용합니다. 또한 트래픽을 프라이빗 IP 주소로만 전달할 수 있습니다.
+
+## 로드 밸런싱과 기존 DNS 레코드
+
+DNS 레코드에 대한 자세한 내용은 [DNS records for load balancing](/load-balancing/load-balancers/dns-records/)를 참고하세요.
+
+## HTTP keep-alive(지속적 HTTP 연결)
+
+Cloudflare는 엣지 네트워크에서 사이트의 오리진으로 고객 트래픽을 프록시할 때, 요청 처리 과정에서 반복적으로 TCP 연결을 맺는 비용을 줄이고 성능을 높이기 위해 keep-alive 연결을 유지합니다.
+
+오리진에서 HTTP Keep-Alive 연결이 활성화되어 있는지 확인하세요. Cloudflare는 마지막 HTTP 요청 이후 최대 15분(900초) 동안 열린 TCP 연결을 재사용합니다. 오리진 웹 서버는 너무 많은 연결이 열려 있으면 TCP 연결을 닫습니다. HTTP Keep-Alive는 Cloudflare가 프록시하는 요청에서 연결이 너무 일찍 재설정되는 문제를 피하는 데 도움이 됩니다.
+
+### 세션 쿠키
+
+**HTTP 쿠키를 사용해 사용자 세션을 추적하고 특정 서버에 바인딩하는 경우**, HTTP 요청을 쿠키 헤더 기준으로 파싱하도록 [Session Affinity](/load-balancing/understand-basics/session-affinity/)를 구성하세요. 이렇게 하면 keep-alive로 인해 HTTP 요청이 같은 TCP 연결을 공유하더라도 각 요청이 올바른 애플리케이션 서버로 전달됩니다.
+
+**예를 들어 F5 BIG-IP 로드 밸런서는 TCP 연결 시작 시 세션 쿠키가 없으면 이를 설정하고**, 이후 같은 TCP 연결에서 발생하는 후속 HTTP 요청의 모든 쿠키를 무시합니다. Cloudflare는 하나의 TCP 연결에서 여러 HTTP 세션을 전송하므로 이런 동작은 세션 어피니티를 깨뜨리는 원인이 됩니다. 로드 밸런서가 HTTP 요청을 쿠키 헤더 기준으로 파싱하도록 구성하면 이 문제를 피할 수 있습니다.
+
+---
+
+## 로드 밸런서 생성
+
+단계별 안내는 [Create a load balancer](/load-balancing/load-balancers/create-load-balancer/)를 참고하세요.
+
+---
+
+## 속성
+
+최신 로드 밸런서 속성 목록은 Cloudflare API 문서의 [Load balancer properties](/api/resources/load_balancers/methods/get/)를 참고하세요.
+
+---
+
+## API 명령
+
+Cloudflare API는 로드 밸런서에 대해 다음 명령을 지원합니다.
+
+| 명령 | Method | Endpoint |
+| --- | --- | --- |
+| [Create Load Balancer](/api/resources/load_balancers/methods/create/) | `POST` | `/zones/:zone_id/load_balancers` |
+| [Delete Load Balancer](/api/resources/load_balancers/methods/delete/) | `DELETE` | `/zones/:zone_id/load_balancers/:id` |
+| [List Load Balancers](/api/resources/load_balancers/methods/list/) | `GET` | `/zones/:zone_id/load_balancers` |
+| [Load Balancer Details](/api/resources/load_balancers/methods/get/) | `GET` | `/zones/:zone_id/load_balancers/:id` |
+| [Overwrite specific properties](/api/resources/load_balancers/methods/edit/) | `PATCH` | `/zones/:zone_id/load_balancers/:id` |
+| [Overwrite entire Load Balancer](/api/resources/load_balancers/methods/update/) | `PUT` | `/zones/:zone_id/load_balancers/:id` |

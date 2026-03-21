@@ -1,0 +1,233 @@
+---
+summary: Send a POST request with JSON data. Use to share data with external servers.
+tags:
+  - JSON
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 포스트 JSON
+sidebar:
+  order: 1001
+description: JSON 데이터로 POST 요청을 보냅니다. 외부 서버로 데이터를 공유합니다.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/post-json/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/post-json/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 빠르게 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/post-json)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0251XQQ QXWorkers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		/** 이름
+    * example someHost는 JSON 요청으로 최대 설정됩니다.
+    * 요청을 보내려면 호스트와 URL을 대체하십시오.
+    * @param {string} URL을 사용하여 요청을 보낼 수 있습니다.
+    * @param {BodyInit} 몸은 JSON 데이터를 요청하여 전송합니다.*/
+    		const someHost = "https://examples.cloudflareworkers.com/demos";
+    		const url = someHost + "/requests/json";
+    		const body = {
+    			results: ["default data to send"],
+    			errors: null,
+    			msg: "I sent this to the fetch",
+    		};
+
+    		/** 이름
+    * CollectResponse가 기다리고 응답 몸을 문자열로 반환합니다.
+    * 응답 몸을 얻기 위한 async 기능에서 모Response(..)를 기다립니다
+    * @param {Response} 응답*/
+    		async function gatherResponse(response) {
+    			const { headers } = response;
+    			const contentType = headers.get("content-type") || "";
+    			if (contentType.includes("application/json")) {
+    				return JSON.stringify(await response.json());
+    			} else if (contentType.includes("application/text")) {
+    				return response.text();
+    			} else if (contentType.includes("text/html")) {
+    				return response.text();
+    			} else {
+    				return response.text();
+    			}
+    		}
+
+    		const init = {
+    			body: JSON.stringify(body),
+    			method: "POST",
+    			headers: {
+    				"content-type": "application/json;charset=UTF-8",
+    			},
+    		};
+    		const response = await fetch(url, init);
+    		const results = await gatherResponse(response);
+    		return new Response(results, init);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		/** 이름
+    * example someHost는 JSON 요청으로 최대 설정됩니다.
+    * 요청을 보내려면 호스트와 URL을 대체하십시오.
+    * @param {string} URL을 사용하여 요청을 보낼 수 있습니다.
+    * @param {BodyInit} 몸은 JSON 데이터를 요청하여 전송합니다.*/
+    		const someHost = "https://examples.cloudflareworkers.com/demos";
+    		const url = someHost + "/requests/json";
+    		const body = {
+    			results: ["default data to send"],
+    			errors: null,
+    			msg: "I sent this to the fetch",
+    		};
+
+    		/** 이름
+    * CollectResponse가 기다리고 응답 몸을 문자열로 반환합니다.
+    * 응답 몸을 얻기 위한 async 기능에서 모Response(..)를 기다립니다
+    * @param {Response} 응답*/
+    		async function gatherResponse(response) {
+    			const { headers } = response;
+    			const contentType = headers.get("content-type") || "";
+    			if (contentType.includes("application/json")) {
+    				return JSON.stringify(await response.json());
+    			} else if (contentType.includes("application/text")) {
+    				return response.text();
+    			} else if (contentType.includes("text/html")) {
+    				return response.text();
+    			} else {
+    				return response.text();
+    			}
+    		}
+
+    		const init = {
+    			body: JSON.stringify(body),
+    			method: "POST",
+    			headers: {
+    				"content-type": "application/json;charset=UTF-8",
+    			},
+    		};
+    		const response = await fetch(url, init);
+    		const results = await gatherResponse(response);
+    		return new Response(results, init);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    import json
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import to_js as _to_js
+    from js import Object, fetch, Response, Headers
+
+    def to_js(obj):
+        return _to_js(obj, dict_converter=Object.fromEntries)
+
+    #replica response는 content-type & response body를 문자열로 반환합니다.
+    async def gather_response(response):
+        headers = response.headers
+        content_type = headers["content-type"] or ""
+
+        if "application/json" in content_type:
+            return (content_type, json.dumps(dict(await response.json())))
+        return (content_type, await response.text())
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, _request):
+    		url = "https://jsonplaceholder.typicode.com/todos/1"
+
+    		body = {
+    		"results": ["default data to send"],
+    		"errors": None,
+    		"msg": "I sent this to the fetch",
+    		}
+
+    		options = {
+    		"body": json.dumps(body),
+    		"method": "POST",
+    		"headers": {
+    			"content-type": "application/json;charset=UTF-8",
+    		},
+    		}
+
+    		response = await fetch(url, to_js(options))
+    		content_type, result = await gather_response(response)
+
+    		headers = Headers.new({"content-type": content_type}.items())
+    		return Response.new(result, headers=headers)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    const app = new Hono();
+
+    app.get('*', async (c) => {
+      /** 이름
+    * example someHost는 JSON 요청으로 최대 설정됩니다.
+    * 요청을 보내려면 호스트와 URL을 대체하십시오.*/
+      const someHost = "https://examples.cloudflareworkers.com/demos";
+      const url = someHost + "/requests/json";
+      const body = {
+        results: ["default data to send"],
+        errors: null,
+        msg: "I sent this to the fetch",
+      };
+
+      /** 이름
+    * CollectResponse가 기다리고 응답 몸을 문자열로 반환합니다.
+    * 응답 몸을 얻기 위한 async 기능에서 모Response(..)를 기다립니다*/
+      async function gatherResponse(response: Response) {
+        const { headers } = response;
+        const contentType = headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+          return { contentType, result: JSON.stringify(await response.json()) };
+        } else if (contentType.includes("application/text")) {
+          return { contentType, result: await response.text() };
+        } else if (contentType.includes("text/html")) {
+          return { contentType, result: await response.text() };
+        } else {
+          return { contentType, result: await response.text() };
+        }
+      }
+
+      const init = {
+        body: JSON.stringify(body),
+        method: "POST",
+        headers: {
+          "content-type": "application/json;charset=UTF-8",
+        },
+      };
+
+      const response = await fetch(url, init);
+      const { contentType, result } = await gatherResponse(response);
+
+      return new Response(result, {
+        headers: {
+          "content-type": contentType,
+        },
+      });
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

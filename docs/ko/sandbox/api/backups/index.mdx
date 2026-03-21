@@ -1,0 +1,265 @@
+---
+title: 지원하다
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/backups/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/backups/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+sandbox 디렉토리의 point-in-time snapshots를 작성하고 copy-on-write 오버레이로 복원하십시오.
+
+## 제품 설명
+
+### `createBackup()`
+
+디렉토리의 시점에서 스냅 샷을 만들고 R2 저장소에 업로드하십시오.
+
+```ts
+await sandbox.createBackup(options: BackupOptions): Promise<DirectoryBackup>
+```
+
+**매개 변수**:
+
+- `options`- 백업 구성 (see)[`BackupOptions`](#backupoptions)):
+  - `dir`(required) - 디렉토리에 절대 경로 백업 (예를 들어,`"/workspace"`)
+  - `name`(선택 사항) - 백업을위한 인간 읽기 가능한 이름. 최대 256 문자, 제어 문자 없음.
+  - `ttl`(선택 사항) - 백업이 만료 될 때까지 몇 초에 시간 동안 살아. 기본 정보:`259200`(3 일). 긍정적 인 번호가 있어야합니다.
+  - `useGitignore`(옵션) - 언제`true`, 파일 일치 제외`.gitignore`백업에서 규칙. 기본 정보:`false`. 디렉토리가 git 저장소 안에 있지 않으면 예외는 적용되지 않습니다. 이름 \*`git`컨테이너에서 사용할 수 있습니다.
+
+**기타 제품**: `Promise<DirectoryBackup>`포함 :
+
+- `id`- 유일한 백업 식별자 (UUID)
+- `dir`- 백업 된 디렉토리
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  ///workspace의 백업 만들기
+  const backup = await sandbox.createBackup({ dir: "/workspace" });
+
+  //나중에, 백업 복원
+  await sandbox.restoreBackup(backup);
+  ```
+</TypeScriptExample>
+
+**어떻게 작동합니까?**:
+
+1. 컨테이너는 디렉토리에서 압축 스쿼프 아카이브를 만듭니다.
+2. 컨테이너는 presigned URL을 사용하여 R2에 아카이브를 직접 업로드합니다.
+3. 메타데이터는 R2의 아카이브와 함께 저장됩니다.
+4. 현지 아카이브가 정리되었습니다.
+
+**한국어**:
+
+- `InvalidBackupConfigError`- 면`dir`절대는 없다, 포함`..`·`BACKUP_BUCKET`바인딩은 누락되거나 R2는 URL 자격 증명을 구성하지 않습니다
+- `BackupCreateError`- 컨테이너가 아카이브를 만들지 못하면 R2가 실패하거나 업로드`useGitignore`이름 \*`true`그러나`git`컨테이너에서 사용할 수 없습니다
+
+:::note\[R2 바인딩 및 자격 증명]
+구성해야 합니다.`BACKUP_BUCKET`R2 바인딩 및 R2 할당된 URL 자격 (`R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `BACKUP_BUCKET_NAME`) 당신의`wrangler.jsonc`백업 방법을 사용하기 전에. 더 알아보기[Wrangler 구성](/sandbox/configuration/wrangler/)바인딩 설정을 위해.
+주요 특징
+
+:::caution\[특허권]
+백업 프로세스 사용`mksquashfs`, 대상 경로의 모든 파일 및 하위 디렉토리에 액세스해야. 어떤 파일이 제한되는 경우 (예를 들면, 다른 사용자에 의해 소유 된 디렉토리), 백업은 실패`BackupCreateError: mksquashfs failed: Could not create destination file: Permission denied`오류. 지원하다`chmod -R a+rX`대상 디렉토리에 백업하기 전에, 또는 참조[경로 권한 가이드](/sandbox/guides/backup-restore/#path-permissions)다른 옵션.
+주요 특징
+
+:::caution\[Partial 쓰기]
+Partially-written 파일은 지속적으로 캡처 할 수 없습니다. 완료된 글은 백업에 포함되도록 보장됩니다.
+주요 특징
+
+***
+
+### `restoreBackup()`
+
+FUSE overlayfs (copy-on-write)를 사용하여 이전에 생성 된 백업을 복원합니다.
+
+```ts
+await sandbox.restoreBackup(backup: DirectoryBackup): Promise<RestoreBackupResult>
+```
+
+**매개 변수**:
+
+- `backup`- 백업 핸들이 반환됨`createBackup()`. 결론`id`·`dir`. (보기[`DirectoryBackup`](#directorybackup))
+
+**기타 제품**: `Promise<RestoreBackupResult>`포함 :
+
+- `success`- 복원 성공 여부
+- `dir`- 복원 된 디렉토리
+- `id`- 복원 된 백업 ID
+
+<TypeScriptExample>
+  ```ts
+  //24시간 TTL로 지정된 백업 생성
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	name: "before-refactor",
+  	ttl: 86400,
+  });
+
+  //나중에 사용을위한 핸들을 저장
+  await env.KV.put(`backup:${userId}`, JSON.stringify(backup));
+  ```
+</TypeScriptExample>
+
+**어떻게 작동합니까?**:
+
+1. Metadata는 R2 및 TTL에서 다운로드됩니다. 만료된 경우, 오류가 thrown (60초 버퍼 포함).
+2. 컨테이너는 사전 서명 된 URL을 사용하여 R2에서 아카이브를 직접 다운로드합니다.
+3. 컨테이너는 FUSE overlayfs로 Squashfs 아카이브를 마운트합니다.
+
+**한국어**:
+
+- `InvalidBackupConfigError`- 면`backup.id`UUID 또는 유효하지 않은 경우`backup.dir`유효하다
+- `BackupNotFoundError`- 백업 메타 데이터 또는 아카이브가 R2에서 발견되지 않은 경우
+- `BackupExpiredError`- 백업 TTL이 발생하면
+- `BackupRestoreError`- 컨테이너가 복원에 실패하면
+
+:::노트\[Copy-on-write]
+Restore는 복사-on-write semantics를 사용합니다. 백업은 읽기 전용 낮은 층으로 장착되며 새로운 쓰기는 writable upper layer로 이동합니다. 백업은 원본보다 다른 디렉토리로 복원 할 수 있습니다.
+주요 특징
+
+:::카트로션\[Ephemeral mount]
+FUSE 마운트는 sandbox 수면 또는 재시작 때 손실됩니다. 백업 핸들에서 복구합니다. restoring 전에 대상 디렉토리에 쓰기를 중지합니다.
+주요 특징
+
+## 사용법 본
+
+### gitignored 파일 제외
+
+제품 정보`useGitignore`관련 파일`.gitignore`규칙 (예 :`node_modules/`또는`dist/`) 백업에서. git 저장소에 대한 백업 크기를 줄입니다.
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //백업에서 gitignored 파일 제외
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	useGitignore: true,
+  });
+
+  //useGitignore (default)없이 모든 파일이 포함되어 있습니다.
+  const fullBackup = await sandbox.createBackup({
+  	dir: "/workspace",
+  });
+  ```
+</TypeScriptExample>
+
+디렉토리가 git 저장소 안에 있지 않다면,`useGitignore`아무 효력도 없고 모든 파일은 포함되지 않습니다. 이름 \*`useGitignore`이름 \*`true`그러나`git`컨테이너에 설치되지 않습니다, a`BackupCreateError`뚱 베어
+
+### 체크포인트 및 복원
+
+위험 작업 전에 체크 포인트로 백업을 사용합니다.
+
+<TypeScriptExample>
+  ```ts
+  //위험 작업 전에 체크 포인트를 저장
+  const checkpoint = await sandbox.createBackup({ dir: "/workspace" });
+
+  try {
+  	await sandbox.exec("npm install some-experimental-package");
+  	await sandbox.exec("npm run build");
+  } catch (error) {
+  	//뭔가 잘못되었는지 체크포인트로 복원
+  	await sandbox.restoreBackup(checkpoint);
+  }
+  ```
+</TypeScriptExample>
+
+### 오류 처리
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  try {
+  	const backup = await sandbox.createBackup({ dir: "/workspace" });
+  	console.log(`Backup created: ${backup.id}`);
+  } catch (error) {
+  	if (error.code === "INVALID_BACKUP_CONFIG") {
+  		console.error("Configuration error:", error.message);
+  	} else if (error.code === "BACKUP_CREATE_FAILED") {
+  		console.error("Backup failed:", error.message);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 채용 정보
+
+- 동시 백업 및 복원 작업은 동일한 sandbox에 자동으로 직렬화됩니다.
+- 반환된`DirectoryBackup`손잡이는 serializable 입니다 — KV, D1, 또는 튼튼한 목표 저장에서 그것을 저장하십시오.
+- Overlapping 백업은 독립적입니다. 하위디렉토리 마운트를 덮는 부모 디렉토리를 복원합니다.
+
+### TTL 시행
+
+더 보기`ttl`백업이 만료되면 값 제어. SDK는 이것을 실행합니다.**복원 시간 만**— 호출할 때`restoreBackup()`, SDK는 R2에서 백업 메타 데이터를 읽고 TTL이 발생했는지 확인하십시오. 그것이 있는 경우에, 회복은 거절됩니다`BACKUP_EXPIRED`오류.
+
+TTL는**아니다.**&#x52;2에서 객체를 자동으로 삭제합니다. 만료된 백업 아카이브 및 메타데이터는 R2 Bucket에서 삭제할 수 있습니다. 만료된 개체를 자동으로 청소하려면[R2 객체 수명주기 규칙](/r2/buckets/object-lifecycles/)당신의 백업 물통에. lifecycle 규칙 없이, 만료된 백업은 R2 저장을 소비하는 것을 계속합니다.
+
+## 제품정보
+
+### `BackupOptions`
+
+```ts
+interface BackupOptions {
+	dir: string;
+	name?: string;
+	ttl?: number;
+	useGitignore?: boolean;
+}
+```
+
+**제품정보**:
+
+- `dir`(required) - 디렉토리에 절대 경로 백업
+- `name`(옵션) - 인간 읽기 쉬운 백업 이름. 최대 256 문자, 제어 문자 없음.
+- `ttl`(선택 사항) - 초에 타임 투 라이브. 기본 정보:`259200`(3 일). 긍정적 인 번호가 있어야합니다.
+- `useGitignore`(옵션) - 언제`true`, 파일 일치 제외`.gitignore`디렉토리가 git 저장소 안에 있는 경우 규칙. 기본 정보:`false`. 디렉토리가 git 저장소 안에 있지 않다면, git-based exclusions는 적용되지 않습니다.
+
+### `DirectoryBackup`
+
+```ts
+interface DirectoryBackup {
+	readonly id: string;
+	readonly dir: string;
+}
+```
+
+**제품정보**:
+
+- `id`- 유일한 백업 식별자 (UUID)
+- `dir`- 백업 된 디렉토리
+
+### `RestoreBackupResult`
+
+```ts
+interface RestoreBackupResult {
+	success: boolean;
+	dir: string;
+	id: string;
+}
+```
+
+**제품정보**:
+
+- `success`- 복원 성공 여부
+- `dir`- 복원 된 디렉토리
+- `id`- 복원 된 백업 ID
+
+## 관련 자료
+
+- [저장 API](/sandbox/api/storage/)- 마운트 S3- 호환 버킷
+- [파일 API](/sandbox/api/files/)- 파일 읽기 및 쓰기
+- [Wrangler 구성](/sandbox/configuration/wrangler/)- 바인딩 구성

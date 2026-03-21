@@ -1,0 +1,115 @@
+---
+pcx_content_type: how-to
+title: 사이트맵
+tags:
+  - RPC
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/grpc/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/use-cases/grpc/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+gRPC는 원격 절차 통화 (RPC) 프레임 워크로 클라이언트 애플리케이션을 호출 할 수 있습니다. 원격 서버에서 동일한 로컬 머신에서 실행 한 경우. GRPC 서버와 클라이언트를 Cloudflare의 글로벌 네트워크에 연결할 수 있으며, 다른 데이터 센터 및 환경에 걸쳐 서비스를 사용하는 애플리케이션을 쉽게 구축할 수 있습니다.
+
+<Render file="tunnel/grpc-support" product="cloudflare-one" />
+
+<br />
+
+<br />
+
+이 예에서, 우리는 Cloudflare에 gRPC 서버를 연결할 것입니다.
+`cloudflared` <GlossaryTooltip term="daemon">인기있는</GlossaryTooltip>, 안전
+Gateway 정책을 가진 서버, 서버에 gRPC 채널을 열고
+Cloudflare WARP 클라이언트.
+
+## 1. gRPC 서버 설정
+
+1. gRPC Python 응용 프로그램을 설정하려면 이것을 따르십시오.[빠른 시작 가이드](https://grpc.io/docs/languages/python/quickstart/).
+
+2. 서버 시작:
+
+```sh
+~/grpc/examples/python/helloworld $ python3 greeter_server.py
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1721770418.373806    3677 config.cc:230] gRPC experiments enabled: call_status_override_on_cancellation, event_engine_dns, event_engine_listener, http2_stats_fix, monitoring_experiment, pick_first_new, trace_record_callops, work_serializer_clears_time_cache
+Server started, listening on 50051
+```
+
+## 2. Cloudflare에 서버를 연결합니다
+
+Cloudflare에 안전한 아웃바운드 전용 연결을 설정하려면:
+
+<Render file="tunnel/connect-private-network" product="cloudflare-one" />
+
+3. 내 계정**CIDR 소개**터널의 탭은 서버의 개인 IP 또는 CIDR 주소를 입력합니다.
+
+## 3. WARP를 통해 개인 네트워크 IPs 루트
+
+<Render file="tunnel/warp-to-tunnel-route-ips" product="cloudflare-one" params={{ one: "private network" }} />
+
+## 4. (추천) Gateway 정책을 작성
+
+구성할 수 있습니다.[Gateway 네트워크 정책](/cloudflare-one/traffic-policies/network-policies/)블록 중 하나 또는 gRPC 서버에 액세스 할 수 있습니다. 다음 예제는 두 개의 정책으로 구성됩니다: 첫 번째는 gRPC 연결이 통과하는 장치에서 허용[장치 자세 검사](/cloudflare-one/reusable-components/posture-checks/), 그리고 두번째 구획 다른 모든 교통. 허용 정책이 더 높은 것을 확인[이름 \*](/cloudflare-one/traffic-policies/order-of-enforcement/#order-of-precedence).
+
+### 1. 안전한 장치 허용
+
+| 옵션 정보                    | 회사연혁  | 제품정보                                      | 로그인   | - 연혁 |
+| ------------------------ | ----- | ----------------------------------------- | ----- | ---- |
+| 관광 명소                    | 이름 \* | `50051`                                   | 이름 \* | 지원하다 |
+| 대상 IP                    | 이름 \* | `172.31.0.133`                            | 이름 \* |      |
+| Passed Device Posture 검사 | 이름 \* | `macOS firewall (Firewall)`               | 이름 \* |      |
+| Passed Device Posture 검사 | 이름 \* | `macOS disk encryption (Disk encryption)` |       |      |
+
+### 2. 다른 모든 것을 막으십시오
+
+| 옵션 정보 | 회사연혁 | 제품정보            | - 연혁 |
+| ----- | ---- | --------------- | ---- |
+| 대상 IP | 내 계정 | `172.31.0.0/16` | 제품정보 |
+
+Gateway 프록시 설정에 대한 자세한 내용은 참조[Gateway로 네트워크 트래픽 필터](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/#4-recommended-filter-network-traffic-with-gateway).
+
+## 5. 클라이언트 설정
+
+gRPC 클라이언트는 장치에서 Cloudflare WARP를 설치하고 Zero Trust 조직에 등록하여 서버에 연결할 수 있습니다. 클라이언트가 Cloudflare 터널을 통해 노출되는 개인 IP에 대한 요청을 할 때 WARP는 Cloudflare의 네트워크에 대한 연결을 우회합니다.
+
+gRPC 클라이언트를 설정하려면:
+
+1. [WARP 클라이언트 배포](/cloudflare-one/team-and-resources/devices/warp/deployment/)트래픽 및 DNS 모드에서 기기에.
+2. [장치 등록 규칙](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/)어떤 기기가 Zero Trust 조직에 등록할 수 있는지 결정하십시오.
+3. 다음 장치에서 gRPC 설치[빠른 시작 가이드](https://grpc.io/docs/languages/python/quickstart/).
+4. 수정하기`greeter.py`gRPC 서버의 개인 IP에 점. 이것은 동일한 개인 IP로 구성되어 있습니다.[사이트맵 터널 노선](#2-connect-the-server-to-cloudflare). 예를 들면,
+
+```python null {6}
+def run():
+    #NOTE(gRPC Python 팀): .close()는 채널에서 가능하며,
+    #자주 묻는 질문
+    #코드의.
+    print("Will try to greet world ...")
+    with grpc.insecure_channel("172.31.0.133:50051") as channel:
+        stub = helloworld_pb2_grpc.GreeterStub(channel)
+        response = stub.SayHello(helloworld_pb2.HelloRequest(name="you"))
+    print("Greeter client received: " + response.message)
+```
+
+## 6. 연결을 시험하십시오
+
+1. 클라이언트 장치에서 WARP는`Connected`.
+2. gRPC 클라이언트 응용 프로그램을 실행:
+
+```sh
+~/grpc/examples/python/helloworld $ python3 greeter_client.py
+Will try to greet world ...
+WARNING: All log messages before absl::InitializeLog() is called are written to STDERR
+I0000 00:00:1721771484.489711 4414247 config.cc:230] gRPC experiments enabled: call_status_override_on_cancellation, event_engine_dns, event_engine_listener, http2_stats_fix, monitoring_experiment, pick_first_new, trace_record_callops, work_serializer_clears_time_cache
+Greeter client received: Hello, you!
+```
+
+볼 수 있습니다[터널 로그](/cloudflare-one/networks/connectors/cloudflare-tunnel/monitor-tunnels/logs/#view-logs-on-your-local-machine)요청이 터널로 오고 gRPC 서버에 도달하는 것을 검증합니다.

@@ -1,0 +1,112 @@
+---
+pcx_content_type: reference
+title: Cloudflare One의 post-quantum cryptography
+sidebar:
+  order: 4
+  label: PQC and Cloudflare One
+---
+
+[Cloudflare One](/cloudflare-one/)은 기존 기업 보안 경계를 Cloudflare의 글로벌 네트워크로 대체하여, 전 세계 팀이 인터넷과 기업 리소스에 더 빠르고 안전하게 접근할 수 있게 합니다.
+
+조직은 Cloudflare One의 post-quantum on-ramp와 off-ramp를 통해 사설 네트워크 트래픽을 전송함으로써 end-to-end post-quantum 암호화를 확보할 수 있습니다. 이렇게 하면 개별 애플리케이션이 아직 post-quantum 암호화로 업그레이드되지 않았더라도 [harvest-now, decrypt-later](https://en.wikipedia.org/wiki/Harvest_now,_decrypt_later) 공격을 방지하기 위해 트래픽을 post-quantum 암호화로 보호할 수 있습니다. harvest-now, decrypt-later 공격에서 공격자는 지금 데이터를 수집해 두고, 더 강력한 quantum computer가 등장하는 미래에 이를 복호화합니다.
+
+Post-quantum 암호화는 다음 on-ramp를 포함한 모든 주요 Cloudflare One 네트워크 구성에서 제공됩니다.
+
+- Clientless (브라우저 전용)
+- 최종 사용자 장치의 [Cloudflare One Client](/cloudflare-one/team-and-resources/devices/warp/)
+- [Cloudflare IPsec](/cloudflare-wan/reference/gre-ipsec-tunnels/) on-ramp
+
+그리고 off-ramp는 다음과 같습니다.
+
+- [Cloudflare Tunnel](/cloudflare-one/networks/connectors/cloudflare-tunnel/) off-ramp (`cloudflared` 사용)
+- Cloudflare IPsec off-ramp
+
+공개 인터넷으로 나가는 트래픽의 경우, [Cloudflare Gateway](/cloudflare-one/traffic-policies/http-policies/)도 Secure Web Gateway(SWG)로서 post-quantum 암호화를 제공합니다.
+
+이러한 네트워크 구성은 모두 고전적인 Elliptic Curve Diffie-Hellman(ECDH)과 함께 배포된 post-quantum key agreement 알고리즘 ML-KEM-768을 사용하며, 네트워크 트래픽 암호화에 사용하는 symmetric key는 ML-KEM key agreement 결과와 ECDH key agreement 결과를 섞어 도출됩니다. 이를 hybrid ML-KEM이라고도 합니다. 이 hybrid 접근 방식에서 ML-KEM은 quantum harvest-now, decrypt-later 공격에 대한 보호를 제공하고, ECDH는 비양자 공격자에 대한 보호를 제공합니다.
+
+![Overview diagram of post-quantum Cloudflare One network configurations showing on-ramps and off-ramps](~/assets/images/ssl/pqc-cloudflare-one-overview.png)
+
+다음 섹션에서는 몇 가지 네트워크 구성을 자세히 설명합니다.
+
+## Agentless Cloudflare Access
+
+조직의 내부 웹 애플리케이션으로 향하는 인터넷 트래픽을 보호하기 위해 [Cloudflare Access](/cloudflare-one/access-controls/policies/) [self-hosted applications](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)을 agentless 구성으로 사용할 수 있습니다. 자세한 안내는 [learning path](/learning-paths/clientless-access/initial-setup/)를 참고하세요.
+
+애플리케이션 자체가 아직 post-quantum(PQ) cryptography로 마이그레이션되지 않았더라도 양자 위협으로부터 보호됩니다.
+
+![Diagram of how post-quantum cryptography works in clientless connections to Access applications](~/assets/images/ssl/pqc-clientless-access.png).
+
+현재 동작 방식은 다음과 같습니다.
+
+**1. 브라우저를 통한 PQ 연결**
+
+최종 사용자가 post-quantum key agreement를 지원하는 최신 웹 브라우저(예: Chrome, Edge, Firefox)를 사용하는 한, 장치에서 Cloudflare 네트워크까지의 연결은 post-quantum key agreement가 적용된 TLS 1.3으로 보호됩니다.
+
+**2. Cloudflare 글로벌 네트워크 내부의 PQ**
+
+사용자와 origin server가 지리적으로 멀리 떨어져 있으면, 사용자 트래픽은 하나의 지리적 위치(예: 프랑크푸르트)에서 Cloudflare 글로벌 네트워크로 진입하고 다른 위치(예: 샌프란시스코)에서 빠져나갑니다. 이 트래픽이 Cloudflare 글로벌 네트워크 내부에서 데이터 센터 간 이동하는 동안의 hop은 post-quantum key agreement가 적용된 TLS 1.3으로 보호됩니다.
+
+**3. PQ Cloudflare Tunnel**
+
+고객은 기업 웹 애플리케이션이 호스팅되는 데이터 센터 또는 퍼블릭 클라우드에서 Cloudflare 네트워크까지 [Cloudflare Tunnel](/cloudflare-one/networks/connectors/cloudflare-tunnel/)을 설정합니다. 이 터널은 [harvest now, decrypt later attacks](https://en.wikipedia.org/wiki/Harvest_now,_decrypt_later)로부터 보호되도록 post-quantum key agreement가 적용된 TLS 1.3으로 보호됩니다.
+
+이 모든 요소를 종합하면 Cloudflare Access는 고객이 기업 웹 애플리케이션 자체의 보안을 업그레이드하지 않아도 기업용 HTTPS 애플리케이션 접근에 대해 end-to-end 양자 안전성을 제공할 수 있습니다.
+
+## Cloudflare One Client
+
+[Cloudflare One Client](/cloudflare-one/team-and-resources/devices/warp/)는 end-user device에서 Cloudflare 글로벌 네트워크까지 hybrid ML-KEM이 적용된 TLS 1.3을 사용하는 post-quantum(PQ) MASQUE 터널 위로 트래픽을 보냅니다. 다음은 Cloudflare One Client on-ramp와 Cloudflare Tunnel off-ramp를 사용하는 네트워크 구성의 예입니다.
+
+![Diagram of post-quantum network configuration using Cloudflare One Client on-ramp and Cloudflare Tunnel off-ramp](~/assets/images/ssl/pqc-cloudflare-one-client.png)
+
+**1. Cloudflare One Client를 통한 PQ 연결**
+
+Cloudflare One Client는 MASQUE 프로토콜을 사용하여 장치에서 Cloudflare 글로벌 네트워크까지 hybrid ML-KEM이 적용된 TLS 1.3으로 연결합니다.
+
+**2. Cloudflare 글로벌 네트워크 내부의 PQ**
+
+사용자와 origin server가 지리적으로 멀리 떨어져 있으면, 사용자 트래픽은 하나의 지리적 위치(예: 프랑크푸르트)에서 Cloudflare 글로벌 네트워크로 진입하고 다른 위치(예: 샌프란시스코)에서 빠져나갑니다. 이 트래픽이 Cloudflare 글로벌 네트워크 내부에서 데이터 센터 간 이동하는 동안의 hop은 post-quantum key agreement가 적용된 TLS 1.3으로 보호됩니다.
+
+**3. PQ Cloudflare Tunnel**
+
+[Cloudflare Tunnel](/cloudflare-one/networks/connectors/cloudflare-tunnel/)은 이미 post-quantum key agreement를 지원합니다.
+
+이 네트워크 구성에서는 트래픽이 양자 암호화된 터널 안에 캡슐화되므로, 개별 네트워크나 애플리케이션을 업그레이드하지 않고도 harvest-now, decrypt-later 공격의 위험을 효과적으로 완화할 수 있습니다. 이는 HTTPS뿐만 아니라 이 터널을 통해 전송할 수 있는 모든 프로토콜에 대해 포괄적인 보호를 제공합니다.
+
+## Cloudflare IPsec
+
+다음은 Cloudflare One Client on-ramp를 사용해 최종 사용자 장치를 [Cloudflare One Appliance](/cloudflare-wan/configuration/appliance/) off-ramp 뒤의 서버에 연결하는 샘플 네트워크 구성입니다. 서버 자체가 post-quantum cryptography를 지원하지 않더라도, 공개 인터넷을 통해 이동하는 서버 트래픽은 post-quantum cryptography로 보호됩니다.
+
+![Diagram of post-quantum network configuration using Cloudflare One Client on-ramp to Cloudflare One Appliance off-ramp](~/assets/images/ssl/pqc-cloudflare-ipsec.png)
+
+**1. Cloudflare One Client를 통한 PQ 연결**
+
+Cloudflare One Client는 MASQUE 프로토콜을 사용하여 장치에서 Cloudflare 글로벌 네트워크까지 hybrid ML-KEM이 적용된 TLS 1.3으로 연결합니다.
+
+**2. Cloudflare 글로벌 네트워크 내부의 PQ**
+
+트래픽은 이후 hybrid ML-KEM이 적용된 TLS 1.3으로 Cloudflare 글로벌 네트워크 전반을 이동합니다.
+
+**3. Cloudflare One Appliance가 사용하는 PQ Cloudflare IPsec**
+
+트래픽은 post-quantum Cloudflare IPsec 링크를 통해 Cloudflare 네트워크를 빠져나가며, 이 링크는 Cloudflare One Appliance에서 종료됩니다. Cloudflare One Appliance는 TLS로 보호되는 제어 평면에 내장된 non-IKE keying 프로토콜을 사용하여 IPsec ESP 프로토콜에서 데이터 평면 트래픽을 암호화하는 데 필요한 키를 설정합니다. Appliance 버전 2026.2.0부터 제어 평면은 hybrid ML-KEM으로 보호되는 TLS 1.3을 통해 키를 설정합니다.
+
+## Secure Web Gateway
+
+[secure web gateway (SWG)](https://www.cloudflare.com/learning/access-management/what-is-a-secure-web-gateway/)는 TLS 트래픽을 가로채고 검사하여 공개 인터넷의 제3자 웹사이트 접근을 보호하는 데 사용됩니다.
+
+[Cloudflare Gateway](/cloudflare-one/traffic-policies/http-policies/)는 이제 [HTTPS 트래픽을 위한 quantum-safe SWG](/cloudflare-one/traffic-policies/http-policies/tls-decryption/#post-quantum-support)입니다. 검사 대상 제3자 웹사이트가 post-quantum key agreement를 지원하는 한, Cloudflare SWG도 post-quantum key agreement를 지원합니다. 이는 Cloudflare 네트워크에 진입할 때 어떤 on-ramp를 사용하는지와 무관하며, post-quantum key agreement를 지원하는 브라우저만 있으면 됩니다.
+
+![Diagram of how post-quantum cryptography works with Cloudflare's Secure Web Gateway](~/assets/images/ssl/pqc-secure-web-gateway.png).
+
+Cloudflare Gateway의 HTTPS 필터링 기능에는 다음 두 가지 post-quantum TLS 연결이 포함됩니다.
+
+**1. 브라우저를 통한 PQ 연결**
+
+사용자의 브라우저에서 TLS 검사를 수행하는 Cloudflare 네트워크의 데이터 센터로 TLS 연결이 시작됩니다. 최종 사용자가 post-quantum key agreement를 지원하는 최신 웹 브라우저(예: Chrome, Edge, Firefox)를 사용하는 한, 이 연결은 post-quantum key agreement가 적용된 TLS 1.3으로 보호됩니다.
+
+Cloudflare One Client를 통해 SWG로 들어오는 모든 트래픽은 웹 브라우저 자체가 아직 post-quantum cryptography를 지원하지 않더라도 hybrid ML-KEM으로 보호됩니다. 이는 Cloudflare One Client가 Cloudflare 글로벌 네트워크에 수립하는 post-quantum MASQUE 터널 덕분입니다. Cloudflare One Appliance를 사용해 SWG에 진입하는 트래픽도 마찬가지이며, 이 경우 post-quantum 암호화로 보호되는 Cloudflare IPsec 터널이 설정됩니다.
+
+**2. Origin server로의 PQ 연결**
+
+Cloudflare 네트워크의 데이터 센터에서 일반적으로 제3자가 제어하는 origin server로 TLS 연결이 시작됩니다. Cloudflare의 SWG에서 나가는 연결은 현재 제3자 origin server도 이미 post-quantum key agreement를 지원하는 한 post-quantum key agreement를 지원합니다. 이를 시험해 보려면 제3자 origin server로 https://pq.cloudflareresearch.com/ 을 사용할 수 있습니다.

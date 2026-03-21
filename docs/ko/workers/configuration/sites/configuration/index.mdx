@@ -1,0 +1,133 @@
+---
+pcx_content_type: configuration
+title: '모델 번호: Workers 사이트 구성'
+canonical: /workers/static-assets/
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/configuration/sites/configuration/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/sites/configuration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+<Render file="workers_sites" product="workers" />
+
+모델 번호: Workers 사이트가 최신 버전의[Wrangler](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler).
+
+## Wrangler 구성 파일
+
+Workers 사이트에 대한 몇 가지 특정 구성 설정이 있습니다.
+
+- `bucket`\*필수
+  - 정적 자산을 포함하는 디렉토리, 당신의 상대 경로[Wrangler 구성 파일](/workers/wrangler/configuration/). 예:`bucket = "./public"`.
+
+- `include`옵션 정보
+  - 파일 또는 디렉토리의 gitignore-style 패턴 목록`bucket`공유하기 예:`include = ["upload_dir"]`.
+
+- `exclude`옵션 정보
+  - 파일 또는 디렉토리의 gitignore-style 패턴 목록`bucket`당신은 업로드에서 제외합니다. 예:`exclude = ["ignore_dir"]`.
+
+선택에 대해 더 알아보기`include`·`exclude`분야, 참조[정적 자산의 하위 세트를 무시](#ignoring-subsets-of-static-assets).
+
+:::참조
+
+프로젝트 사용[제품정보](/workers/wrangler/environments/), 장소 확인`site`어떤 환경 특정 구성 블록 이상.
+
+:::
+
+예제의[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "docs-site-blah",
+  	"site": {
+  		"bucket": "./public"
+  	},
+  	"env": {
+  		"production": {
+  			"name": "docs-site",
+  			"route": "https://example.com/docs*"
+  		},
+  		"staging": {
+  			"name": "docs-site-staging",
+  			"route": "https://staging.example.com/docs*"
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 저장 한계
+
+매우 훌륭하게 큰 페이지를 들어, Workers 사이트가 당신을 위해 작동하지 않을 수 있습니다. 페이지 또는 파일 당 25 MiB 제한이 있습니다.
+
+## 정적 자산의 하위 세트를 무시
+
+모델 번호: Workers 사이트가 필요합니다.[모델 번호: Wrangler](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler)- 사용 확인[최신 버전](/workers/wrangler/install-and-update/#update-wrangler).
+
+사용자가 Workers 사이트에 특정 정적 자산을 업로드 할 수없는 경우가 있습니다.
+이 경우 Workers 사이트는 논리를 사용하여 특정 파일 또는 디렉토리를 무시하도록 구성 할 수 있습니다.
+관련 기사[화물의 선택 사항 및 제외 필드](https://doc.rust-lang.org/cargo/reference/manifest.html#the-exclude-and-include-fields-optional).
+
+gitignore semantics 를 사용해야 하는 것을 의미한다.
+
+### File/directories를 포함한 독점적으로
+
+파일이나 디렉토리만 포함하려는 경우`bucket`, 당신은 추가할 수 있습니다`include`당신에 게`[site]`Wrangler 파일의 단면도:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"site": {
+  		"bucket": "./public",
+  		"include": [ //배열이 있어야 합니다.
+  			"included_dir"
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+Wrangler는 파일이나 디렉토리를 업로드할 수 있습니다.`include`배열.
+
+### 파일 비교/directories
+
+파일이나 디렉토리를 제외하면`bucket`, 당신은 추가할 수 있습니다`exclude`당신에 게`[site]`Wrangler 파일의 단면도:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"site": {
+  		"bucket": "./public",
+  		"exclude": [ //배열이 있어야 합니다.
+  			"excluded_dir"
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+Wrangler는 파일이나 디렉토리를 무시합니다.`exclude`Workers KV에 자산을 업로드할 때 배열.
+
+### 포함 > 제외
+
+둘 다 제공 하는 경우`include`·`exclude`분야,`include`분야는 사용될 것입니다`exclude`필드는 무시됩니다.
+
+### 기본 무시된 항목
+
+Wrangler는 항상 무시합니다:
+
+- `node_modules`
+- 숨겨진 파일 및 디렉토리
+- 회사연혁
+
+#### 더 많은 것 포함 / 제외 패턴
+
+포함 된 표준 패턴에 대해 자세히 알아보기 및 제외[gitignore 문서](https://git-scm.com/docs/gitignore).

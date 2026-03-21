@@ -1,0 +1,132 @@
+---
+summary: >-
+  Set up custom domain for Images using a Worker or serve images using a prefix
+  path and Cloudflare registered domain.
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 이미지가있는 사용자 정의 도메인
+sidebar:
+  order: 1001
+description: Worker를 사용하거나 사전 설정 경로 및 Cloudflare 등록 도메인을 사용하여 이미지에 대한 사용자 정의 도메인을 설정합니다.
+reviewed: 2022-08-22T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/images-workers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/images-workers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/images-workers)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0228XQQ WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+사용자 정의 도메인에서 이미지를 제공하려면:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 제품정보**회사연혁** > **모델 번호: Workers** > **회사 소개**당신의 노동자를 창조하십시오.
+
+3. 당신의 노동자에서, 선택**빠른 편집**다음 코드를 붙여넣기.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		//dashboard에서 이것을 찾을 수 있습니다. ZWd9g1K7eljCn KDTu MWA와 같은 것을 볼 수 있습니다.
+    		const accountHash = "";
+
+    		const { pathname } = new URL(request.url);
+
+    		//cdn.example.com/83eb7b2-5392-4565-b69e-aff66acddd00/public과 같은 무언가에 대한 요청
+    		//"https://imagedelivery.net/<accountHash>/83eb7b2-5392-4565-b69e-aff66acddd00/public"
+
+    		return fetch(`https://imagedelivery.net/${accountHash}${pathname}`);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		//dashboard에서 이것을 찾을 수 있습니다. ZWd9g1K7eljCn KDTu MWA와 같은 것을 볼 수 있습니다.
+    		const accountHash = "";
+
+    		const { pathname } = new URL(request.url);
+
+    		//cdn.example.com/83eb7b2-5392-4565-b69e-aff66acddd00/public과 같은 무언가에 대한 요청
+    		//"https://imagedelivery.net/<accountHash>/83eb7b2-5392-4565-b69e-aff66acddd00/public"
+
+    		return fetch(`https://imagedelivery.net/${accountHash}${pathname}`);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    interface Env {
+      //계정 해시를 바인딩 변수로 저장할 수 있습니다.
+      ACCOUNT_HASH?: string;
+    }
+
+    const app = new Hono<{ Bindings: Env }>();
+
+    app.get('*', async (c) => {
+      //dashboard에서 이것을 찾을 수 있습니다. ZWd9g1K7eljCn KDTu MWA와 같은 것을 볼 수 있습니다.
+      //환경이나 하드코드에서 얻을 수 있습니다.
+      const accountHash = c.env.ACCOUNT_HASH || "";
+
+      const url = new URL(c.req.url);
+
+      //cdn.example.com/83eb7b2-5392-4565-b69e-aff66acddd00/public과 같은 무언가에 대한 요청
+      //"https://imagedelivery.net/<accountHash>/83eb7b2-5392-4565-b69e-aff66acddd00/public"
+
+      return fetch(`https://imagedelivery.net/${accountHash}${url.pathname}`);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from js import URL, fetch
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            #dashboard에서 이것을 찾을 수 있습니다. ZWd9g1K7eljCn KDTu MWA와 같은 것을 볼 수 있습니다.
+            account_hash = ""
+            url = URL.new(request.url)
+
+            #cdn.example.com/83eb7b2-5392-4565-b69e-aff66acddd00/public과 같은 무언가에 대한 요청
+            #"https://imagedelivery.net/<accountHash>/83eb7b2-5392-4565-b69e-aff66acddd00/public"
+            return fetch(f'https://imagedelivery.net/{account_hash}{url.pathname}')
+    ```
+  </TabItem>
+</Tabs>
+
+사용자 정의 도메인에서 이미지를 제공 할 수있는 또 다른 방법은 다음과 같습니다.`cdn-cgi/imagedelivery`방아쇠 경로로 사용되는 접fix 경로`cdn-cgi`이미지 프록시.
+
+아래는 이미지와 같은 계정에서 Cloudflare proxied 도메인으로 hostname을 보여주는 예입니다. 접두사 경로와 이미지와 함께`<ACCOUNT_HASH>`, `<IMAGE_ID>`·`<VARIANT_NAME>`찾을 수 있습니다**제품정보**Cloudflare dashboard에.
+
+```js
+https://example.com/cdn-cgi/imagedelivery/<ACCOUNT_HASH>/<IMAGE_ID>/<VARIANT_NAME>
+```

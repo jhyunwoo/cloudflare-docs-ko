@@ -1,0 +1,84 @@
+---
+title: insecure JS 라이브러리
+pcx_content_type: reference
+head:
+  - tag: title
+    content: insecure JavaScript 라이브러리 교체
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/tools/replace-insecure-js-libraries/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/tools/replace-insecure-js-libraries/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	GlossaryTooltip,
+	Tabs,
+	TabItem,
+	Steps,
+	APIRequest,
+	DashButton,
+} from "~/components";
+
+이 기능, 켜면 자동으로 외부 JavaScript 라이브러리에 URL을 다시 작성하여 대신 Cloudflare 호스팅 라이브러리로 이동합니다. 이 변경은 보안 및 성능을 향상시키고 악성 코드의 위험을 감소시킵니다.
+
+이 재 작성 작업은 현재 지원`polyfill`JavaScript 라이브러리에서 호스팅`polyfill.io`.
+
+:::카트로션
+
+업데이트가 필요할 수 있습니다.<GlossaryTooltip term="content security policy (CSP)">콘텐츠 보안 정책 (CSP)</GlossaryTooltip>계속하기**insecure JavaScript 라이브러리 교체**. 기능, 활성화할 때, CSP가 존재하는 경우 URL을 다시 작성하지 않습니다`script-src`또는`default-src`로그아웃 Cloudflare는 체크하지 않을 것입니다`report-only`지시어는 CSP 헤더를 수정하지 않습니다.
+
+또한 HTML을 통해 CSP를 정의하는 경우`meta`태그는 HTTP 헤더에서 정의된 CSP에 이 기능을 끄거나 전환해야 합니다.
+
+:::
+
+## 어떻게 작동합니까?
+
+켜지면 Cloudflare는 HTTP (S)를 위해 proxied 교통을 검사합니다`script`태그와 함께`src`잠재적으로 insecure 서비스에 대한 속성 지적 및 대체`src`아래 호스팅되는 해당 링크와 값[사이트맵](https://cdnjs.cloudflare.com/).
+
+rewritten URL은 원래 URL을 유지한다 (`http://`또는`https://`).
+
+제품 정보`polyfill.io`URL rewrites, 모든`3.*`버전의`polyfill`라이브러리는 아래에 지원됩니다.`/v3`경로. 또한,`/v2`경로도 지원됩니다. 알 수없는 버전이 요청되면`/v3`경로, Cloudflare 최신 URL을 다시 작성합니다.`3.*`라이브러리의 버전 (currently`3.111.0`).
+
+## 적용분야
+
+이 기능은 모든 Cloudflare 계획에서 사용할 수 있으며 무료 계획에 기본적으로 켜집니다.
+
+***
+
+## 설정하기
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. 제품정보**insecure JavaScript 라이브러리 교체**또는 오프.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    계정 만들기`PATCH`다음과 같은 요청 :
+
+    <APIRequest
+      path="/zones/{zone_id}/settings/{setting_id}"
+      parameters={{
+  	setting_id: "replace_insecure_js",
+  }}
+      method="PATCH"
+      json={{
+  	value: "on",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+***
+
+## 최종 알림
+
+이름 \*[`pages.dev`이름 \*](/pages/configuration/preview-deployments/)무료 플랜**insecure JavaScript 라이브러리 교체**이 영역에서 기본값으로 설정하고 설정할 수 없습니다.

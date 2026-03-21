@@ -1,0 +1,77 @@
+---
+pcx_content_type: how-to
+title: 사용자 지정 규칙 만들기
+sidebar:
+  order: 16
+
+---
+
+import { Example, DashButton } from "~/components"
+
+[Load Balancing 규칙](/load-balancing/additional-options/load-balancing-rules/)은 대시보드의 **Traffic**에서 제공되는 로드 밸런서 생성/편집 워크플로의 일부인 **Custom Rules** 페이지에서 생성하고 관리할 수 있습니다.
+
+***
+
+## 사전 준비 사항
+
+* **Cloudflare가 트래픽을 프록시하는지 이해하기**: 트래픽의 [proxy status](/load-balancing/understand-basics/proxy-modes/)에 따라 Load Balancing 규칙에 사용할 수 있는 필드가 달라질 수 있습니다. 자세한 내용은 [지원되는 필드와 표현식](/load-balancing/additional-options/load-balancing-rules/reference/)을 참고하세요.
+
+***
+
+## 예시 워크플로
+
+1. Cloudflare 대시보드에서 **Load Balancing** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/load-balancing" />
+
+2. 기존 로드 밸런서를 편집하거나 [새 로드 밸런서를 생성](/load-balancing/load-balancers/create-load-balancer/)합니다.
+3. Load Balancer 워크플로에서 **Custom Rules**를 선택합니다.
+4. **Create Custom Rule**을 선택합니다.
+5. **Field** 드롭다운 목록에서 HTTP 속성을 선택합니다. 자세한 내용은 [지원되는 필드](/load-balancing/additional-options/load-balancing-rules/reference/)를 참고하세요.
+6. **Operator** 드롭다운 목록에서 연산자를 선택합니다. 자세한 내용은 [연산자](/load-balancing/additional-options/load-balancing-rules/reference/#operators-and-grouping-symbols)를 참고하세요.
+7. 일치시킬 값을 입력합니다. 필드가 순서가 있는 목록이면 **Value**는 드롭다운 목록으로 표시됩니다. 그렇지 않으면 **Value**는 텍스트 입력란입니다.
+8. (선택 사항) 논리 연산자를 사용한 복합 표현식을 만들려면 **And** 또는 **Or**를 선택합니다.
+9. 동작으로 **Respond with fixed response** 또는 **Override**를 선택하고 추가 세부 정보를 입력합니다. 전체 동작 목록은 [동작](/load-balancing/additional-options/load-balancing-rules/actions/)을 참고하세요.
+10. (선택 사항) **Add another override**를 선택합니다.
+11. 규칙을 만든 후 **Save and Deploy** 또는 **Save as Draft**를 선택합니다.
+12. **Next**를 선택하고 변경 사항을 검토합니다.
+13. 확인하려면 **Save**를 선택합니다.
+
+:::caution[경고]
+
+
+새 Load Balancing 규칙을 저장하려면 규칙 **자체**와 전체 로드 밸런서 구성을 **모두** 저장해야 합니다.
+
+
+:::
+
+:::note
+
+일반적으로 종료되지 않는 동작의 경우 동일한 [phase](/ruleset-engine/about/phases/) 안에서는 가장 마지막에 적용된 규칙의 변경 사항이 우선합니다. 즉, 뒤에 오는 규칙이 앞선 규칙의 변경 내용을 덮어쓸 수 있습니다. 반면 Block, Redirect 또는 각종 challenge 동작 같은 [terminating actions](/ruleset-engine/rules-language/actions/)는 규칙 평가가 중단되고 해당 동작이 즉시 실행됩니다.
+
+Load Balancer Custom Rules는 풀과 오리진 선택을 포함한 기본 Load Balancer 설정을 재정의합니다. 이러한 동작은 종료되지 않는 동작이므로 마지막으로 적용된 규칙이 그보다 앞선 규칙을 덮어씁니다.
+
+
+:::
+
+## 예시 사용 사례
+
+### URL 기반 라우팅
+
+예를 들어 `example.com/blog`를 기본 웹사이트와 별도로 호스팅하려면 다음 사용자 지정 규칙을 사용하세요.
+
+<Example>
+
+<strong>들어오는 요청이 다음과 일치할 때</strong>:
+
+| Field    | Operator | Value   |
+| -------- | -------- | ------- |
+| URI Path | contains | `/blog` |
+
+<strong>그다음</strong>:
+
+| Action    | Options | Value           |
+| --------- | ------- | --------------- |
+| Overrides | Pools   | `<BLOG_SERVER>` |
+
+</Example>

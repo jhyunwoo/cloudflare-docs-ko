@@ -1,0 +1,103 @@
+---
+title: Retrieval 증강 발생
+pcx_content_type: concept
+sidebar:
+  order: 14
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/rag/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/rag/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	MetaInfo,
+	Render,
+	Type,
+	TypeScriptExample,
+	WranglerConfig,
+} from "~/components";
+
+Retrieval Augmented Generation (RAG)를 사용하여 관련 정보를 검색하고 augment를 사용할 수 있습니다.[AI 모델 호출](/agents/api-reference/using-ai-models/). 미래의 대화에 대한 컨텍스트로 사용하는 사용자의 채팅 기록을 저장하고, 에이전트의 지식 기반을 부트 스트랩에 문서를 요약하고, / 또는 에이전트의 데이터 사용[웹 브라우징](/agents/api-reference/browse-the-web/)에이전트의 기능을 향상시키기 위해 작업.
+
+에이전트를 사용할 수 있습니다.[SQL 데이터베이스](/agents/api-reference/store-and-sync-state)데이터에 대한 진실의 소스와 매장 embeddings in[\`Vectorize\`\`\`\`\`\`\`](/vectorize/)(또는 다른 모든 벡터 지원 데이터베이스) 귀하의 에이전트가 관련 정보를 검색 할 수 있도록.
+
+### 벡터 검색
+
+:::참조
+
+벡터 데이터베이스와 Vectorize로 새로운 브랜드가 있다면,[Vectorize 튜토리얼](/vectorize/get-started/intro/)인덱스, 인서트 데이터를 생성하는 방법을 포함하여 기본을 배우고, embeddings를 생성합니다.
+
+:::
+
+에이전트의 모든 방법에서 벡터 인덱스(또는 인덱스)를 쿼리할 수 있습니다: 어떤 Vectorize 인덱스를 첨부할 수 있습니다.`this.env`당신의 대리인 안에. 당신은[관련 메타데이터](/vectorize/best-practices/insert-vectors/#metadata)에이전트에 저장된 데이터를 다시 맵하는 벡터를 사용하면 에이전트 내에서 데이터를 직접 볼 수 있습니다.`this.sql`.
+
+에이전트 retrieval 기능을 제공하는 방법의 예입니다.
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+
+  interface Env {
+  	AI: Ai;
+  	VECTOR_DB: Vectorize;
+  }
+
+  export class RAGAgent extends Agent {
+  	//에이전트에 다른 방법
+  	//· ...
+  	//
+  	async queryKnowledge(userQuery: string) {
+  		//embedding에 쿼리를 설정
+  		const queryVector = await this.env.AI.run("@cf/baai/bge-base-en-v1.5", {
+  			text: [userQuery],
+  		});
+
+  		//벡터 인덱스에서 결과를 검색
+  		let searchResults = await this.env.VECTOR_DB.query(queryVector.data[0], {
+  			topK: 10,
+  			returnMetadata: "all",
+  		});
+
+  		let knowledge = [];
+  		for (const match of searchResults.matches) {
+  			console.log(match.metadata);
+  			knowledge.push(match.metadata);
+  		}
+
+  		//메타데이터를 사용하여 벡터 검색 결과를 복원
+  		//에이전트의 SQL 데이터베이스에 데이터
+  		let results = this
+  			.sql`SELECT * FROM knowledge WHERE id IN (${knowledge.map((k) => k.id)})`;
+
+  		//더 보기
+  		return results;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+당신은 또한 당신의 벡터 인덱스에 에이전트를 연결 해야:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//· ...
+  	"vectorize": [
+  		{
+  			"binding": "VECTOR_DB",
+  			"index_name": "your-vectorize-index-name",
+  		},
+  	],
+  	//· ...
+  }
+  ```
+</WranglerConfig>
+
+사용할 수 있도록 여러 인덱스를 가지고 있다면, 배열을 제공 할 수 있습니다.`vectorize`바인딩.
+
+#### 다음 단계
+
+- 더 알아보기[Vectorize와 \`WorkersAI\`를 결합합니다.](/vectorize/get-started/embeddings/)
+- 자주 묻는 질문[Vectorize 쿼리 API](/vectorize/reference/client-api/)
+- 제품 정보[metadata 필터링](/vectorize/reference/metadata-filtering/)당신의 결과에 context를 추가

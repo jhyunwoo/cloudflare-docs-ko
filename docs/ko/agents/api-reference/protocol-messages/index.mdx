@@ -1,0 +1,200 @@
+---
+title: 프로토콜 메시지
+pcx_content_type: concept
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/protocol-messages/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/api-reference/protocol-messages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample } from "~/components";
+
+WebSocket 클라이언트가 에이전트에 연결할 때 프레임 워크는 여러 JSON 텍스트 프레임을 자동으로 보냅니다. - 정체성, 상태 및 MCP 서버 목록. 처리할 수 없는 클라이언트를 위한 이 per-connection 프로토콜 메시지를 억제할 수 있습니다.
+
+## 제품정보
+
+모든 새로운 연결에서 에이전트는 세 가지 프로토콜 메시지를 보냅니다.
+
+| 이름 \*                  | 이름 \*         |
+| ---------------------- | ------------- |
+| `cf_agent_identity`    | 에이전트 이름 및 클래스 |
+| `cf_agent_state`       | 현재 대리인 국가     |
+| `cf_agent_mcp_servers` | MCP 서버 목록 연결  |
+
+상태 및 MCP 메시지는 변경할 때마다 모든 연결에 방송됩니다.
+
+대부분의 웹 클라이언트를 위해 이것은 괜찮습니다 — the[클라이언트 SDK](/agents/api-reference/client-sdk/)·`useAgent`Hook은 이 메시지를 자동으로 소모합니다. 그러나 일부 클라이언트는 JSON 텍스트 프레임을 처리 할 수 없습니다.
+
+- **Binary-only 클라이언트**— MQTT 장치, IoT 센서, 사용자 정의 바이너리 프로토콜
+- **경량 고객**- 최소 WebSocket 스택을 가진 임베디드 시스템
+- **Non-browser 클라이언트**— WebSocket을 통해 연결되는 하드웨어 장치
+
+이러한 연결을 위해 다른 모든 것을 유지하면서 프로토콜 메시지를 억제 할 수 있습니다 (RPC, 일반 메시지, 방송`this.broadcast()`) 일반적으로 일.
+
+## Suppressing 프로토콜 메시지
+
+관련 제품`shouldSendProtocolMessages`연결이 프로토콜 메시지를 수신하는 제어. 이름 \*`false`그들을 억제하기 위해.
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, type Connection, type ConnectionContext } from "agents";
+
+  export class IoTAgent extends Agent<Env, State> {
+  	shouldSendProtocolMessages(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		return url.searchParams.get("protocol") !== "false";
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이 걸이는 도중 실행합니다`onConnect`, 어떤 메시지가 전송되기 전에. 반환 할 때`false`:
+
+- 이름 \*`cf_agent_identity`, `cf_agent_state`, 또는`cf_agent_mcp_servers`메시지가 연결됩니다.
+- 연결은 국가 및 MCP 방송에서 제외됩니다
+- RPC 통화, 일반`onMessage`취급 및`this.broadcast()`아직도 일 일반적으로
+
+### WebSocket subprotocol 사용
+
+WebSocket에 프로토콜을 협상하는 표준 방법 인 WebSocket subprotocol 헤더를 확인할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  export class MqttAgent extends Agent<Env, State> {
+  	shouldSendProtocolMessages(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		//MQTT-over-WebSocket 클라이언트 협상을 통해 subprotocol
+  		const subprotocol = ctx.request.headers.get("Sec-WebSocket-Protocol");
+  		return subprotocol !== "mqtt";
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 프로토콜 상태 확인
+
+제품 정보`isConnectionProtocolEnabled`연결이 가능한 프로토콜 메시지가 있는지 확인하려면:
+
+<TypeScriptExample>
+  ```ts
+  export class MyAgent extends Agent<Env, State> {
+  	@callable()
+  	async getConnectionInfo() {
+  		const { connection } = getCurrentAgent();
+  		if (!connection) return null;
+
+  		return {
+  			protocolEnabled: this.isConnectionProtocolEnabled(connection),
+  			readonly: this.isConnectionReadonly(connection),
+  		};
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 무엇이고 억압되지 않습니다.
+
+다음 표는 프로토콜 메시지가 연결을 위해 억제 될 때 여전히 작동을 보여줍니다 :
+
+| - 연혁                               | 작품?       |
+| ---------------------------------- | --------- |
+| 이름 \*`cf_agent_identity`연결하기       | **이름 \*** |
+| 이름 \*`cf_agent_state`연결 및 방송       | **이름 \*** |
+| 이름 \*`cf_agent_mcp_servers`연결 및 방송 | **이름 \*** |
+| WebSocket 메시지 보내기                  | 이름 \*     |
+| 이름 \*`@callable()`RPC 방법           | 이름 \*     |
+| 이름 \*`this.broadcast()`이름 \*       | 이름 \*     |
+| 바이너리 데이터 전송                        | 이름 \*     |
+| RPC를 통해 Mutate 대리인 국가              | 이름 \*     |
+
+## readonly와 결합
+
+연결은 readonly와 의정서 누르기 둘 다 일 수 있습니다. 이것은 관찰해야 할 바이너리 장치에 유용하지만 국가를 수정하지 :
+
+<TypeScriptExample>
+  ```ts
+  export class SensorHub extends Agent<Env, SensorState> {
+  	shouldSendProtocolMessages(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		//이진 센서는 JSON 프로토콜 프레임을 처리하지 않습니다.
+  		return url.searchParams.get("type") !== "sensor";
+  	}
+
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		//센서는 RPC를 통해 데이터를 보고할 수 있으며, 공유 상태를 수정할 수 없습니다.
+  		return url.searchParams.get("type") === "sensor";
+  	}
+
+  	@callable()
+  	async reportReading(sensorId: string, value: number) {
+  		//이 RPC는 readonly+no-protocol 연결을 위해 아직도 작동합니다
+  		//SQL에 쓰기 때문에, 대리인 국가 아닙니다
+  		this
+  			.sql`INSERT INTO readings (sensor_id, value, ts) VALUES (${sensorId}, ${value}, ${Date.now()})`;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+둘 다 깃발은 연결의 WebSocket 부착에서 저장되고에서 숨겨집니다`connection.state`- 그들은 서로 방해하지 않습니다 또는 사용자 정의 연결 상태.
+
+## API 참고 자료
+
+### `shouldSendProtocolMessages`
+
+연결이 연결될 때 연결이 프로토콜 메시지를 받는지 결정하는 overridable 걸이.
+
+| 제품 설명        | 제품정보                | 이름 \*              |
+| ------------ | ------------------- | ------------------ |
+| `connection` | `Connection`        | 연결 클라이언트           |
+| `ctx`        | `ConnectionContext` | 업그레이드 요청 포함        |
+| **기타 제품**    | `boolean`           | `false`프로토콜 메시지 억제 |
+
+기본값: 반환`true`(모든 연결은 프로토콜 메시지를 수신).
+
+이 걸이는 연결에 한 번 평가됩니다. 결과는 연결의 WebSocket 부착 및 생존에서 지속됩니다.[이름 \*](/agents/api-reference/websockets/#hibernation).
+
+### `isConnectionProtocolEnabled`
+
+현재 연결이 가능한 프로토콜 메시지가 있는지 확인하십시오.
+
+| 제품 설명        | 제품정보         | 이름 \*                 |
+| ------------ | ------------ | --------------------- |
+| `connection` | `Connection` | 자주 묻는 질문              |
+| **기타 제품**    | `boolean`    | `true`프로토콜 메시지가 활성화되면 |
+
+에이전트가 hibernation에서 깨어난 후 언제든지 전화하는 안전.
+
+## 어떻게 작동합니까?
+
+프로토콜 상태는 연결의 WebSocket 첨부 파일에 내부 플래그로 저장됩니다. - 사용되는 동일한 메커니즘[readonly 연결](/agents/api-reference/readonly-connections/). 이 수단:
+
+- **생존**— 플래그는 일관되고 복원 될 때 에이전트가 깨질 때
+- **자주 묻는 질문**- 연결 상태는 연결이 닫을 때 자동으로 삭제됩니다.
+- **영 오버헤드**- 데이터베이스 테이블 또는 쿼리 없음, 연결의 내장 첨부 파일
+- **사용자 코드에서 안전** — `connection.state`·`connection.setState()`플래그를 노출하거나 덮어
+
+이름 \*[한국어](/agents/api-reference/readonly-connections/)toggled 동적으로 할 수 있습니다.`setConnectionReadonly()`, 의정서 상태는 연결에 한 번 놓고 후에 변경될 수 없습니다. 연결의 프로토콜 상태를 변경하려면 클라이언트가 연결하고 다시 연결해야합니다.
+
+## 관련 자료
+
+- [readonly 연결](/agents/api-reference/readonly-connections/)
+- [웹소켓](/agents/api-reference/websockets/)
+- [저장 및 동기화 상태](/agents/api-reference/store-and-sync-state/)
+- [MCP 클라이언트 API](/agents/api-reference/mcp-client-api/)

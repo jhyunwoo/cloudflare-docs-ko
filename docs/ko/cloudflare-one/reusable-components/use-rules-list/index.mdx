@@ -1,0 +1,105 @@
+---
+title: IP 목록 사용
+pcx_content_type: how-to
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: IP 목록 정의
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/reusable-components/use-rules-list/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/reusable-components/use-rules-list/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[IP 목록](/waf/tools/lists/custom-lists/#ip-lists)Cloudflare의 사용자 정의 목록의 일부입니다. 사용자 지정 목록에는 동일한 유형의 하나 이상의 항목이 포함되어 있습니다 - IP 주소, 호스트 이름 또는 ASNs - 규칙 표현에서 참고 자료 할 수 있습니다.
+
+IP 목록은 계정 수준에 정의되어 있으며 상대방과 일치하기 위해 사용될 수 있습니다.`ip.src`·`ip.dst`사이트 맵 현재 Cloudflare Network Firewall은 이러한 목록에서 IPv4 주소를 지원하며 IPv6가 아닙니다.
+
+이 기능을 사용하려면:
+
+## 1. 만들기[새로운 IP 목록](/api/resources/rules/subresources/lists/methods/create/).
+
+예를 들면:
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rules/lists \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "iplist",
+  "description": "This contains IPs that should be allowed.",
+  "kind": "ip"
+}'
+```
+
+## 2. 리스트에 IP 추가
+
+다음 것,[비밀번호](/api/resources/rules/subresources/lists/subresources/items/methods/create/). 이것은 현재 명부에 성분을 추가할 것입니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rules/lists/{list_id}/items \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data '[
+  {"ip":"10.0.0.1"},
+  {"ip":"10.10.0.0/24"}
+]'
+```
+
+## 3. 규칙에 목록 사용
+
+마지막으로 Cloudflare 네트워크 방화벽 규칙은 기존의 규칙으로 목록을 참조합니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/{ruleset_id}/rules \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "action": "skip",
+  "action_parameters": {
+    "ruleset": "current"
+  },
+  "expression": "ip.src in $iplist",
+  "description": "Allowed IPs from iplist",
+  "enabled": true
+}'
+```
+
+## 관리 목록
+
+:::참조
+Cloudflare Network Firewall Advanced 플랜으로 고객에게 제공
+주요 특징
+
+관리 목록과 규칙을 만들 수 있습니다. 관리 IP 목록은[IP 주소 목록](/waf/tools/lists/managed-lists/#managed-ip-lists)Cloudflare에 의해 유지 하 고 자주 업데이트.
+
+당신은 당신이 규칙을 만들 때이 관리 목록에 액세스 할 수 있습니다*IP 대상 주소*또는*IP 소스 주소*내 계정**제품정보**드롭다운 및*이름 \**&#xB610;는*목록은 없습니다.*&#xB0B4; 계정**회사연혁**드롭다운.
+
+예를 들면:
+
+| 제품정보       | 회사연혁    | 제품정보    |
+| ---------- | ------- | ------- |
+| *IP 대상 주소* | *이름 \** | *이름 \** |
+
+## 회사 소개
+
+### 위협 정보
+
+Cloudflare는 각 두 번째 HTTP 요청의 수백만을 처리하고 매일 사이버 위협의 수십억을 차단합니다. Cloudflare는 데이터가 인터넷에 악의적인 행위를 감지하고 알려진 악의 IP 주소 목록으로 정보를 전환합니다. Cloudflare는 또한 제3자 납품업자의 수로도 적용 범위를 augment에 통합합니다.
+
+위협 인텔리전스 피드 카테고리에 설명[관리 IP 목록](/waf/tools/lists/managed-lists/#managed-ip-lists). 이 명부 전부는 Cloudflare 네트워크 방호벽과 호환이 됩니다.
+
+### IP 목록
+
+제품 정보[IP 목록](/waf/tools/lists/custom-lists/#ip-lists)웹 서버와 같은 네트워크의 그룹 서비스, 또는 알려진 나쁜 IP 주소 목록은 좋은 네트워크 엔드포인트를 쉽게 관리 할 수 있습니다. IP 목록은 많은 IP 목록으로 매우 폭발적인 방화벽 규칙을 가진 사용자에게 유용합니다. 기본적으로 모든 목록에서 10,000 IP를 추가할 수 있습니다. 더 알아보기[IP 목록 사용](/cloudflare-one/traffic-policies/packet-filtering/add-policies/#use-an-ip-list)IP 목록을 사용하는 방법의 예를 확인하려면.
+
+### Geo 차단
+
+Geo-blocking은 선택적으로 허용하거나 어떤 국가에 트래픽을 차단할 수 있습니다. 더 알아보기[국가 차단](/cloudflare-one/traffic-policies/packet-filtering/add-policies/#block-a-country)국가를 차단하는 방법의 예를 확인하십시오.

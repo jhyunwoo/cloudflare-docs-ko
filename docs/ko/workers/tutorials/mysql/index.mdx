@@ -1,0 +1,124 @@
+---
+reviewed: 2025-04-02T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: Cloudflare Workers
+products:
+  - hyperdrive
+tags:
+  - MySQL
+  - TypeScript
+  - SQL
+description: >-
+  이 튜토리얼은 TCP 소켓 및 Hyperdrive를 사용하여 Cloudflare 데이터베이스에 연결하는 방법을 설명합니다. 이 튜토리얼에서
+  만든 Workers 응용 프로그램은 MySQL 내부의 제품 데이터베이스와 상호 작용합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/tutorials/mysql/'
+translation_source_md: 'https://developers.cloudflare.com/workers/tutorials/mysql/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼에서 Cloudflare QXWorkersXQ 응용 프로그램을 만들고 MySQL 데이터베이스에 연결하는 방법을 배울 것입니다.[TCP 소켓](/workers/runtime-apis/tcp-sockets/)·[모델 번호: Hyperdrive](/hyperdrive/). 이 튜토리얼에서 생성하는 Workers 응용 프로그램은 MySQL 내부의 제품 데이터베이스와 상호 작용합니다.
+
+:::주\[주]
+
+자주 묻는 질문[모델 번호: Hyperdrive](/hyperdrive/)MySQL 데이터베이스에 연결하기. Hyperdrive는 최선 성과를 제공하고 당신의 노동자와 당신의 MySQL 데이타베이스 사이 안전한 연결을 지킬 것입니다.
+
+MySQL 데이터베이스에 직접 연결하면 (Hyperdrive 없이), MySQL 드라이버가 지원되지 않은 Node.js API에 의존하여 연결을 방지합니다.
+주요 특징
+
+## 자주 묻는 질문
+
+계속하려면:
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages)이미 없다면.
+2. 설치하기[`npm`](https://docs.npmjs.com/getting-started).
+3. 설치하기[`Node.js`](https://nodejs.org/en/). Node version Manager를 사용하여[볼트](https://volta.sh/)또는[사이트맵](https://github.com/nvm-sh/nvm)허가 문제를 방지하고 Node.js 버전을 변경하십시오.[모델 번호: Wrangler](/workers/wrangler/install-and-update/)Node 버전이 필요합니다.`16.17.0`또는 나중에.
+4. MySQL 데이터베이스에 액세스해야 합니다.
+
+## 1. Worker 응용 프로그램 만들기
+
+첫째, 사용[`create-cloudflare`제품정보](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare)새로운 Worker 응용 프로그램을 만들려면. 이렇게하려면 터미널 창을 열고 다음 명령을 실행하십시오.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"mysql-tutorial"} />
+
+이것은 당신을 설치하게 될 것입니다[`create-cloudflare`](https://www.npmjs.com/package/create-cloudflare)패키지와 설치 마법사를 통해 당신을 이끌.
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+배포를 선택하면, 당신은 인증 (이 이미 로그인하지 않는 경우) 요청되며 프로젝트가 배포됩니다. 배포하면 Worker 코드를 수정하고이 튜토리얼의 끝에서 다시 배포 할 수 있습니다.
+
+이제 새로 만든 디렉토리로 이동:
+
+```sh
+cd mysql-tutorial
+```
+
+## 2. 호환성 Node.js 겸용성
+
+[Node.js 호환성](/workers/runtime-apis/nodejs/)mysql2를 포함한 데이터베이스 드라이버에 필요한 경우 Workers 프로젝트를 구성해야 합니다.
+
+<Render file="nodejs_compat" product="workers" />
+
+## 3. Hyperdrive 구성
+
+MySQL 데이터베이스의 연결 문자열을 사용하여 Hyperdrive 구성을 만듭니다.
+
+```bash
+npx wrangler hyperdrive create <NAME_OF_HYPERDRIVE_CONFIG> --connection-string="mysql://user:password@HOSTNAME_OR_IP_ADDRESS:PORT/database_name"
+```
+
+이 명령은 Hyperdrive 설정 출력`id`Hyperdrive[관련 제품](/workers/runtime-apis/bindings/). 바인딩을 지정하여 설정`id`Wrangler 파일에서.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "hyperdrive-example",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	//`wrangler hyperdrive create <NAME_OF_HYPERDRIVE_CONFIG> --connection-string=[...]`의 출력에서 붙여 넣으십시오.
+  	"hyperdrive": [
+  		{
+  			"binding": "HYPERDRIVE",
+  			"id": "<ID OF THE CREATED HYPERDRIVE CONFIGURATION>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 4. 작업자에서 데이터베이스를 쿼리
+
+<Render file="use-mysql2-to-make-query" product="hyperdrive" />
+
+## 5. 작업자를 배포
+
+다음 명령을 실행하여 노동자를 배치하십시오.
+
+```sh
+npx wrangler deploy
+```
+
+당신의 응용 프로그램은 지금 살고 접근 가능`<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev`.
+
+## 다음 단계
+
+데이터베이스 및 Workers에 더 많은 빌드하려면, 참조[다운로드](/workers/tutorials)그리고 탐험[데이터베이스](/workers/databases).
+
+질문이 있으시면 지원이 필요하거나 프로젝트를 공유하거나 Cloudflare 개발자 커뮤니티에 가입하십시오.[공지사항](https://discord.cloudflare.com)동료 개발자와 Cloudflare 팀과 연결할 수 있습니다.

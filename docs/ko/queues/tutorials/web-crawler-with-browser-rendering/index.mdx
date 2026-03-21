@@ -1,0 +1,586 @@
+---
+reviewed: 2024-08-06T00:00:00.000Z
+difficulty: Intermediate
+title: Queues 및 브라우저 렌더링 웹 크롤러 구축
+summary: Example of how to use Queues and Browser Rendering to power a web crawler.
+pcx_content_type: tutorial
+products:
+  - workers
+  - queues
+  - browser-rendering
+tags:
+  - TypeScript
+sidebar:
+  order: 1002
+head:
+  - tag: title
+    content: Cloudflare Queues - Queues & 브라우저 렌더링
+description: Queues 및 브라우저 렌더링을 사용하는 방법의 예 웹 크롤러.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/queues/tutorials/web-crawler-with-browser-rendering/
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/tutorials/web-crawler-with-browser-rendering/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼은 QueuesXQ로 웹 크롤러를 구축하고 배포하는 방법을 설명합니다.[브라우저 렌더링](/browser-rendering/)·[제품정보](/browser-rendering/puppeteer/).
+
+Puppeteer는 Chrome/Chromium 브라우저와 상호 작용을 자동화하는 데 사용되는 고급 라이브러리입니다. 각 제출 된 페이지에서 크롤러는 링크의 번호를 찾을 수 있습니다`cloudflare.com`사이트의 스크린 샷을 찍고 결과 저장[QXQX0385XQQKV](/kv/).
+
+페이지에 모든 이미지를 요청하는 Puppeteer를 사용할 수 있으며 사이트에서 사용되는 색상을 저장합니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. 새로운 Workers 신청 창조
+
+get started에, 노동자 신청을 사용하여 창조하십시오[`create-cloudflare`제품정보](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare). 터미널 창을 열고 다음 명령을 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"queues-web-crawler"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+그런 다음 새로 생성 된 디렉토리로 이동합니다.
+
+```sh
+cd queues-web-crawler
+```
+
+## 2. KV 네임스페이스 만들기
+
+우리는 KV 상점을 만들 필요가 있습니다. 이것은 Cloudflare dashboard 또는 Wrangler CLI를 통해 행해질 수 있습니다. 이 튜토리얼의 경우 Wrangler CLI를 사용합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="kv namespace create crawler_links" />
+
+<PackageManagers type="exec" pkg="wrangler" args="kv namespace create crawler_screenshots" />
+
+```sh output
+🌀 Creating namespace with title "web-crawler-crawler-links"
+✨ Success!
+Add the following to your configuration file in your kv_namespaces array:
+[[kv_namespaces]]
+binding = "crawler_links"
+id = "<GENERATED_NAMESPACE_ID>"
+
+🌀 Creating namespace with title "web-crawler-crawler-screenshots"
+✨ Success!
+Add the following to your configuration file in your kv_namespaces array:
+[[kv_namespaces]]
+binding = "crawler_screenshots"
+id = "<GENERATED_NAMESPACE_ID>"
+```
+
+### 추가 KV 바인딩에[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+그런 다음 Wrangler 파일에서 터미널에서 생성 된 값과 다음과 같이 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"kv_namespaces": [
+  		{
+  			"binding": "CRAWLER_SCREENSHOTS_KV",
+  			"id": "<GENERATED_NAMESPACE_ID>"
+  		},
+  		{
+  			"binding": "CRAWLER_LINKS_KV",
+  			"id": "<GENERATED_NAMESPACE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 3. 브라우저 렌더링 설정
+
+이제 Browser Rendering에 대한 Worker를 설정해야합니다.
+
+현재 디렉토리에서 Cloudflare의 설치[Puppeteer의 포크](/browser-rendering/puppeteer/)그리고 또한[로봇-파서](https://www.npmjs.com/package/robots-parser):
+
+<PackageManagers pkg="@cloudflare/puppeteer" dev />
+
+<PackageManagers pkg="robots-parser" />
+
+그런 다음 Browser Rendering 바인딩을 추가하십시오. Browser Rendering 바인딩을 추가하면 Puppeteer를 제어할 수 있는 헤더 크롬 인스턴스에 Worker 액세스를 제공합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"browser": {
+  		"binding": "CRAWLER_BROWSER"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 4. Queue 설정
+
+이제 Queue를 설정해야 합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="queues create queues-web-crawler" />
+
+```txt title="Output"
+Creating queue queues-web-crawler.
+Created queue queues-web-crawler.
+```
+
+### Wrangler 구성에 큐 바인딩 추가
+
+그런 다음 Wrangler 파일에서 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "queues-web-crawler",
+  				"max_batch_timeout": 60
+  			}
+  		],
+  		"producers": [
+  			{
+  				"queue": "queues-web-crawler",
+  				"binding": "CRAWLER_QUEUE"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+추가하기`max_batch_timeout`브라우저 렌더링이 계정 당 분 당 두 개의 새로운 브라우저의 제한이 있기 때문에 60 초 소비자 큐가 중요합니다. 이 타임 아웃은 배치로 큐 메시지 수집하기 전에 분당까지 기다립니다. 노동자는 다음이 브라우저에서 계속됩니다.
+
+당신의 마지막 Wrangler 파일은 아래에 하나와 유사해야 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "web-crawler",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"kv_namespaces": [
+  		{
+  			"binding": "CRAWLER_SCREENSHOTS_KV",
+  			"id": "<GENERATED_NAMESPACE_ID>"
+  		},
+  		{
+  			"binding": "CRAWLER_LINKS_KV",
+  			"id": "<GENERATED_NAMESPACE_ID>"
+  		}
+  	],
+  	"browser": {
+  		"binding": "CRAWLER_BROWSER"
+  	},
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "queues-web-crawler",
+  				"max_batch_timeout": 60
+  			}
+  		],
+  		"producers": [
+  			{
+  				"queue": "queues-web-crawler",
+  				"binding": "CRAWLER_QUEUE"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 5. 환경에 바인딩을 추가하십시오
+
+환경 인터페이스에 바인딩을 추가`src/index.ts`, 그래서 TypeScriptXQ 올바르게 유형 바인딩. 큐는`Queue<Message>`, 어디`Message`다음 단계에서 정의됩니다.
+
+```ts
+import type { BrowserWorker } from "@cloudflare/puppeteer";
+
+export interface Env {
+	CRAWLER_QUEUE: Queue<Message>;
+	CRAWLER_SCREENSHOTS_KV: KVNamespace;
+	CRAWLER_LINKS_KV: KVNamespace;
+	CRAWLER_BROWSER: BrowserWorker;
+}
+```
+
+## 6. 크롤러에 링크 제출
+
+추가하기`fetch()`handler to the Worker 는 crawl 의 링크를 제출합니다.
+
+```ts
+type Message = {
+	url: string;
+};
+
+export interface Env {
+	CRAWLER_QUEUE: Queue<Message>;
+	//... 등
+}
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		await env.CRAWLER_QUEUE.send({ url: await req.text() });
+		return new Response("Success!");
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+이것은 어떤 subpath에 요청을 받아들이고 요청의 몸을 크롤러로 전달합니다. 요청 몸만 URL을 포함한다는 것을 기대합니다. 생산에서 요청이 있었는지 확인해야합니다.`POST`요청 및 신체의 잘 만들어진 URL을 포함합니다. 이것은 단순성에 대한 omitted되었습니다.
+
+## 7. Puppeteer를 가진 크롤
+
+추가하기`queue()`handler 에 the Worker 에 process the link 당신 보내.
+
+```ts
+import puppeteer from "@cloudflare/puppeteer";
+import robotsParser from "robots-parser";
+
+async queue(batch, env, ctx): Promise<void> {
+  let browser: puppeteer.Browser | null = null;
+  try {
+    browser = await puppeteer.launch(env.CRAWLER_BROWSER);
+  } catch {
+    batch.retryAll();
+	return;
+  }
+
+  for (const message of batch.messages) {
+    const { url } = message.body;
+
+    let isAllowed = true;
+    try {
+      const robotsTextPath = new URL(url).origin + "/robots.txt";
+      const response = await fetch(robotsTextPath);
+
+      const robots = robotsParser(robotsTextPath, await response.text());
+      isAllowed = robots.isAllowed(url) ?? true; //존경 robots.txt!
+    } catch {}
+
+    if (!isAllowed) {
+      message.ack();
+      continue;
+    }
+
+	//TODO : 크롤링!
+    message.ack();
+  }
+
+  await browser.close();
+},
+```
+
+이것은 크롤러에 대 한 골격입니다. 그것은 Puppeteer 브라우저를 시작하고 Queue의 수신 된 메시지를 통해 결정합니다. 그것은 사이트의 fetches`robots.txt`관련 기사`robots-parser`이 사이트를 확인 할 수 있습니다 크롤링. 크롤링이 허용되지 않는 경우, 메시지는`ack`'ed, Queue에서 제거. 크롤링이 허용되면 사이트를 계속 할 수 있습니다.
+
+더 보기`puppeteer.launch()`에 감싸`try...catch`브라우저 실행이 실패하면 전체 배치를 검색 할 수 있습니다. 브라우저 실행은 계정 당 브라우저의 수에 대한 제한을 극복 할 수 없습니다.
+
+```ts
+type Result = {
+	numCloudflareLinks: number;
+	screenshot: ArrayBuffer;
+};
+
+const crawlPage = async (url: string): Promise<Result> => {
+	const page = await (browser as puppeteer.Browser).newPage();
+
+	await page.goto(url, {
+		waitUntil: "load",
+	});
+
+	const numCloudflareLinks = await page.$$eval("a", (links) => {
+		links = links.filter((link) => {
+			try {
+				return new URL(link.href).hostname.includes("cloudflare.com");
+			} catch {
+				return false;
+			}
+		});
+		return links.length;
+	});
+
+	await page.setViewport({
+		width: 1920,
+		height: 1080,
+		deviceScaleFactor: 1,
+	});
+
+	return {
+		numCloudflareLinks,
+		screenshot: ((await page.screenshot({ fullPage: true })) as Buffer).buffer,
+	};
+};
+```
+
+이 돕기 기능은 Puppeteer의 새로운 페이지를 열고 제공된 URL로 탐색합니다.`numCloudflareLinks`Puppeteer의 사용`$$eval`(필수)`document.querySelectorAll`) 링크의 번호를 찾을 수`cloudflare.com`사이트 맵 링크가 있는지 확인`href`에 있다`cloudflare.com`페이지는`try...catch`자주 묻는 질문`href`URL이 없을 수 있습니다.
+
+그런 다음, 함수는 브라우저 뷰 포트 크기를 설정하고 전체 페이지의 스크린 샷을 걸립니다. 스크린 샷은 반환됩니다.`Buffer`그래서 그것은 변환 될 수있다`ArrayBuffer`KV로 작성되었습니다.
+
+반복적으로 크롤링 링크를 활성화하려면 Cloudflare 링크의 수를 확인한 후 스니펫을 추가하여 큐어 소비자로부터 큐어 자체로 메시지를 다시 보낼 수 있습니다. 너무 깊은 반복, 크롤러로 가능, 튼튼한 개체를 일으킬 것`Subrequest depth limit exceeded.`오류. 한 가지가 발생하면 잡히지 만 링크가 재향되지 않습니다.
+
+```ts null {3-14}
+//const numCloudflareLinks = 페이지 기다리고 있습니다.$eval("a", (링크) => { ...
+
+await page.$$eval("a", async (links) => {
+	const urls: MessageSendRequest<Message>[] = links.map((link) => {
+		return {
+			body: {
+				url: link.href,
+			},
+		};
+	});
+	try {
+		await env.CRAWLER_QUEUE.sendBatch(urls);
+	} catch {} //아무것도, 가능성이 subrequest 한계를 명중
+});
+
+//ページを選択.setViewport({ ...
+```
+
+그런 다음`queue`핸들러, 호출`crawlPage`URL에.
+
+```ts null {8-23}
+//`queue` 핸들러:
+//· ...
+if (!isAllowed) {
+	message.ack();
+	continue;
+}
+
+try {
+	const { numCloudflareLinks, screenshot } = await crawlPage(url);
+	const timestamp = new Date().getTime();
+	const resultKey = `${encodeURIComponent(url)}-${timestamp}`;
+	await env.CRAWLER_LINKS_KV.put(resultKey, numCloudflareLinks.toString(), {
+		metadata: { date: timestamp },
+	});
+	await env.CRAWLER_SCREENSHOTS_KV.put(resultKey, screenshot, {
+		metadata: { date: timestamp },
+	});
+	message.ack();
+} catch {
+	message.retry();
+}
+
+//· ...
+```
+
+이 snippet는 결과 저장`crawlPage`적절한 KV 네임스페이스에. 예기치 않은 오류가 발생하면 URL이 다시 큐에 의존합니다.
+
+KV의 크롤링의 타임 스탬프를 저장하는 데 도움이됩니다.
+
+확인하기 전에 snippet 추가`robots.txt`마지막 시간 안에 크롤러를 위한 KV를 검사하기 위하여. 이 목록 모두 KV 키 시작 동일한 URL (동의 페이지의 크롤링), 그리고 마지막 시간 안에 어떤 크롤러가 행해진지 확인. 어떤 크롤러가 마지막 시간 내에 수행 된 경우, 메시지는`ack`'ed와 retried.
+
+```ts null {12-23}
+type KeyMetadata = {
+  date: number;
+};
+
+//`queue` 핸들러:
+//· ...
+for (const message of batch.messages) {
+  const sameUrlCrawls = await env.CRAWLER_LINKS_KV.list({
+    prefix: `${encodeURIComponent(url)}`,
+  });
+
+  let shouldSkip = false;
+  for (const key of sameUrlCrawls.keys) {
+    if (timestamp - (key.metadata as KeyMetadata)?.date < 60 * 60 * 1000) {
+      //마지막 시간에 크롤링하면 건너뛰기
+      message.ack();
+      shouldSkip = true;
+      break;
+    }
+  }
+  if (shouldSkip) {
+    continue;
+  }
+
+  let isAllowed = true;
+  //· ...
+```
+
+마지막 스크립트는 아래와 같습니다.
+
+```ts
+import puppeteer, { BrowserWorker } from "@cloudflare/puppeteer";
+import robotsParser from "robots-parser";
+
+type Message = {
+	url: string;
+};
+
+export interface Env {
+	CRAWLER_QUEUE: Queue<Message>;
+	CRAWLER_SCREENSHOTS_KV: KVNamespace;
+	CRAWLER_LINKS_KV: KVNamespace;
+	CRAWLER_BROWSER: BrowserWorker;
+}
+
+type Result = {
+	numCloudflareLinks: number;
+	screenshot: ArrayBuffer;
+};
+
+type KeyMetadata = {
+	date: number;
+};
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		//테스트 목적을 위한 util endpoint
+		await env.CRAWLER_QUEUE.send({ url: await req.text() });
+		return new Response("Success!");
+	},
+	async queue(batch, env, ctx): Promise<void> {
+		const crawlPage = async (url: string): Promise<Result> => {
+			const page = await (browser as puppeteer.Browser).newPage();
+
+			await page.goto(url, {
+				waitUntil: "load",
+			});
+
+			const numCloudflareLinks = await page.$$eval("a", (links) => {
+				links = links.filter((link) => {
+					try {
+						return new URL(link.href).hostname.includes("cloudflare.com");
+					} catch {
+						return false;
+					}
+				});
+				return links.length;
+			});
+
+			//to crawl recursively -이 작업을 uncomment!
+			/*=> async (links)
+const urls: MessageSendRequest<Message>[] = link.map(링크) => {
+이름 *
+몸: {
+사이트 맵
+이름 *
+이름 *
+으로
+다운로드
+env.CRAWLER QUEUE.sendBatch (urls);를 기다립니다
+} catch {} // 아무것도 할 수 없습니다.
+으로t page.setViewport({
+				width: 1920,
+				height: 1080,
+				deviceScaleFactor: 1,
+			});
+
+			return {
+				numCloudflareLinks,
+				screenshot: ((await page.screenshot({ fullPage: true })) as Buffer)
+					.buffer,
+			};
+		};
+
+		let browser: puppeteer.Browser | null = null;
+		try {
+			browser = await puppeteer.launch(env.CRAWLER_BROWSER);
+		} catch {
+			batch.retryAll();
+			return;
+		}
+
+		for (const message of batch.messages) {
+			const { url } = message.body;
+			const timestamp = new Date().getTime();
+			const resultKey = `${encodeURIComponent(url)}-${timestamp}`;
+
+			const sameUrlCrawls = await env.CRAWLER_LINKS_KV.list({
+				prefix: `${encodeURIComponent(url)}`,
+			});
+
+			let shouldSkip = false;
+			for (const key of sameUrlCrawls.keys) {
+				if (timestamp - (key.metadata as KeyMetadata)?.date < 60 * 60 * 1000) {
+					//마지막 시간에 크롤링하면 건너뛰기
+					message.ack();
+					shouldSkip = true;
+					break;
+				}
+			}
+			if (shouldSkip) {
+				continue;
+			}
+
+			let isAllowed = true;
+			try {
+				const robotsTextPath = new URL(url).origin + "/robots.txt";
+				const response = await fetch(robotsTextPath);
+
+				const robots = robotsParser(robotsTextPath, await response.text());
+				isAllowed = robots.isAllowed(url) ?? true; //존경 robots.txt!
+			} catch {}
+
+			if (!isAllowed) {
+				message.ack();
+				continue;
+			}
+
+			try {
+				const { numCloudflareLinks, screenshot } = await crawlPage(url);
+				await env.CRAWLER_LINKS_KV.put(
+					resultKey,
+					numCloudflareLinks.toString(),
+					{ metadata: { date: timestamp } },
+				);
+				await env.CRAWLER_SCREENSHOTS_KV.put(resultKey, screenshot, {
+					metadata: { date: timestamp },
+				});
+				message.ack();
+			} catch {
+				message.retry();
+			}
+		}
+
+		await browser.close();
+	},
+} satisfies ExportedHandler<Env, Message>;
+```
+
+## 8. 작업자를 배포
+
+노동자를 배포하려면 다음 명령을 실행하십시오.
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+당신은 성공적으로 QXQX0410XQ QXKV에 대한 큐에 URL을 제출 할 수있는 노동자를 만들었습니다.
+
+작업자를 테스트하려면 다음 cURL 요청을 사용하여이 문서 페이지의 스크린 샷을 취할 수 있습니다.
+
+```bash title="Test with a cURL request"
+curl <YOUR_WORKER_URL> \
+  -H "Content-Type: application/json" \
+  -d 'https://developers.cloudflare.com/queues/tutorials/web-crawler-with-browser-rendering/'
+
+```
+
+더 알아보기[GitHub 저장소에 대한 완전한 튜토리얼](https://github.com/cloudflare/queues-web-crawler)Pages로 배포된 프런트 엔드를 포함하여 URL을 제출하고 크롤러 결과를 볼 수 있습니다.
+
+## 관련 자료
+
+- [Queues는 어떻게 작동합니까?](/queues/reference/how-queues-works/)
+- [모델 번호: Queues 배팅 및 재촉](/queues/configuration/batching-retries/)
+- [브라우저 렌더링](/browser-rendering/)
+- [Puppeteer 예제](https://github.com/puppeteer/puppeteer/tree/main/examples)

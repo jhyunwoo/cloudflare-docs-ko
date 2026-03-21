@@ -1,0 +1,158 @@
+---
+pcx_content_type: how-to
+title: 현재 시작
+canonical: /workers/static-assets/
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/configuration/sites/start-from-existing/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/sites/start-from-existing/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, WranglerConfig } from "~/components";
+
+<Render file="workers_sites" product="workers" />
+
+Workers 사이트가 필요합니다.[Wrangler](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler)— 사용하기[최신 버전](/workers/wrangler/install-and-update/#update-wrangler).
+
+사전 제작 정적 사이트 프로젝트를 배포하려면 사전 제작 된 사이트로 시작하십시오. 모델 번호: Workers Sites는 모든 정적 사이트 발전기와 함께 작동합니다. 예를 들어:
+
+- [채용 정보](https://gohugo.io/getting-started/quick-start/)
+- [인기 있는](https://www.gatsbyjs.org/docs/quick-start/), Node를 요구합니다
+- [주 메뉴](https://jekyllrb.com/docs/), Ruby를 요구합니다
+- [한국어](https://www.11ty.io/#quick-start), Node를 요구합니다
+- [사이트 맵](https://wordpress.org)(여기서 튜토리얼을 참조하십시오.[Pages](/pages/how-to/deploy-a-wordpress-site/))
+
+## 시작하기
+
+1. 시작하기`wrangler init`프로젝트의 디렉토리의 루트에서 명령은 기본 작업자를 생성:
+
+   ```sh
+   wrangler init -y
+   ```
+
+   이 명령은 다음 파일을 추가/업데이트합니다:
+
+   - `wrangler.jsonc`: 프로젝트 구성을 포함하는 파일.
+   - `package.json`: Wrangler`devDependencies`추가.
+   - `tsconfig.json`: 이미 TypeScript에 Worker를 작성하는 경우 추가됨.
+   - `src/index.ts`: 기본 Cloudflare 노동자, TypeScript에 쓴.
+
+2. 사이트의 빌드 / 출력 디렉토리를 Wrangler 파일에 추가하십시오.
+
+   <WranglerConfig>
+     ```jsonc
+     {
+       "site": {
+         "bucket": "./public" //<-- 빌드 디렉토리 이름을 여기에 추가하십시오.
+       }
+     }
+     ```
+   </WranglerConfig>
+
+   가장 인기있는 정적 사이트 발전기의 기본 디렉토리는 다음과 같습니다.
+
+   - 후고:`public`
+   - 기본 정보:`public`
+   - 지 킬:`_site`
+   - 한국어:`_site`
+
+3. 설치하기`@cloudflare/kv-asset-handler`당신의 프로젝트에 있는 포장:
+
+   ```sh
+   npm i -D @cloudflare/kv-asset-handler
+   ```
+
+4. 본문 바로가기`src/index.ts`다음 코드 snippet:
+
+<Tabs>
+  <TabItem label="모듈 Worker" icon="seti:javascript">
+    ```js
+    import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+    import manifestJSON from "__STATIC_CONTENT_MANIFEST";
+    const assetManifest = JSON.parse(manifestJSON);
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		try {
+    			//자산을 제공하거나 원래 Worker 코드를 실행 여부를 결정하는 논리를 추가하십시오.
+    			return await getAssetFromKV(
+    				{
+    					request,
+    					waitUntil: ctx.waitUntil.bind(ctx),
+    				},
+    				{
+    					ASSET_NAMESPACE: env.__STATIC_CONTENT,
+    					ASSET_MANIFEST: assetManifest,
+    				},
+    			);
+    		} catch (e) {
+    			let pathname = new URL(request.url).pathname;
+    			return new Response(`"${pathname}" not found`, {
+    				status: 404,
+    				statusText: "not found",
+    			});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="서비스 노동자" icon="seti:javascript">
+    :::카트로션\[서비스 Workers는 deprecated]
+
+    서비스 Workers는, 아직도 지원됩니다. 자주 묻는 질문[단위 Workers](/workers/reference/migrate-to-module-workers/)대신. 새로운 기능은 서비스 WorkersXQ를 위해 지원되지 않을지도 모릅니다.
+
+    :::
+
+    ```js
+    import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+    addEventListener("fetch", (event) => {
+    	event.respondWith(handleEvent(event));
+    });
+
+    async function handleEvent(event) {
+    	try {
+    		//자산을 제공하거나 원래 Worker 코드를 실행 여부를 결정하는 논리를 추가하십시오.
+    		return await getAssetFromKV(event);
+    	} catch (e) {
+    		let pathname = new URL(event.request.url).pathname;
+    		return new Response(`"${pathname}" not found`, {
+    			status: 404,
+    			statusText: "not found",
+    		});
+    	}
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+5. 지원하다`wrangler dev`또는`npx wrangler deploy`Cloudflare에 사이트를 미리 또는 배치하십시오.
+   Wrangler는 구성된 디렉토리에서 발견된 자산을 자동으로 업로드합니다.
+
+   ```sh
+   npx wrangler deploy
+   ```
+
+6. 사이트에 배포[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신이 소유하고 이미 Cloudflare 지역으로 붙어있다. 추가하기`route`Wrangler 파일에 속성.
+
+   <WranglerConfig>
+     ```jsonc
+     {
+       "route": "https://example.com/*"
+     }
+     ```
+   </WranglerConfig>
+
+   :::참조
+
+   문서에 대한 참조[오시는 길](/workers/configuration/routing/routes/)설정하기`route`견적 요청
+   주요 특징
+
+더 알아보기[프로젝트 설정](/workers/wrangler/configuration/).

@@ -1,0 +1,289 @@
+---
+title: 사용 SSE- 사이트맵
+pcx_content_type: tutorial
+difficulty: Intermediate
+reviewed: 2024-09-27T00:00:00.000Z
+description: >-
+  다음과 같은 튜토리얼은 Cloudflare QXQXR2XQ에서 Server-Side Encryption을 사용하는 방법에 대한 몇 가지
+  스니펫을 보여줍니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/ssec/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/ssec/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem } from "~/components";
+
+다음 튜토리얼은 R2에서 Server-Side Encryption을 사용하는 방법에 대한 몇 가지 스니펫을 보여줍니다.
+
+## 시작하기 전에
+
+- SSE-C를 사용할 때 안전한 장소에 암호화 키(s)를 저장하십시오. 이 이벤트에서 Cloudflare는 그 키를 사용하여 암호화 된 모든 객체의 몸을 복구 할 수 없습니다.
+- SSE-C는 MD5 해시를 제공하지만, 이 해시는 키의 식별에만 사용할 수 있습니다. MD5 해시는 암호화 프로세스 자체에 사용되지 않습니다.
+
+## Workers
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```typescript
+    interface Environment {
+    	R2: R2Bucket
+    	/** 이름
+    * 이 예에서 SSE-C는 16 진수 문자열로 저장됩니다.
+    * R2 API는 또한 당신이 생성하고 싶은 경우에, ArrayBuffer를 직접 제공 지원합니다
+    * 열쇠를 동적으로 저장하십시오.*/
+    	SSEC_KEY: string
+    }
+    export default {
+    	async fetch(req: Request, env: Env) {
+    		const { SSEC_KEY, R2 } = env;
+    		const { pathname: filename } = new URL(req.url);
+    		switch(req.method) {
+    			case "GET": {
+    				const maybeObj = await env.BUCKET.get(filename, {
+    					onlyIf: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				if(!maybeObj) {
+    					return new Response("Not Found", {
+    						status: 404
+    					});
+    				}
+    				const headers = new Headers();
+    				maybeObj.writeHttpMetadata(headers);
+    				return new Response(body, {
+    					headers
+    				});
+    			}
+    			case 'POST': {
+    				const multipartUpload = await env.BUCKET.createMultipartUpload(filename, {
+    					httpMetadata: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				/** 이름
+    * 이 예는 싱글 파트 "multipart" 업로드만 제공합니다.
+    * 다수 부속을 위해, 과정은 동일하 (키는 제공되어야 합니다)
+    * 각 부분에 대 한.*/
+    				const partOne = await multipartUpload.uploadPart(1, req.body, ssecKey);
+    				const obj = await multipartUpload.complete([partOne]);
+    				const headers = new Headers();
+    				obj.writeHttpMetadata(headers);
+    				return new Response(null, {
+    					headers,
+    					status: 201
+    				});
+    			}
+    			case 'PUT': {
+    				const obj = await env.BUCKET.put(filename, req.body, {
+    					httpMetadata: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				const headers = new Headers();
+    				maybeObj.writeHttpMetadata(headers);
+    				return new Response(null, {
+    					headers,
+    					status: 201
+    				});
+    			}
+    			default: {
+    				return new Response("Method not allowed", {
+    					status: 405
+    				});
+    			}
+    		}
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```javascript
+    /** 이름
+    * 이 예에서 SSE-C는 16 진수 문자열로 저장됩니다.
+    * R2 API는 또한 당신이 생성하고 싶은 경우에, ArrayBuffer를 직접 제공을 지원합니다/
+    * 열쇠를 동적으로 저장하십시오.*/
+    export default {
+    	async fetch(req, env) {
+    		const { SSEC_KEY, R2 } = env;
+    		const { pathname: filename } = new URL(req.url);
+    		switch(req.method) {
+    			case "GET": {
+    				const maybeObj = await env.BUCKET.get(filename, {
+    					onlyIf: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				if(!maybeObj) {
+    					return new Response("Not Found", {
+    						status: 404
+    					});
+    				}
+    				const headers = new Headers();
+    				maybeObj.writeHttpMetadata(headers);
+    				return new Response(body, {
+    					headers
+    				});
+    			}
+    			case 'POST': {
+    				const multipartUpload = await env.BUCKET.createMultipartUpload(filename, {
+    					httpMetadata: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				/** 이름
+    * 이 예는 싱글 파트 "multipart" 업로드만 제공합니다.
+    * 다수 부속을 위해, 과정은 동일하 (키는 제공되어야 합니다)
+    * 각 부분에 대 한.*/
+    				const partOne = await multipartUpload.uploadPart(1, req.body, ssecKey);
+    				const obj = await multipartUpload.complete([partOne]);
+    				const headers = new Headers();
+    				obj.writeHttpMetadata(headers);
+    				return new Response(null, {
+    					headers,
+    					status: 201
+    				});
+    			}
+    			case 'PUT': {
+    				const obj = await env.BUCKET.put(filename, req.body, {
+    					httpMetadata: req.headers,
+    					ssecKey: SSEC_KEY,
+    				});
+    				const headers = new Headers();
+    				maybeObj.writeHttpMetadata(headers);
+    				return new Response(null, {
+    					headers,
+    					status: 201
+    				});
+    			}
+    			default: {
+    				return new Response("Method not allowed", {
+    					status: 405
+    				});
+    			}
+    		}
+    	}
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## 사이트맵
+
+<Tabs>
+  <TabItem label="@aws-sdk/클라이언트-s3" icon="seti:typescript">
+    ```typescript
+    import {
+    	UploadPartCommand,
+    	PutObjectCommand, S3Client,
+    	CompleteMultipartUploadCommand,
+    	CreateMultipartUploadCommand,
+    	type UploadPartCommandOutput
+    } from "@aws-sdk/client-s3";
+
+    const s3 = new S3Client({
+    	endpoint: process.env.R2_ENDPOINT,
+    	credentials: {
+    		accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    		secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+    	},
+    });
+
+    const SSECustomerAlgorithm = "AES256";
+    const SSECustomerKey = process.env.R2_SSEC_KEY;
+    const SSECustomerKeyMD5 = process.env.R2_SSEC_KEY_MD5;
+
+    await s3.send(
+    	new PutObjectCommand({
+    		Bucket: "your-bucket",
+    		Key: "single-part",
+    		Body: "BeepBoop",
+    		SSECustomerAlgorithm,
+    		SSECustomerKey,
+    		SSECustomerKeyMD5,
+    	}),
+    );
+
+    const multi = await s3.send(
+    	new CreateMultipartUploadCommand({
+    		Bucket: "your-bucket",
+    		Key: "multi-part",
+    		SSECustomerAlgorithm,
+    		SSECustomerKey,
+    		SSECustomerKeyMD5,
+    	}),
+    );
+    const UploadId = multi.UploadId;
+
+    const parts: UploadPartCommandOutput[] = [];
+
+    parts.push(
+    	await s3.send(
+    		new UploadPartCommand({
+    			Bucket: "your-bucket",
+    			Key: "multi-part",
+    			UploadId,
+    			//FillingBuf()`는 임의의 데이터를 생성합니다.
+    			//당신의 선택의 기능/몸으로 대체하십시오.
+    			Body: filledBuf(),
+    			PartNumber: 1,
+    			SSECustomerAlgorithm,
+    			SSECustomerKey,
+    			SSECustomerKeyMD5,
+    		}),
+    	),
+    );
+    parts.push(
+    	await s3.send(
+    		new UploadPartCommand({
+    			Bucket: "your-bucket",
+    			Key: "multi-part",
+    			UploadId,
+    			//FillingBuf()`는 임의의 데이터를 생성합니다.
+    			//당신의 선택의 기능/몸으로 대체하십시오.
+    			Body: filledBuf(),
+    			PartNumber: 2,
+    			SSECustomerAlgorithm,
+    			SSECustomerKey,
+    			SSECustomerKeyMD5,
+    		}),
+    	),
+    );
+    await s3.send(
+    	new CompleteMultipartUploadCommand({
+    		Bucket: "your-bucket",
+    		Key: "multi-part",
+    		UploadId,
+    		MultipartUpload: {
+    			Parts: parts.map(({ ETag }, PartNumber) => ({
+    				ETag,
+    				PartNumber: PartNumber + 1,
+    			})),
+    		},
+    		SSECustomerAlgorithm,
+    		SSECustomerKey,
+    		SSECustomerKeyMD5,
+    	}),
+    );
+
+    const HeadObjectOutput = await s3.send(
+    	new HeadObjectCommand({
+    		Bucket: "your-bucket",
+    		Key: "multi-part",
+    		SSECustomerAlgorithm,
+    		SSECustomerKey,
+    		SSECustomerKeyMD5,
+    	}),
+    );
+
+    const GetObjectOutput = await s3.send(
+    	new GetObjectCommand({
+    		Bucket: "your-bucket",
+    		Key: "single-part",
+    		SSECustomerAlgorithm,
+    		SSECustomerKey,
+    		SSECustomerKeyMD5,
+    	}),
+    );
+    ```
+  </TabItem>
+</Tabs>

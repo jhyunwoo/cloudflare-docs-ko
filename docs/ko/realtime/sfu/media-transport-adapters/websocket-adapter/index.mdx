@@ -1,0 +1,367 @@
+---
+pcx_content_type: reference
+title: WebSocket 어댑터
+sidebar:
+  order: 1
+  label: 웹소켓
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/realtime/sfu/media-transport-adapters/websocket-adapter/
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/sfu/media-transport-adapters/websocket-adapter/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem } from "~/components";
+
+:::참조
+WebSocket 어댑터는 베타입니다. API를 변경할 수 있습니다.
+주요 특징
+
+WebRTC 트랙과 WebSocket 엔드포인트 사이 오디오 및 비디오 스트리밍. WebSocket 소스에서 오디오를 섭취하고 WebRTC 오디오 및 비디오를 WebSocket 소비자에게 전송합니다. Video egress는 약 1 FPS에서 JPEG로 지원됩니다.
+
+## 당신은 빌드 할 수 있습니다
+
+- 오디오 처리를 위한 WebSocket APIs를 가진 AI 서비스
+- 사용자 정의 오디오 처리 파이프라인
+- Legacy 시스템 교량
+- Server-side 오디오 생성 및 소비
+- 비디오 스냅 샷 및 thumbnails
+- 컴퓨터 비전 ingestion (낮은 FPS)
+
+## 어떻게 작동합니까?
+
+<Tabs>
+  <TabItem label="Ingest (웹소켓 → WebRTC)">
+    ### 외부 오디오에서 WebRTC 트랙 만들기
+
+    WebSocket을 통해 외부 소스에서 오디오를 사용하여 WebRTC 트랙을 배포합니다.
+
+    ```mermaid
+    graph LR
+        A[External System] -->|Audio Data| B[WebSocket Endpoint]
+        B -->|Adapter| C[Realtime SFU]
+        C -->|New Session| D[WebRTC Track]
+        D -->|WebRTC| E[WebRTC Clients]
+    ```
+
+    **사용 사례:**
+
+    - AI text-to-speech 세대 스트리밍 WebRTC
+    - backend 서비스 또는 데이터베이스에서 오디오
+    - 외부 시스템에서 라이브 오디오 피드
+
+    **주요 특성:**
+
+    - 새 세션 ID를 자동으로 생성
+    - 기타 제품`buffer`chunked 오디오 전송을 위한 형태
+    - WebSocket 메시지 당 최대 32 KB
+  </TabItem>
+
+  <TabItem label="스트림 (WebRTC → WebSocket)">
+    ### WebRTC 오디오 및 외부 시스템에 비디오 스트리밍
+
+    기존 WebRTC의 오디오 및 비디오는 WebSocket을 통해 외부 시스템에 추적하거나 저장합니다.
+
+    ```mermaid
+    graph LR
+        A[WebRTC Source] -->|WebRTC| B[Realtime SFU Session]
+        B -->|Adapter| C[WebSocket Endpoint]
+        C -->|Media Data| D[External System]
+    ```
+
+    **사용 사례:**
+
+    - 실시간 연설-to-text transcription
+    - 오디오 녹음 및 아카이브
+    - 실시간 오디오 처리 파이프라인
+    - 비디오 스냅 샷 및 thumbnails
+    - 컴퓨터 비전 ingestion (낮은 FPS)
+
+    **주요 특성:**
+
+    - 기존 세션 ID를 추적
+    - 오디오: 그들은 생성한 것과 같이 개인적인 PCM 구조를 보내십시오; 각각은 타임스탬프와 순서 수를 포함합니다
+    - 비디오 : 약 1 FPS에서 개별 JPEG 프레임을 전송합니다. 각에는 타임 스탬프가 포함되어 있습니다 (수수가 설정되지 않을 수 있음)
+  </TabItem>
+</Tabs>
+
+## API reference
+
+### 어댑터 만들기
+
+```
+POST /v1/apps/{appId}/adapters/websocket/new
+```
+
+<Tabs>
+  <TabItem label="이름 *">
+    #### 주문 몸
+
+    ```json
+    {
+      "tracks": [
+        {
+          "location": "local",
+          "trackName": "string",
+          "endpoint": "wss://...",
+          "inputCodec": "pcm",
+          "mode": "buffer"
+        }
+      ]
+    }
+    ```
+
+    #### 매개 변수
+
+    | 제품 설명        | 제품정보  | 이름 \*                                |
+    | ------------ | ----- | ------------------------------------ |
+    | `location`   | 이름 \* | **견적 요청**·`"local"`ingesting 오디오     |
+    | `trackName`  | 이름 \* | **견적 요청**. 새로운 WebRTC 트랙의 이름         |
+    | `endpoint`   | 이름 \* | **견적 요청**. WebSocket URL에서 오디오 수신    |
+    | `inputCodec` | 이름 \* | **견적 요청**. 들어오는 오디오의 코덱. 현재 만`"pcm"` |
+    | `mode`       | 이름 \* | **견적 요청**·`"buffer"`로컬 모드            |
+
+    #### 관련 기사
+
+    ```json
+    {
+      "tracks": [
+        {
+          "trackName": "string",
+          "adapterId": "string",
+          "sessionId": "string",    // New session ID generated
+          "endpoint": "string"      // Echo of the requested endpoint
+        }
+      ]
+    }
+    ```
+
+    :::주\[중요]
+
+    - 새로운 세션 ID가 자동으로 생성됩니다.
+    - 더 보기`sessionId`요청의 필드는 제공된 경우 무시됩니다.
+    - WebSocket 메시지 당 최대 32KB의 펑크 오디오를 전송합니다.
+      주요 특징
+  </TabItem>
+
+  <TabItem label="사이트 맵">
+    #### 주문 몸
+
+    ```json
+    {
+      "tracks": [
+        {
+          "location": "remote",
+          "sessionId": "string",
+          "trackName": "string",
+          "endpoint": "wss://...",
+          "outputCodec": "pcm"
+        }
+      ]
+    }
+    ```
+
+    #### 매개 변수
+
+    | 제품 설명         | 제품정보  | 이름 \*                                                                     |
+    | ------------- | ----- | ------------------------------------------------------------------------- |
+    | `location`    | 이름 \* | **견적 요청**·`"remote"`고객지원                                                  |
+    | `sessionId`   | 이름 \* | **견적 요청**. 트랙을 포함하는 기존 세션 ID                                              |
+    | `trackName`   | 이름 \* | **견적 요청**. 기존 트랙의 이름은 스트림에                                                |
+    | `endpoint`    | 이름 \* | **견적 요청**. WebSocket URL을 사용하여 미디어를 전송                                    |
+    | `outputCodec` | 이름 \* | **견적 요청**. 나가는 매체를 위한 Codec. 제품 정보`"pcm"`오디오를 위해,`"jpeg"`동영상(egress only) |
+
+    #### 관련 기사
+
+    ```json
+    {
+      "tracks": [
+        {
+          "trackName": "string",
+          "adapterId": "string",
+          "sessionId": "string",    // Same as request sessionId
+          "endpoint": "string"      // Echo of the requested endpoint
+        }
+      ]
+    }
+    ```
+
+    :::주\[중요]
+
+    - 지정된 트랙으로 기존 세션을 요구합니다.
+    - 오디오 프레임은 타임스탬프 및 시퀀스 번호로 개별적으로 전송됩니다.
+    - 비디오 프레임은 타임 스탬프와 함께 약 1 FPS에서 JPEG로 개별적으로 전송됩니다. 순서 번호는 설정되지 않을 수 있습니다.
+    - 각 프레임은 별도의 WebSocket 메시지입니다.
+    - 형태 모수 없음; 구조는 생성으로 보내집니다.
+      주요 특징
+  </TabItem>
+</Tabs>
+
+### 닫기 어댑터
+
+```
+POST /v1/apps/{appId}/adapters/websocket/close
+```
+
+#### 주문 몸
+
+```json
+{
+  "tracks": [
+    {
+      "adapterId": "string"
+    }
+  ]
+}
+```
+
+## 미디어 형식
+
+### WebRTC 트랙
+
+- **비밀번호**: 오푸스
+- **표본 비율**: 48kHz의
+- **채널 :**: 스테레오
+
+### WebSocket 바이너리 형식
+
+Media는 프로토콜 버퍼를 사용합니다. 오디오는 PCM 탑재량을 사용합니다; 영상은 JPEG 탑재량을 이용합니다:
+
+- 16 비트 서명 작은 엔디 PCM
+- 48 kHz 표본 비율
+- 입체 음향 (왼쪽/밝은 interleaved)
+- 영상: JPEG 이미지 탑재량 (메시 당 1개의 구조)
+
+```protobuf
+message Packet {
+    uint32 sequenceNumber = 1;  // Used in Stream mode only
+    uint32 timestamp = 2;       // Used in Stream mode only
+    bytes payload = 5;          // Media data
+}
+```
+
+**Ingest 모드 (buffer)**: 만`payload`필드는 오디오 데이터의 펑크를 함유하고 있습니다.
+
+**스트림 모드 (egress)**:
+
+- 오디오 구조를 위해:
+  - `sequenceNumber`: Incremental 패킷 카운터
+  - `timestamp`: 동기화를 위한 Timestamp
+  - `payload`: PCM 오디오 프레임 데이터
+- 영상 구조를 위해 (JPEG):
+  - `timestamp`: 동기화를 위한 Timestamp
+  - `payload`: JPEG 이미지 데이터 (메시 당 한 프레임)
+  - 참고 :`sequenceNumber`영상 구조를 위한 unset일지도 모릅니다
+
+### 비디오 (JPEG)
+
+- 지원된 WebRTC 입력 코덱: H264, H265, VP8, VP9
+- WebSocket에서 출력 : 약 1 FPS의 JPEG 이미지
+
+## 연결 프로토콜
+
+WebSocket 엔드포인트에 연결:
+
+1. WebSocket 업그레이드
+2. 보안 연결`wss://`사이트 맵
+3. 미디어 스트리밍 시작
+
+### 메시지 형식
+
+#### 버퍼 모드 (ingest)
+
+- **Binary 메시지**: 펑크의 PCM 오디오 데이터
+- **최대 메시지 크기**: 웹소켓 메시지 당 32 KB
+- **주요 특징**: chunking 오디오 버퍼 때 serialization overhead를 위한 계정
+- 큰 배치 보다는 오히려 작은, 빈번한 펑크에서 오디오를 보내십시오
+
+#### 스트림 모드 (egress)
+
+- **Binary 메시지**: metadata (audio 또는 비디오)가있는 개별 프레임
+- 오디오 구조는 다음을 포함합니다:
+  - Timestamp 정보
+  - 연락처
+  - PCM 오디오 프레임 데이터
+- 영상 구조는 다음을 포함합니다:
+  - Timestamp 정보
+  - JPEG 이미지 자료
+  - 주: 순서 수는 영상 구조를 위한 unset일지도 모릅니다
+- 프레임은 WebRTC 트랙에서 도착하여 개별적으로 전송됩니다.
+- 비디오 프레임은 약 1 FPS로 방출됩니다.
+
+### 연결 수명주기
+
+1. WebSocket 엔드포인트에 연결
+2. 오디오 스트리밍 시작
+3. 동영상 스트리밍 시작 (ifconfig)
+4. 닫힐 때 연결 닫히거나 과실
+
+## 가격 책정
+
+현재 베타 및 무료 사용.
+
+일반적으로 사용할 경우, 청구는 표준 Cloudflare를 따를 것입니다 GB egress 당 $0.05의 실시간 가격. Cloudflare에서 WebSocket endpoints incurs 요금으로 시작하는 트래픽만. WebSocket endpoints에서 Cloudflare incurs로의 트래픽이 충전되지 않습니다.
+
+사용법 당신의 Cloudflare에 조사 1,000 GB의 실시간 무료 계층.
+
+## 좋은 관행
+
+### 연결 관리
+
+- 이미 닫히는 인스턴스를 닫습니다.
+- 세션이 종료될 때
+- 네트워크 실패에 대한 재연결 논리 구현
+
+### - 연혁
+
+- 배포 WebSocket 엔드 포인트는 Cloudflare 가장자리에 가깝습니다
+- 적절한 버퍼 크기 사용
+- 감시 연결 질
+
+### 보안 보안
+
+- Secure WebSocket 엔드포인트 인증
+- 제품 정보`wss://`생산 라인
+- 실행률 제한
+
+## 제한 사항
+
+- **WebSocket 페이로드**: PCM (audio) ingest 및 스트림; JPEG (비디오) 스트림
+- **베타 상태**: API는 향후 릴리스에서 변경할 수 있습니다.
+- **Video 지원**: Egress 만 (JPEG)
+- **영상 구조 비율**: 약 1 FPS (베타; 구성되지 않음)
+- **Unidirectional 흐름**: 각 인스턴스는 한 방향으로 처리합니다.
+
+## 오류 처리
+
+| 오류 코드 | 이름 \*                  |
+| ----- | ---------------------- |
+| `400` | 잘못된 요청 매개 변수           |
+| `404` | 세션 또는 트랙을 찾을 수 없습니다    |
+| `503` | 어댑터를 찾을 수 없습니다 (닫기 작업) |
+
+## 참고 구현
+
+- 오디오 (WebSocket에 PCM):[모델 번호: Cloudflare 실시간 예제 – ai-tts-stt](https://github.com/cloudflare/realtime-examples/tree/main/ai-tts-stt)
+- 영상 (JPEG egress):[Cloudflare 실시간 예제 – 비디오-to-jpeg](https://github.com/cloudflare/realtime-examples/tree/main/video-to-jpeg)
+
+## 사용자 정의 다리에서 마이그레이션
+
+1. 어댑터 API 호출과 사용자 지정 신호를 대체
+2. PCM 형식을 처리하는 WebSocket 엔드포인트 업데이트
+3. 어댑터 수명주기 관리
+4. STUN/TURN 설정 제거
+
+## 제품 정보
+
+**Q: 나는 양방향 오디오를 위한 동일한 접합기를 이용할 수 있습니까?**&#x41;: 아니오, 각 인스턴스는 단향성입니다. 별도의 어댑터를 만들고 수신합니다.
+
+**Q: WebSocket 연결이 떨어지면 어떻게됩니까?**&#x41;: 접합기는 닫히고 recreated이어야 합니다. 앱에서 재연결 논리를 구현합니다.
+
+**Q: 동시 접합기에 한계가 있습니까?**&#x41;: 한계는 표준 Cloudflare를 따릅니다 실시간 인용. 특정한 필요조건을 위한 접촉 지원.
+
+**Q: 나는 접합기를 창조한 후에 오디오 체재를 바꿀 수 있습니까?**&#x41;: 아니, 오디오 체재는 창조 시간에 조정됩니다. 다른 형식의 새로운 어댑터를 만듭니다.

@@ -1,0 +1,91 @@
+---
+pcx_content_type: reference
+title: 고급 설정
+description: Workers를 사용하는 방법 알아보기 더 고급 설정과 빌드
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree } from "~/components";
+
+## 모노레포지
+
+monorepo는 다수 신청을 포함하는 단 하나 저장소입니다. 이 설정은 몇 가지 이유로 유용 할 수 있습니다 :
+
+- **단순 의존성 관리**: 모든 근로자와 공유 패키지를 통해 신뢰할 수 있는 관리[pnpm 작업 공간](https://pnpm.io/workspaces)·[동기화팩](https://www.npmjs.com/package/syncpack).
+- **코드 공유 및 재사용**: 공유 패키지를 만들기 위해 근로자 간의 공통 논리, 유형 및 유틸리티를 쉽게 만들고 공유합니다.
+- **Atomic 커밋**: 여러 근로자에 영향을 미치는 변화 또는 공유 라이브러리가 함께 투입 될 수 있으며, 역사가 더 쉽게 이해할 수 있으며, 일관성의 위험을 줄일 수 있습니다.
+- **일관된 툴링**: 동일한 빌드, 테스트, 리딩 및 포맷 구성 (예를 들어,[터보레포](https://turborepo.com)작업 관현관 및 공유 구성`packages/`) 모든 프로젝트에 걸쳐 일관된 툴링 및 Workers의 코드 품질을 보장합니다.
+- **Easier 재공장**: 여러 WorkersXQ 또는 공유 패키지가 단일 저장소 내에서 훨씬 쉽게 사용할 수 있도록 렌더링 코드.
+
+#### 보기 Workers monorepos:
+
+- [클라우드 플레어/mcp-server-cloudflare](https://github.com/cloudflare/mcp-server-cloudflare)
+- [jahands/workers-monorepo 템플릿](https://github.com/jahands/workers-monorepo-template)
+- [클라우드 플레어/templates](https://github.com/cloudflare/templates)
+- [클라우드 플레어/작업자-sdk](https://github.com/cloudflare/workers-sdk)
+
+### 시작하기
+
+monorepo 워크플로우 설정하기:
+
+1. 프로젝트와 관련된 Workers 찾기[Workers & Pages 대시보드](https://dash.cloudflare.com).
+2. 당신의 monorepo를 저장소에 있는 각 노동자에 연결하십시오.
+3. 각 노동자의 루트 디렉토리를 설정하여 위치를 지정합니다.`wrangler.jsonc`명령을 빌드하고 배포하는 곳.
+4. 선택적으로, 각 노동자를 위한 유일한 구조 및 배치 명령을 구성하십시오.
+5. 선택적으로, 구성[시계 경로 구축](/workers/ci-cd/builds/build-watch-paths/)각 노동자는 변화에 대한 특정 경로를 모니터링합니다.
+
+새로운 커밋이 모노레포로 만들 때, 새로운 빌드 및 배포는 각 작업자에게 변경이 포함 된 시계 경로의 각 안에 있는 경우 트리거됩니다. GitHub 내 저장소와 관련된 각 빌드 상태를 확인할 수 있습니다.[체크 실행](/workers/ci-cd/builds/git-integration/github-integration/#check-run)또는 GitLab 안에[현재 위치](/workers/ci-cd/builds/git-integration/gitlab-integration/#commit-status).
+
+### 이름 \*
+
+예를 들어`ecommerce-monorepo`Workers 프로젝트`product-service`, `order-service`·`notification-service`.
+
+Git 연결`ecommerce-monorepo`Workers 프로젝트의 모든 것에 추가해야합니다. monorepo 도구를 사용하는 경우[터보레포](https://turbo.build/), 당신은 각 노동자를 위한 다른 배치 명령을 구성할 수 있습니다, 예를 들면,`turbo deploy -F product-service`.
+
+Wrangler 설정 파일이 어디에 있는지 각 작업자의 루트 디렉토리를 설정합니다. 예를 들어,`product-service`, 루트 디렉토리가 있어야한다`/workers/product-service/`. 선택적으로, 당신은 추가할 수 있습니다[시계 경로 구축](/workers/ci-cd/builds/build-watch-paths/)당신의 빌드를 최적화합니다.
+
+새로운 커밋이 될 때`ecommerce-monorepo`, 빌드 및 배포는 Workers의 각각에 대 한 트리거 됩니다. 변경은 그 노동자에 대 한 구성 된 명령을 사용하여 포함 된 시계 경로 내에서.
+
+{/* prettier-ignore */}
+
+<FileTree>
+  - 전자 상거래-monorepo/
+    - 노동자/
+      - 제품 서비스/
+        - 사이트맵
+        - 다운로드
+      - 주문 서비스 /
+        - 사이트맵
+        - 다운로드
+      - 알림서비스/
+        - 사이트맵
+        - 다운로드
+    - 패키지/
+      - 스키마/
+    - 다운로드
+</FileTree>
+
+## Wrangler 환경분야
+
+사용 가능[Wrangler 환경분야](/workers/wrangler/environments/)Workers 다음 단계를 완료하여 빌드 :
+
+1. [Wrangler를 통해 배포](/workers/wrangler/commands/#deploy)대시보드의 환경에 대한 Workers를 만들려면 이미 가지고 있지 않은 경우.
+2. 환경을 위해 Workers를 찾으십시오. 그들은 일반적으로 이름`[name of Worker] - [environment name]`.
+3. 당신의 환경을 위해 WorkersXQ의 각각에 당신의 저장소를 연결하십시오.
+4. Workers의 각에서는, 깃발을 포함하는 Wrangler 명령을 편집합니다`--env: <environment name>`배포 명령 모두에 대한 빌드 구성에서, 및 비 생산 지점 배치 명령 ([적용 사례](/workers/ci-cd/builds/build-branches/#configure-non-production-branch-builds)).
+
+새로운 커밋이 저장소에서 감지되면 새로운 빌드 / 배포가 각 관련 작업자에게 트리거됩니다.
+
+### 이름 \*
+
+이름을 가진 노동자가`my-worker`, 당신은 2개의 환경을 설치하고 싶습니다`staging`·`production`설정하기`wrangler.jsonc`. 이미 없다면 배포할 수 있습니다.`my-worker`명령을 사용하여 각 환경`wrangler deploy --env staging`·`wrangler deploy --env production`.
+
+Cloudflare 대시보드에서 두 WorkersXQXQ를 찾아야 합니다.`my-worker-staging`·`my-worker-production`. 그때, 노동자를 위한 Git 저장소를 연결하십시오,`my-worker`환경 Workers의 둘 다에,. 각 환경 작업자의 빌드 구성에서 배포 명령을 편집합니다.`npx wrangler deploy --env staging`·`npx wrangler deploy --env production`non-production 분지 배포 명령은`npx wrangler versions upload --env staging`·`npx wrangler versions upload --env production`각각.

@@ -1,0 +1,170 @@
+---
+title: 제품정보
+pcx_content_type: get-started
+sidebar:
+  order: 3
+description: 'R2XQ를 Wrangler, rclone, 또는 AWS CLI를 가진 명령 선에서 사용하십시오.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/get-started/cli/'
+translation_source_md: 'https://developers.cloudflare.com/r2/get-started/cli/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers, LinkCard, Render, Tabs, TabItem, Steps } from "~/components";
+
+터미널에서 R2 버킷과 객체를 직접 관리합니다. CLI 도구를 사용하여 작업을 자동화하고 개체를 관리합니다.
+
+| 제품 정보                                 | 제품 정보                         |
+| ------------------------------------- | ----------------------------- |
+| [모델 번호: Wrangler](/workers/wrangler/) | 단일 객체 작업 및 관리 버킷 설정 최소화       |
+| [뚱 베어](/r2/examples/rclone/)          | 대량 객체 작업, 마이그레이션 및 동기화 디렉토리   |
+| [AWS 클립](/r2/examples/aws/aws-cli/)   | AWS CLI를 사용한 AWS 워크플로우 또는 익숙함 |
+
+## 1. 버킷 만들기
+
+<Render file="create-bucket-steps" product="r2" />
+
+## 2. API 자격 증명 생성
+
+S3 API를 사용하는 CLI 도구 ([AWS 클립](/r2/examples/aws/aws-cli/), [뚱 베어](/r2/examples/rclone/))는 접근 열쇠 ID와 비밀 접근 열쇠를 요구합니다. 자주 묻는 질문[모델 번호: Wrangler](/workers/wrangler/), 이 단계를 건너 뛸 수 있습니다.
+
+<Steps>
+  1. Cloudflare QXdashboard에서, 갑니다**모델 번호: R2**.
+  2. 제품정보**R2 관리 API 토큰**.
+  3. 제품정보**API 토큰 만들기**.
+  4. 제품 정보**개체 읽기 및 쓰기**권한 및 액세스하려는 물통을 선택합니다.
+  5. 제품정보**API 만들기 토큰 토큰**.
+  6. 제출하기**액세스 키 ID**·**비밀 액세스 키**. 이 안전하게 저장 — 당신은 비밀을 다시 볼 수 없습니다.
+</Steps>
+
+## 3. CLI 도구 설정
+
+<Tabs>
+  <TabItem label="모델 번호: Wrangler">
+    [모델 번호: Wrangler](/r2/reference/wrangler-commands/)Cloudflare Workers CLI입니다. Cloudflare 계정에 직접 인증하므로 API 자격 증명이 필요하지 않습니다.
+
+    <Steps>
+      1. Wrangler 설치:
+
+         <PackageManagers pkg="wrangler" dev />
+
+      2. Cloudflare 계정에 로그인하십시오.
+
+         ```sh
+         wrangler login
+         ```
+    </Steps>
+  </TabItem>
+
+  <TabItem label="뚱 베어">
+    [뚱 베어](/r2/examples/rclone/)대량 업로드, 마이그레이션 및 동기화 디렉토리에 이상적입니다.
+
+    <Steps>
+      1. [rclone 설치](https://rclone.org/install/)(버전 1.59 이상).
+
+      2. 새로운 원격 구성:
+
+         ```sh
+         rclone config
+         ```
+
+      3. 선택하여 새로운 리모트 만들기`n`.
+
+      4. 이름 당신의 리모트`r2`
+
+      5. 제품정보**Amazon S3 Compliant 스토리지 공급자**저장 유형으로.
+
+      6. 제품정보**Cloudflare R2**공급자로.
+
+      7. AWS credentials를 수동으로 입력하고 싶을지 여부를 선택하거나 런타임 환경에서 얻을 수 있습니다.
+
+      8. 액세스 키 ID 및 비밀 액세스 키를 입력하면 신속한.
+
+      9. (선택 사항)에 연결하는 지역을 선택하십시오.
+
+      10. S3 API 엔드포인트를 제공합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="AWS 클립">
+    더 보기[AWS 클립](/r2/examples/aws/aws-cli/)custom endpoint를 지정하여 R2와 함께 작동합니다.
+
+    <Steps>
+      1. [AWS CLI 설치](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)당신의 운영 체계를 위해.
+
+      2. 자격 증명을 구성:
+
+         ```sh
+         aws configure
+         ```
+
+      3. 신속하게 입력할 때:
+
+         - **AWS 액세스 키 ID**: R2 액세스 키 ID
+         - **AWS 비밀 액세스 키**: R2 비밀 액세스 키
+         - **기본 영역 이름**: `auto`
+         - **기본 출력 형식**: `json`(또는 Enter 키를 눌러 건너뛰기)
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 4. 업로드 및 다운로드 개체
+
+(선택) 업로드 할 테스트 파일을 만듭니다. CLI 명령어를 실행할 계획이 있는 디렉토리에서 이 명령을 실행:
+
+```sh
+echo 'Hello, R2!' > myfile.txt
+```
+
+<Tabs>
+  <TabItem label="모델 번호: Wrangler">
+    ```sh
+    #myfile.txt를 my-bucket에 업로드
+    wrangler r2 object put my-bucket/myfile.txt --file ./myfile.txt
+
+    #myfile.txt를 다운로드하고 다운로드로 저장하십시오. 다운로드
+    wrangler r2 object get my-bucket/myfile.txt --file ./downloaded.txt
+    ```
+
+    더 알아보기[QXQX0746XQQ R2 명령](/r2/reference/wrangler-commands/)모든 사용 가능한 작업.
+  </TabItem>
+
+  <TabItem label="뚱 베어">
+    ```sh
+    #myfile.txt를 my-bucket에 업로드
+    rclone copy myfile.txt r2:my-bucket/
+
+    #myfile.txt를 my-bucket에서 현재 디렉토리에 다운로드
+    rclone copy r2:my-bucket/myfile.txt .
+    ```
+
+    더 알아보기[관련 문서](/r2/examples/rclone/)더 많은 구성 옵션.
+  </TabItem>
+
+  <TabItem label="AWS 클립">
+    ```sh
+    #myfile.txt를 my-bucket에 업로드
+    aws s3 cp myfile.txt s3://my-bucket/ --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+
+    #myfile.txt를 my-bucket에서 현재 디렉토리에 다운로드
+    aws s3 cp s3://my-bucket/myfile.txt ./ --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+
+    #my-bucket의 모든 개체 목록
+    aws s3 ls s3://my-bucket/ --endpoint-url https://<ACCOUNT_ID>.r2.cloudflarestorage.com
+    ```
+
+    더 알아보기[AWS CLI 문서](/r2/examples/aws/aws-cli/)더 많은 예제.
+  </TabItem>
+</Tabs>
+
+## 다음 단계
+
+<LinkCard title="위탁된 URL" href="/r2/api/s3/presigned-urls/" description="개인 객체 접근을 위한 임시 URL 생성." />
+
+<LinkCard title="공공 버킷" href="/r2/buckets/public-buckets/" description="HTTP를 통해 직접 파일을 공개 버킷." />
+
+<LinkCard title="사이트맵" href="/r2/buckets/cors/" description="브라우저 기반 업로드에 대한 CORS 구성." />
+
+<LinkCard title="목표 수명주기" href="/r2/buckets/object-lifecycles/" description="구문을 자동으로 삭제하는 Lifecycle 규칙을 설정합니다." />

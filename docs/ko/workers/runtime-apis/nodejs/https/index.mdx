@@ -1,0 +1,208 @@
+---
+pcx_content_type: configuration
+title: 'https://www.google.com/'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/https/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/https/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="nodejs-compat-howto" product="workers" />
+
+## 호환성 깃발
+
+### 클라이언트 측 방법
+
+HTTPS 클라이언트 측 방법을 사용하려면 (`https.get`, `https.request`, 등), 당신은 활성화해야 합니다[`enable_nodejs_http_modules`](/workers/configuration/compatibility-flags/)호환성 플래그 외에도[`nodejs_compat`](/workers/runtime-apis/nodejs/)플래그.
+
+이 깃발은 Workers를 위해 자동적으로 활성화됩니다[호환성 날짜](/workers/configuration/compatibility-dates/)이름 \*`2025-08-15`또는 나중에 때`nodejs_compat`지원하다 이전 호환성 날짜를 사용하여 Workers를 위해, 당신은 수동으로 당신의 깃발을 추가해서 활성화할 수 있습니다`wrangler.toml`:
+
+```toml
+compatibility_flags = ["nodejs_compat", "enable_nodejs_http_modules"]
+```
+
+### 서버 측 방법
+
+HTTPS 서버 측 방법을 사용하려면 (`https.createServer`, `https.Server`, `https.ServerResponse`), 당신은 활성화해야`enable_nodejs_http_server_modules`호환성 플래그 외에도[`nodejs_compat`](/workers/runtime-apis/nodejs/)플래그.
+
+이 깃발은 Workers를 위해 자동적으로 활성화됩니다[호환성 날짜](/workers/configuration/compatibility-dates/)이름 \*`2025-09-01`또는 나중에 때`nodejs_compat`지원하다 이전 호환성 날짜를 사용하여 Workers를 위해, 당신은 수동으로 당신의 깃발을 추가해서 활성화할 수 있습니다`wrangler.toml`:
+
+```toml
+compatibility_flags = ["nodejs_compat", "enable_nodejs_http_server_modules"]
+```
+
+클라이언트 측과 서버 측 방법을 사용하기 위하여는, 둘 다 깃발을 가능하게 합니다:
+
+```toml
+compatibility_flags = ["nodejs_compat", "enable_nodejs_http_modules", "enable_nodejs_http_server_modules"]
+```
+
+## 이름 \*
+
+Node.js의 구현[카지노사이트](https://nodejs.org/docs/latest/api/https.html#httpsgetoptions-callback)방법.
+
+더 보기`get`메소드는 지정된 URL에 GET 요청을 수행하고 응답으로 콜백을 호출합니다. 이것은 수동 설정 요청 옵션없이 HTTPS GET 요청을 단순화하는 편리한 방법입니다.
+
+이름 \*`get`주변 래퍼`fetch(...)`, 그것은 수출한 fetch 또는 유사한 핸들러 안에만 사용될지도 모릅니다. 핸들러의 외부, 사용 시도`get`오류가 발생한다.
+
+```js
+import { get } from "node:https";
+
+export default {
+	async fetch() {
+		const { promise, resolve, reject } = Promise.withResolvers();
+		get("https://example.com", (res) => {
+			let data = "";
+			res.setEncoding("utf8");
+			res.on("data", (chunk) => {
+				data += chunk;
+			});
+			res.on("end", () => {
+				resolve(new Response(data));
+			});
+			res.on("error", reject);
+		}).on("error", reject);
+		return promise;
+	},
+};
+```
+
+구현`get`Workers는 전 세계 래퍼입니다.
+[`fetch`사이트맵](https://developers.cloudflare.com/workers/runtime-apis/fetch/)그리고 같은 주제[제한 사항](https://developers.cloudflare.com/workers/platform/limits/).
+
+위의 예시로, 그것은 제대로 할 수있는 요청을 준비해야합니다
+자주 묻는 질문`fetch`약속 또는 fetch를 사용하여 핸들러는 조기 취소 될 수 있습니다.
+핸들러가 반환될 때.
+
+## 이름 \*
+
+Node.js의 구현[카지노사이트](https://nodejs.org/docs/latest/api/https.html#httpsrequestoptions-callback)방법.
+
+더 보기`request`메소드는 메소드, 헤더, 몸과 같은 customizable 옵션으로 HTTPS 요청을 만듭니다. 그것은 요청 구성에 전체 제어를 제공하고 Node.js를 반환[사이트 맵 이름 \*](https://developers.cloudflare.com/workers/runtime-apis/nodejs/streams/)요청 데이터를 전송합니다.
+
+이름 \*`get`주변 래퍼`fetch(...)`, 그것은 수출한 fetch 또는 유사한 핸들러 안에만 사용될지도 모릅니다. 핸들러의 외부, 사용 시도`get`오류가 발생한다.
+
+요청 방법은 모든 옵션을 수락[`http.request`](/workers/runtime-apis/nodejs/http#request)기본 값의 차이점은 다음과 같습니다.
+
+- `protocol`: 기본`https:`
+- `port`: 기본`443`
+- `agent`: 기본`https.globalAgent`
+
+```js
+import { request } from "node:https";
+import { strictEqual, ok } from "node:assert";
+
+export default {
+	async fetch() {
+		const { promise, resolve, reject } = Promise.withResolvers();
+		const req = request(
+			"https://developers.cloudflare.com/robots.txt",
+			{
+				method: "GET",
+			},
+			(res) => {
+				strictEqual(res.statusCode, 200);
+				let data = "";
+				res.setEncoding("utf8");
+				res.on("data", (chunk) => {
+					data += chunk;
+				});
+				res.once("error", reject);
+				res.on("end", () => {
+					ok(data.includes("User-agent"));
+					resolve(new Response(data));
+				});
+			},
+		);
+		req.end();
+		return promise;
+	},
+};
+```
+
+다음 옵션은 지원되지 않습니다 :`ca`, `cert`, `ciphers`, `clientCertEngine`(직접),`crl`, `dhparam`, `ecdhCurve`, `honorCipherOrder`, `key`, `passphrase`, `pfx`, `rejectUnauthorized`, `secureOptions`, `secureProtocol`, `servername`, `sessionIdContext`, `highWaterMark`.
+
+## 생성서
+
+Node.js의 구현[`https.createServer`](https://nodejs.org/docs/latest/api/https.html#httpscreateserveroptions-requestlistener)방법.
+
+더 보기`createServer`메소드는 보안 요청을 처리 할 수있는 HTTPS 서버 인스턴스를 만듭니다. 새로운 기능입니다.`Server`예를 들어, 선택적으로 요청 청취자 콜백을 설정합니다.
+
+```js
+import { createServer } from "node:https";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = createServer((req, res) => {
+	res.writeHead(200, { "Content-Type": "text/plain" });
+	res.end("Hello from Node.js HTTPS server!");
+});
+
+server.listen(8080);
+export default httpServerHandler({ port: 8080 });
+```
+
+더 보기`httpServerHandler`함수는 Node.js HTTPS 서버를 Cloudflare WorkersXQ 요청 모델과 통합합니다. 요청이 작업자에 도착하면 핸들러가 지정된 포트에서 실행되는 Node.js 서버로 자동으로 경로로 이동합니다. 이 교량은 Node.js 서버 패턴을 익숙한 Workers 런타임 환경에서 활용할 수 있으며, 자동 스케일링, 가장자리 배포 및 기타 Cloudflare 서비스 통합을 포함한 런타임 환경을 제공합니다.
+
+:::참조
+자주 묻는 질문`close()`HTTPS 서버에서 누출되는 서버에서 발생할 수 있습니다. 이를 방지하기 위해 호출`close()`서버로 수행되거나 명시된 리소스 관리 사용:
+
+```js
+import { createServer } from "node:https";
+
+await using server = createServer((req, res) => {
+	res.end("Hello World");
+});
+//서버가 자동으로 닫을 때
+```
+
+:::
+
+## 이름 \*
+
+Node.js의 구현[`https.Agent`](https://nodejs.org/docs/latest/api/https.html#class-httpsagent)수업.
+
+이름 \*[이름 \*](https://nodejs.org/docs/latest/api/https.html#class-httpsagent)호스트/포트 당 요청 큐를 유지함으로써 HTTPS 연결 재사용을 관리합니다. Workers 환경에서 네트워크 연결, 포트 등의 저수준 관리는 대신 Cloudflare 인프라에 의해 처리되기 때문에 관련이 없습니다. 따라서, 구현`Agent`Workers는 연결 풀링 또는 유지 보수를 지원하지 않는 stub 구현입니다.
+
+## 계정 관리
+
+Node.js의 구현[`https.Server`](https://nodejs.org/docs/latest/api/https.html#class-httpsserver)수업.
+
+Node.js에서,`https.Server`클래스는 HTTPS 서버를 대표하고 안전한 요청을 처리하는 방법을 제공합니다. Workers에서 보안 요청을 처리하는 것은 Cloudflare 인프라에 의해 제공되므로 사용하기에 매우 차이가 없습니다.`https.Server`또는`http.Server`. 노동자 런타임은 완전성에 대한 구현을 제공하지만 대부분의 근로자는 아마 단지 사용해야합니다[`http.Server`](/workers/runtime-apis/nodejs/http#server).
+
+```js
+import { Server } from "node:https";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = new Server((req, res) => {
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ message: "Hello from HTTPS Server!" }));
+});
+server.listen(8080);
+export default httpServerHandler({ port: 8080 });
+```
+
+다음 차이는 Workers 구현과 Node.js:
+
+- 연결 관리 방법과 같은`closeAllConnections()`·`closeIdleConnections()`Workers 환경의 본질 때문에 구현되지 않습니다.
+- 한국어`listen()`포트 번호 또는 매개 변수가 지원되지 않는 변형 :`listen()`, `listen(0, callback)`, `listen(callback)`등
+- 다음 서버 옵션은 지원되지 않습니다:`maxHeaderSize`, `insecureHTTPParser`, `keepAliveTimeout`, `connectionsCheckingInterval`
+- TLS/SSL-특수 옵션`ca`, `cert`, `key`, `pfx`, `rejectUnauthorized`, `secureProtocol`Workers 환경에서 지원되지 않습니다. mTLS를 사용해야하는 경우, 사용[mTLS 바인딩](/workers/runtime-apis/bindings/mtls/).
+
+## Node.js와 Workers의 다른 차이`node:https`
+
+Workers의 구현`node:https`전 세계 래퍼`fetch`API, Node.js와 비교된 행동에 있는 몇몇 다름이 있습니다:
+
+- `Connection`헤더는 사용되지 않습니다. Workers는 연결을 자동적으로 관리할 것입니다.
+- `Content-Length`헤더는 같은 방법으로 처리됩니다`fetch`API. 몸이 제공되면 헤더가 자동으로 설정되고 수동 설정 값은 무시됩니다.
+- `Expect: 100-continue`헤더는 지원되지 않습니다.
+- Trailing headers는 지원되지 않습니다.
+- 더 보기`'continue'`이벤트는 지원되지 않습니다.
+- 더 보기`'information'`이벤트는 지원되지 않습니다.
+- 더 보기`'socket'`이벤트는 지원되지 않습니다.
+- 더 보기`'upgrade'`이벤트는 지원되지 않습니다.
+- underlying에 직접 액세스 얻기`socket`지원되지 않습니다.
+- TLS-specific 옵션 구성`ca`, `cert`, `key`, `rejectUnauthorized`, 등은 지원되지 않습니다.

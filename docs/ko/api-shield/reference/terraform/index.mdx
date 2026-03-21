@@ -1,0 +1,166 @@
+---
+pcx_content_type: how-to
+title: Terraform
+
+---
+
+import { GlossaryTooltip } from "~/components"
+
+아래 예시를 사용해 Terraform으로 API Shield를 시작하세요. Cloudflare에서 Terraform을 사용하는 방법에 대한 자세한 내용은 [Terraform documentation](/terraform/)을 참고하세요.
+
+Terraform으로 구성할 수 있는 리소스는 다음과 같습니다.
+
+**Session identifiers**
+
+- [`api_shield`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_shield): API Shield의 <GlossaryTooltip term="session identifier">session identifiers</GlossaryTooltip>를 구성합니다.
+
+**Endpoint Management**
+
+- [`api_shield_operation`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_shield_operation): Endpoint Management의 <GlossaryTooltip term="API endpoint">endpoints</GlossaryTooltip>를 구성합니다.
+
+**Schema validation**
+
+- [`cloudflare_schema_validation_schemas`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/schema_validation_schemas): [Schema validation](/api-shield/security/schema-validation/)에서 사용할 스키마를 구성합니다.
+  ~~[`api_shield_schema`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_shield_schema)~~ 는 더 이상 사용되지 않으며 향후 terraform provider 버전에서 제거될 예정입니다.
+- [`cloudflare_schema_validation_settings`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/schema_validation_settings): zone 수준 Schema validation 설정을 구성합니다.
+  ~~[`api_shield_schema_validation_settings`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_shield_schema_validation_settings)~~ 는 더 이상 사용되지 않으며 향후 terraform provider 버전에서 제거될 예정입니다.
+- [`cloudflare_schema_validation_operation_settings`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/schema_validation_operation_settings): operation 수준 Schema validation 설정을 구성합니다.
+  ~~[`api_shield_operation_schema_validation_settings`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_shield_operation_schema_validation_settings)~~ 는 더 이상 사용되지 않으며 향후 terraform provider 버전에서 제거될 예정입니다.
+
+**JWT Validation**
+
+- [`cloudflare_token_validation_config`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/token_validation_config): 특정 keying material과 토큰 위치를 사용해 JWT validation을 설정합니다.
+- [`cloudflare_token_validation_rules`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/token_validation_rules): validation 결과에 대해 동작할 규칙을 설정합니다.
+
+## API Shield session identifiers 관리
+
+아래 예시 구성을 참고해 zone에 [session identifiers](/api-shield/get-started/#to-set-up-session-identifiers)를 설정하세요.
+
+```tf title="예시 구성"
+resource "cloudflare_api_shield" "session_identifiers" {
+  zone_id = var.zone_id
+  auth_id_characteristics = [{
+    name = "authorization"
+    type = "header"
+  }]
+}
+```
+
+## API Shield Endpoint Management 관리
+
+아래 예시 구성을 참고해 zone의 [endpoints](/api-shield/management-and-monitoring/)를 관리하세요.
+
+```tf title="예시 구성"
+resource "cloudflare_api_shield_operation" "get_image" {
+  zone_id  = var.zone_id
+  method   = "GET"
+  host     = "example.com"
+  endpoint = "/api/images/{var1}"
+}
+ 
+resource "cloudflare_api_shield_operation" "post_image" {
+  zone_id  = var.zone_id
+  method   = "POST"
+  host     = "example.com"
+  endpoint = "/api/images/{var1}"
+}
+```
+
+## Schema validation 관리
+
+:::note
+
+Terraform으로 Schema validation을 설정하려면 먼저 Endpoint Management를 구성해야 합니다.
+:::
+
+아래 예시 구성을 참고해 zone에서 [Schema validation](/api-shield/security/schema-validation/api/)을 관리하세요.
+
+```tf title="예시 구성"
+# Schema validation에 사용할 스키마
+resource "cloudflare_schema_validation_schemas" "example_schema" {
+  zone_id            = var.zone_id
+  kind               = "openapi_v3"
+  name               = "example-schema.yaml"
+  # 이 예시에서는 `example-schema.yaml`에 위의 `get_image`와 `post_image` 작업이 포함되어 있다고 가정합니다
+  source             = file("./schemas/example-schema.yaml")
+  validation_enabled = true
+}
+ 
+# 기본적으로 스키마를 위반하는 모든 요청 차단
+resource "cloudflare_schema_validation_settings" "zone_level_settings" {
+  zone_id                              = var.zone_id
+  validation_default_mitigation_action = "block"
+}
+ 
+# post_image 엔드포인트는 스키마 위반 요청을 기록만 수행
+resource "cloudflare_schema_validation_operation_settings" "post_image_log_only" {
+  zone_id           = var.zone_id
+  operation_id      = cloudflare_api_shield_operation.post_image.id
+  mitigation_action = "log"
+}
+```
+
+## JWT 검증하기
+
+아래 예시 구성을 참고해 zone에서 [JWT Validation](/api-shield/security/jwt-validation/)을 수행하세요.
+
+```tf title="예시 구성"
+# 특정 키와 토큰 위치를 사용해 JWT validation 설정
+resource "cloudflare_token_validation_config" "example_es256_config" {
+  zone_id       = var.zone_id
+  token_type    = "JWT"
+  title         = "ES256 Example"
+  description   = "An example configuration that validates ES256 JWTs with `b0078548-c9bc-46e5-a678-06fb72443427` key ID in the authorization header"
+  token_sources = ["http.request.headers[\"authorization\"][0]"]
+  credentials   = {
+    keys = [
+      {
+        alg = "ES256"
+        kid = "b0078548-c9bc-46e5-a678-06fb72443427"
+        kty = "EC"
+        crv = "P-256"
+        x   = "yl_BZSxUG5II7kJCMxDfWImiU6zkcJcBYaTgzV3Jgnk"
+        y   = "0qAzLQe_YGEdotb54qWq00k74QdiTOiWnuw_YzuIqr0"
+      }
+    ]
+  }
+}
+
+# `get_image`를 제외하고 `example.com`의 모든 구성된 엔드포인트에 JWT validation 규칙 설정
+resource "cloudflare_token_validation_rules" "example_com" {
+ zone_id      = var.zone_id
+ title        = "Validate JWTs on example.com"
+ description  = "This actions JWT validation results for requests to example.com except for the get_image endpoint"
+ action       = "block"
+ enabled      = true
+ # example_es256_config로 설명된 JWT가 유효해야 합니다.
+ # 생성된 token config의 ID를 참조합니다. 이는 is_jwt_valid("<id>")를 구성합니다.
+ # 식이 >not true< 이면 Cloudflare가 요청에 대해 구성된 동작을 수행합니다.
+ expression   = format("(is_jwt_valid(%q))", cloudflare_token_validation_config.example_es256_config.id)
+ selector     = {
+    # 이 include selector와 일치하는 현재 및 미래의 모든 operation은 식이 일치하지 않을 때 설명된 동작을 수행합니다.
+    include = [
+      {
+        host          = ["example.com"]
+      }
+    ]
+    exclude = [
+      {
+        # 제외할 get_image operation의 ID를 참조합니다
+        operation_ids = ["${cloudflare_api_shield_operation.get_image.id}"]
+      }
+    ]
+ }
+}
+
+# JWT validation과 함께 JWT의 claim을 session identifier로 더 정교하게 사용할 수 있습니다
+resource "cloudflare_api_shield" "session_identifiers" {
+  zone_id = var.zone_id
+  auth_id_characteristics = [{
+    # JWT의 `sub` claim을 매우 안정적인 session identifier로 선택합니다
+    # 형식은 "<token_config_id:json_path>" 입니다
+    name = "${cloudflare_token_validation_config.example_es256_config.id}:$.sub"
+    type = "jwt"
+  }]
+}
+```

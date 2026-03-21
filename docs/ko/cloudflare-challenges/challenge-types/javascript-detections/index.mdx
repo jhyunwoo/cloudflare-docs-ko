@@ -1,0 +1,170 @@
+---
+pcx_content_type: reference
+title: JavaScript 탐지
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-challenges/challenge-types/javascript-detections/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, GlossaryTooltip } from "~/components";
+
+JavaScript Detections는 Cloudflare의 Challenge\`페이지 또는 Turnstile\`에서 별도의 도전 유형입니다. 자바 스크립트 탐지는 'Cloudflare''[봇 솔루션](/bots/)자동화된 요청을 확인합니다.
+
+챌린지 Pages와 Turnstile는 클라이언트 측 신호에 의존하여 요청의 정체성을 결정하기 위해 Bot Management의 JavaScript Detections는 클라이언트 측 신호에 의존하며 웹 사이트에 만들어진 모든 단일 요청에 실행합니다.
+
+## 회사연혁
+
+JavaScript Detections는 경량, 보이지 않는 JavaScript 코드 스니펫을 통해 웹 사이트에 구현됩니다.[개인 정보 정책](https://www.cloudflare.com/privacypolicy/).
+
+JavaScript는 HTML 페이지나 페이지 조회에 대한 요청에 응답에만 주입되며 AJAX 통화를 제외한다. API 및 모바일 애플리케이션 트래픽은 비공식적입니다.
+
+JavaScript 탐지에는 15 분의 수명이 있습니다. 그러나, 코드는 세션이 만료되기 전에 다시 주사됩니다. 페이지로드 후, 스크립트는 deferred이며 별도의 스레드를 사용합니다 (유효한 곳에서) 성능 영향을 최소화합니다. JavaScript의 스니펫은 챌린지 플랫폼에 대한 소스를 포함하며, 시작 경로와`/cdn-cgi/challenge-platform/…`
+
+JavaScript Detections가 HTML 페이지에 삽입되면, 방문자의 브라우저는 JavaScript code snippet와 a를 실행합니다.`cf_clearance`쿠키는 방문자에게 발행됩니다. JavaScript 탐지에 대한 정보는 저장됩니다.`cf_clearance`쿠키 및 사용`js_detection.passed`.
+
+- 방문자가 확인되면`cf_clearance`쿠키는 발행됩니다, 그것은 outcome를 포함할 것입니다:`cf.bot_management.js.detection.passed` = `true`
+- 검증이 실패한 경우, 쿠키는 outcome를 포함합니다:`cf.bot_management.js.detection.passed` = `false`
+
+:::참조
+더 보기`cf_clearance`쿠키는 4096 바이트의 최대 크기를 초과 할 수 없습니다.
+주요 특징
+
+:::카트로션
+봇의 강점**아니다.**&#xCFE0;키가 false를 파는 경우에도 발생합니다.
+
+JavaScript Detections를 활성화하고 WAF룰을 사용하여 사용자 정의를 생성해야 합니다.`cf.bot_management.js.detection.passed`실패한 요청을 차단하거나 도전하는 필드.
+주요 특징
+
+방문자가 웹 사이트에 WAF사용자 정의 규칙을 만날 때, 규칙은 결과를 확인할 것이다`cf_clearance`사이트 맵 의 결과`cf_clearance`쿠키는 요청 패스를 결정하거나 차단하거나 도전합니다.
+
+아래의 단계를 참조하여 JavaScript Detections를 실행합니다.
+
+## 1. JavaScript 탐지 활성화
+
+<Render
+  file="jsd-availability"
+  product="bots"
+  params={{ 
+  planType: "Bot Fight Mode",
+  enablement: "automatically enabled and cannot be disabled" 
+  }}
+/>
+
+<Render
+  file="jsd-availability"
+  product="bots"
+  params={{ 
+  planType: "Super Bot Fight Mode and Bot Management for Enterprise",
+  enablement: "optional" 
+  }}
+/>
+
+<Render file="javascript-detections-enable" product="cloudflare-challenges" />
+
+봇 보호 설정 방법에 대한 자세한 내용은 참조[Bots 문서](/bots/get-started/).
+
+## 2. JavaScript 탐지 실행
+
+JavaScript 감지를 활성화하면 사용해야 합니다.`cf.bot_management.js_detection.passed`본문 바로가기[WAF 사용자 정의 규칙](/waf/custom-rules/)(또는)`request.cf.botManagement.jsDetection.passed`변수에[작업자](/workers/)).
+
+이 필드를 WAF사용자 정의 규칙에 추가하면 브라우저 트래픽을 기대하는 엔드 포인트에 사용됩니다 (기본 모바일 응용 프로그램 또는 websocket 엔드 포인트), 응용 프로그램에 대한 사용자의 첫 번째 요청 후 (Cloudflare는 'JavaScript 탐지를 거부하기 전에 적어도 하나의 HTML 요청을 필요로), 그리고 관리 된 도전 액션과 함께, 사용자가 JavaScript를 통과하지 않을 수 있기 때문에 탐지 도전 (네트워크 문제, 광고 차단제, 브라우저에서 비활성화 JavaScript\`, 네이티브 모바일 애플리케이션).
+
+### 자주 묻는 질문
+
+- 당신은해야합니다[기업 Bot 관리](/bots/plans/bm-subscription/)구독하기
+- 영역에서 JavaScript를 활성화해야 합니다.
+- 당신은해야합니다[콘텐츠 보안 정책 헤더 업데이트](/cloudflare-challenges/challenge-types/javascript-detections/#if-you-have-a-content-security-policy-csp)JavaScript 검출을 위해.
+- websocket endpoints에 이 필드를 실행하지 않아야 합니다.
+- 브라우저 트래픽을 예상하는 사용자 정의 규칙 표현의 필드를 사용해야합니다.
+- 이 행동은 항상 합법적 인 사용자가 네트워크 또는 브라우저 이유에 대한 도전을받지 못했을 때 관리 된 도전이어야합니다.
+- 규칙 빌더에 지정된 경로는 사이트 탐색을 할 때 사용자가 방문한 최초의 HTML 페이지가 될 수 없습니다.
+
+더 보기`cf.bot_management.js_detection.passed`필드는 "WAF"에서 사용할 수 없습니다. 방문자의 첫 번째 요청을 사이트에 일치하는 사용자 정의 규칙. 'Cloudflare' 이전의 HTML 요청을 적어도 한 가지가 있어야합니다. JavaScript 탐지를 거부 할 수 있습니다.
+
+<Tabs>
+  <TabItem label="WAF 규칙 예">
+    ```txt wrap
+    (http.request.uri.path eq "/api/v4/user/create" and http.request.method eq "POST" and not cf.bot_management.verified_bot)
+    and (cf.bot_management.score lt 30 or !cf.bot_management.js_detection.passed)
+    ```
+  </TabItem>
+
+  <TabItem label="Workers 예제">
+    ```js
+    "botManagement": {
+    "jsDetection": {
+        "passed": false
+    }
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+더 알아보기[WAF 문서](/waf/custom-rules/create-dashboard/)사용자 정의 규칙을 만들기에 대한 자세한 내용은.
+
+## 사이트맵
+
+JavaScript를 활성화하면 대시보드를 통해 Cloudflare는 웹 사이트에서 제공하는 모든 HTML 페이지에 스크립트 태그를 삽입합니다. JavaScript Detections가 제공된 경우, JavaScript Detections API 스크립트와 같이 할 수 있습니다.
+
+JavaScript Detections API를 사용하면 JavaScript Detections가 웹 사이트에 주입되고 콜백 핸들링 (로깅 또는 기타 추가 작업을 위해)에 대한 옵션이 더 많은 과립 제어가 가능합니다.
+
+스크립트 참고 자료를 명시적으로 추가할 수 있습니다.`/cdn-cgi/challenge-platform/scripts/jsd/api.js`자주 묻는 질문`window.cloudflare.jsd.executeOnce`웹 사이트의 특정 HTML 페이지에.
+
+:::카트로션
+접근법(zone-wide toggle 및 수동 주입)을 결합하는 것이 좋습니다. JavaScript를 선택적으로 배치하려는 경우 특정 페이지에서만 감지하면 JavaScript를 'Cloudflare\` 대시보드를 통해 JavaScript\` 탐지 API를 독점적으로 사용합니다.
+주요 특징
+
+다음 스크립트는 JavaScript Detections가 활성화된 모든 페이지에 추가되어야 합니다.
+
+```js wrap
+<script>
+
+function jsdOnload(){
+  window.cloudflare.jsd.executeOnce(
+    {
+      callback: function(result){
+        console.log('jsd outcome', result);
+    }
+  );
+}
+</script>
+<script src="/cdn-cgi/challenge-platform/scripts/jsd/api.js?onload=jsdOnload" async>
+```
+
+:::참조
+`result` = `success`또는`error`단지 JavaScript 탐지의 실행을 나타냅니다. 방문자가 인간 또는 봇인지 여부를 나타내지 않습니다.
+주요 특징
+
+## 관련 기사
+
+JavaScript는 특정 봇 점수를 보장하지 않습니다.
+
+- JavaScript가 주사 또는 실행이 실패한 경우`cf.bot_management.js_detection.passed` = `false`, 분리된 Bot 관리 heuristic는 아직도 산출할 수 있습니다`1`또는 더 높은 봇 점수, 독립적 인 JavaScript 탐지.
+- JavaScript Detections 패스가면 최종 봇 점수가 여전히 될 수 있습니다.`1`다른 검출 heuristics (예를 들면, 알려진 악의적인 IP, 서명 탐지 및 더 많은 것)로 인해, 결과적으로`js_detection.passed` = `true`, 하지만`score` = `1`.
+
+## 제한 사항
+
+### 2020년 6월 이전에 봇 관리 활성화
+
+2020년 6월 이전에 Enterprise Bot Management를 활성화한 고객은 기본적으로 활성화된 JavaScript 탐지가 없습니다. 이 고객은 여전히 'Cloudflare 대시보드'의 기능을 활성화 할 수 있습니다.
+
+### 웹 사이트에 첫 번째 요청이라면
+
+웹 사이트 또는 응용 프로그램에 새로운 클라이언트의 첫 번째 요청은 일반적으로 'JavaScript' 탐지 데이터가 없습니다 (`cf.bot_management.js_detection.passed` = `false`). 이것은 "Cloudflare"가 "JavaScript\` 탐지를 주사하기 전에 적어도 하나의 HTML 요청을 필요로하기 때문에`cf_clearance`사이트 맵
+
+자주 묻는 질문`cf_clearance`JavaScript가 성공적으로 실행되면,
+
+### 콘텐츠 보안 정책 (CSP)이 있는 경우
+
+<Render file="content-security-policy-limitation" product="bots" />
+
+### 당신은 ETags가있는 경우
+
+JavaScript Detections (JSD)를 제거하면 스트립[기타](/cache/reference/etag-headers/)JSD가 주사되는 HTML 응답에서.

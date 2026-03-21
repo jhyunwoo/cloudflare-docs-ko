@@ -1,0 +1,197 @@
+---
+pcx_content_type: how-to
+title: 오오타
+tags:
+  - Okta
+  - SCIM
+description: Cloudflare One의 ID 공급자로 Okta를 통합합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/okta/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/okta/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Okta는 회사가 현대 애플리케이션에 사용자 인증을 관리하고 보안하는 데 도움이되는 클라우드 소프트웨어를 제공하며 개발자가 애플리케이션, 웹 사이트 서비스 및 장치로 ID 제어를 구축하는 데 도움이됩니다. Cloudflare One과 Okta를 통합하고 사용자 정체성과 그룹 회원을 기반으로 하는 규칙을 구축할 수 있습니다. 사이트맵 OIDC (과태) 또는[사이트맵](/cloudflare-one/integrations/identity-providers/okta-saml/)프로토콜.
+
+또한 Cloudflare One의 위험 정보를 사용할 수 있는 Okta를 구성할 수 있습니다.[사용자 위험 점수](/cloudflare-one/team-and-resources/users/risk-score/)SSO 수준 정책을 만들 수 있습니다. 더 많은 정보를 원하시면, 참조[Okta에 위험 점수를 보냅니다](/cloudflare-one/team-and-resources/users/risk-score/#send-risk-score-to-okta).
+
+## 자주 묻는 질문
+
+- ·[사이트맵 회사연혁](/cloudflare-one/setup/)구독 계층과 함께 (무료 포함)
+- ·[사이트맵 One 관리자 역할](/cloudflare-one/roles-permissions/)이름 \*`Access Edit`이름 \*
+
+## 지원된 특징
+
+- **SP 개시 SSO**: 사용자가 액세스 응용 프로그램에 갈 때 Access는 Okta와 로그인하는 것을 리디렉션합니다.
+- **SCIM 제공**: Okta 그룹을 동기화하고 자동으로 사용자 정의. SCIM은 현재 별도의[사용자 정의 OIDC 응용](#synchronize-users-and-groups).
+
+## OIDC 공급자로 Okta 설정 (Okta App Catalog)
+
+:::note\[액티브 디렉토리 제한]
+Okta App Catalog 템플릿은 동기화하지 않습니다.[Active Directory 그룹](https://help.okta.com/en-us/Content/Topics/Directory/ad-agent-import-groups.htm). AD 그룹을 사용하여 정책을 구축하려면 Okta를 사용하십시오.[OIDC 앱 통합](#set-up-okta-as-an-oidc-provider-custom-app-integration)또는[SAML 앱 통합](/cloudflare-one/integrations/identity-providers/okta-saml/).
+:::
+
+Okta Integration Network (OIN) 앱 카탈로그를 사용하여 Okta 통합을 설정하려면:
+
+1. Okta admin 대시보드에 로그인하십시오.
+
+2. 오시는 길**이름 \*** > **이름 \***.
+
+3. 제품정보**앱 카탈로그**.
+
+4. 관련 기사`Cloudflare`그리고 선택**사이트맵 한국어**앱.
+
+5. 제품정보**통합 추가**.
+
+6. 내 계정**적용 라벨**, 응용 프로그램에 대한 이름을 입력 (예를 들어,`Cloudflare Access`).
+
+7. 내 계정**팀 도메인**, 당신의 Cloudflare Zero Trust 팀 이름을 입력하십시오 (subdomain 접두사만, 포함하지 마십시오`.cloudflareaccess.com`):
+
+   ```txt
+   <your-team-name>
+   ```
+
+   <Render file="find-team-name" product="cloudflare-one" />
+
+8. 내 계정**이름 \***&#xD0ED;, 복사**고객 ID**·**고객 비밀**그리고 이것에 붙여넣기`App ID`·`Client secret`.
+
+9. Okta 계정 URL 복사 ( 없이)`-admin`값) Cloudflare Okta 설정 필드에 복사합니다.
+
+## OIDC 공급자로 Okta 설정 (Custom App Integration)
+
+1. Okta admin 대시보드에 로그인하여 이동**이름 \*** > **이름 \***.
+
+2. 제품정보**App 통합 만들기**.
+
+3. 제품정보**로그인 방법**, 선택**OIDC - OpenID 연결**.
+
+   ![Okta의 OIDC 응용 프로그램 만들기](~/assets/images/cloudflare-one/identity/okta/okta-1.png)
+
+4. 제품정보**신청 유형**, 선택**웹 신청**. 선택**이름 \***.
+
+5. 신청에 대한 이름 입력. 내 계정**로그인 URI**필드, 다음 URL을 입력:
+
+   ```txt
+   https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+   ```
+
+   <Render file="find-team-name" product="cloudflare-one" />
+
+6. 자주 묻는 질문**회사연혁**옵션 및 선택**제품 정보**.
+
+7. 응용 프로그램보기에서, 이동**이름 \***&#xD0ED;.
+
+8. 기타 제품**토큰 청구**선택하기**Legacy 구성 보기** > **제품정보**.
+
+   ![Okta의 그룹 청구 필터 구성](~/assets/images/cloudflare-one/identity/okta/okta-2.png)
+
+9. 설치하기**그룹 클레임 필터**으로*경기 regex*그리고 그것의 가치`.*`.
+
+:::note\[토큰 클레이식]
+
+- Okta 밖에 관리 된 그룹 (예 : Microsoft Entra ID 또는 Google 그룹)은 다른 regex 값을 요구합니다. 자세한 내용은 Okta 문서 참조[그룹 클레임](https://support.okta.com/help/s/article/Why-isnt-my-Groups-claim-returning-Active-Directory-groups)·[OpenID 연결 계정](https://support.okta.com/help/s/article/Can-we-retrieve-both-Active-Directory-and-Okta-groups-in-OpenID-Connect-claims).
+- 더 복잡한 표현을 구성하려면 Okta의 참조[토큰 청구서](https://help.okta.com/okta_help.htm?type=oie\&locale=en\&id=federated-claims-overview).
+  :::
+
+10. 내 계정**주요사업**탭, 복사**고객 ID**·**고객 비밀**.
+
+    ![Okta에서 클라이언트 자격 찾기](~/assets/images/cloudflare-one/identity/okta/okta-3.png)
+
+<Render file="access/okta-zt-steps" product="cloudflare-one" />
+
+## 사용자 및 그룹 동기화
+
+Okta 통합은 IdP 그룹을 동기화하고 자동으로 사용자를 설정할 수 있습니다.[사이트맵](/cloudflare-one/team-and-resources/users/scim/). Access와 Okta 사이의 SCIM 규정을 활성화하려면 Okta에 두 개의 별도의 앱 통합이 필요합니다.
+
+- OIDC 응용 프로그램을 사용하면 Okta를 정체 공급자로 추가 할 수 있습니다. 이 응용 프로그램을 만들 수 있습니다.[Okta 앱 카탈로그](#set-up-okta-as-an-oidc-provider-okta-app-catalog)또는 를 통해[사용자 정의 앱 통합](#set-up-okta-as-an-oidc-provider-custom-app-integration).
+- 유형의 두 번째 Okta 응용**SCIM 2.0 테스트 앱 (Header Auth)**. 이것은 기술적으로 SAML 앱이지만 SCIM을 통해 사용자 및 그룹 정보를 전송하는 책임입니다.
+
+:::참조
+만약 하나의 Okta 앱 인스턴스만 유지한다면, Okta는 동일한 애플리케이션 내에서 SAML과 SCIM을 지원합니다. 이름 \*[SAML 통합](/cloudflare-one/integrations/identity-providers/generic-saml/)그 값을 설정한다.**이름 \***&#xB2F9;신의 Okta SCIM 신청의 분야.
+주요 특징
+
+### 1. Cloudflare에 있는 가능하게 하는 SCIM 한국어
+
+<Render file="access/enable-scim-on-dashboard" product="cloudflare-one" params={{ idp: "Okta" }} />
+
+### 2. Okta에 있는 SCIM 형성
+
+1. 당신의 Okta admin 대시보드에, 가다**이름 \*** > **이름 \***.
+
+2. 제품정보**앱 카탈로그**.
+
+3. 관련 기사`SCIM Header Auth`선택하기**SCIM 2.0 테스트 앱 (Header Auth)**.
+
+4. 제품정보**통합 추가**.
+
+5. 에 의해**일반 설정**탭, 응용 프로그램 이름 및 선택**이름 \***.
+
+6. 에 의해**로그인 옵션**탭, 그**삼성 2.0**선택 사항
+
+7. 이름 \***Credential 세부사항**, 세트**사용자 이름 형식**으로*Okta 사용자 이름*또는*이름 \**. 이 가치는 SCIM를 위해 사용될 것입니다`userName`이름 \*
+   :::참조
+   더 보기`userName`속성은 Cloudflare One의 사용자 이메일 주소를 일치해야합니다.
+   주요 특징
+
+8. 제품정보**이름 \***&#xD1B5;합을 만들려면.
+
+9. 에 의해**회사연혁**탭, 선택**API 통합 구성**.
+
+10. 제품정보**Enable API 통합**.
+
+11. 내 계정**기본 URL**필드, 입력**SCIM 엔드포인트**Cloudflare에서 획득 한국어
+
+12. 내 계정**API 토큰**필드, 입력**SCIM 비밀**Cloudflare에서 획득 한국어
+
+    ![SCIM 값을 Okta로 입력](~/assets/images/cloudflare-one/identity/okta/enter-scim-values.png)
+
+13. 제품정보**API Credentials 테스트**자격 증명이 올바르게 입력되었는지 확인합니다. 제품정보**제품 정보**.
+
+14. 에 의해**회사연혁**탭, 선택**제품정보**그리고 활성화:
+
+    - **사용자 정의**
+    - **업데이트 User Attributes**
+    - **사용자를 비활성화**
+
+    ![Okta의 프로비저닝 설정](~/assets/images/cloudflare-one/identity/okta/enable-provisioning.png)
+
+15. 내 계정**회사연혁**탭, Cloudflare 액세스와 동기화하려는 사용자를 추가합니다. 그룹을 지정하여 일괄 처리에서 사용자를 추가할 수 있습니다. 사용자가 직접 사용자 할당을 통해 응용 프로그램 할당에서 제거하거나 응용 프로그램에 할당 된 그룹에서 제거하면 Okta에서 Cloudflare로 디 프로비저닝 이벤트를 트리거합니다.
+
+16. 내 계정**푸시 그룹**탭, Cloudflare Access와 동기화하려는 Okta 그룹을 추가합니다. 이 그룹은 액세스 정책 빌더에 표시되며 Okta의 회원 변경에 추가되고 제거 될 그룹 멤버십입니다.
+
+    :::참조
+    이 SCIM 앱 푸시 그룹 통합 그룹은 기본 그룹과 일치해야 합니다.[OIDC 앱 통합](/cloudflare-one/integrations/identity-providers/okta/#set-up-okta-as-an-oidc-provider). SCIM 그룹 회원 업데이트가 사용자의 정체성에 어떤 그룹을 덮기 때문에 각 앱에 동일한 그룹을 할당하는 것은 일관된 정책 평가를 보장합니다.
+    주요 특징
+
+통합을 확인하려면, 선택**공지사항**Okta SCIM 응용 프로그램에서.
+
+<Render file="access/verify-scim-provisioning" product="cloudflare-one" />
+
+## API 구성 보기
+
+```json
+{
+	"config": {
+		"client_id": "<your client id>",
+		"client_secret": "<your client secret>",
+		"okta_account": "https://dev-abc123.oktapreview.com"
+	},
+	"type": "okta",
+	"name": "my example idp"
+}
+```
+
+## 문제 해결
+
+### 정체성의 사용자/그룹 정보를 fetch
+
+오류를 볼 경우`Failed to fetch user/group information from the identity`, 두 배 체크 당신의 Okta 윤곽:
+
+- 만약 100개 이상의 Okta 그룹이 있는 경우 API 토큰을 포함해야 합니다.
+- 요청에 의해 차단 될 수있다[ThreatInsights 기능](https://help.okta.com/en/prod/Content/Topics/Security/threat-insight/ti-index.htm)Okta 안에.

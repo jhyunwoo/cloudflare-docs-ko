@@ -1,0 +1,98 @@
+---
+title: 소유권 문제 FAQ
+pcx_content_type: concept
+sidebar:
+  order: 9
+head:
+  - tag: title
+    content: Logpush 소유권 도전
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/logpush-ownership-challenge/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/logpush-ownership-challenge/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+소유권 도전은 Cloudflare가 로그를 밀어하기 전에 목적지 물통에 액세스하는 것을 증명하는 한 번 검증입니다. 이 메커니즘은 실수로 데이터를 버킷으로 밀어주는 Logpush 작업을 구성하여 제어하지 않습니다.
+
+## 어떻게 작동합니까?
+
+보관 대상에 Logpush 작업을 만들 때 Cloudflare는 해당 목적지의 소유권을 증명해야 합니다.
+
+1. 당신은 당신의 소유권 도전을 요청`destination_conf`.
+2. Cloudflare는 JWT를`ownership-challenge.txt`당신의 물통에 있는 파일.
+3. 버킷에서 토큰을 읽고 작업 작성 요청으로 제출하십시오.
+4. Cloudflare는 토큰을 검증하고 작업을 만듭니다.
+
+Step-by-step 지시를 위해, 참고하십시오[cURL로 Logpush 관리](/logs/logpush/examples/example-logpush-curl/).
+
+## 어떤 도전은에 대한 보호
+
+소유권 도전은 주로 사고의 잘못 구성에서 당신을 보호합니다. 이 검증없이, 당신은 실수로 작업을 구성 할 수 있습니다. 예를 들어, 다른 사람이 실제로 소유 한 물통에 밀어.
+
+도전은 또한 누군가가 할 수있는 악성 시나리오를 방지 :
+
+- 다른 고객의 물통에 Logpush 일을 점
+- 푸시 bogus 또는 악성 로그 데이터 그 버킷
+- 피해자의 로그 저장
+
+:::참조
+당신은 지형을 통해 스크립트에 특이하고 어렵기 때문에 소유권 도전을 찾을 수 있습니다. 그러나, 그것은 비용으로 실수를 방지 할 수있다.
+주요 특징
+
+## 도전 토큰 구조
+
+소유권은 JSON Web Token (JWT)입니다. 토큰은 다음을 포함합니다:
+
+- **개체 유형**- 작업이 영역-경로, 계정-경로, 또는 tenant-경로
+- **오브젝트 ID**- 특정 영역 또는 계정 식별자
+- **여행 계획**- 전체 목적지 구성 문자열
+- **대상 지문**- 버킷 이름과 경로/prefixes의 해시
+- **회사연혁**- 토큰은 7일 후에 만료됩니다.
+
+도전 토큰을 제출할 때, Cloudflare는 모든 청구가 작업 생성 요청과 일치하도록 검증됩니다. 이것은 다른 계정, 영역, 또는 목적지에 재사용되는 토큰을 방지합니다.
+
+## 보안 고려사항
+
+### 손상된 토큰이 악화 될 수 있습니까?
+
+실습에서 타협 소유권 도전 토큰을 사용하는 공격은 매우 다를 수 있습니다. 공격자는 필요합니다 :
+
+1. Cloudflare 계정에 액세스 ( 토큰의 객체 ID와 일치)
+2. 정확한 양동이 이름과 경로/prefixes (지상 지문과 일치하기 위하여)의 지식
+3. 7 일 이내에 행동하기 (문제가 만료됨)
+
+당신의 물통의 IAM/access 통제 및 Cloudflare 계정 안전은 소유권 도전 토큰이 아닌 1 차적인 안전 층입니다.
+
+### 좋은 관행
+
+- **작업 작성 후 도전 파일 삭제**- Logpush 작업이 생성되면 안전하게 삭제할 수 있습니다.`ownership-challenge.txt`당신의 물통에서 파일.
+- **제한 버킷 권한**- Grant는 Cloudflare의 서비스 계정에만 액세스합니다. AWS S3의 보조금`PutObject`이름 \*`arn:aws:iam::391854517948:user/cloudflare-logpush`. GCS의 경우, 보조금`Storage Object Admin`으로`logpush@cloudflare-data.iam.gserviceaccount.com`.
+- **Logpush 작업을 모니터링**- 사용[Logpush 건강 대시보드s](/logs/logpush/logpush-health/)작업 상태를 모니터링하고 anomalies를 감지합니다.
+
+## 어떤 목적지가 소유권 도전을 필요로 합니까?
+
+| 여행 정보            | 자주 묻는 질문                   |
+| ---------------- | -------------------------- |
+| 사이트맵             | 예 (또는 액세스 키 / secret 키 사용) |
+| Google 클라우드 스토리지 | 이름 \*                      |
+| Azure Blob 스토리지  | 이름 \*                      |
+| 스모 로직            | 이름 \*                      |
+| S3-compatible 저장 | 이름 \*                      |
+| HTTP 엔드포인트       | 이름 \*                      |
+| 데이터 독            | 이름 \*                      |
+| 스플리크             | 이름 \*                      |
+| 새로운 Relic        | 이름 \*                      |
+
+소유권 도전을 요구하지 않는 대상을 위해 Cloudflare는 API 키 또는 토큰과 같은 대안 인증 방법을 사용합니다.
+
+## 관련 자료
+
+- [API 구성](/logs/logpush/logpush-job/api-configuration/)
+- [cURL로 Logpush 관리](/logs/logpush/examples/example-logpush-curl/)
+- [Logpush 권한](/logs/logpush/permissions/)
+- [AWS S3 대상](/logs/logpush/logpush-job/enable-destinations/aws-s3/)
+- [GCS 대상](/logs/logpush/logpush-job/enable-destinations/google-cloud-storage/)

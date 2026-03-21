@@ -1,0 +1,118 @@
+---
+title: 지역 uploads
+pcx_content_type: concept
+sidebar:
+  order: 8
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/local-uploads/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/local-uploads/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, DashButton, R2LocalUploadsDiagram } from "~/components";
+
+버킷에 로컬 업로드를 활성화하여 클라이언트가 버킷보다 다른 지역에서 데이터를 업로드 할 때 업로드 요청의 성능을 향상시킬 수 있습니다. Local Uploads writes object data to the near location, 그때 비동기적으로 귀하의 물통에 복사. 데이터는 즉시 사용할 수 있으며 강력하게 유지됩니다.
+
+## 어떻게 작동합니까?
+
+다음 섹션은 R2가 로컬 업로드 없이 업로드 요청을 처리하는 방법을 설명합니다.
+
+### 로컬 업로드 없이
+
+클라이언트가 R2 버킷에 객체를 업로드하면 클라이언트에서 버킷의 저장 인프라로 이동해야합니다. 이 행동은 당신의 클라이언트가 물통 보다는 다른 지역에 있는 때 더 높은 지연 및 더 낮은 신뢰성에서 유래할 수 있습니다. 더 알아보기[R2는 어떻게 작동합니까?](/r2/how-r2-works/)상세 정보
+
+### 로컬 업로드
+
+업로드 요청을 할 때 (i.e.`PutObject`·`UploadPart`) Local Uploads 활성화를 가진 물통에, 취급되는 2개의 케이스가 있습니다:
+
+- **동일한 지역에 있는 클라이언트와 물통:**&#x52;2는 클라이언트가 물통의 저장 인프라에 업로드한 오브젝트 데이터가 정상 업로드 흐름을 따릅니다.
+- **다른 지역에 있는 클라이언트와 물통:**&#x4F;bject data는 클라이언트 근처의 저장에 쓰여져 버킷에 비동기적으로 복제됩니다. 객체는 즉시 접근 가능하고 공정 중에 내구성 유지됩니다.
+
+<R2LocalUploadsDiagram />
+
+## 로컬 업로드를 사용할 때
+
+로컬 업로드는 다른 지리적 지역에서 시작된 많은 업로드를 수신하는 워크로드에 내장되어 있습니다. 이 기능은 때 이상적입니다:
+
+- 사용자들은 글로벌 배포
+- 성능 및 신뢰성을 업로드하면 애플리케이션에 중요합니다.
+- 버킷의 기본 위치를 변경하지 않고 쓰기 성능을 최적화하고 싶습니다.
+
+귀하의 읽기 및 쓰기 요청이 시작되는 지리적 분포를 이해하려면:
+
+1. Cloudflare dashboardXQ에 로그인하고 R2 개요로 이동합니다.
+
+   <DashButton url="/?to=/:account/r2/overview" />
+
+2. 당신의 물통을 선택하십시오.
+
+3. 제품정보**미터**그리고 보기**자주 묻는 질문**차트.
+
+### 대기 상황
+
+로컬 업로드가 활성화되면 업로드 된 데이터는 복제 완료하기 전에 클라이언트 근처에 일시적으로 의존 할 수 있습니다.
+
+작업 부하가 쓰기 후 즉시 읽기를 필요로한다면, 읽는 요청이 시작되는지 고려하십시오. 로더의 지역에서 읽기가 빠릅니다. 버킷의 지역 근처에서 읽기가 완료 될 때까지 Cross-region 대기 시간을 경험할 수 있습니다.
+
+### 관할구역
+
+로컬 업로드는 버킷을 지원하지 않습니다.[관할 구역](/r2/reference/data-location/#jurisdictional-restrictions), 그것은 일시적으로 양동이의 지역 밖에서 위치를 통해 데이터를 routing.
+
+## 로컬 업로드 가능
+
+로컬 업로드를 활성화하면 기존의 업로드는 트래픽에 대한 중단없이 예상됩니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    1. Cloudflare dashboard에 로그인하고 R2XQ 개요로 이동합니다.
+
+       <DashButton url="/?to=/:account/r2/overview" />
+
+    2. 당신의 물통을 선택하십시오.
+
+    3. 제품정보**계정 설정**.
+
+    4. 이름 \***지역 업로드**, 선택**이름 \***.
+  </TabItem>
+
+  <TabItem label="Wrangler">
+    다음 명령을 실행:
+
+    ```sh
+    npx wrangler r2 bucket local-uploads enable <BUCKET_NAME>
+    ```
+  </TabItem>
+</Tabs>
+
+## 로컬 업로드 가능
+
+언제든지 로컬 업로드를 비활성화 할 수 있습니다. 로컬 업로드로 만든 기존 요청은 트래픽을 중단하지 않고 복제를 완료합니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    1. Cloudflare dashboard에 로그인하고 R2XQ 개요로 이동합니다.
+
+       <DashButton url="/?to=/:account/r2/overview" />
+
+    2. 당신의 물통을 선택하십시오.
+
+    3. 제품정보**계정 설정**.
+
+    4. 이름 \***지역 업로드**, 선택**사용 방법**.
+  </TabItem>
+
+  <TabItem label="Wrangler">
+    다음 명령을 실행:
+
+    ```sh
+    npx wrangler r2 bucket local-uploads disable <BUCKET_NAME>
+    ```
+  </TabItem>
+</Tabs>
+
+## 가격 책정
+
+있습니다.**추가 비용**로컬 업로드를 가능하게 합니다. 이 기능으로 만든 업로드 요청은 표준을 입력[Class A 운영 비용](/r2/pricing/), 로컬 업로드없이 만든 업로드 요청과 동일.

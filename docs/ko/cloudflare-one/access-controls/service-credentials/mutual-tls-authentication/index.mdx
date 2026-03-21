@@ -1,0 +1,368 @@
+---
+pcx_content_type: how-to
+title: 상호 TLS
+tags:
+  - mTLS
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/mutual-tls-authentication/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/service-credentials/mutual-tls-authentication/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { AvailableNotifications, Render, Example } from "~/components";
+
+[Mutual TLS (mTLS) 인증](https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/)이 트래픽은 클라이언트와 서버 사이의 두 방향에서 안전하고 신뢰할 수 있습니다. IoT 기기와 같은 정체성 공급자 (IoT 기기와 같은)로 로그인하지 않는 요청을 통해 주어진 리소스에 도달 할 수 있습니다. 클라이언트 인증서 인증은 ID 공급자 (IdP)로 로그인하고 유효한 클라이언트 인증서를 제시하는 팀 구성원을위한 두 번째 계층의 보안입니다.
+
+루트 인증 기관 (CA) 장소로, 액세스는 해당 클라이언트 인증서와 장치에서 요청할 수 있습니다. 요청이 응용 프로그램에 도달 할 때, 액세스는 클라이언트의 요청에 응답하여 인증서를 제시합니다. 장치가 인증서를 제시하지 못하면 요청은 진행할 수 없습니다. 클라이언트가 인증서를 가지고 있다면, 액세스는 확인하기 위해 키 교환을 완료합니다.
+
+![mTLS 핸디크 다이어그램](~/assets/images/cloudflare-one/identity/devices/mtls.png)
+
+:::카ution\[중요]
+
+mTLS 인증서는 클라이언트 인증서를 확인하는 데만 사용됩니다. SSL 인증서를 통제하지 않습니다.[서버 hello](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/).
+
+:::
+
+## mTLS 인증
+
+### 자주 묻는 질문
+
+- 이름 \*[오시는 길](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)mTLS로 안전한 호스트명을 위해.
+- 귀하의 장치에 대한 클라이언트 인증서를 발급하는 CA.
+  <Render file="byo-ca-mtls-cert-requirements" product="ssl" />
+
+### mTLS를 Access 애플리케이션에 추가
+
+<Render file="access/add-mtls-cert" product="cloudflare-one" params={{ product: "access" }} />
+
+5. 내 계정**회사명**, 이 인증서를 사용할 것이다 완전히 자격이 된 도메인 이름 (FQDN)를 입력하십시오.
+
+   이 FQDNs는 자원에 보호를 위해 사용되는 hostnames 일 것입니다[오시는 길](/cloudflare-one/access-controls/policies/). 당신은 FQDN를 가진 뿌리 캘리포니아를 보호한 용도인 보호한 용도인 연관해야 합니다.
+
+6. 자주 묻는 질문
+
+7. 오시는 길**액세스 제어** > **회사연혁**.
+
+8. [액세스 정책 만들기](/cloudflare-one/access-controls/policies/policy-management/#create-a-policy)다음 중 하나를 사용하여[회사 소개](/cloudflare-one/access-controls/policies/#selectors):
+   - **유효한 증명서**: 루트 CA에 인증 할 수있는 모든 클라이언트 인증서는 진행할 수 있습니다.
+   - **이름 \***: 특정 일반적인 이름의 클라이언트 인증서만 진행할 수 있습니다.
+
+9. IdP를 통해 로그인할 필요가 없는 클라이언트의 경우, 정책 설&#xC815;**- 연혁**으로*서비스 Auth*.
+
+   <Example>
+     **mTLS 정책**
+
+     | - 연혁     | 규칙 유형 | 옵션 정보 | 제품정보       |
+     | -------- | ----- | ----- | ---------- |
+     | 서비스 Auth | 이름 \* | 이름 \* | `John Doe` |
+   </Example>
+
+10. 정책을 저장 한 다음 이동**액세스 제어** > **이름 \***.
+
+11. 응용 프로그램을 선택하면 mTLS를 실행하고 선택**설정하기**. 신청은 포함되어야 합니다**회사명**단계 5에서 목록
+
+12. 내 계정**회사연혁**탭, mTLS 정책을 추가합니다.
+
+13. 신청 저장.
+
+이제 클라이언트 인증서를 사용하여 응용 프로그램에 인증 할 수 있습니다. 클라이언트 인증서를 제시하는 방법에 대한 지침, 참조[시험 mTLS](#test-mtls).
+
+## 시험 mTLS
+
+### cURL 사용 테스트
+
+mTLS 정책에 의해 보호 된 응용 프로그램을 테스트하려면 :
+
+1. 첫째, 클라이언트 인증서없이 사이트를 컬하려고합니다.
+   이 컬 명령 예제는 사이트입니다.`example.com`그것은[액세스 신청 및 정책](#add-mtls-to-your-access-application)설정하기`https://auth.example.com`:
+
+   ```sh
+   curl -sv https://auth.example.com
+   ```
+
+   클라이언트 인증서 없이 요청에, a`403 forbidden`응답 표시 및 사이트에 액세스 할 수 없습니다.
+
+2. 이제 클라이언트 인증서와 키 추가 요청:
+
+   ```sh
+   curl -sv https://auth.example.com --cert example.pem --key key.pem
+   ```
+
+인증 프로세스가 성공적으로 완료되면,`CF_Authorization Set-Cookie`header는 응답에 반환합니다.
+
+:::카트로션
+
+사이트맵 게이트웨이는 mTLS-protected 도메인에 트래픽을 검사할 수 없습니다. 장치가 WARP 클라이언트가 켜지고 게이트웨이를 통해 HTTP 요청을 통과하면 액세스가 차단됩니다.[bypass HTTP 검사](/cloudflare-one/traffic-policies/http-policies/#do-not-inspect)도메인에 대한.
+주요 특징
+
+### 브라우저에서 테스트
+
+브라우저에서 mTLS-protected 응용 프로그램에 액세스하려면 클라이언트 인증서는 브라우저의 인증서 관리자로 가져야합니다. 브라우저에 따라 다를 수 있습니다. 브라우저는 운영 체제의 루트 저장소 또는 자체 내부 신뢰 저장소를 사용할 수 있습니다.
+
+다음 예제는 macOS 시스템 키 체인에 클라이언트 인증서를 추가하는 방법을 보여줍니다.
+
+:::카ution\[중요]
+
+명령은 사용자의 장치에 신뢰할 수있는 저장소에 클라이언트 인증서를 추가합니다. 이 테스트 인증서를 안전하게 보관할 경우만 진행합니다.
+주요 특징
+
+1. 클라이언트 인증서 및 키 포함 디렉토리에 Navigate.
+   <Render file="keychain-access" product="cloudflare-one" params={{ cert: "client.pem" }} />
+
+브라우저가 macOS 시스템 저장소를 사용하여 브라우저를 통해 mTLS 애플리케이션에 연결할 수 있습니다.
+
+## mTLS 인증서 생성
+
+Cloudflare Access의 mTLS 기능을 테스트하기 위해 인증서를 생성하는 오픈 소스 개인 키 인프라 (PKI) 도구를 사용할 수 있습니다.
+
+### 열린SSL
+
+이 단면도는 사용법을 포함합니다[열린SSL](https://www.openssl.org/)루트 및 중간 인증서를 생성하고 CA 체인에 대해 인증 할 수있는 클라이언트 인증서를 발급합니다.
+
+#### 루트 CA 생성
+
+1. 루트 CA 개인 키를 생성:
+
+   ```sh
+    openssl genrsa -aes256 -out rootCA.key 4096
+   ```
+
+   비밀번호를 입력해 주세요.`rootCA.key`.
+
+2. 자체 서명 된 루트 인증서 만들기`rootCA.pem`:
+
+   ```sh
+   openssl req -x509 -new -nodes -key rootCA.key -sha256 -days 3650 -out rootCA.pem
+   ```
+
+   개인 키 암호를 입력하고 몇 가지 옵션 필드에 채울 수 있습니다. 테스트 목적을 위해, 당신은 선택적인 분야 공백을 떠날 수 있습니다.
+
+#### 중간 인증서 생성
+
+1. 중간 CA 개인 키를 생성 :
+
+   ```sh
+    openssl genrsa -aes256 -out intermediate.key 4096
+   ```
+
+   비밀번호를 입력해 주세요.`intermediate.key`.
+
+2. 인증서 서명 요청 (CSR)를 중간 인증서에 생성합니다.
+
+   ```sh
+   openssl req -new -sha256 -key intermediate.key -out intermediate.csr
+   ```
+
+   개인 키 암호를 입력하고 몇 가지 옵션 필드에 채울 수 있습니다. 테스트 목적을 위해, 당신은 선택적인 분야 공백을 떠날 수 있습니다.
+
+3. CA Extension 파일 만들기`v3_intermediate_ca.ext`. 예를 들면,
+
+   ```txt
+   subjectKeyIdentifier = hash
+   authorityKeyIdentifier = keyid:always,issuer
+   basicConstraints = critical, CA:true
+   keyUsage = critical, cRLSign, keyCertSign
+   ```
+
+   견적 요청`basicConstraints`다음을 포함합니다`CA:true`호텔 위치 이 속성은 중간 인증서가 CA 및 서명 클라이언트 인증서 역할을 할 수 있습니다.
+
+4. 루트 CA와 중간 인증서를 서명:
+
+   ```sh
+    openssl x509 -req -in intermediate.csr -CA rootCA.pem -CAkey rootCA.key -CAcreateserial -out intermediate.pem -days 1825 -sha256 -extfile v3_intermediate_ca.ext
+   ```
+
+#### CA chain 파일 만들기
+
+1. 중간 및 루트 인증서를 단일 파일에 결합:
+
+   ```sh
+   cat intermediate.pem rootCA.pem > ca-chain.pem
+   ```
+
+   중간 인증서는 파일의 상단에 있어야하며 서명 인증서에 따라야합니다.
+
+2. 본문 바로가기`ca-chain.pem`Cloudflare 액세스. 자주 묻는 질문[mTLS를 Access 애플리케이션에 추가](#add-mtls-to-your-access-application).
+
+#### 클라이언트 인증서 생성
+
+1. 클라이언트의 개인 키를 생성:
+
+   ```sh
+    openssl genrsa -out client.key 2048
+   ```
+
+2. 클라이언트 인증서의 CSR 만들기:
+
+   ```sh
+   openssl req -new -key client.key -out client.csr
+   ```
+
+   일부 선택 필드에 채울 수 있습니다. 시험 목적을 위해, 당신은 놓을 수 있습니다**이름 \***&#xAC19;은 것`John Doe`.
+
+3. 중간 인증서를 가진 클라이언트 인증서를 서명하십시오:
+
+   ```sh
+    openssl x509 -req -in client.csr -CA intermediate.pem -CAkey intermediate.key -CAcreateserial -out client.pem -days 365 -sha256
+   ```
+
+4. 인증서 체인에 대한 클라이언트 인증서를 검증 :
+
+   ```sh
+   openssl verify -CAfile ca-chain.pem client.pem
+   ```
+
+   ```sh output
+   client.pem: OK
+   ```
+
+이제 클라이언트 인증서를 사용할 수 있습니다 (`client.pem`)와 그것의 열쇠 (`client.key`)에[시험 mTLS](#test-mtls).
+
+### Cloudflare 피키
+
+이 가이드 사용[Cloudflare의 PKI 툴킷](https://github.com/cloudflare/cfssl)JSON 파일에서 root CA 및 클라이언트 인증서를 생성합니다.
+
+#### 1. 의존성 설치
+
+이 과정은 Cloudflare의 PKI 툴킷에서 두 가지 패키지를 요구합니다.
+
+- `cf-ssl`
+- `cfssljson`
+
+이 패키지를 설치할 수 있습니다.[Cloudflare SSL GitHub 저장소](https://github.com/cloudflare/cfssl). Go, 버전 1.12 이상의 작업 설치가 필요합니다. 대안으로, 당신은 할 수 있습니다[패키지 다운로드](https://github.com/cloudflare/cfssl)직접.
+툴킷을 설치하기 위해 설치에서 지침을 사용하며 툴킷의 모든 유틸리티 프로그램을 설치합니다.
+
+#### 2. 루트 CA 생성
+
+1. 루트 CA를 저장하는 새로운 디렉토리를 만듭니다.
+
+2. 그 디렉토리 내에서 두 개의 새로운 파일을 만듭니다:
+   - **경영이념**. 파일 생성`ca-csr.json`다음 JSON blob를 추가하고 파일을 저장합니다.
+
+     ```json
+     {
+     	"CN": "Access Testing CA",
+     	"key": {
+     		"algo": "rsa",
+     		"size": 4096
+     	},
+     	"names": [
+     		{
+     			"C": "US",
+     			"L": "Austin",
+     			"O": "Access Testing",
+     			"OU": "TX",
+     			"ST": "Texas"
+     		}
+     	]
+     }
+     ```
+
+   - **config 설정**. 파일 생성`ca-config.json`다음 JSON blob를 추가하고 파일을 저장합니다.
+
+     ```json
+     {
+     	"signing": {
+     		"default": {
+     			"expiry": "8760h"
+     		},
+     		"profiles": {
+     			"server": {
+     				"usages": ["signing", "key encipherment", "server auth"],
+     				"expiry": "8760h"
+     			},
+     			"client": {
+     				"usages": ["signing", "key encipherment", "client auth"],
+     				"expiry": "8760h"
+     			}
+     		}
+     	}
+     }
+     ```
+
+3. 이제 다음 명령을 실행하여 루트 CA를 생성한다.
+
+   ```sh
+   cfssl gencert -initca ca-csr.json | cfssljson -bare ca
+   ```
+
+4. 명령은 루트 인증서를 출력합니다 (`ca.pem`)와 그것의 열쇠 (`ca-key.pem`).
+
+   ```sh
+   ls
+   ```
+
+   ```sh output
+   ca-config.json ca-csr.json ca-key.pem ca.csr  ca.pem
+   ```
+
+5. 본문 바로가기`ca.pem`Cloudflare 액세스. 자주 묻는 질문[mTLS를 Access 애플리케이션에 추가](#add-mtls-to-your-access-application).
+
+#### 3. 클라이언트 인증서 생성
+
+업로드 루트 CA에 대해 인증되는 클라이언트 인증서를 생성하려면:
+
+1. 파일 생성`client-csr.json`그리고 다음 JSON blob를 추가:
+
+   ```json
+   {
+   	"CN": "James Royal",
+   	"hosts": [""],
+   	"key": {
+   		"algo": "rsa",
+   		"size": 4096
+   	},
+   	"names": [
+   		{
+   			"C": "US",
+   			"L": "Austin",
+   			"O": "Access",
+   			"OU": "Access Admins",
+   			"ST": "Texas"
+   		}
+   	]
+   }
+   ```
+
+2. 이제 다음 명령을 사용하여 Cloudflare PKI 툴킷으로 클라이언트 인증서를 생성하십시오.
+
+   ```sh
+   cfssl gencert -ca=ca.pem -ca-key=ca-key.pem  -config=ca-config.json -profile=client client-csr.json | cfssljson -bare client
+   ```
+
+명령은 클라이언트 인증서 파일을 출력합니다 (`client.pem`)와 그것의 열쇠 (`client-key.pem`). 이제이 파일을 사용할 수 있습니다.[시험 mTLS](#test-mtls).
+
+#### 인증서 재직 목록 만들기
+
+Cloudflare PKI 툴킷을 사용하여 인증서 재직 목록 (CRL)을 생성 할 수 있습니다. 이 목록은 개정된 클라이언트 인증서를 포함합니다.
+
+1. 클라이언트 인증서에서 일련 번호를 먼저 가져옵니다. 텍스트 파일에 hex 형식에서 수정하려는 다른 사람의 일련 번호를 추가하십시오. 이 예제는 지정된 파일을 사용합니다.`serials.txt`.
+
+2. 다음 명령으로 CRL을 만듭니다.
+
+   ```sh
+   cfssl gencrl serials.txt ../mtls-test/ca.pem ../mtls-test/ca-key.pem | base64 -D > ca.crl
+   ```
+
+서버로 CRL을 추가하거나 Cloudflare Worker에서 재직을 시행해야 합니다. example Worker Script를 찾을 수 있습니다.[Cloudflare GitHub 저장소](https://github.com/cloudflare/access-crl-worker-template).
+
+<Render file="forward-client-certificate" product="ssl" />
+
+## Known 제한
+
+mTLS는 현재 작동하지 않습니다:
+
+- Cloudflare Pages 사이트 제공[사용자 정의 도메인](/pages/configuration/custom-domains/)
+- Cloudflare R2 공중 물통은 안으로 봉사했습니다[사용자 정의 도메인](/r2/buckets/public-buckets/#connect-a-bucket-to-a-custom-domain)
+
+## 상호 TLS 인증서 알림
+
+Cloudflare는 다음을 보낼 것입니다[공지사항](/notifications/)상호 TLS 인증서가 만료되기 전에:
+
+<AvailableNotifications product="SSL/TLS" notificationFilter="Access mTLS Certificate Expiration Alert" />

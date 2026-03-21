@@ -1,0 +1,46 @@
+---
+pcx_content_type: reference
+title: 검증 및 키
+sidebar:
+  order: 8
+---
+
+Cloudflare DNSSEC에 적용되는 몇 가지 기술 개념의 개요는 아래 섹션을 참고하세요. DNSSEC 전반에 대한 더 넓은 내용은 [DNSSEC 동작 방식](https://www.cloudflare.com/dns/dnssec/how-dnssec-works/)을 참고하세요.
+
+## 신뢰 체인
+
+DNSSEC 검증은 루트 DNS 서버에서 사용자 영역까지 이어지는 신뢰 체인을 따릅니다.
+
+1. 리졸버가 부모 레지스트리(예: `.com`)에 DS 레코드를 질의합니다.
+2. DS 레코드에는 Key Signing Key(KSK)의 해시가 포함됩니다.
+3. 리졸버는 모든 Zone Signing Key(ZSK)가 바로 그 KSK에 의해 서명되기를 기대합니다.
+4. Cloudflare가 다른 KSK를 사용하면, 리졸버가 Cloudflare 네임서버를 질의할 때 검증이 실패합니다.
+
+이 때문에 Cloudflare로 마이그레이션할 때 기존 DS 레코드를 그대로 유지할 수 없습니다. 암호학적 신뢰 체인은 다음 중 하나를 요구합니다.
+
+- 마이그레이션 전에 [DNSSEC를 비활성화](/dns/dnssec/)했다가 Cloudflare에서 다시 활성화하기
+- 공급자 간 키를 조정하기 위해 [multi-signer DNSSEC](/dns/dnssec/multi-signer-dnssec/about/) 방식을 사용하기
+
+---
+
+## 자동 DS 레코드 업데이트
+
+DNSSEC를 활성화하면 Cloudflare는 자동으로 **CDS**(Child Delegation Signer) 및 **CDNSKEY**(Child DNSKEY) 레코드를 영역에 게시합니다. 이 레코드들은 도메인과 최상위 도메인 레지스트리 사이의 신뢰 체인 관리를 자동화합니다.
+
+| 레코드 | 목적 | 내용 |
+| --- | --- | --- |
+| **CDS** | 상위 수준 지시 | 공개 키의 해시 버전(DS 레코드와 동일한 데이터) |
+| **CDNSKEY** | 공개 키 지시 | 부모가 자체 DS 레코드를 생성할 수 있도록 하는 전체 공개 KSK |
+
+[RFC 8078](https://www.rfc-editor.org/rfc/rfc8078.html)을 지원하는 등록기관은 주기적으로 도메인에서 이 레코드들을 스캔하고 레지스트리 수준의 DS 레코드를 자동으로 업데이트합니다. 이로써 수동 DS 레코드 관리가 불필요해지고 키 롤오버도 매끄럽게 처리됩니다.
+
+:::note
+모든 등록기관이 CDS/CDNSKEY 자동 스캔을 지원하는 것은 아닙니다. 등록기관이 RFC 8078을 지원하지 않는다면 DS 레코드를 직접 추가해야 합니다.
+:::
+
+---
+
+## DNSKEY 플래그
+
+- **ZSK(Zone Signing Keys)**: 플래그 `256`
+- **KSK(Key Signing Keys)**: 플래그 `257`

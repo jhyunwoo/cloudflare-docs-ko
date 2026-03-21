@@ -1,0 +1,70 @@
+---
+title: 스노우레이크
+pcx_content_type: example
+reviewed: 2025-04-09T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/config-examples/snowflake/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/data-catalog/config-examples/snowflake/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+아래는 사용 예제입니다.[스노우레이크](https://docs.snowflake.com/en/user-guide/tables-iceberg-configure-catalog-integration-rest)QXQX0352XQ 데이터 카탈로그 (읽기 전용)에서 데이터를 연결하고 쿼리합니다.
+
+## 자주 묻는 질문
+
+- 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+- [R2 버킷 만들기](/r2/buckets/create-buckets/)·[데이터 카탈로그](/r2/data-catalog/manage-catalogs/#enable-r2-data-catalog-on-a-bucket).
+- [R2 API 토큰 생성](/r2/api/tokens/)둘 다[R2 및 데이터 카탈로그 권한](/r2/api/tokens/#permissions).
+- ·[스노우레이크](https://www.snowflake.com/)외부 볼륨 및 카탈로그 통합을 만드는 데 필요한 권한이있는 계정.
+
+## 예제 사용
+
+당신의 Snowflake에[SQL 워크 시트](https://docs.snowflake.com/en/user-guide/ui-snowsight-worksheets-gs)또는[공유하기](https://docs.snowflake.com/en/user-guide/ui-snowsight/notebooks), 다음 명령을 실행:
+
+```sql
+-- Create a database (if you don't already have one) to organize your external data
+CREATE DATABASE IF NOT EXISTS r2_example_db;
+
+-- Create an external volume pointing to your R2 bucket
+CREATE OR REPLACE EXTERNAL VOLUME ext_vol_r2
+    STORAGE_LOCATIONS = (
+        (
+            NAME = 'my_r2_storage_location'
+            STORAGE_PROVIDER = 'S3COMPAT'
+            STORAGE_BASE_URL = 's3compat://<bucket-name>'
+            CREDENTIALS = (
+                AWS_KEY_ID = '<access_key>'
+                AWS_SECRET_KEY = '<secret_access_key>'
+            )
+            STORAGE_ENDPOINT = '<account_id>.r2.cloudflarestorage.com'
+        )
+    )
+    ALLOW_WRITES = FALSE;
+
+-- Create a catalog integration for R2 Data Catalog (read-only)
+CREATE OR REPLACE CATALOG INTEGRATION r2_data_catalog
+    CATALOG_SOURCE = ICEBERG_REST
+    TABLE_FORMAT = ICEBERG
+    CATALOG_NAMESPACE = 'default'
+    REST_CONFIG = (
+        CATALOG_URI = '<catalog_uri>'
+        CATALOG_NAME = '<warehouse_name>'
+    )
+    REST_AUTHENTICATION = (
+        TYPE = BEARER
+        BEARER_TOKEN = '<token>'
+    )
+    ENABLED = TRUE;
+
+-- Create an Apache Iceberg table in your selected Snowflake database
+CREATE ICEBERG TABLE my_iceberg_table
+    CATALOG = 'r2_data_catalog'
+    EXTERNAL_VOLUME = 'ext_vol_r2'
+    CATALOG_TABLE_NAME = 'my_table';  -- Name of existing table in your R2 data catalog
+
+-- Query your Iceberg table
+SELECT * FROM my_iceberg_table;
+```

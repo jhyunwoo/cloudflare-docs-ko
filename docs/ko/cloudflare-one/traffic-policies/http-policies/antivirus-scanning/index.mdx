@@ -1,0 +1,128 @@
+---
+pcx_content_type: concept
+title: AV 스캐닝
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/antivirus-scanning/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/antivirus-scanning/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Details } from "~/components";
+
+모델 번호: Cloudflare Gateway는 사용자가 인터넷을 검색합니다. 사용자가 인터넷의 근원에 파일을 다운로드하거나 업로드 할 때, 그 파일은 잠재적으로 악의적인 코드를 포함 할 수 있습니다 악의적인 행동을 수행하기 위해 장치. 이것을 방지하기 위해, Cloudflare Gateway는 사용자가 게이트웨이를 통해 파일 패스로 업로드 또는 다운로드 한 파일의 안티 바이러스 (AV) 스캔을 할 수 있습니다.
+
+파일 스캔 외에도 Gateway는 사용자가 다운로드 한대로 quarantine 파일을 만들 수 있습니다. Quarantining 파일은 안티 바이러스 데이터베이스에서 사용할 수없는 제로 일 취약점에서 조직을 보호합니다. 더 많은 정보를 원하시면, 참조[파일 sandboxing](/cloudflare-one/traffic-policies/http-policies/file-sandboxing/).
+
+## 모델 번호: 시작하기
+
+AV 스캐닝을 켜기:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **교통 설정**.
+2. 내 계정**정책 설정**, 켜기**악성 코드 스캔 파일**.
+3. 업로드, 다운로드, 또는 둘 중 악성 페이로드에 대한 파일을 스캔하는지 여부를 선택하십시오. 또한 포함 된 요청을 차단할 수 있습니다.[non-scannable 파일](#non-scannable-files).
+4. (선택) 켜기**WARP 클라이언트를 위한 전시 AV 구획 통보**관련 기사[블록 알림](#warp-client-block-notifications)WARP 클라이언트와 게이트웨이에 연결되는 사용자에게 AV 검사가 파일을 차단할 때.
+
+요청이 악성 코드의 존재로 인해 차단되면 게이트웨이는 블록 결정을 내립니다.[HTTP 로그](/cloudflare-one/insights/logs/gateway-logs/#http-logs).
+
+### WARP 클라이언트 구획 통보
+
+<Render file="gateway/client-notifications" product="cloudflare-one" params={{ toggleName: "**Display AV block notification for WARP Client**" }} />
+
+## 파일 검사 기준
+
+AV 스캔이 켜지면 Gateway는 요청 또는 응답에 존재 여부를 결정하기 위해 다음과 같은 기준을 사용하며 그 파일을 스캔 할 수 있습니다. 첫 번째 경기는 스캔 된 파일에서 발생합니다.
+
+- 만약에`Content-Disposition`HTTP 헤더는`Attachment`
+- 요청의 몸의 바이트 서명이 서명 게이트웨이가 다음 파일 유형 범주 중 하나로 식별하는 경우:
+  - **실행하기**(예:`.exe`, `.bat`, `.dll`·`.wasm`)
+  - **회사연혁**(예:`.doc`, `.docx`, `.pdf`, `.ppt`·`.xls`)
+  - **제품 정보**(예:`.7z`, `.gz`, `.zip`·`.rar`)
+- 파일명이 있는 경우`Content-Disposition`헤더는 위의 파일 유형 범주 중 하나임을 나타내는 파일 확장을 포함합니다.
+
+위의 조건 중 하나가 스캔 한 파일을 트리거하면 게이트웨이는 기원을 사용합니다.`Content-Type`파일을 스캔하지 않거나 결정하는 헤더. 또한 Gateway는 이미지, 비디오 또는 오디오 파일로 파일을 스캔하지 않습니다.
+
+위의 세 가지 방법을 기반으로 스캔을 트리거하지 않는 경우, 또한 스캔에서 면제 될 표준과 일치하지 않습니다, 게이트웨이는 기본적으로 악성 코드에 대한 파일을 검색합니다.
+
+## Opt content 아웃 서 스캐닝
+
+관리자가 업로드 및 / 또는 다운로드에 대한 AV 스캐닝을 켜면 게이트웨이는 지원되는 파일을 스캔합니다. 관리자는 선택적으로 HTTP 정책을 사용하여 스캔을 비활성화 할 수 있습니다. 모든 것[HTTP 선택기](/cloudflare-one/traffic-policies/http-policies/#selectors)AV 스캐닝에서 HTTP 트래픽을 선택할 수 있습니다.**스캔하지 마십시오**활동. 트래픽은 스캔 정책이 아닙니다. 파일 크기와 관계없이 스캔되지 않습니다. 또는 파일 유형이 지원되지 않습니다. 예를 들어 AV 스캔을 방지하기 위해 업로드된 파일 또는 다운로드`example.com`, 다음 정책을 만들 수 있습니다:
+
+| 옵션 정보 | 회사연혁     | 제품정보          | - 연혁      |
+| ----- | -------- | ------------- | --------- |
+| 이름 \* | 경기 regex | `example.com` | 스캔하지 마십시오 |
+
+AV 스캔에서 옵팅은 파일 업로드 및 / 또는 다운로드에 적용되며 계정의 글로벌 AV 스캐닝 설정을 일치시킵니다. 예를 들어, 게이트웨이를 글로벌 스캔으로 구성하면 AV 스캔을 선택하면 업로드에만 적용됩니다.
+
+## 지원하다
+
+### 압축 파일 형식 지원
+
+PDF와 같은 표준 객체 파일 외에도 Zero Trust는 다음과 같은 아카이브 유형의 AV 스캐닝을 지원합니다.
+
+<Details header="압축 파일 형식 지원">
+  - 7-지프
+  - 7-지프 SFX
+  - ACE 소개
+  - 에이스 SFX
+  - 자동 핫키
+  - 자동그것은
+  - 자료64
+  - 사이트맵
+  - CHM 도움말 파일
+  - CPIO의 SVR4
+  - Chrome 연장 (CRX) 포장 체재
+  - eXtensible ARchive 형식 (XAR)
+  - GZIP 압축 파일
+  - ISO 9660 인증
+  - 숙박 플랜
+  - Indigo 로즈 설치 공장
+  - Java 정보
+  - 사이트맵
+  - MacBinary는
+  - MIME 기초64
+  - 사이트맵
+  - 마이크로 소프트 CAB
+  - 마이크로 소프트 TNEF
+  - NSIS Nullsoft 설치 프로그램
+  - Office 레거시 XML
+  - PGP 서명 메시지, 문서, 기타.
+  - 회전 속도
+  - 사이트맵
+  - SAP자동차
+  - 자체 추출 ARJ
+  - 자동 추출 CA
+  - 자체 추출 LZH / LHA
+  - 자동 추출 RAR
+  - 셀프 추출 ZIP
+  - 스마트 설치 메이커
+  - 사이트맵
+  - UUE 및 XXE 압축 파일
+  - Windows Imaging 파일 (WIM)
+  - XE 압축 파일 (UUE 및 XXE)
+  - XZ 파일 형식
+  - 사이트맵
+  - 사이트맵
+</Details>
+
+Gateway는 스캔할 수 없습니다.[특정 아카이브 파일](#non-scannable-files)대용량 또는 암호화 파일과 같은 파일 유형에 관계없이.
+
+### Non-scannable 파일
+
+Gateway는 모든 파일을 맬웨어로 스캔할 수 없습니다. 게이트웨이가 비 허용되지 않는 파일에 직면 할 때, 당신은 열려있을 때 AV 스캐닝을 구성 할 수 있습니다 (무제한을 통해 통과 할 파일) 또는 닫히지 않는 (파일 전송을 거부).
+
+Gateway는 다음과 같은 파일을 포함하는 요청을 스캔 할 수 없습니다.
+
+- 더 큰 파일 :
+  - 무료 계획 15 MB
+  - Pay-as-you-go 계획에서 25 MB
+  - 기업 계획에 100 MB
+- PGP 암호화 파일
+- 비밀번호 보호 아카이브
+- 3개 이상의 반복 레벨을 가진 기록 보관소
+- 300개 이상의 파일이 있는 아카이브

@@ -1,0 +1,363 @@
+---
+reviewed: 2024-02-08T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: DeepSeek Coder Models를 사용하여 코드 생성을 탐색하십시오.
+tags:
+  - AI
+  - Python
+sidebar:
+  order: 4
+head: []
+description: AI 모델을 사용하여 코드를 생성하고 더 효율적으로 작업할 수 있는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/explore-code-generation-using-deepseek-coder-models/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/guides/tutorials/explore-code-generation-using-deepseek-coder-models/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { YouTube } from "~/components"
+
+모든 모델을 탐색하는 편리한 방법[모델 번호: Workers AI](/workers-ai)이용하기[Jupyter 노트북](https://jupyter.org/).
+
+당신은 할 수[DeepSeek Coder 노트북 다운로드](/workers-ai/static/documentation/notebooks/deepseek-coder-exploration.ipynb)아래의 임베디드 노트북을 볼 수 있습니다.
+
+<YouTube id="SHIiB0CIADE" />
+
+[comment]: <> "The markdown below is auto-generated from https://github.com/craigsdennis/notebooks-cloudflare-workers-ai"
+
+***
+
+## DeepSeek Coder를 이용한 코드 생성
+
+AI Models는 코드가 모든 종류의 사용 사례를 잠금 해제 할 수 있도록합니다. 더 보기[DeepSeek 코더](https://github.com/deepseek-ai/DeepSeek-Coder)모델 번호:`@hf/thebloke/deepseek-coder-6.7b-base-awq`·`@hf/thebloke/deepseek-coder-6.7b-instruct-awq`현재 이용 가능[모델 번호: Workers AI](/workers-ai).
+
+API를 사용하여 살펴보자!
+
+```python
+import sys
+!{sys.executable} -m pip install requests python-dotenv
+```
+
+```
+Requirement already satisfied: requests in ./venv/lib/python3.12/site-packages (2.31.0)
+Requirement already satisfied: python-dotenv in ./venv/lib/python3.12/site-packages (1.0.1)
+Requirement already satisfied: charset-normalizer<4,>=2 in ./venv/lib/python3.12/site-packages (from requests) (3.3.2)
+Requirement already satisfied: idna<4,>=2.5 in ./venv/lib/python3.12/site-packages (from requests) (3.6)
+Requirement already satisfied: urllib3<3,>=1.21.1 in ./venv/lib/python3.12/site-packages (from requests) (2.1.0)
+Requirement already satisfied: certifi>=2017.4.17 in ./venv/lib/python3.12/site-packages (from requests) (2023.11.17)
+```
+
+```python
+import os
+from getpass import getpass
+
+from IPython.display import display, Image, Markdown, Audio
+
+import requests
+```
+
+```python
+%load_ext dotenv
+%dotenv
+```
+
+### 환경 설정
+
+API를 사용하려면[모델 번호: Cloudflare 계정 ID](https://dash.cloudflare.com)Workers & Pages > 개요 > 계정 세부 사항 > 계정 ID) 및[Workers AI 활성화 API 토큰](https://dash.cloudflare.com/profile/api-tokens).
+
+이 파일을 환경에 추가하려면 새 파일을 만들 수 있습니다.`.env`
+
+```bash
+CLOUDFLARE_API_TOKEN="YOUR-TOKEN"
+CLOUDFLARE_ACCOUNT_ID="YOUR-ACCOUNT-ID"
+```
+
+```python
+if "CLOUDFLARE_API_TOKEN" in os.environ:
+    api_token = os.environ["CLOUDFLARE_API_TOKEN"]
+else:
+    api_token = getpass("Enter you Cloudflare API Token")
+```
+
+```python
+if "CLOUDFLARE_ACCOUNT_ID" in os.environ:
+    account_id = os.environ["CLOUDFLARE_ACCOUNT_ID"]
+else:
+    account_id = getpass("Enter your account id")
+```
+
+### 코멘트에서 코드를 생성
+
+일반적인 사용 사례는 사용자가 descriptive 코멘트를 제공 한 후 코드를 완료하는 것입니다.
+
+````python
+model = "@hf/thebloke/deepseek-coder-6.7b-base-awq"
+
+prompt = "# A function that checks if a given word is a palindrome"
+
+response = requests.post(
+    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+    headers={"Authorization": f"Bearer {api_token}"},
+    json={"messages": [
+        {"role": "user", "content": prompt}
+    ]}
+)
+inference = response.json()
+code = inference["result"]["response"]
+
+display(Markdown(f"""
+    ```python
+    {prompt}
+    {code.strip()}
+````
+
+"""))
+
+````
+
+```python
+# A function that checks if a given word is a palindrome
+def is_palindrome(word):
+    # Convert the word to lowercase
+    word = word.lower()
+
+    # Reverse the word
+    reversed_word = word[::-1]
+
+    # Check if the reversed word is the same as the original word
+    if word == reversed_word:
+        return True
+    else:
+        return False
+
+# Test the function
+print(is_palindrome("racecar"))  # Output: True
+print(is_palindrome("hello"))    # Output: False
+````
+
+### debugging에 대하여
+
+우리는 모든 것이, 버그가 발생했습니다. 때때로 그 stacktraces는 아주 intimidating 일 수 있고, Code Generation을 사용하는 중대한 사용 케이스는 문제를 설명하는 것을 원조하기 위한 것입니다.
+
+```python
+model = "@hf/thebloke/deepseek-coder-6.7b-instruct-awq"
+
+system_message = "The user is going to give you code that isn't working. Explain to the user what might be wrong"
+
+code = """# Welcomes our user
+def hello_world(first_name="World"):
+    print(f"Hello, {name}!")
+"""
+
+response = requests.post(
+    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+    headers={"Authorization": f"Bearer {api_token}"},
+    json={"messages": [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": code},
+    ]}
+)
+inference = response.json()
+response = inference["result"]["response"]
+display(Markdown(response))
+```
+
+코드의 오류는 변수를 사용하려고합니다.`name`어떤 기능을 정의하지 않습니다. 사용의 올바른 변수는`first_name`. 따라서, 당신은 변화해야 합니다`f"Hello, {name}!"`으로`f"Hello, {first_name}!"`.
+
+다음은 올바른 코드입니다:
+
+```python
+#우리의 사용자 환영
+def hello_world(first_name="World"):
+    print(f"Hello, {first_name}")
+```
+
+지금 전화할 때`hello_world()`기본적으로 "Hello, World"를 인쇄합니다. 전화 번호`hello_world("John")`, 그것은 "Hello, 존".
+
+### 시험 쓰기!
+
+쓰기 단위 시험은 일반적인 제일 연습입니다. 충분한 상황에 따라 단위 테스트를 작성할 수 있습니다.
+
+```python
+model = "@hf/thebloke/deepseek-coder-6.7b-instruct-awq"
+
+system_message = "The user is going to give you code and would like to have tests written in the Python unittest module."
+
+code = """
+class User:
+
+    def __init__(self, first_name, last_name=None):
+        self.first_name = first_name
+        self.last_name = last_name
+        if last_name is None:
+            self.last_name = "Mc" + self.first_name
+
+    def full_name(self):
+        return self.first_name + " " + self.last_name
+"""
+
+response = requests.post(
+    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+    headers={"Authorization": f"Bearer {api_token}"},
+    json={"messages": [
+        {"role": "system", "content": system_message},
+        {"role": "user", "content": code},
+    ]}
+)
+inference = response.json()
+response = inference["result"]["response"]
+display(Markdown(response))
+```
+
+다음은 사용자 클래스에 대한 간단한 테스트 케이스입니다:
+
+```python
+import unittest
+
+class TestUser(unittest.TestCase):
+
+    def test_full_name(self):
+        user = User("John", "Doe")
+        self.assertEqual(user.full_name(), "John Doe")
+
+    def test_default_last_name(self):
+        user = User("Jane")
+        self.assertEqual(user.full_name(), "Jane McJane")
+
+if __name__ == '__main__':
+    unittest.main()
+```
+
+이 시험 경우에, 우리는 2개의 시험이 있습니다:
+
+- `test_full_name`테스트`full_name`사용자가 첫 번째 이름과 마지막 이름 모두 있는 경우 방법.
+- `test_default_last_name`테스트`full_name`사용자가 첫 번째 이름을 가지고 있고 마지막 이름은 "Mc" + 첫 번째 이름으로 설정됩니다.
+
+이러한 모든 테스트가 통과되면, 즉,`full_name`방법은 예상대로 일합니다. 이러한 테스트가 실패하면
+
+### Fill-in-the-middle Code 보상
+
+Developer Tools의 일반적인 사용 사례는 상황에 따라 자동 완성됩니다. DeepSeek Coder는 placeholder로 기존 코드를 제출할 수있는 기능을 제공합니다. 모델은 컨텍스트에서 완료 할 수 있습니다.
+
+경고: 토큰은 prefixed`<｜`과 suffixed 와`｜>`복사하고 붙여 넣으십시오.
+
+````python
+model = "@hf/thebloke/deepseek-coder-6.7b-base-awq"
+
+code = """
+<｜fim▁begin｜>import re
+
+from jklol import email_service
+
+def send_email(email_address, body):
+    <｜fim▁hole｜>
+    if not is_valid_email:
+        raise InvalidEmailAddress(email_address)
+    return email_service.send(email_address, body)<｜fim▁end｜>
+"""
+
+response = requests.post(
+    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+    headers={"Authorization": f"Bearer {api_token}"},
+    json={"messages": [
+        {"role": "user", "content": code}
+    ]}
+)
+inference = response.json()
+response = inference["result"]["response"]
+display(Markdown(f"""
+    ```python
+    {response.strip()}
+````
+
+"""))
+
+````
+
+```python
+is_valid_email = re.match(r"[^@]+@[^@]+\.[^@]+", email_address)
+````
+
+### Experimental: JSON으로 데이터 추출
+
+모형을 위협하거나 grandma를 신속하게 가져올 필요가 없습니다. 원하는 형식으로 JSON을 다시 가져옵니다.
+
+````python
+model = "@hf/thebloke/deepseek-coder-6.7b-instruct-awq"
+
+#더 알아보기 https://json-schema.org/
+json_schema = """
+{
+  "title": "User",
+  "description": "A user from our example app",
+  "type": "object",
+  "properties": {
+    "firstName": {
+      "description": "The user's first name",
+      "type": "string"
+    },
+    "lastName": {
+      "description": "The user's last name",
+      "type": "string"
+    },
+    "numKids": {
+      "description": "Amount of children the user has currently",
+      "type": "integer"
+    },
+    "interests": {
+      "description": "A list of what the user has shown interest in",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+  },
+  "required": [ "firstName" ]
+}
+"""
+
+system_prompt = f"""
+The user is going to discuss themselves and you should create a JSON object from their description to match the json schema below.
+
+<BEGIN JSON SCHEMA>
+{json_schema}
+<END JSON SCHEMA>
+
+Return JSON only. Do not explain or provide usage examples.
+"""
+
+prompt = """Hey there, I'm Craig Dennis and I'm a Developer Educator at Cloudflare. My email is craig@cloudflare.com.
+            I am very interested in AI. I've got two kids. I love tacos, burritos, and all things Cloudflare"""
+
+response = requests.post(
+    f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model}",
+    headers={"Authorization": f"Bearer {api_token}"},
+    json={"messages": [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": prompt}
+    ]}
+)
+inference = response.json()
+response = inference["result"]["response"]
+display(Markdown(f"""
+    ```json
+    {response.strip()}
+````
+
+"""))
+
+````
+
+```json
+{
+  "firstName": "Craig",
+  "lastName": "Dennis",
+  "numKids": 2,
+  "interests": ["AI", "Cloudflare", "Tacos", "Burritos"]
+}
+````

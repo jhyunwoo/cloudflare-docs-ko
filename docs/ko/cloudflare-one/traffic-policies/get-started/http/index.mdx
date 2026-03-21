@@ -1,0 +1,59 @@
+---
+title: HTTP 필터링
+pcx_content_type: how-to
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: HTTP 필터링 설정
+learning_center:
+  title: URL 필터링이란? | 웹 필터링
+  link: 'https://www.cloudflare.com/learning/access-management/what-is-url-filtering/'
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/get-started/http/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/get-started/http/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+Secure Web Gateway는 웹 사이트 사용자가 방문 할 수있는 HTTP 트래픽 및 제어를 검사 할 수 있습니다. DNS 필터링만 차단하거나 전체 도메인 허용(예를 들어, 모두`dropbox.com`). HTTP 필터링은 더 깊습니다 — 그것은 가득 차있는 URL 및 요구 내용을 검열합니다, 그래서 당신은 같은 특정 페이지를 막을 수 있습니다`dropbox.com/shared-folder`, 민감한 데이터에 대한 스캔 파일 업로드, 또는 사용자가 실제로 사이트를하는 것을 기반으로 허용 가능한 사용 정책을 시행.
+
+:::참조
+HTTP 요청 및 조직에 대한 다른 트래픽을 필터링하는 자세한 가이드를 위해, 참조[인터넷 트래픽 및 SaaS 앱 보안](/learning-paths/secure-internet-traffic/concepts/)구현 가이드.
+주요 특징
+
+## 1. Gateway에 연결
+
+HTTP 필터링은 Cloudflare를 통해 WARP 클라이언트 경로 장치 트래픽을 함께 작업하는 세 가지 구성 요소가 필요합니다. 루트 인증서는 게이트웨이가 HTTPS 트래픽을 해독하므로 URL과 내용을 검사 할 수 있으며 게이트웨이 프록시는 게이트웨이를 사용하여 HTTP 요청을 방해하고 평가합니다. 인증서없이 Gateway는 도메인 이름 만 볼 수 있습니다 - 전체 URL 또는 요청 신체.
+
+장치에서 HTTP 요청을 필터링하려면:
+
+1. [Cloudflare 루트 인증서 설치](/cloudflare-one/team-and-resources/devices/user-side-certificates/)당신의 장치에.
+2. [WARP 클라이언트 설치](/cloudflare-one/team-and-resources/devices/warp/deployment/)당신의 장치에.
+3. WARP 클라이언트 설정에서 조직의 로그인<GlossaryTooltip term="team name">모델 번호: Cloudflare 1개의 인스턴스</GlossaryTooltip>.
+4. [Gateway 프록시 활성화](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy)TCP를 위해. 선택적으로, UDP 프록시를 활성화하여 포트 443에 QUIC 트래픽을 검사합니다. - 이것은 HTTP / 3, 새로운 프로토콜을 기본적으로 사용하는 브라우저입니다.
+5. HTTPS 트래픽을 검사하려면,[TLS 해독 활성화](/cloudflare-one/traffic-policies/http-policies/tls-decryption/#turn-on-tls-decryption). TLS 해독은 Gateway가 암호화 된 요청을 읽을 수 있습니다. 그것 없이, Gateway는 사용자가 방문한 것을 볼 수 있습니다`example.com`그러나 특정 페이지 또는 업로드 된 것.
+6. (선택) 맬웨어에 대한 파일 업로드 및 다운로드를 스캔하려면,[안티 바이러스 스캐닝](/cloudflare-one/traffic-policies/http-policies/antivirus-scanning/).
+
+## 2. 장치 연결 검증
+
+장치를 확인하려면 Cloudflare에 연결됩니다 하나와 교통은 게이트웨이를 통해 흐르는:
+
+<Render file="gateway/verify-connectivity" product="cloudflare-one" params={{ one: "HTTP", two: "requests" }} />
+
+다음 단계에 첫 번째 HTTP 정책을 작성하면 정책이 차단되고 요청이 거부되는 URL을 방문하여 테스트 할 수 있습니다.
+
+## 3. 첫 번째 HTTP 정책을 작성
+
+HTTP 정책은 일치 (예를 들어, 파일 공유 사이트에 업로드) 및 행동 (예를 들어, 블록).
+
+<Render file="gateway/get-started/create-http-policy" product="cloudflare-one" />
+
+## 4. 옵션 추가 정책
+
+우리의 명부에 Refer[일반 HTTP 정책](/cloudflare-one/traffic-policies/http-policies/common-policies)다른 정책에 대해 만들 수 있습니다. 일반적인 추가는 유형에 의해 파일 다운로드 차단, 위험 웹 사이트를 고립[원격 브라우저](/cloudflare-one/remote-browser-isolation/), 그리고 TLS 해독의 밑에 끊는 신청을 위한 규칙을 검사하지 마십시오 (예를 들면, 그들의 자신의 증명서를 실행하는 증명서 핀을 사용하는 앱). 게이트웨이가 특정 목적지에 대한 해독을 건너 뛸 수 있도록, 그 응용 프로그램은 계속 작동합니다.

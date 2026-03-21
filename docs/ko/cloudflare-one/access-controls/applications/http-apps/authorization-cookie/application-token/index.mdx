@@ -1,0 +1,144 @@
+---
+pcx_content_type: reference
+title: 앱 토큰
+tags:
+  - JSON web token (JWT)
+sidebar:
+  order: 2
+description: Cloudflare에 대해 알아보기 액세스는 응용 토큰을 사용하여 원산지를 확보합니다. JWT 구조와 페이로드를 견딜 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+사이트맵 액세스는 모든 인증 된 요청으로 응용 토큰을 포함합니다. 전형적인 JWT는 다음과 같습니다 :
+
+`eyJhbGciOiJSUzI1NiIsImtpZCI6IjkzMzhhYmUxYmFmMmZlNDkyZjY0.eyJhdWQiOlsiOTdlMmFhZ TEyMDEyMWY5MDJkZjhiYzk5ZmMzNDU5MTNh.zLYsHmLEginAQUXdygQo08gLTExWNXsN4jBc6PKdB`
+
+위와 같이, JWT는 점에 의해 분리되는 3 Base64-URL 가치를 포함합니다:
+
+- [기타 제품](#header)
+- [지불로드](#payload)
+- [주요특징](#signature)
+
+응용 프로그램이 Cloudflare 터널을 통해 액세스 할 수 없습니다. 응용 프로그램은[토큰 유효성](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)당신의 근원의 안전을 지키기 위하여. 헤더의 유효성은 충분하지 않습니다 - JWT 및 서명은 ID 스푸핑을 방지하기 위해 확인되어야합니다.
+
+## 기타 제품
+
+```json
+{
+	"alg": "RS256",
+	"kid": "9338abe1baf2fe492f646a736f25afbf7b025e35c627be4f60c414d4c73069b8",
+	"typ": "JWT"
+}
+```
+
+- `alg`인코딩 알고리즘을 식별합니다.
+- `kid`토큰을 서명하는 데 사용되는 열쇠를 식별합니다.
+- `typ`토큰 형식을 지정합니다.
+
+## 지불로드
+
+Payload는 응용 프로그램에 전달하는 실제 청구 및 사용자 정보를 포함합니다. Payload 콘텐츠는 ID 공급자와 함께 응용 프로그램에 인증 여부에 따라 다릅니다.[서비스 토큰](/cloudflare-one/access-controls/service-credentials/service-tokens/).
+
+### Identity 기반 인증
+
+```json
+{
+	"aud": ["32eafc7626e974616deaf0dc3ce63d7bcbed58a2731e84d06bc3cdf1b53c4228"],
+	"email": "user@example.com",
+	"exp": 1659474457,
+	"iat": 1659474397,
+	"nbf": 1659474397,
+	"iss": "https://yourteam.cloudflareaccess.com",
+	"type": "app",
+	"identity_nonce": "6ei69kawdKzMIAPF",
+	"sub": "7335d417-61da-459d-899c-0a01c76a2f94",
+	"country": "US"
+}
+```
+
+| 제품정보   | 이름 \*                                                                                                                                                                                 |
+| ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 이름 \*  | [Application 청중 (AUD) 태그](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#get-your-aud-tag)액세스 신청의.                                      |
+| 이름 \*  | 정통 사용자의 이메일 주소, 정체 공급자에 의해 확인.                                                                                                                                                        |
+| 계정 만들기 | 토큰 (유닉스 시간)의 만료 타임스탬프.                                                                                                                                                                |
+| 뚱 베어   | 토큰을 위한 발급 타임스탬프 (유닉스 시간).                                                                                                                                                             |
+| 사이트맵   | 토큰 (유닉스 시간)의 not-before 타임스탬프는 토큰이 사용되기 전에 수신 된지 확인하는 데 사용됩니다.                                                                                                                        |
+| 이름 \*  | Cloudflare 응용 프로그램에 대한 액세스 도메인 URL.                                                                                                                                                   |
+| 제품정보   | 액세스 토큰의 유형 (Access Token)`app`신청 토큰 또는`org`글로벌 세션 토큰                                                                                                                                  |
+| 아이덴티   | 캐시 키를 사용하여[사용자의 ID](#user-identity).                                                                                                                                                  |
+| 이름 \*  | 사용자의 ID. 이 값은 계정 당 이메일 주소에 고유합니다. 사용자는 다른 것을 얻을 것이다`sub`그들은[이름 \*](/cloudflare-one/team-and-resources/users/seat-management/#remove-a-user)Zero Trust 조직에 다시 추가하거나 다른 조직으로 로그인하면 됩니다. |
+| 이름 \*  | 사용자가 정해진 나라.                                                                                                                                                                          |
+
+#### 사용자 정의 SAML 속성 및 OIDC 주장
+
+액세스는 사용자 정의 SAML 속성을 추가 할 수 있으며 OIDC는 ID 공급자가 지원 한 경우 향상된 검증을 위해 JWT에 주장합니다. 설정할 때 설정됩니다.[사이트맵](/cloudflare-one/integrations/identity-providers/generic-saml/)또는[OIDC 소개](/cloudflare-one/integrations/identity-providers/generic-oidc/)회사 소개
+
+#### 사용자 ID
+
+사용자 ID는 애플리케이션 권한 확인에 유용합니다. 예를 들어, 응용 프로그램은 주어진 사용자가 Okta 또는 Microsoft Entra ID 그룹의 구성원인지 검증할 수 있습니다.`Finance-Team`.
+
+쿠키 크기 제한 및 대역폭 고려 사항으로 인해 애플리케이션 토큰은 사용자의 정체성을 제한합니다. 사용자의 전체 정체성을 얻으려면`CF_Authorization`회사 소개`https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/get-identity`. 당신의 요구는 다음과 같이 구조되어야 합니다:
+
+```sh
+curl -H 'cookie: CF_Authorization=<user-token>' https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/get-identity
+```
+
+액세스는 다음 데이터를 포함하는 JSON 구조를 반환합니다:
+
+| 제품정보             | 이름 \*                                     |
+| ---------------- | ----------------------------------------- |
+| 이름 \*            | 사용자의 이메일 주소.                              |
+| 사이트맵             | ID 공급자의 데이터.                              |
+| 사이트맵             | 사용자가 정해진 나라.                              |
+| 사용자 uuid         | 사용자의 ID.                                  |
+| 장치Posture        | 장치 자세 특성.                                 |
+| 계정 id            | 조직의 계정 ID.                                |
+| 뚱 베어             | 사용자가 로그인 할 때 나타내는 타임스탬프.                  |
+| IP 정보            | 사용자의 IP 주소                                |
+| 주 메뉴             | mTLS로 인증된 상태.                             |
+| 공유하기             | mTLS 클라이언트 인증서의 일반적인 이름.                  |
+| 서비스 token id     | 인증에 사용되는 서비스 토큰의 클라이언트 ID.                |
+| 서비스 token status | 인증이 IdP 대신 서비스 토큰을 통해 진정한.                |
+| 사이트맵             | 사용자가 WARP를 활성화하면 true.                    |
+| is gateway는      | 사용자가 WARP를 활성화하고 Zero Trust 팀에 인증하면 true. |
+| 게이트웨이 account id | WARP 클라이언트가 Zero Trust 팀에 인증되면 ID가 생성됩니다. |
+| 사이트맵             | 인증에 사용되는 장치의 ID.                          |
+| 이름 \*            | 버전의`get-identity`객체.                      |
+| 장치 sessions      | 사용자에 의해 시작된 모든 세션의 목록.                    |
+
+### 서비스 토큰 인증
+
+```json
+{
+	"type": "app",
+	"aud": ["32eafc7626e974616deaf0dc3ce63d7bcbed58a2731e84d06bc3cdf1b53c4228"],
+	"exp": 1659474457,
+	"iss": "https://yourteam.cloudflareaccess.com",
+	"common_name": "e367826f93b8d71185e03fe518aff3b4.access",
+	"iat": 1659474397,
+	"sub": ""
+}
+```
+
+| 제품정보   | 이름 \*                                                                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 제품정보   | 액세스 토큰의 유형 (Access Token)`app`신청 토큰 또는`org`글로벌 세션 토큰                                                                                                 |
+| 이름 \*  | 더 보기[Application 청중 (AUD) 태그](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#get-your-aud-tag)액세스 신청의. |
+| 계정 만들기 | JWT (유닉스 시간)의 만료 타임스탬프.                                                                                                                              |
+| 이름 \*  | Cloudflare 응용 프로그램에 대한 액세스 도메인 URL.                                                                                                                  |
+| 공유하기   | 서비스 토큰의 클라이언트 ID (고객 ID)`CF-Access-Client-Id`).                                                                                                      |
+| 뚱 베어   | JWT (유닉스 시간)의 발급 타임스탬프.                                                                                                                              |
+| 이름 \*  | 인증이 서비스 토큰을 통해 빈 문자열을 포함합니다.                                                                                                                         |
+
+## 주요특징
+
+Cloudflare는 SHA-256 알고리즘(RS256)을 사용하여 인코딩된 헤더와 페이로드에 서명함으로써 서명을 생성합니다. RS256에서 개인 키는 JWT와 별도의 표지판[공공 키](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#access-signing-keys)서명을 지정합니다.
+
+JWTs에 대한 자세한 내용은 참조[사이트맵](https://jwt.io/).

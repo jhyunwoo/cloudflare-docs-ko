@@ -1,0 +1,45 @@
+---
+title: 재검증
+pcx_content_type: concept
+
+---
+
+## Stale-while-revalidate
+
+캐시된 자산이 만료되면 Cloudflare는 `Cache-Control`의 [`stale-while-revalidate`](/cache/concepts/cache-control/#revalidation) 지시어를 사용해, 오리진에서 새 사본을 가져오는 동안 오래된 자산을 계속 제공할 수 있는지 판단합니다. 이 지시어가 존재하고 자산이 허용된 오래됨(staleness) 기간 안에 있으면, Cloudflare는 만료된 콘텐츠를 방문자에게 제공하면서 백그라운드에서 재검증을 수행합니다. `If-Modified-Since` 및 `ETag` 같은 헤더를 사용해 Cloudflare는 콘텐츠를 전체 재가져오기 없이 검증하므로 오리진 트래픽을 줄일 수 있습니다.
+
+:::note
+비동기 `stale-while-revalidate`는 모든 Free, Pro, Business 영역에 적용되어 있습니다. Enterprise 영역은 현재 순차적으로 마이그레이션 중입니다. 이전의 동기식 동작은 [동기 재검증](#synchronous-revalidation-legacy)에서 설명합니다.
+:::
+
+<div id="asynchronous-revalidation"></div>
+
+## 비동기 재검증
+
+재검증은 완전히 비동기로 수행됩니다. 캐시된 자산이 만료되고 `stale-while-revalidate`가 설정되어 있으면, 만료 후 처음 도착한 요청이 백그라운드 재검증을 트리거합니다. 이 요청은 오리진 응답을 기다리며 블록되는 대신 곧바로 오래된 콘텐츠와 함께 [UPDATING](/cache/concepts/cache-responses/#updating) 상태를 받습니다. 뒤이어 도착하는 모든 요청도 오리진이 응답할 때까지 `UPDATING` 상태의 오래된 콘텐츠를 받습니다. 재검증이 끝나면 이후 요청은 [HIT](/cache/concepts/cache-responses/#hit) 상태의 최신 콘텐츠를 받습니다.
+
+오래된 콘텐츠가 여전히 유효하면 Cloudflare는 새 TTL을 설정합니다. 콘텐츠가 변경되었으면 오리진이 이전 버전을 대체할 새 콘텐츠를 제공합니다.
+
+<div id="synchronous-revalidation-legacy"></div>
+
+## 동기 재검증(레거시)
+
+:::note
+동기 재검증은 아직 마이그레이션되지 않은 일부 Enterprise 영역에서만 제공되는 이전 구현입니다. 그 외 모든 영역은 [비동기 재검증](#asynchronous-revalidation)을 사용합니다.
+:::
+
+동기 재검증(레거시 구현)에서는 캐시된 자산이 만료된 뒤 처음 도착한 요청이 `stale-while-revalidate` 때문에 블록됩니다. 첫 번째 요청은 오리진이 응답할 때까지 보류되며, 이후 [MISS](/cache/concepts/cache-responses/#miss) 또는 [REVALIDATED](/cache/concepts/cache-responses/#revalidated) 상태로 제공됩니다. 같은 캐시 위치에서 같은 자산에 대해 이 시간 동안 도착하는 다른 모든 요청은 [UPDATING](/cache/concepts/cache-responses/#updating) 상태의 오래된 콘텐츠를 받습니다.
+
+예를 들어 이전 구현에서 만료된 자산에 대해 1,000개의 요청이 동시에 도착하면, 하나의 요청만 오리진으로 가고 나머지 999개는 캐시의 오래된 콘텐츠로 응답합니다. 첫 번째 방문자는 오리진 왕복을 기다려야 하므로 더 높은 지연 시간을 겪습니다.
+
+반면 [비동기 재검증](#asynchronous-revalidation)에서는 1,000개의 요청 모두가 즉시 캐시에서 제공되고, 어떤 방문자도 블록되지 않습니다.
+
+## 오래된 콘텐츠 제공 동작 제어
+
+Cloudflare는 오리진이 `Cache-Control` 헤더에 `stale-while-revalidate` 지시어를 포함한 경우에만 재검증 중 오래된 콘텐츠를 제공합니다. 이 지시어가 없으면 방문자는 오리진 응답을 기다린 뒤 콘텐츠를 받습니다.
+
+오리진이 `stale-while-revalidate`를 설정했지만 이를 재정의하고 싶다면, Cache Rules의 [Serve stale content while revalidating](/cache/how-to/cache-rules/settings/#serve-stale-content-while-revalidating) 설정으로 오래된 콘텐츠 제공을 비활성화할 수 있습니다. `must-revalidate`와 `no-cache` 같은 지시어도 [Origin Cache Control](/cache/concepts/cache-control/#enable-origin-cache-control)이 활성화된 경우 오래된 콘텐츠 제공을 막습니다. 사용 가능한 모든 옵션은 [Cache-Control directives](/cache/concepts/cache-control/#cache-control-directives)를 참고하세요.
+
+## 사용자 방향 Smart revalidation
+
+오리진 서버 응답에 [`Last-Modified`](https://datatracker.ietf.org/doc/html/rfc7232?cf_history_state=%7B%22guid%22%3A%22C255D9FF78CD46CDA4F76812EA68C350%22%2C%22historyId%22%3A15%2C%22targetId%22%3A%226C8153BAEF7BC0C5A331E28F8BCF1ABA%22%7D#section-2.2)와 [`Etag`](https://datatracker.ietf.org/doc/html/rfc7232?cf_history_state=%7B%22guid%22%3A%22C255D9FF78CD46CDA4F76812EA68C350%22%2C%22historyId%22%3A13%2C%22targetId%22%3A%226C8153BAEF7BC0C5A331E28F8BCF1ABA%22%7D#section-2.3) 헤더가 모두 없으면, Smart Edge Revalidation은 객체가 Cloudflare 글로벌 네트워크에 캐시된 시각을 `Last-Modified` 헤더 값으로 사용합니다. 브라우저가 `If-Modified-Since` 또는 `If-None-Match`를 사용해 Cloudflare로 재검증 요청을 보내면, Cloudflare 글로벌 네트워크는 Smart Edge Revalidation이 생성한 `Last-Modified` 헤더를 이용해 그 재검증 요청에 응답할 수 있습니다. 이렇게 하면 오리진이 해당 헤더를 보내지 않더라도 Cloudflare 글로벌 네트워크는 효율적인 재검증을 보장할 수 있습니다.

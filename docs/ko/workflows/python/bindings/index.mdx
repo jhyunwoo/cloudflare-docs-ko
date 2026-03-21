@@ -1,0 +1,181 @@
+---
+title: 작업 흐름과 상호 작용
+pcx_content_type: concept
+sidebar:
+  order: 3
+  group:
+    hideIndex: true
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/python/bindings/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/python/bindings/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+:::caution\[Python Workflows는 beta, 뿐 아니라 underlying 플랫폼에서 입니다.]
+
+모두 추가해야 합니다.`python_workflows`·`python_workers`compatibility flags를 Wrangler config 파일에 입력하십시오.
+
+또한, Python Workflows는 요구합니다`compatibility_date = "2025-08-01"`, 또는 나중에, 당신의 Wrangler config 파일에서 설정할 수 있습니다.
+주요 특징
+
+Python Workers 플랫폼 레버리지[사이트맵](https://en.wikipedia.org/wiki/Foreign_function_interface)Cloudflare 자원에 바인딩에 접근하기 위하여. 더 알아보기[관련 제품](/workers/languages/python/ffi/#using-bindings-from-python-workers)더 많은 정보를 위한 문서.
+
+설정 관점에서 Python WorkflowsXQ를 활성화하면`python_workflows`Wrangler 구성 파일에 호환성 깃발.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "workflows-starter",
+  	"main": "src/index.py",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["python_workflows", "python_workers"],
+  	"workflows": [
+  		{
+  			//작업 흐름의 이름
+  			"name": "workflows-starter",
+  			//바인딩 이름 env.MY WORKFLOW
+  			"binding": "MY_WORKFLOW",
+  			//src/index.py에서 Workflow 클래스를 확장하는 클래스입니다.
+  			"class_name": "MyWorkflow",
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이 작업 흐름에서 payload를 사용하는 방법:
+
+```python
+from workers import WorkflowEntrypoint
+
+class DemoWorkflowClass(WorkflowEntrypoint):
+    async def run(self, event, step):
+        @step.do('step-name')
+        async def first_step():
+            payload = event["payload"]
+            return payload
+```
+
+## 작업 흐름
+
+더 보기`Workflow`바인딩은 당신에게 접근을 줍니다[작업 흐름](/workflows/build/workers-api/#workflow)수업. 모든 방법
+바인딩에.
+
+후드 아래에,`Workflow`바인딩은 Python 스크립트에 노출되는 Javascript 객체입니다.[RSS 피드](https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.JsProxy)·
+이 값은 그 메서드에 의해 반환된 값도`JsProxy`물체와 Python 객체로 다시 변환해야합니다.`python_from_rpc`.
+
+### `create`
+
+생성 (trigger) 주어진 작업 흐름의 새로운 인스턴스.
+
+- <code>생성(options=None)</code>\* `options`- 한국어**옵션 정보**주의사항
+  작업 흐름 인스턴스에 전달하는 옵션. 같은 키를 포함해야
+  [WorkflowInstanceCreate옵션](/workflows/build/workers-api/#workflowinstancecreateoptions)유형.
+
+```python
+from js import Object
+from pyodide.ffi import to_js
+from workers import WorkerEntrypoint, Response
+
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        event = {"foo": "bar"}
+        options = to_js({"params": event}, dict_converter=Object.fromEntries)
+        await self.env.MY_WORKFLOW.create(options)
+        return Response.json({"status": "success"})
+```
+
+:::참조
+
+단계에서 반환되는 값은 Javascript 객체로 변환되어야 합니다.`to_js`. 이것은 우리가 명시적으로 payload를 사용하여 건설하는 이유입니다`Object.fromEntries`.
+
+:::
+
+더 보기`create`방법 반환[`WorkflowInstance`](/workflows/build/workers-api/#workflowinstance)오브젝트, 작업 흐름 인스턴스의 상태를 쿼리하는 데 사용할 수 있습니다. 이것은 Javascript 객체이며 Python 객체가 아닙니다.
+
+### `create_batch`
+
+Create (trigger) 새로운 워크플로 인스턴스의 배치, 최대 100개의 인스턴스. 한 번에 여러 인스턴스를 만들 필요가 있다면 유용합니다.[인스턴스 생성 제한](/workflows/reference/limits/).
+
+- <code>create batch(배치)</code>\* `batch`- 목록`WorkflowInstanceCreateOptions`user-provided ID 및 페이로드 매개 변수를 포함하여 인스턴스를 만들 때 전달합니다.
+
+각 요소의`batch`목록은 둘 다를 것으로 예상됩니다.`id`·`params`특성:
+
+```python
+from pyodide.ffi import to_js
+from js import Object
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        #3 Workflow 인스턴스의 새로운 배치를 만들려면 각각 ID와 패스 파라스를 Workflow 인스턴스에 전달합니다.
+        listOfInstances = [
+            to_js({ "id": "id-abc123", "params": { "hello": "world-0" } }, dict_converter=Object.fromEntries),
+            to_js({ "id": "id-def456", "params": { "hello": "world-1" } }, dict_converter=Object.fromEntries),
+            to_js({ "id": "id-ghi789", "params": { "hello": "world-2" } }, dict_converter=Object.fromEntries)
+        ]
+        await self.env.MY_WORKFLOW.create_batch(listOfInstances)
+        return Response.json({"status": "success"})
+```
+
+### `get`
+
+ID로 워크플로우 인스턴스를 가져옵니다.
+
+- <code>태그(id)</code>\* `id`- 작업 흐름 인스턴스의 ID를 얻을 수 있습니다.
+
+구매하기[`WorkflowInstance`](/workflows/build/workers-api/#workflowinstance)오브젝트, 작업 흐름 인스턴스의 상태를 쿼리하는 데 사용할 수 있습니다.
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        instance = await self.env.MY_WORKFLOW.get("abc-123")
+
+        #WorkflowInstance에 사용할 수 있는 FFI 방법
+        await instance.status()
+        await instance.pause()
+        await instance.resume()
+        await instance.restart()
+        await instance.terminate()
+        return Response.json({"status": "success"})
+```
+
+### `send_event`
+
+작업 흐름 인스턴스에 이벤트를 보냅니다.
+
+- <code>send event(옵션)</code>\* `type`- 이벤트의 유형
+  워크플로우 인스턴스. \*`payload`- 작업 흐름 인스턴스에 전송하는 페이로드.
+
+```python
+from pyodide.ffi import to_js
+from js import Object
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        await self.env.MY_WORKFLOW.send_event(to_js({ "type": "my-event-type", "payload": { "foo": "bar" } }, dict_converter=Object.fromEntries))
+        return Response.json({"status": "success"})
+```
+
+:::참조
+
+에 전달된 값`send_event`JS 개체에 명시된 유형 번역을 요구합니다.
+
+:::
+
+## REST API (HTTP)
+
+더 알아보기[Workflows REST API 문서](/api/resources/workflows/subresources/instances/methods/create/).
+
+## 명령 선 (CLI)
+
+더 알아보기[CLI 빠른 시작](/workflows/get-started/guide/)명령행을 통해 WorkflowsXQ를 관리하고 트리거하는 방법에 대해 자세히 알아보세요.

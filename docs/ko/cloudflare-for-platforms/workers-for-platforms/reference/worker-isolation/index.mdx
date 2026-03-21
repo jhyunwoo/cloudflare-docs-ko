@@ -1,0 +1,63 @@
+---
+pcx_content_type: concept
+title: 작업자 고립
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/worker-isolation/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/worker-isolation/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+### 위탁된 형태 (과태)
+
+기본적으로 Workers는 파견 네임스페이스 내부에 "무선"으로 간주됩니다. 이것은 Workers 사이 가장 강한 고립을 제공하고 당신의 고객이 배치되는 부호에 통제하는 경우에 제일 입니다.
+
+신뢰할 수 없는 모드에서:
+
+- 더 보기[`request.cf`](/workers/runtime-apis/request/#incomingrequestcfproperties)객체는 Workers에서 사용할 수 없습니다 (see[제한 사항](/cloudflare-for-platforms/workers-for-platforms/reference/limits/#cf-object)더 많은 정보)
+- 각 노동자는 격리한 캐시가, 사용될 때[캐시 API](/workers/runtime-apis/cache/)또는 subrequest를 사용할 때`fetch()`, 를 통해 egress[Cloudflare의 캐시](/cache/)
+- [`caches.default`](/workers/reference/how-the-cache-works/#cache-api)namespace의 모든 Workers에 대한 비활성화
+
+이 형태는 고객 WorkersXQ 사이에서 완전한 고립을 지킵니다, 어떤 잠재적인 cross-tenant 자료 접근을 방지하.
+
+### 신뢰할 수있는 모드
+
+Worker 코드를 제어하고 격리 모드를 비활성화하려면 "신뢰"로 namespace를 구성할 수 있습니다. 모든 Worker 코드를 제어하는 내부 플랫폼을 구축 할 때 유용합니다.
+
+신뢰할 수있는 모드에서:
+
+- 더 보기[`request.cf`](/workers/runtime-apis/request/#incomingrequestcfproperties)object는 metadata를 요청할 수 있는 액세스를 제공합니다.
+- namespace의 모든 Workers는 Cache API를 사용할 때 동일한 캐시 공간을 공유합니다.
+
+:::참조
+신뢰할 수있는 모드에서 Workers는 다른 Workers의 캐시 된 응답에 잠재적으로 액세스 할 수 있습니다. 모든 Worker 코드를 제어하거나 적절한 캐시 키 고립 전략이 있다면 만 활성화하십시오.
+주요 특징
+
+신뢰할 수 없는 네임스페이스를 변환하려면:
+
+```bash
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/dispatch/namespaces/{namespace_name}" \
+  -H "Authorization: Bearer {api_token}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "{namespace_name}",
+    "trusted_workers": true
+  }'
+```
+
+이미 Workers를 배포 한 네임스페이스에 대한 신뢰할 수있는 모드를 활성화하면 Workers를 redeploy해야합니다.`request.cf`가능한 객체. 신뢰할 수있는 모드를 활성화 한 후 배포 한 새로운 Workers 당신은 자동으로 액세스 할 수 있습니다.
+
+### 신뢰할 수있는 모드에서 캐시 고립 유지
+
+오시는 길`request.cf`고객 간의 캐시 고립을 유지하고 싶으신가요?[캐시 키](/workers/examples/cache-using-fetch/#custom-cache-keys)또는[캐시 API](/workers/examples/cache-api/)격리된 열쇠로.
+
+## 관련 자료
+
+- [플랫폼 제한](/cloudflare-for-platforms/workers-for-platforms/reference/limits)- 스크립트 및 API 제한 이해
+- [Cache API 문서](/workers/runtime-apis/cache/)- Workers에서 캐시 행동에 대해 알아보기
+- [요청 cf 객체](/workers/runtime-apis/request/#the-cf-property-requestcf)- cf 객체 속성에 대한 세부 사항

@@ -1,0 +1,213 @@
+---
+pcx_content_type: how-to
+title: API를 통해 노출된 자격 검사 구성
+sidebar:
+  order: 4
+  label: API를 통해 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/check-for-exposed-credentials/configure-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/check-for-exposed-credentials/configure-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+노출된 자격 검사 구성[규칙 세트 API](/ruleset-engine/rulesets-api/). 당신은 뒤에 할 수 있습니다:
+
+- [Cloudflare를 배포하는 Credentials Check Managed Ruleset](/waf/managed-rules/reference/exposed-credentials-check/#configure-via-api).
+- [노출된 자격 증명을 확인하는 사용자 정의 규칙](#create-a-custom-rule-checking-for-exposed-credentials).
+
+Terraform을 사용하는 경우, 참조[Terraform을 사용하여 노출 된 자격 검사 구성](/waf/managed-rules/check-for-exposed-credentials/configure-terraform/).
+
+<Render file="leaked-credentials-recommend-detection" product="waf" />
+
+## 노출된 credentials를 위한 주문 규칙을 창조하십시오
+
+:::참조
+이 특징은 요구합니다[계정 수준 WAF 구성](/waf/account/), 지불한 add-on를 가진 기업 고객에게 유효한.
+주요 특징
+
+검색 결과를 찾을 수 없습니다.[규칙 세트 API](/ruleset-engine/rulesets-api/). 사용자 정의 규칙에 이러한 규칙을 포함, 당신은 계정 수준에서 생성해야, 그리고 그 다음 단계에 사용자 정의 규칙을 배치.
+
+노출된 credentials를 위한 규칙은 규칙 표정과 노출된 credentials 체크에서 결과 둘 때 일치가 진실합니다.
+
+사용자 정의 규칙에 노출 된 자격 증명을 확인하려면 다음을 포함합니다.`exposed_credential_check`규칙 정의의 객체. 이 객체는 다음과 같은 속성이 있어야 합니다:
+
+- `username_expression`— 자격 증명 검사에서 사용되는 사용자 ID를 선택하는 표현. 이 속성은 1024 문자까지 가질 수 있습니다.
+- `password_expression`— 자격 증명 검사에서 사용된 암호를 선택하는 표현. 이 속성은 1024 문자까지 가질 수 있습니다.
+
+:::참조
+
+이 재산에는 추가 필요조건이 있습니다:
+
+- 각 표현은 문자열을 평가해야합니다.
+- 만 사용할 수 있습니다[`upper()`](/ruleset-engine/rules-language/functions/#upper), [`lower()`](/ruleset-engine/rules-language/functions/#lower), [`url_decode()`](/ruleset-engine/rules-language/functions/#url_decode)·[`lookup_json_string()`](/ruleset-engine/rules-language/functions/#lookup_json_string)함수는, 그리고 당신은 이 기능을 배열할 수 없습니다.
+
+:::
+
+당신은 사용할 수 있습니다`exposed_credential_check`다음 행동 중 하나와 규칙의 대상 :`rewrite`, `log`, `block`, `js_challenge`(Non-Interactive Challenge) 또는`challenge`(Interactive Challenge). Cloudflare는 다음과 같은 작업을 통해 노출 된 자격 검사를 사용하는 것이 좋습니다.`rewrite`·`log`.
+
+사용자 정의 규칙을 만들고 배포하려면, 설명된 작업 흐름을 따르십시오[주문 규칙 작업](/ruleset-engine/custom-rulesets/).
+
+### 예제 A
+
+이름 \*`POST`요청 예제는 노출 된 자격 증명을 확인하는 규칙과 새로운 사용자 정의 규칙을 만듭니다. 규칙은 규칙 표현과 일치하면`exposed_credential_check`현재 위치`true`. 일치가 있을 때, 규칙은 Cloudflare 로그에 노출된 credentials로 요청을 기록합니다.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Custom Ruleset A",
+  	kind: "custom",
+  	description:
+  		"This ruleset includes a rule checking for exposed credentials.",
+  	rules: [
+  		{
+  			action: "log",
+  			description: "Exposed credentials check on login.php page",
+  			expression:
+  				'http.request.method == "POST" && http.request.uri == "/login.php"',
+  			exposed_credential_check: {
+  				username_expression:
+  					'url_decode(http.request.body.form["username"][0])',
+  				password_expression:
+  					'url_decode(http.request.body.form["password"][0])',
+  			},
+  		},
+  	],
+  	phase: "http_request_firewall_custom",
+  }}
+  roles="account"
+/>
+
+응답은 생성 된 규칙을 반환합니다. 주의사항`exposed_credential_check`규칙 정의에 객체.
+
+```json null {15-18}
+{
+	"result": {
+		"id": "<CUSTOM_RULESET_ID>",
+		"name": "Custom Ruleset A",
+		"description": "This ruleset includes a rule checking for exposed credentials.",
+		"kind": "custom",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<CUSTOM_RULE_ID>",
+				"version": "1",
+				"action": "log",
+				"description": "Exposed credentials check on login.php page",
+				"expression": "http.request.method == \"POST\" && http.request.uri == \"/login.php\"",
+				"exposed_credential_check": {
+					"username_expression": "url_decode(http.request.body.form[\"username\"][0])",
+					"password_expression": "url_decode(http.request.body.form[\"password\"][0])"
+				},
+				"last_updated": "2021-03-19T10:48:04.057775Z",
+				"ref": "<CUSTOM_RULE_REF>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2021-03-19T10:48:04.057775Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+예를 들어,`url_decode()`요청 몸에 필드가 있기 때문에 기능 (에서 사용 가능)`http.request.body.form`)는 내용 유형이 있을 때 URL 인코딩됩니다`application/x-www-form-urlencoded`.
+
+사용자 정의 규칙을 작성한 후, 실행하는 단계로 배포합니다. 사용자 정의 규칙을 배포하는 규칙 ID가 필요합니다. 더 많은 정보를 원하시면, 참조[사용자 정의 규칙 배포](/ruleset-engine/custom-rulesets/deploy-custom-ruleset/).
+
+### 예제 B
+
+이름 \*`POST`요청 예제는 JSON 응답에서 노출된 자격 증명을 확인하는 규칙과 새로운 사용자 정의 규칙을 만듭니다. 규칙은 규칙 표현과 일치하면`exposed_credential_check`현재 위치`true`. 일치할 때, 규칙은 추가될 것입니다`Exposed-Credential-Check`HTTP 헤더를 값으로 요청`1`.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets"
+  method="POST"
+  json={{
+  	name: "Custom Ruleset B",
+  	kind: "custom",
+  	description:
+  		"This ruleset includes a rule checking for exposed credentials.",
+  	rules: [
+  		{
+  			action: "rewrite",
+  			action_parameters: {
+  				headers: {
+  					"Exposed-Credential-Check": {
+  						operation: "set",
+  						value: "1",
+  					},
+  				},
+  			},
+  			description:
+  				"Exposed credentials check on login endpoint with JSON body",
+  			expression:
+  				'http.request.method == "POST" && http.request.uri == "/login.php" && any(http.request.headers["content-type"][*] == "application/json")',
+  			exposed_credential_check: {
+  				username_expression:
+  					'lookup_json_string(http.request.body.raw, "username")',
+  				password_expression:
+  					'lookup_json_string(http.request.body.raw, "password")',
+  			},
+  		},
+  	],
+  	phase: "http_request_firewall_custom",
+  }}
+  roles="account"
+/>
+
+응답은 생성 된 규칙을 반환합니다. 규칙 정의의 다음 요소의 존재를 참고하십시오 :
+
+- 더 보기`rewrite`활동.
+- 더 보기`action_parameters`HTTP 헤더를 구성하는 객체는 노출된 credentials와 요청에 추가했습니다.
+- 더 보기`exposed_credential_check`객체.
+
+```json null {12-20,23-26}
+{
+	"result": {
+		"id": "<CUSTOM_RULESET_ID>",
+		"name": "Custom Ruleset B",
+		"description": "This ruleset includes a rule checking for exposed credentials.",
+		"kind": "custom",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<CUSTOM_RULE_ID>",
+				"version": "1",
+				"action": "rewrite",
+				"action_parameters": {
+					"headers": {
+						"Exposed-Credential-Check": {
+							"operation": "set",
+							"value": "1"
+						}
+					}
+				},
+				"description": "Exposed credentials check on login endpoint with JSON body",
+				"expression": "http.request.method == \"POST\" && http.request.uri == \"/login.php\" && any(http.request.headers[\"content-type\"][*] == \"application/json\")",
+				"exposed_credential_check": {
+					"username_expression": "lookup_json_string(http.request.body.raw, \"username\")",
+					"password_expression": "lookup_json_string(http.request.body.raw, \"password\")"
+				},
+				"last_updated": "2022-03-19T12:48:04.057775Z",
+				"ref": "<CUSTOM_RULE_REF>",
+				"enabled": true
+			}
+		],
+		"last_updated": "2022-03-19T12:48:04.057775Z",
+		"phase": "http_request_firewall_custom"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+사용자 정의 규칙을 작성한 후, 실행하는 단계로 배포합니다. 사용자 정의 규칙을 배포하는 규칙 ID가 필요합니다. 더 많은 정보를 원하시면, 참조[사용자 정의 규칙 배포](/ruleset-engine/custom-rulesets/deploy-custom-ruleset/).

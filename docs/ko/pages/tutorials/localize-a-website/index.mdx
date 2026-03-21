@@ -1,0 +1,301 @@
+---
+reviewed: 2024-05-06T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: HTMLRewriter와 웹 사이트를 Localize
+tags:
+  - JavaScript
+description: >-
+  이 튜토리얼은 Cloudflare QXQXQXWorkersXQ 플랫폼에서 HTMLRewriterXQ 기능을 사용하여 사용자의 언어에 따라
+  사이트를 자동으로 번역합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/tutorials/localize-a-website/'
+translation_source_md: 'https://developers.cloudflare.com/pages/tutorials/localize-a-website/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼에서는 국제화 및 현지화 엔진을 구축 할 것입니다 (일반적으로 언급 된 것과 같이)**아이18n**·**사이트맵**) 당신의 신청을 위해, 당신의 사이트의 내용을 봉사하고, 자동적으로 세계의 방문자의 위치에 근거를 둔 내용을 번역합니다.
+
+이 튜토리얼은[`HTMLRewriter`](/workers/runtime-apis/html-rewriter/)CloudflareQXWorkers 런타임에 내장된 클래스는 Cloudflare 글로벌 네트워크에서 HTML의 패싱 및 리필링을 허용합니다. 이것은 개발자에게 효율적이고 투명하게 Workers 응용 프로그램을 사용자 정의 할 수있는 능력을 제공합니다.
+
+![일본어, 독일어, 영어를 성공적으로 현지화 한 예 사이트](~/assets/images/workers/tutorials/localize-website/i18n.jpg)
+
+***
+
+<Render file="tutorials-before-you-start" product="pages" />
+
+## 자주 묻는 질문
+
+이 튜토리얼은 기존 웹 사이트를 사용하도록 설계되었습니다. 이 프로세스를 단순화하려면 무료 HTML5 템플릿을 사용합니다.[HTML5 업데이트](https://html5up.net). 이 웹사이트에 기초로, 당신은 사용할 것입니다`HTMLRewriter`Workers 플랫폼에서 기능으로 i18n 레이어를 오버레이하여 사용자의 언어에 따라 사이트를 자동으로 번역합니다.
+
+사이트 자체 버전을 배포하려면 소스를 찾을 수 있습니다.[GitHub에서](https://github.com/lauragift21/i18n-example-workers). 이 응용 프로그램을 배포하는 방법에 대한 지침은 프로젝트의 README에서 찾을 수 있습니다.
+
+## 새 신청서 작성
+
+새로운 응용 프로그램을 만들기[`create-cloudflare`](/pages/get-started/c3)Cloudflare에 새로운 응용 프로그램을 만들고 배포하는 CLI.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"i18n-example"} />
+
+설정의 경우 다음 옵션을 선택하십시오:
+
+- 제품 정보*시작하기*?, 선택`Framework Starter`.
+- 제품 정보*어떤 개발 프레임 워크를 사용 하시겠습니까?*, 선택`React`.
+- 제품 정보*응용 프로그램을 배포하려면?*, 선택`No`.
+
+새로 생성 된`i18n-example`프로젝트는 2개의 폴더를 포함합니다:`public`·`src`이것은 React 신청을 위한 파일을 포함합니다:
+
+```sh
+cd i18n-example
+ls
+```
+
+```sh output
+public src package.json
+```
+
+우리는 생성 된 프로젝트에 몇 가지 조정을 만들 필요가있다, 먼저 우리는 내부의 내용을 대체하려는`public`디렉토리, HTML5 UP 템플릿에 대한 기본 생성 된 HTML 코드와 데모 스크린 샷: 다운로드[이름 \*](https://github.com/signalnerve/i18n-example-workers/archive/v1.0.zip)이 프로젝트의 코드의 (ZIP 파일) 및 복사`public`시작하기에 자신의 프로젝트에 폴더.
+
+다음으로 함수 디렉토리를 만들 수 있습니다.`index.js`파일, 이것은 응용 프로그램의 논리가 작성 될 것입니다.
+
+```sh
+mkdir functions
+cd functions
+touch index.js
+```
+
+또한, 우리는 제거합니다`src/`이 프로젝트의 내용이 필요하지 않기 때문에 디렉토리. 이 프로젝트의 정적 HTML을 업데이트하면 내부의 스크립트에 집중할 수 있습니다.`functions`폴더, at`index.js`.
+
+## 관련 기사`data-i18n-key`
+
+더 보기`HTMLRewriter`Workers 런타임에서 제공되는 클래스는 개발자가 HTML을 파싱하고 JavaScript를 작성하여 페이지의 모든 요소를 쿼리하고 변환 할 수 있습니다.
+
+이 튜토리얼의 예 웹 사이트는 기본적인 단일 페이지 HTML 프로젝트입니다.`public`디렉토리. 그것은 포함`h1`본문내용 바로가기`Example Site`그리고 숫자`p`다른 텍스트와 요소:
+
+![Chrome DevTools에서 보여지는 데모 코드](~/assets/images/workers/tutorials/localize-website/code-example.png)
+
+이 페이지에 대한 독특한 기능은 다음과 같습니다.[data 속성](https://developer.mozilla.org/en-US/docs/Learn/HTML/Howto/Use_data_attributes)HTML에서 – 사용자 정의 속성은이 페이지에서 여러 요소에 정의됩니다. 더 보기`data-i18n-key`에 의해`h1`이 페이지에 태그, 뿐만 아니라 많은`p`태그, 해당 국제화 키가 있음을 나타냅니다, 이는이 텍스트에 대한 번역을 보는 데 사용되어야한다 :
+
+```html
+<!--소스는 i18n-example 사이트에서 클립-->
+
+<div class="inner">
+	<h1 data-i18n-key="headline">Example Site</h1>
+	<p data-i18n-key="subtitle">This is my example site. Depending o...</p>
+	<p data-i18n-key="disclaimer">Disclaimer: the initial translations...</p>
+</div>
+```
+
+사용 방법`HTMLRewriter`, 당신은 HTML을 내부에 파고`./public/index.html`사이트 맵 시간 :`data-i18n-key`속성이 발견되면 속성의 값을 사용하여 매칭 된 번역을 검색해야합니다.`strings`객체. 이름 \*`HTMLRewriter`, 당신은 데이터 속성을 찾는 것과 같은 작업을 수행 할 요소를 쿼리 할 수 있습니다. 그러나 이름은 제안대로 번역 된 문자열을 복용하여 요소를 다시 작성하고 HTML에 직접 삽입 할 수 있습니다.
+
+이 프로젝트의 또 다른 기능은`Accept-Language`수신 요청에 존재하는 헤더. 요청 당 번역 언어를 설정할 수 있습니다, 전 세계의 사용자를 허용 로컬 관련 및 번역 페이지.
+
+## HTML Rewriter API 사용
+
+시작하기`functions/index.js`파일. 이 튜토리얼의 응용 프로그램은이 파일에서 완전히 살 것입니다.
+
+이 파일의 내부, 실행을위한 기본 코드를 추가하여 시작[Pages 기능](/pages/functions/get-started/#create-a-function).
+
+```js
+export function onRequest(context) {
+	return new Response("Hello, world!");
+}
+```
+
+코드의 중요한 부분에서 생활`onRequest`기능. 사이트의 번역을 구현하려면 HTML 응답을 사용하여`env.ASSETS.fetch(request)`이것은 Pages 프로젝트에서 정적 자산을 가져오고 새로운 인스턴스로 전달할 수 있습니다.`HTMLRewriter`. 순간 때`HTMLRewriter`, 당신은 handlers를 사용하여 붙일 수 있습니다`on`기능. 이 튜토리얼의 경우, 당신은 사용할 것이다`[data-i18n-key]`selector (refer로[HTMLRewriter 문서](/workers/runtime-apis/html-rewriter/)더 진보된 사용법을 위해) 모든 성분을 가진 찾아내기 위하여`data-i18n-key`속성, 즉, 그들은 번역해야합니다. 어떤 매칭 요소가 귀하의 인스턴스로 전달됩니다.`ElementHandler`번역 논리를 포함 할 클래스. 만든 인스턴스로`HTMLRewriter`·`transform`함수는`response`그리고 클라이언트에 반환될 수 있습니다:
+
+```js
+export async function onRequest(context) {
+	const { request, env } = context;
+	const response = await env.ASSETS.fetch(request);
+	return new HTMLRewriter()
+		.on("[data-i18n-key]", new ElementHandler(countryStrings))
+		.transform(response);
+}
+```
+
+## HTML 변환
+
+내 계정`ElementHandler`각 원소가 파싱됩니다.`HTMLRewriter`예를 들어, expressive API로 인해 각 incoming 엘리먼트를 쿼리할 수 있습니다.
+
+내 계정[어떻게 작동합니까?](#understanding-data-i18n-key), 문서 설명`data-i18n-key`, 웹 사이트의 사용자 인터페이스에 대한 대응 번역 문자열을 찾을 수있는 사용자 정의 데이터 속성. 내 계정`ElementHandler`, 당신은 정의 할 수 있습니다`element`함수는 각 요소로 호출됩니다. 내부의`element`기능, 당신은 사용자 정의 데이터 속성에 대한 쿼리 할 수 있습니다`getAttribute`:
+
+```js
+class ElementHandler {
+	element(element) {
+		const i18nKey = element.getAttribute("data-i18n-key");
+	}
+}
+```
+
+이름 \*`i18nKey`정의, 해당 번역 문자열을 검색하는 데 사용할 수 있습니다. 지금 설정`strings`키 값 쌍을 가진 객체`data-i18n-key`가치. 이제 단일 예제 문자열을 정의합니다.`headline`독일`string`, `"Beispielseite"` (`"Example Site"`), 그리고 그것에 retrieve`element`기능:
+
+```js null {1,2,3,4,5,10}
+const strings = {
+	headline: "Beispielseite",
+};
+
+class ElementHandler {
+	element(element) {
+		const i18nKey = element.getAttribute("data-i18n-key");
+		const string = strings[i18nKey];
+	}
+}
+```
+
+자주 묻는 질문`string`그리고 원래 요소에 삽입, 사용`setInnerContent`기능:
+
+```js null {11,12,13}
+const strings = {
+	headline: "Beispielseite",
+};
+
+class ElementHandler {
+	element(element) {
+		const i18nKey = element.getAttribute("data-i18n-key");
+		const string = strings[i18nKey];
+		if (string) {
+			element.setInnerContent(string);
+		}
+	}
+}
+```
+
+모든 것이 예상대로 보이는 것을 검토하려면 Wrangler에 내장 된 미리보기 기능을 사용하십시오. 이름 \*[`wrangler pages dev ./public`](/workers/wrangler/commands/#dev)프로젝트의 라이브 미리보기를 엽니다. 명령은 모든 코드 변경 후 새로 고침됩니다.
+
+이 번역 기능을 확장하여 국가별 번역을 제공 할 수 있습니다.`Accept-Language`헤더. 이 헤더를 복용하고, 그것을 파고, 파삭한 언어를 당신의`ElementHandler`, 사용자의 홈 언어에서 번역된 문자열을 검색할 수 있습니다.`strings`.
+
+이를 구현하기:
+
+1. 업데이트`strings`객체, key-value 쌍의 두 번째 레이어를 추가하고 문자열을 허용 포맷에서 볼 수`strings[country][key]`.
+2. 패스워드`countryStrings`우리의 목표`ElementHandler`, 그래서 그것은 파싱 과정에서 사용될 수있다.
+3. 더 보기`Accept-Language`들어오는 요청에서 헤더, 그것을 파고, 파삭한 언어를 전달`ElementHandler`.
+
+를 파고`Accept-Language`헤더, 설치[`accept-language-parser`](https://www.npmjs.com/package/accept-language-parser)npm 포장:
+
+```sh
+npm i accept-language-parser
+```
+
+코드로 가져가면, 클라이언트를 위한 가장 관련된 언어를 파싱하는 패키지를 사용합니다.`Accept-Language`헤더, 그것을 전달`ElementHandler`. 프로젝트의 마지막 코드, 독일과 일본에 대한 포함 된 샘플 번역 (Google 번역 사용) 다음과 같은 모습 :
+
+```js null {32,33,34,39,62,63,64,65}
+import parser from "accept-language-parser";
+
+//생산에서 true로 설정하지 마십시오!
+const DEBUG = false;
+
+const strings = {
+	de: {
+		title: "Beispielseite",
+		headline: "Beispielseite",
+		subtitle:
+			"Dies ist meine Beispielseite. Abhängig davon, wo auf der Welt Sie diese Site besuchen, wird dieser Text in die entsprechende Sprache übersetzt.",
+		disclaimer:
+			"Haftungsausschluss: Die anfänglichen Übersetzungen stammen von Google Translate, daher sind sie möglicherweise nicht perfekt!",
+		tutorial:
+			"Das Tutorial für dieses Projekt finden Sie in der Cloudflare Workers-Dokumentation.",
+		copyright: "Design von HTML5 UP.",
+	},
+	ja: {
+		title: "サンプルサイト",
+		headline: "サンプルサイト",
+		subtitle:
+			"これは私の例のサイトです。 このサイトにアクセスする世界の場所に応じて、このテキストは対応する言語に翻訳されます。",
+		disclaimer:
+			"免責事項：最初の翻訳はGoogle翻訳からのものですので、完璧ではないかもしれません！",
+		tutorial:
+			"Cloudflare Workersのドキュメントでこのプロジェクトのチュートリアルを見つけてください。",
+		copyright: "HTML5 UPによる設計。",
+	},
+};
+
+class ElementHandler {
+	constructor(countryStrings) {
+		this.countryStrings = countryStrings;
+	}
+
+	element(element) {
+		const i18nKey = element.getAttribute("data-i18n-key");
+		if (i18nKey) {
+			const translation = this.countryStrings[i18nKey];
+			if (translation) {
+				element.setInnerContent(translation);
+			}
+		}
+	}
+}
+
+export async function onRequest(context) {
+	const { request, env } = context;
+	try {
+		let options = {};
+		if (DEBUG) {
+			options = {
+				cacheControl: {
+					bypassCache: true,
+				},
+			};
+		}
+		const languageHeader = request.headers.get("Accept-Language");
+		const language = parser.pick(["de", "ja"], languageHeader);
+		const countryStrings = strings[language] || {};
+
+		const response = await env.ASSETS.fetch(request);
+		return new HTMLRewriter()
+			.on("[data-i18n-key]", new ElementHandler(countryStrings))
+			.transform(response);
+	} catch (e) {
+		if (DEBUG) {
+			return new Response(e.message || e.toString(), {
+				status: 404,
+			});
+		} else {
+			return env.ASSETS.fetch(request);
+		}
+	}
+}
+```
+
+## 계정 만들기
+
+Cloudflare Pages에 내장 된 i18n 도구는 완료되며 도메인에 배포 할 때입니다.
+
+응용 프로그램을 배포하려면`*.pages.dev`subdomain, 정적 자산의 디렉토리를 지정해야, 구성`pages_build_output_dir`프로젝트의 Wrangler 파일에서 값을 설정`./public`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "i18n-example",
+  	"pages_build_output_dir": "./public",
+  	"compatibility_date": "$today"
+  }
+  ```
+</WranglerConfig>
+
+다음에는 배포 스크립트를 구성해야 합니다.`package.json`프로젝트의 파일. 값으로 배포 스크립트 추가`wrangler pages deploy`:
+
+```json null {3}
+"scripts": {
+  "dev": "wrangler pages dev",
+  "deploy": "wrangler pages deploy"
+}
+```
+
+사용 방법`wrangler`, Cloudflare의 네트워크로 배포`deploy`명령:
+
+```sh
+npm run deploy
+```
+
+![일본어, 독일어, 영어를 성공적으로 현지화 한 예 사이트](~/assets/images/workers/tutorials/localize-website/i18n.jpg)
+
+## 관련 자료
+
+이 튜토리얼에서는 i18n 도구를 사용하여 구축하고 배포했습니다.`HTMLRewriter`. 이 응용 프로그램에 대한 전체 소스 코드를 검토하려면, 참조[GitHub의 저장소](https://github.com/lauragift21/i18n-example-workers).
+
+시작하기가 자신의 프로젝트를 구축하고 싶다면 기존 목록을 검토하십시오.[Quickstart 템플릿](/workers/get-started/quickstarts/).

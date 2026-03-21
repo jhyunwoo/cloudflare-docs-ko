@@ -1,0 +1,265 @@
+---
+title: getCurrentAgent()에 대하여
+pcx_content_type: concept
+sidebar:
+  order: 17
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/get-current-agent/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/api-reference/get-current-agent/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+더 보기`getCurrentAgent()`함수는 외부 유틸리티 기능과 라이브러리를 포함한 코드에서 현재 에이전트 컨텍스트에 액세스할 수 있습니다. 에이전트 정보가 필요할 때 유용합니다.`this`.
+
+## 사용자 정의 방법의 자동 컨텍스트
+
+모든 사용자 정의 방법 자동으로 전체 에이전트 컨텍스트가 있습니다. 프레임 워크는 초기화 중에 사용자 정의 방법을 자동으로 감지하고 포장합니다.`getCurrentAgent()`모든 것
+
+## 어떻게 작동합니까?
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "agents/ai-chat-agent";
+  import { getCurrentAgent } from "agents";
+
+  export class MyAgent extends AIChatAgent {
+  	async customMethod() {
+  		const { agent } = getCurrentAgent();
+  		//에이전트는 자동으로 사용 가능
+  		console.log(agent.name);
+  	}
+
+  	async anotherMethod() {
+  		//이 작품도 - 필요 설정 없음
+  		const { agent } = getCurrentAgent();
+  		return agent.state;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+구성이 필요하지 않습니다. 프레임 워크는 자동으로:
+
+1. 주문 방법의 에이전트 클래스를 스캔합니다.
+2. 초기화 중에 에이전트 컨텍스트로 포장합니다.
+3. 이름 \*`getCurrentAgent()`모든 외부 기능에서 당신의 방법에서 호출합니다.
+
+## Real-world 예제
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "agents/ai-chat-agent";
+  import { getCurrentAgent } from "agents";
+  import { generateText } from "ai";
+  import { openai } from "@ai-sdk/openai";
+
+  //Agent context를 필요로 하는 외부 유틸리티 기능
+  async function processWithAI(prompt: string) {
+  	const { agent } = getCurrentAgent();
+  	//외부 기능은 현재 대리인에 접근할 수 있습니다
+
+  	return await generateText({
+  		model: openai("gpt-4"),
+  		prompt: `Agent ${agent?.name}: ${prompt}`,
+  	});
+  }
+
+  export class MyAgent extends AIChatAgent {
+  	async customMethod(message: string) {
+  		//this.* 에 접속 에이전트 속성을 직접 사용
+  		console.log("Agent name:", this.name);
+  		console.log("Agent state:", this.state);
+
+  		//외부 기능 자동으로 작동
+  		const result = await processWithAI(message);
+  		return result.text;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 내장 대 사용자 정의 방법
+
+- **내장 방법** (`onRequest`, `onEmail`, `onStateChanged`): 이미 문맥이 있다.
+- **주문 방법**(당신의 방법): 초기화 도중 자동으로 감싸.
+- **외부 기능**: 접근 상황에 따라`getCurrentAgent()`.
+
+### 컨텍스트 흐름
+
+<TypeScriptExample>
+  ```ts
+  //사용자 정의 방법을 호출 할 때 :
+  agent.customMethod();
+  //→ 자동으로 AgentContext.run()로 감싸
+  //→ 당신의 방법은 전체 컨텍스트로 실행합니다.
+  //→ 외부 기능은 getCurrentAgent ()를 사용할 수 있습니다
+  ```
+</TypeScriptExample>
+
+## 일반적인 사용 사례
+
+### AI SDK 도구로 작업
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "agents/ai-chat-agent";
+  import { generateText } from "ai";
+  import { openai } from "@ai-sdk/openai";
+
+  export class MyAgent extends AIChatAgent {
+  	async generateResponse(prompt: string) {
+  		//AI SDK 도구 자동 작업
+  		const response = await generateText({
+  			model: openai("gpt-4"),
+  			prompt,
+  			tools: {
+  				//getCurrentAgent()를 사용하는 도구는 완벽하게 작동합니다.
+  			},
+  		});
+
+  		return response.text;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 외부 라이브러리
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "agents/ai-chat-agent";
+  import { getCurrentAgent } from "agents";
+
+  async function saveToDatabase(data: any) {
+  	const { agent } = getCurrentAgent();
+  	//로깅, 컨텍스트 등에 대한 에이전트 정보를 액세스 할 수 있습니다.
+  	console.log(`Saving data for agent: ${agent?.name}`);
+  }
+
+  export class MyAgent extends AIChatAgent {
+  	async processData(data: any) {
+  		//외부 함수는 자동으로 context가
+  		await saveToDatabase(data);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 액세스 요청 및 연결 상황
+
+<TypeScriptExample>
+  ```ts
+  import { getCurrentAgent } from "agents";
+
+  function logRequestInfo() {
+  	const { agent, connection, request } = getCurrentAgent();
+
+  	if (request) {
+  		console.log("Request URL:", request.url);
+  		console.log("Request method:", request.method);
+  	}
+
+  	if (connection) {
+  		console.log("Connection ID:", connection.id);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## API 참고 자료
+
+### `getCurrentAgent()`
+
+사용할 수 있는 모든 컨텍스트에서 현재 에이전트를 가져옵니다.
+
+<TypeScriptExample>
+  ```ts
+  import { getCurrentAgent } from "agents";
+
+  function getCurrentAgent<T extends Agent>(): {
+  	agent: T | undefined;
+  	connection: Connection | undefined;
+  	request: Request | undefined;
+  	email: AgentEmail | undefined;
+  };
+  ```
+</TypeScriptExample>
+
+#### 반환:
+
+| 회사 정보        | 제품정보                      | 이름 \*                                  |
+| ------------ | ------------------------- | -------------------------------------- |
+| `agent`      | `T \| undefined`          | 현재 에이전트 인스턴스                           |
+| `connection` | `Connection \| undefined` | WebSocket 연결 (WebSocket 핸들러에서 호출하는 경우) |
+| `request`    | `Request \| undefined`    | HTTP 요청 (요구 핸들러에서 호출하는 경우)             |
+| `email`      | `AgentEmail \| undefined` | 이메일 (이메일 핸들러에서 호출하는 경우)                |
+
+#### 사용법:
+
+<TypeScriptExample>
+  ```ts
+  import { AIChatAgent } from "agents/ai-chat-agent";
+  import { getCurrentAgent } from "agents";
+
+  export class MyAgent extends AIChatAgent {
+  	async customMethod() {
+  		const { agent, connection, request } = getCurrentAgent<MyAgent>();
+  		//대리인은 myAgent로 제대로 타자를 칩니다
+  		//요청 핸들러에서 호출하면 연결 및 요청
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### Context 가용성
+
+사용할 수 있는 컨텍스트는 메소드가 호출 된 방법에 따라 달라집니다:
+
+| 회사 소개           | `agent` | `connection` | `request` | `email` |
+| --------------- | ------- | ------------ | --------- | ------- |
+| `onRequest()`   | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| `onConnect()`   | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| `onMessage()`   | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| `onEmail()`     | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| 주문 방법 (RPC를 통해) | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| 시간표             | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+| 큐 콜백            | 이름 \*   | 이름 \*        | 이름 \*     | 이름 \*   |
+
+## 좋은 관행
+
+1. **제품 정보`this`현재 위치**: 내부 에이전트 방법, 선호`this.name`, `this.state`, 등.`getCurrentAgent()`.
+
+2. **제품 정보`getCurrentAgent()`외부 기능**: 유틸리티 기능 또는 라이브러리에서 에이전트 컨텍스트가 필요할 때`this`.
+
+3. **부정확한**: 반환 값은 일 수 있습니다.`undefined`에이전트 컨텍스트를 호출하는 경우.
+
+   <TypeScriptExample>
+     ```ts
+     const { agent } = getCurrentAgent();
+     if (agent) {
+     	//제품정보
+     	console.log(agent.name);
+     }
+     ```
+   </TypeScriptExample>
+
+4. **유형 대리인**: 적절한 타이핑을 위한 타입 파라미터로 에이전트 클래스를 전달합니다.
+
+   <TypeScriptExample>
+     ```ts
+     const { agent } = getCurrentAgent<MyAgent>();
+     //에이전트는 MyAgent로 구분됩니다 | undefined
+     ```
+   </TypeScriptExample>
+
+## 다음 단계
+
+<LinkCard title="에이전트 API" href="/agents/api-reference/agents-api/" description="Agents SDK를 위한 API 참고 자료를 완료합니다." />
+
+<LinkCard title="자주 묻는 질문" href="/agents/api-reference/callable-methods/" description="RPC를 통해 고객에게 노출 방법." />
+
+<LinkCard title="국가 관리" href="/agents/api-reference/store-and-sync-state/" description="관리 및 동기화 에이전트 상태." />

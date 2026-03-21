@@ -1,0 +1,201 @@
+---
+pcx_content_type: navigation
+title: TypeScript
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Cloudflare WorkersXQXQXQXQ
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/languages/typescript/'
+translation_source_md: 'https://developers.cloudflare.com/workers/languages/typescript/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, PackageManagers, Render } from "~/components";
+
+TypeScript는 Cloudflare Workers에 일류 언어입니다. Workers에 제공된 모든 API는 완전하게 유형화되고, 유형 정의는 직접에서 생성합니다[채용 정보](https://github.com/cloudflare/workerd)오픈 소스 Workers 런타임.
+
+우리는 실행하여 작업자의 유형을 생성하는 것이 좋습니다.[`wrangler types`](/workers/wrangler/commands/#types). Cloudflare는 또한 유형 정의를에 발행합니다[프로젝트](https://github.com/cloudflare/workers-types)·[₢ 킹](https://www.npmjs.com/package/@cloudflare/workers-types) (`npm install -D @cloudflare/workers-types`).
+
+<h3 id="generate-types">
+  작업자의 구성에 맞는 유형을 생성
+</h3>
+
+Cloudflare는 지속적으로 개량합니다[채용 정보](https://github.com/cloudflare/workerd)오픈 소스 Workers 런타임.
+workerd의 변화는 JavaScript API 변경을 소개할 수 있으며, 해당 TypeScript 유형 변경이 가능합니다.
+
+이것은 당신의 노동자를 위한 정확한 유형은 위에 달려 있습니다:
+
+1. 당신의 노동자의[호환성 날짜](/workers/configuration/compatibility-dates/).
+2. 당신의 노동자의[compatibility flags](/workers/configuration/compatibility-flags/).
+3. 당신의 노동자의 의무, 이는 당신의 정의[Wrangler 구성 파일](/workers/wrangler/configuration).
+4. 이름 \*[모듈 규칙](/workers/wrangler/configuration/#bundling)Wrangler 설정 파일에 지정되어 있습니다.`rules`.
+
+예를 들어, 런타임은 사용할 수 있습니다.[`AsyncLocalStorage`](https://nodejs.org/api/async_context.html#class-asynclocalstorage)당신이 가지고 있는 경우에 종류`compatibility_flags = ["nodejs_als"]`내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/). 이것은 유형 정의에서 반영되어야 합니다.
+
+당신의 유형 정의가 항상 당신의 노동자의 윤곽에 일치한다는 것을 보증하기 위하여, 당신은 동적인 실행에 의하여 유형을 생성할 수 있습니다:
+
+<PackageManagers type="exec" pkg="wrangler" args={"types"} />
+
+이름 \*[이름 \*`wrangler types`명령 docs](/workers/wrangler/commands/#types)더 많은 정보.
+
+:::참조
+
+<Render file="wrangler-commands/runtime-types" product="workers" />
+
+:::
+
+이것은 생성한다`d.ts`파일 및 (기본값) 저장하기`worker-configuration.d.ts`. 이것은 포함될 것입니다`Env`당신의 노동자 바인딩에 근거를 두는 유&#xD615;*·*&#xC791;업자의 호환성 날짜와 플래그에 따라 실행 시간 유형.
+
+당신은 그 파일을 추가해야합니다`tsconfig.json`이름 \*`compilerOptions.types`배열. 당신이 있는 경우에`nodejs_compat`호환성 깃발, 당신은 또한 설치해야 합니다`@types/node`.
+
+원하는 경우 형식 파일을 git로 커밋할 수 있습니다.
+
+:::참조
+
+당신의 유형이 항상 최신인지 확인하려면, 실행 확인`wrangler types`config 파일에 변경 후.
+
+:::
+
+<h3 id="migrating">
+  기타 제품`@cloudflare/workers-types`으로`wrangler types`
+</h3>
+
+자주 묻는 질문`wrangler types`runtime type을 생성하기 위해, 오히려 사용`@cloudflare/workers-types`패키지, 작업자의 유형 생성[호환성 날짜](https://github.com/cloudflare/workerd/tree/main/npm/workers-types#compatibility-dates)·`compatibility flags`, 그 유형은 당신의 노동자에 유효한 정확한 runtime APIs 일치를 지키.
+
+:::참조
+
+게시 할 계획이 없습니다.`@cloudflare/workers-types`패키지는 여전히 사설을 입력하고 근로자 환경에 공유 패키지를 입력하는 것이 좋습니다.
+
+:::
+
+#### 1. 제거`@cloudflare/workers-types`
+
+<PackageManagers type="remove" pkg="@cloudflare/workers-types" />
+
+#### 2. Wrangler
+
+<PackageManagers type="exec" pkg="wrangler" args={"types"} />
+
+이것은 생성한다`.d.ts`파일, 저장`worker-configuration.d.ts`기본적으로. 이것은 또한 생성합니다`Env`유형. 어떤 이유로 당신은 그를 포함하지 않는 경우, 당신은 설정할 수 있습니다`--include-env=false`.
+
+이제 모든 수입을 제거 할 수 있습니다.`@cloudflare/workers-types`당신의 노동자 부호에서.
+
+:::참조
+
+<Render file="wrangler-commands/runtime-types" product="workers" />
+
+:::
+
+#### 3. 당신의 확인`tsconfig.json`생성된 유형 포함
+
+```json
+{
+	"compilerOptions": {
+		"types": ["./worker-configuration.d.ts"]
+	}
+}
+```
+
+runtime 타입 파일에 대한 사용자 정의 경로를 지정하면 사용해야 합니다.`compilerOptions.types`기본 경로 대신 배열.
+
+#### 4. 당신이 사용하고 있는 경우에 @types/node를 추가하십시오[`nodejs_compat`](/workers/runtime-apis/nodejs/)(선택)
+
+사용중인 경우`nodejs_compat`호환성 깃발, 당신은 또한 설치해야 합니다`@types/node`.
+
+<PackageManagers type="add" pkg="@types/node" />
+
+그런 다음`tsconfig.json`.
+
+```json
+{
+	"compilerOptions": {
+		"types": ["./worker-configuration.d.ts", "node"]
+	}
+}
+```
+
+#### 5. 스크립트 및 CI 파이프라인 업데이트
+
+특정 프레임 워크 또는 빌드 도구에 관계없이 실행해야합니다.`wrangler types`TypeScript에 의존하는 작업의 앞에 명령.
+
+대부분의 프로젝트는 기존 빌드 및 개발 스크립트뿐만 아니라 일부 유형 검사가 있습니다. 아래 예제에서, 우리는 추가`wrangler types`프로젝트의 유형 검사 스크립트 전에:
+
+```json
+{
+	"scripts": {
+		"dev": "existing-dev-command",
+		"build": "existing-build-command",
+		"generate-types": "wrangler types",
+		"type-check": "generate-types && tsc"
+	}
+}
+```
+
+CI에서 생성된 유형 파일을 커밋하는 것이 좋습니다. 실행할 수 있습니다.`wrangler types`다른 CI 명령 이전에는 몇 초 이상 걸리지 않아야합니다. 예를 들면:
+
+<Tabs>
+  <TabItem label="₢ 킹">
+    ```yaml
+    - run: npm run generate-types
+    - run: npm run build
+    - run: npm test
+    ```
+  </TabItem>
+
+  <TabItem label="주요 특징">
+    ```yaml
+    - run: yarn generate-types
+    - run: yarn build
+    - run: yarn test
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```yaml
+    - run: pnpm run generate-types
+    - run: pnpm run build
+    - run: pnpm test
+    ```
+  </TabItem>
+</Tabs>
+
+대체로, 생성된 유형 파일을 커밋하고 CI에서 최신 상태를 확인하려면, 사용할 수 있습니다.`--check`플래그:
+
+<Tabs>
+  <TabItem label="₢ 킹">
+    ```yaml
+    - run: npx wrangler types --check
+    - run: npm run build
+    - run: npm test
+    ```
+  </TabItem>
+
+  <TabItem label="주요 특징">
+    ```yaml
+    - run: yarn wrangler types --check
+    - run: yarn build
+    - run: yarn test
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```yaml
+    - run: pnpm wrangler types --check
+    - run: pnpm run build
+    - run: pnpm test
+    ```
+  </TabItem>
+</Tabs>
+
+이것은 CI 작업이 필요한 유형 파일이 최신 인 경우 실패하고 개발자가 재생산하고 업데이트 된 유형에 투입되도록합니다.
+
+### 지원하다
+
+- [TypeScript 템플릿](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare/templates/hello-world/ts)
+- [@cloudflare/workers 유형](https://github.com/cloudflare/workers-types)
+- [런타임 API](/workers/runtime-apis/)
+- [모델 번호: TypeScript 이름 \*](/workers/examples/?languages=TypeScript)

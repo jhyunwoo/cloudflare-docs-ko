@@ -1,0 +1,274 @@
+---
+title: 미리보기 URL
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/concepts/preview-urls/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/concepts/preview-urls/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::note\[제품은 사용자 정의 도메인을 요구합니다]
+미리보기 URL은 구성없이 로컬 개발에서 작동합니다. 생산을 위해, 당신은 wildcard DNS 여정을 가진 주문 도메인이 필요합니다. 이름 \*[생산 Deployment](/sandbox/guides/production-deployment/).
+:::
+
+미리보기 URL은 샌드박스 내부에서 실행되는 서비스로 HTTPS 액세스를 제공합니다. 포트를 노출하면 프록시가 서비스에 요청하는 독특한 URL을 얻을 수 있습니다.
+
+```typescript
+//요청에서 hostname 추출
+const { hostname } = new URL(request.url);
+
+await sandbox.startProcess("python -m http.server 8000");
+const exposed = await sandbox.exposePort(8000, { hostname });
+
+console.log(exposed.url);
+//생산: https://8000-sandbox-id-abc123random4567.yourdomain.com
+//로컬 dev: http://8000-sandbox-id-abc123random4567.localhost:{port}/
+```
+
+## URL 형식
+
+**제품정보**: `https://{port}-{sandbox-id}-{token}.yourdomain.com`
+
+- 자동 생성된 토큰으로:`https://8080-abc123-random16chars12.yourdomain.com`
+- 주문 토큰으로:`https://8080-abc123-my_api_v1.yourdomain.com`
+
+**지역 개발**: `http://{port}-{sandbox-id}-{token}.localhost:{dev-server-port}`
+
+## 토큰 유형
+
+### 자동 생성 토큰 (과태)
+
+사용자 정의 토큰이 지정되지 않을 때 임의 16-character 토큰이 생성됩니다.
+
+```typescript
+const exposed = await sandbox.exposePort(8000, { hostname });
+//https://8000-sandbox-id-abc123random4567.yourdomain.com
+```
+
+자동 생성된 토큰 변경을 가진 URL을 통해 포트를 재판매할 수 있습니다.
+
+### 안정적인 URL에 대한 사용자 정의 토큰
+
+생산 배포 또는 공유 URL을 위해, 컨테이너 재시작에 걸쳐 일관성을 유지하기 위해 사용자 정의 토큰을 지정:
+
+```typescript
+const stable = await sandbox.exposePort(8000, { 
+  hostname, 
+  token: 'api_v1' 
+});
+//https://8000-sandbox-id-api_v1.yourdomain.com
+//같은 URL 매번 ✓
+```
+
+**토큰 요구 사항:**
+
+- 1-16 문자 길이
+- Lowercase문자(a-z), 숫자(0-9), 밑줄( )만
+- 각 sandbox에서 고유해야합니다.
+
+**사용자 정의 토큰의 사용 사례:**
+
+- 안정적인 엔드포인트를 가진 생산 API
+- 외부 사용자와 데모 URL 공유
+- 일관된 예시로 문서화
+- 예측 가능한 URL과 통합 테스트
+
+## ID 케이스 감도
+
+미리보기 URL은 hostname에서 route 요청으로 sandbox ID를 추출합니다. hostnames는 case-insensitive (RFC 3986)에, 그들은 항상 낮춘다:`8080-MyProject-123.yourdomain.com`계정이 없습니다.`8080-myproject-123.yourdomain.com`.
+
+**문제**: 샌드박스를 만들면`"MyProject-123"`, 그것은 그것의 정확한 ID를 가진 튼튼한 목표로 존재합니다. 그러나 미리보기 URL 경로에`"myproject-123"`( 호스트 이름에서 낮은). 이것은 다른 Durable Objects입니다, 그래서 당신의 sandbox는 미리보기 URL을 통해 접근할 수 없습니다.
+
+```typescript
+//문제 시나리오
+const sandbox = getSandbox(env.Sandbox, 'MyProject-123');
+//튼튼한 목표 ID: "MyProject-123"
+await sandbox.exposePort(8080, { hostname });
+//미리보기 URL: 8080-myproject-123-token123.yourdomain.com
+//경로: "myproject-123" (다른 DO - 존재하지 않습니다!)
+```
+
+**솔루션**: 사용`normalizeId: true`sandboxes를 창조할 때 lowcase ID에:
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, 'MyProject-123', {
+  normalizeId: true
+});
+//튼튼한 목표 ID: "myproject-123" (낮은)
+//미리보기 URL: 8080-myproject-123-token123.yourdomain.com
+//경로: "myproject-123"(same DO - 작품!)
+```
+
+없음`normalizeId: true`, `exposePort()`ID가 위문자를 포함했을 때 오류를 발생시킵니다.
+
+**좋은 연습**: 시작에서 더 낮은 케이스 ID 사용 (`'my-project-123'`). 이름 \*[Sandbox 옵션 - 정상화](/sandbox/configuration/sandbox-options/#normalizeid)상세 정보
+
+## 관련 제품
+
+자주 묻는 질문`proxyToSandbox()`작업자의 fetch 핸들러에서 미리 URL 요청을 경로를 지정합니다.
+
+```typescript
+import { proxyToSandbox, getSandbox } from "@cloudflare/sandbox";
+
+export { Sandbox } from "@cloudflare/sandbox";
+
+export default {
+	async fetch(request, env) {
+		//핸들 미리보기 URL routing 첫째
+		const proxyResponse = await proxyToSandbox(request, env);
+		if (proxyResponse) return proxyResponse;
+
+		//신청 방법
+		//· ...
+	},
+};
+```
+
+요청 흐름: 브라우저 → 작업자 → 튼튼한 개체 (샌드 박스) → 귀하의 서비스.
+
+## 다수 항구
+
+동시에 여러 서비스를 노출:
+
+```typescript
+//요청에서 hostname 추출
+const { hostname } = new URL(request.url);
+
+await sandbox.startProcess("node api.js"); //항구 3000
+await sandbox.startProcess("node admin.js"); //항구 3001
+
+const api = await sandbox.exposePort(3000, { hostname, name: "api" });
+const admin = await sandbox.exposePort(3001, { hostname, name: "admin" });
+
+//각은 독특한 토큰으로 자신의 URL을 가져옵니다:
+//https://3000-abc123-random16chars01.yourdomain.com
+//https://3001-abc123-random16chars02.yourdomain.com
+```
+
+## 이름 \*
+
+- HTTP/HTTPS 요청
+- WebSocket 연결
+- Server-Sent 이벤트
+- 모든 HTTP 방법 (GET, POST, PUT, DELETE 등)
+- 요청 및 응답 헤더
+
+## 작동하지 않는 것
+
+- TCP/UDP 연결
+- 사용자 정의 프로토콜 (Must wrap in HTTP)
+- 항구 외부 범위 1024-65535
+- 포트 3000 ( SDK에 의해 내부 사용)
+
+## WebSocket 지원
+
+미리보기 URL 지원 WebSocket 연결. WebSocket 업그레이드 요청이 노출된 포트를 조회할 때, routing layer는 자동으로 연결손잡이를 처리합니다.
+
+```typescript
+//요청에서 hostname 추출
+const { hostname } = new URL(request.url);
+
+//WebSocket 서버 시작
+await sandbox.startProcess("bun run ws-server.ts 8080");
+const { url } = await sandbox.exposePort(8080, { hostname });
+
+//클라이언트는 WebSocket 프로토콜을 사용하여 연결
+//브라우저: 새로운 WebSocket('wss://8080-abc123-token123.yourdomain.com')
+
+//작업자 경로는 자동으로
+export default {
+	async fetch(request, env) {
+		const proxyResponse = await proxyToSandbox(request, env);
+		if (proxyResponse) return proxyResponse;
+	},
+};
+```
+
+사용자 정의 라우팅 시나리오에 대한 작업자가 샌드 박스 또는 포트가 요청 속성을 기반으로 연결해야하는 제어해야, 참조`wsConnect()`내 계정[포트 API](/sandbox/api/ports/#wsconnect).
+
+## 보안 보안
+
+:::카트로션
+미리보기 URL은 기본적으로 접근할 수 있지만 포트를 노출할 때 생성되는 유효한 액세스 토큰이 필요합니다.
+주요 특징
+
+**내장 보안**:
+
+- **토큰 기반 액세스**- 각 노출 포트는 URL에 고유 한 토큰을 가져옵니다 (예를 들어,`https://8080-sandbox-abc123token456.yourdomain.com`)
+- **HTTPS 생산**- 모든 트래픽은 TLS로 암호화됩니다. 인증서는 첫 번째 레벨 와일드 카드에 자동으로 제공됩니다 (`*.yourdomain.com`). 작업자가 하위 도메인에서 실행되면, 참조[TLS 주의 에 생산 Deployment](/sandbox/guides/production-deployment/).
+- **예측 가능한 URL**- Auto-generated 토큰은 무작위로 생성되고 추측하기 어렵습니다.
+- **토큰 충돌 방지**- 사용자 정의 토큰은 각 sandbox 내에서 고유성을 보장하기 위해 검증됩니다.
+
+**Application-level 인증 추가**:
+
+추가 보안을 위해, 응용 프로그램 내에서 인증 구현:
+
+```python
+from flask import Flask, request, abort
+
+app = Flask(__name__)
+
+@app.route('/data')
+def get_data():
+    #인증 토큰 확인
+    auth_token = request.headers.get('Authorization')
+    if auth_token != 'Bearer your-secret-token':
+        abort(401)
+    return {'data': 'protected'}
+```
+
+이것은 URL 토큰의 상단에 보안의 두 번째 층을 추가합니다.
+
+## 문제 해결
+
+### URL 액세스 할 수없는
+
+서비스 실행 및 듣는 경우 확인 :
+
+```typescript
+//1. 서비스 실행?
+const processes = await sandbox.listProcesses();
+
+//2. 포트가 노출됩니까?
+const ports = await sandbox.getExposedPorts();
+
+//3. 0.0.0.0 (127.0.0.1 아닙니다)에 서비스 바인딩은?
+//지불 조건:
+app.run((host = "0.0.0.0"), (port = 3000));
+
+//나쁜 (localhost 만) :
+app.run((host = "127.0.0.1"), (port = 3000));
+```
+
+### 생산 오류
+
+사용자 정의 도메인 문제, 참조[생산 배포 문제 해결](/sandbox/guides/production-deployment/#troubleshooting).
+
+### 지역 개발
+
+:::caution\[Local 개발 제한]
+사용 방법`wrangler dev`, 당신은 당신의 Dockerfile에 항구를 노출해야 합니다:
+
+```dockerfile
+FROM docker.io/cloudflare/sandbox:0.3.3
+
+# Required for local development
+EXPOSE 3000
+EXPOSE 8080
+```
+
+없음`EXPOSE`, 당신은 볼 수 있습니다:`connect(): Connection refused: container port not found`
+
+이것은**현지 개발 필요**. 생산에서는, 모든 콘테이너 항구는 자동적으로 접근 가능합니다.
+주요 특징
+
+## 관련 자료
+
+- [생산 Deployment](/sandbox/guides/production-deployment/)- 생산을위한 사용자 정의 도메인 설정
+- [Expose 서비스](/sandbox/guides/expose-services/)- 항구의 폭발 패턴
+- [포트 API](/sandbox/api/ports/)- 완전한 API reference
+- [보안 모델](/sandbox/concepts/security/)- 보안 모범 사례

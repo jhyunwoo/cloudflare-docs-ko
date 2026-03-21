@@ -1,0 +1,354 @@
+---
+pcx_content_type: concept
+title: 바인딩 (env)
+tags:
+  - Bindings
+head: []
+description: 다른 Cloudflare 자원과 상호 작용을 허용하는 노동자 의무.
+next: false
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/bindings/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/bindings/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DirectoryListing, TabItem, Tabs, WranglerConfig } from "~/components";
+
+Bindings는 Cloudflare 개발자 플랫폼에 리소스와 상호 작용할 수 있습니다. Bindings는 Workers에서 자원에 접근할 때 더 나은 성과 및 더 적은 제한을 제공합니다[REST API](/api/)비 Workers 신청에 대 한 예정 이다.
+
+다음 바인딩은 오늘 사용할 수 있습니다 :
+
+<DirectoryListing />
+
+## 바인딩은 무엇입니까?
+
+Worker에 바인딩을 선언하면 특정 기능을 부여하여 파일을 읽고 쓸 수 있습니다.[모델 번호: R2](/r2/)물통. 예를 들면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"main": "./src/index.js",
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "<MY_BUCKET_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env) {
+    		const url = new URL(request.url);
+    		const key = url.pathname.slice(1);
+    		await env.MY_BUCKET.put(key, request.body);
+    		return new Response(`Put ${key} successfully!`);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, Response
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		url = urlparse(request.url)
+    		key = url.path.slice(1)
+    		await self.env.MY_BUCKET.put(key, request.body)
+    		return Response(f"Put {key} successfully!")
+    ```
+  </TabItem>
+</Tabs>
+
+한 조각에서 권한과 API로 바인딩을 생각할 수 있습니다. 바인딩을 사용하면 Cloudflare 계정에 액세스 리소스에 액세스하기 위해 작업자에게 비밀 키 또는 토큰을 추가 할 필요가 없습니다. 권한은 API 자체에 내장되어 있습니다. 비밀은 노동자의 코드에 노출되지 않습니다, 따라서 실수로 누출 될 수 없습니다.
+
+## 바인딩에 대한 변경
+
+노동자에 변화를 배치 할 때, 단지 바인딩을 변경 (즉, 당신은 노동자의 코드를 변경하지 않습니다), Cloudflare는 이미 노동자를 실행하는 기존의 고립을 재사용 할 수 있습니다. 이 성능 향상 — 당신은 당신의 코드를 다시로드하지 않고 환경 변수 또는 다른 바인딩을 변경할 수 있습니다.
+
+결과적으로 "polluting"글로벌 범위가 바인딩의 파생물과주의해야합니다. 어떤 경우에도 어떤 언젠가에 대한 변경에도 불구하고 존재 할 수 있습니다. secret API key를 사용하여 외부 클라이언트 인스턴스를 고려하십시오.`env`: 글로벌 범위에서 이 클라이언트 인스턴스를 넣으면 클라이언트 인스턴스가 비밀로 변경되면, 클라이언트 인스턴스를 사용하여 원래 값이 계속 될 수 있습니다. 올바른 접근법은 각 요청에 대한 새로운 클라이언트 인스턴스를 만들 것입니다.
+
+다음은 좋은 접근법입니다.
+
+```ts
+export default {
+	fetch(request, env) {
+		let client = new Client(env.MY_SECRET); //`client`는 `env.MY_SECRET`의 최신 값으로 최신 상태로 유지되도록 보장됩니다.
+
+		//... `client`를 가진 일
+	},
+};
+```
+
+이 대안과 비교하여 놀랍고 원하지 않는 행동을 가질 수 있습니다.
+
+```ts
+let client = undefined;
+
+export default {
+	fetch(request, env) {
+		client ??= new Client(env.MY_SECRET); //`client`는 `env.MY_SECRET` 변경이 이미 글로벌 범위에 존재할 수 있기 때문에 업데이트 될 수 없습니다.
+
+		//... `client`
+	},
+};
+```
+
+더 진보 된 필요가 있다면, 탐험[AsyncLocal저장 API](/workers/runtime-apis/nodejs/asynclocalstorage/), 이는 자식 실행 핸들러에 대한 값의 폭발 메커니즘을 제공합니다.
+
+## 오시는 길`env`
+
+Bindings는에 있습니다`env`몇몇 방법에서 접근될 수 있는 목표:
+
+- Entrypoint Handlers와 같은 인수입니다.[`fetch`](/workers/runtime-apis/fetch/):
+
+  ```js
+  export default {
+  	async fetch(request, env) {
+  		return new Response(`Hi, ${env.NAME}`);
+  	},
+  };
+  ```
+
+* 이 숙박 시설에서[채용정보](/workers/runtime-apis/bindings/service-bindings/rpc/#bindings-env),
+  [채용정보](/durable-objects/)·[작업 흐름](/workflows/):
+
+  <Tabs>
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      export class MyDurableObject extends DurableObject {
+      	async sayHello() {
+      		return `Hi, ${this.env.NAME}!`;
+      	}
+      }
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```python
+      from workers import WorkerEntrypoint, Response
+
+      class Default(WorkerEntrypoint):
+      	async def fetch(self, request):
+      		return Response(f"Hi {self.env.NAME}")
+      ```
+    </TabItem>
+  </Tabs>
+
+* 그것은에서 수입될 수 있습니다`cloudflare:workers`:
+
+  <Tabs>
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      import { env } from "cloudflare:workers";
+      console.log(`Hi, ${env.Name}`);
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```python
+      from workers import import_from_javascript
+      env = import_from_javascript("cloudflare:workers").env
+      print(f"Hi, {env.NAME}")
+      ```
+    </TabItem>
+  </Tabs>
+
+### 관련 상품`env`글로벌
+
+관련 상품`env`이름 \*`cloudflare:workers`바인딩에 접근할 필요가 있을 때 유용합니다
+등[이름 \*](/workers/configuration/secrets/)또는[환경 변수](/workers/configuration/environment-variables/)최고 수준의 글로벌 범위. 예를 들어 API 클라이언트를 초기화하려면:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { env } from "cloudflare:workers";
+    import ApiClient from "example-api-client";
+
+    //API KEY and LOG LEVEL 이제 최고 수준의 범위에서 사용 가능
+    let apiClient = ApiClient.new({ apiKey: env.API_KEY });
+    const LOG_LEVEL = env.LOG_LEVEL || "info";
+
+    export default {
+    	fetch(req) {
+    		//apiClient 또는 LOG LEVEL을 사용할 수 있습니다.
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, env
+    from example_api_client import ApiClient
+
+    api_client = ApiClient(api_key=env.API_KEY)
+    LOG_LEVEL = getattr(env, "LOG_LEVEL", "info")
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		#· ...
+    ```
+  </TabItem>
+</Tabs>
+
+Workers는 요청 상황에 따라 I/O를 허용하지 않습니다. 즉,
+이름 \*`env`최고 수준의 범위에서 액세스 할 수 없습니다, 액세스 할 수 없습니다
+모든 바인딩의 방법.
+
+예를 들어, 환경 변수 및 비밀은 접근할 수 있으며,
+이름 \*`env.NAMESPACE.get`시작하기[튼튼한 목표 stub](/durable-objects/api/stub/)내 계정
+최고 수준의 컨텍스트. 그러나, 튼튼한 Object stub에 방법을 호출, 만들기[KV 매장에 전화](/kv/api/)·
+·[다른 Workers](/workers/runtime-apis/bindings/service-bindings)일하지 않습니다.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { env } from "cloudflare:workers";
+
+    //이 오류!
+    //env.KV.get (나 키)
+
+    export default {
+    	async fetch(req) {
+    		//이 작품
+    		let myVal = await env.KV.get("my-key");
+    		Response.new(myVal);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import Response, WorkerEntrypoint, env
+
+    #이것은 실패합니다!
+    #env.KV.get (나 키)
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		#이 작품
+    		mv_val = await env.KV.get("my-key")
+    		return Response(my_val)
+    ```
+  </TabItem>
+</Tabs>
+
+또한, 수입`env`이름 \*`cloudflare:workers`당신은 통과를 방지`env`많은 함수 호출을 통해 인수로 deeply-nested에서 바인딩에 접근해야 합니다.
+기능. 이 복잡한 codebase에서 도움이 될 수 있습니다.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { env } from "cloudflare:workers";
+
+    export default {
+    	fetch(req) {
+    		Response.new(sayHello());
+    	},
+    };
+
+    //env 이다 아니 인수 에 sayHello...
+    function sayHello() {
+    	let myName = getName();
+    	return `Hello, ${myName}`;
+    }
+
+    //...nor는 getName의 인수입니다.
+    function getName() {
+    	return env.MY_NAME;
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import Response, WorkerEntrypoint, env
+
+    class Default(WorkerEntrypoint):
+    	def fetch(req):
+    		return Response(say_hello())
+
+    #env는 say hello에 인수가 아닙니다 ...
+    def say_hello():
+    	my_name = get_name()
+    	return f"Hello, {myName}"
+
+    #...nor는 getName의 인수입니다.
+    def get_name():
+    	return env.MY_NAME
+    ```
+  </TabItem>
+</Tabs>
+
+:::참조
+사용 방법`env`이름 \*`cloudflare:workers`그것을 통과하는 것보다 더 간단하게 쓸 수 있습니다.
+일련의 함수 호출을 통해 전달`env`인수는 도움이되는 패턴입니다.
+의존성 주입과 테스트를 위해.
+주요 특징
+
+### 회사 소개`env`계정 정보
+
+더 보기`withEnv`함수는 overriding 값을 위한 기계장치를 제공합니다`env`.
+
+사용자 정의[환경 변수](/workers/configuration/environment-variables/)"NAME"은 Wrangler 구성 파일에 "Alice"가되고 노동자를 배치했습니다. 기본적으로 로그인
+`env.NAME`"Alice"를 인쇄합니다. 사용 방법`withEnv`기능, 당신은의 가치를 override 할 수 있습니다
+"이름".
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { env, withEnv } from "cloudflare:workers";
+
+    function logName() {
+    	console.log(env.NAME);
+    }
+
+    export default {
+    	fetch(req) {
+    		//이것은 "Alice"를 기록합니다.
+    		logName();
+
+    		withEnv({ NAME: "Bob" }, () => {
+    			//이것은 "Bob"을 기록합니다.
+    			logName();
+    		});
+
+    		//...기타 ...
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import Response, WorkerEntrypoint, env, patch_env
+
+    def log_name():
+    	print(env.NAME)
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(req):
+    		#이것은 "Alice"를 기록합니다.
+    		log_name()
+
+    		with patch_env(NAME="Bob"):
+    			#이것은 "Bob"을 기록합니다.
+    			log_name()
+
+    		#...기타 ...
+    ```
+  </TabItem>
+</Tabs>
+
+이것은 수입에 의존하는 코드를 테스트 할 때 유용합니다.`env`객체.

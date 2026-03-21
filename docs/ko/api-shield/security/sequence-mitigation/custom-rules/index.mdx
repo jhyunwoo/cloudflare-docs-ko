@@ -1,0 +1,69 @@
+---
+pcx_content_type: reference
+title: Sequence mitigation custom rules
+sidebar:
+  order: 4
+  label: Custom rules
+
+---
+
+import { GlossaryTooltip, Render } from "~/components"
+
+API Shield sequence custom rules는 구성된 API Shield <GlossaryTooltip term="session identifier">session identifier</GlossaryTooltip>를 사용해 사용자가 요청한 순서와 요청 사이의 시간을 추적하고, 이를 [Cloudflare Rules](/rules)를 통해 사용할 수 있게 합니다. 이를 통해 유효한 시퀀스 또는 유효하지 않은 시퀀스와 일치하는 규칙을 작성할 수 있습니다.
+
+이 규칙은 [cookie sequence rules](/bots/additional-configurations/sequence-rules/)와 유사하지만 다음과 같은 다른 prerequisites가 있습니다.
+
+- Cloudflare account에 `fraud_acct_ent` entitlement가 있어야 합니다.
+- API Shield에서 [session identifiers](/api-shield/get-started/#session-identifiers)를 설정해야 합니다.
+- session identifiers가 필요하므로, 개별 사용자에게 명확히 귀속시킬 수 있는 트래픽(인증된 트래픽)에서만 사용할 수 있습니다.
+- Cloudflare는 사용자 상태를 cookie가 아니라 메모리에 저장하므로, 세션의 sequence lifetime은 10분으로 제한됩니다.
+- sequence 시스템을 활성화하려면 최소 하나의 [API sequence rule](/api-shield/security/sequence-mitigation/manage-sequence-rules/)을 설정해야 합니다.
+
+이 custom rules로 만든 규칙은 [API 또는 Cloudflare dashboard](/api-shield/security/sequence-mitigation/)를 통해 구성할 수 있는 sequence rules와 유사하며, 같은 기본 기술을 사용합니다. 그러나 custom rules는 기록된 시퀀스 위에 자유 형식 논리를 사용할 수 있고, rulesets가 제공하는 전체 응답 옵션에 접근할 수 있기 때문에 더 큰 유연성을 제공합니다.
+
+## 제공 대상
+
+:::note
+<Render file="sequence-mitigation-availability" product="api-shield" />
+:::
+
+<Render file="sequence-rules-availability" product="bots" />
+
+## Sequence custom rule 만들기
+
+<Render file="sequence-custom-rules" product="api-shield" />
+
+### 규칙 예시
+
+저장된 각 엔드포인트는 Endpoint Management의 details page에서 UUID 형태의 endpoint ID를 가집니다. 아래 참조(`aaaaaaaa`, `bbbbbbbb`, `cccccccc`)는 endpoint ID의 처음 8자입니다.
+
+방문자는 endpoint `aaaaaaaa`를 요청한 뒤 2초 이상 기다렸다가 endpoint `bbbbbbbb`를 요청해야 합니다.
+
+```txt
+cf.sequence.current_op eq "bbbbbbbb" and 
+cf.sequence.msec_since_op["aaaaaaaa"] ge 2000
+```
+
+방문자는 endpoint `aaaaaaaa`, 그다음 `bbbbbbbb`, 그다음 `cccccccc`를 정확한 순서로 요청해야 합니다.
+
+```txt
+cf.sequence.current_op eq "cccccccc" and 
+cf.sequence.previous_ops[0] == "bbbbbbbb" and 
+cf.sequence.previous_ops[1] == "aaaaaaaa"
+```
+
+방문자는 endpoint `bbbbbbbb`보다 먼저 endpoint `aaaaaaaa`를 요청해야 하지만, `aaaaaaaa`는 이전 10개의 요청 중 어느 위치에 있어도 됩니다.
+
+```txt
+cf.sequence.current_op eq "bbbbbbbb" and 
+any(cf.sequence.previous_ops[*] == "aaaaaaaa")
+```
+
+방문자는 endpoint `bbbbbbbb`보다 먼저 endpoint `aaaaaaaa` 또는 endpoint `cccccccc` 중 하나를 요청해야 합니다.
+
+```txt
+(cf.sequence.current_op eq "bbbbbbbb" and 
+any(cf.sequence.previous_ops[*] == "aaaaaaaa")) or 
+(cf.sequence.current_op eq "bbbbbbbb" and 
+any(cf.sequence.previous_ops[*] == "cccccccc"))
+```

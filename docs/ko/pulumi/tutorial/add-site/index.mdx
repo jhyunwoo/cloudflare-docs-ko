@@ -1,0 +1,701 @@
+---
+title: 사이트 맵
+pcx_content_type: tutorial
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+  - Go
+  - Java
+  - .NET
+  - YAML
+reviewed: 2024-09-13T00:00:00.000Z
+difficulty: Beginner
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 사이트 맵
+description: 이 튜토리얼은 리소스 관리 수명주기와 함께 자신을 익숙하게하는 Pulumi 인프라를 사용합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pulumi/tutorial/add-site/'
+translation_source_md: 'https://developers.cloudflare.com/pulumi/tutorial/add-site/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+이 튜토리얼에서는 Cloudflare를 사용하여 Cloudflare에 기존의 사이트를 가져 오는 단계별 지침을 따라 리소스 관리 수명주기에 익숙하게합니다. 특히 새로 추가 된 사이트를 해결하기 위해 Zone 및 DNS 레코드를 만들 것입니다. 이 튜토리얼은 IaC 원칙을 채택하여 단계가 나열된 단계를 완료합니다.[사이트 자습서](/fundamentals/manage-domains/add-site/).
+
+:::참조
+Pulumi Cloud 및 Cloudflare 모두 무료 계층 제공 자격을 갖춘 리소스를 제공 할 것입니다.
+주요 특징
+
+## 시작하기 전에
+
+당신은 있다:
+
+- Cloudflare 계정 및 API 토큰은이 튜토리얼에서 리소스를 편집 할 권한을 가지고 있습니다. 필요한 경우, 가입[Cloudflare 계정](https://www.cloudflare.com/sign-up)계속하기 토큰이 있어야 합니다:
+  - `Zone-Zone-Edit`(주)
+  - `Zone-DNS-Edit`(주)
+  - `include-All zones from an account-<your account>`지역 자원
+- Pulumi Cloud 계정. 로그인할 수 있습니다.[항상 자유로운 개인적인 층](https://app.pulumi.com/signup).
+- 더 보기[Pulumi 클립](/pulumi/installing/)당신의 기계에 설치됩니다.
+- ·[Pulumi 지원되는 프로그램 언어](https://github.com/pulumi/pulumi?tab=readme-ov-file#languages)설정한다. (TypeScript, JavaScript, Python, Go, .NET, Java 또는 YAML 사용)
+- 도메인 이름. 사용 가능`example.com`튜토리얼을 완료합니다.
+
+## 1. 당신의 프로젝트를 초기화
+
+Pulumi 프로젝트는 생성하려는 인프라를 설명하는 전용 폴더의 파일 모음입니다. Pulumi 프로젝트 폴더는 필수로 식별됩니다.`Pulumi.yaml`파일. Pulumi CLI를 사용하여 새로운 프로젝트를 만들고 구성합니다.
+
+### a. 디렉토리 만들기
+
+이 튜토리얼의 새로운 빈 디렉토리를 사용합니다.
+
+```sh
+mkdir addsite-cloudflare
+cd addsite-cloudflare
+```
+
+### b. Pulumi Cloud에 로그인
+
+[Pulumi 클라우드](https://www.pulumi.com/product/pulumi-cloud/)보안 및 확장 가능한 플랫폼을 제공하는 호스팅 서비스입니다. Pulumi 백엔드 구성을 저장할 수 있습니다.
+
+프롬프트에서 브라우저를 통해 Pulumi Cloud 계정으로 로그인하십시오. 대안으로, 당신은 제공 할 수 있습니다[Pulumi Cloud 액세스 토큰](https://www.pulumi.com/docs/pulumi-cloud/access-management/access-tokens/).
+
+```sh
+pulumi login
+```
+
+### c. 새 프로그램을 만들기
+
+Pulumi 프로그램이 작성된 코드입니다.[지원되는 프로그래밍 언어](https://github.com/pulumi/pulumi?tab=readme-ov-file#languages)인프라 리소스를 정의합니다.
+
+프로그램을 만들려면, 선택의 언어를 선택하고 실행`pulumi`명령:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```sh
+    pulumi new javascript --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```sh
+    pulumi new typescript --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```sh
+    pulumi new python --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    ```sh
+    pulumi new go --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    ```sh
+    pulumi new java --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sh
+    pulumi new csharp --name addsite-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    ```sh
+    pulumi new yaml --name addsite-cloudflare --yes
+    ```
+  </TabItem>
+</Tabs>
+
+### d. 스택 만들기
+
+펄프[사이트맵](https://www.pulumi.com/docs/concepts/stack/)Pulumi 프로그램의 인스턴스입니다. 스택은 독립적으로 구성되며 다른 환경 (개발, 시효, 생산) 또는 기능 지점을 나타냅니다. 이 튜토리얼의 경우, 당신은 사용할 것이다`dev`스택.
+
+즉시 당신의`dev`스택, 실행:
+
+```sh
+pulumi up --yes
+#스택의 몇 초를 즉시 기다립니다.
+```
+
+이 시점에서 모든 리소스를 정의하지 않았으므로 빈 스택이 있습니다.
+
+### e. 설정 저장
+
+이 단계에서는 Pulumi에서 설정을 저장합니다.[ESC 환경](https://www.pulumi.com/docs/esc/environments/)구성과 비밀을 포함하는 YAML 파일. Pulumi 프로그램을 포함한 여러 가지 방법으로 액세스 할 수 있습니다. 모든 ESC 환경은 Pulumi Cloud 계정에 안전하게 의존하며 Pulumi CLI를 통해 완전히 관리 할 수 있습니다. 이 튜토리얼의 경우 다음 값을 저장합니다.
+
+- 당신의 Cloudflare[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+- 유효한 Cloudflare API[계정 관리](/fundamentals/api/get-started/create-token/).
+- 도메인. 예를 들어,`example.com`.
+
+```sh
+#ESC 환경 이름 정의
+E=cloudflare/my-dev-env
+
+#새로운 Pulumi ESC 환경 만들기
+pulumi config env init --env $E --yes
+```
+
+```sh output
+Creating environment cloudflare/my-dev-env for stack dev...
+```
+
+```sh
+#Cloudflare로 abc123을 대체하십시오 계정 ID
+pulumi env set $E --plaintext pulumiConfig.accountId abc123
+
+#Cloudflare API 토큰을 사용하여 API TOKEN을 대체하십시오
+pulumi env set $E --secret  pulumiConfig.cloudflare:apiToken API_TOKEN
+
+#등록 된 도메인에 example.com을 바꾸거나, 그대로 남겨두십시오.
+pulumi env set $E --plaintext pulumiConfig.domain example.com
+```
+
+### f. Cloudflare 패키지 설치
+
+Pulumi 프로그램에 Cloudflare 리소스를 정의하기 위해 Cloudflare 패키지를 설치해야합니다.
+
+다음 명령을 실행하여 Cloudflare 패키지를 설치하십시오.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```sh
+    npm install @pulumi/cloudflare
+    ```
+
+    ```sh output
+    added 1 package ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```sh
+    npm install @pulumi/cloudflare
+    ```
+
+    ```sh output
+    added 1 package ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```sh
+    echo "pulumi_cloudflare>=5.38,<6.0.0" >> requirements.txt
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+    ```sh output
+    ...Collecting pulumi-cloudflare...
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    ```sh
+    go get github.com/pulumi/pulumi-cloudflare/sdk/v3/go/cloudflare
+    ```
+
+    ```sh output
+    go: downloading github.com/pulumi/pulumi-cloudflare ...
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    아래는 Apache Maven 지침입니다. Gradle과 같은 다른 Java 프로젝트 관리자는 공식을 참조하십시오.[Maven 저장소](https://central.sonatype.com/artifact/com.pulumi/cloudflare/overview)
+
+    1. 자주 묻는 질문`pom.xml`파일.
+    2. Pulumi Cloudflare 의존성 추가`<dependencies>`이름 \*
+
+    ```xml
+    <dependency>
+        <groupId>com.pulumi</groupId>
+        <artifactId>cloudflare</artifactId>
+        <version>5.38.0</version>
+    </dependency>
+    ```
+
+    3. 실행:
+
+    ```sh
+    mvn clean install
+    ```
+
+    ```sh output
+    ...[INFO] BUILD SUCCESS...
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sh
+    dotnet add package Pulumi.Cloudflare
+    ```
+
+    ```sh output
+    ...
+    info : Adding PackageReference for package 'Pulumi.Cloudflare' into project
+    ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    YAML에 대한 다운로드에 의존하지 않습니다. 더 알아보기
+  </TabItem>
+</Tabs>
+
+## 2. 코드에 Cloudflare 리소스 정의
+
+Cloudflare 패키지를 설치하면 이제 정의 할 수 있습니다.[지원되는 Cloudflare 자원](https://www.pulumi.com/registry/packages/cloudflare/)당신의 Pulumi 프로그램에. 다음 영역과 DNS 레코드를 정의할 수 있습니다.
+
+### a. 지역 추가
+
+도메인 또는 사이트, Cloudflare의 영역으로 알려져 있습니다. 푸미에서,[지역 자원](https://www.pulumi.com/registry/packages/cloudflare/api-docs/zone/)Cloudflare 영역을 나타냅니다.
+
+다음으로 엔트리포인트 파일의 내용을 대체합니다:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```js
+    "use strict";
+    const pulumi = require("@pulumi/pulumi");
+    const cloudflare = require("@pulumi/cloudflare");
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    //Cloudflare 리소스 만들기 (Zone)
+    const zone = new cloudflare.Zone("my-zone", {
+    	zone: domain,
+    	accountId: accountId,
+    	plan: "free",
+    	jumpStart: true,
+    });
+
+    exports.zoneId = zone.id;
+    exports.nameservers = zone.nameServers;
+    exports.status = zone.status;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    import * as pulumi from "@pulumi/pulumi";
+    import * as cloudflare from "@pulumi/cloudflare";
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    //Cloudflare 리소스 만들기 (Zone)
+    const zone = new cloudflare.Zone("my-zone", {
+    	zone: domain,
+    	accountId: accountId,
+    	plan: "free",
+    	jumpStart: true,
+    });
+
+    export const zoneId = zone.id;
+    export const nameservers = zone.nameServers;
+    export const status = zone.status;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```py
+    import pulumi
+    import pulumi_cloudflare as cloudflare
+
+    account_id = pulumi.Config().require("accountId")
+    domain = pulumi.Config().require("domain")
+
+    #Cloudflare 리소스 만들기 (Zone)
+    zone = cloudflare.Zone("my-zone",
+        zone=domain,
+        account_id=account_id,
+        plan="free",
+        jump_start=True)
+
+    pulumi.export("zoneId", zone.id)
+    pulumi.export('nameservers', zone.name_servers)
+    pulumi.export('status', zone.status)
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+    package main
+
+    import (
+        "github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+        cloudflare "github.com/pulumi/pulumi-cloudflare/sdk/v3/go/cloudflare"
+    )
+
+    func main() {
+        pulumi.Run(func(ctx *pulumi.Context) error {
+            domain, _ := ctx.GetConfig("domain")
+
+            // Create a Cloudflare resource (Zone)
+            zone, err := cloudflare.NewZone(ctx, "my-zone", &cloudflare.ZoneArgs{
+                Zone:      pulumi.String(domain),
+                Plan:      pulumi.String("free"),
+                JumpStart: pulumi.Bool(true),
+            })
+            if err != nil {
+                return err
+            }
+
+            ctx.Export("zoneId", zone.ID())
+            ctx.Export("nameservers", zone.NameServers)
+            ctx.Export("status", zone.Status)
+            return nil
+        })
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+    package myproject;
+
+    import com.pulumi.Pulumi;
+    import com.pulumi.Context;
+    import com.pulumi.cloudflare.ZoneArgs;
+    import com.pulumi.cloudflare.Zone;
+
+
+    public class App {
+        public static void main(String[] args) {
+            Pulumi.run(ctx -> {
+                var config = ctx.config();
+
+                String accountId = config.require("accountId");
+                String domain = config.require("domain");
+
+                var zone = new Zone("my-zone", ZoneArgs.builder()
+                    .zone(domain)
+                    .accountId(accountId)
+                    .plan("free")
+                    .jumpStart(true)
+                    .build());
+
+                ctx.export("zoneId", zone.id());
+                ctx.export("nameservers", zone.nameServers());
+                ctx.export("status", zone.status());
+            });
+        }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    ```csharp
+    using System.Threading.Tasks;
+    using System.Collections.Immutable;
+    using Pulumi;
+    using Pulumi.Cloudflare;
+
+    class Program
+    {
+        static Task<int> Main() => Deployment.RunAsync<MyStack>();
+
+        class MyStack : Stack
+        {
+            public MyStack()
+            {
+                var config = new Pulumi.Config();
+                var accountId = config.Require("accountId");
+                var domain = config.Require("domain");
+
+                var zone = new Zone("my-zone", new ZoneArgs
+                {
+                    ZoneName = domain,
+                    AccountId = accountId,
+                    Plan = "free",
+                    JumpStart = true
+                });
+
+                this.ZoneId = zone.Id;
+                this.Nameservers = zone.NameServers;
+                this.Status = zone.Status;
+            }
+
+            [Output]
+            public Output<string> ZoneId { get; set; }
+            public Output<ImmutableArray<string>> Nameservers { get; set; }
+            public Output<string> Status { get; set; }
+        }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    **파일 이름:`Pulumi.yaml`**
+
+    ```yaml
+    name: addsite-cloudflare
+    runtime: yaml
+    resources:
+      myZone:
+        type: cloudflare:Zone
+        properties:
+          zone: ${domain}
+          accountId: ${accountId}
+          plan: "free"
+          jumpStart: true
+
+    outputs:
+      zoneId: ${myZone.id}
+      nameservers: ${exampleZone.nameServers}
+      status: ${exampleZone.status}
+    ```
+  </TabItem>
+</Tabs>
+
+코드는 또한 영역 자원에서 여러 속성을 출력한다는 것을 알립니다.`zoneId`, `nameservers`·`status`, 그래서 그들은 쉽게 후속 단계에서 접근 할 수 있습니다.
+
+### b. DNS 레코드 추가
+
+이제 DNS 추가[기록 자료](https://www.pulumi.com/registry/packages/cloudflare/api-docs/record/)이전에 형성된 지역을 시험하기 위하여.
+
+다음 코드를 추가 snippet 당신의 Entrypoint 파일**후에**영역 자원 정의:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```js
+    const record = new cloudflare.Record("my-record", {
+    	zoneId: zone.id,
+    	name: domain,
+    	content: "192.0.2.1",
+    	type: "A",
+    	proxied: true,
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    const record = new cloudflare.Record("my-record", {
+    	zoneId: zone.id,
+    	name: domain,
+    	content: "192.0.2.1",
+    	type: "A",
+    	proxied: true,
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```py
+    record = cloudflare.Record("my-record",
+        zone_id=zone.id,
+        name=domain,
+        content="192.0.2.1",
+        type="A",
+        proxied=True
+    )
+
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+
+        _, err = cloudflare.NewRecord(ctx, "my-record", &cloudflare.RecordArgs{
+          ZoneId:  zone.ID(),
+          Name:    pulumi.String(domain),
+          Content:   pulumi.String("192.0.2.1"),
+          Type:    pulumi.String("A"),
+          Proxied: pulumi.Bool(true),
+        })
+        if err != nil {
+          return err
+        }
+
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+
+    // Add imports
+    import com.pulumi.cloudflare.Record;
+    import com.pulumi.cloudflare.RecordArgs;
+
+    // Below the Zone resource, add
+    new Record("my-record", RecordArgs.builder()
+    .zoneId(zone.id())
+    .name(domain)
+    .content("192.0.2.1")
+    .type("A")
+    .proxied(true)
+    .build());
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    ```csharp
+    new Record("my-record", new RecordArgs
+    {
+        ZoneId = zone.Id,
+        Name = domain,
+        Content = "192.0.2.1",
+        Type = "A",
+        Proxied = true
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    **파일 이름:`Pulumi.yaml`**
+
+    ```yaml
+    myRecord:
+      type: cloudflare:Record
+      properties:
+        zoneId: ${myZone.id}
+        name: ${domain}
+        content: 192.0.2.1
+        type: A
+        proxied: true
+    ```
+  </TabItem>
+</Tabs>
+
+## 3. 변경 사항
+
+이제 리소스를 정의했다면, Cloudflare 계정에서 반영되는 Pulumi CLI를 사용하여 변경 사항을 배포 할 수 있습니다.
+
+변경을 배포하려면:
+
+```sh
+pulumi up --yes
+```
+
+```sh output
+wait for the dev stack to become ready
+```
+
+## 4. DNS 공급자 구성
+
+:::참조
+
+이 프로세스는 Cloudflare 당신의 권위있는 DNS 공급자, 당신의 DNS 쿼리 및 웹 트래픽을 허용하고 Cloudflare 네트워크에 의해 보호.
+
+[더 알아보기](/dns/zone-setups/reference/domain-status/)
+:::
+
+:::참조
+귀하의 사이트`example.com`, 앞으로 건너뛰기[사이트 맵](#5-test-your-site).
+:::
+
+### a. 네임서버 취득
+
+Cloudflare에 도메인을 추가하면 도메인은 두 개의 할당 된 권한 네임 서버를 받게됩니다.
+
+할당 된 검색`nameservers`, 실행:
+
+```sh
+pulumi stack output
+```
+
+### b. 레지스트라 업데이트
+
+도메인에 대한 Cloudflare 서비스를 활성화하려면 레지스트라에서 네임 서버를 업데이트하십시오. 지침은 레지스트라 별입니다. 아래 지도를 찾을 수 있습니다.[이 통합된 공통 등록 목록](/dns/zone-setups/full-setup/setup/#update-your-registrar).
+
+:::카트로션
+레지스트라는 네임서버 변경을 처리하기 위해 최대 24시간 걸립니다.
+주요 특징
+
+### c. 도메인 상태를 확인
+
+성공적으로 등록되면 도메인`status`변경 사항`active`.
+
+```sh
+pulumi stack output
+```
+
+## 5. 당신의 위치를 시험하십시오
+
+당신은 두 번 실행됩니다`nslookup`Cloudflare- 할당된 네임서버에 대한 명령.
+
+사이트 테스트, 실행:
+
+```sh
+DOMAIN=$(pulumi config get domain)
+NS1=$(pulumi stack output nameservers | jq '.[0]' -r)
+NS2=$(pulumi stack output nameservers | jq '.[1]' -r)
+nslookup $DOMAIN $NS1
+nslookup $DOMAIN $NS2
+```
+
+.NET의 사용을 위해`Nameservers`산출으로.
+
+응답을 확인하면 IP 주소(es) 귀하의 사이트에.
+
+:::참조
+사용할 경우 유효한 응답을받지 않습니다.`example.com`당신의 위치.
+주요 특징
+
+## 6. 청소
+
+이 마지막 단계에서는 튜토리얼에서 사용되는 리소스 및 스택을 제거 할 것입니다.
+
+### a. 리소스 삭제
+
+```sh
+pulumi destroy --yes
+```
+
+### b. 스택 제거
+
+```sh
+pulumi stack rm dev
+```
+
+## 다음 단계
+
+Cloudflare에 사이트를 추가하기 위해 필요한 Cloudflare 리소스를 incrementally 정의했습니다. 선택의 프로그래밍 언어에 리소스를 선언하고 Pulumi는 나머지를 처리 할 수 있습니다.
+
+Pulumi로 Serverless 앱을 배포하려면, 따르십시오.[Worker 튜토리얼 배포](/pulumi/tutorial/hello-world/).

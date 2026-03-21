@@ -1,0 +1,147 @@
+---
+pcx_content_type: how-to
+title: API를 사용하여 Human Feedback 추가
+sidebar:
+  order: 4
+  hidden: true
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/evaluations/add-human-feedback-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/evaluations/add-human-feedback-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+이 가이드는 Cloudflare API를 사용하여 AI Gateway 요청에 대한 인간의 피드백을 추가하는 단계를 통해 이동합니다. 관련 요청 로그를 검색하고 API를 사용하여 피드백을 제출하는 방법을 배울 것입니다.
+
+대시보드XQ를 통해 인간의 피드백을 추가하려면, 참조[Human 피드백 추가](/ai-gateway/evaluations/add-human-feedback/).
+
+## 1. API 토큰 생성
+
+1. [API 토큰 만들기](/fundamentals/api/get-started/create-token/)다음과 같은 권한을 가진:
+
+- `AI Gateway - Read`
+- `AI Gateway - Edit`
+
+2. 내 계정[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+3. API 토큰 및 계정 ID를 사용하여 전송[`POST`이름 \*](/api/resources/ai_gateway/methods/create/)Cloudflare API에.
+
+## 2. 검색`cf-aig-log-id`
+
+더 보기`cf-aig-log-id`특정 로그 항목에 대한 고유 식별자는 피드백을 추가하고 싶습니다. 아래는 두 가지 방법이 있습니다.
+
+### 방법 1: 찾기`cf-aig-log-id`요청 응답에서
+
+이 방법은 직접 찾을 수 있습니다`cf-aig-log-id`AI Gateway에 의해 반환된 응답의 헤더 안에. 이것은 원래 API 응답에 액세스 할 경우 가장 똑바른 접근입니다.
+
+아래 단계는이 작업을 수행하는 방법.
+
+1. **AI Gateway에 요청하기**: 이 응용 프로그램은 AI Gateway로 전송할 수 있습니다. 요청이 완료되면 응답은 metadata의 다양한 조각을 포함합니다.
+2. **응답 헤더 확인**: 응답은 header 이름을 포함 할 것이다`cf-aig-log-id`. 이것은 식별자는 피드백을 제출해야합니다.
+
+아래 예제에서,`cf-aig-log-id`이름 \*`01JADMCQQQBWH3NXZ5GCRN98DP`.
+
+```json
+{
+	"status": "success",
+	"headers": {
+		"cf-aig-log-id": "01JADMCQQQBWH3NXZ5GCRN98DP"
+	},
+	"data": {
+		"response": "Sample response data"
+	}
+}
+```
+
+### 방법 2: 검색`cf-aig-log-id`API를 통해 (GET 요구)
+
+당신이없는 경우`cf-aig-log-id`응답 몸에서 또는 당신은 그것이 사실 후에 액세스해야, 당신은 그것을 검색할 수 있습니다 로그를 사용하여[모델 번호: Cloudflare](/api/resources/ai_gateway/subresources/logs/methods/list/).
+
+이름 \*`GET`로그인 목록을 확인하고 특정 ID를 찾습니다.
+
+<APIRequest path="/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs" method="GET" />
+
+```json output
+{
+	"result": [
+		{
+			"id": "01JADMCQQQBWH3NXZ5GCRN98DP",
+			"cached": true,
+			"created_at": "2019-08-24T14:15:22Z",
+			"custom_cost": true,
+			"duration": 0,
+			"id": "string",
+			"metadata": "string",
+			"model": "string",
+			"model_type": "string",
+			"path": "string",
+			"provider": "string",
+			"request_content_type": "string",
+			"request_type": "string",
+			"response_content_type": "string",
+			"status_code": 0,
+			"step": 0,
+			"success": true,
+			"tokens_in": 0,
+			"tokens_out": 0
+		}
+	]
+}
+```
+
+### 방법 3: 검색`cf-aig-log-id`연결하기
+
+또한 검색할 수 있습니다.`cf-aig-log-id`프로세스를 간소화하는 바인딩을 사용하여. 로그인 ID를 직접 검색하는 방법은 다음과 같습니다.
+
+```js
+const resp = await env.AI.run(
+	"@cf/meta/llama-3-8b-instruct",
+	{
+		prompt: "tell me a joke",
+	},
+	{
+		gateway: {
+			id: "my_gateway_id",
+		},
+	},
+);
+
+const myLogId = env.AI.aiGatewayLogId;
+```
+
+:::주\[주:]
+
+더 보기`aiGatewayLogId`재산은, 마지막 inference 호출 로그 ID를 붙들 것입니다.
+
+:::
+
+## 3. PATCH 요청을 통해 피드백 제출
+
+API 토큰과 함께하면`cf-aig-log-id`, 당신은 의견을 제출하기 위해 PATCH 요청을 보낼 수 있습니다.
+
+<APIRequest
+  path="/accounts/{account_id}/ai-gateway/gateways/{gateway_id}/logs/{id}"
+  method="PATCH"
+  json={{
+  	feedback: 1,
+  }}
+/>
+
+부정적인 의견이 있다면, 요청의 몸을 조정`-1`.
+
+```json
+{
+	"feedback": -1
+}
+```
+
+## 4. 피드백 제출 확인
+
+두 가지 방법으로 피드백 제출을 확인할 수 있습니다.
+
+- **한국어[Cloudflare 대시보드](https://dash.cloudflare.com)**: AI Gateway 인터페이스에서 업데이트 된 피드백을 확인하십시오.
+- **API를 통해**: 업데이트 로그 항목을 검색하고 피드백을 확인하기 위해 다른 GET 요청을 보냅니다.

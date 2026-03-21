@@ -1,0 +1,76 @@
+---
+pcx_content_type: concept
+title: Logpush 경고 및 분석
+sidebar:
+  order: 90
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/logpush/alerts-and-analytics/'
+translation_source_md: 'https://developers.cloudflare.com/logs/logpush/alerts-and-analytics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { AvailableNotifications, DashButton } from "~/components"
+
+Logpush 작업은 몇 가지 이유로 실패 할 수 있습니다, 예를 들어 대상이 허용되지 않기 때문에, 고객의 기원에 대한 허가의 변경 때문에, 또는 Logpush 작업이 마지막 24 시간에 적어도 하나의 성공적인 푸시를 완료하지 않았다.
+
+분석 및 경고로, 당신은 당신의 Logpush 작업 건강을 모니터링하고 작업이 실패 할 때 자신을 찾을 수 있습니다. 당신은 경고를 얻을 수 있으며 GraphQL을 통해 Logpush 작업 건강에 대한 분석을 얻을 수 있습니다.
+
+경고는 보내집니다[Cloudflare 알림](/notifications/)시스템. 그들은 이메일 또는 webhook를 통해 보내질 수 있습니다. 작업 장애 알림에 가입하면 24 시간 당 작업 당 가장 하나의 경고를 받게됩니다. 알림 이메일은 작업 ID 및 대상 구성을 포함합니다.
+
+<AvailableNotifications product="Logpush" />
+
+## 법적 고지
+
+알림을 추가할 수 있습니다.**Failing Logpush 작업 비활성화**을 통해**공지사항**대시보드의 단면도. 경고는 계정 수준에서 설정할 수 있으며 계정 내에서 모든 작업에 적용할 수 있습니다.
+
+1. Cloudflare 대시보드에서, 갑니다**공지사항**사이트 맵
+
+   <DashButton url="/?to=/:account/notifications" />
+
+2. 다음, 선택**더 보기**.
+
+3. 경고 선택**Failing Logpush 작업 비활성화**.
+
+4. 알림 구성: 이름 선택, 설명 추가 (선택 사항), 알림 서비스 선택, Webhooks and enter the email where you want to notified.
+
+5. 제품정보**제품 정보**.
+
+이 단계를 완료하면 Logpush 작업이 비활성화되면 이메일 알림을 받게됩니다.
+
+## Logpush 건강 분석
+
+고객은 Logpush 작업 건강 메트릭을 통해 쿼리 할 수 있습니다.[그래프QL API](/analytics/graphql-api/). dataset의 이름은`logpushHealthAdaptiveGroups`스키마는 탐험 할 수 있습니다.[그래프QL API](/analytics/graphql-api/getting-started/explore-graphql-schema/).
+
+다음은 S3가 실패하는 몇 번의 작업이 얼마나 많은 작업을 얻을 수있는 쿼리입니다.
+
+```json
+query
+{
+  viewer
+  {
+    zones(filter: { zoneTag: $zoneTag})
+    {
+      logpushHealthAdaptiveGroups(filter: {
+        datetime_gt:"2022-08-15T00:00:00Z",
+        destinationType:"s3",
+        status_neq:200
+      },
+      limit:10)
+      {
+        count,
+        dimensions {
+          jobId,
+          status,
+          destinationType
+        }
+      }
+    }
+  }
+}
+```
+
+:::참조
+당신이 얻을 경우`1105`Logpush 작업 건강을 검사 할 때 상태 코드 오류, 그것은 DNS 해결 문제를 나타냅니다. 즉, Cloudflare는 Logpush 작업의 대상 호스트 이름을 해결할 수 없습니다. 이 문제를 해결하려면 DNS 서비스 제공 업체를 확인하고 호스트 이름을 공개적으로 해결 할 수 있습니다.
+주요 특징

@@ -1,0 +1,52 @@
+---
+pcx_content_type: concept
+title: Interplanetary File System (IPFS)
+sidebar:
+  order: 1
+
+---
+
+Interplanetary File System(IPFS)은 전 세계의 컴퓨터가 거대한 peer-to-peer 네트워크의 일부로 파일을 저장하고 제공할 수 있게 해 주는 분산 파일 저장 프로토콜입니다.
+
+세계 어디에 있는 어떤 컴퓨터든 IPFS 소프트웨어를 다운로드하고 파일 호스팅 및 제공을 시작할 수 있습니다.
+
+누군가 자신의 컴퓨터에서 IPFS를 실행하고 파일을 IPFS network에 업로드하면, IPFS를 실행 중인 세계의 다른 누구나 그 파일을 보고 다운로드할 수 있습니다.
+
+## Content Identifiers
+
+IPFS에 추가되는 모든 파일에는 파일 콘텐츠의 hash에서 파생된 고유 주소가 부여됩니다. 이 주소를 Content Identifier(CID)라고 하며, 파일의 hash와 사용된 hash 알고리즘의 고유 식별자를 하나의 문자열로 결합합니다.
+
+IPFS는 현재 기본적으로 [SHA-256](https://en.wikipedia.org/wiki/SHA-2)을 사용하며, 이는 256비트(32바이트) 출력을 생성하고 그 출력은 [Base58](https://en.wikipedia.org/wiki/Base58)로 인코딩됩니다. Base58은 원래 Bitcoin용으로 개발된 binary-to-text 인코딩 방식으로, 특정 글꼴에서 서로 헷갈릴 수 있는 문자(예: 숫자 0과 대문자 O)가 포함되지 않는 장점이 있습니다.
+
+CID는 일반적으로 `QmXoypizjW3WknFiJnKLwHCnL72vedxjQkDDP1mXWo6uco`와 같은 형태입니다.
+
+하지만 같은 hash라도 [Base32](https://en.wikipedia.org/wiki/Base32)나 [SHA-3](https://en.wikipedia.org/wiki/SHA-3), [BLAKE2](https://en.wikipedia.org/wiki/BLAKE_\(hash_function\)) 같은 다른 지원 알고리즘으로 인코딩될 수 있습니다.
+
+## IPFS로 업로드하기
+
+IPFS는 근본적으로 [Distributed Hash Table(DHT)](https://en.wikipedia.org/wiki/Distributed_hash_table)입니다. 이는 CID를 그 콘텐츠를 보유한 사람으로 매핑합니다. 이 hash table이 분산되어 있는 이유는 네트워크 내 어느 단일 node도 전체 table을 보유하지 않기 때문입니다. 대신 각 node는 hash table의 일부와, 다른 관련 구간을 어떤 node가 저장하고 있는지에 대한 정보를 보관합니다.
+
+누군가 IPFS에 콘텐츠를 '업로드'한다고 말할 때, 실제 의미는 대개 CID를 자신의 IP 주소에 매핑하는 항목을 DHT에 추가함으로써 자신이 어떤 콘텐츠를 갖고 있다고 네트워크에 알리는 것입니다. 그 데이터를 다운로드하고 싶은 다른 사람은 DHT에서 CID를 조회해 해당 사람의 IP 주소를 찾고, 그 사람에게서 직접 데이터를 내려받습니다.
+
+IPFS의 속도와 신뢰성 장점은 많은 사람이 같은 데이터를 업로드할 수 있고, 다운로드가 그들 사이에 분산된다는 점에서 나옵니다. 그중 하나가 오프라인이 되거나 데이터를 더 이상 호스팅하지 않기로 결정하더라도 나머지가 그 역할을 대신할 수 있습니다.
+
+## 디렉터리
+
+개별 파일뿐 아니라 그 이상의 것도 업로드할 수 있습니다. 예를 들어 `example`이라는 폴더가 있고 그 안에 `I'm trying out IPFS` 문자열을 담은 `example_text.txt`라는 파일 하나만 있다고 가정해 봅시다.
+
+그 폴더를 `ipfs add -r ./example` 명령으로 업로드하면 폴더와 그 안의 파일은 각각 고유한 CID를 갖게 됩니다. 이 경우 폴더의 CID는 `QmdbaSQbGU6Wo9i5LyWWVLuU8g6WrYpWh2K4Li4QuuE8Fr`이고 파일의 CID는 `QmXnnyufdzAWL5CqZ2RnSNgPbvCc1ALT73s6epPrRnZ1Xy`입니다.
+
+이후 파일에는 두 가지 방식으로 접근할 수 있습니다.
+
+* 파일 자체를 직접 요청:<br />
+  `https://cloudflare-ipfs.com/ipfs/QmXnnyufdzAWL5CqZ2RnSNgPbvCc1ALT73s6epPrRnZ1Xy`
+* 디렉터리 안에서 파일 이름으로 요청:<br />
+  `https://cloudflare-ipfs.com/ipfs/QmdbaSQbGU6Wo9i5LyWWVLuU8g6WrYpWh2K4Li4QuuE8Fr/example_text.txt`
+
+파일의 CID는 파일 자체가 바뀔 때만 변경되지만, 디렉터리의 CID는 그 안의 파일 중 **어느 하나라도** 바뀌거나 파일이 추가/삭제될 때마다 변경됩니다.
+
+디렉터리를 사용하면 정적 웹사이트 전체를 하나의 CID로 주소 지정할 수 있고, 디렉터리 안의 서로 다른 파일을 요청해 웹사이트의 각기 다른 페이지에 접근할 수 있습니다.
+
+## 관련 자료
+
+추가 개념에 대한 도움이 필요하면 [IPFS](https://docs.ipfs.tech/concepts/) 문서를 참고하세요.

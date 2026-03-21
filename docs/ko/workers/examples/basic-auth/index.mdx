@@ -1,0 +1,382 @@
+---
+summary: Shows how to restrict access using the HTTP Basic schema.
+tags:
+  - Security
+  - Authentication
+  - JavaScript
+  - TypeScript
+  - Rust
+preview:
+  - true
+pcx_content_type: example
+title: HTTP 기본 인증
+reviewed: 2024-01-11T00:00:00.000Z
+sidebar:
+  order: 1001
+description: HTTP Basic schema를 사용하여 액세스 제한하는 방법을 보여줍니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/basic-auth/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/basic-auth/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+:::참조
+
+이 예제 Worker는 사용[Node.js 버퍼 API](/workers/runtime-apis/nodejs/buffer/)Workers 런타임의 일부로 사용할 수 있는[Node.js 호환성 형태](/workers/runtime-apis/nodejs/). 이 노동자를 달리기 위하여, 당신은 필요로 할 것입니다[지원하다`nodejs_compat`호환성 깃발](/workers/configuration/compatibility-flags/#nodejs-compatibility-flag).
+:::
+
+:::caution\[제작시 주의사항]
+
+이 부호는 표본으로 제공되고, 생산 사용을 위해 적당하지 않습니다. Basic Authentication은 암호화되지 않은 credentials를 보내고, 보안을 고려하기 위해 HTTPS 연결과 함께 사용해야합니다. 프로덕션 시스템의 경우,[Cloudflare 오시는 길](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
+
+:::
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    /** 이름
+    * HTTP Basic schema를 사용하여 액세스 제한하는 방법을 보여줍니다.
+    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
+    * @see https://tools.ietf.org/html/rfc7617
+    * 이름*/
+
+    import { Buffer } from "node:buffer";
+
+    const encoder = new TextEncoder();
+
+    /** 이름
+    * `timingSafeEqual`를 사용하여 안전하게 가치를 비교하여 타이밍 공격에 대해 보호합니다.
+    * 자세한 내용은 https://developers.cloudflare.com/workers/runtime-apis/web-crypto/#timingsafeequal에 Refer
+    * @param {string} a
+    * @param {string} b
+    * @returns {불린}*/
+    function timingSafeEqual(a, b) {
+    	const aBytes = encoder.encode(a);
+    	const bBytes = encoder.encode(b);
+
+    	//길이가 다를 때 일찍 반환하지 마십시오. 비밀의 누출
+    	//타이밍을 통해 길이. 대신 자기와 negate에 대한 비교.
+    	if (aBytes.byteLength !== bBytes.byteLength) {
+    		return !crypto.subtle.timingSafeEqual(aBytes, aBytes);
+    	}
+
+    	return crypto.subtle.timingSafeEqual(aBytes, bBytes);
+    }
+
+    export default {
+    	/** 이름
+    * 이름
+    * @param {Request} 요청
+    * @param {{PASSWORD: 문자열}}
+    * @returns는*/
+    	async fetch(request, env) {
+    		const BASIC_USER = "admin";
+
+    		//관리자 암호가 필요합니다. 이것은 있어야한다
+    		//암호화된 비밀로 노동자에 붙어.
+    		//https://developers.cloudflare.com/workers/configuration/secrets/에 Refer
+    		const BASIC_PASS = env.PASSWORD ?? "password";
+
+    		const url = new URL(request.url);
+
+    		switch (url.pathname) {
+    			case "/":
+    				return new Response("Anyone can access the homepage.");
+
+    			case "/logout":
+    				//HTTP 401을 반환하여 "Authorization" 헤더를 유효성 검사합니다.
+    				//우리는 "WWW-Authenticate" 헤더를 보내지 않습니다.
+    				//브라우저에서 팝업, 즉시 credentials에 대 한 요청.
+    				return new Response("Logged out.", { status: 401 });
+
+    			case "/admin": {
+    				//"Authorization" 헤더가 정해진 때 보내집니다.
+    				const authorization = request.headers.get("Authorization");
+    				if (!authorization) {
+    					return new Response("You need to login.", {
+    						status: 401,
+    						headers: {
+    							//자격 증명을 위한 사용자를 양성합니다.
+    							"WWW-Authenticate": 'Basic realm="my scope", charset="UTF-8"',
+    						},
+    					});
+    				}
+    				const [scheme, encoded] = authorization.split(" ");
+
+    				//Authorization 헤더는 기본적으로 시작해야 하며, 공백에 따라 시작합니다.
+    				if (!encoded || scheme !== "Basic") {
+    					return new Response("Malformed authorization header.", {
+    						status: 400,
+    					});
+    				}
+
+    				const credentials = Buffer.from(encoded, "base64").toString();
+
+    				//사용자 이름 및 암호는 첫 번째 식민지에 의해 나뉩니다.
+    				//=> 예제: "username:password"
+    				const index = credentials.indexOf(":");
+    				const user = credentials.substring(0, index);
+    				const pass = credentials.substring(index + 1);
+
+    				if (
+    					!timingSafeEqual(BASIC_USER, user) ||
+    					!timingSafeEqual(BASIC_PASS, pass)
+    				) {
+    					return new Response("You need to login.", {
+    						status: 401,
+    						headers: {
+    							//자격 증명을 위한 사용자를 양성합니다.
+    							"WWW-Authenticate": 'Basic realm="my scope", charset="UTF-8"',
+    						},
+    					});
+    				}
+
+    				return new Response("🎉 You have private access!", {
+    					status: 200,
+    					headers: {
+    						"Cache-Control": "no-store",
+    					},
+    				});
+    			}
+    		}
+
+    		return new Response("Not Found.", { status: 404 });
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    /** 이름
+    * HTTP Basic schema를 사용하여 액세스 제한하는 방법을 보여줍니다.
+    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
+    * @see https://tools.ietf.org/html/rfc7617
+    * 이름*/
+
+    import { Buffer } from "node:buffer";
+
+    const encoder = new TextEncoder();
+
+    /** 이름
+    * `timingSafeEqual`를 사용하여 안전하게 가치를 비교하여 타이밍 공격에 대해 보호합니다.
+    * 자세한 내용은 https://developers.cloudflare.com/workers/runtime-apis/web-crypto/#timingsafeequal에 Refer*/
+    function timingSafeEqual(a: string, b: string) {
+    	const aBytes = encoder.encode(a);
+    	const bBytes = encoder.encode(b);
+
+    	//길이가 다를 때 일찍 반환하지 마십시오. 비밀의 누출
+    	//타이밍을 통해 길이. 대신 자기와 negate에 대한 비교.
+    	if (aBytes.byteLength !== bBytes.byteLength) {
+    		return !crypto.subtle.timingSafeEqual(aBytes, aBytes);
+    	}
+
+    	return crypto.subtle.timingSafeEqual(aBytes, bBytes);
+    }
+
+    interface Env {
+    	PASSWORD: string;
+    }
+    export default {
+    	async fetch(request, env): Promise<Response> {
+    		const BASIC_USER = "admin";
+
+    		//관리자 암호가 필요합니다. 이것은 있어야한다
+    		//암호화된 비밀로 노동자에 붙어.
+    		//https://developers.cloudflare.com/workers/configuration/secrets/에 Refer
+    		const BASIC_PASS = env.PASSWORD ?? "password";
+
+    		const url = new URL(request.url);
+
+    		switch (url.pathname) {
+    			case "/":
+    				return new Response("Anyone can access the homepage.");
+
+    			case "/logout":
+    				//HTTP 401을 반환하여 "Authorization" 헤더를 유효성 검사합니다.
+    				//우리는 "WWW-Authenticate" 헤더를 보내지 않습니다.
+    				//브라우저에서 팝업, 즉시 credentials에 대 한 요청.
+    				return new Response("Logged out.", { status: 401 });
+
+    			case "/admin": {
+    				//"Authorization" 헤더가 정해진 때 보내집니다.
+    				const authorization = request.headers.get("Authorization");
+    				if (!authorization) {
+    					return new Response("You need to login.", {
+    						status: 401,
+    						headers: {
+    							//자격 증명을 위한 사용자를 양성합니다.
+    							"WWW-Authenticate": 'Basic realm="my scope", charset="UTF-8"',
+    						},
+    					});
+    				}
+    				const [scheme, encoded] = authorization.split(" ");
+
+    				//Authorization 헤더는 기본적으로 시작해야 하며, 공백에 따라 시작합니다.
+    				if (!encoded || scheme !== "Basic") {
+    					return new Response("Malformed authorization header.", {
+    						status: 400,
+    					});
+    				}
+
+    				const credentials = Buffer.from(encoded, "base64").toString();
+
+    				//사용자 이름과 암호는 첫 번째 식민지에 의해 나뉩니다.
+    				//=> 예제: "username:password"
+    				const index = credentials.indexOf(":");
+    				const user = credentials.substring(0, index);
+    				const pass = credentials.substring(index + 1);
+
+    				if (
+    					!timingSafeEqual(BASIC_USER, user) ||
+    					!timingSafeEqual(BASIC_PASS, pass)
+    				) {
+    					return new Response("You need to login.", {
+    						status: 401,
+    						headers: {
+    							//자격 증명을 위한 사용자를 양성합니다.
+    							"WWW-Authenticate": 'Basic realm="my scope", charset="UTF-8"',
+    						},
+    					});
+    				}
+
+    				return new Response("🎉 You have private access!", {
+    					status: 200,
+    					headers: {
+    						"Cache-Control": "no-store",
+    					},
+    				});
+    			}
+    		}
+
+    		return new Response("Not Found.", { status: 404 });
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use base64::prelude::*;
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+        let basic_user = "admin";
+        // You will need an admin password. This should be
+        // attached to your Worker as an encrypted secret.
+        // Refer to https://developers.cloudflare.com/workers/configuration/secrets/
+        let basic_pass = match env.secret("PASSWORD") {
+            Ok(s) => s.to_string(),
+            Err(_) => "password".to_string(),
+        };
+        let url = req.url()?;
+
+        match url.path() {
+            "/" => Response::ok("Anyone can access the homepage."),
+            // Invalidate the "Authorization" header by returning a HTTP 401.
+            // We do not send a "WWW-Authenticate" header, as this would trigger
+            // a popup in the browser, immediately asking for credentials again.
+            "/logout" => Response::error("Logged out.", 401),
+            "/admin" => {
+                // The "Authorization" header is sent when authenticated.
+                let authorization = req.headers().get("Authorization")?;
+                if authorization == None {
+                    let mut headers = Headers::new();
+                    // Prompts the user for credentials.
+                    headers.set(
+                        "WWW-Authenticate",
+                        "Basic realm='my scope', charset='UTF-8'",
+                    )?;
+                    return Ok(Response::error("You need to login.", 401)?.with_headers(headers));
+                }
+                let authorization = authorization.unwrap();
+                let auth: Vec<&str> = authorization.split(" ").collect();
+                let scheme = auth[0];
+                let encoded = auth[1];
+
+                // The Authorization header must start with Basic, followed by a space.
+                if encoded == "" || scheme != "Basic" {
+                    return Response::error("Malformed authorization header.", 400);
+                }
+
+                let buff = BASE64_STANDARD.decode(encoded).unwrap();
+                let credentials = String::from_utf8_lossy(&buff);
+                // The username & password are split by the first colon.
+                //=> example: "username:password"
+                let credentials: Vec<&str> = credentials.split(':').collect();
+                let user = credentials[0];
+                let pass = credentials[1];
+
+                if user != basic_user || pass != basic_pass {
+                    let mut headers = Headers::new();
+                    // Prompts the user for credentials.
+                    headers.set(
+                        "WWW-Authenticate",
+                        "Basic realm='my scope', charset='UTF-8'",
+                    )?;
+                    return Ok(Response::error("You need to login.", 401)?.with_headers(headers));
+                }
+
+                let mut headers = Headers::new();
+                headers.set("Cache-Control", "no-store")?;
+                Ok(Response::ok("🎉 You have private access!")?.with_headers(headers))
+            }
+            _ => Response::error("Not Found.", 404),
+        }
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    /** 이름
+    * Hono와 HTTP Basic schema를 사용하여 액세스 제한하는 방법을 보여줍니다.
+    * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication
+    * @see https://tools.ietf.org/html/rfc7617*/
+
+    import { Hono } from "hono";
+    import { basicAuth } from "hono/basic-auth";
+
+    //환경 인터페이스 정의
+    interface Env {
+    	Bindings: {
+    		USERNAME: string;
+    		PASSWORD: string;
+    	};
+    }
+
+    const app = new Hono<Env>();
+
+    //공공 홈페이지 - 모두 접근 가능
+    app.get("/", (c) => {
+    	return c.text("Anyone can access the homepage.");
+    });
+
+    //관리자 경로 - Basic Auth로 보호
+    app.get(
+    	"/admin",
+    	async (c, next) => {
+    		const auth = basicAuth({
+    			username: c.env.USERNAME,
+    			password: c.env.PASSWORD,
+    		});
+
+    		return await auth(c, next);
+    	},
+    	(c) => {
+    		return c.text("🎉 You have private access!", 200, {
+    			"Cache-Control": "no-store",
+    		});
+    	},
+    );
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

@@ -1,0 +1,204 @@
+---
+pcx_content_type: how-to
+title: 계정 사용자 지정 네임서버 설정
+sidebar:
+  order: 4
+  label: Account level
+head:
+  - tag: title
+    content: Account custom nameservers
+description: 계정 수준 사용자 지정 네임서버를 사용하면 계정의 여러 영역에서 동일한 사용자 지정 네임서버를 사용할 수 있습니다. 네임서버 이름을 제공하는 도메인은 Cloudflare 안에 영역으로 존재할 필요가 없습니다.
+---
+
+import { Example, Render, Tabs, TabItem, DashButton } from "~/components";
+
+<Render
+	file="acns-tcns-intro"
+	product="dns"
+	params={{
+		one: "Account",
+		two: "A",
+		three: "account",
+		four: "zones",
+		five: "account",
+	}}
+/>
+
+## 제공 여부
+
+계정 사용자 지정 네임서버는 Business([Cloudflare Support에 문의](/support/contacting-cloudflare-support/) 후) 또는 Enterprise 요금제 고객에게 제공됩니다. 한 번 구성하면 계정의 모든 영역이 영역 요금제와 관계없이 계정 사용자 지정 네임서버를 사용할 수 있습니다. API 또는 대시보드로 구성할 수 있습니다.
+
+:::note
+
+<Render file="ns-advanced-vs-custom" product="dns" />
+:::
+
+## 구성 조건
+
+이 구성을 가능하게 하려면 몇 가지 조건이 적용됩니다.
+
+<Render
+	file="acns-tcns-conditions"
+	product="dns"
+	params={{ one: "account", two: "you", three: "You" }}
+/>
+
+<Render
+	file="acns-tcns-byoip"
+	product="dns"
+	params={{ one: "Account", two: "account" }}
+/>
+
+- `ns_set 1`부터 `ns_set 5` 중 하나를 선택하면, [DNS 영역 기본값](/dns/nameservers/nameserver-options/#dns-zone-defaults/)을 구성할 때 Cloudflare가 새 영역에 네임서버를 할당하는 방식에 영향을 줍니다.
+
+## 계정 사용자 지정 네임서버 활성화
+
+### 1. ACNS 이름과 세트 설정
+
+1. ACNS 이름과 세트를 생성합니다.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 계정 **Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/configurations" />
+
+2. **DNS Settings**로 이동합니다.
+3. **Account custom nameservers**에서 **Configure custom nameservers**를 선택합니다.
+4. **Nameserver name**에 완전한 도메인 이름을 입력하고 **Nameserver set**을 선택합니다. [구성 조건](#configuration-conditions)을 따르세요.
+
+</TabItem>
+<TabItem label="API">
+
+[Add account custom nameserver endpoint](/api/resources/custom_nameservers/methods/create/)를 사용하여 계정 사용자 지정 네임서버를 생성합니다. `ns_name`과 `ns_set`에는 [조건](#configuration-conditions)을 따르세요.
+
+<Render file="ns-set-omission-callout" product="dns" />
+
+</TabItem>
+</Tabs>
+
+Cloudflare는 각 ACNS 이름에 IPv4 주소와 IPv6 주소를 할당하며, 이 네임서버들은 [기존 영역에서 사용](#2-use-acns-on-existing-zones)하거나 [계정 내 새 영역의 기본값으로 설정](#3-optional-make-acns-default-for-new-zones)할 수 있는 옵션으로 표시됩니다.
+
+2. ACNS 이름을 제공하는 도메인의 권한 DNS에 할당된 IPv4 및 IPv6가 포함된 `A/AAAA` 레코드가 존재하는지 확인합니다.
+   - 도메인이 Cloudflare DNS를 사용한다면 해당 `A` 및 `AAAA` 레코드는 자동으로 생성됩니다.
+
+   - 계정 사용자 지정 네임서버에 사용되는 도메인들이 동일한 계정 내에 존재하지 않는다면, 권한 DNS 공급자에서 구성된 네임서버 이름(예: `ns1.example.com`)에 대해 `A/AAAA` 레코드를 직접 만들어야 합니다.
+
+  <Example>
+
+| Type | Name              | Content  |
+| ---- | ----------------- | -------- |
+| `A`  | `ns1.example.com` | `<IPv4>` |
+
+  </Example>
+
+3. ACNS 이름을 제공하는 도메인의 등록기관을 업데이트합니다. 이 단계는 [Cloudflare Registrar](/registrar/) 사용 여부에 따라 다릅니다.
+   - ACNS 이름을 제공하는 도메인에 Cloudflare Registrar를 사용 중이라면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하여 계정 사용자 지정 네임서버와 IP 주소를 도메인의 글루 레코드로 추가하도록 요청하세요.
+
+   - Cloudflare Registrar를 사용하지 않는다면, 계정 사용자 지정 네임서버와 IP 주소를 도메인 등록기관에 글루 레코드로 추가하세요([RFC 1912](https://www.rfc-editor.org/rfc/rfc1912.html)). 이 레코드를 추가하지 않으면 도메인의 DNS 조회가 실패합니다.
+
+### 2. 기존 영역에서 ACNS 사용
+
+1. 영역에서 사용자 지정 네임서버로 사용할 ACNS 세트를 선택합니다.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. **Custom nameservers**에서 **Configure**를 선택합니다.
+3. **Use your account custom nameservers**를 선택하고 목록에서 네임서버 세트를 선택합니다.
+4. **Save**를 눌러 확인합니다.
+
+</TabItem>
+<TabItem label="API">
+
+[Update DNS Settings for a Zone](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/) 엔드포인트를 사용하고 각 영역에 대해 `nameservers` 객체를 적절히 구성합니다.
+
+</TabItem>
+</Tabs>
+
+2. 네임서버가 업데이트되었는지 확인합니다.
+
+- 도메인이 [Cloudflare Registrar](/registrar/)를 사용한다면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하여 네임서버를 업데이트하세요.
+- 다른 등록기관을 사용한다면 등록기관에서 네임서버를 계정 사용자 지정 네임서버로 변경하세요.
+- 영역이 위임된 상태라면 부모 영역의 해당 `NS` 레코드를 업데이트하세요.
+
+### 3. (선택 사항) 새 영역의 기본값으로 ACNS 설정
+
+지금부터 계정에 추가되는 모든 새 영역에 대해 ACNS를 기본 옵션으로 만들려면 다음을 수행하세요.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 계정 **Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/configurations" />
+
+2. **DNS Settings**로 이동합니다.
+3. **DNS zone defaults**에서 **Configure defaults**를 선택합니다.
+4. **Nameserver assignment method**를 **Account custom nameservers**로 변경합니다.
+
+자세한 내용은 [DNS zone defaults](/dns/nameservers/nameserver-options/#dns-zone-defaults/)를 참고하세요.
+
+</TabItem>
+<TabItem label="API">
+
+[Update DNS Settings for an Account](/api/resources/dns/subresources/settings/subresources/account/methods/edit/) 엔드포인트를 사용합니다. `zone_defaults` 객체 내부에 다음을 설정합니다.
+
+```txt
+"zone_defaults": {
+  "nameservers": {
+    "type": "custom.account"
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+## 계정 사용자 지정 네임서버 비활성화
+
+### 1. 영역에서 ACNS 할당 제거
+
+영역에서 ACNS를 제거하려면 먼저 네임서버가 더 이상 ACNS를 사용하지 않도록 업데이트해야 합니다.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+- [Cloudflare Registrar](/registrar/)를 사용 중이라면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하여 네임서버를 일반 Cloudflare 브랜드 네임서버로 되돌리세요.
+- [Cloudflare Registrar](/registrar/)를 사용하지 않는다면 도메인의 등록기관에서 일반 Cloudflare 브랜드 네임서버를 사용하도록 변경하세요.
+
+</TabItem>
+<TabItem label="API">
+
+- [Cloudflare Registrar](/registrar/)를 사용 중이라면 [Update DNS settings endpoint](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/)를 사용해 `nameservers` 객체의 `type` 값을 `"cloudflare.standard"`로 설정한 다음, [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하여 일반 Cloudflare 브랜드 네임서버로 되돌리세요.
+- [Cloudflare Registrar](/registrar/)를 사용하지 않는다면 도메인의 등록기관에서 먼저 일반 Cloudflare 브랜드 네임서버를 사용하도록 변경한 뒤, [Update DNS settings endpoint](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/)를 사용해 `nameservers` 객체의 `type` 값을 `"cloudflare.standard"`로 설정하세요.
+
+</TabItem>
+</Tabs>
+
+### 2. ACNS 이름 또는 세트 삭제
+
+[구성 조건](#configuration-conditions)에 따라 각 세트에는 두 개에서 다섯 개 사이의 서로 다른 네임서버 이름이 있어야 합니다. 모든 이름을 삭제하거나 세트에 하나의 네임서버 이름만 남기면 해당 세트는 계정의 영역에서 선택지로 더 이상 표시되지 않습니다.
+
+<Tabs syncKey="dashPlusAPI">
+<TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 계정 **Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/configurations" />
+
+2. **DNS Settings**로 이동합니다.
+3. **Account custom nameservers**에서 ACNS 이름 옆의 **Delete**를 선택합니다.
+
+</TabItem>
+<TabItem label="API">
+
+[Delete account custom nameserver endpoint](/api/resources/custom_nameservers/methods/delete/)를 사용해 특정 ACNS를 삭제합니다.
+
+</TabItem>
+</Tabs>

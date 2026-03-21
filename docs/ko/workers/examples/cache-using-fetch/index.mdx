@@ -1,0 +1,572 @@
+---
+summary: >-
+  Determine how to cache a resource by setting TTLs, custom cache keys, and
+  cache headers in a fetch request.
+tags:
+  - Caching
+  - Middleware
+  - JavaScript
+  - TypeScript
+  - Python
+  - Rust
+pcx_content_type: example
+title: 캐시 사용 fetch
+sidebar:
+  order: 1001
+description: 'TTLs, 사용자 정의 캐시 키 및 캐시 헤더를 설정하여 리소스를 캐시하는 방법을 결정합니다.'
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/cache-using-fetch/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/cache-using-fetch/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get startedXQ를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/cache-using-fetch)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare Workers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		const url = new URL(request.url);
+    		//캐시 키의 경로만 사용, 쿼리 문자열 제거
+    		//그리고 항상 HTTPS를 사용하여 저장, 예를 들어, https://www.example.com/file-uri-here
+    		const someCustomKey = `https://${url.hostname}${url.pathname}`;
+    		let response = await fetch(request, {
+    			cf: {
+    				//항상 이 fetch에 대한 내용 유형
+    				//자원의 재효율하기 전에 최대 5 초 동안
+    				cacheTtl: 5,
+    				cacheEverything: true,
+    				//Enterprise는 다른 계획에 대해 Cache API를 참조하십시오.
+    				cacheKey: someCustomKey,
+    			},
+    		});
+    		//응답 객체를 재구성하여 headers mutable을 만듭니다.
+    		response = new Response(response.body, response);
+    		//캐시 컨트롤 헤더를 25 분 동안 브라우저에서 캐시 설정
+    		response.headers.set("Cache-Control", "max-age=1500");
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		const url = new URL(request.url);
+    		//캐시 키의 경로만 사용, 쿼리 문자열 제거
+    		//그리고 항상 HTTPS를 사용하여 저장, 예를 들어, https://www.example.com/file-uri-here
+    		const someCustomKey = `https://${url.hostname}${url.pathname}`;
+    		let response = await fetch(request, {
+    			cf: {
+    				//항상 이 fetch에 대한 내용 유형
+    				//자원의 재효율하기 전에 최대 5 초 동안
+    				cacheTtl: 5,
+    				cacheEverything: true,
+    				//Enterprise는 다른 계획에 대해 Cache API를 참조하십시오.
+    				cacheKey: someCustomKey,
+    			},
+    		});
+    		//응답 객체를 재구성하여 headers mutable을 만듭니다.
+    		response = new Response(response.body, response);
+    		//캐시 컨트롤 헤더를 25 분 동안 브라우저에서 캐시 설정
+    		response.headers.set("Cache-Control", "max-age=1500");
+    		return response;
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    type Bindings = {};
+
+    const app = new Hono<{ Bindings: Bindings }>();
+
+    app.all('*', async (c) => {
+      const url = new URL(c.req.url);
+
+      //캐시 키의 경로만 사용, 쿼리 문자열 제거
+      //그리고 항상 HTTPS를 사용하여 저장, 예를 들어, https://www.example.com/file-uri-here
+      const someCustomKey = `https://${url.hostname}${url.pathname}`;
+
+      //사용자 정의 캐시 설정과 요청을 Fetch
+      let response = await fetch(c.req.raw, {
+        cf: {
+          //항상 이 fetch에 대한 내용 유형
+          //자원의 재효율하기 전에 최대 5 초 동안
+          cacheTtl: 5,
+          cacheEverything: true,
+          //Enterprise는 다른 계획에 대해 Cache API를 참조하십시오.
+          cacheKey: someCustomKey,
+        },
+      });
+
+      //응답 객체를 재구성하여 헤더 mutable
+      response = new Response(response.body, response);
+
+      //캐시 컨트롤 헤더를 25 분 동안 브라우저에서 캐시 설정
+      response.headers.set("Cache-Control", "max-age=1500");
+
+      return response;
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import to_js as _to_js
+    from js import Response, URL, Object, fetch
+
+    def to_js(x):
+        return _to_js(x, dict_converter=Object.fromEntries)
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            url = URL.new(request.url)
+
+            #캐시 키의 경로만 사용, 쿼리 문자열 제거
+            #그리고 항상 HTTPS를 사용하여 저장, 예를 들면, https://www.example.com/file-uri-here
+            some_custom_key = f"https://{url.hostname}{url.pathname}"
+
+            response = await fetch(
+                request,
+                cf=to_js({
+                    #항상 이 fetch에 대한 내용 유형
+                    #자원의 재효율하기 전에 최대 5 초 동안
+                    "cacheTtl": 5,
+                    "cacheEverything": True,
+                    #Enterprise는 다른 계획에 대해 Cache API를 참조하십시오.
+                    "cacheKey": some_custom_key,
+                }),
+            )
+
+            #응답 객체를 재구성하여 헤더 mutable
+            response = Response.new(response.body, response)
+
+            #캐시 컨트롤 헤더를 25 분 동안 브라우저에서 캐시 설정
+            response.headers["Cache-Control"] = "max-age=1500"
+
+            return response
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: Request, _env: Env, _ctx: Context) -> Result<Response> {
+        let url = req.url()?;
+
+        // Only use the path for the cache key, removing query strings
+        // and always store using HTTPS, for example, https://www.example.com/file-uri-here
+        let custom_key = format!(
+            "https://{host}{path}",
+            host = url.host_str().unwrap(),
+            path = url.path()
+        );
+
+        let request = Request::new_with_init(
+            url.as_str(),
+            &RequestInit {
+                headers: req.headers().clone(),
+                method: req.method(),
+                cf: CfProperties {
+                    // Always cache this fetch regardless of content type
+                    // for a max of 5 seconds before revalidating the resource
+                    cache_ttl: Some(5),
+                    cache_everything: Some(true),
+                    // Enterprise only feature, see Cache API for other plans
+                    cache_key: Some(custom_key),
+                    ..CfProperties::default()
+                },
+                ..RequestInit::default()
+            },
+        )?;
+
+        let mut response = Fetch::Request(request).send().await?;
+
+        // Set cache control headers to cache on browser for 25 minutes
+        let _ = response.headers_mut().set("Cache-Control", "max-age=1500");
+        Ok(response)
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## HTML 리소스
+
+```js
+//자산을 캐시하는 힘 Cloudflare
+fetch(event.request, { cf: { cacheEverything: true } });
+```
+
+캐시 레벨 설정**캐시 모든 것**자산의 기본 캐시를 무시합니다. Time-to-live (TTL)의 경우, Cloudflare는 원래 세트 헤더에 의존합니다.
+
+## 사용자 정의 캐시 키
+
+:::참조
+
+이 기능은 기업 고객에게만 유효합니다.
+
+:::
+
+요청의 캐시 키는 두 요청이 캐싱 목적으로 동일하면 결정됩니다. 요청이 이전 요청으로 동일한 캐시 키를 가지고 있다면 Cloudflare는 둘 다 동일한 캐시 응답을 제공 할 수 있습니다. 캐시 키에 대한 자세한 내용은 참조[사용자 정의 캐시 키 만들기](/cache/how-to/cache-keys/#create-custom-cache-keys)문서.
+
+```js
+//이 요청에 대한 캐시 키 설정 "some-string".
+fetch(event.request, { cf: { cacheKey: "some-string" } });
+```
+
+일반적으로 Cloudflare는 요청의 URL을 기반으로 요청 시 캐시 키를 계산합니다. 때때로, 당신은 다른 URL과 같은 캐싱 목적을 위해 같은 경우에 처리 될 수있다. 예를 들어, 웹 사이트 콘텐츠가 Amazon S3 및 Google Cloud Storage에서 호스팅되는 경우 두 곳에서 동일한 콘텐츠를 가지고 있으며, 두 곳에서 무작위로 균형을 잡을 수 있습니다. 그러나, 당신은 당신의 내용의 두 사본을 채우고 싶지 않습니다. subrequest URL보다 원래 요청 URL을 기반으로 캐시 키를 사용할 수 있습니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		let url = new URL(request.url);
+
+    		if (Math.random() < 0.5) {
+    			url.hostname = "example.s3.amazonaws.com";
+    		} else {
+    			url.hostname = "example.storage.googleapis.com";
+    		}
+
+    		let newRequest = new Request(url, request);
+    		return fetch(newRequest, {
+    			cf: { cacheKey: request.url },
+    		});
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		let url = new URL(request.url);
+
+    		if (Math.random() < 0.5) {
+    			url.hostname = "example.s3.amazonaws.com";
+    		} else {
+    			url.hostname = "example.storage.googleapis.com";
+    		}
+
+    		let newRequest = new Request(url, request);
+    		return fetch(newRequest, {
+    			cf: { cacheKey: request.url },
+    		});
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    type Bindings = {};
+
+    const app = new Hono<{ Bindings: Bindings }>();
+
+    app.all('*', async (c) => {
+      const originalUrl = c.req.url;
+      const url = new URL(originalUrl);
+
+      //무작위로 저장 백엔드를 선택
+      if (Math.random() < 0.5) {
+        url.hostname = "example.s3.amazonaws.com";
+      } else {
+        url.hostname = "example.storage.googleapis.com";
+      }
+
+      //선택한 백엔드에 대한 새로운 요청 만들기
+      const newRequest = new Request(url, c.req.raw);
+
+      //캐시 키로 원래 URL을 사용하여 Fetch
+      return fetch(newRequest, {
+        cf: { cacheKey: originalUrl },
+      });
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>
+
+다른 지역을 대신하는 Workers는 각 다른의 캐시에 영향을 미칠 수 없습니다. 자신의 영역 내에서 요청을 만들 때만 캐시 키를 무시할 수 있습니다 (위 예에서)`event.request.url`Cloudflare에 있지 않은 호스트에게 키 저장되었습니다. 다른 Cloudflare 지역 (예를 들면, 다른 Cloudflare 고객에 속하는)에 요구에 응할 때, 그 지역은 CloudflareXQ 안에 완전히 그것의 자신의 내용이 캐시하는 방법을 통제합니다; 당신은 그것을 override 할 수 없습니다.
+
+## 근원 응답 부호에 근거를 두는 Override
+
+```js
+//200 상태에 대한 86400 초 동안 캐시 될 수있는 힘 응답
+//코드, 404에 대한 1 초, 그리고 500 오류를 캐시하지 않습니다.
+fetch(request, {
+	cf: { cacheTtlByStatus: { "200-299": 86400, 404: 1, "500-599": 0 } },
+});
+```
+
+이 옵션은 버전의`cacheTtl`응답 상태 코드에 따라 TTL을 선택하고 자동으로 설정하지 않는 기능`cacheEverything: true`. 이 요청에 응답이 일치하는 상태 부호가 있는 경우에, Cloudflare는 지시한 시간을 위해 구호하고, 근원에 의해 보내진 캐시 지시를 과도하게 합니다. 당신은 검토 할 수 있습니다[상세 정보`cacheTtl`자주 묻는 질문](/workers/runtime-apis/request/#the-cf-property-requestinitcfproperties).
+
+## 요청 파일 형식을 기반으로 캐시 동작을 사용자 정의
+
+응답 부호에 근거를 둔 주문 시렁 열쇠와 overrides를 사용하여, 당신은 근원에서 응답 상태 부호에 근거를 둔 TTL를 놓는 노동자를 쓸 수 있고, 파일 유형을 요구하십시오.
+
+다음 예제는 스트리밍 미디어 자산에 대한 요청을 캐시하는 방법을 설명합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모듈 Worker" icon="seti:javascript">
+    ```js title="index.js"
+    export default {
+    	async fetch(request) {
+    		//즉시 새로운 URL을 만들기 위해 mutable
+    		const newRequest = new URL(request.url);
+
+    		const customCacheKey = `${newRequest.hostname}${newRequest.pathname}`;
+    		const queryCacheKey = `${newRequest.hostname}${newRequest.pathname}${newRequest.search}`;
+
+    		//다른 자산 유형은 보통 다른 캐싱 전략이 있습니다. 대부분의 오디오, 비디오 및 이미지와 같은 시간 미디어 콘텐츠는 사용자 생성 된 콘텐츠가 종종 업데이트 될 필요가 없습니다 그래서 긴 TTL은 최고입니다. 그러나 HLS 스트리밍과 함께, 표시된 파일은 보통 짧은 TTL로 설정되므로 재생은 영향을받지 않습니다. 이 파일에는 플레이어가 필요한 데이터가 포함되어 있습니다. 각 캐싱 전략을 설정하여 배열 내에서 개체의 자산 유형의 범주에 대한, 당신은 당신의 응용 프로그램에 대한 미디어 컨텐츠에 관해서 복잡한 요구를 해결할 수 있습니다
+
+    		const cacheAssets = [
+    			{
+    				asset: "video",
+    				key: customCacheKey,
+    				regex:
+    					/(.*\/Video)|(.*\.(m4s|mp4|ts|avi|mpeg|mpg|mkv|bin|webm|vob|flv|m2ts|mts|3gp|m4v|wmv|qt))/,
+    				info: 0,
+    				ok: 31556952,
+    				redirects: 30,
+    				clientError: 10,
+    				serverError: 0,
+    			},
+    			{
+    				asset: "image",
+    				key: queryCacheKey,
+    				regex:
+    					/(.*\/Images)|(.*\.(jpg|jpeg|png|bmp|pict|tif|tiff|webp|gif|heif|exif|bat|bpg|ppm|pgn|pbm|pnm))/,
+    				info: 0,
+    				ok: 3600,
+    				redirects: 30,
+    				clientError: 10,
+    				serverError: 0,
+    			},
+    			{
+    				asset: "frontEnd",
+    				key: queryCacheKey,
+    				regex: /^.*\.(css|js)/,
+    				info: 0,
+    				ok: 3600,
+    				redirects: 30,
+    				clientError: 10,
+    				serverError: 0,
+    			},
+    			{
+    				asset: "audio",
+    				key: customCacheKey,
+    				regex:
+    					/(.*\/Audio)|(.*\.(flac|aac|mp3|alac|aiff|wav|ogg|aiff|opus|ape|wma|3gp))/,
+    				info: 0,
+    				ok: 31556952,
+    				redirects: 30,
+    				clientError: 10,
+    				serverError: 0,
+    			},
+    			{
+    				asset: "directPlay",
+    				key: customCacheKey,
+    				regex: /.*(\/Download)/,
+    				info: 0,
+    				ok: 31556952,
+    				redirects: 30,
+    				clientError: 10,
+    				serverError: 0,
+    			},
+    			{
+    				asset: "manifest",
+    				key: customCacheKey,
+    				regex: /^.*\.(m3u8|mpd)/,
+    				info: 0,
+    				ok: 3,
+    				redirects: 2,
+    				clientError: 1,
+    				serverError: 0,
+    			},
+    		];
+
+    		const { asset, regex, ...cache } =
+    			cacheAssets.find(({ regex }) => newRequest.pathname.match(regex)) ?? {};
+
+    		const newResponse = await fetch(request, {
+    			cf: {
+    				cacheKey: cache.key,
+    				polish: false,
+    				cacheEverything: true,
+    				cacheTtlByStatus: {
+    					"100-199": cache.info,
+    					"200-299": cache.ok,
+    					"300-399": cache.redirects,
+    					"400-499": cache.clientError,
+    					"500-599": cache.serverError,
+    				},
+    				cacheTags: ["static"],
+    			},
+    		});
+
+    		const response = new Response(newResponse.body, newResponse);
+
+    		//debugging 목적
+    		response.headers.set("debug", JSON.stringify(cache));
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="서비스 노동자" icon="seti:javascript">
+    :::caution\[서비스 Workers는 deprecated]
+
+    서비스 Workers는, 아직도 지원됩니다. 자주 묻는 질문[단위 Workers](/workers/reference/migrate-to-module-workers/)대신. 새로운 기능은 서비스 WorkersXQ를 위해 지원되지 않을지도 모릅니다.
+
+    :::
+
+    ```js title="index.js"
+    addEventListener("fetch", (event) => {
+    	return event.respondWith(handleRequest(event.request));
+    });
+
+    async function handleRequest(request) {
+    	//즉시 새로운 URL을 만들기 위해 mutable
+    	const newRequest = new URL(request.url);
+
+    	//나중에 배열에서 나중에 사용될 `const`를 놓으십시오
+    	const customCacheKey = `${newRequest.hostname}${newRequest.pathname}`;
+    	const queryCacheKey = `${newRequest.hostname}${newRequest.pathname}${newRequest.search}`;
+
+    	//Cloudflare의 캐시를 `cf` 객체에서 fetch API를 사용하여 모든 변수를 설정하십시오. 아래 객체에서 이러한 변수를 전달합니다.
+    	const cacheAssets = [
+    		{
+    			asset: "video",
+    			key: customCacheKey,
+    			regex:
+    				/(.*\/Video)|(.*\.(m4s|mp4|ts|avi|mpeg|mpg|mkv|bin|webm|vob|flv|m2ts|mts|3gp|m4v|wmv|qt))/,
+    			info: 0,
+    			ok: 31556952,
+    			redirects: 30,
+    			clientError: 10,
+    			serverError: 0,
+    		},
+    		{
+    			asset: "image",
+    			key: queryCacheKey,
+    			regex:
+    				/(.*\/Images)|(.*\.(jpg|jpeg|png|bmp|pict|tif|tiff|webp|gif|heif|exif|bat|bpg|ppm|pgn|pbm|pnm))/,
+    			info: 0,
+    			ok: 3600,
+    			redirects: 30,
+    			clientError: 10,
+    			serverError: 0,
+    		},
+    		{
+    			asset: "frontEnd",
+    			key: queryCacheKey,
+    			regex: /^.*\.(css|js)/,
+    			info: 0,
+    			ok: 3600,
+    			redirects: 30,
+    			clientError: 10,
+    			serverError: 0,
+    		},
+    		{
+    			asset: "audio",
+    			key: customCacheKey,
+    			regex:
+    				/(.*\/Audio)|(.*\.(flac|aac|mp3|alac|aiff|wav|ogg|aiff|opus|ape|wma|3gp))/,
+    			info: 0,
+    			ok: 31556952,
+    			redirects: 30,
+    			clientError: 10,
+    			serverError: 0,
+    		},
+    		{
+    			asset: "directPlay",
+    			key: customCacheKey,
+    			regex: /.*(\/Download)/,
+    			info: 0,
+    			ok: 31556952,
+    			redirects: 30,
+    			clientError: 10,
+    			serverError: 0,
+    		},
+    		{
+    			asset: "manifest",
+    			key: customCacheKey,
+    			regex: /^.*\.(m3u8|mpd)/,
+    			info: 0,
+    			ok: 3,
+    			redirects: 2,
+    			clientError: 1,
+    			serverError: 0,
+    		},
+    	];
+
+    	//`.find` 방법은 배열 (`cacheAssets`)에 있는 성분을, 이 경우에, `regex`에, 이 배열에 있는 많은 매체 유형이기 때문에, 파일 확장에 일치하기 위하여 .`match` 방법에 있는 성분을 찾아내기 위하여 이용됩니다. 더 많은 유형을 추가하려면 배열을 업데이트하십시오. 자세한 내용은 https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/find를 참조하십시오.
+    	const { asset, regex, ...cache } =
+    		cacheAssets.find(({ regex }) => newRequest.pathname.match(regex)) ?? {};
+
+    	const newResponse = await fetch(request, {
+    		cf: {
+    			cacheKey: cache.key,
+    			polish: false,
+    			cacheEverything: true,
+    			cacheTtlByStatus: {
+    				"100-199": cache.info,
+    				"200-299": cache.ok,
+    				"300-399": cache.redirects,
+    				"400-499": cache.clientError,
+    				"500-599": cache.serverError,
+    			},
+    			cacheTags: ["static"],
+    		},
+    	});
+
+    	const response = new Response(newResponse.body, newResponse);
+
+    	//debugging 목적
+    	response.headers.set("debug", JSON.stringify(cache));
+    	return response;
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+## HTTP 캐시 API 사용
+
+더 보기`cache`형태는 놓일 수 있습니다`fetch`옵션.
+현재 Workers만 지원`no-store`·`no-cache`캐시를 제어하기위한 모드.
+시간 :`no-store`캐시를 공급하는 것은 근원에 방법에 우회되고 요청은 캐시 할 수 없습니다.
+시간 :`no-cache`캐시를 공급하는 것은 현재 캐시 된 응답을 revalidate하는 힘입니다.
+이름.
+
+```js
+fetch(request, { cache: 'no-store'});
+fetch(request, { cache: 'no-cache'});
+```

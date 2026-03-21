@@ -1,0 +1,185 @@
+---
+pcx_content_type: reference
+title: URL Scanner
+sidebar:
+  order: 7
+---
+
+import { DashButton } from "~/components";
+
+전 세계 인터넷 사용을 더 잘 이해하려면 Cloudflare의 URL Scanner를 사용하세요. Cloudflare URL Scanner를 사용하면 도메인, IP, URL 또는 ASN의 세부 정보를 조사할 수 있습니다. Cloudflare URL Scanner는 Cloudflare 대시보드의 Security Center, [Cloudflare Radar](https://radar.cloudflare.com/scan), 그리고 Cloudflare [API](/api/resources/url_scanner/)에서 사용할 수 있습니다.
+
+## API 사용
+
+API로 첫 URL 스캔을 수행하려면 먼저 URL Scanner 전용 [API token](/fundamentals/api/get-started/create-token/)을 발급받아야 합니다. **Permissions** 그룹에서 *Account* > *URL Scanner*를 선택하고, 접근 수준은 *Edit*로 지정한 Custom Token을 만드세요.
+
+토큰과 `account_id`를 알고 있으면 `https://api.cloudflare.com/client/v4/accounts/{account_id}/urlscanner/`에서 API에 첫 요청을 보낼 준비가 된 것입니다.
+
+### 스캔할 URL 제출
+
+URL을 스캔 대상으로 제출할 때 필수 정보는 `POST` 요청 본문에 들어가는 스캔 대상 URL뿐입니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/urlscanner/v2/scan" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "url": "https://www.example.com"
+}'
+```
+
+기본적으로 보고서는 `Public` 가시성 수준을 가지며, 이는 [recent scans](https://radar.cloudflare.com/scan#recent-scans) 목록과 검색 결과에 나타난다는 뜻입니다. 또한 데스크톱 해상도의 스크린샷 하나가 포함됩니다.
+
+성공적인 응답은 상태 코드 `200`을 반환하며, 다음과 비슷한 형태입니다.
+
+```json
+{
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f",
+  "api": "https://api.cloudflare.com/client/v4/accounts/<accountId>/urlscanner/v2/result/095be615-a8ad-4c33-8e9c-c7612fbf6c9f",
+  "visibility": "public",
+  "url": "https://www.example.com",
+  "message": "Submission successful"
+}
+```
+
+[API](https://developers.cloudflare.com/api/resources/url_scanner/subresources/scans/methods/bulk_create/)를 통해 한 번에 최대 100개의 URL을 제출할 수 있습니다.
+
+위 응답의 `uuid` 속성은 스캔을 식별하며, 나중에 스캔 보고서를 가져올 때 필요합니다.
+
+#### 사용자 지정 URL Scan 제출
+
+아래는 몇 가지 사용자 지정 설정 옵션을 포함한 요청 본문 예시입니다.
+
+```json
+{
+	"url": "https://example.com",
+	"screenshotsResolutions": [
+		"desktop", "mobile", "tablet"
+	],
+  "customagent": "XXX-my-user-agent",
+  "referer": "example",
+	"customHeaders": {
+		"Authorization": "xxx-token"
+	},
+	"visibility": "Unlisted"
+}
+```
+
+위 예제에서는 가시성 수준이 `Unlisted`로 설정되어 있으므로, 스캔 보고서는 [recent scans](https://radar.cloudflare.com/scan#recent-scans) 목록이나 검색 결과에 포함되지 않습니다. 즉, 스캔 ID를 아는 사용자만 보고서에 접근할 수 있습니다.
+
+또한 웹페이지의 스크린샷이 대상 기기 유형별로 하나씩, 총 세 장 생성됩니다. [`User-Agent`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent)는 `"XXX-my-user-agent"`로 설정됩니다. [Authorization](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Authorization)을 포함해 원하는 HTTP 헤더를 자유롭게 지정할 수 있습니다.
+
+:::note[Header]
+성공한 스캔에는 12개월 보관 정책이 적용됩니다. 실패한 스캔 중 30일이 지난 항목은 삭제됩니다.
+:::
+
+### 스캔 보고서 가져오기
+
+URL Scan 제출이 끝나면 `https://api.cloudflare.com/client/v4/accounts/{account_id}/urlscanner/v2/result/{scan_id}`를 호출해 현재 진행 상태를 확인할 수 있습니다. 여기서 `scan_id`는 이전 응답에서 받은 `uuid` 값입니다.
+
+스캔이 진행 중일 때는 HTTP 상태 코드가 `404`이며, 완료되면 `200`이 됩니다. Cloudflare는 10초에서 30초 간격으로 폴링할 것을 권장합니다.
+
+응답에는 무엇보다도 다음과 같은 최상위 속성이 포함됩니다.
+
+* `task` - 스캔 제출 정보
+* `page` - 기본 응답과 관련된 정보. 예를 들어 IP 주소, ASN, 서버, 페이지 리다이렉트 이력
+* `data.requests` - 페이지 로딩 과정에 관여한 요청 체인
+* `data.cookies` - 페이지가 설정한 쿠키
+* `data.globals` - 표준이 아닌 JavaScript 전역 변수
+* `data.console` - 콘솔 로그
+* `data.performance` - [`PerformanceNavigationTiming`](https://developer.mozilla.org/en-US/docs/Web/API/PerformanceNavigationTiming) 인터페이스가 제공하는 타이밍
+* `meta` - 감지된 기술, 도메인 및 URL 카테고리, 순위, 위치 정보 등을 포함한 메타 프로세서 출력
+* `lists.ips` - 접촉한 IP 목록
+* `lists.asns` - 접촉한 AS Number 목록
+* `lists.domains` - `dns` 레코드 정보를 포함한 접촉 호스트명 목록
+* `lists.hashes` - 응답 본문, 메인 페이지 HTML 구조, 스크린샷, favicon의 해시
+* `lists.certificates` - HTTP 응답의 TLS 인증서
+* `verdicts` - 악성 콘텐츠 판정
+
+보다 구체적인 속성 예시는 다음과 같습니다.
+
+* `task.uuid` - 스캔 ID
+* `task.url` - 제출된 스캔 URL. HTTP 리다이렉트가 있으면 최종 URL(`page.url`)과 다를 수 있음
+* `task.success` - 스캔 성공 여부. DNS 오류 등 여러 이유로 실패할 수 있음
+* `task.status` - 현재 스캔 상태. 예: `Queued`, `InProgress`, `Finished`
+* `meta.processors.domainCategories` - 접촉한 기본 호스트명에 대한 Cloudflare 카테고리
+* `meta.processors.phishing` - 탐지된 phishing 유형
+* `meta.processors.radarRank` - 접촉한 기본 호스트명의 [Cloudflare Radar Rank](http://blog.cloudflare.com/radar-domain-rankings/)
+* `meta.processors.wappa` - [Wappalyzer](https://github.com/Lissy93/wapalyzer)의 도움을 받아 감지된 웹사이트 기술 종류
+* `page.url` - 모든 HTTP 리다이렉트 이후의 기본 요청 URL
+* `page.country` - 접촉한 주 IP 주소와 연결된 위치 정보의 국가명
+* `page.history` - 모든 HTTP 리다이렉트를 포함한 메인 페이지 이력
+* `page.screenshot` - 메인 스크린샷의 다양한 해시. 유사한 스크린샷을 가진 사이트 검색에 사용 가능
+* `page.domStructHash` - HTML 구조 해시. 유사 구조를 가진 사이트를 찾는 데 사용
+* `page.favicon.hash` - favicon의 MD5 해시
+* `verdicts.overall.malicious` - 웹사이트가 *스캔 시점에* 악성으로 판단되었는지 여부. 구체적인 위협은 각 하위 시스템의 나머지 속성을 확인하세요.
+
+[Get URL Scan](/api/resources/url_scanner/subresources/scans/methods/get/) API 엔드포인트 문서에는 전체 응답 스키마가 나와 있습니다.
+
+스캔의 [screenshots](/api/resources/url_scanner/subresources/scans/methods/screenshot/) 또는 전체 [network log](/api/resources/url_scanner/subresources/scans/methods/har/)를 가져오려면 해당 엔드포인트 문서를 참고하세요.
+
+### 스캔 검색
+
+스캔을 필터링하려면 ElasticSearch Query 문법의 일부를 사용합니다. 검색 결과에는 `Public` 스캔과 본인이 만든 `Unlisted` 스캔이 포함됩니다.
+
+호스트명 `google.com`에 대한 스캔을 검색하려면 `q=page.domain:"google.com"` 쿼리 파라미터를 사용하세요.
+
+```bash
+curl 'https://api.cloudflare.com/client/v4/accounts/{account_id}/urlscanner/v2/search?q=page.domain:google.com' \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+반대로 `cdnjs.cloudflare.com` 호스트명에 최소 한 번 이상 요청한 스캔, 예를 들어 `cdnjs.cloudflare.com`에 호스팅된 JavaScript 라이브러리를 사용하는 사이트를 찾고 싶다면 `hostname=cdnjs.cloudflare.com`이 아니라 `q=domain:cdnjs.cloudflare.com` 쿼리 파라미터를 사용하세요.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/urlscanner/v2/search?q=domain:cdnjs.cloudflare.com" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+다른 예시 쿼리는 다음과 같습니다.
+
+- `task.url:"https://google.com" OR task.url:"https://www.google.com"`: 제출된 URL이 `google.com` 또는 `www.google.com`인 스캔을 검색합니다. URL은 반드시 따옴표로 감싸야 합니다.
+- `page.url:"https://google.com" AND NOT task.url:"https://google.com"`: `google.com`으로 스캔되었지만 제출 URL은 `google.com`이 아니었던 항목, 즉 `google.com`으로 리다이렉트된 사이트를 검색합니다.
+- `page.domain:microsoft AND verdicts.malicious:true AND NOT page.domain:microsoft.com`: 호스트명이 `microsoft`로 시작하지만 `microsoft.com`은 아닌 악성 스캔입니다. `microsoft.phish.com` 같은 도메인이 여기에 해당합니다.
+- `apikey:me AND date:[2024-01 TO 2024-10]`: 2024년 1월부터 2024년 10월까지의 내 스캔
+- `page.domain:(blogspot OR www.blogspot)`: 기본 도메인이 `blogspot` 또는 `www.blogspot`로 시작하는 스캔을 검색합니다.
+- `date:>now-7d AND path:okta-sign-in.min.js`: 최근 7일 사이에 어떤 요청 경로든 `okta-sign-in.min.js`로 끝나는 스캔
+- `page.asn:AS24940 AND hash:-557369673`: AS24940에 호스팅되어 있고 해당 해시를 가진 리소스를 불러온 웹사이트
+- `hash:8f662c2ce9472ba8d03bfeb8cdae112dbc0426f99da01c5d70c7eb4afd5893ca`: `page.domStructHash`의 해시를 사용해 동일한 HTML 구조 해시를 가진 다른 스캔을 검색합니다.
+
+사용 가능한 전체 옵션 목록은 API 문서의 [Search URL scans](/api/resources/url_scanner/subresources/scans/methods/list/)를 참고하세요.
+
+### Security Center
+
+대안으로 Security Center에서 직접 검색할 수도 있습니다.
+
+1. Cloudflare 대시보드에서 **Investigate** 페이지로 이동합니다.
+
+	 <DashButton url="/?to=/:account/security-center/investigate" />
+
+2. 질의를 입력한 뒤 **Search**를 선택합니다.
+
+위치 기반으로 URL을 스캔할 수도 있습니다. 위치별 URL 스캔은 웹사이트가 위치에 따라 서로 다른 콘텐츠를 보여 주는지 분석할 수 있게 해 주며, 지역별 악성 활동을 드러내고 조사하는 데 도움이 됩니다.
+
+:::note
+위치 기반 URL 스캔은 Enterprise 고객만 사용할 수 있습니다.
+:::
+
+지리적 위치를 기준으로 URL을 스캔하려면 다음 단계를 따르세요.
+
+1. URL을 입력합니다.
+2. **Location** > URL을 스캔할 국가 선택으로 이동합니다.
+3. **Scan now**를 선택합니다.
+
+특정 위치에서 URL을 스캔하는 작업은 [API](https://developers.cloudflare.com/api/resources/url_scanner/subresources/scans/methods/create/#(params)%20default%20%3E%20(param)%20account_id%20%3E%20)로도 수행할 수 있습니다.
+
+Security Center에서는 다음 기준으로 사전 필터링된 정보를 가져올 수 있습니다.
+
+- Similar screenshot
+- Identical favicon
+- Similar favicon
+- Similar HTML structure
+- Identical ASN
+- Identical IP
+- Identical domain
+- Identical final URL (after all redirections)

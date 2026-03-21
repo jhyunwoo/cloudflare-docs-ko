@@ -1,0 +1,82 @@
+---
+pcx_content_type: reference
+title: 오류 코드
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/reference/error-codes/'
+translation_source_md: 'https://developers.cloudflare.com/queues/reference/error-codes/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 페이지 문서 오류 코드는 Queues에 의해 반환[Queues Cloudflare API](/api/resources/queues/methods/create/).
+
+## 오류가 반환되는 방법
+
+제품정보[JavaScript APIs에](/queues/configuration/javascript-apis/), Queues 가동은 당신이 붙잡을 수 있는 예외를 던졌습니다. 오류 코드는 끝에 포함되어 있습니다.`message`이름:
+
+```js
+try {
+	await env.MY_QUEUE.send("message", { delaySeconds: 999999 });
+    return new Response("Sent message to the queue");
+} catch (error) {
+	console.error(error);
+	return new Response("Failed to send message to the queue", { status: 500 });
+}
+```
+
+제품정보[HTTP를 통해 Cloudflare API](/api/resources/queues/subresources/messages/), 응답은 포함합니다`errors`두 개의 객체`message`·`code`유형:
+
+```json
+{
+  "errors": [
+    {
+      "code": 7003,
+      "message": "No route for the URI",
+      "documentation_url": "documentation_url",
+      "source": {
+        "pointer": "pointer"
+      }
+    }
+  ],
+  "messages": [
+    "string"
+  ],
+  "success": true
+}
+```
+
+## 오류 코드 reference
+
+### 고객 측 오류
+
+| 오류 코드 | 오류 수정              | 이름 \*                                | 자주 묻는 질문                                                                                                     |
+| ----- | ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 10104 | 카테고리               | Queue는 존재하지 않습니다.                    | 자주 묻는 질문`queue_id`내 계정[Queues 엔드포인트 목록](/api/resources/queues/)                                              |
+| 10106 | 법적 고지              | 취소 요청                                | 현재 사용자가 그 큐에 푸시 할 권한을 부여합니다.                                                                                 |
+| 10107 | 카테고리               | 요청 URL의 큐 ID는 유효한 큐 식별자가 아닙니다.       | 견적 요청`queue_id`알파벳만 포함.                                                                                      |
+| 10201 | Client연결           | 클라이언트가 요청 처리 중 차단                    | timeout 및 retry 메시지를 증가 고려하십시오.                                                                              |
+| 10202 | BatchDelay무효       | 잘못된 배치 지연                            | 견적 요청`batch_delay`1 및 86400 초 안에 있습니다                                                                        |
+| 10203 | 메시지MetadataInvalid | 잘못된 메시지 메타데이터 (무효한 내용 유형과 잘못된 지연 포함) | 이름 \*`contentType`중 하나`text`, `bytes`, `json`, 또는`v8`. 메시지 지연을 초과하지 않습니다.[최대 24시간](/queues/platform/limits/) |
+| 10204 | 메시지SizeOutOfBounds | 경계의 메시지 크기                           | 메시지 크기가 0 및 128 KB 안에 있는지 확인하십시오.                                                                            |
+| 10205 | 배치 크기OutOfBounds   | 경계 밖으로 배치 크기                         | 일괄 크기가 0 및 256 KB 안에 있는지 확인하십시오.                                                                             |
+| 10206 | 배치CountOutOfBounds | 경계에서 배치 수                            | 일괄 카운트가 0 및 100 메시지 안에 있는지 확인하십시오.                                                                           |
+| 10207 | JSONRequestBody무효  | JSON body 요청은 예상 스키마와 일치하지 않습니다.     | JSON body가 예상된 schema와 일치하도록 합니다.                                                                            |
+| 10208 | JSONRequestBody유형  | 요청 몸은 JSON을 유효하지 않습니다.               | [REST API를](/api/resources/queues/methods/create/)요청 몸은 유효하지 않습니다. 자세한 내용은 오류 메시지가 표시됩니다.                    |
+
+### 429 유형 오류
+
+| 오류 코드 | 오류 수정               | 이름 \*          | 자주 묻는 질문                                                                     |
+| ----- | ------------------- | -------------- | ---------------------------------------------------------------------------- |
+| 10250 | 견적 요청               | Queue는 과부하     | Temporarily는 큐에 메시지를 전송합니다.                                                  |
+| 10251 | QueueStorageLimit확장 | Queue 저장 한계 초과 | [퍼지 큐](/queues/configuration/pause-purge/#purge-queue)또는 backlog를 처리하기 위해 대기 |
+| 10252 | 관련 항목               | 사용 방법          | [사용 약관](/queues/configuration/pause-purge/#pause-delivery)                   |
+| 10253 | 무료TierLimitExceed   | 무료 계층 제한 초과    | Workers로 업그레이드 계정 만들기                                                        |
+
+### 500 유형 오류
+
+| 오류 코드 | 오류 수정              | 이름 \*  |
+| ----- | ------------------ | ------ |
+| 15000 | 알 수없는InternalError | 잘못된 오류 |

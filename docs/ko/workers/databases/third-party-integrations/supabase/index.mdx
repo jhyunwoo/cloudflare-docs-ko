@@ -1,0 +1,99 @@
+---
+pcx_content_type: configuration
+title: 스파베이스
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/supabase/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/supabase/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Tabs, TabItem } from "~/components";
+
+[스파베이스](https://supabase.com/)오픈 소스 Firebase 대안 및 실시간 기능을 제공하는 PostgreSQL 데이터베이스 서비스, 데이터베이스 백업 및 확장. Supabase로 개발자는 PostgreSQL 데이터베이스를 신속하게 설정하고 응용 프로그램을 구축 할 수 있습니다.
+
+:::참조
+
+Supabase 클라이언트 (`@supabase/supabase-js`)는 데이터베이스 액세스를 포함한 Supabase의 다양한 기능을 제공합니다. Supabase 클라이언트 기능의 모든 것에 액세스해야하는 경우 Supabase 클라이언트를 사용하십시오.
+
+Supabase Postgres 데이터베이스에 직접 연결하려면, 사용하여 연결[모델 번호: Hyperdrive](/hyperdrive). Hyperdrive는 Cloudflare의 네트워크의 맞은편에 데이타베이스 연결 체제 및 연결 풀기를 실행하기 때문에 더 낮은 latencies를 제공할 수 있습니다. Hyperdrive는 기본 데이터베이스 드라이버, 라이브러리 및 ORM을 지원하며 모든 것에 포함되어 있습니다.[Workers 계획](/hyperdrive/platform/pricing/). Hyperdrive에 대해 자세히 알아보기[Hyperdrive 이름 \*](/hyperdrive/concepts/how-hyperdrive-works/).
+
+:::
+
+<Tabs>
+  <TabItem label="Supabase 클라이언트">
+    ### Supabase 클라이언트 설정
+
+    Supabase와 통합을 설정하려면:
+
+    1. 기존 Supabase 데이터베이스를 연결해야 합니다.[Supabase 데이터베이스 만들기](https://supabase.com/docs/guides/database/tables#creating-tables)또는[Supabase 및 Load data에 연결하는 기존 데이터베이스가 있습니다.](https://supabase.com/docs/guides/database/tables#loading-data).
+
+    2. 이름 \*`countries`다음 쿼리로 테이블. 두 가지 방법으로 Supabase dashboard에서 테이블을 만들 수 있습니다.
+
+       - 테이블 편집기를 사용하면 스프레드 시트와 유사한 Postgres를 설정할 수 있습니다.
+       - 대안으로, 사용[SQL 편집기](https://supabase.com/docs/guides/database/overview#the-sql-editor):
+
+       ```sql
+       CREATE TABLE countries (
+       id SERIAL PRIMARY KEY,
+       name VARCHAR(255) NOT NULL
+       );
+       ```
+
+    3. 새로 만들어진 테이블에 데이터를 삽입합니다. 다음 명령을 실행하여 테이블에 국가를 추가하십시오.
+
+       ```sql
+       INSERT INTO countries (name) VALUES ('United States');
+       INSERT INTO countries (name) VALUES ('Canada');
+       INSERT INTO countries (name) VALUES ('The Netherlands');
+       ```
+
+    4. 작업자의 Supabase 데이터베이스 자격 구성:
+
+       Supabase URL과 anon 키를 작업자에게 비밀로 추가해야합니다. 너에게[Supabase 대시보드](https://supabase.com/dashboard)이름 \***계정 설정** > **사이트맵**, 다음 Wrangler를 사용하여 비밀로 추가:
+
+       ```sh
+       #Supabase URL을 비밀으로 추가
+       npx wrangler secret put SUPABASE_URL
+       #신속하게 풀면 Supabase 프로젝트 URL
+
+       #Supabase anon 열쇠를 비밀으로 추가하십시오
+       npx wrangler secret put SUPABASE_KEY
+       #신속한 경우 Supabase anon/public key를 붙여넣기
+       ```
+
+    5. 직장에서, 설치`@supabase/supabase-js`데이터베이스에 연결하고 데이터를 조작하려면 드라이버:
+
+       <PackageManagers pkg="@supabase/supabase-js" />
+
+    6. 다음 예제는 작업자의 Supabase 데이터베이스에 쿼리를 만드는 방법을 보여줍니다. Supabase에 연결하는 자격 증명은 작업자에게 비밀로 추가되었습니다.
+
+       ```js
+       import { createClient } from "@supabase/supabase-js";
+
+       export default {
+       	async fetch(request, env) {
+       		const supabase = createClient(env.SUPABASE_URL, env.SUPABASE_KEY);
+       		const { data, error } = await supabase.from("countries").select("*");
+       		if (error) throw error;
+       		return new Response(JSON.stringify(data), {
+       			headers: {
+       				"Content-Type": "application/json",
+       			},
+       		});
+       	},
+       };
+       ```
+
+    Supabase에 대한 자세한 내용을 보려면, 참조[Supabase의 공식 문서](https://supabase.com/docs).
+  </TabItem>
+
+  <TabItem label="모델 번호: Hyperdrive">
+    Hyperdrive와 함께 Supabase에 연결하면 아래 Postgres 데이터베이스에 직접 연결됩니다. 이것은 Workers에서 서버 측에 접근할 때 databsae 쿼리를 위한 가장 낮은 대기권을 제공합니다. Supabase에 연결하기[모델 번호: Hyperdrive](/hyperdrive), 다음 단계를 따르십시오:
+
+    <Render file="supabase-partial" product="hyperdrive" />
+  </TabItem>
+</Tabs>

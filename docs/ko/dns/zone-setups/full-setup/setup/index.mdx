@@ -1,0 +1,170 @@
+---
+title: 기본 영역 설정(전체 설정)
+pcx_content_type: tutorial
+sidebar:
+  order: 1
+  label: 설정
+head:
+  - tag: title
+    content: 네임서버 변경(전체 설정)
+description: >-
+  Cloudflare를 기본 DNS 공급자로 사용하고 DNS 레코드를 관리하려면 도메인이 전체 설정을 사용해야 합니다.
+---
+
+import { Render, DashButton, Tabs, TabItem, APIRequest, Details } from "~/components";
+
+Cloudflare DNS는 몇 가지 서로 다른 [설정 옵션](/dns/zone-setups/)을 제공합니다. 기본 설정(전체)은 가장 일반적인 방식이며 Free 또는 Pro 요금제에서 사용할 수 있는 유일한 옵션입니다. 자세한 내용은 [소개](/dns/zone-setups/full-setup/)를 참고하세요. 더 기본적인 배경 설명은 [개념](/dns/concepts/)을 참고하세요.
+
+## 시작하기 전에
+
+아래 섹션에서는 도메인을 온보딩하는 여러 단계를 자세히 안내합니다. 시작하기 전에 다음 사항을 확인하세요.
+
+- 이미 도메인 이름(`example.com`, `cloudflare.com` 등)을 보유하고 있어야 합니다.
+
+:::note
+[도메인 이름](https://www.cloudflare.com/learning/dns/glossary/what-is-a-domain-name/)이 아직 없다면 [Cloudflare Registrar](https://dash.cloudflare.com/?to=/:account/domains/register)를 통해 원가 수준으로 구매할 수 있습니다.
+
+Cloudflare Registrar를 통해 구매한 모든 도메인은 authoritative DNS에 Cloudflare를 자동으로 사용하므로, 이 튜토리얼의 나머지 단계는 건너뛸 수 있습니다.
+:::
+
+- 미리 [Cloudflare 계정](/fundamentals/account/create-account/)을 만들어 두어야 합니다.
+- 도메인 등록기관(도메인 이름을 구매한 곳)에서 [DNSSEC](/dns/concepts/#dnssec)를 비활성화해야 합니다.
+
+<Render file="dnssec-providers" product="dns" />
+
+<Render file="dnssec-enabled-migration" product="dns" />
+
+## 1. 도메인을 Cloudflare에 추가
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+Cloudflare 대시보드에서 [도메인을 추가](/fundamentals/manage-domains/add-site/)합니다.
+
+</TabItem> <TabItem label="API">
+
+<APIRequest
+  path="/zones"
+  method="POST"
+  json={{
+    "name": "<YOUR_DOMAIN>",
+    "account": {
+      "id": "<YOUR_ACCOUNT_ID>"
+    }
+  }}
+/>
+
+</TabItem> </Tabs>
+
+Cloudflare가 도메인을 등록된 도메인으로 식별하지 못하는 경우, 실제 [최상위 도메인](https://www.cloudflare.com/learning/dns/top-level-domain/) (`.com`, `.net`, `.biz` 등)을 사용하고 있는지 확인하세요.
+
+Cloudflare는 `apex domain`이 [Public Suffix List (PSL)](https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat)에 정의된 유효한 TLD 바로 아래 한 단계에 있어야 합니다. Enterprise 고객은 [서브도메인 설정](/dns/zone-setups/subdomain-setup/)을 사용해 더 하위 수준의 서브도메인도 온보딩할 수 있습니다.
+
+## 2. DNS 레코드 검토
+
+Cloudflare 네임서버를 authoritative DNS에 사용하고 영역이 기본 설정(전체) 상태가 되면, Cloudflare가 기본 DNS 공급자가 됩니다. 따라서 도메인이 올바르게 동작하려면 Cloudflare에 있는 DNS 레코드가 정확해야 합니다.
+
+<Render file="dns-scan-intro" product="dns" /> <br />
+
+:::note
+
+<Render file="dns-scan-note" product="dns" />
+:::
+
+<Render file="dns-scan-procedure" product="dns" />
+
+<Render file="dns-nxdomain-warning" product="dns" />
+
+## 3. 네임서버 변경
+
+<Render file="nameserver-preamble" product="dns" />
+
+<Render file="minimize-downtime-tip" product="dns" />
+
+### 네임서버 이름 확인
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. Cloudflare 대시보드에서 해당 영역의 **Overview** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/" />
+
+2. **2. Replace with Cloudflare's nameservers**에서 네임서버 이름을 확인합니다.
+
+   ![도메인의 Overview 페이지에서 네임서버 이름 찾기](~/assets/images/dns/nameserver-names.png)
+
+<br />
+3. 다음 단계를 수행하는 동안 이 창을 열어 둡니다.
+
+</TabItem> <TabItem label="API">
+
+<APIRequest
+  path="/zones/{zone_id}"
+  method="GET"
+/>
+
+</TabItem> </Tabs>
+
+:::note
+
+Cloudflare는 도메인에 네임서버를 자동으로 할당하며, 이 할당은 변경할 수 없습니다. 자세한 내용은 [네임서버 할당](/dns/nameservers/nameserver-options/#assignment-method)을 참고하세요.
+:::
+
+### 등록기관 업데이트
+
+1. 도메인 등록기관의 관리자 계정에 로그인합니다. 공급자를 모르는 경우 [ICANN Lookup](https://lookup.icann.org/)를 사용하세요.
+
+:::note
+
+사용 사례에 따라 이 단계는 도메인 부모 영역의 DNS 레코드 관리 화면이나 도메인 리셀러 쪽에서 수행해야 할 수도 있습니다. 자세한 내용은 [Nameservers](/dns/nameservers/update-nameservers/#specific-processes)를 참고하세요.
+:::
+
+2. 기존 authoritative 네임서버를 제거합니다.
+
+3. Cloudflare가 제공한 네임서버를 추가합니다. 이름이 **정확히 일치하지 않으면** DNS가 올바르게 해석되지 않습니다.
+
+<Details header="공급자별 안내">
+<Render file="ns-update-providers" product="dns" />
+</Details>
+
+:::note
+
+일반적인 문제를 피하려면 [네임서버 교체 체크리스트](/dns/zone-setups/full-setup/troubleshooting/)를 참고하세요.
+
+:::
+
+### 변경 사항 확인
+
+등록기관이 네임서버를 업데이트하는 동안 최대 24시간 정도 기다립니다.
+
+도메인이 **Active**가 되면 다음과 같은 상태가 됩니다.
+
+- Cloudflare에서 이메일을 받습니다.
+- 계정의 **Websites** 페이지에서 도메인 [상태](/dns/zone-setups/reference/domain-status/)가 **Active**로 표시됩니다.
+- [https://www.whatsmydns.net/](https://www.whatsmydns.net/) 같은 온라인 도구에서 Cloudflare가 할당한 네임서버가 표시됩니다. 이런 도구는 대개 캐시된 쿼리 결과를 사용하므로, 업데이트된 네임서버가 보이기까지 더 오래 걸릴 수 있습니다.
+- CLI 명령에서 Cloudflare가 할당한 네임서버가 표시됩니다.
+
+```txt
+*macOS/Linux*
+
+whois <DOMAIN_NAME>
+dig ns <DOMAIN_NAME> @1.1.1.1
+dig ns <DOMAIN_NAME> @8.8.8.8
+dig <DOMAIN_NAME> +trace
+
+*Windows*
+
+nslookup -type=ns <DOMAIN_NAME> 1.1.1.1
+nslookup -type=ns <DOMAIN_NAME> 8.8.8.8
+```
+
+:::note
+
+예상과 다른 결과가 나오면 [문제 해결 가이드](/dns/zone-setups/full-setup/troubleshooting/)를 참고하고 도메인 등록기관에도 확인하세요.
+
+:::
+
+## 4. DNSSEC 다시 활성화
+
+네임서버를 업데이트할 때 등록기관에서 DNSSEC도 비활성화했어야 합니다.
+
+이제 [DNSSEC를 활성화](/dns/dnssec/)하여 도메인 스푸핑을 방지해야 합니다.

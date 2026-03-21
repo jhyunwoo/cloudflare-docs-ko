@@ -1,0 +1,252 @@
+---
+title: '모델 번호: Vectorize'
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/reference/client-api/'
+translation_source_md: 'https://developers.cloudflare.com/vectorize/reference/client-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+이 페이지는 Vectorize API를 사용할 수 있습니다.[Cloudflare Workers](/workers/)사용 예제를 포함하여.
+
+## 영업 시간
+
+### 벡터 삽입
+
+```ts
+let vectorsToInsert = [
+	{ id: "123", values: [32.4, 6.5, 11.2, 10.3, 87.9] },
+	{ id: "456", values: [2.5, 7.8, 9.1, 76.9, 8.5] },
+];
+let inserted = await env.YOUR_INDEX.insert(vectorsToInsert);
+```
+
+인덱스로 벡터를 삽입합니다. Vectorize 삽입은 비동기이고 삽입 가동은 그 가동을 위한 mutation 식별자를 유일한 반환합니다. 일반적으로 Vectorize 색인에서 쿼리를 위해 사용할 수있는 삽입 된 벡터에 대한 몇 초가 걸립니다.
+
+같은 벡터 ID가 이미 인덱스에 존재한다면, 새로운 ID를 가진 벡터만 삽입됩니다.
+
+기존 벡터를 업데이트해야 하는 경우, 사용[공지사항](#upsert-vectors)가동.
+
+### Upsert 벡터
+
+```ts
+let vectorsToUpsert = [
+	{ id: "123", values: [32.4, 6.5, 11.2, 10.3, 87.9] },
+	{ id: "456", values: [2.5, 7.8, 9.1, 76.9, 8.5] },
+	{ id: "768", values: [29.1, 5.7, 12.9, 15.4, 1.1] },
+];
+let upserted = await env.YOUR_INDEX.upsert(vectorsToUpsert);
+```
+
+Upserts 벡터를 인덱스로 합니다. Vectorize upserts는 비동기이고 upsert 가동은 그 가동을 위한 mutation 식별자를 유일한 돌려보냅니다. 일반적으로 Vectorize 인덱스에서 쿼리를 위해 사용할 수 있도록 읽힌 벡터에 대한 몇 초가 걸립니다.
+
+상시 작업은 같은 ID가 존재하지 않는 벡터를 삽입하고 동일한 ID로 벡터를 겹쳐 씁니다.
+
+Upserting은 합병되지 않으며, 기존 벡터의 값이나 메타데이터를 결합하지 않습니다. upserted 벡터는 기존 벡터를 전체로 대체합니다.
+
+### Query 벡터
+
+```ts
+let queryVector = [32.4, 6.55, 11.2, 10.3, 87.9];
+let matches = await env.YOUR_INDEX.query(queryVector);
+```
+
+제공된 벡터로 인덱스를 쿼리하고, 구성된 거리 메트릭을 기반으로 가장 가까운 벡터의 점수(s)를 반환합니다.
+
+- 반환된 일치의 수를 설정`topK`(과태: 5)
+- 설정하여 벡터 값 반환`returnValues: true`(기본값: false)
+- 설정하여 벡터 메타데이터를 반환`returnMetadata: 'indexed'`또는`returnMetadata: 'all'`(과태: 'none')
+
+```ts
+let matches = await env.YOUR_INDEX.query(queryVector, {
+	topK: 5,
+	returnValues: true,
+	returnMetadata: "all",
+});
+```
+
+#### 상단K
+
+더 보기`topK`쿼리 작업에 의해 반환된 일치 수를 지정할 수 있습니다. Vectorize는 지금의 상한 한계를 지원합니다`100`제품정보`topK`가치. 그러나 쿼리 작업에 대한`returnValues`설정하기`true`또는`returnMetadata`설정하기`all`, `topK`최대 값으로 제한될 것`20`.
+
+#### 반환Metadata
+
+더 보기`returnMetadata`필드는 쿼리하는 동안 벡터 메타 데이터를 fetch하는 세 가지 방법을 제공합니다:
+
+1. `none`: 메타데이터를 캐치하지 마십시오.
+2. `indexed`: 색인 된 메타 데이터 필드에만 Fetched metadata. 이 옵션에는 지연 시간이 없습니다. 그러나 긴 텍스트 필드는 truncated 수 있습니다.
+3. `all`: 벡터와 관련된 모든 메타데이터를 구합니다. 쿼리는이 옵션으로 더 느리게 실행할 수 있으며,`topK`20로 제한됩니다.
+
+:::주최\[`topK`·`returnMetadata`레거시 Vectorize 인덱스
+
+유산 Vectorize (V1) 색인을 위해,`topK`20로 제한되며,`returnMetadata`boolean 필드입니다.
+
+:::
+
+### ID로 쿼리 벡터
+
+```ts
+let matches = await env.YOUR_INDEX.queryById("some-vector-id");
+```
+
+인덱스에서 이미 존재하는 벡터를 사용하여 인덱스를 쿼리합니다.
+
+Query 옵션은 위의 쿼리 작업과 동일하게 유지됩니다.
+
+```ts
+let matches = await env.YOUR_INDEX.queryById("some-vector-id", {
+	topK: 5,
+	returnValues: true,
+	returnMetadata: "all",
+});
+```
+
+### ID로 벡터를 가져옵니다
+
+```ts
+let ids = ["11", "22", "33", "44"];
+const vectors = await env.YOUR_INDEX.getByIds(ids);
+```
+
+값과 메타데이터를 포함한 ID로 지정된 벡터를 검색합니다.
+
+### ID로 벡터 삭제
+
+```ts
+let idsToDelete = ["11", "22", "33", "44"];
+const deleted = await env.YOUR_INDEX.deleteByIds(idsToDelete);
+```
+
+현재 인덱스에서 제공하는 벡터 ID를 삭제합니다. Vectorize 삭제는 비동기이고 삭제 가동은 그 가동을 위한 mutation 식별자를 유일한 반환합니다. 일반적으로 Vectorize 인덱스에서 제거되는 벡터에 대한 몇 초가 걸립니다.
+
+### 인덱스 보기
+
+```ts
+const details = await env.YOUR_INDEX.describe();
+```
+
+지정된 인덱스의 구성을 직접 검색합니다.`dimensions`그리고 거리`metric`.
+
+### 벡터 목록
+
+:::note\[Python SDK 가용성]
+
+더 보기`client.vectorize.indexes.list_vectors()`방법은 아직 현재 릴리스에서 사용할 수 없습니다.[Cloudflare Python SDK 지원](https://pypi.org/project/cloudflare/). 메서드가 나타나는 동안[API reference](/api/python/resources/vectorize/subresources/indexes/methods/list_vectors/), v4.3.1의 게시된 SDK 버전에 포함되지 않았습니다. 반면에, 당신은 사용할 수 있습니다[REST API를](/api/resources/vectorize/subresources/indexes/methods/list_vectors/)또는 목록 벡터에 Wrangler CLI.
+
+:::
+
+paginated 요청을 사용하여 인덱스의 모든 벡터 식별자 목록, 페이지 당 1000 벡터 식별자를 반환.
+
+```sh
+wrangler vectorize list-vectors <index-name> [--count=<number>] [--cursor=<cursor-string>]
+```
+
+**모수:**
+
+- `<index-name>`- Vectorize 인덱스의 이름
+- `--count`(선택) - 페이지 당 반환하는 벡터 ID의 수. 1과 1000 사이에서 있어야 합니다 (과태: 100)
+- `--cursor`(선택 사항) - 이전 응답에서 Pagination cursor는 그 위치에서 목록을 계속합니다.
+
+질 행동과 모범 사례에 대한 자세한 지침은 참조[모범 사례 목록](/vectorize/best-practices/list-vectors/).
+
+### 메타데이터 인덱스
+
+지정된 속성에 필터링 할 수 있습니다. 10개의 재산에 한정하십시오.
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령:
+
+```sh
+wrangler vectorize create-metadata-index <index-name> --property-name='some-prop' --type='string'
+```
+
+### 메타데이터 인덱스
+
+지정된 메타데이터 인덱스를 삭제하려면 Vectorize를 허용한다.
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령:
+
+```sh
+wrangler vectorize delete-metadata-index <index-name> --property-name='some-prop'
+```
+
+### Metadata 인덱스
+
+metadata 필터링을 사용할 수 있는 메타데이터 속성 목록
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령:
+
+```sh
+wrangler vectorize list-metadata-index <index-name>
+```
+
+### 공지사항
+
+인덱스에 대한 추가 정보를 가져옵니다.
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+다음을 실행`wrangler vectorize`명령:
+
+```sh
+wrangler vectorize info <index-name>
+```
+
+## 벡터
+
+벡터는 기계 학습 모델에서 벡터 embedding 출력을 나타냅니다.
+
+- `id`- 독특한`string`인덱스의 벡터를 식별합니다. 이 문서의 ID, 객체 또는 데이터베이스 식별자가 벡터 값이 생성 된 것을 다시 맵해야합니다.
+- `namespace`- 색인 내의 옵션 파티션 키. 작업은 per-namespace에서 수행되므로 더 큰 인덱스 내에서 격리된 세그먼트를 만들 수 있습니다.
+- `values`- 배열의`number`, `Float32Array`, 또는`Float64Array`벡터로 자체를 삽입합니다. 이것은 dense 배열이고, 이 배열의 길이는 일치해야 합니다`dimensions`인덱스에 구성.
+- `metadata`- 벡터와 함께 추가 메타데이터를 저장할 수 있는 키값 쌍의 옵션 세트.
+
+```ts
+let vectorExample = {
+	id: "12345",
+	values: [32.4, 6.55, 11.2, 10.3, 87.9],
+	metadata: {
+		key: "value",
+		hello: "world",
+		url: "r2://bucket/some/object.json",
+	},
+};
+```
+
+## 노동자에 바인딩
+
+[회사 소개](/workers/runtime-apis/bindings/)Vectorize 인덱스 또는 R2 버킷을 포함하여 리소스를 첨부할 수 있습니다.
+
+Bindings는 정의됩니다[Wrangler 구성 파일](/workers/wrangler/configuration/)프로젝트에 대한 Workers 프로젝트 또는 Cloudflare dashboardXQ와 관련이 있습니다.
+
+Vectorize 색인은 이름에 의해 경계됩니다. 이름에 대한 바인딩`production-doc-search`아래 닮은 것:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vectorize": [
+  		{
+  			"binding": "PROD_SEARCH", //인덱스는 env로 사용할 수 있습니다. 당신의 노동자에 있는 PROD SEARCH
+  			"index_name": "production-doc-search"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+더 알아보기[관련 문서](/workers/wrangler/configuration/#vectorize-indexes)더 많은 정보.
+
+## TypeScript 제품정보
+
+<Render file="wrangler-typegen" product="workers" />

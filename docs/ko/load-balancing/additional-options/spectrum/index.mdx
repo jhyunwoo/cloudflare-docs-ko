@@ -1,0 +1,78 @@
+---
+pcx_content_type: navigation
+title: Spectrum
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Spectrum 애플리케이션에 Load Balancing 추가
+---
+
+import { Render, DashButton } from "~/components";
+
+[Spectrum](/spectrum/)을 Load Balancing과 함께 구성하면 TCP 또는 UDP 기반 애플리케이션에 복원력을 더할 수 있습니다.
+
+Spectrum 애플리케이션을 만들 때 **Origin**으로 로드 밸런서를 선택하면 헬스 모니터, 장애 조치, traffic steering을 활용할 수 있습니다.
+
+정확한 설정은 사용 사례에 따라 달라집니다. 워크플로를 이해하려면 다음 단계를 참고하세요.
+
+---
+
+## 설정
+
+### 1. 로드 밸런서 구성
+
+1. Cloudflare 대시보드에서 **Load Balancing** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/load-balancing" />
+
+2. Load Balancing add-on이 [활성화](/load-balancing/get-started/enable-load-balancing/)된 계정을 선택합니다.
+
+3. **Load Balancing**으로 이동한 다음 **Create load balancer**를 선택합니다.
+
+4. **Load Balancer Setup**에서 **Public load balancer**를 선택합니다.
+
+5. 이 로드 밸런서를 추가할 웹사이트를 선택합니다.
+
+6. **Hostname** 페이지에서 표시되는 설정을 정의하고 **Next**를 선택합니다.
+   - **Hostname**을 입력합니다. 이는 로드 밸런서를 사용할 수 있는 DNS 이름입니다. 레코드 우선순위에 대한 자세한 내용은 [로드 밸런싱용 DNS 레코드](/load-balancing/load-balancers/dns-records/)를 참고하세요.
+     :::caution
+
+     DNS 확인 문제를 방지하려면 로드 밸런서 hostname은 Spectrum 애플리케이션에 정의하려는 hostname(또는 도메인)과 달라야 합니다.
+     :::
+
+   - 주황색 구름 아이콘을 켜 둡니다. 이는 로드 밸런서가 proxied 상태임을 의미합니다. 이는 [proxy mode](/load-balancing/understand-basics/proxy-modes/)를 가리키며 Spectrum에서는 트래픽이 항상 프록시됩니다.
+   - **Session Affinity**와 **Failover across pools**는 Spectrum에서 지원되지 않으므로 비활성화한 상태로 둡니다.
+
+7. **Add a Pool** 페이지에서 표시되는 설정을 정의하고 **Next**를 선택합니다.
+   - 하나 이상의 기존 풀을 선택하거나 [새 풀을 생성](/load-balancing/pools/create-pool/#create-a-pool)합니다 [^1].
+   - 필요하면 [fallback pool](/load-balancing/understand-basics/health-details/#fallback-pools)을 업데이트합니다 [^2].
+
+8. **Monitors** 페이지에서 표시되는 설정을 정의하고 **Next**를 선택합니다.
+   - 풀에 연결된 모니터를 검토합니다.
+   - 필요하면 기존 모니터를 연결하거나 [새 모니터를 생성](/load-balancing/monitors/create-monitor/#create-a-monitor)할 수 있습니다.
+
+9. **Traffic Steering** 페이지에서 [Traffic steering](/load-balancing/understand-basics/traffic-steering/steering-policies/) 옵션을 선택하고 **Next**를 선택합니다.
+
+10. 이 기능은 Spectrum에서 지원되지 않으므로 **Custom Rules** 페이지는 비워 둡니다.
+
+11. **Review** 페이지에서 다음을 수행합니다.
+
+- 구성을 검토하고 필요한 변경을 수행합니다.
+  - traffic steering을 **Off**로 설정했다면 로드 밸런서에서 풀의 순서를 다시 정렬해 fallback 순서를 조정합니다.
+  - traffic steering을 Random으로 설정했다면 각 풀로 보내는 트래픽 비율을 결정하기 위해([API](/api/resources/load_balancers/methods/create/)를 통해) [풀 가중치 설정](/load-balancing/understand-basics/traffic-steering/steering-policies/standard-options/#random-steering)을 할 수 있습니다.
+- **Save as Draft** 또는 **Save and Deploy** 중 하나를 선택합니다.
+
+### 2. Spectrum 애플리케이션 구성
+
+<Render file="spectrum-with-load-balancer-dash" product="spectrum" />
+
+---
+
+## 제한 사항
+
+<Render file="spectrum-lb-limitations" product="load-balancing" />
+
+[^1]: Cloudflare에서 풀은 엔드포인트와 그 구성 방식을 나타냅니다. 따라서 하나의 풀은 여러 엔드포인트의 그룹이 될 수도 있고, 반대로 풀당 엔드포인트(예: origin server) 하나만 둘 수도 있습니다.
+
+[^2]: fallback 풀은 마지막 수단으로 사용되는 풀입니다. 모든 풀이 비활성화되거나 비정상이 되면 로드 밸런서는 이 풀로 트래픽을 보냅니다.

@@ -1,0 +1,120 @@
+---
+pcx_content_type: concept
+title: CPU 활용
+weight: 4
+description: CPU 사용량을 프로파일링하고 Workers 제한에서 요청당 CPU 시간을 보장하는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/dev-tools/cpu-usage/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/dev-tools/cpu-usage/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+노동자가 CPU 집중적인 작업을 수행하는 너무 많은 시간을 소비한다면, 응답은 느리거나 노동자가 될 수 있습니다.
+시작 실패[시간 제한](/workers/platform/limits/#worker-startup-time).
+
+DevTools에서 직업은 너무 많은 CPU를 사용하는 코드를 식별하고 수정할 수 있습니다.
+
+Workers
+[I/에 increment 타이머만 ₢ 킹](/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading)보안 목적 그러나 CPU 실행 시간은 DevTools와 현지 개발에서 가능합니다.
+
+DevTools를 사용하여 CPU 사용량을 모니터링 할 때 특정 행동을 복제 할 수 있습니다.
+회사 소개 mimic 생산 행동에, 로컬 노동자에게 보내는 요청을 확인합니다
+생산에 있는 요구와 유사합니다. 이것은 요청의 큰 볼륨을 보내고, 요청을 만들기
+특정 경로, 또는 생산 같은 데이터를 사용하여[먼 바인딩](/workers/development-testing/#remote-bindings).
+
+## 자주 묻는 질문
+
+CPU 프로파일을 생성하려면:
+
+- 지원하다`wrangler dev`당신의 노동자를 시작
+- 공지사항`D`DevTools를 열고 터미널에서 키
+- "Profiler"탭 선택
+- 제품정보`Start`CPU 사용 기록 시작
+- 새 탭에서 작업자에게 요청 보내기
+- 제품정보`Stop`
+
+이제 CPU 프로파일이 있습니다.
+
+:::참조
+
+Rust Workers를 위해, 당신의 옆에 추가하십시오`Cargo.toml`관광 명소[사이트맵](https://dwarfstd.org/)디버그 기호 (from)[이 댓글](https://github.com/rustwasm/wasm-pack/issues/1351#issuecomment-2100231587)):
+
+```toml title="wrangler.toml"
+[package.metadata.wasm-pack.profile.dev.wasm-bindgen]
+dwarf-debug-info = true
+```
+
+그런 다음 업데이트`wrangler.toml`wasm-pack (worker-build를 통해) 구성`dev` [이름 \*](https://rustwasm.github.io/docs/wasm-pack/commands/build.html#profile)debug 기호를 보존합니다.
+
+```toml title="Cargo.toml"
+[build]
+command = "cargo install -q worker-build && worker-build --dev"
+```
+
+:::
+
+## 예제 프로필
+
+CPU 프로파일을 읽는 방법을 배우는 예제를 살펴봅시다. 다음 노동자를 가지고 상상:
+
+```js title="index.js"
+const addNumbers = (body) => {
+	for (let i = 0; i < 5000; ++i) {
+		body = body + " " + i;
+	}
+	return body;
+};
+
+const moreAddition = (body) => {
+	for (let i = 5001; i < 15000; ++i) {
+		body = body + " " + i;
+	}
+	return body;
+};
+
+export default {
+	async fetch(request, env, ctx) {
+		let body = "Hello Profiler! - ";
+		body = addNumbers(body);
+		body = moreAddition(body);
+		return new Response(body);
+	},
+};
+```
+
+코드의 일부가 느린 응답 시간을 발견하고 싶습니다. DevTool 프로파일링을 사용하는 방법
+CPU-heavy 코드 및 문제를 수정?
+
+위에서 언급 한대로 DevTools를 눌러서 엽니다.`D`달리기 후에 열쇠`wrangler dev`. 그때, 너
+"Profiler"탭으로 이동하여 프로파일을 누르십시오.`Start`자주 묻는 질문
+
+![CPU 프로필](~/assets/images/workers/observability/profile.png)
+
+이 이미지의 최고 도표는 단면도의 타임라인을 보여줍니다, 당신은 특정한 요구에 있는 급상승에 그것을 사용할 수 있습니다.
+
+아래 차트는 요청에 따라 운영에 사용되는 CPU 시간을 보여줍니다. 이 스크린 샷에서 볼 수 있습니다.
+상단의 "fetch"시간과 아래 fetch의 하위 구성 요소, 두 가지 기능을 포함`addNumbers`·
+`moreAdditions`. 각 상자를 통해 hovering, 당신은 더 많은 정보를 얻을, 그리고 상자를 클릭해서, 당신은 탐색
+기능의 소스 코드에.
+
+이 그래프를 사용하여 " CPU 시간을 복용하는 것은 무엇입니까?"의 질문에 대답 할 수 있습니다. 더 보기`addNumbers`기능에는
+CPU 시간의 0.3ms를 나타내는 아주 작은 상자. 더 보기`moreAdditions`상자는 더 큽니다, CPU 시간의 2.2ms를 대표합니다.
+
+따라서 응답 시간을 더 빨리 만들려면 최적화해야합니다.`moreAdditions`.
+
+'Chart'에서 'Heavy (Bottom Up)'으로 시각화를 변경할 수도 있습니다.
+
+![CPU 프로필](~/assets/images/workers/observability/heavy.png)
+
+이것은 각 기능에 할당된 상대적인 시간을 보여줍니다. 목록의 상단에,`moreAdditions`명확하게
+당신의 노동자의 가장 느린 부분. 쓰레기 수집 또한 큰 비율을 나타내는 것을 볼 수 있습니다.
+기억 최적화는 유용할 수 있었습니다.
+
+## 추가 자료
+
+CPU Profiler를 사용하는 방법에 대해 자세히 알아 보려면 여기를 클릭하십시오.[DevTools에서 CPU를 작성하는 Google의 문서](https://developer.chrome.com/docs/devtools/performance/nodejs#profile).
+
+DevTools를 사용하여 메모리에 대한 통찰력을 얻는 방법을 배우려면, 참조[메모리 사용 문서](/workers/observability/dev-tools/memory-usage/).

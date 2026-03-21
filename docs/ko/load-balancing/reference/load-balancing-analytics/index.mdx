@@ -1,0 +1,287 @@
+---
+title: 분석
+pcx_content_type: how-to
+sidebar:
+  order: 46
+head:
+  - tag: title
+    content: Load Balancing 분석
+description: Load Balancing 분석을 사용하여 트래픽 흐름을 평가하고, endpoint의
+  상태를 파악하며, 시간에 따른 상태 변화를 검토하세요.
+---
+
+import { Details } from "~/components";
+
+Load Balancing 분석을 사용하면 다음을 수행할 수 있습니다.
+
+- 트래픽 흐름을 평가할 수 있습니다.
+- Pool 안에 있는 endpoint의 상태를 평가할 수 있습니다.
+- 시간 경과에 따른 pool과 pool 상태의 변화를 검토할 수 있습니다.
+
+:::note
+
+Load Balancing 분석은 유료 플랜(Pro, Business, Enterprise) 고객에게만 제공됩니다.
+
+:::
+
+## 대시보드 분석
+
+### 개요 지표
+
+Load Balancer의 **Overview** 지표를 보려면 **Traffic** > **Load Balancing Analytics**로 이동하세요.
+
+이 지표는 Load Balancer 내에서 특정 pool로 라우팅된 요청 수를 보여 주며, 다음과 같은 판단에 도움이 됩니다.
+
+- Pool을 추가하거나 제거했을 때의 영향을 평가합니다.
+- 새 pool을 언제 만들어야 할지 결정합니다.
+- 피크 트래픽 수요와 향후 인프라 요구 사항을 계획합니다.
+
+특정 pool, 시간, 지역, endpoint에 대한 추가 필터도 적용할 수 있습니다.
+
+:::note
+
+Load balancing <strong>requests</strong>는 Load Balancer가 처리한 캐시되지 않은 요청 수를 의미합니다. Cloudflare는 기본적으로 확인된 IP 주소를 최대 5초 동안 캐시합니다.
+
+:::
+
+### 지연 시간
+
+**Latency** 지표는 대화형 지도를 보여 주며, 이를 통해 **Unhealthy** 또는 **Slow** 상태의 pool이 있는 지역을 식별할 수 있습니다.
+
+Load Balancer의 지연 시간 정보를 보려면 **Traffic** > **Load Balancing Analytics** > **Latency**로 이동하세요.
+
+### 로그
+
+**Logs**는 모든 endpoint 상태 변경과 그 변경이 Load Balancing pool에 미치는 영향을 기록한 이력을 제공합니다. Load Balancing은 endpoint 상태가 healthy에서 unhealthy로, 또는 그 반대로 바뀌는 것처럼 상태 변화를 나타내는 이벤트만 기록합니다.
+
+Monitor Group이 pool에 연결되어 있으면, 기록되는 각 health 이벤트에는 `monitors` 필드가 포함됩니다.
+이 필드는 그룹 안의 개별 monitor와 그 결과를 나열하므로, 어떤 monitor가 상태 변화에 영향을 주었는지 더 쉽게 확인할 수 있습니다.
+
+예시 이벤트(일부 생략):
+
+```json
+{
+	"id": <id>,
+	"timestamp": "2025-09-22 19:22:00",
+	"pool": {
+		"id": "<id>",
+		"name": "example-monitor-group-test-pool-us",
+		"healthy": true,
+		"changed": false,
+		"minimum_origins": 1
+	},
+	"origins": [
+		{
+			"name": "origin-a",
+			"ip": "192.0.2.10",
+			"enabled": true,
+			"healthy": true,
+			"failure_reason": "No failures",
+			"response_code": 200,
+			"monitors": [
+				{
+					"id": "<id>",
+					"healthy": true,
+					"failure_reason": "No failures",
+					"response_code": 200,
+					"must_be_healthy": true,
+					"monitoring_only": false
+				},
+				{
+					"id": "<id>",
+					"healthy": true,
+					"failure_reason": "No failures",
+					"response_code": 200,
+					"must_be_healthy": true,
+					"monitoring_only": false
+				},
+				{
+					"id": "<id>",
+					"healthy": false,
+					"failure_reason": "HTTP timeout occurred",
+					"must_be_healthy": false,
+					"monitoring_only": true
+				}
+			]
+		},
+		{
+			"name": "origin-b",
+			"ip": "198.51.100.25",
+			"enabled": true,
+			"healthy": false,
+			"failure_reason": "TCP connection failed",
+			"changed": true,
+			"monitors": [
+				{
+					"id": "<id>",
+					"healthy": false,
+					"failure_reason": "TCP connection failed",
+					"must_be_healthy": true,
+					"monitoring_only": false
+				},
+				{
+					"id": "<id>",
+					"healthy": true,
+					"failure_reason": "No failures",
+					"response_code": 200,
+					"must_be_healthy": true,
+					"monitoring_only": false
+				},
+				{
+					"id": "<id>",
+					"healthy": false,
+					"failure_reason": "HTTP timeout occurred",
+					"must_be_healthy": false,
+					"monitoring_only": true
+				}
+			]
+		}
+	]
+}
+```
+
+이 예시에서는 다음을 확인할 수 있습니다.
+
+- 각 origin에는 연결된 그룹 안의 모든 monitor를 나열하는 `monitors` 배열이 포함되어 있습니다.
+- `must_be_healthy`, `monitoring_only`와 같은 필드는 각 monitor가 origin의 전체 health를 판단하는 데 어떤 역할을 하는지 보여 줍니다.
+- `healthy`와 `failure_reason` 필드는 어떤 개별 monitor 검사가 성공했는지 또는 실패했는지를 보여 줍니다.
+
+대시보드에서 로그에 접근하려면 **Traffic** > **Load Balancing Analytics**로 이동하세요.
+
+## GraphQL 분석
+
+더 유연한 방식이 필요하다면 [GraphQL Analytics API](/analytics/graphql-api/)에서 Load Balancing 지표를 직접 가져오세요.
+
+샘플 쿼리로 시작해 보세요.
+
+<Details header="Pool별 요청 수">
+
+이 쿼리는 Cloudflare 글로벌 네트워크의 각 위치에서 각 pool이 받는 요청 수를 보여 줍니다.
+
+```graphql graphql-api-explorer title="Query"
+query RequestsPerPool($zoneTag: string, $start: Time, $end: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			loadBalancingRequestsAdaptiveGroups(
+				limit: 100
+				filter: {
+					datetime_geq: $start
+					datetime_leq: $end
+					lbName: "lb.example.com"
+				}
+				orderBy: [datetimeFifteenMinutes_DESC]
+			) {
+				count
+				dimensions {
+					datetimeFifteenMinutes
+					coloCode
+					selectedPoolName
+				}
+			}
+		}
+	}
+}
+```
+
+```json title="Response (truncated)"
+{
+    "data": {
+        "viewer": {
+            "zones": [
+                {
+                    "loadBalancingRequestsAdaptiveGroups": [
+                        {
+                            "count": 4,
+                            "dimensions": {
+                                "coloCode": "IAD",
+                                "datetimeFifteenMinutes": "2021-06-26T00:45:00Z",
+                                "selectedPoolName": "us-east"
+                            }
+                        },
+                        ...
+                    ]
+                }
+            ]
+        }
+    }
+}
+```
+
+</Details>
+
+<Details header="데이터 센터별 요청 수">
+
+이 쿼리는 특정 Load Balancer의 각 pool에 대해, 특정 데이터 센터(예: 싱가포르 또는 `SIN`)에서 전송한 monitor 요청의 가중 왕복 시간(RTT) 측정값인 `avgRttMs`를 보여 줍니다.
+
+:::caution
+
+`avgRttMs`는 monitor가 측정하고 steering 결정에 사용하는 왕복 시간을 의미합니다. `avgRttMs`는 Cloudflare 네트워크에 도달한 개별 요청의 raw RTT와는 다릅니다.
+:::
+
+```graphql graphql-api-explorer title="Query"
+query RequestsPerDataCenter($zoneTag: string, $start: Time, $end: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			loadBalancingRequestsAdaptive(
+				limit: 100
+				filter: {
+					datetime_geq: $start
+					datetime_leq: $end
+					lbName: "lb.example.com"
+					coloCode: "SIN"
+				}
+				orderBy: [datetime_DESC]
+			) {
+				selectedPoolName
+				pools {
+					poolName
+					healthy
+					healthCheckEnabled
+					avgRttMs
+				}
+			}
+		}
+	}
+}
+```
+
+```json title="Response (truncated)"
+{
+    "data": {
+        "viewer": {
+            "zones": [
+                {
+                    "loadBalancingRequestsAdaptive": [
+                        {
+                            "pools": [
+                                {
+                                    "avgRttMs": 67,
+                                    "healthCheckEnabled": 1,
+                                    "healthy": 1,
+                                    "poolName": "asia-ne"
+                                },
+                                {
+                                    "avgRttMs": 156,
+                                    "healthCheckEnabled": 1,
+                                    "healthy": 1,
+                                    "poolName": "us-east_and_asia-ne"
+                                },
+                                {
+                                    "avgRttMs": 237,
+                                    "healthCheckEnabled": 1,
+                                    "healthy": 1,
+                                    "poolName": "us-east"
+                                },
+                            ],
+                            "selectedPoolName": "asia-ne"
+                        },
+                    ...
+                    ]
+                }
+            ]
+        }
+    }
+}
+```
+
+</Details>

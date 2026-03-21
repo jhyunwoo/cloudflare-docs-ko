@@ -1,0 +1,79 @@
+---
+title: 프로토콜 검출
+pcx_content_type: how-to
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/network-policies/protocol-detection/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/network-policies/protocol-detection/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Badge, Render } from "~/components";
+
+Gateway는 패킷 속성을 사용하여 네트워크 프로토콜의 감지, 로깅 및 필터링을 지원합니다.
+
+프로토콜 탐지는 Cloudflare에 연결된 장치에만 적용합니다 WARP 클라이언트를 통해 하나[교통 및 DNS 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#traffic-and-dns-mode-default)모드.
+
+## 프로토콜 감지
+
+프로토콜 탐지를 켜기:
+
+1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **교통 설정** > **프록시 및 검사 설정**.
+2. 기타 제품**프로토콜 감지**.
+
+지금 사용할 수 있습니다*검출된 의정서*선택자로서[네트워크 정책](/cloudflare-one/traffic-policies/network-policies/#detected-protocol).
+
+### 모든 항구에 검사<Badge text="Beta" variant="caution" size="small" />
+
+<Render
+  file="gateway/inspect-on-all-ports"
+  product="cloudflare-one"
+  params={{
+  	turnOnProcedure:
+  		"under **Manage HTTP inspection by port**, choose _Inspect on all ports_",
+  }}
+/>
+
+#### 중요한 고려사항
+
+**모든 항구에 TLS interception**: 이 설정을 켜면 게이트웨이는 모든 포트에서 TLS 트래픽을 가로 질러 시도 할 것입니다.`443`. 이것은 비표준 포트에 TLS를 사용하는 모든 응용 프로그램은 게이트웨이 프록시에 의해 방해 트래픽이있을 것입니다. 네트워크 정책 필터링을 위한 SNI 검출을 풀 TLS 간섭 없이 설정하려는 경우,[정책에 대해](/cloudflare-one/traffic-policies/http-policies/tls-decryption/#do-not-inspect)비표준 포트에 TLS를 사용하는 특정 응용 또는 도메인.
+
+:::caution\[TLS 우회 네트워크 정책 필터링 내부의 비 HTTP 프로토콜]
+네트워크 정책이 레이어 4에서 TLS 연결을 허용하면 Gateway는 TLS 트래픽을 해독합니다. 그러나 Gateway는 TLS 연결 내부의 non-HTTP 프로토콜을 필터링 할 수 없습니다. TLS 내부의 모든 비 HTTPS 트래픽 (TLS, 데이터베이스 프로토콜, 또는 사용자 정의 프로토콜에 SSH와 같은)은 추가 필터링 적용되지 않고 기본적으로 허용됩니다. 조직이 기본 블록 네트워크 정책을 사용하는 경우 Gateway는 여전히 모든 non-HTTPS TLS 트래픽을 통해 허용됩니다.
+주요 특징
+
+HTTP 정책을 사용하여 기본 블록 네트워크 정책을 사용할 때 모든 포트에서 모든 HTTPS 트래픽을 필터링합니다.[명시적으로 HTTP 및 TLS 트래픽을 허용하는 네트워크 정책을 작성](/cloudflare-one/traffic-policies/network-policies/common-policies/#filter-https-traffic-when-inspecting-on-all-ports).
+
+## 지원된 의정서
+
+Gateway는 다음 프로토콜의 탐지 및 필터링을 지원합니다:
+
+| 프로젝트                                                                 | 지원하다                                                   |
+| -------------------------------------------------------------------- | ------------------------------------------------------ |
+| HTTP: HTTP                                                           | 하이퍼텍스트 전송 프로토콜 (HTTP/1.1).                             |
+| 웹 사이트                                                                | Hypertext Transfer 프로토콜 버전 2.                          |
+| 사이트맵                                                                 | Secure Shell Protocol - 원격 로그인 및 명령 실행.                |
+| 사이트맵                                                                 | 수송 층 안전. 게이트웨이는 TLS 버전 1.1을 통해 1.3을 감지합니다.*사이트맵*가치.    |
+| DCERPC는                                                              | 분산 컴퓨팅 환경 / 원격 절차 호출.                                  |
+| 사이트맵                                                                 | Message Queuing Telemetry Transport - 경량 IoT 메시징 프로토콜. |
+| 사이트맵                                                                 | TPKT는 일반적으로 RDP 세션을 시작하므로 RDP 트래픽을 식별하고 필터링 할 수 있습니다.  |
+| 사이트맵<Badge text="Beta" variant="caution" size="small" />             | Internet Message Access Protocol - 이메일 검색              |
+| 팝3<Badge text="Beta" variant="caution" size="small" />               | 우체국 프로토콜 v3 - 이메일 retrieval.                           |
+| 사이트맵<Badge text="Beta" variant="caution" size="small" />             | Simple Mail Transfer Protocol - 이메일 전송.                |
+| MYSQL을<Badge text="Beta" variant="caution" size="small" />           | MySQL 데이터베이스 와이어 프로토콜.                                 |
+| RSYNC-DAEMON의 특징<Badge text="Beta" variant="caution" size="small" /> | rsync daemon 의정서.                                      |
+| 사이트맵<Badge text="Beta" variant="caution" size="small" />             | 경량 디렉토리 액세스 프로토콜.                                      |
+| 사이트맵<Badge text="Beta" variant="caution" size="small" />             | 네트워크 시간 프로토콜.                                          |
+
+## 네트워크 정책
+
+일반적인 포트보다는 프로토콜 감지를 기반으로 트래픽을 필터링하는 네트워크 정책을 만들 수 있습니다. 예를 들어 포트 22 또는 다른 비 기본 포트를 차단하지 않고 네트워크에 SSH 트래픽을 차단할 수 있습니다.
+
+| 옵션 정보   | 회사연혁 | 제품정보   | - 연혁 |
+| ------- | ---- | ------ | ---- |
+| 검출된 의정서 | 내 계정 | *사이트맵* | 제품정보 |

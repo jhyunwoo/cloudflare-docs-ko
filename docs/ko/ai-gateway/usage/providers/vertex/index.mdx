@@ -1,0 +1,183 @@
+---
+title: 구글 Vertex AI
+pcx_content_type: get-started
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/usage/providers/vertex/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/usage/providers/vertex/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[구글 Vertex AI](https://cloud.google.com/vertex-ai)개발자가 쉽게 구축하고 엔터프라이즈 준비된 AI 경험을 배포할 수 있습니다.
+
+아래는 Google Cloud 계정을 설정하는 방법에 대한 빠른 가이드입니다.
+
+1. Google Cloud Platform (GCP) 계정
+   - 로그인[GCP 계정](https://cloud.google.com/vertex-ai). 새로운 사용자는 크레딧에 대한 자격이 될 수 있습니다 (90 일 동안 유효).
+
+2. Vertex AI API 사용
+   - 바로가기[Vertex AI API 사용](https://console.cloud.google.com/marketplace/product/google/aiplatform.googleapis.com)프로젝트의 API를 활성화합니다.
+
+3. 원하는 모델에 대한 액세스를 적용.
+
+## 끝점
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/google-vertex-ai
+```
+
+## 자주 묻는 질문
+
+Google Vertex에 요청을 할 때 다음이 필요합니다.
+
+- AI Gateway 계정 태그
+- AI Gateway Gateway 이름
+- Google Vertex API 키
+- Google Vertex 프로젝트 이름
+- Google Vertex Region (예를 들면, us-east4)
+- Google Vertex 모델
+
+## URL 구조
+
+새로운 기본 URL은 이 구조에서 위의 데이터를 사용합니다.`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/google-vertex-ai/v1/projects/{project_name}/locations/{region}`.
+
+그런 다음, 예를 들어 hit하려는 endpoint를 추가 할 수 있습니다.`/publishers/google/models/{model}:{generative_ai_rest_resource}`
+
+그래서 당신의 마지막 URL은 함께 올 것이다:`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/google-vertex-ai/v1/projects/{project_name}/locations/{region}/publishers/google/models/gemini-2.5-flash:generateContent`
+
+## Vertex AI 인증
+
+Vertex AI와 인증은 일반적으로 단기 자격 증명을 생성해야합니다.[Google 클라우드 SDK](https://cloud.google.com/vertex-ai/docs/authentication)복잡한 설정으로 AI Gateway는 여러 옵션으로 이를 단순화합니다.
+
+### 옵션 1: 서비스 계정 JSON
+
+AI Gateway는 Google 서비스 계정 JSON을 직접 전달합니다.`Authorization`요청 또는 AI Gateway를 통해 헤더[당신의 자신의 열쇠를 가져옵니다](/ai-gateway/configuration/bring-your-own-keys/)이름 \*
+
+당신은 할 수[서비스 계정 키 생성](https://cloud.google.com/iam/docs/keys-create-delete)Google Cloud 콘솔에서. 서비스 계정은 Vertex AI 엔드포인트 및 모델을 위한 필수 권한이 있는지 확인합니다.
+
+AI Gateway는 서비스 계정 JSON을 사용하여 단축 액세스 토큰을 생성하고 연속 요청을 사용하며 만료 될 때 자동으로 새로 고침됩니다.
+
+:::참조
+서비스 계정 JSON은 추가 키가 호출되어야 합니다.`region`GCP 지역 코드 (예를 들면,`us-east1`) 당신은 당신의 사용을 원합니다[Vertex AI 엔드포인트](https://cloud.google.com/vertex-ai/docs/reference/rest#service-endpoint). 당신은 또한 지역 코드를 통과할 수 있습니다`global`글로벌 엔드포인트를 사용합니다.
+주요 특징
+
+#### 예 서비스 계정 JSON 구조
+
+```json
+{
+  "type": "service_account",
+  "project_id": "your-project-id",
+  "private_key_id": "your-private-key-id",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nYOUR_PRIVATE_KEY\n-----END PRIVATE KEY-----\n",
+  "client_email": "your-service-account@your-project.iam.gserviceaccount.com",
+  "client_id": "your-client-id",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/your-service-account%40your-project.iam.gserviceaccount.com",
+  "region": "us-east1"
+}
+```
+
+JSON을 전달할 수 있습니다.`Authorization`헤더 또는 설정[당신의 자신의 열쇠를 가져옵니다](/ai-gateway/configuration/bring-your-own-keys/).
+
+### 옵션 2: 직접 액세스 토큰
+
+Google Cloud SDK를 사용하고 단기 액세스 토큰을 생성하는 경우 (예를 들어,`gcloud auth print-access-token`), 당신은 직접 이 Bearer 토큰으로 전달할 수 있습니다`Authorization`요청의 헤더.
+
+:::참조
+이 옵션은 공급자 별 엔드포인트에서만 지원되며 통합된 채팅 완료 엔드포인트가 아닙니다.
+주요 특징
+
+```bash
+curl "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/google-vertex-ai/v1/projects/{project_name}/locations/{region}/publishers/google/models/gemini-2.5-flash:generateContent" \
+    -H "Authorization: Bearer ya29.c.b0Aaekm1K..." \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "contents": {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Tell me more about Cloudflare"
+            }
+          ]
+        }
+      }'
+```
+
+## 통합 채팅 완료 API 사용
+
+AI Gateway는[통합 API](/ai-gateway/usage/chat-completion/)그것은 공급자의 맞은편에 작동합니다. Google Vertex AI의 경우 표준 채팅 완료 형식을 사용할 수 있습니다. 모델 필드에는 공급자 접두사가 포함되어 있으므로 모델 문자열은 다음과 같습니다.`google-vertex-ai/google/gemini-2.5-pro`.
+
+### 끝점
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/compat/chat/completions
+```
+
+### OpenAI SDK 예제
+
+```javascript
+import OpenAI from 'openai';
+
+const client = new OpenAI({
+  apiKey: '{service_account_json}',
+  baseURL: 'https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/compat'
+});
+
+const response = await client.chat.completions.create({
+  model: 'google-vertex-ai/google/gemini-2.5-pro',
+  messages: [
+    {
+      role: 'user',
+      content: 'What is Cloudflare?'
+    }
+  ]
+});
+
+console.log(response.choices[0].message.content);
+```
+
+### cURL 예제
+
+```bash
+curl "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/compat/chat/completions" \
+    -H "Authorization: Bearer {service_account_json}" \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "model": "google-vertex-ai/google/gemini-2.5-pro",
+        "messages": [
+          {
+            "role": "user",
+            "content": "What is Cloudflare?"
+          }
+        ]
+      }'
+```
+
+:::참조
+이름 \*[Vertex AI 인증](#authenticating-with-vertex-ai)서비스 계정 JSON 구조 및 인증 옵션에 대한 자세한 내용은 아래 섹션.
+주요 특징
+
+## 공급자 Specific Endpoint 사용
+
+또한 제공 업체 별 엔드포인트를 사용하여 전체 Vertex AI API에 액세스할 수 있습니다.
+
+### 사이트맵
+
+```bash title="Example fetch request"
+curl "https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/google-vertex-ai/v1/projects/{project_name}/locations/{region}/publishers/google/models/gemini-2.5-flash:generateContent" \
+    -H "Authorization: Bearer {vertex_api_key}" \
+    -H 'Content-Type: application/json' \
+    -d '{
+        "contents": {
+          "role": "user",
+          "parts": [
+            {
+              "text": "Tell me more about Cloudflare"
+            }
+          ]
+        }'
+
+```

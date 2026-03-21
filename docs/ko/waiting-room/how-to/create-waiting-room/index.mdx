@@ -1,0 +1,96 @@
+---
+title: 대기실 만들기
+pcx_content_type: how-to
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 대기실 만들기
+---
+
+import { TabItem, Tabs, APIRequest } from "~/components";
+
+대기실은 대시보드 또는 API를 통해 만들 수 있습니다.
+
+:::note
+대기실 생성에 대한 추가 맥락은 [시작하기](/waiting-room/get-started/)를 참고하세요.
+:::
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. 애플리케이션에서 **Traffic** > **Waiting Room**으로 이동합니다.
+2. **Create**를 선택합니다.
+3. 대기실의 [설정](/waiting-room/reference/configuration-settings/)을 사용자 환경에 맞게 지정합니다. 추가 가이드는 [모범 사례](/waiting-room/reference/best-practices/)를 참고하세요.
+4. **Next**를 선택합니다.
+5. 이 섹션에서 대기실에 [Turnstile](/turnstile/)을 사용할지 선택할 수 있습니다. **Yes**를 선택하면 [Widget mode](/turnstile/concepts/widget/)를 선택하고 Turnstile 검증이 실패했을 때 수행할 작업을 정의해야 합니다. 사용할 수 있는 Widget 모드와 작업은 요금제 유형에 따라 다릅니다. 자세한 내용은 [요금제](/waiting-room/plans/)를 참고하세요.
+6. [대기실을 사용자 지정](/waiting-room/how-to/customize-waiting-room/)하려면 HTML과 CSS를 필요에 맞게 수정합니다. 이 대기실을 모바일 앱이나 API 트래픽 관리에 사용하는 경우 JSON response 토글을 활성화하세요. 클라이언트(모바일 또는 웹 앱)에 대해 [JSON 친화적 응답](/waiting-room/how-to/json-response/)을 설정해 두었는지 확인하세요.
+7. 사용자가 대기실에 있을 때 반환할 HTTP 상태 코드를 결정하려면 **Queuing status code**를 선택합니다.
+8. **Next**를 선택합니다.
+9. 저장하기 전에 설정을 검토합니다. 대기실을 사용자 지정했다면 [결과를 미리 보기](/waiting-room/how-to/customize-waiting-room/#preview-waiting-room) 하세요.
+10. **Save**를 선택합니다. 새 대기실은 기본적으로 활성화됩니다.
+
+</TabItem> <TabItem label="API">
+
+API를 사용해 Waiting Room을 만들려면 `/zones/{zone_identifier}/waiting_rooms` 엔드포인트에 [`POST` 요청](/api/resources/waiting_rooms/methods/create/)을 보냅니다.
+
+- 파라미터 참고는 [구성 설정](/waiting-room/reference/configuration-settings/)을 확인하세요.
+- 인증 방법은 [API 토큰 만들기](/fundamentals/api/get-started/create-token/)를 참고하세요.
+- 엔드포인트와 페이지네이션에 대한 도움말은 [API 호출하기](/fundamentals/api/how-to/make-api-calls/)를 참고하세요.
+
+<APIRequest
+  path="/zones/{zone_id}/waiting_rooms"
+  method="POST"
+  json={{
+    name: "shop_waiting_room",
+    description: "Waiting room for webshop",
+    host: "shop.example.com",
+    path: "/shop",
+    queue_all: true,
+    new_users_per_minute: 200,
+    total_active_users: 300,
+    session_duration: 1,
+    disable_session_renewal: false,
+    json_response_enabled: false,
+    queueing_method: "fifo",
+    queueing_status_code: 202,
+    cookie_attributes: {
+      samesite: "auto",
+      secure: "auto"
+    }
+  }}
+/>
+
+응답에는 새로 생성된 Waiting Room의 전체 정의가 포함됩니다.
+
+```json title="응답"
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": [
+		{
+			"id": "1111111111111111111111",
+			"created_on": "2023-01-01T05:20:00.12345Z",
+			"modified_on": "2023-01-01T05:20:00.12345Z",
+			"name": "shop_waiting_room",
+			"description": "Waiting room for webshop",
+			"host": "shop.example.com",
+			"path": "/shop",
+			"queue_all": true,
+			"new_users_per_minute": 200,
+			"total_active_users": 300,
+			"session_duration": 1,
+			"disable_session_renewal": false,
+			"json_response_enabled": false,
+			"queueing_method": "fifo",
+			"queueing_status_code": 202,
+			"cookie_attributes": {
+				"samesite": "auto",
+				"secure": "auto"
+			}
+		}
+	]
+}
+```
+
+</TabItem> </Tabs>

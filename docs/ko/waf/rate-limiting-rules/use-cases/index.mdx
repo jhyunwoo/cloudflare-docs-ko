@@ -1,0 +1,119 @@
+---
+title: 비율 제한 규칙 예제
+pcx_content_type: configuration
+sidebar:
+  order: 20
+  label: 규칙 예제
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/rate-limiting-rules/use-cases/'
+translation_source_md: 'https://developers.cloudflare.com/waf/rate-limiting-rules/use-cases/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example } from "~/components";
+
+아래 예제에는 샘플 속도 제한 규칙 구성이 포함됩니다.
+
+## 예제 1
+
+다음 것[비율 제한 규칙](/waf/rate-limiting-rules/create-zone-dashboard/)로그인 페이지에서 미국 주소로 들어오는 요청에 제한 속도가 실행되며, 허용된 IP 주소를 제외한 1개의 IP 주소를 제외한다.
+
+<Example>
+  **수신 요청 일치시:**
+
+  | 제품정보     | 회사연혁    | 제품정보            |       |
+  | -------- | ------- | --------------- | ----- |
+  | URI 경로   | 이름 \*   | `/login`        | 이름 \* |
+  | 이름 \*    | 이름 \*   | `United States` | 이름 \* |
+  | IP 근원 주소 | 동일하지 않음 | `192.0.0.1`     |       |
+
+  Expression Editor를 사용하는 경우:<br />
+  `(http.request.uri.path eq "/login" and ip.src.country eq "US" and ip.src ne 192.0.0.1)`
+
+  **동일한 특성으로:**
+
+  - *IP 정보*
+  - *데이터 센터 ID*(대시보드에 기본적으로 포함하지만 표시되지 않음)
+</Example>
+
+## 예제 2
+
+다음 것[비율 제한 규칙](/waf/rate-limiting-rules/create-zone-dashboard/)주어진 기본 URI 경로로 들어오는 요청에 제한 속도, IP 주소 및 제공된 API 키에 증가.
+
+<Example>
+  **수신 요청 일치시:**
+
+  | 제품정보     | 회사연혁  | 제품정보       |       |
+  | -------- | ----- | ---------- | ----- |
+  | URI 경로   | 지원하다  | `/product` | 이름 \* |
+  | 자주 묻는 질문 | 이름 \* | `POST`     |       |
+
+  Expression Editor를 사용하는 경우:<br />
+  `(http.request.uri.path contains "/product" and http.request.method eq "POST")`
+
+  **동일한 특성으로:**
+
+  - *IP 정보*
+  - *헤더 값* > `x-api-key`
+  - *데이터 센터 ID*(대시보드에 기본적으로 포함하지만 표시되지 않음)
+</Example>
+
+## 예제 3
+
+다음 것[비율 제한 규칙](/waf/rate-limiting-rules/create-zone-dashboard/)두 호스트에서 여러 URI 경로 대상 요청에 제한 속도, 알려진 봇 제외. 요청 비율은 IP 주소와 일치`User-Agent`가치.
+
+<Example>
+  **수신 요청 일치시:**
+
+  `(http.request.uri.path eq "/store" or http.request.uri.path eq "/prices") and (http.host eq "mystore1.com" or http.host eq "mystore2.com") and not cf.client.bot`
+
+  **동일한 특성으로:**
+
+  - *IP 정보*
+  - *헤더 값* > `user-agent`
+  - *데이터 센터 ID*(대시보드에 기본적으로 포함하지만 표시되지 않음)
+</Example>
+
+## 예 4
+
+:::참조
+[복잡한 비율 제한](/waf/rate-limiting-rules/request-rate/#complexity-based-rate-limiting)Advanced Rate Limiting으로 Enterprise 고객에게만 사용할 수 있습니다.
+주요 특징
+
+다음 것[비율 제한 규칙](/waf/rate-limiting-rules/create-zone-dashboard/)복잡한 비율을 제한합니다. 규칙은 계정으로 이동합니다`my-score`HTTP 응답 헤더는 소스 서버에서 제공된 API 키로 클라이언트의 전체 복잡성 점수를 계산합니다.
+
+총 점수를 가진 카운터는 제한 규칙의 비율에 대한 일치가 있을 때 업데이트됩니다.[계산 표현](/waf/rate-limiting-rules/parameters/#increment-counter-when)(이 경우, 계산 표현이 제공되지 않았기 때문에 규칙 표현과 동일). 이 총 점수가 더 큰 경우`400`1 분의 기간 동안, 나중에 클라이언트 요청은 10 분의 기간 동안 차단됩니다.
+
+<Example>
+  **수신 요청 일치시:**
+
+  | 제품정보   | 회사연혁  | 제품정보         |
+  | ------ | ----- | ------------ |
+  | URI 경로 | 와일드카드 | `/graphql/*` |
+
+  Expression Editor를 사용하는 경우:<br />
+  `(http.request.uri.path wildcard "/graphql/*")`
+
+  **동일한 특성으로:**
+
+  - *헤더 값* > `x-api-key`
+  - *데이터 센터 ID*(대시보드에 기본적으로 포함하지만 표시되지 않음)
+
+  비율이 초과될 때:**회사연혁**
+
+  - 기간 당 점수:`400`
+  - 기간:*1 분*
+  - 응답 헤더 이름:`my-score`
+
+  다음 작업을 수행:
+
+  - 작업 선택:*제품정보*
+
+  다음 행동으로:**선택한 기간 동안 블록**
+
+  - 기간:*10 분*
+</Example>
+
+이 규칙 구성으로 API 예제를 들어, 참조[API를 통해 제한 규칙을 생성](/waf/rate-limiting-rules/create-api/#example-d---complexity-based-rate-limiting-rule).

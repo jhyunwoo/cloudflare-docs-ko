@@ -1,0 +1,338 @@
+---
+summary: >-
+  Use HTMLRewriter to inject bootstrap data into an SPA shell — whether the
+  shell is served from Workers Static Assets or fetched from an external origin.
+tags:
+  - TypeScript
+  - SPA
+pcx_content_type: example
+title: 단일 페이지 앱 (SPA) 쉘 부트 스트랩 데이터
+sidebar:
+  order: 1001
+description: >-
+  HTMLRewriter를 사용하여 SPA 쉘에 조립식 부츠 스트랩 데이터를 주입하여 초기 부하에 클라이언트 측 데이터를 제거하십시오.
+  Workers 정적 자산 또는 외부 호스팅 SPA와 함께 작동합니다.
+reviewed: 2026-02-19T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/spa-shell/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/spa-shell/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+이 예제는 노동자를 사용하고[HTMLRewriter](/workers/runtime-apis/html-rewriter/)Prefetched API 데이터를 단일 페이지 애플리케이션(SPA) 쉘에 주입합니다. HTML 쉘과 함께 병렬한 Worker fetches bootstrap 데이터가 브라우저에 결과를 스트림하므로 SPA는 JavaScript 실행 전에 필요한 모든 것을 가지고 있습니다.
+
+두 가지 변형은 다음과 같습니다 :
+
+1. **정적 자산**— SPA를 사용하여 배포[Workers 정적 자산](/workers/static-assets/)
+2. **외부 근원**- SPA는 Cloudflare 밖에 호스팅되고, Worker는 역 프록시로 앞에 앉아 성능 향상
+
+두 변종은 동일한 HTMLRewriter 주입 기술 및 동일한 클라이언트 측 소비 본을 이용합니다. 당신의 배포를 일치시키는 것을 선택합니다.
+
+이 패턴은 SPA 프레임 워크와 함께 작동합니다. - React, Vue, Svelte 또는 기타. Framework-specific 배포 가이드의 경우, 참조[웹 신청](/workers/framework-guides/web-apps/).
+
+***
+
+## 선택권 1: WorkersXQ에 완전히 건설되는 단 하나 페이지 App (SPA)
+
+SPA 빌드 출력이 작업자의 일부로 배포 될 때이 변형을 사용합니다.[정적 자산](/workers/static-assets/).
+
+### 정적 자산 구성
+
+설치하기`not_found_handling`으로`"single-page-application"`그래서 모든 경로 반환`index.html`. 사용`run_worker_first`아래 해시 자산을 제외하고 작업자를 통해 모든 요청을 경로`/assets/*`직접 봉사하는.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "my-spa",
+  	"main": "src/worker.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"assets": {
+  		"directory": "./dist",
+  		"binding": "ASSETS",
+  		"not_found_handling": "single-page-application",
+  		"run_worker_first": ["/*", "!/assets/*"],
+  	},
+  }
+  ```
+</WranglerConfig>
+
+이 옵션에 대한 자세한 내용은 참조[정체되는 자산 여정](/workers/static-assets/routing/)그리고[`run_worker_first`reference](/workers/static-assets/binding/#run_worker_first).
+
+### HTMLRewriter를 가진 부트 스트랩 데이터를 주사하십시오
+
+Worker는 즉시 API 데이터를 fetching 시작하고, 그 후에 정전기 자산에서 SPA 포탄을 뚫습니다. HTMLRewriter 스트림`<head>`자주 묻는 질문 언제까지`<body>`핸들러가 실행되어 API 응답을 기다리고 있습니다.`<script>`serialized 자료를 포함하는 꼬리표.
+
+API 호출이 실패하면, 쉘은 여전히로드하고 SPA는 클라이언트 측 데이터 fetching으로 돌아갑니다.
+
+<TypeScriptExample>
+  ```ts
+  //Env는 `wrangler types`에 의해 생성됩니다. - 구성을 변경할 때마다 실행됩니다.
+  //수동으로 Env를 정의하지 마십시오. - 실제 바인딩에서 무서워합니다.
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//루트 레벨 정적 파일 (favicon.ico, robots.txt)를 직접 구합니다.
+  		///assets/* 아래 Hashed 자산은 run worker first를 통해 노동자를 완전히 건너 뛸 수 있습니다.
+  		if (url.pathname.match(/\.\w+$/) && !url.pathname.endsWith(".html")) {
+  			return env.ASSETS.fetch(request);
+  		}
+
+  		//즉시 fetching bootstrap 데이터를 시작 — 아직 기다리지 마십시오.
+  		const dataPromise = fetchBootstrapData(env, url.pathname, request.headers);
+
+  		//정적 자산 (co-located, sub-millisecond)에서 SPA 쉘을 넣으십시오.
+  		const shell = await env.ASSETS.fetch(
+  			new Request(new URL("/index.html", request.url)),
+  		);
+
+  		//HTMLRewriter를 사용하여 쉘을 흐르고 데이터를 <body>로 주사합니다.
+  		return new HTMLRewriter()
+  			.on("body", {
+  				async element(el) {
+  					const data = await dataPromise;
+  					if (data) {
+  						el.prepend(
+  							`<script>window.__BOOTSTRAP_DATA__=${JSON.stringify(data)}</script>`,
+  							{ html: true },
+  						);
+  					}
+  				},
+  			})
+  			.transform(shell);
+  	},
+  } satisfies ExportedHandler<Env>;
+
+  async function fetchBootstrapData(
+  	env: Env,
+  	pathname: string,
+  	headers: Headers,
+  ): Promise<unknown | null> {
+  	try {
+  		const res = await fetch(`${env.API_BASE_URL}/api/bootstrap`, {
+  			headers: {
+  				Cookie: headers.get("Cookie") || "",
+  				"X-Request-Path": pathname,
+  			},
+  		});
+  		if (!res.ok) return null;
+  		return await res.json();
+  	} catch {
+  		//API가 다운되면, 쉘은 여전히로드 및 SPA
+  		//클라이언트 측 데이터 fetching로 돌아갑니다.
+  		return null;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+***
+
+## 선택권 2: 외부 근원에 호스팅되는 온천장
+
+HTML, CSS 및 JavaScript가 Cloudflare 밖에 배포될 때이 변형을 사용하십시오. 노동자는 외부 근원에서 SPA 포탄을 태우고, HTMLRewriter를 사용하여 부트 스트랩 자료를 주사하고, 브라우저에 수정된 응답을 흐릅니다.
+
+### 작업자 구성
+
+SPA는 Workers 정체되는 자산에 없기 때문에, 당신은 필요로 하지 않습니다`assets`블록. 대신 외부 URL을 환경 변수로 저장합니다. 당신의 도메인에 작업자를 첨부[주문 영역](/workers/configuration/routing/custom-domains/)또는[오시는 길](/workers/configuration/routing/routes/).
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "my-spa-proxy",
+  	"main": "src/worker.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"vars": {
+  		"SPA_ORIGIN": "https://my-spa.example-hosting.com",
+  		"API_BASE_URL": "https://api.example.com",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+### HTMLRewriter를 가진 부트 스트랩 데이터를 주사하십시오
+
+Worker는 모두 SPA 쉘과 API 데이터를 병렬로 처리합니다. SPA 근원이 반응할 때, HTMLRewriter는 HTML을 스트리밍하면서 부트 스트랩 데이터를 주사합니다.`<body>`. 정체되는 자산 (CSS, JS, 이미지)는 수정 없이 외부 근원에 통과됩니다.
+
+<TypeScriptExample>
+  ```ts
+  //Env는 `wrangler types`에 의해 생성되며 구성을 변경할 때마다 실행됩니다.
+  //수동으로 Env를 정의하지 마십시오. - 실제 바인딩에서 무서워합니다.
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//외부 원산지로 정적 자산 요청을 전달합니다.
+  		if (url.pathname.match(/\.\w+$/) && !url.pathname.endsWith(".html")) {
+  			return fetch(new Request(`${env.SPA_ORIGIN}${url.pathname}`, request));
+  		}
+
+  		//즉시 fetching bootstrap 데이터를 시작 — 아직 기다리지 마십시오.
+  		const dataPromise = fetchBootstrapData(env, url.pathname, request.headers);
+
+  		//외부 근원에서 SPA 포탄을 흠뻑 취하십시오.
+  		//SPA 라우터는 모든 경로에 index.html을 제공합니다.
+  		const shell = await fetch(`${env.SPA_ORIGIN}/index.html`);
+
+  		if (!shell.ok) {
+  			return new Response("Origin returned an error", { status: 502 });
+  		}
+
+  		//HTMLRewriter를 사용하여 포탄을 흐르고 데이터를 <body>로 주사하십시오.
+  		return new HTMLRewriter()
+  			.on("body", {
+  				async element(el) {
+  					const data = await dataPromise;
+  					if (data) {
+  						el.prepend(
+  							`<script>window.__BOOTSTRAP_DATA__=${JSON.stringify(data)}</script>`,
+  							{ html: true },
+  						);
+  					}
+  				},
+  			})
+  			.transform(shell);
+  	},
+  } satisfies ExportedHandler<Env>;
+
+  async function fetchBootstrapData(
+  	env: Env,
+  	pathname: string,
+  	headers: Headers,
+  ): Promise<unknown | null> {
+  	try {
+  		const res = await fetch(`${env.API_BASE_URL}/api/bootstrap`, {
+  			headers: {
+  				Cookie: headers.get("Cookie") || "",
+  				"X-Request-Path": pathname,
+  			},
+  		});
+  		if (!res.ok) return null;
+  		return await res.json();
+  	} catch {
+  		//API가 다운되면, 쉘은 여전히로드 및 SPA
+  		//클라이언트 측 데이터 fetching로 돌아갑니다.
+  		return null;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 당신의 SPA에서 데이터를 prefetched
+
+클라이언트에서, 읽기`window.__BOOTSTRAP_DATA__`API 호출을 만들기 전에. 데이터가 존재하는 경우, 직접 사용하십시오. 그렇지 않으면 정상 fetch로 돌아갑니다.
+
+```tsx title="src/App.tsx"
+//React 예 — Vue, Svelte, 또는 다른 어떤 기구에서 동일한 방법을 작동합니다.
+import { useEffect, useState } from "react";
+
+function App() {
+	const [data, setData] = useState(window.__BOOTSTRAP_DATA__ || null);
+	const [loading, setLoading] = useState(!data);
+
+	useEffect(() => {
+		if (data) return; //이미 prefetched data – API 호출을 건너뛰기.
+
+		fetch("/api/bootstrap")
+			.then((res) => res.json())
+			.then((result) => {
+				setData(result);
+				setLoading(false);
+			});
+	}, []);
+
+	if (loading) return <LoadingSpinner />;
+	return <Dashboard data={data} />;
+}
+```
+
+유형 선언을 추가하십시오 그래서 TypeScript는 세계적인 재산을 인식합니다:
+
+```ts title="global.d.ts"
+declare global {
+	interface Window {
+		__BOOTSTRAP_DATA__?: unknown;
+	}
+}
+```
+
+## 추가 사출 기술
+
+여러 HTMLRewriter 핸들러를 사용하여 부트 스트랩 데이터를 주입 할 수 있습니다.
+
+### 메타 태그 설정
+
+열린 도표 또는 다른 사람을 주사하십시오`<meta>`요청 경로에 따라 태그. 이것은 전체 서버 측 렌더링 프레임 워크없이 소셜 미디어 크롤러 정확한 미리보기를 제공합니다.
+
+```ts
+new HTMLRewriter()
+	.on("head", {
+		element(el) {
+			el.append(`<meta property="og:title" content="${title}" />`, {
+				html: true,
+			});
+		},
+	})
+	.transform(shell);
+```
+
+### CSP nonces 추가
+
+요청 당 nonce를 생성하고 Content-Security-Policy 헤더와 각 인라인으로 주사하십시오.`<script>`태그.
+
+```ts
+const nonce = crypto.randomUUID();
+
+const response = new HTMLRewriter()
+	.on("script", {
+		element(el) {
+			el.setAttribute("nonce", nonce);
+		},
+	})
+	.transform(shell);
+
+response.headers.set(
+	"Content-Security-Policy",
+	`script-src 'nonce-${nonce}' 'strict-dynamic';`,
+);
+
+return response;
+```
+
+### 사용자 설정 거부
+
+노출 기능 플래그 또는 환경 별 설정 추가 API 라운드 스트립없이 SPA.
+
+```ts
+new HTMLRewriter()
+	.on("body", {
+		element(el) {
+			el.prepend(
+				`<script>window.__APP_CONFIG__=${JSON.stringify({
+					apiBase: env.API_BASE_URL,
+					featureFlags: { darkMode: true },
+				})}</script>`,
+				{ html: true },
+			);
+		},
+	})
+	.transform(shell);
+```
+
+## 관련 자료
+
+- [HTMLRewriter](/workers/runtime-apis/html-rewriter/)— HTML 파서 및 변압기 스트리밍.
+- [Workers 정적 자산](/workers/static-assets/)— 당신의 노동자와 함께 정적 파일.
+- [정체되는 자산 여정](/workers/static-assets/routing/)— 구성`run_worker_first`·`not_found_handling`.
+- [Static Assets 바인딩](/workers/static-assets/binding/)— 참고사항`ASSETS`바인딩 및 룰렛 옵션.
+- [사용자 정의 도메인](/workers/configuration/routing/custom-domains/)— 도메인에 이름을 붙입니다.
+- [오시는 길](/workers/configuration/routing/routes/)— 기존의 Origin 서버 앞에 Worker를 실행합니다.
+- [Workers 최고의 연습](/workers/best-practices/workers-best-practices/)— Workers에 대한 코드 패턴 및 구성 지침.

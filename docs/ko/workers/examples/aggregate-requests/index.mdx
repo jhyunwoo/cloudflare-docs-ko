@@ -1,0 +1,120 @@
+---
+summary: >-
+  Send two GET request to two urls and aggregates the responses into one
+  response.
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 협상 요청
+sidebar:
+  order: 1001
+description: 두 개의 GET 요청을 두 개의 URL로 보내고 응답을 하나의 응답으로 나눕니다.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/aggregate-requests/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/aggregate-requests/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get startedXQ로 빠르게 원하는 경우 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/aggregate-requests)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		//someHost는 JSON 응답을 반환합니다.
+    		const someHost = "https://jsonplaceholder.typicode.com";
+    		const url1 = someHost + "/todos/1";
+    		const url2 = someHost + "/todos/2";
+
+    		const responses = await Promise.all([fetch(url1), fetch(url2)]);
+    		const results = await Promise.all(responses.map((r) => r.json()));
+
+    		const options = {
+    			headers: { "content-type": "application/json;charset=UTF-8" },
+    		};
+    		return new Response(JSON.stringify(results), options);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request) {
+    		//someHost는 JSON 응답을 반환합니다.
+    		const someHost = "https://jsonplaceholder.typicode.com";
+    		const url1 = someHost + "/todos/1";
+    		const url2 = someHost + "/todos/2";
+
+    		const responses = await Promise.all([fetch(url1), fetch(url2)]);
+    		const results = await Promise.all(responses.map((r) => r.json()));
+
+    		const options = {
+    			headers: { "content-type": "application/json;charset=UTF-8" },
+    		};
+    		return new Response(JSON.stringify(results), options);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    const app = new Hono();
+
+    app.get("*", async (c) => {
+    	//someHost는 JSON 응답을 반환합니다.
+    	const someHost = "https://jsonplaceholder.typicode.com";
+    	const url1 = someHost + "/todos/1";
+    	const url2 = someHost + "/todos/2";
+
+    	//두 URL 모두 동시
+    	const responses = await Promise.all([fetch(url1), fetch(url2)]);
+
+    	//Parse JSON 응답 concurrently
+    	const results = await Promise.all(responses.map((r) => r.json()));
+
+    	//수익 집계 결과
+    	return c.json(results);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import Response, fetch, WorkerEntrypoint
+    import asyncio
+    import json
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		#some host는 JSON 응답을 반환합니다.
+    		some_host = "https://jsonplaceholder.typicode.com"
+    		url1 = some_host + "/todos/1"
+    		url2 = some_host + "/todos/2"
+
+    		responses = await asyncio.gather(fetch(url1), fetch(url2))
+    		results = await asyncio.gather(*(r.json() for r in responses))
+
+    		headers = {"content-type": "application/json;charset=UTF-8"}
+    		return Response.json(results, headers=headers)
+    ```
+  </TabItem>
+</Tabs>

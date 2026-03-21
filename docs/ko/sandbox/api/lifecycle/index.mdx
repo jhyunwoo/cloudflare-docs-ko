@@ -1,0 +1,146 @@
+---
+title: 생활주기
+pcx_content_type: configuration
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/lifecycle/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/lifecycle/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+sandbox 컨테이너를 만들고 관리합니다. sandbox 인스턴스를 가져옵니다, 옵션을 구성하고, 리소스를 정리합니다.
+
+## 제품 설명
+
+### `getSandbox()`
+
+ID로 sandbox 인스턴스를 가져옵니다.
+
+```ts
+const sandbox = getSandbox(
+  binding: DurableObjectNamespace<Sandbox>,
+  sandboxId: string,
+  options?: SandboxOptions
+): Sandbox
+```
+
+**매개 변수**:
+
+- `binding`- 작업 환경의 튼튼한 Object namespace 바인딩
+- `sandboxId`- 이 샌드박스의 고유 식별자. 동일한 ID는 항상 동일한 sandbox 인스턴스를 반환합니다.
+- `options`(옵션) - 보기[Sandbox옵션](/sandbox/configuration/sandbox-options/)모든 유효한 선택권을 위해:
+  - `sleepAfter`- 자동 잠 (과태:`"10m"`)
+  - `keepAlive`- 완전히 자동적인 잠을 방지하십시오. 계층화 (과태:`false`)
+  - `containerTimeouts`- 컨테이너 시작 timeouts 구성
+  - `normalizeId`- 미리보기 URL 호환성 (기본값:`false`)
+
+**기타 제품**: `Sandbox`이름 \*
+
+:::참조
+콘테이너는 첫번째 가동에 lazily 시작합니다. 전화 번호`getSandbox()`명령을 실행하고 파일을 작성하거나 다른 작업을 수행합니다. 이름 \*[Sandbox 수명주기](/sandbox/concepts/sandboxes/)상세 정보
+주요 특징
+
+<TypeScriptExample>
+  ```
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const sandbox = getSandbox(env.Sandbox, 'user-123');
+      const result = await sandbox.exec('python script.py');
+      return Response.json(result);
+    }
+  };
+  ```
+</TypeScriptExample>
+
+:::카트로션
+사용 방법`keepAlive: true`·**지원하다**이름 \*`destroy()`indefinitely를 실행하는 콘테이너를 막기 위하여 완료될 때.
+주요 특징
+
+***
+
+### `setKeepAlive()`
+
+sandbox 생성 후 동적으로 KeepAlive 모드를 활성화하거나 비활성화합니다.
+
+```ts
+await sandbox.setKeepAlive(keepAlive: boolean): Promise<void>
+```
+
+**매개 변수**:
+
+- `keepAlive` - `true`자동 잠을 막기 위하여,`false`정상적인 수면 행동을 허용
+
+활성화되면 sandbox는 자동으로 심장 박동을 보내 30 초마다 용기 퇴색을 방지합니다. 비활성화되면 sandbox는 정상 수면 행동으로 돌아갑니다.`sleepAfter`구성.
+
+<TypeScriptExample>
+  ```
+  const sandbox = getSandbox(env.Sandbox, 'user-123');
+
+  // Enable keepAlive for a long-running process
+  await sandbox.setKeepAlive(true);
+  await sandbox.startProcess('python long_running_analysis.py');
+
+  // Later, disable keepAlive when done
+  await sandbox.setKeepAlive(false);
+  ```
+</TypeScriptExample>
+
+:::노트\[Heartbeat 메커니즘]
+keepAlive가 활성화되면 sandbox는 자동으로 30 초마다 컨테이너에 경량 핑 요청을 보냅니다. 이 웹 사이트는 애플 리케이션에 전념.
+주요 특징
+
+:::caution\[출처 관리]
+용기와`keepAlive: true`자동으로 타임아웃을 하지 않습니다. 항상 disable keepAlive 또는 전화`destroy()`컨테이너가 무한하게 실행되도록 할 때.
+주요 특징
+
+***
+
+### `destroy()`
+
+sandbox 컨테이너 및 무료 리소스를 파괴하십시오.
+
+```ts
+await sandbox.destroy(): Promise<void>
+```
+
+즉시 컨테이너를 종료하고 영구적으로 모든 상태를 삭제:
+
+- 모든 파일`/workspace`, `/tmp`·`/home`
+- 모든 실행 과정
+- 모든 세션 (기본 세션 포함)
+- 네트워크 연결 및 노출 포트
+
+<TypeScriptExample>
+  ```
+  async function executeCode(code: string): Promise<string> {
+    const sandbox = getSandbox(env.Sandbox, `temp-${Date.now()}`);
+
+    try {
+      await sandbox.writeFile('/tmp/code.py', code);
+      const result = await sandbox.exec('python /tmp/code.py');
+      return result.stdout;
+    } finally {
+      await sandbox.destroy();
+    }
+  }
+  ```
+</TypeScriptExample>
+
+:::참조
+콘테이너는 10 분의 inactivity 후에 자동적으로 잠그고 그러나 아직도 계정 한계를 향해 조사합니다. 제품 정보`destroy()`즉시 무료 자원.
+주요 특징
+
+***
+
+## 관련 자료
+
+- [Sandbox Lifecycle 개념](/sandbox/concepts/sandboxes/)- 컨테이너 수명주기 및 상태 이해
+- [Sandbox 옵션 구성](/sandbox/configuration/sandbox-options/)- 구성`keepAlive`기타 옵션
+- [세션 API](/sandbox/api/sessions/)- sandbox 내에서 격리된 실행 상황 생성

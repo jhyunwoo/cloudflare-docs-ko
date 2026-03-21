@@ -1,0 +1,55 @@
+---
+title: Grafana에서 조회하기
+pcx_content_type: reference
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: Grafana에서 Workers Analytics Engine 조회하기
+
+---
+
+Workers Analytics Engine은 Grafana 같은 도구로 시각화할 수 있는 시계열 분석에 최적화되어 있습니다. 런타임에서 기록되는 모든 이벤트에는 `timestamp` 필드가 자동으로 채워집니다.
+
+## Grafana 플러그인 설정
+
+Grafana에서 Workers Analytics Engine을 조회할 때는 [ClickHouse용 Altinity 플러그인](https://grafana.com/grafana/plugins/vertamedia-clickhouse-datasource/) 사용을 권장합니다.
+
+플러그인은 다음과 같이 설정하세요.
+
+* URL: `https://api.cloudflare.com/client/v4/accounts/<account_id>/analytics_engine/sql`. `<account_id>`는 Cloudflare 대시보드에서 확인할 수 있는 32자리 계정 ID로 바꾸세요.
+* 인증 관련 설정은 모두 끕니다.
+* 이름이 `Authorization`인 커스텀 헤더를 추가하고 값은 `Bearer <token>`으로 설정합니다. `<token>`은 적절한 API 토큰 문자열로 바꾸세요. 자세한 내용은 [SQL API 문서](/analytics/analytics-engine/sql-api/#authentication)를 참고하세요.
+* 그 외 옵션은 설정할 필요가 없습니다.
+
+## 시계열 데이터 조회
+
+대시보드에서는 보통 일정 시간 간격별로 메트릭을 집계하고 싶을 것입니다. 이는 `timestamp` 필드를 반올림한 뒤 그룹화해서 구현할 수 있습니다. 다음 쿼리는 이런 방식으로 반올림과 그룹화를 수행하고, [샘플링](/analytics/analytics-engine/sql-api/#sampling)을 고려해 각 시간 구간의 평균을 계산합니다.
+
+```sql
+SELECT
+    intDiv(toUInt32(timestamp), 60) * 60 AS t,
+    blob1 AS label,
+    SUM(_sample_interval * double1) / SUM(_sample_interval) AS average_metric
+FROM dataset_name
+WHERE 
+    timestamp <= NOW() 
+    AND timestamp > NOW() - INTERVAL '1' DAY
+GROUP BY blob1, t
+ORDER BY t
+```
+
+Altinity 플러그인은 이런 유형의 쿼리 작성을 단순화해 주는 유용한 매크로를 제공합니다. 이 매크로를 사용하려면 쿼리 빌더에서 `Column:DateTime`을 `timestamp`로 설정한 뒤 다음처럼 사용할 수 있습니다.
+
+```sql
+SELECT
+    $timeSeries AS t,
+    blob1 AS label,
+    SUM(_sample_interval * double1) / SUM(_sample_interval) AS average_metric
+FROM dataset_name
+WHERE $timeFilter
+GROUP BY blob1, t
+ORDER BY t
+```
+
+이 쿼리는 현재 표시 중인 줌 수준에 맞게 반올림 단위를 자동 조정하고, 현재 화면에 표시되는 올바른 시간 범위로 필터링합니다.

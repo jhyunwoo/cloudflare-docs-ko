@@ -1,0 +1,180 @@
+---
+title: API를 통해 URL 리깅 규칙 만들기
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API를 통해 규칙 만들기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/transform/url-rewrite/create-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/transform/url-rewrite/create-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 URL Rewrite 규칙을 만들려면. 더 알아보기[규칙 예제 갤러리](/rules/transform/examples/?operation=Rewrite+URL)일반적인 사용 사례.
+
+Terraform을 사용하는 경우, 참조[Terraform을 사용하여 규칙 구성](/terraform/additional-configurations/transform-rules/#create-a-url-rewrite-rule).
+
+## 기본 규칙 설정
+
+API를 통해 URL rewrite 규칙을 만들 때, 확인:
+
+- 규칙 작업을 설정`rewrite`.
+- 수정하기[URL rewrite 모수](/rules/transform/url-rewrite/reference/parameters/#api-information)내 계정`action_parameters`URL rewrite의 유형에 따라 필드 (정적 또는 동적).
+- 규칙을 배포`http_request_transform`영역 수준에서 단계.
+
+## 회사연혁
+
+<Render
+  file="rules-creation-workflow"
+  product="rules"
+  params={{
+  	ruleName: "a URL rewrite rule",
+  	phaseName: "http_request_transform",
+  }}
+/>
+
+API 토큰이 있는지 확인하십시오.[자주 묻는 질문](#required-api-token-permissions)API 작업을 수행합니다.
+
+## 예제 요청
+
+<Details header="예제: 정적 URL rewrite를 수행하는 규칙을 추가">
+  다음 예제는 기존 단계 규칙의 규칙을 설정합니다 (`$RULESET_ID`) 단일 URL 재쓰기 규칙에 - URI 경로의 정적 재쓰기 - 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "rewrite_eu_to_emea",
+  			expression: '(http.request.uri.query contains "eu")',
+  			description: "My first static URL rewrite rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				uri: {
+  					path: {
+  						value: "/emea.html",
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"ref": "rewrite_eu_to_emea",
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"uri": {
+  						"path": {
+  							"value": "/emea.html"
+  						}
+  					}
+  				},
+  				"expression": "(http.request.uri.query contains \"eu\")",
+  				"description": "My first static URL rewrite rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_request_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+<Details header="예제: 동적 URL rewrite를 수행하는 규칙을 추가">
+  다음 예제는 기존 단계 규칙의 규칙을 설정합니다 (`$RULESET_ID`) 단일 URL 재쓰기 규칙에 - URI 경로의 동적 재쓰기 - 사용[지역 규칙 업데이트](/api/resources/rulesets/methods/update/)가동. 응답은 업데이트되는 규칙의 완전한 정의를 포함합니다.
+
+  <APIRequest
+    path="/zones/{zone_id}/rulesets/{ruleset_id}"
+    method="PUT"
+    json={{
+  	rules: [
+  		{
+  			ref: "rewrite_2012_to_archive",
+  			expression: 'starts_with(http.request.uri.path, "/news/2012/")',
+  			description: "My first dynamic URL rewrite rule",
+  			action: "rewrite",
+  			action_parameters: {
+  				uri: {
+  					path: {
+  						expression: 'concat("/archive", http.request.uri.path)',
+  					},
+  				},
+  			},
+  		},
+  	],
+  }}
+  />
+
+  ```json output
+  {
+  	"result": {
+  		"id": "<RULESET_ID>",
+  		"name": "Zone-level Transform Ruleset",
+  		"description": "Zone-level ruleset that will execute Transform Rules.",
+  		"kind": "zone",
+  		"version": "2",
+  		"rules": [
+  			{
+  				"ref": "rewrite_2012_to_archive",
+  				"id": "<RULE_ID>",
+  				"version": "1",
+  				"action": "rewrite",
+  				"action_parameters": {
+  					"uri": {
+  						"path": {
+  							"expression": "concat(\"/archive\", http.request.uri.path)"
+  						}
+  					}
+  				},
+  				"expression": "starts_with(http.request.uri.path, \"/news/2012/\")",
+  				"description": "My first dynamic URL rewrite rule",
+  				"last_updated": "2021-04-14T14:42:04.219025Z",
+  				"ref": "<RULE_REF>"
+  			}
+  		],
+  		"last_updated": "2021-04-14T14:42:04.219025Z",
+  		"phase": "http_request_transform"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": []
+  }
+  ```
+
+  <Render file="terraform-use-ref-field" product="rules" params={{ addDocsLocation: true }} />
+</Details>
+
+***
+
+## 필수 API 토큰 권한
+
+API 요청에서 사용되는 API 토큰은 URL Rewrite 규칙을 최소한의 다음 권한이 있어야 합니다.
+
+- *계좌정보* > *Transform 규칙* > *제품정보*
+- *계좌정보* > *계정 규칙* > *...에서*

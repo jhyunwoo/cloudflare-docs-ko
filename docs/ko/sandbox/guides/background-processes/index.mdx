@@ -1,0 +1,296 @@
+---
+title: 배경 프로세스
+pcx_content_type: how-to
+sidebar:
+  order: 3
+description: 긴 실행 서비스 및 응용 프로그램을 시작하고 관리합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/background-processes/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/background-processes/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+이 가이드는 샌드박스의 오랜 배경 프로세스를 시작, 모니터, 관리하는 방법을 보여줍니다.
+
+## 배경 프로세스를 사용할 때
+
+제품 정보`startProcess()`대신에`exec()`현재 위치:
+
+- **웹 서버 실행**- HTTP 서버, API, WebSocket 서버
+- **긴 실행 서비스**- 데이터베이스 서버, 캐시, 메시지 큐
+- **개발 서버**- Hot-reloading dev 서버, 시계 모드
+- **연속 모니터링**- Log watchers, 건강 검수원
+- **병렬 실행**- 동시에 실행되는 다수 서비스
+
+:::참조
+제품 정보**한 번의 명령, 빌드 또는 완료 및 종료 스크립트**, 사용`exec()`대신. 이름 \*[명령 가이드 실행](/sandbox/guides/execute-commands/).
+:::
+
+## 배경 프로세스 시작
+
+<TypeScriptExample>
+  ```
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+
+  // Start a web server
+  const server = await sandbox.startProcess('python -m http.server 8000');
+
+  console.log('Server started');
+  console.log('Process ID:', server.id);
+  console.log('PID:', server.pid);
+  console.log('Status:', server.status); // 'running'
+
+  // Process runs in background - your code continues
+  ```
+</TypeScriptExample>
+
+## 공정 환경 설정
+
+작업 디렉토리 및 환경 변수 설정:
+
+<TypeScriptExample>
+  ```
+  const process = await sandbox.startProcess('node server.js', {
+    cwd: '/workspace/api',
+    env: {
+      NODE_ENV: 'production',
+      PORT: '8080',
+      API_KEY: env.API_KEY,
+      DATABASE_URL: env.DATABASE_URL
+    }
+  });
+
+  console.log('API server started');
+  ```
+</TypeScriptExample>
+
+## 모니터 프로세스 상태
+
+목록 및 체크 실행 과정:
+
+<TypeScriptExample>
+  ```
+  const processes = await sandbox.listProcesses();
+
+  console.log(`Running ${processes.length} processes:`);
+
+  for (const proc of processes) {
+    console.log(`${proc.id}: ${proc.command} (${proc.status})`);
+  }
+
+  // Check if specific process is running
+  const isRunning = processes.some(p => p.id === processId && p.status === 'running');
+  ```
+</TypeScriptExample>
+
+## 공정 준비
+
+진행하기 전에 준비해야 할 과정을 기다립니다:
+
+<TypeScriptExample>
+  ```
+  const server = await sandbox.startProcess('node server.js');
+
+  // Wait for server to respond on port 3000
+  await server.waitForPort(3000);
+
+  console.log('Server is ready');
+  ```
+</TypeScriptExample>
+
+또는 특정 로그 패턴을 기다립니다:
+
+<TypeScriptExample>
+  ```
+  const server = await sandbox.startProcess('node server.js');
+
+  // Wait for log message
+  const result = await server.waitForLog('Server listening');
+  console.log('Server is ready:', result.line);
+  ```
+</TypeScriptExample>
+
+## 모니터 프로세스 로그
+
+실시간 스트림 로그:
+
+<TypeScriptExample>
+  ```
+  import { parseSSEStream, type LogEvent } from '@cloudflare/sandbox';
+
+  const server = await sandbox.startProcess('node server.js');
+
+  // Stream logs
+  const logStream = await sandbox.streamProcessLogs(server.id);
+
+  for await (const log of parseSSEStream<LogEvent>(logStream)) {
+    console.log(log.data);
+  }
+  ```
+</TypeScriptExample>
+
+또는 축적된 로그를 얻을:
+
+<TypeScriptExample>
+  ```
+  const logs = await sandbox.getProcessLogs(server.id);
+  console.log('Logs:', logs);
+  ```
+</TypeScriptExample>
+
+## 정지공정
+
+배경 프로세스와 자녀를 중지:
+
+<TypeScriptExample>
+  ```
+  // Stop specific process (terminates entire process tree)
+  await sandbox.killProcess(server.id);
+
+  // Force kill if needed
+  await sandbox.killProcess(server.id, 'SIGKILL');
+
+  // Stop all processes
+  await sandbox.killAllProcesses();
+  ```
+</TypeScriptExample>
+
+`killProcess()`지정된 프로세스를 종결하고 모든 자식 프로세스가 종료되었습니다. 이것은 배경에서 실행하는 프로세스가 종료 될 때 orphaned 아이 프로세스를 떠나지 않습니다.
+
+예를 들어, 프로세스가 여러 작업자 프로세스 또는 배경 작업을 수행하면`killProcess()`전체 공정 트리를 청소합니다 :
+
+<TypeScriptExample>
+  ```
+  // This script spawns multiple child processes
+  const batch = await sandbox.startProcess(
+    'bash -c "process1 & process2 & process3 & wait"'
+  );
+
+  // killProcess() terminates the bash process AND all three child processes
+  await sandbox.killProcess(batch.id);
+  ```
+</TypeScriptExample>
+
+## 여러 프로세스를 실행
+
+순서에 있는 서비스 시작, 종속을 기다리기:
+
+<TypeScriptExample>
+  ```
+  // Start database first
+  const db = await sandbox.startProcess('redis-server');
+
+  // Wait for database to be ready
+  await db.waitForPort(6379, { mode: 'tcp' });
+
+  // Now start API server (depends on database)
+  const api = await sandbox.startProcess('node api-server.js', {
+    env: { DATABASE_URL: 'redis://localhost:6379' }
+  });
+
+  // Wait for API to be ready
+  await api.waitForPort(8080, { path: '/health' });
+
+  console.log('All services running');
+  ```
+</TypeScriptExample>
+
+## 긴 실행 과정 동안 컨테이너를 유지
+
+기본적으로 컨테이너는 10 분 후에 자동으로 종료됩니다. idle periods (CI/CD 파이프라인, 일괄 작업 또는 모니터링 작업과 같은)가 있을 수 있는 장기적인 프로세스를 위해[`keepAlive`옵션 정보](/sandbox/configuration/sandbox-options/#keepalive):
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox, parseSSEStream, type LogEvent } from '@cloudflare/sandbox';
+
+  export { Sandbox } from '@cloudflare/sandbox';
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      //긴 실행 프로세스를 위한 Enable keepAlive
+      const sandbox = getSandbox(env.Sandbox, 'build-job-123', {
+        keepAlive: true
+      });
+
+      try {
+        //긴 실행 빌드 프로세스 시작
+        const build = await sandbox.startProcess('npm run build:production');
+
+        //모니터 진행
+        const logs = await sandbox.streamProcessLogs(build.id);
+
+        //과정은 콘테이너 폐쇄 없이 무한하게 실행할 수 있습니다
+        for await (const log of parseSSEStream<LogEvent>(logs)) {
+          console.log(log.data);
+          if (log.data.includes('Build complete')) {
+            break;
+          }
+        }
+
+        return new Response('Build completed');
+      } finally {
+        //중요 : 수행 할 때 명시적으로 파괴해야합니다.
+        await sandbox.destroy();
+      }
+    }
+  };
+  ```
+</TypeScriptExample>
+
+:::caution\[Always는 keepAlive로 파괴]
+사용 방법`keepAlive: true`, 콘테이너는 자동적으로 timeout 아닙니다. 이름 \***지원하다**이름 \*`sandbox.destroy()`컨테이너를 무한하게 실행하고 계정 제한을 계산하기 위해 완료되면.
+주요 특징
+
+## 좋은 관행
+
+- **자주 묻는 질문**- 사용`waitForPort()`또는`waitForLog()`서비스 준비가 될 때 감지
+- **더 알아보기**- 항상 프로세스를 중지
+- **손잡이 실패**- 오류 및 재시작을 위한 모니터 로그 필요
+- **사용 try/finally**- 클린업은 오류에도 발생합니다.
+- **제품 정보`keepAlive`긴 실행 작업**- idle 기간을 가진 과정 도중 콘테이너 폐쇄를 방지하십시오
+
+## 문제 해결
+
+### 즉시 Process 종료
+
+왜 로그를 확인:
+
+<TypeScriptExample>
+  ```
+  const process = await sandbox.startProcess('node server.js');
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  const processes = await sandbox.listProcesses();
+  if (!processes.find(p => p.id === process.id)) {
+    const logs = await sandbox.getProcessLogs(process.id);
+    console.error('Process exited:', logs);
+  }
+  ```
+</TypeScriptExample>
+
+### 이미 사용중인 포트
+
+시작하기 전에 기존 프로세스를 죽이십시오.
+
+<TypeScriptExample>
+  ```
+  await sandbox.killAllProcesses();
+  const server = await sandbox.startProcess('node server.js');
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+- [명령 API reference](/sandbox/api/commands/)- 프로세스 관리 API
+- [Sandbox 옵션 구성](/sandbox/configuration/sandbox-options/)- 구성`keepAlive`기타 옵션
+- [라이프사이클 API](/sandbox/api/lifecycle/)- 모래 상자 생성 및 관리
+- [세션 API reference](/sandbox/api/sessions/)- 격리된 실행 상황 만들기
+- [명령 가이드 실행](/sandbox/guides/execute-commands/)- 원타임 명령 실행
+- [Expose 서비스 안내](/sandbox/guides/expose-services/)- 접근 가능
+- [출력 가이드](/sandbox/guides/streaming-output/)- 모니터 공정 출력

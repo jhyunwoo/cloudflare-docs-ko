@@ -1,0 +1,300 @@
+---
+pcx_content_type: how-to
+title: 가상 네트워크
+tags:
+  - Private networks
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/tunnel-virtual-networks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, Tabs, TabItem } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | <ul><li>교통 및 DNS 모드</li><li>교통 모드</li></ul>                                           | 모든 계획                                                      |
+
+  | 시스템   | 적용분야 |
+  | ----- | ---- |
+  | 윈도우   | ✅    |
+  | 맥 OS  | ✅    |
+  | 리눅스   | ✅    |
+  | iOS 앱 | ✅    |
+  | 다운로드  | ✅    |
+  | 크롬 OS | ✅    |
+</Details>
+
+<Render file="tunnel/virtual-networks-intro" product="cloudflare-one" />
+
+## 사용 사례
+
+여기에 가상 네트워크가 유용 할 수있는 몇 가지 시나리오가 있습니다 :
+
+- 동일한 주소 공간을 사용하는 생산 및 시효 환경을 관리합니다.
+- 같은 주소 공간을 사용하는 조직 간의 인수 또는 합병.
+- IT 전문 서비스를 통해 다양한 관리 및 관리 목적으로 고객의 네트워크에 액세스 할 수 있습니다.
+- 개발자 또는 homelab 사용자는 추가 보안 제어를 시행하기 위해 홈 네트워크를 통해 deterministically 트래픽을 우회할 수 있습니다.
+- 보안상의 이유로 네트워크 및 리소스 사이에 추가 구분 (단일 정책 시행)을 보장하고 단일 Cloudflare 계정 내에서 모든 구성을 유지하면서.
+
+## 자주 묻는 질문
+
+- [설치하기`cloudflared`](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)각 개인 네트워크에.
+- [WARP 클라이언트 배포](/cloudflare-one/team-and-resources/devices/warp/deployment/)사용자 장치.
+
+## 가상 네트워크 만들기
+
+이 예에서 "개인 네트워크"는 IP 주소 공간 자체를 겹쳐 쌓이는 것과 같은 특정 환경 (예를 들면, 생산)을 나타냅니다 (`10.128.0.1/32`질감 및`10.128.0.1/32`생산). 환경이 비 overlapping IP를 사용하는 경우, 각 터널을 별도의 터널이 필요하지 않습니다. 대신 단일 터널에 여러 개의 노선을 추가 할 수 있습니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    가상 네트워크에서 IP를 덮는 경로:
+
+    1. 2개의 고유 가상 네트워크를 창조하십시오:
+       1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**네트워크** > **오시는 길** > **가상 네트워크**·
+          :::참조
+          더 보기**가상 네트워크**카드는 CIDR 경로가 계정에 존재하는 경우에만 나타납니다. 이미 경로가 없다면, 탐색 할 수 있습니다.**가상 네트워크**이름 \*[관련 링크](https://one.dash.cloudflare.com/?to=/:account/networks/routes/cidr/vnets).
+          :::
+       2. 제품정보**가상 네트워크 만들기**.
+       3. 가상 네트워크`staging-vnet`선택하기**제품 정보**.
+       4. 반복 단계 1a-1d 다른 가상 네트워크를 만들`production-vnet`.
+    2. Cloudflare 만들기 overlapping IPs를 가진 각 개인적인 네트워크를 위한 갱도 (일렬한 환경 당 1개의 갱도, 예를 들면 staging와 생산을 위해):
+       1. 오시는 길**네트워크** > **연결관** > **사이트맵 연락처**.
+       2. 제품정보**터널 만들기**.
+       3. 이름 당신의 갱도`Staging tunnel`선택하기**저장 터널**.
+       4. 당신의 노후화 환경에 있는 연결관을 설치하십시오.
+       5. 내 계정**CIDR 소개**탭, 추가`10.128.0.1/32`.
+       6. 제품정보**추가 설정**. 아래**가상 네트워크**, 선택*스니커즈*.
+       7. 터널을 저장합니다.
+       8. 반복 단계 2a-2g는 다른 갱도를 불린 창조하기 위하여`Production tunnel`. 당신의 생산 환경 내의 연결관을 설치하고 노선을에 할당하십시오*생산 vnet*.
+
+    이제 두 개의 중복 IP 주소가 넘었습니다.`staging-vnet`·`production-vnet`각각. Cloudflare WARP 클라이언트를 사용할 수 있습니다.[가상 네트워크](#connect-to-a-virtual-network).
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    가상 네트워크에서 IP를 덮는 경로:
+
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+       - `Cloudflare Tunnel Write`
+
+    2. 2개의 고유 가상 네트워크를 창조하십시오:
+       ```tf
+       resource "cloudflare_zero_trust_tunnel_cloudflared_virtual_network" "staging_vnet" {
+       	account_id = var.cloudflare_account_id
+       	name       = "staging-vnet"
+       	comment    = "Staging virtual network"
+       	is_default = false
+       }
+
+       resource "cloudflare_zero_trust_tunnel_cloudflared_virtual_network" "production_vnet" {
+       	account_id = var.cloudflare_account_id
+       	name       = "production-vnet"
+       	comment    = "Production virtual network"
+       	is_default = false
+       }
+       ```
+
+    3. Cloudflare 만들기 overlapping IPs를 가진 각 개인적인 네트워크를 위한 갱도 (일렬한 환경 당 1개의 갱도, 예를 들면 staging와 생산을 위해):
+       ```tf
+       resource "cloudflare_zero_trust_tunnel_cloudflared" "staging_tunnel" {
+       	account_id = var.cloudflare_account_id
+       	name       = "Staging tunnel"
+       	config_src = "cloudflare"
+       }
+
+       resource "cloudflare_zero_trust_tunnel_cloudflared" "production_tunnel" {
+       	account_id = var.cloudflare_account_id
+       	name       = "Production tunnel"
+       	config_src = "cloudflare"
+       }
+       ```
+
+    4. 오시는 길`10.128.0.1/32`오시는길`Staging tunnel`설정하기`staging-vnet`. 노선`10.128.0.1/32`오시는길`Production tunnel`설정하기`production-vnet`.
+
+       ```tf
+       resource "cloudflare_zero_trust_tunnel_cloudflared_route" "staging_tunnel_route" {
+       	account_id         = var.cloudflare_account_id
+       	tunnel_id          = cloudflare_zero_trust_tunnel_cloudflared.staging_tunnel.id
+       	network            = "10.128.0.1/32"
+       	comment            = "Staging tunnel route"
+       	virtual_network_id = cloudflare_zero_trust_tunnel_cloudflared_virtual_network.staging_vnet.id
+       }
+
+       resource "cloudflare_zero_trust_tunnel_cloudflared_route" "production_tunnel_route" {
+       	account_id         = var.cloudflare_account_id
+       	tunnel_id          = cloudflare_zero_trust_tunnel_cloudflared.production_tunnel.id
+       	network            = "10.128.0.1/32"
+       	comment            = "Production tunnel route"
+       	virtual_network_id = cloudflare_zero_trust_tunnel_cloudflared_virtual_network.production_vnet.id
+       }
+       ```
+
+    5. [토큰 받기](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/remote-tunnel-permissions/#get-the-tunnel-token)각 갱도를 위해.
+
+    6. 터널 토큰을 사용하여 실행`Staging tunnel`당신의 노후화 환경에서 실행`Production tunnel`당신의 생산 환경에서. 더 알아보기[설치 및 실행](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel-api/#4-install-and-run-the-tunnel).
+  </TabItem>
+
+  <TabItem label="로컬 관리 터널">
+    가상 네트워크를 통해 IP를 경로를 통해[로컬 관리 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/):
+
+    1. Cloudflare 만들기 overlapping IPs를 가진 각 개인적인 네트워크를 위한 갱도 (일렬한 환경 당 1개의 갱도, 예를 들면 staging와 생산을 위해):
+
+       1. 당신의 노후화 환경에서, 인증`cloudflared`:
+
+          ```sh
+          cloudflared login
+          ```
+
+       2. Cloudflare에 네트워크 연결 터널을 만듭니다.
+
+          ```sh
+          cloudflared tunnel create staging-tunnel
+          ```
+
+       3. 생산 환경 내에서, 인증`cloudflared`:
+
+          ```sh
+          cloudflared login
+          ```
+
+       4. 당신의 생산 네트워크를 Cloudflare에 연결하는 갱도를 창조하십시오.
+
+          ```sh
+          cloudflared tunnel create production-tunnel
+          ```
+
+    다음 단계는 모두에서 실행될 수 있습니다.`cloudflared`예.
+
+    2. 2개의 독특한 가상 네트워크를 만듭니다.
+
+       ```sh
+       cloudflared tunnel vnet add staging-vnet
+       cloudflared tunnel vnet add production-vnet
+       ```
+
+    3. 다음 명령을 실행하기 전에 새로 생성 된 가상 네트워크가 올바르게 나열되어 있는지 확인하십시오.
+
+       ```sh
+       cloudflared tunnel vnet list
+       ```
+
+    :::참조 \[기본 가상 네트워크]
+    모든 계정은 가상 네트워크로 사전 설정`default`. 입력하여 새로운 기본을 선택할 수 있습니다.`cloudflared tunnel vnet update --default <virtual-network-name>`.
+    :::
+
+    4. 개인 네트워크의 IP / CIDR 범위와 터널을 구성하고, 각각의 가상 네트워크에 터널을 할당합니다.
+
+       ```sh
+       cloudflared tunnel route ip add --vnet staging-vnet 10.128.0.3/32 staging-tunnel
+       cloudflared tunnel route ip add --vnet production-vnet 10.128.0.3/32 production-tunnel
+       ```
+
+       {/* :::note
+           If no `--vnet` option is specified, the tunnel will be assigned to the default virtual network; this applies to any pre-existing private networks in your account.
+           ::: */}
+
+    5. IP 경로가 올바르게 나열되어 있는지 확인:
+
+       ```sh
+       cloudflared tunnel route ip list
+       ```
+
+       이제 두 개의 중복 IP 주소가 넘었습니다.`staging-vnet`·`production-vnet`각각.
+
+       6. 당신의 노후화 환경 안에, 창조합니다[구성 파일](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/configuration-file/)제품 정보`staging-tunnel`. 구성 파일은 다음과 같이 구성될 것입니다:
+
+          ```txt
+          tunnel: <Tunnel-UUID>
+          credentials-file: /root/.cloudflared/credentials-file.json
+          warp-routing:
+             enabled: true
+          ```
+
+       7. 터널을 실행하십시오.
+
+          ```sh
+          cloudflared tunnel run staging-tunnel
+          ```
+
+       8. 생산 환경 안에, 반복 단계 6와 7를 위해`production-tunnel`.
+
+       Cloudflare WARP 클라이언트를 사용할 수 있습니다.[가상 네트워크](#connect-to-a-virtual-network).
+  </TabItem>
+</Tabs>
+
+## 가상 네트워크 삭제
+
+<Tabs>
+  <TabItem label="대시보드">
+    가상 네트워크를 삭제하려면:
+
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**네트워크** > **연결관** > **사이트맵 연락처**IP 경로가 삭제하려고 하는 가상 네트워크에 할당되지 않도록 합니다. 가상 네트워크가 사용중인 경우, 루트를 삭제하거나 다른 가상 네트워크에 할당하십시오.
+
+    2. 다음으로 이동**네트워크** > **오시는 길**.
+
+    3. 내 계정**가상 네트워크**, 가상 네트워크 찾기.
+
+    4. 세 가지 메뉴를 선택하고 선택하십시오.**이름 \***.
+
+    선택적으로 가상 네트워크와 관련된 터널을 삭제할 수 있습니다.
+  </TabItem>
+
+  <TabItem label="로컬 관리 터널">
+    가상 네트워크를 삭제하려면[로컬 관리 터널](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/):
+
+    1. 가상 네트워크에서 모든 IP 경로 삭제. 예를 들어,
+
+       ```sh
+       cloudflared tunnel route ip delete --vnet staging-vnet 10.128.0.3/32
+       ```
+
+    2. (선택 사항) 가상 네트워크와 관련된 터널 삭제.
+
+       ```sh
+       cloudflared tunnel delete staging-tunnel
+       ```
+
+    3. 가상 네트워크 삭제.
+
+       ```sh
+       cloudflared tunnel vnet delete staging-vnet
+       ```
+
+    가상 네트워크가 성공적으로 삭제되었는지 확인할 수 있습니다.`cloudflared tunnel vnet list`.
+  </TabItem>
+</Tabs>
+
+## 가상 네트워크에 연결
+
+### Windows, macOS 및 Linux
+
+<Tabs>
+  <TabItem label="버전 2026.2+">
+    1. Cloudflare를 여십시오 1개의 클라이언트.
+    2. 오시는 길**홈 > 제품**.
+    3. 내 계정**사이트맵**dropdown, 당신이 연결하려는 가상 네트워크 선택 (예를 들어,`staging-vnet`).
+  </TabItem>
+
+  <TabItem label="버전 2026.1 및 이전">
+    1. WARP 클라이언트를 엽니다.
+    2. 오시는 길**계정 설정** > **교통 및 DNS 모드** > **가상 네트워크**.
+    3. 연결하려는 가상 네트워크, 예를 들어`staging-vnet`.
+  </TabItem>
+</Tabs>
+
+자주 묻는 질문`10.128.0.3/32`, WARP는 노후화 환경에 당신의 요구에 응할 것입니다.
+
+### iOS, Android 및 ChromeOS
+
+1. Cloudflare One Agent 앱 출시
+2. 오시는 길**지원하다** > **연결 옵션** > **가상 네트워크**.
+3. 연결하려는 가상 네트워크, 예를 들어`staging-vnet`.
+
+자주 묻는 질문`10.128.0.3/32`, WARP는 노후화 환경에 당신의 요구에 응할 것입니다.

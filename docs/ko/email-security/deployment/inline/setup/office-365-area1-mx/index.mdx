@@ -1,0 +1,336 @@
+---
+title: Office 365 - 이메일 보안 (이전 지역 1) MX 기록
+pcx_content_type: integration-guide
+reviewed: 2023-01-12T00:00:00.000Z
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 배포 및 Microsoft Office 365를 이메일 보안 (이전 지역 1) MX 레코드로 설정
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/email-security/deployment/inline/setup/office-365-area1-mx/
+translation_source_md: >-
+  https://developers.cloudflare.com/email-security/deployment/inline/setup/office-365-area1-mx/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+<Render file="rename-area1-to-ces" product="email-security" />
+
+![이메일 보안이 수신된 이메일의 수명주기에 있는 schematic 전시](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/office365-mx.png)
+
+이 튜토리얼에서는 MX 레코드로 Microsoft Office 365를 구성하는 방법을 배울 수 있습니다. 이 튜토리얼은 여러 단계로 끊어졌습니다. 이 튜토리얼 중 어떤 단계에서 당신은 당신이 실행해야하는 메시지 말을받을`Enable-OrganizationCustomization`센티미터,[섹션 6 참조](#6-execute-enable-organizationcustomization-if-required).
+
+<Render file="deployment/o365-gcc" product="email-security" />
+
+이 가이드의 목적을 위해, 사무실 365 및 Microsoft 365는 동등합니다.
+
+<Render file="outbound-email" product="email-security" />
+
+<Render file="deployment/mx-deployment-prerequisites" product="email-security" />
+
+## 1. 이메일 보안 IP 주소 추가
+
+1. 오시는 길[Microsoft 보안 관리자 센터](https://security.microsoft.com/homepage).
+
+2. 오시는 길**이메일 & 협력** > **정책 및 규칙** > **위협 정책**.
+
+3. 선택하기[안티 스팸 옵션](https://security.microsoft.com/antispam).
+
+   <div class="large-img">
+     ![안티 스팸 옵션을 선택](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step3-anti-spam.png)
+   </div>
+
+4. 제품정보**연결 필터 정책 (기본)** > **연결 필터 정책**.
+
+   <div class="large-img">
+     ![편집 연결 필터 정책 선택](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step4-edit-filter-policy.png)
+   </div>
+
+5. 내 계정**항상 다음 IP 주소 또는 주소 범위에서 메시지를 허용**IP 주소 및 CIDR 블록 추가[IP 등급](/email-security/deployment/inline/reference/egress-ips/).
+
+   <div class="large-img">
+     ![IP 주소 입력](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step5-egress-ips.png)
+   </div>
+
+6. 제품정보**제품 정보**.
+
+7. Microsoft는 SPF 하드를 비활성화하는 것이 좋습니다. 이메일 솔루션이 앞에 배치됩니다. 자주 묻는 질문[안티 스팸 옵션](https://security.microsoft.com/antispam).
+
+8. 제품정보**Anti-spam inbound 정책 (기본값)**.
+
+9. 끝에서**대량 이메일 임계 값 및 스팸 속성**섹션, 선택**스팸 임계 값 및 속성 편집**.
+
+   <div class="large-img">
+     ![스팸 임계 값 및 속성 버튼을 선택하십시오.](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step9-spam-threshold.png)
+   </div>
+
+10. 제품정보**스팸으로 마크** > **SPF 기록: 단단한 실패**, 그리고 그것을 설치합니다**이름 \***.
+
+    <div class="large-img">
+      ![SPF 레코드 확인 : 하드 실패가 꺼져](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step10-spf-record-hard-fail.png)
+    </div>
+
+11. 제품정보**제품 정보**.
+
+## 2. 향상된 필터링 구성
+
+이 옵션은 Office 365가 제대로 메시지가 이메일 보안 (이전 지역 1)에 의해 수신되기 전에 원래 연결 IP를 식별 할 수 있습니다. SPF 분석에 도움이 됩니다. 이 두 단계가 있습니다:
+
+- 인바운드 커넥터 만들기.
+- 커넥터의 향상된 필터링 구성을 구현합니다.
+
+### inbound 연결관을 창조하십시오
+
+1. 새 소식[**Exchange 관리자 센터**](https://admin.exchange.microsoft.com/#/homepage).
+
+2. 제품정보**메일 흐름** > **연결관**.
+
+   <div class="large-img">
+     ![Mail Flow에서 커넥터 선택](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step2-mailflow-conectors.png)
+   </div>
+
+3. 제품정보**커넥터 추가**.
+
+4. 내 계정**연결에서**, 선택**파트너 조직**.
+
+5. 제품정보**이름 \***.
+
+6. 다음 옵션을 설정:
+
+   - **이름 \*** - `Email security Inbound Connector`
+   - **이름 \*** - `Inbound connector for Enhanced Filtering`
+
+   <div class="large-img">
+     ![커넥터의 이름과 설명을 입력](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step6-connector-options.png)
+   </div>
+
+7. 제품정보**이름 \***.
+
+8. 내 계정**인증된 이메일**, 선택**전송 서버의 IP 주소가 다음과 같은 IP 주소 중 하나에 일치하여 파트너 조직에 속합니다.**
+
+9. 모든 egress IP를 입력[IP 등급](/email-security/deployment/inline/reference/egress-ips/)사이트 맵
+
+   <div class="large-img">
+     ![이메일 보안의 Egress IPs 모두 입력](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step9-egress-ips.png)
+   </div>
+
+10. 제품정보**이름 \***.
+
+11. 내 계정**보안 제한**, 기본값을 받아들입니다**TLS를 통해 보내지 않는 경우 이메일 메시지를 거부**설정.
+
+12. 제품정보**이름 \***.
+
+13. 설정 및 선택**연결하기**.
+
+### 향상된 필터링
+
+이제 인바운드 커넥터가 구성되었으므로 커넥터의 향상된 필터 구성을 활성화해야합니다.[보안 관리자 콘솔](https://security.microsoft.com/homepage).
+
+1. 오시는 길[보안 관리자 콘솔](https://security.microsoft.com/homepage) > **이메일 & 협력** > **정책 및 규칙**.
+
+2. 오시는 길**위협 정책** > **이름 \***, 그리고 선택**향상된 필터링**.
+
+   <div class="large-img">
+     ![향상된 필터링](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step2-enhanced-filtering.png)
+   </div>
+
+3. 선택하기`Email security Inbound Connector`구성 매개 변수를 수정하기 위해 이전에 구성되었습니다.
+
+4. 제품정보**자동 감지 및 마지막 IP 주소를 건너 뛰기**·**전체 조직에 적용**.
+
+   ![자동 감지 및 마지막 IP 주소를 건너, 전체 조직에 적용](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step3-selectors.png)
+
+5. 제품정보**제품 정보**.
+
+## 3. 이메일 보안 quarantine 정책을 구성하십시오
+
+### 당신이 quarantine에게 원하는 분해를 선택하십시오
+
+Quarantining 메시지는 도메인 구성 당입니다. 도메인을 수정하려면 메시지가 quarantined, 도메인 구성에 액세스:
+
+1. 로그인하기[이메일 보안 대시보드](https://horizon.area1security.com/).
+
+2. 오시는 길**계정 설정**(장치 아이콘) >**이름 \***.
+
+3. 편집하려는 도메인을 찾습니다.
+
+4. 선택하&#xAE30;**...** > **제품정보**.
+
+5. 자주 묻는 질문<GlossaryTooltip term="disposition">관련 기사</GlossaryTooltip>당신은 quarantine을 원합니다.
+
+   <div class="large-img">
+     ![도메인 quarantines 관리](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step4-area1-dispositions.png)
+   </div>
+
+:::참조
+이메일 보안이 MX 레코드로 배포되고 Office 365를 보호 할 때`MALICIOUS`·`SPAM`탐지는 자동으로 quarantined. 이 행동은 수정할 수 없습니다.
+주요 특징
+
+### 관리자 Quarantine 관리
+
+1. 로그인하기[이메일 보안 대시보드](https://horizon.area1security.com/).
+
+2. 오시는 길**이름 \*** > **관리자 Quarantine**.
+
+3. 관리하고 싶은 메시지 찾기`...`옆에 아이콘. 이것은 당신이 미리보기, 다운로드, 또는 quarantined 메시지를 해제 할 수 있습니다.
+
+   <div class="large-img">
+     ![관리 관리자 quarantines](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step4-manage-admin-quarantine.png)
+   </div>
+
+## 4. 메시지 처리
+
+Office 365 (O365) 이메일 quarantine 또는 이메일 보안이 선호되는 조합을 사용하는 시나리오가있을 수 있습니다. 다음은 O365 quarantine을 사용하는 모범 사례입니다.[으로 disposition](/email-security/reference/dispositions-and-attributes/):
+
+| 관련 제품        | - 연혁                                                                                                                                                                                                                                                                                                     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `MALICIOUS`  | 항상 quarantined해야합니다. 사용자가 알림을 필요로 하는 경우, 관리자가 메시지를 공개해야 합니다. 사용자는 결코 자기 중급에 능력이 없다.`MALICIOUS`관리자의 승인없이 이메일. 이메일은 몸과 제목이 있어야합니다.                                                                                                                                                                         |
+| `SUSPICIOUS` | 보장되지 않습니다. 이메일은 몸과 제목 태그가 있어야하며 사용자의 inbox 또는 junk 메일 폴더에 전달됩니다. 이점 고객은 사용해야 합니다[`URL defang`](/email-security/email-configuration/email-policies/link-actions/)이 disposition로, 모든 기업 고객은 항상 가능하게 합니다[이메일 링크 고립](/email-security/email-configuration/email-policies/link-actions/#email-link-isolation). |
+| `SPAM`       | 항상 quarantined해야합니다. 사용자가 알림을 필요로 하는 경우, 그들은 또는 관리자 승인이 이메일 해제를 요구할 수 없습니다. 이메일은 제목이어야한다.                                                                                                                                                                                                                |
+| `BULK`       | 보장되지 않습니다. 이메일은 태그가 있어야하며 inbox 또는 junk mail 폴더에 전달되어야 합니다.                                                                                                                                                                                                                                              |
+| `SPOOF`      | 이름 \*`SPOOF`감지는 깨끗하고 잘 관리됩니다.[이용 약관](/email-security/email-configuration/lists/), 이메일은 항상 quarantined이어야한다. 만약에`SPOOF`감지는 깨끗하지 않습니다, 그들은 같은 치료해야`SPAM`당신이 가지고 있는 경우에 분해[향상된 탐지](/email-security/email-configuration/enhanced-detections/)구성. 그렇지 않은 경우`SPOOF`검출은 대우되어야 합니다`BULK`. 이메일은 몸과 제목이 있어야합니다.    |
+
+Office 365 (O365)에는 다양한 옵션뿐만 아니라 제한 사항도 있습니다. 더 알아보기[Office 365 사용 사례](/email-security/deployment/inline/setup/office-365-area1-mx/use-cases/)더 많은 정보.
+
+이메일 보안 대시보드에는[관리 quarantine](/email-security/email-configuration/admin-quarantine/), 그리고 당신은 또한 사용자 quarantine가 필요할 때 사무실 365 quarantine를 사용할 수 있습니다. 많은 quarantine 옵션이 있지만, 다음은 Office 365의 기본 사용 사례입니다.[예제 자습서](/email-security/deployment/inline/setup/office-365-area1-mx/use-cases/)덮개를 의지하십시오:
+
+- **사용 케이스 1**: Office 365 junk 이메일 폴더 및 Admin Quarantine에 이메일 보내기 (추천)
+- **사용 사례 2**: junk 이메일 폴더 및 사용자 관리 quarantine에 이메일을 전달하십시오 (이 사용 사례는 해당`MALICIOUS`이메일 보안 대시보드 내에서 quarantined
+- **사용 케이스 3**: junk 이메일 및 관리 quarantine에 이메일 전달
+- **사용 케이스 4**: 사용자 관리 quarantine 및 관리 quarantine에 이메일 전달
+- **사용 케이스 5**: 사용자 junk 이메일 폴더 및 관리 quarantine에 이메일 전달
+
+## 5. 도메인 MX 레코드 업데이트
+
+MX 레코드를 업데이트하려면 사용중인 DNS 공급자에 따라 달라집니다. 이메일 보안 호스트로 기존 MX 레코드를 업데이트하고 교체해야합니다. 예를 들면:
+
+<Render file="deployment/mx-deployment-values" product="email-security" />
+
+<Render file="deployment/mx-geographic-locations" product="email-security" />
+
+DNS 변경은 약 1 시간 내에 주요 DNS 서버에 도달하거나 TTL 값을 입력하여[필수 항목](#prerequisites).
+
+### MX 레코드 우회에서 보안 Office 365 (추천)
+
+DNS 공격의 한 가지 방법은 오래된 MX 레코드를 검색하고 전송하는 것입니다<GlossaryTooltip term="phishing">피싱</GlossaryTooltip>메일 서버에 직접 이메일을 보냅니다. 이메일 흐름을 확보하려면 이메일 보안을 시작했을 때 Office 365에서 수신되는 이메일 흐름을 시행하고 싶습니다. 이 커넥터를 추가하여 TLS 암호화를 사용하여 이메일 보안을 허용 할 수 있습니다. 이 단계는 선택적이지만 권장됩니다.
+
+:::카ution\[중요]
+이 단계는 모든 도메인 후 24 시간까지 수행되지 않아야합니다 (당신의 제외)`<on_microsoft.com>`Office 365 조직의 도메인은 이메일 보안에 내장되어 있으며 이메일 보안은 MX 레코드입니다. 도메인이 내장되거나 DNS가 여전히 전파되지 않은 경우 도메인의 생산 이메일 흐름에 영향을 줄 것입니다.
+주요 특징
+
+#### 도메인 구성
+
+1. 로그인하기[이메일 보안 (이전 지역 1) 대시보드](https://horizon.area1security.com/).
+
+2. 오시는 길**계정 설정**(장치 아이콘).
+
+3. 내 계정**이메일 설정** > **이름 \***, 각 도메인이 내장되어 있는지 확인합니다.
+
+4. 각 도메인의 다음 옵션을 설정:
+   - **이름 \***: `<YOUR_DOMAIN>`
+   - **설정하기**: `MX Records`
+   - **관련 제품**: 각 도메인의 예상 MX 레코드를 일치해야합니다.[도메인 영역](https://admin.microsoft.com/#/Domains/)사무실 365
+   - **IP 제한**: 자주 묻는 질문
+   - **아웃바운드 TLS**: `Forward all messages over TLS`
+   - **Quarantine 정책**: 배포에 따라 다릅니다.
+
+#### 연결하기
+
+1. 새 소식[Exchange 관리자 센터](https://admin.exchange.microsoft.com/#/homepage).
+
+2. 오시는 길**메일 흐름** > **연결관**.
+
+3. 제품정보**커넥터 추가**.
+
+4. 제품정보**연결에서** > **파트너 조직**.
+
+5. 제품정보**이름 \***.
+
+6. 다음 옵션을 설정:
+   - **이름 \*** - `Secure O365 Inbound`
+   - **이름 \*** - `Only accept inbound email from Email security (formerly Area 1)`
+
+7. 제품정보**이름 \***.
+
+8. 자주 묻는 질문**sender 도메인이 다음과 같은 도메인 중 하나를 일치하도록 검증**선택 사항
+
+9. 이름 \*`*`텍스트 필드에서 선&#xD0DD;**+**.
+
+   <div class="large-img">
+     ![텍스트 상자에 asterisk를 입력하고 플러스 버튼을 선택하십시오.](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step9-create-conector.png)
+   </div>
+
+10. 제품정보**이름 \***.
+
+11. 자주 묻는 질문**TLS를 통해 보내지 않는 경우 이메일 메시지를 거부**선택 사항
+
+12. 같은 화면에서 여전히, 선택**이 IP 주소 범위 내에서 전송되지 않은 경우 이메일 메시지를 거부**, 모든 egress IP를 입력[Egress IPs 페이지](/email-security/deployment/inline/reference/egress-ips/).
+
+    <div class="large-img">
+      ![Office 365에 대한 모든 egress IP를 입력하십시오.](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step12-egress-ips.png)
+    </div>
+
+13. 제품정보**이름 \***.
+
+14. 설정 및 선택**연결하기**.
+
+## 6 실행`Enable-OrganizationCustomization`(필수)
+
+다음 단계는 이전에 Office 365 인스턴스를 사용자 정의하지 않은 경우에만 필요합니다. 이전 단계에서이 cmdlet을 실행하는 메시지를 수신하면 구성을 진행하기 위해 작업을 수행해야합니다. 이 변화는 효력을 가지고 가기 위하여 24 시간 오래 걸릴지도 모릅니다.
+
+1. PowerShell을 관리자로 실행하고 다음 명령을 실행합니다. 이름 \*`Yes`신속한 경우:
+
+```powershell
+Install-Module ExchangeOnlineManagement
+```
+
+![PowerShell의 설치 모듈 명령을 실행](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step1-install-module.png)
+
+:::참조
+이 모듈은 Microsoft 모듈입니다.
+주요 특징
+
+2. 정책 변경을 실행하고 Office 365 인스턴스에 연결하려면 다음 명령을 실행하십시오.
+
+   ```powershell
+   set-executionpolicy remotesigned
+   ```
+
+   정책 변경을 실행하고 싶다면 다음 명령을 실행하십시오.
+
+   ```powershell
+   Import-Module ExchangeOnlineManagement
+   ```
+
+   마지막으로 Office 365 인스턴스에 대해 인증된 다음을 실행합니다.
+
+   ```powershell
+   Connect-ExchangeOnline
+   ```
+
+   ![정책 변경을 실행하려면 명령을 실행](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step2-set-executionpolicy.png)
+
+3. 더 보기`Connect-ExchangeOnline`cmdlet는 로그인 할 수 있습니다. Office 365 관리자 계정으로 로그인하십시오. 일단 인증되면 PowerShell 프롬프트로 반환됩니다.
+
+   ![Office 365 관리자 계정으로 로그인](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step3-connect-exchange.png)
+
+4. 당신은 그것을 확인할 수 있습니다`OrganizationCustomization`명령을 실행하여 활성화된다:
+
+```powershell
+Get-OrganizationConfig | FL isDehydrated
+```
+
+![get-organizationconfig 명령어 실행](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step4-get-organizationconfig.png)
+
+결과가 있다면`false`, `OrganizationCustomization`이미 활성화되고 더 많은 작업이 필요하지 않습니다. 사실, 당신은 그것을 활성화해야합니다:
+
+```powershell
+Enable-OrganizationCustomization
+```
+
+![이전 결과가 true 인 경우 조직 사용자 정의 모드를 활성화하십시오.](~/assets/images/email-security/deployment/inline-setup/o365-area1-mx/step4-enable-organizationcustomization.png)

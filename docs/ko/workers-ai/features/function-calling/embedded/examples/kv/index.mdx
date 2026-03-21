@@ -1,0 +1,100 @@
+---
+pcx_content_type: navigation
+title: KV API 사용
+products:
+  - kv
+tags:
+  - AI
+sidebar:
+  order: 6
+description: >-
+  Cloudflare QXWorkers AIXQ를 사용하여 KVXQ 저장과 상호 작용하는 방법을 배우십시오, 부호의 몇몇 선에 묻힌 기능으로
+  persistent 자료 취급을 가능하게 합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers-ai/features/function-calling/embedded/examples/kv/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/function-calling/embedded/examples/kv/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+지속적인 저장과 상호 작용하여 정보를 검색하거나 저장할 수 있습니다. 강력한 사용 사례.
+
+이 예제에서는 Cloudflare 플랫폼에 다른 자원과 상호 작용할 수 있는 임베디드 함수가 몇 줄의 코드와 어떻게 상호 작용할 수 있는지 보여줍니다.
+
+## 사전예약
+
+이 예제를 위해, 당신은 제공해야합니다[모델 번호: KV](/kv/)네임스페이스 이렇게하려면[KV - 시작하기](/kv/get-started/)관련 기사
+
+중요하게, 당신의 Wrangler 파일은 포함하기 위하여 개정되어야 합니다`KV`각 namespace에 바인딩 정의.
+
+## 작업자 코드
+
+```ts title="Embedded function calling example with KV API"
+import { runWithTools } from "@cloudflare/ai-utils";
+
+type Env = {
+	AI: Ai;
+	KV: KVNamespace;
+};
+
+export default {
+	async fetch(request, env, ctx) {
+		//기능 정의
+		const updateKvValue = async ({
+			key,
+			value,
+		}: {
+			key: string;
+			value: string;
+		}) => {
+			const response = await env.KV.put(key, value);
+			return `Successfully updated key-value pair in database: ${response}`;
+		};
+
+		//기능 호출과 AI inference 실행
+		const response = await runWithTools(
+			env.AI,
+			"@hf/nousresearch/hermes-2-pro-mistral-7b",
+			{
+				messages: [
+					{ role: "system", content: "Put user given values in KV" },
+					{ role: "user", content: "Set the value of banana to yellow." },
+				],
+				tools: [
+					{
+						name: "KV update",
+						description: "Update a key-value pair in the database",
+						parameters: {
+							type: "object",
+							properties: {
+								key: {
+									type: "string",
+									description: "The key to update",
+								},
+								value: {
+									type: "string",
+									description: "The value to update",
+								},
+							},
+							required: ["key", "value"],
+						},
+						function: updateKvValue,
+					},
+				],
+			},
+		);
+		return new Response(JSON.stringify(response));
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+## 결과 확인
+
+결과를 확인하려면 다음 명령을 실행하십시오.
+
+```sh
+npx wrangler kv key get banana --binding KV --local
+```

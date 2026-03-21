@@ -1,0 +1,155 @@
+---
+pcx_content_type: tutorial
+title: Azure Dedicated HSM
+description: >-
+  Keyless SSL을 Azure Dedicated HSM과 함께 사용하는 방법을 알아보세요.
+---
+
+이 튜토리얼은 Gemalto SafeNet Luna a790 기반의 FIPS 140-2 Level 3 인증 구현인 [Azure Dedicated HSM](https://azure.microsoft.com/en-us/services/azure-dedicated-hsm/)을 사용합니다.
+
+---
+
+## 시작하기 전에
+
+다음을 준비했는지 확인하세요.
+
+- PowerShell을 사용해 기존 가상 네트워크에 HSM을 배포하는 Microsoft의 [튜토리얼](https://docs.microsoft.com/en-us/azure/dedicated-hsm/tutorial-deploy-hsm-powershell)을 따랐는지
+- [SafeNet client software](https://cpl.thalesgroup.com/node/11350)를 설치했는지
+
+---
+
+## 1. 새 파티션 생성, 할당, 초기화
+
+첫 단계는 HSM 파티션을 생성하는 것입니다. 이는 Azure Dedicated HSM 장치 내부의 독립적인 논리 HSM이라고 생각하면 됩니다.
+
+```txt
+vm$ ssh tenantadmin@hsm
+
+[local_host] lunash:>hsm login
+  Please enter the HSM Administrators' password:
+  > ********
+
+
+'hsm login' successful.
+
+
+Command Result : 0 (Success)
+
+[local_host] lunash:>partition create -partition KeylessSSL
+
+
+          Type 'proceed' to create the partition, or
+          'quit' to quit now.
+          > proceed
+'partition create' successful.
+
+
+Command Result : 0 (Success)
+```
+
+다음으로, 이 파티션을 클라이언트(이 경우 키 서버)에 할당해야 합니다.
+
+```bash
+[local_host] lunash:>client assignpartition -client azure-keyless -partition KeylessSSL
+
+
+'client assignPartition' successful.
+
+
+Command Result : 0 (Success)
+```
+
+파티션을 할당한 뒤 가상 서버에서 `lunacm`을 실행하여 파티션을 초기화합니다.
+
+```txt
+vm$ lunacm
+lunacm (64-bit) v7.2.0-220. Copyright (c) 2018 SafeNet. All rights reserved.
+
+
+  Available HSMs:
+
+  Slot Id ->              0
+  Label ->
+  Serial Number ->        XXXXXXXXXXXXX
+  Model ->                LunaSA 7.2.0
+  Firmware Version ->     7.0.3
+  Configuration ->        Luna User Partition With SO (PW) Signing With Cloning Mode
+  Slot Description ->     Net Token Slot
+
+
+  Current Slot Id: 0
+
+lunacm:>partition init -label KeylessSSL -domain cloudflare
+
+  Enter password for Partition SO: ********
+
+  Re-enter password for Partition SO: ********
+
+  You are about to initialize the partition.
+  All contents of the partition will be destroyed.
+
+  Are you sure you wish to continue?
+
+  Type 'proceed' to continue, or 'quit' to quit now ->proceed
+
+Command Result : No Error
+```
+
+---
+
+## 2. RSA 키 쌍 및 인증서 서명 요청(CSR) 생성
+
+아래 명령을 실행하기 전에, 조직에서 승인한 키 생성 절차를 정보보안 및/또는 암호화 담당 팀과 확인하세요.
+
+```txt
+# cmu generatekeypair -keyType=RSA -modulusBits=2048 -publicExponent=65537 -sign=1 -verify=1 -labelpublic=myrsakey -labelprivate=myrsakey -keygenmech=1
+
+Please enter password for token in slot 0 : ********
+
+# cmu list
+
+Please enter password for token in slot 0 : ********
+handle=51 label=myrsakey
+handle=48 label=myrsakey
+```
+
+이전 단계에서 생성한 키를 사용해, 공개 신뢰 인증 기관(CA)에 보내 서명받을 CSR을 생성합니다.
+
+```txt
+# cmu requestCertificate -c="US" -o="Example, Inc." -cn="azure-dedicatedhsm.example.com" -s="California" -l="San Francisco" -publichandle=48 -privatehandle=51 -outputfile="rsa.csr" -sha256withrsa
+
+Please enter password for token in slot 0 : ********
+Using "CKM_SHA256_RSA_PKCS" Mechanism
+```
+
+---
+
+## 3. 인증 기관(CA)에서 서명된 인증서 발급 및 업로드
+
+이전 단계에서 만든 CSR을 조직이 선호하는 CA에 제공하고, 요청에 따라 도메인 제어를 입증한 후, 서명된 SSL 인증서를 다운로드하세요. 이후 [Upload Keyless SSL Certificates](/ssl/keyless-ssl/configuration/cloudflare-tunnel/#3-upload-keyless-ssl-certificates)의 안내를 따르세요.
+
+---
+
+## 4. gokeyless 구성 파일 수정 및 서비스 재시작
+
+마지막으로, 키 서버가 시작할 때 읽을 구성 파일을 수정해야 합니다. `object=mykey`와 `pin-value=username:password` 값을 실제로 지정한 키 레이블과 생성한 CU 사용자에 맞게 변경하세요.
+
+`/etc/keyless/gokeyless.yaml`을 열고, 다음 바로 아래에
+
+```yaml
+private_key_stores:
+  - dir: /etc/keyless/keys
+```
+
+다음을 추가합니다.
+
+```yaml
+- uri: pkcs11:token=KeylessSSL;object=myrsakey?module-path=/usr/safenet/lunaclient/lib/libCryptoki2_64.so&pin-value=password&max-sessions=1
+```
+
+구성 파일을 저장한 뒤 `gokeyless`를 다시 시작하고 정상적으로 시작되었는지 확인합니다.
+
+```sh
+sudo systemctl restart gokeyless.service
+sudo systemctl status gokeyless.service -l
+```

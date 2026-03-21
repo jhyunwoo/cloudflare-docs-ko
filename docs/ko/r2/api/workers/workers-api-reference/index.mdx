@@ -1,0 +1,537 @@
+---
+pcx_content_type: reference
+title: Workers API reference
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/api/workers/workers-api-reference/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/api/workers/workers-api-reference/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, MetaInfo, WranglerConfig, TabItem, Tabs } from "~/components";
+
+in-Worker R2 API는 R2 물통을 a에 바인딩해서 접근됩니다[작업자](/workers). 쓰기 노동자는 경로 또는 조작 R2 객체를 통해 물통에 외부 액세스를 노출 할 수 있습니다.
+
+R2 API는 S3 API에서 몇 가지 확장 및 세심한 차이를 포함합니다. S3 호환성이 필요한 경우,[S3- 호환 API](/r2/api/s3/).
+
+## 회사 소개
+
+R2는 당신이 물건을 저장하는 자료, 물통이라고 불리는 콘테이너로, 불린. 물통은 R2 내에서 성능, 스케일링 및 액세스의 기본 단위입니다.
+
+## 연결하기
+
+:::주최\[배경]
+
+묶음은 당신의 노동자가 외부 자원과 어떻게 상호 작용하는지[KV 이름공간](/kv/concepts/kv-namespaces/), [Durable Objects](/durable-objects/), 또는[R2 기타 제품](/r2/buckets/). 바인딩은 Workers 런타임이 코드를 제공합니다. Wrangler 파일에서 변수 이름을 선언할 수 있으며, 이 변수를 통해 해당 리소스에 바인딩됩니다. 모든 바인딩의 변수 이름과 행동은 노동자를 배치 할 때 결정됩니다. 더 알아보기[환경 변수](/workers/configuration/environment-variables/)더 많은 정보.
+
+작업자의 Wrangler 파일에 바인딩이 정의됩니다.
+
+:::
+
+당신의 노동자에 R2 물통을 묶기 위하여는, 당신의 Wrangler 파일에 뒤에 따르십시오. 업데이트`binding`유효한 JavaScript 가변 식별자에 재산 및`bucket_name`R2 물통의 이름에:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET", //<~ 유효한 JavaScript 가변 이름
+  			"bucket_name": "<YOUR_BUCKET_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+노동자 안에, 당신의 물통 바인딩은 지금 아래에 유효합니다`MY_BUCKET`변수와 당신은 그것을 사용하여 상호 작용을 시작할 수 있습니다[물통 방법](#bucket-method-definitions)아래 설명.
+
+## 버킷 방법 정의
+
+다음과 같은 방법은 버킷 바인딩 객체에 사용할 수 있습니다.
+
+예를 들어, 문제`PUT`위의 바인딩을 사용하여 객체 요청:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env) {
+    		const url = new URL(request.url);
+    		const key = url.pathname.slice(1);
+
+    		switch (request.method) {
+    			case "PUT":
+    				await env.MY_BUCKET.put(key, request.body);
+    				return new Response(`Put ${key} successfully!`);
+
+    			default:
+    				return new Response(`${request.method} is not allowed.`, {
+    					status: 405,
+    					headers: {
+    						Allow: "PUT",
+    					},
+    				});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		url = urlparse(request.url)
+    		key = url.path[1:]
+
+    		if request.method == "PUT":
+    			await self.env.MY_BUCKET.put(key, request.body)
+    			return Response(f"Put {key} successfully!")
+    		else:
+    			return Response(
+    				f"{request.method} is not allowed.",
+    				status=405,
+    				headers={"Allow": "PUT"}
+    			)
+    ```
+  </TabItem>
+</Tabs>
+
+- `head` <Type text="(key: string): Promise<R2Object | null>" />
+
+  - 더 보기`R2Object`객체 메타데이터를 포함하는 주어진 키의 경우, 키가 존재하는 경우,`null`키가 존재하지 않는 경우.
+
+- `get` <Type text="(key: string, options?: R2GetOptions): Promise<R2ObjectBody | R2Object | null>" />
+
+  - 더 보기`R2ObjectBody`object metadata와 object body를 포함하는 주어진 열쇠를 위해<code>읽을 수 있는Stream</code>키가 존재하는 경우,`null`키가 존재하지 않는 경우.
+  - 미리 설정된 경우<code>옵션 정보</code>실패,<code>태그()</code>계정 만들기<code>R2Object의 경우</code>이름 \*<code>뚱 베어</code>정의.
+
+- `put` <Type text="(key: string, value: ReadableStream | ArrayBuffer | ArrayBufferView | string | null | Blob, options?: R2PutOptions): Promise<R2Object | null>" />
+
+  - 구매하기<code>제품정보</code>관련 메타데이터<code>주요 특징</code>. 일단 쓰기 성공하면, 반환`R2Object`저장된 개체에 대한 메타 데이터 포함.
+  - 미리 설정된 경우<code>옵션 정보</code>실패,<code>칫()</code>이름 \*`null`, 객체는 저장되지 않습니다.
+  - R2는 강하게 일관되게 합니다. Promise가 해결되면 모든 다음 읽기 작업은 전 세계적으로이 키 값 쌍을 볼 수 있습니다.
+
+- `delete` <Type text="(key: string | string[]): Promise<void>" />
+
+  - 주어진 삭제<code>계정 정보</code>관련 메타데이터<code>지원하다</code>. 삭제가 성공되면, 반환<code>뚱 베어</code>.
+  - R2 삭제는 강력합니다. Promise가 해결되면 이후 모든 읽기 작업이 더 이상 제공된 키 값 쌍을 전 세계적으로 볼 수 없습니다.
+  - 최대 1000 키는 통화당 삭제 될 수 있습니다.
+
+- `list` <Type text="(options?: R2ListOptions): Promise<R2Objects>" />
+
+  - 자주 묻는 질문<code>R2Objects</code>자주 묻는 질문<code>R2Object의 경우</code>물통 안에 포함.
+  - 개체의 반환 목록은 lexicographically 명령됩니다.
+  - 1000 항목까지 반환하지만 노동자 내에서 메모리 압력을 최소화하기 위해 덜 반환 할 수 있습니다.
+  - 를 명시적으로 목록의 숫자를 설정하려면, 제공[R2List옵션](/r2/api/workers/workers-api-reference/#r2listoptions)객체와`limit`사이트 맵
+
+* `createMultipartUpload` <Type text="(key: string, options?: R2MultipartOptions): Promise<R2MultipartUpload>" />
+
+  - 복수 업로드를 만듭니다.
+  - Promise를 반환합니다.`R2MultipartUpload`새로 생성된 Multipart 업로드를 나타내는 객체. 멀티플레이 업로드가 생성되면, 멀티플레이 업로드는 Workers API 또는 S3 API를 통해 전 세계적으로 상호 작용할 수 있습니다.
+
+- `resumeMultipartUpload` <Type text="(key: string, uploadId: string): R2MultipartUpload" />
+
+  - 주어진 키와 uploadId로 multipart 업로드를 나타내는 객체를 반환합니다.
+  - 이력서MultipartUpload 작업은 uploadId의 유효성을 보장하기 위해 어떤 검사를 수행하지 않으며 해당 활성 multipart 업로드의 존재를 확인합니다. 이후의 작업을 호출 할 수 있기 전에 대기 시간을 최소화 할 수 있습니다.`R2MultipartUpload`객체.
+
+## `R2Object`이름 \*
+
+`R2Object`당신이 할 때 생성`PUT`R2 물통에 목표.`R2Object`업로드자가 제공하는 정보에 근거한 객체의 메타데이터를 나타냅니다. 모든 물체`PUT`R2 물통으로`R2Object`로그인
+
+- `key` <Type text="string" />
+
+  - 객체의 키.
+
+- `version` <Type text="string" />
+
+  - 키의 특정 업로드와 관련된 랜덤 고유 문자열.
+
+- `size` <Type text="number" />
+
+  - 바이트의 객체의 크기.
+
+- `etag` <Type text="string" />
+
+:::참조
+
+Cloudflare는 사용을 추천합니다`httpEtag`응답 헤더에 etag를 반환 할 때 필드. etag를 인용하고 준수합니다.[RFC 9110년](https://www.rfc-editor.org/rfc/rfc9110#section-8.8.3).
+:::
+
+- 객체 업로드와 관련된 예시.
+
+- `httpEtag` <Type text="string" />
+
+  - 객체의 예를 들어, 인용문에서 헤더로 반환됩니다.
+
+- `uploaded` <Type text="Date" />
+
+  - 객체를 나타내는 날짜 객체는 업로드되었습니다.
+
+- `httpMetadata` <Type text="R2HTTPMetadata" />
+
+  - 객체와 관련된 다양한 HTTP 헤더. 더 알아보기[HTTP 메타데이터](#http-metadata).
+
+- `customMetadata` <Type text="Record<string, string>" />
+
+  - 사용자 정의의지도, 객체와 관련된 사용자 정의 메타 데이터.
+
+- `range` <Type text="R2Range" />
+
+  - ·`R2Range`객체의 반환된 범위를 포함하는 객체.
+
+- `checksums` <Type text="R2Checksums" />
+
+  - ·`R2Checksums`객체의 저장된 체크섬을 포함하는 객체. 더 알아보기[체크섬](#checksums).
+
+- `writeHttpMetadata` <Type text="(headers: Headers): void" />
+
+  - 더 보기`httpMetadata`으로`R2Object`해당 HTTP 헤더에 적용`Headers`입력 객체. 더 알아보기[HTTP 메타데이터](#http-metadata).
+
+- `storageClass` <Type text="'Standard' | 'InfrequentAccess'" />
+
+  - 객체와 관련된 저장 클래스. 더 알아보기[저장 종류](#storage-class).
+
+- `ssecKeyMd5` <Type text="string" />
+
+  - Hex-encoded MD5 해시[사이트맵](/r2/examples/ssec)암호화에 사용되는 키 (하나가 제공된 경우). Hash는 객체를 해독하기 위해 필요한 키를 식별 할 수 있습니다.
+
+## `R2ObjectBody`이름 \*
+
+`R2ObjectBody`객체의 메타데이터를 몸과 결합합니다. 당신이 할 때 반환`GET`R2 버킷의 객체. 키의 전체 목록`R2ObjectBody`아래 목록과 모든 키가 상속[`R2Object`](#r2object-definition).
+
+- `body` <Type text="ReadableStream" />
+
+  - 객체의 값.
+
+- `bodyUsed` <Type text="boolean" />
+
+  - 객체의 값이 소모되었는지 여부.
+
+- `arrayBuffer` <Type text="(): Promise<ArrayBuffer>" />
+
+  - 해결하는 약속을 반환`ArrayBuffer`객체의 값 포함.
+
+- `text` <Type text="(): Promise<string>" />
+
+  - 객체의 값을 포함하는 문자열로 해결하는 Promise를 반환합니다.
+
+- `json` <Type text="<T>() : Promise<T>" />
+
+  - 객체의 값을 포함하는 주어진 객체에 해결하는 약속을 반환합니다.
+
+- `blob` <Type text="(): Promise<Blob>" />
+
+  - 객체의 값을 포함하는 바이너리 Blob에 해결하는 약속을 반환합니다.
+
+## `R2MultipartUpload`이름 \*
+
+이름 \*`R2MultipartUpload`호출할 때 객체가 생성됩니다.`createMultipartUpload`또는`resumeMultipartUpload`. `R2MultipartUpload`지속적인 multipart 업로드의 표현입니다.
+
+무결성 멀티 파트 업로드는 7 일 후에 자동으로 낙관됩니다.
+
+:::참조
+
+이름 \*`R2MultipartUpload`객체는 그 객체에 대응하는 Active underlying multipart 업로드가 있다는 것을 보증하지 않습니다.
+
+멀티플레이 업로드는 S3 API를 통해 언제든 완료하거나, 작업자의 병렬 인발적 인 주장을 통해 완료 될 수 있습니다. 따라서 각 작업에 필요한 오류 처리 코드를 추가하는 것이 중요합니다.`R2MultipartUpload`더 이상 더 이상 존재하지 않는다.
+
+:::
+
+- `key` <Type text="string" />
+
+  - 더 보기`key`복수 업로드
+
+- `uploadId` <Type text="string" />
+
+  - 더 보기`uploadId`복수 업로드
+
+- `uploadPart` <Type text="(partNumber: number, value: ReadableStream | ArrayBuffer | ArrayBufferView | string | Blob, options?: R2MultipartOptions): Promise<R2UploadedPart>" />
+
+  - 지정된 부품 번호와 함께 단일 부품을 업로드합니다. 각 부속은 더 작을 수 있는 마지막 부분을 위한 예외로 크기에서 제복되어야 합니다.
+  - 자주 묻는 질문`R2UploadedPart`객체 포함`etag`·`partNumber`. 이`R2UploadedPart`multipart 업로드를 완료할 때 객체가 필요합니다.
+
+- `abort` <Type text="(): Promise<void>" />
+
+  - multipart 업로드를 정렬합니다. 업로드가 성공적으로 낙관되었을 때 해결하는 약속을 반환합니다.
+
+- `complete` <Type text="(uploadedParts: R2UploadedPart[]): Promise<R2Object>" />
+
+  - 주어진 부속으로 multipart 올려주기를 완료하십시오.
+  - 완전한 가동이 완료되면 해결하는 약속을 반환합니다. 이 일이 발생하면, 객체는 즉시 전 세계적으로 접근 할 수 있습니다.
+
+## 방법별 유형
+
+### R2GetOptions
+
+- `onlyIf` <Type text="R2Conditional | Headers" />
+
+  - 객체는 특정 조건의 주어진 만족을 반환해야합니다.`R2Conditional`또는 상태 Headers에서. 더 알아보기[상태 작업](#conditional-operations).
+
+- `range` <Type text="R2Range" />
+
+  - 특정 길이 (옵션 상쇄에서) 또는 객체의 바이트의 스핑을 반환해야합니다. 더 알아보기[연락처](#ranged-reads).
+
+- `ssecKey` <Type text="ArrayBuffer | string" />
+
+  - 키를 지정합니다.[사이트맵](/r2/examples/ssec). 열쇠는 길이에 32 바이트, hex-encoded 끈 또는 ArrayBuffer의 형태로 있어야 합니다.
+
+#### 연락처
+
+`R2GetOptions`이름 \*`range`매개 변수, 즉 반환된 데이터를 제한하는 데 사용할 수 있습니다`body`.
+
+범위에서 사용할 수있는 인수의 3 가지 변형이 있습니다.
+
+- 옵션 길이로 오프셋.
+
+- 길이를 가진 선택적인 상쇄.
+
+- 스프릭스
+
+- `offset` <Type text="number" />
+
+  - byte는, 포괄적 인에서 데이터를 반환하기 시작합니다.
+
+- `length` <Type text="number" />
+
+  - 반환 할 바이트 수. 더 많은 바이트가 객체에 존재하는 것보다 요청되면, 이 숫자보다 적은 바이트가 반환 될 수 있습니다.
+
+- `suffix` <Type text="number" />
+
+  - 파일의 끝에서 반환하는 바이트 수, 마지막 바이트에서 시작. 더 많은 바이트가 객체에 존재하는 것보다 요청되면, 이 숫자보다 적은 바이트가 반환 될 수 있습니다.
+
+### R2Put옵션
+
+- `onlyIf` <Type text="R2Conditional | Headers" />
+
+  - 객체는 특정 조건의 주어진 만족만 저장되어야 합니다.`R2Conditional`. 참고[상태 작업](#conditional-operations).
+
+- `httpMetadata` <Type text="R2HTTPMetadata | Headers" /> <MetaInfo text="optional" />
+
+  - 객체와 관련된 다양한 HTTP 헤더. 더 알아보기[HTTP 메타데이터](#http-metadata).
+
+- `customMetadata` <Type text="Record<string, string>" /> <MetaInfo text="optional" />
+
+  - 사용자 정의의지도, 객체에 저장 될 사용자 정의 메타 데이터.
+
+:::참조
+
+단일 해싱 알고리즘만 한 번에 지정할 수 있습니다.
+
+:::
+
+- `md5` <Type text="ArrayBuffer | string" /> <MetaInfo text="optional" />
+
+  - 주어진 객체의 무결성을 확인하기 위해 md5 해시.
+
+- `sha1` <Type text="ArrayBuffer | string" /> <MetaInfo text="optional" />
+
+  - 수신된 객체의 무결성을 확인하기 위해 SHA-1 해시.
+
+- `sha256` <Type text="ArrayBuffer | string" /> <MetaInfo text="optional" />
+
+  - 수신된 객체의 무결성을 확인하기 위해 SHA-256 해시.
+
+- `sha384` <Type text="ArrayBuffer | string" /> <MetaInfo text="optional" />
+
+  - 수신된 객체의 무결성을 확인하기 위해 SHA-384 해시.
+
+- `sha512` <Type text="ArrayBuffer | string" /> <MetaInfo text="optional" />
+
+  - 수신된 객체의 무결성을 확인하기 위해 SHA-512 해시.
+
+- `storageClass` <Type text="'Standard' | 'InfrequentAccess'" />
+
+  - 지정된 객체의 저장 클래스를 설정합니다. 그렇지 않으면, 객체는 버킷과 관련된 기본 저장 클래스에 저장됩니다. 더 알아보기[저장 종류](#storage-class).
+
+- `ssecKey` <Type text="ArrayBuffer | string" />
+
+  - 키를 지정합니다.[사이트맵](/r2/examples/ssec). 열쇠는 길이에 32 바이트, hex-encoded 끈 또는 ArrayBuffer의 형태로 있어야 합니다.
+
+### R2Multipart 옵션
+
+- `httpMetadata` <Type text="R2HTTPMetadata | Headers" /> <MetaInfo text="optional" />
+
+  - 객체와 관련된 다양한 HTTP 헤더. 더 알아보기[HTTP 메타데이터](#http-metadata).
+
+- `customMetadata` <Type text="Record<string, string>" /> <MetaInfo text="optional" />
+
+  - 사용자 정의의지도, 객체에 저장 될 사용자 정의 메타 데이터.
+
+- `storageClass` <Type text="string" />
+
+  - 지정된 객체의 저장 클래스를 설정합니다. 그렇지 않으면, 객체는 버킷과 관련된 기본 저장 클래스에 저장됩니다. 더 알아보기[저장 종류](#storage-class).
+
+- `ssecKey` <Type text="ArrayBuffer | string" />
+
+  - 키를 지정합니다.[사이트맵](/r2/examples/ssec). 열쇠는 길이에 32 바이트, hex-encoded 끈 또는 ArrayBuffer의 형태로 있어야 합니다.
+
+### R2List옵션
+
+- `limit` <Type text="number" /> <MetaInfo text="optional" />
+
+  - 반환 결과의 수. 기본 설정`1000`, 최대의`1000`.
+
+  - 이름 \*`include`세트, 당신은 보다는 더 적은을 받을지도 모릅니다`limit`metadata를 수용하기 위해 응답에 있는 결과.
+
+- `prefix` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 키에 대한 접두사. 열쇠는 주어진 접두사로 시작하는 경우에만 반환될 것입니다.
+
+- `cursor` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 불투명 토큰은 다음과 같은 객체를 계속 나열하는 것을 나타냅니다. 커서를 이전 목록 작업에서 검색 할 수 있습니다.
+
+- `delimiter` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 키를 그룹화 할 때 사용하는 문자.
+
+- `include` <Type text="Array<string>" /> <MetaInfo text="optional" />
+
+  - 수 있습니다.`httpMetadata`및/또는`customMetadata`. 포함되는 경우, 목록에 의해 반환된 항목은 지정된 metadata를 포함합니다.
+
+  - 단일 데이터의 총 금액에 제한이 있음`list`가동은 돌려보낼 수 있습니다. 데이터 요청 시, 보다 적은 금액을 받을 수 있습니다.`limit`metadata를 수용하기 위해 응답에 있는 결과.
+
+  - 더 보기[호환성 날짜](/workers/configuration/compatibility-dates/)설정하기`2022-08-04`또는 나중에 Wrangler 파일에서. 그렇지 않다면`r2_list_honor_include`호환성 깃발은 놓아야 합니다. 그렇지 않으면 그것은 대우됩니다`include: ['httpMetadata', 'customMetadata']`무엇에 관계없이`include`실제로 제공된 옵션입니다.
+
+  이것은 응용 프로그램이 당신의 반환 개체의 양을 비교하는 것을 주의해야`limit`. 대신, 사용`truncated`속성을 결정하는 경우`list`요청은 더 많은 데이터를 반환합니다.
+
+```js
+const options = {
+	limit: 500,
+	include: ["customMetadata"],
+};
+
+const listed = await env.MY_BUCKET.list(options);
+
+let truncated = listed.truncated;
+let cursor = truncated ? listed.cursor : undefined;
+
+//✓ - 제한이 단일 응답 또는 당신의에 적합하지 않는 경우
+//물통은 한계 보다는 더 적은 목표를 가지고 있습니다, 그것은 여기에서 찔릴 것입니다.
+while (listed.objects.length < options.limit) {
+	//· ...
+}
+
+//✅ - truncated 속성을 사용하여 더 많은 것을 확인
+//반환된 객체
+while (truncated) {
+	const next = await env.MY_BUCKET.list({
+		...options,
+		cursor: cursor,
+	});
+	listed.objects.push(...next.objects);
+
+	truncated = next.truncated;
+	cursor = next.cursor;
+}
+```
+
+### R2Objects
+
+객체를 포함`R2Object`배열, 반환`BUCKET_BINDING.list()`.
+
+- `objects` <Type text="Array<R2Object>" />
+
+  - 일치하는 개체의 배열`list`이름 \*
+
+- `truncated`한국어
+
+  - 사실이 더 많은 결과를 나타냅니다.`list`이름 \*
+
+- `cursor` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 미래에 전달할 수 있는 토큰`list`그 시점에서 목록을 다시 호출합니다. truncated가 true인 경우만 존재합니다.
+
+- `delimitedPrefixes` <Type text="Array<string>" />
+
+  - delimiter가 지정되면 지정된 접두사와 delimiter의 다음 발생 사이의 모든 접두사를 포함합니다.
+
+  - 예를 들어, 접두사는 제공되지 않는 경우, delimiter는 '/',`foo/bar/baz`반환하기`foo`제한된 접두사로. 이름 \*`foo/`동일한 구조와 delimiter를 가진 접fix로 통과되었습니다,`foo/bar`제한된 접두사로 반환될 것입니다.
+
+### 상태 작업
+
+당신은 통과 할 수 있습니다`R2Conditional`관련 기사`R2GetOptions`·`R2PutOptions`. 상태 체크를 위한 경우에`get()`실패, 몸은 반환되지 않습니다. 이것은`get()`더 낮은 대기 시간.
+
+상태 확인을 위해`put()`실패,`null`대신 반환됩니다`R2Object`.
+
+- `etagMatches` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 객체의 etag가 주어진 문자열을 일치하면 작업을 수행합니다.
+
+- `etagDoesNotMatch` <Type text="string" /> <MetaInfo text="optional" />
+
+  - 객체의 etag가 주어진 문자열과 일치하지 않는 경우 작업 수행.
+
+- `uploadedBefore` <Type text="Date" /> <MetaInfo text="optional" />
+
+  - 주어진 날짜 전에 객체가 업로드 된 경우 작업 수행.
+
+- `uploadedAfter` <Type text="Date" /> <MetaInfo text="optional" />
+
+  - 주어진 날짜 이후에 객체가 업로드 된 경우 작업 수행.
+
+대안으로, 당신은 통과할 수 있습니다`Headers`상태 헤더를 포함하는 객체`R2GetOptions`·`R2PutOptions`. 이 상태 우두머리에 대한 정보는 참조[상태 요청에 MDN docs](https://developer.mozilla.org/en-US/docs/Web/HTTP/Conditional_requests#conditional_headers). 모든 조건부 headers에서`If-Range`지원됩니다.
+
+상태 요청에 대한 자세한 내용은 참조[RFC 7232의](https://datatracker.ietf.org/doc/html/rfc7232).
+
+### HTTP 메타데이터
+
+일반적으로 이러한 필드는 객체가 생성되었을 때 HTTP metadata와 일치합니다. 그들은 때 overridden 일 수 있습니다`GET`요청, 어느 경우, 주어진 값은 응답에서 다시 정해진 것입니다.
+
+- `contentType` <Type text="string" /> <MetaInfo text="optional" />
+
+- `contentLanguage` <Type text="string" /> <MetaInfo text="optional" />
+
+- `contentDisposition` <Type text="string" /> <MetaInfo text="optional" />
+
+- `contentEncoding` <Type text="string" /> <MetaInfo text="optional" />
+
+- `cacheControl` <Type text="string" /> <MetaInfo text="optional" />
+
+- `cacheExpiry` <Type text="Date" /> <MetaInfo text="optional" />
+
+### 체크섬
+
+체크섬이 사용할 때`put()`바인딩, 반환된 객체에 사용할 수 있습니다.`checksums`호텔 위치 MD5 체크섬은 비 multipart 객체의 기본으로 포함될 것입니다.
+
+- `md5` <Type text="ArrayBuffer" /> <MetaInfo text="optional" />
+
+  - 객체의 MD5 체크섬.
+
+- `sha1` <Type text="ArrayBuffer" /> <MetaInfo text="optional" />
+
+  - 객체의 SHA-1 체크섬.
+
+- `sha256` <Type text="ArrayBuffer" /> <MetaInfo text="optional" />
+
+  - 객체의 SHA-256 체크섬.
+
+- `sha384` <Type text="ArrayBuffer" /> <MetaInfo text="optional" />
+
+  - 객체의 SHA-384 체크섬.
+
+- `sha512` <Type text="ArrayBuffer" /> <MetaInfo text="optional" />
+
+  - 객체의 SHA-512 체크섬.
+
+### `R2UploadedPart`
+
+이름 \*`R2UploadedPart`객체는 업로드 된 부분을 나타냅니다.`R2UploadedPart`객체가 반환됩니다.`uploadPart`작업 및 전달해야합니다`completeMultipartUpload`작업.
+
+- `partNumber` <Type text="number" />
+
+  - 부품 번호.
+
+- `etag` <Type text="string" />
+
+  - 더 보기`etag`부분의.
+
+### 저장 종류
+
+저장 클래스 어디에`R2Object`저장됩니다. 사용 가능한 저장 클래스는`Standard`·`InfrequentAccess`. 참고[저장 교실](/r2/buckets/storage-classes/)더 많은 정보.

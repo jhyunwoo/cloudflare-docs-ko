@@ -1,0 +1,89 @@
+---
+pcx_content_type: reference
+title: 베셀/오
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/vercel-og/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/vercel-og/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+더 보기`@vercel/og`Pages Plugin은 웹 페이지의 소셜 이미지를 렌더링하는 미들웨어입니다. arbitrary 이미지를 만드는 API도 포함되어 있습니다.
+
+이름은 건의로, 그것은에 의해 강화됩니다[`@vercel/og`](https://vercel.com/docs/concepts/functions/edge-functions/og-image-generation). 이 플러그인과 그 밑으로[사토리](https://github.com/vercel/satori)라이브러리는 Vercel 팀에 의해 생성되었습니다.
+
+## 설치하기
+
+설치하기`@vercel/og`Pages 플러그인, 실행:
+
+<PackageManagers pkg="@cloudflare/pages-plugin-vercel-og" />
+
+## 제품 정보
+
+```typescript
+import React from "react";
+import vercelOGPagesPlugin from "@cloudflare/pages-plugin-vercel-og";
+
+interface Props {
+	ogTitle: string;
+}
+
+export const onRequest = vercelOGPagesPlugin<Props>({
+	imagePathSuffix: "/social-image.png",
+	component: ({ ogTitle, pathname }) => {
+		return <div style={{ display: "flex" }}>{ogTitle}</div>;
+	},
+	extractors: {
+		on: {
+			'meta[property="og:title"]': (props) => ({
+				element(element) {
+					props.ogTitle = element.getAttribute("content");
+				},
+			}),
+		},
+	},
+	autoInject: {
+		openGraph: true,
+	},
+});
+```
+
+플러그인은 6개의 속성을 가진 객체가 걸립니다:
+
+- `imagePathSuffix`: 경로를 suffix에서 사용할 수있는 생성 된 이미지를 만들 수 있습니다. 예를 들어, 이 플러그인을 마운트하면`functions/blog/_middleware.ts`, 설정`imagePathSuffix`이름 \*`/social-image.png`그리고 있다`/blog/hello-world`페이지, 이미지에서 사용할 수 있습니다`/blog/hello-world/social-image.png`.
+
+- `component`: 이미지를 렌더링하는 데 사용되는 React 구성 요소. 기본적으로 React 구성품은`pathname`아래 웹 페이지의 경로와 같은 속성 (예를 들어,`/blog/hello-world`), 그러나 더 동적인 재산은 함께 제공될 수 있습니다`extractors`옵션.
+
+- `extractors`: 두 가지 옵션 속성이있는 옵션 객체 :`on`·`onDocument`. 이 속성은 객체를 취하고 반환하는 함수로 설정할 수 있습니다[`HTMLRewriter`관련 링크](/workers/runtime-apis/html-rewriter/#element-handlers)또는[문서 핸들러](/workers/runtime-apis/html-rewriter/#document-handlers)각각. 오브젝트 매개 변수는 추가 속성을 가진 React 구성 요소를 제공 하기 위해 배열 될 수 있습니다. 위의 예에서 Element handler를 사용하여 추출합니다.`og:title`웹 페이지의 메타 태그와 React 구성 요소에 전달`ogTitle`호텔 위치 이 기본 메커니즘은 아래 웹 페이지에서 값을 사용하는 동적 이미지를 만들 수 있습니다.
+
+- `options`: [직접 주어진 옵션 객체`@vercel/og`회사연혁](https://vercel.com/docs/concepts/functions/edge-functions/og-image-generation/og-image-api).
+
+- `onError`: 반환하는 옵션 함수`Response`또는 약속`Response`. 이 기능은 요구로 할 때 호출됩니다`imagePathSuffix`·`extractors`제공되지만 언젠가는 웹 페이지는 HTML을 유효하지 않습니다. 반환하는 기본값`404`응답.
+
+- `autoInject`: 옵션 속성이있는 옵션 객체 :`openGraph`. 설정하면`true`, 플러그인은 자동으로 설정됩니다`og:image`, `og:image:height`·`og:image:width`아래 웹 페이지에서 메타 태그.
+
+### arbitrary 이미지 생성
+
+이 플러그인의 API를 사용하여 arbitrary 이미지를 생성하고, 미들웨어만큼.
+
+예를 들어 아래 코드는 "Hello, world!"라는 이미지가 생성됩니다.`/greet`.
+
+```typescript
+import React from "react";
+import { ImageResponse } from "@cloudflare/pages-plugin-vercel-og/api";
+
+export const onRequest: PagesFunction = async () => {
+  return new ImageResponse(
+    <div style={{ display: "flex" }}>Hello, world!</div>,
+    {
+      width: 1200,
+      height: 630,
+    }
+  );
+};
+```
+
+이것은 underlying 동일한 API입니다[`@vercel/og`회사연혁](https://vercel.com/docs/concepts/functions/edge-functions/og-image-generation/og-image-api)제품 정보

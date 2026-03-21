@@ -1,0 +1,122 @@
+---
+pcx_content_type: get-started
+title: 시작하기
+reviewed: 2024-06-19T00:00:00.000Z
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Details,
+	DirectoryListing,
+	LinkButton,
+	Render,
+	TabItem,
+	Tabs,
+	Badge,
+} from "~/components";
+import CodeSnippets from "~/components/ai-gateway/code-examples.astro";
+
+이 가이드에서 첫 번째 AI 게이트웨이를 설정하고 사용하는 방법을 배울 수 있습니다.
+
+## 계정 ID 및 인증 토큰 받기
+
+요청하기 전에 두 가지가 필요합니다.
+
+1. 내 계정**계정 ID**— 에서 찾을[Cloudflare 대시보드](/fundamentals/account/find-account-and-zone-ids/).
+2. ·**Cloudflare API 토큰** — [API 토큰 생성](/fundamentals/api/get-started/create-token/)이름 \*`AI Gateway - Read`·`AI Gateway - Edit`이름 \* 아래 예제는 Workers AI를 사용하므로 추가`Workers AI - Read`또한.
+
+## 당신의 첫번째 요구
+
+AI Gateway를 통해 첫 번째 요청을 만들기 위해 다음 명령을 실행하십시오.
+
+```bash
+curl -X POST https://gateway.ai.cloudflare.com/v1/$CLOUDFLARE_ACCOUNT_ID/default/compat/chat/completions \
+  --header "cf-aig-authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "model": "workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is Cloudflare?"
+      }
+    ]
+  }'
+```
+
+:::참조
+AI Gateway는 첫번째 요청에 대한 게이트웨이를 자동으로 생성합니다. 게이트웨이는[인증 및 인증](/ai-gateway/configuration/authentication/)켜기, 그래서`cf-aig-authorization`모든 요청에 대한 헤더가 필요합니다. 기본 게이트웨이가 작동하는 방법에 대한 자세한 내용은 참조[기본 Gateway](/ai-gateway/configuration/manage-gateway/#default-gateway).
+:::
+
+<Details header="자주 묻는 질문">
+  대시보드 또는 API를 통해 사용자 이름과 구성으로 게이트웨이를 수동으로 만들 수도 있습니다.
+
+  <Render file="create-gateway" product="ai-gateway" />
+</Details>
+
+## 공급자 인증
+
+다음 옵션 중 하나를 사용하여 업스트림 AI 공급자와 인증:
+
+- **자격이 된 청구:**&#x41;I Gateway 청구를 사용하여 결제 및 출국 요청을 인증합니다. 더 알아보기[통합 빌링](/ai-gateway/features/unified-billing/).
+- **BYOK (상점 열쇠):**&#x43;loudflareXQ와 자체 제공 업체 API 키 저장, AI 게이트웨이는 실행 시간에 포함. 더 알아보기[로드 중 ...](/ai-gateway/configuration/bring-your-own-keys/).
+- **요청 헤더:**&#xC77C;반적으로 요청 헤더에서 공급자 API Key를 포함 (예를 들어,`Authorization: Bearer <OPENAI_API_KEY>`).
+
+## 통합 옵션
+
+### 통합 API Endpoint
+
+<Badge text="OpenAI Compatible" variant="tip" size="small" />
+
+<Badge text="Recommended" variant="success" size="small" />
+
+<br />
+
+<br />
+
+AI Gateway를 가진 시작하기XQ에 가장 쉬운 방법은 우리의 OpenAI-compatible를 통해서 입니다`/chat/completions`끝점. 기존 OpenAI SDK와 도구를 사용하여 최소한의 코드 변경으로 여러 AI 공급자에 액세스할 수 있습니다.
+
+`https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/compat/chat/completions`
+
+**주요 이점:**
+
+- OpenAI API에 대한 드롭 인 교체, 기존 OpenAI SDK 및 기타 OpenAI 호환 클라이언트와 함께 작동
+- 공급자 간의 전환`model`이름 \*
+- 동적 루팅 - 조건 논리를 요구하는 복잡한 라우팅 시나리오를 정의하고 A / B 테스트를 수행하고, 설정 속도 / 예산 제한 등을 설정
+
+#### 예:
+
+<CodeSnippets forceAPI="unified" />
+
+더 알아보기[통합 API](/ai-gateway/usage/chat-completion/)OpenAI 호환성에 대해 자세히 알아보세요.
+
+### 공급자 별점
+
+특정 AI 공급자와 직접적인 통합을 위해, AI Gateway 특징을 추가하는 동안 본래 공급자의 API schema를 유지하는 전용 엔드포인트를 사용하십시오.
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/{provider}
+```
+
+**유효한 공급자:**
+
+- [오시는 길](/ai-gateway/usage/providers/openai/)- GPT 모델 및 embeddings
+- [인기 카테고리](/ai-gateway/usage/providers/anthropic/)- 클로드 모델
+- [Google AI 스튜디오](/ai-gateway/usage/providers/google-ai-studio/)- Gemini 모델
+- [모델 번호: Workers AI](/ai-gateway/usage/providers/workersai/)- Cloudflare의 의도 플랫폼
+- [AWS 베드 락](/ai-gateway/usage/providers/bedrock/)- Amazon의 관리 AI 서비스
+- [Azure 오픈AI](/ai-gateway/usage/providers/azureopenai/)- Microsoft의 OpenAI 서비스
+- [더 보기](/ai-gateway/usage/providers/)
+
+## 다음 단계
+
+- 더 알아보기[뚱 베어](/ai-gateway/features/caching/)빠른 요청 및 비용 절감 및[비율 제한](/ai-gateway/features/rate-limiting/)애플리케이션 스케일을 제어하는 방법.
+- 모델 또는 공급자를 지정하는 방법[fallbacks, ratelimits, A/B 테스트](/ai-gateway/features/dynamic-routing/)resiliency를 위해.
+- 저비용, 오픈 소스 모델을 사용하는 방법을 알아보세요.[모델 번호: Workers AI](/ai-gateway/usage/providers/workersai/)- 우리의 AI inference 서비스.

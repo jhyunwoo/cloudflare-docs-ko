@@ -1,0 +1,145 @@
+---
+title: '모델 번호: Workers AI'
+pcx_content_type: configuration
+tags:
+  - AI
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/usage/providers/workersai/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/usage/providers/workersai/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TypeScriptExample } from "~/components";
+
+분석, 캐싱 및 보안에 대한 AI Gateway 사용[모델 번호: Workers AI](/workers-ai/). Workers AI는 AI Gateway와 완벽하게 통합되어 API 요청을 통해 AI inference를 실행하거나 Workers 스크립트에 대한 환경 바인딩을 통해 수행 할 수 있습니다. 바인딩은 최소한의 설정으로 AI Gateway를 통해 routing 요청으로 프로세스를 단순화합니다.
+
+## 자주 묻는 질문
+
+Workers AIXQ에 요청을 만들 때 다음을 가지고 있습니다.
+
+- AI Gateway 계정 ID.
+- AI Gateway 게이트웨이 이름.
+- 활성 Workers AI API 토큰.
+- 사용하려는 Workers AI 모델의 이름.
+
+## REST API를
+
+REST API와 상호 작용하려면 요청에 사용되는 URL을 업데이트하십시오.
+
+- **이름 \***:
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_id}
+```
+
+- **- 한국어**:
+
+```txt
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/workers-ai/{model_id}
+```
+
+이 모수를 위해:
+
+- `{account_id}`Cloudflare[계정 ID](/workers-ai/get-started/rest-api/#1-get-api-token-and-account-id).
+- `{gateway_id}`기존의 이름을 말합니다.[AI 게이트웨이](/ai-gateway/get-started/#create-gateway).
+- `{model_id}`모델 ID 참조[Workers AI 모델](/workers-ai/models/).
+
+## 이름 \*
+
+첫째, 생성[API 토큰](/fundamentals/api/get-started/create-token/)이름 \*`Workers AI Read`접근하고 당신의 요구에 그것을 사용하십시오.
+
+```bash title="Request to Workers AI llama model"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/workers-ai/@cf/meta/llama-3.1-8b-instruct \
+ --header 'Authorization: Bearer {cf_api_token}' \
+ --header 'Content-Type: application/json' \
+ --data '{"prompt": "What is Cloudflare?"}'
+```
+
+```bash title="Request to Workers AI text classification model"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/workers-ai/@cf/huggingface/distilbert-sst-2-int8 \
+  --header 'Authorization: Bearer {cf_api_token}' \
+  --header 'Content-Type: application/json' \
+  --data '{ "text": "Cloudflare docs are amazing!" }'
+```
+
+### OpenAI 호환 엔드포인트
+
+<Render file="openai-compatibility" product="workers-ai" />
+
+<br />
+
+```bash title="Request to OpenAI compatible endpoint"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/workers-ai/v1/chat/completions \
+ --header 'Authorization: Bearer {cf_api_token}' \
+ --header 'Content-Type: application/json' \
+ --data '{
+      "model": "@cf/meta/llama-3.1-8b-instruct",
+      "messages": [
+        {
+          "role": "user",
+          "content": "What is Cloudflare?"
+        }
+      ]
+    }
+'
+```
+
+## Workers 바인딩
+
+Workers AI를 AI Gateway로 통합할 수 있습니다. 노동자 내에서 AI 게이트웨이를 포함하려면 Workers AI 요청의 객체로 게이트웨이를 추가하십시오.
+
+<TypeScriptExample>
+  ```ts
+  export interface Env {
+  	AI: Ai;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const response = await env.AI.run(
+  			"@cf/meta/llama-3.1-8b-instruct",
+  			{
+  				prompt: "Why should you use Cloudflare for your AI inference?",
+  			},
+  			{
+  				gateway: {
+  					id: "{gateway_id}",
+  					skipCache: false,
+  					cacheTtl: 3360,
+  				},
+  			},
+  		);
+  		return new Response(JSON.stringify(response));
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+Workers AI를 통합하는 상세 단계별 가이드를 위해 바인딩을 사용하여 AI Gateway를 사용하여[AI Gateway의 통합](/ai-gateway/integrations/aig-workers-ai-binding/).
+
+Workers AI는 AI 출입구를 위한 뒤에 오는 모수를 지원합니다:
+
+- `id`이름 \*
+  - 이름 \*[AI 게이트웨이](/ai-gateway/get-started/#create-gateway). 당신의 노동자와 동일한 계정에 있어야합니다.
+- `skipCache`boolean(기본값: false)
+  - 요청이 있는지 제어[캐시 건너뛰기](/ai-gateway/features/caching/#skip-cache-cf-aig-skip-cache).
+- `cacheTtl`이름 \*
+  - 제어하기[캐시 TTL](/ai-gateway/features/caching/#cache-ttl-cf-aig-cache-ttl).
+
+<Render
+  file="chat-completions-providers"
+  product="ai-gateway"
+  params={{
+  	name: "Workers AI",
+  	jsonexample: `
+{
+  "model": "workers-ai/{model}"
+}`
+
+  }}
+/>

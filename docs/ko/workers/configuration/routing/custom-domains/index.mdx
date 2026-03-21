@@ -1,0 +1,213 @@
+---
+pcx_content_type: concept
+title: 사용자 정의 도메인
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/routing/custom-domains/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, DashButton, Steps } from "~/components";
+
+## 이름 \*
+
+사용자 정의 도메인은 DNS 설정으로 변경하거나 인증서 관리를 수행하지 않고 도메인 또는 하위 도메인에 직장인을 연결할 수 있습니다. 작업자에 대한 사용자 정의 도메인을 설정 한 후, Cloudflare는 DNS 레코드를 생성하고 대신 필요한 인증서를 발급합니다. 생성된 DNS 레코드는 작업자에게 직접 포인트를 부여합니다. 이름 \*[오시는 길](/workers/configuration/routing/routes/#set-up-a-route), Custom Domains point all paths of the domain or subdomain to your Worker.
+
+Custom Domains는 도메인 또는 하위 도메인(예:`example.com`또는`shop.example.com`) 노동자가 근원인 Cloudflare 지역 안에.
+
+사용자 정의 도메인은 인터넷에 노동자를 연결하고 항상 의사 소통하고 싶은 응용 서버가없는 경우 권장됩니다. 외부 의존도가 있는 경우,`Request`대상 URI와 객체, 사용`fetch()`관련 기사
+
+사용자 정의 도메인은 서로의 상단에 쌓을 수 있습니다. 예를 들어, Worker A가 첨부된 경우`app.example.com`Worker B에 부착`api.example.com`, 노동자 A는 전화를 할 수 있습니다`fetch()`에 의해`api.example.com`그리고 invoke 노동자 B.
+
+![사용자 정의 도메인은 다른 사람의 상단에 스택 할 수 있습니다, 어떤 외부 의존도와 같은](~/assets/images/workers/learning/custom-domains-subrequest.png)
+
+사용자 정의 도메인은 동일한 영역 내에서 호출 할 수 있습니다.`fetch()`, 노선과는 달리.
+
+## 사용자 정의 도메인 추가
+
+Custom Domain을 추가하려면 다음을해야합니다.
+
+1. 이름 \*[활동적인 Cloudflare 지역](/dns/zone-setups/).
+2. invoke에 노동자.
+
+사용자 정의 도메인은 Cloudflare dashboard,[Wrangler](/workers/configuration/routing/custom-domains/#set-up-a-custom-domain-in-your-wrangler-configuration-file)또는[사이트맵](/api/resources/workers/subresources/domains/methods/list/).
+
+:::카트로션
+
+기존의 CNAME DNS 레코드와 호스트 이름에 Custom Domain을 만들 수 없습니다.
+
+:::
+
+### dashboard에서 사용자 정의 도메인 설정
+
+dashboard에서 사용자 정의 도메인을 설정하려면:
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+     <DashButton url="/?to=/:account/workers-and-pages" />
+
+  2. 내 계정**제품정보**, 당신의 노동자를 선정하십시오.
+
+  3. 오시는 길**계정 설정** > **도메인 및 경로** > **더 보기** > **주문 영역**.
+
+  4. 작업자의 구성을 원하는 도메인을 입력합니다.
+
+  5. 제품정보**사용자 정의 도메인**.
+</Steps>
+
+도메인 또는 하위 도메인을 추가 한 후 Cloudflare는 새로운 DNS 레코드를 만들 것입니다. 여러 사용자 정의 도메인을 추가 할 수 있습니다.
+
+### Wrangler 설정 파일에서 사용자 정의 도메인 설정
+
+사용자 정의 도메인을 구성하려면[Wrangler 구성 파일](/workers/wrangler/configuration/), 추가`custom_domain=true`각 패턴에 옵션`routes`. 예를 들어, Custom Domain 구성:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "shop.example.com",
+  			"custom_domain": true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+여러 사용자 정의 도메인을 구성하려면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "shop.example.com",
+  			"custom_domain": true
+  		},
+  		{
+  			"pattern": "shop-two.example.com",
+  			"custom_domain": true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## Worker 커뮤니케이션
+
+같은 영역에서 노동자를위한 유일한 방법은 다른 노동자와 통신하기 위해[오시는 길](/workers/configuration/routing/routes/#set-up-a-route), 또는 에[`workers.dev`](/workers/configuration/routing/routes/#_top)subdomain는, 입니다[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/).
+
+같은 영역에서 노동자가 경로보다는 사용자 정의 도메인에서 실행하는 대상 노동자와 통신하려고하면 제한이 제거됩니다. Fetch 요청은 Custom Domain에서 실행하는 다른 Worker에서 동일한 영역에 전송됩니다.
+
+예를 들어, Workers가 실행되는 다음과 같은 시나리오를 고려하십시오.`example.com`Cloudflare 지역:
+
+- `worker-a`계속하기[오시는 길](/workers/configuration/routing/routes/#set-up-a-route) `auth.example.com/*`.
+- `worker-b`계속하기[오시는 길](/workers/configuration/routing/routes/#set-up-a-route) `shop.example.com/*`.
+
+이름 \*`worker-a`fetch 요청을 보냅니다.`worker-b`, 요청은 동일 지역 fetch 요청에 제한 때문에 실패합니다.`worker-a`서비스 바인딩이 있어야 합니다.`worker-b`이 요청을 해결합니다.
+
+```js title="worker-a" {4}
+export default {
+	fetch(request) {
+		//이 실패
+		return fetch("https://shop.example.com")
+	}
+}
+```
+
+그러나,`worker-b`Custom Domain에서 실행하는 대신 설정되었습니다.`shop.example.com`, fetch 요구는 성공할 것입니다.
+
+## 자주 묻는 질문
+
+Custom Domains는 지원하지 않습니다[wildcard DNS 레코드](/dns/manage-dns-records/reference/wildcard-dns-records/). 수신 요청은 도메인 또는 사용자 정의 도메인의 하위 도메인에 정확히 일치해야합니다. URL의 다른 부분 (경로, 쿼리 매개 변수)는 이 일치하는 논리를 실행할 때 고려되지 않습니다. 예를 들어 Custom Domain을 만들면`api.example.com`내 계정`api-gateway`노동자, 어느 것에 요구`api.example.com/login`또는`api.example.com/user`같은 것`api-gateway`작업자.
+
+![Custom Domains는 표준 DNS 주문 및 일치 논리를 따릅니다](~/assets/images/workers/platform/triggers/custom-domains-api-gateway.png)
+
+## 루트와의 상호 작용
+
+Custom Domain에서 실행되는 노동자는 근원으로 대우됩니다. 어떤 Workers는 당신의 주문 도메인의 앞에 노선에 달리는 것은 선택적으로 당신의 주문 도메인에 등록한 노동자에게 부릅니다`fetch(request)`자주 묻는 질문`Request`객체. 즉, Workers를 설정할 수 있으므로 요청이 사용자 정의 도메인 작업자에게 가져옵니다. 다른 말에서는, 당신은 동일한 요구에 있는 2개의 Workers를 함께 사슬을 수 있습니다.
+
+예를 들어 다음 작업 흐름을 고려하십시오.
+
+1. A 사용자 정의 도메인`api.example.com`계정 만들기`api-worker`작업자.
+2. 추가 경로`api.example.com/auth`계정 만들기`auth-worker`작업자.
+3. 자주 묻는 질문`api.example.com/auth`트리거하기`auth-worker`작업자.
+4. 사용 방법`fetch(request)`내 계정`auth-worker`노동자는 invoke`api-worker`작업자, 그것이 일반 응용 서버인지.
+
+```js title="auth-worker" {8}
+export default {
+	fetch(request) {
+		const url = new URL(request.url)
+		if(url.searchParams.get("auth") !== "SECRET_TOKEN") {
+			return new Response(null, { status: 401 })
+		} else {
+			//이것은 `api-worker`
+			return fetch(request)
+		}
+	}
+}
+```
+
+## 인증서
+
+Custom Domain 생성도[고급 인증서](/ssl/edge-certificates/advanced-certificate-manager/)대상 호스트 이름의 대상 영역에.
+
+이 인증서는 기본 설정으로 생성됩니다. 이러한 설정을 삭제하려면 생성 된 인증서를 삭제하고 Cloudflare QXdashboardXQ에서 자신의 인증서를 만듭니다. 더 알아보기[고급 인증서 관리](/ssl/edge-certificates/advanced-certificate-manager/manage-certificates/)자주 묻는 질문
+
+## 노선에서
+
+현재 직장인에게 보내는 경우[오시는 길](/workers/configuration/routing/routes/)이름 \*`/*`, 당신은 CNAME 레코드 지적`100::`또는 유사, 사용자 정의 도메인은 권장 대체입니다.
+
+### dashboard를 통해 루트에서 마이그레이션
+
+경로의 마이그레이션`example.com/*`:
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**DNS 기록**귀하의 도메인에 대한 페이지.
+
+     <DashButton url="/?to=/:account/:zone/dns/records" />
+
+  2. CNAME 레코드 삭제`example.com`.
+
+  3. 오시는 길**계정 홈** > **Workers & Pages**.
+
+  4. 내 계정**제품정보**, 당신의 노동자를 선정 >**계정 설정** > **도메인 및 경로**.
+
+  5. 제품정보**더 보기** > **회사 소개**그리고 추가`example.com`.
+
+  6. 경로 삭제`example.com/*`당신의 노동자에 위치 >**계정 설정** > **도메인 및 경로**.
+</Steps>
+
+### Wrangler를 통해 경로에서 마이그레이션
+
+경로의 마이그레이션`example.com/*`내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<Steps>
+  1. Cloudflare QXdashboard에서, 갑니다**DNS 기록**귀하의 도메인에 대한 페이지.
+
+     <DashButton url="/?to=/:account/:zone/dns/records" />
+
+  2. CNAME 레코드 삭제`example.com`.
+
+  3. Wrangler 파일에 다음을 추가하십시오:
+
+     <WranglerConfig>
+       ```jsonc
+       {
+         "routes": [
+           {
+             "pattern": "example.com",
+             "custom_domain": true
+           }
+         ]
+       }
+       ```
+     </WranglerConfig>
+
+  4. 지원하다`npx  wrangler deploy`Custom Domain을 만들려면 Worker가 실행됩니다.
+</Steps>

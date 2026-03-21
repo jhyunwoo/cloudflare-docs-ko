@@ -1,0 +1,484 @@
+---
+title: 기존 프로젝트에 추가하기
+pcx_content_type: how-to
+sidebar:
+  order: 2
+---
+
+import {
+	PackageManagers,
+	TypeScriptExample,
+	WranglerConfig,
+	LinkCard,
+} from "~/components";
+
+이 가이드는 기존 Cloudflare Workers 프로젝트에 agents를 추가하는 방법을 보여 줍니다. 새로 시작하는 경우에는 대신 [채팅 에이전트 만들기](/agents/getting-started/build-a-chat-agent/)를 참고하세요.
+
+## 사전 준비
+
+- Wrangler configuration file이 있는 기존 Cloudflare Workers 프로젝트
+- Node.js 18 이상
+
+## 1. 패키지 설치
+
+<PackageManagers pkg="agents" />
+
+React 애플리케이션의 경우 추가 패키지가 필요 없습니다. React bindings가 포함되어 있습니다.
+
+Hono 애플리케이션의 경우:
+
+<PackageManagers pkg="agents hono-agents" />
+
+## 2. Agent 만들기
+
+agent용 새 파일(예: `src/agents/counter.ts`)을 만듭니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent, callable } from "agents";
+
+export type CounterState = {
+	count: number;
+};
+
+export class CounterAgent extends Agent<Env, CounterState> {
+	initialState: CounterState = { count: 0 };
+
+	@callable()
+	increment() {
+		this.setState({ count: this.state.count + 1 });
+		return this.state.count;
+	}
+
+	@callable()
+	decrement() {
+		this.setState({ count: this.state.count - 1 });
+		return this.state.count;
+	}
+}
+```
+
+</TypeScriptExample>
+
+## 3. Wrangler configuration 업데이트
+
+Durable Object binding과 migration을 추가합니다.
+
+<WranglerConfig>
+
+```jsonc
+{
+	"name": "my-existing-project",
+	"main": "src/index.ts",
+	"compatibility_date": "$today",
+	"compatibility_flags": ["nodejs_compat"],
+
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CounterAgent",
+				"class_name": "CounterAgent",
+			},
+		],
+	},
+
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["CounterAgent"],
+		},
+	],
+}
+```
+
+</WranglerConfig>
+
+**핵심 포인트:**
+
+- bindings의 `name`은 `env`의 속성 이름이 됩니다(예: `env.CounterAgent`)
+- `class_name`은 export한 클래스 이름과 정확히 일치해야 합니다
+- `new_sqlite_classes`는 상태 영속화를 위한 SQLite storage를 활성화합니다
+- `nodejs_compat` 플래그는 agents 패키지에 필요합니다
+
+## 4. Agent class export하기
+
+agent class는 메인 entry point에서 export되어야 합니다. `src/index.ts`를 다음처럼 업데이트하세요.
+
+<TypeScriptExample>
+
+```ts
+// Export the agent class (required for Durable Objects)
+export { CounterAgent } from "./agents/counter";
+
+// Your existing exports...
+export default {
+	// ...
+} satisfies ExportedHandler<Env>;
+```
+
+</TypeScriptExample>
+
+## 5. 라우팅 연결
+
+프로젝트 구조에 맞는 방식을 선택하세요.
+
+### Plain Workers (fetch handler)
+
+<TypeScriptExample>
+
+```ts
+import { routeAgentRequest } from "agents";
+export { CounterAgent } from "./agents/counter";
+
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		// Try agent routing first
+		const agentResponse = await routeAgentRequest(request, env);
+		if (agentResponse) return agentResponse;
+
+		// Your existing routing logic
+		const url = new URL(request.url);
+		if (url.pathname === "/api/hello") {
+			return Response.json({ message: "Hello!" });
+		}
+
+		return new Response("Not found", { status: 404 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+</TypeScriptExample>
+
+### Hono
+
+<TypeScriptExample>
+
+```ts
+import { Hono } from "hono";
+import { agentsMiddleware } from "hono-agents";
+export { CounterAgent } from "./agents/counter";
+
+const app = new Hono<{ Bindings: Env }>();
+
+// Add agents middleware - handles WebSocket upgrades and agent HTTP requests
+app.use("*", agentsMiddleware());
+
+// Your existing routes continue to work
+app.get("/api/hello", (c) => c.json({ message: "Hello!" }));
+
+export default app;
+```
+
+</TypeScriptExample>
+
+### 정적 자산과 함께 사용
+
+정적 자산을 agents와 함께 서비스한다면, 기본적으로 정적 자산이 먼저 제공됩니다. Worker 코드는 정적 자산과 일치하지 않는 경로에 대해서만 실행됩니다.
+
+<TypeScriptExample>
+
+```ts
+import { routeAgentRequest } from "agents";
+export { CounterAgent } from "./agents/counter";
+
+export default {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext) {
+		// Static assets are served automatically before this runs
+		// This only handles non-asset requests
+
+		// Route to agents
+		const agentResponse = await routeAgentRequest(request, env);
+		if (agentResponse) return agentResponse;
+
+		return new Response("Not found", { status: 404 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+</TypeScriptExample>
+
+Wrangler configuration file에서 assets를 구성하세요.
+
+<WranglerConfig>
+
+```jsonc
+{
+	"assets": {
+		"directory": "./public",
+	},
+}
+```
+
+</WranglerConfig>
+
+## 6. TypeScript types 생성
+
+`Env` interface를 손으로 작성하지 마세요. [`wrangler types`](/workers/wrangler/commands/#types)를 실행해 Wrangler configuration과 일치하는 타입 정의 파일을 생성해야 합니다. 이렇게 하면 배포 시점이 아니라 컴파일 시점에 config와 code의 불일치를 잡을 수 있습니다.
+
+binding을 추가하거나 이름을 바꿀 때마다 `wrangler types`를 다시 실행하세요.
+
+```sh
+npx wrangler types
+```
+
+이 명령은 agent Durable Object namespaces를 포함해 모든 bindings가 타입 지정된 type definition file을 만듭니다. `Agent` 클래스는 기본적으로 생성된 `Env` type을 사용하므로, 보통 `extends Agent`만으로 충분하며 state를 위한 두 번째 type parameter가 필요할 때만 `Agent<Env, CounterState>`처럼 명시하면 됩니다.
+
+자세한 내용은 [Configuration](/agents/api-reference/configuration/#generating-types)을 참고하세요.
+
+## 7. frontend에서 연결
+
+### React
+
+<TypeScriptExample>
+
+```tsx
+import { useState } from "react";
+import { useAgent } from "agents/react";
+import type { CounterAgent, CounterState } from "./agents/counter";
+
+function CounterWidget() {
+	const [count, setCount] = useState(0);
+
+	const agent = useAgent<CounterAgent, CounterState>({
+		agent: "CounterAgent",
+		onStateUpdate: (state) => setCount(state.count),
+	});
+
+	return (
+		<>
+			{count}
+			<button onClick={() => agent.stub.increment()}>+</button>
+			<button onClick={() => agent.stub.decrement()}>-</button>
+		</>
+	);
+}
+```
+
+</TypeScriptExample>
+
+### Vanilla JavaScript
+
+<TypeScriptExample>
+
+```ts
+import { AgentClient } from "agents/client";
+
+const agent = new AgentClient({
+	agent: "CounterAgent",
+	name: "user-123", // Optional: unique instance name
+	onStateUpdate: (state) => {
+		document.getElementById("count").textContent = state.count;
+	},
+});
+
+// Call methods
+document.getElementById("increment").onclick = () => agent.call("increment");
+```
+
+</TypeScriptExample>
+
+## 여러 agents 추가하기
+
+더 많은 agents를 추가하려면 configuration을 확장하세요.
+
+<TypeScriptExample>
+
+```ts
+// src/agents/chat.ts
+export class Chat extends Agent {
+	// ...
+}
+
+// src/agents/scheduler.ts
+export class Scheduler extends Agent {
+	// ...
+}
+```
+
+</TypeScriptExample>
+
+Wrangler configuration file을 업데이트합니다.
+
+<WranglerConfig>
+
+```jsonc
+{
+	"durable_objects": {
+		"bindings": [
+			{ "name": "CounterAgent", "class_name": "CounterAgent" },
+			{ "name": "Chat", "class_name": "Chat" },
+			{ "name": "Scheduler", "class_name": "Scheduler" },
+		],
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["CounterAgent", "Chat", "Scheduler"],
+		},
+	],
+}
+```
+
+</WranglerConfig>
+
+entry point에서 모든 agent를 export하세요.
+
+<TypeScriptExample>
+
+```ts
+export { CounterAgent } from "./agents/counter";
+export { Chat } from "./agents/chat";
+export { Scheduler } from "./agents/scheduler";
+```
+
+</TypeScriptExample>
+
+## Common integration patterns
+
+### 인증 뒤에 agents 두기
+
+agents로 라우팅하기 전에 auth를 검사합니다.
+
+<TypeScriptExample>
+
+```ts
+export default {
+	async fetch(request: Request, env: Env) {
+		// Check auth for agent routes
+		if (request.url.includes("/agents/")) {
+			const authResult = await checkAuth(request, env);
+			if (!authResult.valid) {
+				return new Response("Unauthorized", { status: 401 });
+			}
+		}
+
+		const agentResponse = await routeAgentRequest(request, env);
+		if (agentResponse) return agentResponse;
+
+		// ... rest of routing
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+</TypeScriptExample>
+
+### 사용자 지정 agent path prefix
+
+기본적으로 agents는 `/agents/{agent-name}/{instance-name}`에 라우팅됩니다. 다음처럼 바꿀 수 있습니다.
+
+<TypeScriptExample>
+
+```ts
+import { routeAgentRequest } from "agents";
+
+const agentResponse = await routeAgentRequest(request, env, {
+	prefix: "/api/agents", // Now routes at /api/agents/{agent-name}/{instance-name}
+});
+```
+
+</TypeScriptExample>
+
+CORS, custom instance naming, location hints를 포함한 더 많은 옵션은 [Routing](/agents/api-reference/routing/)을 참고하세요.
+
+### 서버 코드에서 agents 접근
+
+Worker 코드에서 직접 agents와 상호작용할 수 있습니다.
+
+<TypeScriptExample>
+
+```ts
+import { getAgentByName } from "agents";
+
+export default {
+	async fetch(request: Request, env: Env) {
+		if (request.url.endsWith("/api/increment")) {
+			// Get a specific agent instance
+			const counter = await getAgentByName(env.CounterAgent, "shared-counter");
+			const newCount = await counter.increment();
+			return Response.json({ count: newCount });
+		}
+		// ...
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+</TypeScriptExample>
+
+## Troubleshooting
+
+### Agent not found 또는 404 오류
+
+1. **export 확인** - Agent class는 메인 entry point에서 export되어야 합니다.
+2. **binding 확인** - Wrangler configuration file의 `class_name`은 export된 class 이름과 정확히 일치해야 합니다.
+3. **route 확인** - 기본 route는 `/agents/{agent-name}/{instance-name}`입니다.
+
+### No such Durable Object class error
+
+Wrangler configuration file에 migration을 추가하세요.
+
+<WranglerConfig>
+
+```jsonc
+{
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["YourAgentClass"],
+		},
+	],
+}
+```
+
+</WranglerConfig>
+
+### WebSocket 연결 실패
+
+라우팅 결과를 그대로 반환하고 있는지 확인하세요.
+
+<TypeScriptExample>
+
+```ts
+// Correct - return the response directly
+const agentResponse = await routeAgentRequest(request, env);
+if (agentResponse) return agentResponse;
+
+// Wrong - this breaks WebSocket connections
+if (agentResponse) return new Response(agentResponse.body);
+```
+
+</TypeScriptExample>
+
+### 상태가 유지되지 않음
+
+다음을 확인하세요.
+
+1. `this.state`를 직접 수정하지 말고 `this.setState()`를 사용하고 있는지
+2. agent class가 migrations의 `new_sqlite_classes`에 포함되어 있는지
+3. 동일한 agent instance name에 연결하고 있는지
+
+## 다음 단계
+
+<LinkCard
+	title="State management"
+	href="/agents/api-reference/store-and-sync-state/"
+	description="agent 상태를 관리하고 동기화합니다."
+/>
+
+<LinkCard
+	title="Schedule tasks"
+	href="/agents/api-reference/schedule-tasks/"
+	description="백그라운드 작업과 cron jobs."
+/>
+
+<LinkCard
+	title="Agent class internals"
+	href="/agents/concepts/agent-class/"
+	description="전체 lifecycle 및 methods reference."
+/>
+
+<LinkCard
+	title="Agents API"
+	href="/agents/api-reference/agents-api/"
+	description="Agents SDK 전체 API 레퍼런스."
+/>

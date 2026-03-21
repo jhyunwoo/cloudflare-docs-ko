@@ -1,0 +1,101 @@
+---
+summary: Query D1 from the Hono web framework
+tags:
+  - Hono
+pcx_content_type: example
+title: 호노에서 질문 D1
+sidebar:
+  order: 3
+description: Query D1 Hono 웹 프레임 워크에서
+reviewed: 2023-07-10T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/examples/d1-and-hono/'
+translation_source_md: 'https://developers.cloudflare.com/d1/examples/d1-and-hono/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+Hono는 API-first 응용 프로그램을 구축하기위한 빠른 웹 프레임 워크이며, 모두를위한 일류 지원이 포함되어 있습니다.[Workers](/workers/)·[Pages](/pages/).
+
+Workers를 사용하는 경우:
+
+- 설정할 수 있습니다.[Wrangler 구성 파일](/d1/get-started/#3-bind-your-worker-to-your-d1-database)D1 데이터베이스를 작업자에게 바인딩하십시오.
+- 당신은 Hono 's를 통해 D1 데이터베이스에 액세스 할 수 있습니다[`Context`](https://hono.dev/api/context)모수:[관련 제품](https://hono.dev/getting-started/cloudflare-workers#bindings)관련 상품`context.env`. 구성하면[관련 제품](/pages/functions/bindings/#d1-databases)이름 \*`DB`, 다음 액세스 할 것[D1 Workers 바인딩 API](/d1/worker-api/prepared-statements/)방법 via`c.env.DB`.
+- Hono 문서에 대한 참조[CloudflareWorkers](https://hono.dev/getting-started/cloudflare-workers).
+
+자주 묻는 질문[Pages 기능](/pages/functions/):
+
+1. Bind a D1 데이터베이스로[Pages 기능](/pages/functions/bindings/#d1-databases).
+2. 패스워드`--d1 BINDING_NAME=DATABASE_ID`본문 바로가기`wrangler dev`현지 개발`BINDING_NAME`코드에 어떤 통화를 일치해야하며,`DATABASE_ID`일치해야`database_id`Wrangler 윤곽 파일에서 정의하는: 예를 들면,`--d1 DB=xxxx-xxxx-xxxx-xxxx-xxxx`.
+3. Hono 가이드 참조[CloudflarePages](https://hono.dev/getting-started/cloudflare-pages).
+
+다음 예제는 D1 데이터베이스에 액세스하는 방법을 보여줍니다.`DB`Workers 스크립트와 Pages 기능 모두에서:
+
+<Tabs>
+  <TabItem label="이름 *">
+    ```ts
+    import { Hono } from "hono";
+
+    //c.env.DB를 올바르게 입력합니다.
+    type Bindings = {
+    	DB: D1Database;
+    };
+
+    const app = new Hono<{ Bindings: Bindings }>();
+
+    //접근 D1는 c.env.YOUR BINDING 재산을 통해 입니다
+    app.get("/query/users/:id", async (c) => {
+    	const userId = c.req.param("id");
+    	try {
+    		let { results } = await c.env.DB.prepare(
+    			"SELECT * FROM users WHERE user_id = ?",
+    		)
+    			.bind(userId)
+    			.run();
+    		return c.json(results);
+    	} catch (e) {
+    		return c.json({ err: "Failed to query user" }, 500);
+    	}
+    });
+
+    //Hono 앱 내보내기: Hono 자동 수출
+    //Workers 'fetch' 핸들러
+    export default app;
+    ```
+  </TabItem>
+
+  <TabItem label="이름 *">
+    ```ts
+    import { Hono } from "hono";
+    import { handle } from "hono/cloudflare-pages";
+
+    //c.env.DB를 올바르게 입력합니다.
+    type Bindings = {
+    	DB: D1Database;
+    };
+
+    const app = new Hono<{ Bindings: Bindings }>().basePath("/api");
+
+    //접근 D1는 c.env.YOUR BINDING 재산을 통해 입니다
+    app.get("/query/users/:id", async (c) => {
+    	const userId = c.req.param("id");
+    	try {
+    		let { results } = await c.env.DB.prepare(
+    			"SELECT * FROM users WHERE user_id = ?",
+    		)
+    			.bind(userId)
+    			.run();
+    		return c.json(results);
+    	} catch (e) {
+    		return c.json({ err: "Failed to query user" }, 500);
+    	}
+    });
+
+    //Pages onRequest 함수로 Hono 인스턴스 내보내기
+    export const onRequest = handle(app);
+    ```
+  </TabItem>
+</Tabs>

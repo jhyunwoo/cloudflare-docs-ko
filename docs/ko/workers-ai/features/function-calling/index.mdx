@@ -1,0 +1,181 @@
+---
+pcx_content_type: navigation
+title: 기능 호출
+tags:
+  - LLM
+sidebar:
+  order: 1
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/features/function-calling/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-ai/features/function-calling/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { YouTube, TabItem, Tabs } from "~/components";
+
+함수 호출은 사람들이 큰 언어 모델 (LLMs)을 가져와 외부 API와 기능 또는 상호 작용하는 모델 응답을 사용합니다. 개발자는 일반적으로 함수의 집합과 각 함수의 필요한 입력 schema를 정의합니다.`tools`. 이 모델은 도구 호출을 할 필요가 있을 때 지능적으로 이해되며 사용자가 다른 기능 또는 API로 공급해야 하는 JSON 출력을 반환합니다.
+
+본질적으로, 함수 호출은 LLMs와 행동을 실행하거나 추가 API 호출을 만들 수 있습니다.
+
+<YouTube id="Id5oKCa__IA" />
+
+## 어떻게 함수 호출을 사용할 수 있습니까?
+
+Workers AI는 있습니다[Embedded 함수 호출](/workers-ai/features/function-calling/embedded/)inference 호출과 함께 함수 코드를 실행할 수 있습니다. 우리는 물건을 가지고[`@cloudflare/ai-utils`](https://www.npmjs.com/package/@cloudflare/ai-utils)우리는이를 촉진하는 데 도움이, 우리가 오픈 소스를 가지고[뚱 베어](https://github.com/cloudflare/ai-utils).
+
+업계 표준 기능 호출을 위해, 문서에 대해 살펴[전통적인 기능 Calling](/workers-ai/features/function-calling/traditional/).
+
+임베디드 함수 호출의 값을 표시하려면 임베디드 함수 호출을 호출하는 기존 함수를 비교하고 아래 예제를 살펴보십시오. 임베디드 함수 호출은 77에서 31까지의 코드의 줄을 잘라 허용했습니다.
+
+<Tabs>
+  <TabItem label="제품정보">
+    ```sh
+    #ai-utils 패키지는 임베디드 기능을 호출 할 수 있습니다.
+    npm i @cloudflare/ai-utils
+    ```
+
+    ```js title="Embedded function calling example"
+    import {
+    	createToolsFromOpenAPISpec,
+    	runWithTools,
+    	autoTrimTools,
+    } from "@cloudflare/ai-utils";
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		const response = await runWithTools(
+    			env.AI,
+    			"@hf/nousresearch/hermes-2-pro-mistral-7b",
+    			{
+    				messages: [{ role: "user", content: "Who is Cloudflare on github?" }],
+    				tools: [
+    					//OpenAPI 사양 링크 또는 컨텐츠를 직접 전달할 수 있습니다.
+    					...(await createToolsFromOpenAPISpec(
+    						"https://gist.githubusercontent.com/mchenco/fd8f20c8f06d50af40b94b0671273dc1/raw/f9d4b5cd5944cc32d6b34cad0406d96fd3acaca6/partial_api.github.com.json",
+    						{
+    							overrides: [
+    								{
+    									//*.github.com에 대한 모든 요청을 위해, 우리는 User-Agent를 추가해야합니다.
+    									matcher: ({ url, method }) => {
+    										return url.hostname === "api.github.com";
+    									},
+    									values: {
+    										headers: {
+    											"User-Agent":
+    												"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+    										},
+    									},
+    								},
+    							],
+    						},
+    					)),
+    				],
+    			},
+    		).then((response) => {
+    			return response;
+    		});
+
+    		return new Response(JSON.stringify(response));
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="한국어">
+    ```js title="Traditional function calling example"
+    export default {
+    	async fetch(request, env, ctx) {
+    		const response = await env.AI.run(
+    			"@hf/nousresearch/hermes-2-pro-mistral-7b",
+    			{
+    				messages: [{ role: "user", content: "Who is Cloudflare on GitHub?" }],
+    				tools: [
+    					{
+    						name: "getGithubUser",
+    						description:
+    							"Provides publicly available information about someone with a GitHub account.",
+    						parameters: {
+    							type: "object",
+    							properties: {
+    								username: {
+    									type: "string",
+    									description: "The handle for the GitHub user account.",
+    								},
+    							},
+    							required: ["username"],
+    						},
+    					},
+    				],
+    			},
+    		);
+
+    		const selected_tool = response.tool_calls[0];
+    		let res;
+
+    		if (selected_tool.name == "getGithubUser") {
+    			try {
+    				const username = selected_tool.arguments.username;
+    				const url = `https://api.github.com/users/${username}`;
+    				res = await fetch(url, {
+    					headers: {
+    						//Github API는 User-Agent 헤더를 요구합니다.
+    						"User-Agent":
+    							"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/112.0.0.0 Safari/537.36",
+    					},
+    				}).then((res) => res.json());
+    			} catch (error) {
+    				return error;
+    			}
+    		}
+
+    		const finalResponse = await env.AI.run(
+    			"@hf/nousresearch/hermes-2-pro-mistral-7b",
+    			{
+    				messages: [
+    					{
+    						role: "user",
+    						content: "Who is Cloudflare on GitHub?",
+    					},
+    					{
+    						role: "assistant",
+    						content: JSON.stringify(selected_tool),
+    					},
+    					{
+    						role: "tool",
+    						content: JSON.stringify(res),
+    					},
+    				],
+    				tools: [
+    					{
+    						name: "getGithubUser",
+    						description:
+    							"Provides publicly available information about someone with a GitHub account.",
+    						parameters: {
+    							type: "object",
+    							properties: {
+    								username: {
+    									type: "string",
+    									description: "The handle for the GitHub user account.",
+    								},
+    							},
+    							required: ["username"],
+    						},
+    					},
+    				],
+    			},
+    		);
+    		return new Response(JSON.stringify(finalResponse));
+    	},
+    };
+    ```
+  </TabItem>
+</Tabs>
+
+## 어떤 모델 지원 기능 호출?
+
+함수 호출을 할 수있는 오픈 소스 모델이 있습니다. 자주 묻는 질문[모델 카탈로그](/workers-ai/models/), 그것외 재산을 부르는 기능을 가진 모형을 찾습니다. 예를 들어,[@hf/nousresearch/hermes-2-pro-mistral-7b](/workers-ai/models/hermes-2-pro-mistral-7b/)함수 호출을 사용할 수있는 Mistral 7B의 미세 조정 변형입니다.

@@ -1,0 +1,133 @@
+---
+pcx_content_type: get-started
+title: 기존 TURN 서버를 대체
+sidebar:
+  order: 18
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/turn/replacing-existing/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/turn/replacing-existing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+기존의 TURN 공급자이지만 Cloudflare를 제공하기 위해 전환하려는 경우 고객의 실시간 TURN, 몇 가지 고려 사항이 있습니다.
+
+## 이름 \*
+
+Cloudflare 실시간 TURN 서비스는 TURN 서버와 관련된 tangible 및 untangible 비용을 줄일 수 있습니다.
+
+- 서버 비용 (AWS EC2 등)
+- 대역폭 비용(Egress, Load balancing 등)
+- TURN 프로세스 및 서버 유지 보수를 설정하는 시간과 노력
+- 서버 확장 및 다운
+- TURN 서버를 보안 및 기능 업데이트 유지
+- 높은 가용성을 유지
+
+## Recommend
+
+### TURN 키로 분리된 환경
+
+Cloudflare를 사용하는 경우 가늠자에 순간 TURN 서비스는, TURN 열쇠를 가진 “testing” “staging” 또는 “production”와 같은 분리 환경을 고려합니다. 계정에서 최대 1,000 TURN 키를 만들 수 있습니다. 최종 사용자 자격 증명을 생성하는 데 사용할 수 있습니다.
+
+특정 TURN 키로 만들 수있는 몇 가지 최종 사용자 자격 증명이 제한이 없습니다.
+
+### 사용자 정의 식별자가있는 태그
+
+Cloudflare Realtime TURN 서비스는 다음과 같은 자격 증명을 생성하기 때문에 사용자 정의 식별자를 가진 각 자격 증명을 태그 할 수 있습니다.
+
+```bash null {4}
+curl https://rtc.live.cloudflare.com/v1/turn/keys/$TURN_KEY_ID/credentials/generate \
+--header "Authorization: Bearer $TURN_KEY_API_TOKEN" \
+--header "Content-Type: application/json" \
+--data '{"ttl": 864000, "customIdentifier": "user4523958"}'
+```
+
+이 필드를 사용하여 특정 사용자 또는 사용자 그룹에 대 한 사용 및 분석 수집.
+
+### 감시자 사용법
+
+계정 넓은 사용법을 모니터링 할 수 있습니다.[GraphQL 분석 API](/realtime/turn/analytics/). 이것은 청구 목적을 위한 전반적인 사용법의 추적을 지키기 위하여 유용합니다, 예상치 못한 변화를 보기. TURN 분석에서 timeseries 데이터를 얻을 수 있습니다.
+
+### credential 학대를 위한 감시자
+
+최종 사용자를 가진 TURN 자격 증명을 공유하는 경우, 자격 학대가 가능합니다. 사용자 정의 식별자 및 상단 사용자 정의 식별자를 모니터링하여 각 자격 증명을 태깅하여 학대를 모니터링 할 수 있습니다.[GraphQL 분석 API](/realtime/turn/analytics/).
+
+## TURN 사용법에 대한 청구 최종 사용자 방법
+
+응용 분야에서 TURN 사용 청구 시 TURN 분석에서 적합한 샘플링에 대한 이해와 계정이 중요합니다. 이 시스템은 정확도를 유지하면서 큰 데이터셋을 효율적으로 처리하기 위해 적합한 샘플링을 사용합니다.
+
+TURN 분석의 샘플링 과정은 두 가지 수준에서 작동합니다.
+
+- 데이터 수집 : 사용 데이터 포인트는 신속하게 생성 된 경우 샘플링 될 수 있습니다.
+- 쿼리 시간 : 추가 샘플링은 쿼리가 너무 복잡하거나 큰 시간을 커버하는 경우 발생할 수 있습니다.
+
+정확한 청구를 보장하기 위해, 시간 당 고객 당 TURN 사용법을 합계하는 단 하나 조회를, 단 하나 가치를 돌려보냅니다. 다수 고객을 위한 명부 사용법을 동시에 사용하는 것을 피하십시오.
+
+이 가이드라인을 따르고 TURN 분석 핸들 샘플링을 이해하면 TURN 사용량을 기반으로 최종 사용자들에게 더 정확한 청구를 보장할 수 있습니다.
+
+:::참조
+
+Cloudflare Cloudflare의 서버에서 트래픽에 대한 실시간 만 청구, 호출`egressBytes`.
+
+:::
+
+### 예제 쿼리
+
+:::caution\[확실한 접근 예제]
+
+단일 쿼리에 여러 고객을 위한 TURN 사용은 결과를 inaccurate로 이끌 수 있습니다. 이것은 1개의 고객의 사용법 본이 다른 고객의 자료에 적용된 표본 추출 비율에 영향을 미칠 수 있기 때문에, 잠재적으로 결과를 분쇄하.
+
+:::
+
+```
+query{
+  viewer {
+    usage: accounts(filter: { accountTag: "8846293bd06d1af8c106d89ec1454fe6" }) {
+        callsTurnUsageAdaptiveGroups(
+          filter: {
+          datetimeMinute_gt: "2024-07-15T02:07:07Z"
+          datetimeMinute_lt: "2024-08-10T02:07:05Z"
+        }
+          limit: 100
+          orderBy: [customIdentifier_ASC]
+        ) {
+          dimensions {
+            customIdentifier
+          }
+          sum {
+            egressBytes
+          }
+        }
+      }
+    }
+  }
+```
+
+아래는 단일 고객만을 쿼리하는 쿼리입니다.
+
+```
+query{
+  viewer {
+    usage: accounts(filter: { accountTag: "8846293bd06d1af8c106d89ec1454fe6" }) {
+        callsTurnUsageAdaptiveGroups(
+          filter: {
+          datetimeMinute_gt: "2024-07-15T02:07:07Z"
+          datetimeMinute_lt: "2024-08-10T02:07:05Z"
+          customIdentifier: "myCustomer1111"
+        }
+          limit: 1
+          orderBy: [customIdentifier_ASC]
+        ) {
+          dimensions {
+            customIdentifier
+          }
+          sum {
+            egressBytes
+          }
+        }
+      }
+    }
+  }
+
+```

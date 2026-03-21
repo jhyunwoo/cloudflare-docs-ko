@@ -1,0 +1,78 @@
+---
+title: mTLS 구성하기
+pcx_content_type: how-to
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: mTLS 구성하기
+---
+
+import { Render } from "~/components";
+
+[mTLS authentication](/api-shield/security/mtls/)에서 API hosts를 지정하면, Cloudflare는 mTLS 인증용 [client certificate](/ssl/client-certificates/)가 없는 모든 요청을 차단합니다.
+
+## 사전 준비
+
+mTLS 규칙으로 API 또는 웹 애플리케이션을 보호하기 전에 다음이 필요합니다.
+
+- origin 서버에 설치된 인증서가 client certificate의 호스트명(예: `api.example.com`)과 일치하는지 확인합니다. `*.example.com` 같은 origin 서버 와일드카드 인증서는 지원되지 않습니다.
+- [client certificate를 생성](/ssl/client-certificates/create-a-client-certificate/)합니다.
+- [모바일 앱 또는 IoT device를 구성](/ssl/client-certificates/configure-your-mobile-app-or-iot-device/)해 Cloudflare가 발급한 client certificate를 사용하도록 합니다.
+- zone에서 [host에 대해 mutual Transport Layer Security (mTLS)를 활성화](/ssl/client-certificates/enable-mtls/)합니다.
+
+<Render file="mtls-api-shield-support" product="api-shield" />
+
+:::caution
+
+기본적으로 API Shield mTLS는 Cloudflare가 관리하는 CA가 발급한 client certificates를 사용합니다. 다른 CA가 발급한 인증서를 사용해야 한다면 API를 사용해 [mTLS용 자체 CA 가져오기](/ssl/client-certificates/byo-ca/)를 수행할 수 있습니다.
+:::
+
+## Cloudflare dashboard에서 mTLS 규칙 만들기
+
+<Render file="mtls-create-rule" product="api-shield" />
+
+### Expression Builder
+
+Expression Builder에서 mTLS 규칙을 검토하려면 규칙 옆의 **wrench icon**을 선택하세요.
+
+**Expression Preview**에서 mTLS 규칙은 `and` 연산자로 연결된 두 개의 [simple expressions](/ruleset-engine/rules-language/expressions/#simple-expressions)로 구성된 [compound expression](/ruleset-engine/rules-language/expressions/#compound-expressions)을 포함합니다.
+
+첫 번째 식인 `not cf.tls_client_auth.cert_verified`는 API 또는 웹 애플리케이션에 접근하려는 요청이 유효한 client certificate를 제시하지 않을 때 `true`를 반환합니다.
+
+두 번째 식은 `http.request.uri.path` 필드와 `in` 연산자를 사용해, mTLS 규칙이 적용될 URI paths를 지정합니다.
+
+규칙의 [action](/ruleset-engine/rules-language/actions/)이 _Block_이므로, 유효한 client certificate를 제시하는 요청만 지정된 hosts에 접근할 수 있습니다.
+
+보안을 강화하기 위해 Cloudflare는 검증된 인증서 필드와 함께 issuer Subject Key Identifier(SKI) hash도 검증할 것을 권장합니다. 이렇게 하면 특정 발급자를 가진 유효한 client certificate를 제시한 요청만 허용할 수 있습니다.
+
+이를 위해 다음과 같은 식을 사용할 수 있습니다.
+
+```txt
+not (cf.tls_client_auth.cert_verified and cf.tls_client_auth.cert_issuer_ski eq "A5AC554235DBA6D963B9CDE0185CFAD6E3F55E9F")
+```
+
+`mtls.crt` 파일에 저장된 client certificate의 issuer Subject Key Identifier(SKI) hash를 얻으려면 다음 OpenSSL 명령을 실행하세요.
+
+```sh
+openssl x509 -noout -ext authorityKeyIdentifier -in mtls.crt | tail -n1 | tr -d ': '
+```
+
+```txt output
+A5AC554235DBA6D963B9CDE0185CFAD6E3F55E9F
+```
+
+### 폐기된 인증서 확인
+
+[revoked client certificates](/ssl/client-certificates/revoke-client-certificate/)를 확인하려면 새 mTLS 규칙을 추가하거나 [default rule](#expression-builder)에 새 식을 추가할 수 있습니다. 폐기된 인증서를 확인하려면 Expression Builder를 사용해야 합니다.
+
+요청에 폐기된 인증서가 포함되면 `cf.tls_client_auth.cert_revoked` 필드가 `true`로 설정됩니다. 이를 [default mTLS rule](#expression-builder)과 결합하면 다음과 비슷한 형태가 됩니다.
+
+```sql
+((not cf.tls_client_auth.cert_verified or cf.tls_client_auth.cert_revoked) and http.request.uri.path in {"/admin"})
+```
+
+:::caution
+
+이 검사는 Cloudflare managed CA가 발급한 client certificates에만 적용됩니다. Cloudflare는 현재 [업로드된 CA](/ssl/client-certificates/byo-ca/)에 대해서는 certificate revocation lists(CRL)를 확인하지 않습니다.
+:::

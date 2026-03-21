@@ -1,0 +1,76 @@
+---
+title: BigQuery 데이터를 Workers AI로 섭취
+pcx_content_type: reference-architecture-diagram
+tags:
+  - AI
+products:
+  - d1
+  - kv
+  - r2
+  - vectorize
+  - workers
+  - workers-ai
+sidebar:
+  order: 1
+  label: BigQuery 데이터를 Workers AI로 섭취
+reviewed: 2024-10-26T00:00:00.000Z
+description: >-
+  당신은 Cloudflare를 연결할 수 있습니다 Google BigQuery에서 데이터를 얻으려면 Workers AI로 전달하여 서버리스
+  GPU에 의해 구동되는 AI Models를 실행합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/ai/bigquery-workers-ai/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/ai/bigquery-workers-ai/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+당신은 Cloudflare를 연결할 수 있습니다 Google BigQuery에서 데이터를 얻으려면 Workers AI로 전달하여 서버리스 GPU에 의해 구동되는 AI Models를 실행합니다. 이 문서의 일부 텍스트 또는 생성 태그의 침입 점수를 감지와 같은 AI-generated 응답으로 데이터를 향상시킬 수 있습니다. 이 문서는 시작하기에 간단한 방법을 설명합니다. Workers AI를 시도하고 방법을 참조하십시오.[새로운 다른 AI 모델](/workers-ai/models/)BigQuery에서 호스팅되는 데이터로 수행 할 수 있습니다.
+
+## 사용자 기반 접근
+
+통합의 이 버전은 사용자와 상호 작용을 필요로 하는 워크플로우를 대상으로 하며, 데이터를 가져오거나 ad-hoc 보고서를 생성합니다.
+
+![그림 1: Workers AI (사용자 기반)로 Google BigQuery Data를 섭취](~/assets/images/reference-architecture/bigquery-workers-ai/user-based-architecture.svg "Figure 1: Ingesting Google BigQuery Data into Workers AI (user-based)")
+
+1. 사용자 요청을[작업자](https://workers.cloudflare.com/)끝점. (선택적으로 통합할 수 있는 것[오시는 길](/cloudflare-one/access-controls/policies/)사용자를 인증하기 위해 앞에.
+2. 노동자 fetches[보안 저장](/workers/configuration/secrets/)서비스 키와 같은 Google Cloud Platform 서비스 계정 정보는 JSON Web Token을 생성하여 BigQuery에 API 요청을 발급합니다.
+3. Worker는 BigQuery와 데이터를받습니다.[형식으로 변환](/workers-ai/guides/tutorials/using-bigquery-with-workers-ai/#6-format-results-from-the-query)그것은 Workers AI와 상호 작용할 때 그것을 더 쉽게 만들 것입니다.
+4. 사용방법[기본 통합](/workers-ai/configuration/bindings/)Workers AI로, 노동자는 Cloudflare의 호스팅 AI 모형의 하나에 대하여 그 후에 실행되는 BigQuery에서 자료를 전달합니다.
+5. BigQuery와 AI-generated 정보와 함께하는 원본 데이터는 단계 1에서 시작된 요청에 대한 응답으로 사용자에게 반환됩니다.
+
+## Cron-triggered 접근법
+
+정기적 또는 더 긴 작업 흐름을 위해 일괄 접근 방식을 선택할 수 있습니다. 이 다이어그램은 BigQuery에서 데이터를 사용할 수있는 더 많은 제품을 탐색합니다. 그것은에 의존[Cron 트리거](/workers/configuration/cron-triggers/)개발자 플랫폼에 내장되어 있으며 Workers를 사용할 때 무료로 사용할 수 있습니다.
+
+![그림 2: Workers AI로 구글 BigQuery 데이터를 (건조한)](~/assets/images/reference-architecture/bigquery-workers-ai/scheduled-based-architecture.svg "Figure 2: Ingesting Google BigQuery Data into Workers AI (cron-triggered)")
+
+1. [Cron 트리거](/workers/configuration/cron-triggers/)모든 사용자 상호 작용 없이 Worker를 호출합니다.
+2. 노동자 fetches[보안 저장](/workers/configuration/secrets/)서비스 키와 같은 Google Cloud Platform 서비스 계정 정보는 JSON Web Token을 생성하여 BigQuery에 API 요청을 발급합니다.
+3. Worker는 BigQuery와 데이터를받습니다.[형식으로 변환](/workers-ai/guides/tutorials/using-bigquery-with-workers-ai/#6-format-results-from-the-query)그것은 Workers AI와 상호 작용할 때 그것을 더 쉽게 만들 것입니다.
+4. 사용방법[기본 통합](/workers-ai/configuration/bindings/)Workers AI로, 노동자는 BigQuery에서 데이터를 전달하여 관련 내용을 생성합니다.
+5. 선택적으로 BigQuery 데이터를 저장할 수 있으며 다양한 Cloudflare 서비스에서 AI 생성 된 데이터를 저장할 수 있습니다.
+   - 뚱 베어[모델 번호: D1](/d1/), SQL 데이터베이스.
+   - 단계 4에서 Workers AI를 사용하여 embeddings를 생성합니다.[모델 번호: Vectorize](/vectorize/). 해결책의 이 유형에 관하여 더 많은 것을 배우기 위하여는, 참고 자료 건축 도표를 검토하는 것을 고려하십시오[Retrieval 증강 발생](/reference-architecture/diagrams/ai/ai-rag/).
+   - 으로[Workers KV](/kv/)데이터의 출력이 저장되고 키/값 패션에서 소비되는 경우.
+   - BigQuery와 Workers AI에서 객체(예: 이미지, 파일, JSON 등)로 데이터를 저장하려면 사용할 수 있습니다.[모델 번호: R2](/r2/), 우리의 egress 자유로운 목표 저장은 이렇게 합니다.
+6. 새 결과가 유효하거나 오류가 발생하면 시스템 또는 사용자가 알림을 설정할 수 있습니다. Workers가 이미 추가로 제공 할 수 있다고 언급 할 가치가 있습니다.[관련 상품](/workers/observability/).
+   - 모든 데이터 검색 및 이전 단계에서 생성 된 이메일 보내기[이메일 Routing](/email-routing/email-workers/send-email-workers/).
+   - Workers를 사용하면 HTTP 요청을 발급 할 수 있으므로 프로세스가 완료되면 웹훅 또는 API 엔드 포인트를 삭제하거나 오류가있는 경우.
+
+## 관련 자료
+
+- [자습서: Workers AI를 가진 BigQuery 사용하기](/workers-ai/guides/tutorials/using-bigquery-with-workers-ai/)
+- [Workers AI: 시작하기](/workers-ai/get-started/workers-wrangler/)
+- [Workers: 비밀](/workers/configuration/secrets/)
+- [Workers: 크로스 트리거](/workers/runtime-apis/handlers/scheduled/)
+- [이메일 Routing](/email-routing/email-workers/send-email-workers/)
+- [GCP 서비스 계정 만들기](https://cloud.google.com/iam/docs/service-accounts-create#iam-service-accounts-create-console)
+- [GCP 서비스 계정 키 생성](https://cloud.google.com/iam/docs/keys-create-delete#iam-service-account-keys-create-console)
+- [Retrieval 증강 발생 (RAG) 참고 자료 회사연혁](/reference-architecture/diagrams/ai/ai-rag/)
+- [모델 번호: Vectorize](/vectorize/)
+- [Workers KV](/kv/)
+- [모델 번호: R2](/r2/)
+- [모델 번호: D1](/d1/)

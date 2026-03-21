@@ -1,0 +1,153 @@
+---
+summary: >-
+  Store routing data in Workers KV to route requests across various web servers
+  with Workers
+pcx_content_type: example
+title: 다양한 웹 서버에서 경로 요청
+sidebar:
+  order: 5
+description: Workers KVXQ를 사용하는 방법의 예는 배부된 신청 윤곽 상점을 건설합니다.
+reviewed: 2025-03-27T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/kv/examples/routing-with-workers-kv/'
+translation_source_md: 'https://developers.cloudflare.com/kv/examples/routing-with-workers-kv/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Tabs, TabItem } from "~/components";
+
+Workers KVXQ를 사용하여 WorkersXQX0331XQXQ KVQXKV를 가진 각종 웹 서버의 노선 요구에 여정 자료를 저장하기 위하여 자료를 저장하기 위하여 자료를 저장하는 WorkersXQXQXQXWorkersXQ를 위한 이상적인 사용 케이스입니다. Routing workloads는 높은 읽힌 양 및 Workers KV의 낮은 부족 읽는 것을 도울 수 있습니다 routing 결정은 빠르고 능률적으로 만듭니다.
+
+Routing는 단일 CloudflareXQ로 오는 노선 요구에 도움이 될 수 있습니다 요청의 경로, 호스트 이름 또는 기타 요청 속성을 기반으로 다른 웹 서버에 작업 응용 프로그램입니다.
+
+단일 터미널 애플리케이션에서 비즈니스 도메인을 기반으로 다양한 Origin 서버에 대한 요청을 경로를 사용할 수 있습니다 (예를 들어, 요청에 따라`/admin`관리 서버로 경로,`/store`storefront 서버로의 경로`/api`API 서버로의 경로).
+
+멀티텐트 애플리케이션에서, 요청은 테넌트의 각 소스(예를 들어, 요청을 위해`tenantA.your-worker-hostname.com`Tenant A에 대한 서버로 경로,`tenantB.your-worker-hostname.com`Tenant B의 서버로 이동합니다.
+
+Routing는 또한 실행하기 위하여 사용될 수 있습니다[A/B 테스트](/reference-architecture/diagrams/serverless/a-b-testing-using-workers/),캐나다 배포, 또는[푸른 녹색 배포](https://en.wikipedia.org/wiki/Blue%E2%80%93green_deployment)당신의 자신의 외부 신청을 위해.
+CloudflareWorkersXQXQXQXQ에 완전히 내장된 응용 프로그램의 운하 또는 푸른 녹색 배포를 구현하려는 경우, 참조[Workers 점차적인 배치](/workers/configuration/versions-and-deployments/gradual-deployments/).
+
+## Workers KV를 가진 노선 요구
+
+이 예에서 멀티텐트 전자 상거래 응용 프로그램은 Cloudflare Workers에 내장되어 있습니다. 각 상점 정면은 다른 tenant이고 그것의 자신의 외부 웹 서버가 있습니다.
+우리의 Cloudflare Worker는 storefront ID에 따라 모든 storefronts 및 routing 요청에 대한 모든 요청을 수신하는 책임입니다.
+
+시연의 단순성을 위해, storefront는 storefront ID를 포함하는 경로 요소로 식별됩니다.
+`https://<WORKER_HOSTNAME>/<STOREFRONT_ID>/...`storefront의 URL 패턴입니다. subdomains를 사용하여 실제 시나리오에서 매장을 식별 할 수 있습니다.
+
+<Tabs>
+  <TabItem label="사이트맵">
+    ```js title="index.ts" collapse={17-22, 34-39, 69-73}
+
+    //Workers KVXQ에 저장된 자료를 여정:
+    //키: "storefrontA" | 가치: {"origin": "https://storefrontA-server.example.com"}
+    //키: "storefrontB" | 가치: {"origin": "https://storefrontB-server.example.com"}
+
+    interface Env {
+    ROUTING_CONFIG: KVNamespace;
+    }
+
+    export default {
+      async fetch(request, env, ctx) {
+
+        //경로에서 storefront ID를 추출하는 URL을 파
+        const url = new URL(request.url);
+        const pathParts = url.pathname.split('/').filter(part => part !== '');
+
+        //storefront ID가 경로에 제공되면, 그렇지 않으면 400을 반환
+        if (pathParts.length === 0) {
+          return new Response('Welcome to our multi-tenant platform. Please specify a storefront ID in the URL path.', {
+            status: 400,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        }
+
+        //첫번째 경로 세그먼트에서 storefront ID를 추출
+        const storefrontId = pathParts[0];
+
+        try {
+          //env.ROUTING CONFIG를 사용하여 KV의 저장소 구성을 찾습니다.
+          const storefrontConfig = await env.ROUTING_CONFIG.get<{
+        			origin: string;
+        		}>(storefrontId, {type: "json"});
+
+          //구성이 없는 경우, 404을 반환
+          if (!storefrontConfig) {
+            return new Response(`Storefront "${storefrontId}" not found.`, {
+              status: 404,
+              headers: { 'Content-Type': 'text/plain' }
+            });
+          }
+
+          //Origin 서버에 대한 새로운 URL 구축
+          //전달할 때 경로에서 storefront ID 제거
+          const newPathname = '/' + pathParts.slice(1).join('/');
+          const originUrl = new URL(newPathname, storefrontConfig.origin);
+          originUrl.search = url.search;
+
+          //Origin 서버에 새 요청 만들기
+          const originRequest = new Request(originUrl, {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+            redirect: 'follow'
+          });
+
+          //Origin 서버에 요청 보내기
+          const response = await fetch(originRequest);
+
+        		console.log(response.status)
+
+          //응답을 복제하고 사용자 정의 헤더를 추가
+          const modifiedResponse = new Response(response.body, response);
+          modifiedResponse.headers.set('X-Served-By', 'Cloudflare Worker');
+          modifiedResponse.headers.set('X-Storefront-ID', storefrontId);
+
+          return modifiedResponse;
+
+        } catch (error) {
+          //모든 오류 처리
+          console.error(`Error processing request for storefront ${storefrontId}:`, error);
+          return new Response('An error occurred while processing your request.', {
+            status: 500,
+            headers: { 'Content-Type': 'text/plain' }
+          });
+        }
+
+    }
+    } satisfies ExportedHandler<Env>;
+
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    ```json
+    {
+    	"$schema": "node_modules/wrangler/config-schema.json",
+    	"name": "<ENTER_WORKER_NAME>",
+    	"main": "src/index.ts",
+    	"compatibility_date": "2025-03-03",
+    	"observability": {
+    		"enabled": true
+    	},
+    	"kv_namespaces": [
+    		{
+    			"binding": "ROUTING_CONFIG",
+    			"id": "<YOUR_BINDING_ID>"
+    		}
+    	]
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+이 예에서 Cloudflare Worker는 요청을 받고 URL 경로에서 storefront ID를 추출합니다.
+storefront ID는 Workers KV에서 원래 서버 URL을 찾는 데 사용됩니다.`get()`방법.
+요청은 원래 서버로 전달되고 응답은 클라이언트로 반환되기 전에 사용자 정의 헤더를 포함하도록 수정됩니다.
+
+## 관련 자료
+
+- [Rust 지원 Workers](/workers/languages/rust/).
+- [KVXQXQXQXQXQ](/kv/get-started/).

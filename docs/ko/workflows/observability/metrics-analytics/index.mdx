@@ -1,0 +1,231 @@
+---
+pcx_content_type: concept
+title: 미터 및 분석
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/observability/metrics-analytics/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workflows/observability/metrics-analytics/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+Workflows는 WorkflowsXQ의 각 (및 모든)의 검사 및 측정 워크 플로우 실행, 오류율, 단계 및 전체 기간을 측정 할 수있는 미터를 노출합니다.
+
+표시된 미터[Cloudflaredashboard](https://dash.cloudflare.com/)차트는 Cloudflare의 queried[GraphQL 분석 API](/analytics/graphql-api/). 미터에 접근할 수 있습니다[프로그램](#query-via-the-graphql-api)GraphQL 또는 HTTP 클라이언트를 통해.
+
+## 미터
+
+Workflows는 현재 안으로 미터의 밑에 수출합니다`workflowsAdaptiveGroups`GraphQL 데이터 세트.
+
+| 기본 정보       | GraphQL 필드 이름 | 이름 \*                                                     |
+| ----------- | ------------- | --------------------------------------------------------- |
+| 쿼리 읽기 (qps) | `readQueries` | 데이터베이스에 대해 발행 된 쿼리의 수. 이것은 읽힌 쿼리의 원료 수이며, 청구에 사용할 수 없습니다. |
+
+미터는 지난 31 일 동안 (그리고 유지됩니다) 수 있습니다.
+
+### 상표와 차원
+
+더 보기`workflowsAdaptiveGroups`dataset는 필터링 및 그룹화 쿼리 결과에 대한 다음 크기를 제공합니다:
+
+- `workflowName`- 워크 플로우 이름 - e.g.`my-workflow`
+- `instanceId`- 인사ID
+- `stepName`- 단계 이름
+- `eventType`- 이벤트 유형 (see)[이벤트 유형](#event-types))
+- `stepCount`- 주어진 인스턴스 내에서 단계 번호
+- `date`- 작업 흐름이 트리거되었을 때 날짜
+- `datetimeFifteenMinutes`- 15분간의 날짜와 시간
+- `datetimeFiveMinutes`- 5 분 정도의 날짜와 시간
+- `datetimeHour`- 날짜와 시간은 시간에 truncated
+- `datetimeMinute`- 날짜와 시간은 분에 truncated
+
+### 이벤트 유형
+
+더 보기`eventType`미터는 (또는 groupBy) Workflows를 필터링하고 마지막 관찰 상태에 따라 단계를 수행 할 수 있습니다.
+
+가능한 값`eventType`아래에 문서화:
+
+#### Workflows-level 상태 상표
+
+- `WORKFLOW_QUEUED`- Workflow는 현재 실행되지 않습니다. 이것은 당신이 위에 있을 때 일어날 수 있습니다[계정 제한](/workflows/reference/limits/)그리고 새로운 인스턴스는 현재 실행중인 인스턴스를 완료합니다.
+- `WORKFLOW_START`- 작업 흐름이 시작되고 실행됩니다.
+- `WORKFLOW_SUCCESS`- 오류없이 완료 된 워크 플로.
+- `WORKFLOW_FAILURE`- 작업 흐름 오류로 인해 실패 (탑리, 오류, 등).
+- `WORKFLOW_TERMINATED`- Workflow는 명시적으로 종료되었습니다.
+
+#### 단계 수준 상태 상표
+
+- `STEP_START`- 단계가 시작되고 실행됩니다.
+- `STEP_SUCCESS`- 오류없이 끝나는 단계.
+- `STEP_FAILURE`- 단계는 오류로 인해 실패했습니다.
+- `SLEEP_START`- 단계는 수면입니다.
+- `SLEEP_COMPLETE`- 단계는 마지막 잠을 완료했습니다.
+- `ATTEMPT_START`- 단계는 재교육입니다.
+- `ATTEMPT_SUCCESS`- retry 성공.
+- `ATTEMPT_FAILURE`- 복원 시도 실패.
+
+## dashboard의 메트릭 보기
+
+Workflows에 대한 Per-Workflow 및 인스턴스 분석은 Cloudflare dashboard에서 사용할 수 있습니다. 데이터베이스의 현재와 역사적인 메트릭스를 볼 수 있습니다.
+
+1. Cloudflare dashboard에서, 가십시오**모델 번호: Workflows**사이트 맵
+
+   <DashButton url="/?to=/:account/workers/workflows" />
+
+2. 워크플로를 선택하여 메트릭을 볼 수 있습니다.
+
+쿼리에 시간 창을 선택 할 수 있습니다. 이 기본값은 마지막 24시간입니다.
+
+## GraphQL API를 통해 쿼리
+
+Workflows에 대한 프로그래밍 쿼리 분석[GraphQL 분석 API](/analytics/graphql-api/). 이 API는 Cloudflare dashboard로 동일한 datasets를 쿼리하고, GraphQL를 지원합니다[관련 상품](/analytics/graphql-api/features/discovery/introspection/).
+
+Workflows GraphQL 데이터 세트는 요구합니다`accountTag`Cloudflare 계정 ID를 가진 여과기는, 다음을 포함합니다`workflowsAdaptiveGroups`데이터셋.
+
+### 이름 \*
+
+수를 쿼리하기 위해 (작업 작업 흐름 invocations) 및 요약`wallTime`견적 요청`$workflowName`이름 \*`$datetimeStart`·`$datetimeEnd`, 그룹`date`:
+
+```graphql graphql-api-explorer
+query WorkflowInvocationsExample(
+	$accountTag: string!
+	$datetimeStart: Time
+	$datetimeEnd: Time
+	$workflowName: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			wallTime: workflowsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					datetimeHour_geq: $datetimeStart
+					datetimeHour_leq: $datetimeEnd
+					workflowName: $workflowName
+				}
+				orderBy: [count_DESC]
+			) {
+				count
+				sum {
+					wallTime
+				}
+				dimensions {
+					date: datetimeHour
+				}
+			}
+		}
+	}
+}
+```
+
+여기에 우리는 같은 일을`wallTime`, `instanceRuns`·`stepCount`같은 쿼리에서:
+
+```graphql graphql-api-explorer
+query WorkflowInvocationsExample2(
+	$accountTag: string!
+	$datetimeStart: Time
+	$datetimeEnd: Time
+	$workflowName: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			instanceRuns: workflowsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					datetimeHour_geq: $datetimeStart
+					datetimeHour_leq: $datetimeEnd
+					workflowName: $workflowName
+					eventType: "WORKFLOW_START"
+				}
+				orderBy: [count_DESC]
+			) {
+				count
+				dimensions {
+					date: datetimeHour
+				}
+			}
+			stepCount: workflowsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					datetimeHour_geq: $datetimeStart
+					datetimeHour_leq: $datetimeEnd
+					workflowName: $workflowName
+					eventType: "WORKFLOW_START"
+				}
+				orderBy: [count_DESC]
+			) {
+				count
+				dimensions {
+					date: datetimeHour
+				}
+			}
+			wallTime: workflowsAdaptiveGroups(
+				limit: 10000
+				filter: {
+					datetimeHour_geq: $datetimeStart
+					datetimeHour_leq: $datetimeEnd
+					workflowName: $workflowName
+				}
+				orderBy: [count_DESC]
+			) {
+				count
+				sum {
+					wallTime
+				}
+				dimensions {
+					date: datetimeHour
+				}
+			}
+		}
+	}
+}
+```
+
+자주 묻는 질문`workflowsAdaptive`원료에 대한`$instanceId`이름 \*`$datetimeStart`·`$datetimeEnd`:
+
+```graphql graphql-api-explorer
+query WorkflowsAdaptiveExample(
+	$accountTag: string!
+	$datetimeStart: Time
+	$datetimeEnd: Time
+	$instanceId: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			workflowsAdaptive(
+				limit: 100
+				filter: {
+					datetime_geq: $datetimeStart
+					datetime_leq: $datetimeEnd
+					instanceId: $instanceId
+				}
+				orderBy: [datetime_ASC]
+			) {
+				datetime
+				eventType
+				workflowName
+				instanceId
+				stepCount
+				wallTime
+			}
+		}
+	}
+}
+```
+
+#### GraphQL 쿼리 변수
+
+쿼리 변수의 예값:
+
+```json
+{
+	"accountTag": "fedfa729a5b0ecfd623bca1f9000f0a22",
+	"datetimeStart": "2024-10-20T00:00:00Z",
+	"datetimeEnd": "2024-10-29T00:00:00Z",
+	"workflowName": "shoppingCart",
+	"instanceId": "ecc48200-11c4-22a3-b05f-88a3c1c1db81"
+}
+```

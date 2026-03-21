@@ -1,0 +1,63 @@
+---
+title: 중국 권한 DNS
+pcx_content_type: concept
+sidebar:
+  order: 4
+---
+
+import { Details, Steps } from "~/components";
+
+Cloudflare China Network는 기본적으로 클라이언트와 가장 가까운 네임서비스를 제공합니다. DNS 요청은 중국 밖의 클라이언트라면 해당 클라이언트와 가장 가까운 중국 외부 데이터 센터에서, 중국 내 클라이언트라면 중국 내 JD Cloud 데이터 센터에서 처리되며, HTTP 요청 역시 클라이언트와 가장 가까운 데이터 센터에서 제공됩니다.
+
+## 중국 내 네임서버
+
+Cloudflare는 Time to First Byte(TTFB) 성능을 개선하기 위해 중국 본토에 DNS 서비스를 배포할 수 있습니다. 이 구성을 사용하면 DNS 쿼리는 글로벌 DNS 서버가 아니라 중국 본토 내에서 처리됩니다.
+
+## 사용 시점
+
+China Authoritative DNS를 활성화하기 전에 트래픽의 대부분(90% 이상)이 중국 본토에서 발생하는지 확인해야 합니다. China Authoritative DNS를 활성화하면 모든 글로벌 DNS 요청이 가장 가까운 데이터 센터 대신 중국 본토의 JD Cloud 데이터 센터로 라우팅됩니다.
+
+## 비교
+
+다음 표는 기본 DNS 제공 방식과 중국 내 네임서버 옵션을 비교합니다.
+
+| DNS 옵션 | 동작 |
+| ------------ | --------------------------------------------- |
+| 기본값 | 최종 사용자와 가장 가까운 DNS 서버를 사용합니다. |
+| 중국 내 DNS | JD Cloud가 운영하는 중국 내 DNS만 사용합니다. |
+
+## 일반 설정
+
+[Cloudflare China Network 서비스](/china-network/get-started/)를 활성화한 후 다음 단계를 수행하세요.
+
+<Steps>
+
+1. 기능 활성화를 위해 Cloudflare 영업팀에 문의합니다. 현재는 Cloudflare 대시보드에서 직접 활성화할 수 없습니다.
+
+   현재 China Network는 [풀 설정](/dns/zone-setups/full-setup/)과 [부분 설정](/dns/zone-setups/partial-setup/)을 모두 지원합니다.
+
+2. 할당된 중국 내 네임서버로 도메인 등록기관 설정을 업데이트합니다.
+   - 풀 설정의 경우: 이 네임서버는 Cloudflare 대시보드에 표시됩니다.
+   - 부분 설정의 경우: 글로벌 기본 DNS 설정에는 `<hostname>.cdn.cloudflareanycast.net`, 중국 내 DNS에는 `<hostname>.cdn.cloudflarecn.net`을 가리키는 `CNAME` 레코드를 생성합니다.
+
+   <Details header="예시 1: 중국 내 DNS가 필요한 `example.cn` China Network 영역" open={true}>
+
+   `www`와 `media`라는 두 개의 DNS 레코드가 서로 다른 두 오리진 서버를 가리킨다고 가정합니다. 이 경우 권한 DNS 서버에는 다음 레코드가 있어야 합니다.
+   - CNAME `www.example.cn` -> `www.example.cn.cdn.cloudflarecn.net`
+   - CNAME `media.example.cn` -> `media.example.cn.cdn.cloudflarecn.net`
+
+   </Details>
+
+   <Details header="예시 2: 글로벌 기본 DNS 설정이 필요한 `example.com` China Network 영역" open={true}>
+
+   `www`와 `media`라는 두 개의 DNS 레코드가 서로 다른 두 오리진 서버를 가리킨다고 가정합니다. 이 경우 권한 DNS 서버에는 다음 레코드가 있어야 합니다.
+   - CNAME `www.example.com` -> `www.example.com.cdn.cloudflareanycast.net`
+   - CNAME `media.example.com` -> `media.example.com.cdn.cloudflareanycast.net`
+
+   </Details>
+
+3. 도메인이 올바르게 해석되는지 확인하여 구성을 테스트합니다.
+
+</Steps>
+
+추가 지원이 필요하면 계정 팀에 문의하세요.

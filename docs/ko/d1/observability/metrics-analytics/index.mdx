@@ -1,0 +1,337 @@
+---
+pcx_content_type: concept
+title: 미터 및 분석
+reviewed: 2025-09-02T00:00:00.000Z
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/observability/metrics-analytics/'
+translation_source_md: 'https://developers.cloudflare.com/d1/observability/metrics-analytics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, DashButton } from "~/components";
+
+D1는 쿼리 볼륨, 쿼리 대기 시간 및 모든 데이터베이스에 걸쳐 저장 크기를 검사 할 수있는 데이터베이스 분석을 노출합니다.
+
+표시된 미터[Cloudflare 대시보드](https://dash.cloudflare.com/)차트는 Cloudflare[GraphQL 분석 API](/analytics/graphql-api/). 미터에 접근할 수 있습니다[프로그램](#query-via-the-graphql-api)GraphQL 또는 HTTP 클라이언트를 통해.
+
+## 미터
+
+D1는 현재 미터의 밑에 수출합니다:
+
+| 기본 정보          | GraphQL 필드 이름             | 이름 \*                                                                                    |
+| -------------- | ------------------------- | ---------------------------------------------------------------------------------------- |
+| 쿼리 읽기 (qps)    | `readQueries`             | 데이터베이스에 대해 발행 된 쿼리의 수. 이것은 읽힌 쿼리의 원료 수이며, 청구에 사용할 수 없습니다.                                |
+| 쓰기 쿼리 (qps)    | `writeQueries`            | 데이터베이스에 대해 발행 된 쿼리의 수. 이것은 글쓰기 쿼리의 원수이며 청구서에 사용되지 않습니다.                                  |
+| 행 읽기 (count)   | `rowsRead`                | 열의 수는 쿼리에 걸쳐 (scanned)를 읽습니다. 이름 \*[가격 책정](/d1/platform/pricing/)행이 계산되는 방법에 대한 자세한 내용은. |
+| 기록된 줄 (count)  | `rowsWritten`             | 쿼리에 따라 작성된 행 수.                                                                          |
+| Query 응답 (바이트) | `queryBatchResponseBytes` | 어떤/all 열 이름, 줄 및 metadata를 포함하여 serialized 쿼리 응답의 총 응답 크기. 바이트에 보고.                      |
+| 질문 지연 (MS)     | `queryBatchTimeMs`        | 응답 serialization를 포함하여 총 조회 응답 시간, 서버 측에. milliseconds에서 보고했습니다.                         |
+| 저장 (Bytes)     | `databaseSizeBytes`       | 데이터베이스의 최대 크기. 바이트에 보고.                                                                  |
+
+미터는 지난 31 일 동안 (그리고 유지됩니다) 수 있습니다.
+
+### 행 수
+
+D1는 줄의 수를 읽습니다, 행은 (또는 둘 다) 각 개인적인 조회에 응답에서 각각에 기록했습니다[Workers 바인딩 API](/d1/worker-api/return-object/).
+
+행 수는 많은 행이 읽는 방법의 정확한 조사입니다 (scanned) 또는 그 쿼리에 의해 작성.
+Inspect 행은 행을 읽을 수 있는지 여부를 포함하여 주어진 쿼리의 성능과 비용을 이해하기 위해 계산[indexes 사용](/d1/best-practices/use-indexes/). 쿼리를 사용하여 데이터베이스에 대한 트래픽의 총 볼륨을 이해하고 데이터베이스가 적극적으로 사용되도록합니다.
+
+더 알아보기[가격 문서](/d1/platform/pricing/)행이 계산되는 방법에 대한 자세한 내용은.
+
+## 대시보드의 메트릭 보기
+
+D1에 대한 데이터베이스 분석은 Cloudflare 대시보드에서 사용할 수 있습니다. 데이터베이스의 현재와 역사적인 메트릭스를 볼 수 있습니다.
+
+1. Cloudflare 대시보드에서, 가십시오**모델 번호: D1**사이트 맵
+
+   <DashButton url="/?to=/:account/workers/d1" />
+2. 기존 D1 데이터베이스를 선택하십시오.
+3. 선택하기**미터**탭.
+
+쿼리에 시간 창을 선택 할 수 있습니다. 이 기본값은 마지막 24시간입니다.
+
+## GraphQL API를 통해 쿼리
+
+D1 데이터베이스에 대한 프로그래밍 쿼리 분석[GraphQL 분석 API](/analytics/graphql-api/). 이 API는 Cloudflare 대시보드로 동일한 datasets를 쿼리하고, GraphQL를 지원합니다[관련 상품](/analytics/graphql-api/features/discovery/introspection/).
+
+D1의 GraphQL 데이터 세트는 요구합니다`accountTag`Cloudflare 계정 ID를 가진 여과기는 다음을 포함합니다:
+
+- `d1AnalyticsAdaptiveGroups`
+- `d1StorageAdaptiveGroups`
+- `d1QueriesAdaptiveGroups`
+
+### 이름 \*
+
+합계를 쿼리하기`readQueries`, `writeQueries`견적 요청`$databaseId`, 그룹`databaseId`·`date`:
+
+```graphql graphql-api-explorer
+query D1ObservabilitySampleQuery(
+	$accountTag: string!
+	$start: Date
+	$end: Date
+	$databaseId: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			d1AnalyticsAdaptiveGroups(
+				limit: 10000
+				filter: { date_geq: $start, date_leq: $end, databaseId: $databaseId }
+				orderBy: [date_DESC]
+			) {
+				sum {
+					readQueries
+					writeQueries
+				}
+				dimensions {
+					date
+					databaseId
+				}
+			}
+		}
+	}
+}
+```
+
+답하기`queryBatchTimeMs`그리고 90 퍼센트`queryBatchTimeMs`데이터베이스당:
+
+```graphql graphql-api-explorer
+query D1ObservabilitySampleQuery2(
+	$accountTag: string!
+	$start: Date
+	$end: Date
+	$databaseId: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountId }) {
+			d1AnalyticsAdaptiveGroups(
+				limit: 10000
+				filter: { date_geq: $start, date_leq: $end, databaseId: $databaseId }
+				orderBy: [date_DESC]
+			) {
+				quantiles {
+					queryBatchTimeMsP90
+				}
+				dimensions {
+					date
+					databaseId
+				}
+			}
+		}
+	}
+}
+```
+
+계정 조회`readQueries`·`writeQueries`:
+
+```graphql graphql-api-explorer
+query D1ObservabilitySampleQuery3(
+	$accountTag: string!
+	$start: Date
+	$end: Date
+	$databaseId: string
+) {
+	viewer {
+		accounts(filter: { accountTag: $accountTag }) {
+			d1AnalyticsAdaptiveGroups(
+				limit: 10000
+				filter: { date_geq: $start, date_leq: $end, databaseId: $databaseId }
+			) {
+				sum {
+					readQueries
+					writeQueries
+				}
+			}
+		}
+	}
+}
+```
+
+## 글쓰기`insights`
+
+D1는 쿼리 성능을 이해하고 디버그 할 수있는 미터를 제공합니다. 당신은 GraphQL을 통해 이러한 접근 할 수 있습니다`d1QueriesAdaptiveGroups`또는`wrangler d1 insights`명령.
+
+D1는 쿼리 실행을 통해 메트릭스를 분석하는 데 쉽게 쿼리 문자열을 캡처합니다.[Bound 모수](/d1/worker-api/prepared-statements/#guidance)어떤 민감한 정보를 제거하지 않습니다.
+
+:::참조
+
+`wrangler d1 insights`실험 Wrangler 명령입니다. 그것의 선택권 및 산출은 변화할지도 모릅니다.
+
+지원하다`wrangler d1 insights --help`현재 옵션을 볼 수 있습니다.
+
+:::
+
+| 옵션 정보              | 이름 \*                                                                    |
+| ------------------ | ------------------------------------------------------------------------ |
+| `--timePeriod`     | 현재 제공된 시간(과태:`1d`).                                                      |
+| `--sort-type`      | 인사이트를 정렬하려는 작업. 선택하기`sum`·`avg`(과태:`sum`).                               |
+| `--sort-by`        | 이 필드는 insights를 정렬합니다. 선택하기`time`, `reads`, `writes`·`count`(과태:`time`). |
+| `--sort-direction` | 정렬 방향. 선택하기`ASC`·`DESC`(과태:`DESC`).                                      |
+| `--json`           | boolean 값은 깨끗한 JSON (과태:`false`).                                        |
+| `--limit`          | 최대의 쿼리는 fetched.                                                         |
+
+<Details header="실행 카운트에 의해 상위 3 쿼리를 찾을 수:">
+  ```sh
+  npx wrangler d1 insights <database_name> --sort-type=sum --sort-by=count --limit=3
+  ```
+
+  ```sh output
+   ⛅️ wrangler 3.95.0
+  -------------------
+
+  -------------------
+  🚧 `wrangler d1 insights` is an experimental command.
+  🚧 Flags for this command, their descriptions, and output may change between wrangler versions.
+  -------------------
+
+  [
+    {
+      "query": "SELECT tbl_name as name,\n                   (SELECT ncol FROM pragma_table_list(tbl_name)) as num_columns\n            FROM sqlite_master\n            WHERE TYPE = \"table\"\n              AND tbl_name NOT LIKE \"sqlite_%\"\n              AND tbl_name NOT LIKE \"d1_%\"\n              AND tbl_name NOT LIKE \"_cf_%\"\n            ORDER BY tbl_name ASC;",
+      "avgRowsRead": 2,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.49505,
+      "totalDurationMs": 0.9901,
+      "numberOfTimesRun": 2,
+      "queryEfficiency": 0
+    },
+    {
+      "query": "SELECT * FROM Customers",
+      "avgRowsRead": 4,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.1873,
+      "totalDurationMs": 0.1873,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 1
+    },
+    {
+      "query": "SELECT * From Customers",
+      "avgRowsRead": 0,
+      "totalRowsRead": 0,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 1.0225,
+      "totalDurationMs": 1.0225,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 0
+    }
+  ]
+  ```
+</Details>
+
+<Details header="평균 실행 시간으로 상위 3 쿼리를 찾을 수:">
+  ```sh
+  npx wrangler d1 insights <database_name> --sort-type=avg --sort-by=time --limit=3
+  ```
+
+  ```sh output
+  ⛅️ wrangler 3.95.0
+  -------------------
+
+  -------------------
+  🚧 `wrangler d1 insights` is an experimental command.
+  🚧 Flags for this command, their descriptions, and output may change between wrangler versions.
+  -------------------
+
+  [
+    {
+      "query": "SELECT * From Customers",
+      "avgRowsRead": 0,
+      "totalRowsRead": 0,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 1.0225,
+      "totalDurationMs": 1.0225,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 0
+    },
+    {
+      "query": "SELECT tbl_name as name,\n                   (SELECT ncol FROM pragma_table_list(tbl_name)) as num_columns\n            FROM sqlite_master\n            WHERE TYPE = \"table\"\n              AND tbl_name NOT LIKE \"sqlite_%\"\n              AND tbl_name NOT LIKE \"d1_%\"\n              AND tbl_name NOT LIKE \"_cf_%\"\n            ORDER BY tbl_name ASC;",
+      "avgRowsRead": 2,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.49505,
+      "totalDurationMs": 0.9901,
+      "numberOfTimesRun": 2,
+      "queryEfficiency": 0
+    },
+    {
+      "query": "SELECT * FROM Customers",
+      "avgRowsRead": 4,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.1873,
+      "totalDurationMs": 0.1873,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 1
+    }
+  ]
+  ```
+</Details>
+
+<Details header="마지막 7 일에서 작성된 행에 의해 상위 10 쿼리를 찾을 수:">
+  ```sh
+  npx wrangler d1 insights <database_name> --sort-type=sum --sort-by=writes --limit=10 --timePeriod=7d
+  ```
+
+  ```sh output
+  ⛅️ wrangler 3.95.0
+  -------------------
+
+  -------------------
+  🚧 `wrangler d1 insights` is an experimental command.
+  🚧 Flags for this command, their descriptions, and output may change between wrangler versions.
+  -------------------
+
+  [
+    {
+      "query": "SELECT * FROM Customers",
+      "avgRowsRead": 4,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.1873,
+      "totalDurationMs": 0.1873,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 1
+    },
+    {
+      "query": "SELECT * From Customers",
+      "avgRowsRead": 0,
+      "totalRowsRead": 0,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 1.0225,
+      "totalDurationMs": 1.0225,
+      "numberOfTimesRun": 1,
+      "queryEfficiency": 0
+    },
+    {
+      "query": "SELECT tbl_name as name,\n                   (SELECT ncol FROM pragma_table_list(tbl_name)) as num_columns\n            FROM sqlite_master\n            WHERE TYPE = \"table\"\n              AND tbl_name NOT LIKE \"sqlite_%\"\n              AND tbl_name NOT LIKE \"d1_%\"\n              AND tbl_name NOT LIKE \"_cf_%\"\n            ORDER BY tbl_name ASC;",
+      "avgRowsRead": 2,
+      "totalRowsRead": 4,
+      "avgRowsWritten": 0,
+      "totalRowsWritten": 0,
+      "avgDurationMs": 0.49505,
+      "totalDurationMs": 0.9901,
+      "numberOfTimesRun": 2,
+      "queryEfficiency": 0
+    }
+  ]
+  ```
+</Details>
+
+:::참조
+수량`queryEfficiency`자주 묻는 질문 다음과 같이 계산됩니다: 줄의 숫자는 줄의 숫자로 나뉩니다.
+
+일반적으로, 당신은 얻을하려고해야합니다`queryEfficiency`이름 \*`1`가능한 한. 더 알아보기[사용 색인](/d1/best-practices/use-indexes/)효율적인 쿼리에 대한 자세한 내용은.
+주요 특징

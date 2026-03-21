@@ -1,0 +1,160 @@
+---
+title: Workers KV를 Durable ObjectsXQ에서 사용하십시오
+summary: Read and write to/from Workers KV within a Durable Object
+pcx_content_type: example
+sidebar:
+  order: 20
+head:
+  - tag: title
+    content: Durable Objects - KVXQXQXQXQXQ
+description: 읽기 및 쓰기 KV에서 튼튼한 목표
+reviewed: 2023-09-14T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/examples/use-kv-from-durable-objects/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/examples/use-kv-from-durable-objects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, TabItem, Tabs, WranglerConfig } from "~/components";
+
+다음 작업자 스크립트는 구성하는 방법을 보여줍니다<GlossaryTooltip term="Durable Object">튼튼한 목표</GlossaryTooltip>to read from and/또는 쓰기 에 a[Workers KV 네임스페이스](/kv/concepts/how-kv-works/). 이것은 튼튼한 목표를 사용하여 다중 클라이언트 사이에서 협조할 때 유용합니다, 당신은 KV에 쓰기를 일관되게 하고/또는 KV에서 단 하나 읽기를 단 하나 튼튼한 목표에 연결되는 클라이언트의 수백 또는 수천 방송할 수 있습니다[WebSockets 사용](/durable-objects/best-practices/websockets/).
+
+필수품:
+
+- ·[KV 네임스페이스](/kv/api/)Cloudflare 대시보드 또는[wrangler 클립](/workers/wrangler/install-and-update/).
+- ·[구성 바인딩](/kv/concepts/kv-bindings/)제품정보`kv_namespace`Cloudflare 대시보드 또는 Wrangler 파일에서.
+- ·[튼튼한 목표 namespace 바인딩](/workers/wrangler/configuration/#durable-objects).
+
+다음과 같이 Wrangler 파일을 구성하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"main": "src/index.ts",
+  	"kv_namespaces": [
+  		{
+  			"binding": "YOUR_KV_NAMESPACE",
+  			"id": "<id_of_your_namespace>"
+  		}
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "YOUR_DO_CLASS",
+  				"class_name": "YourDurableObject"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    interface Env {
+    	YOUR_KV_NAMESPACE: KVNamespace;
+    	YOUR_DO_CLASS: DurableObjectNamespace;
+    }
+
+    export default {
+    	async fetch(req: Request, env: Env): Promise<Response> {
+    		//각 튼튼한 개체가 쿼리 매개 변수에 RoomId로 맵핑됩니다.
+    		//생산 신청에서, 이것은 당신의 신청에 의해 정의된 roomId일 것입니다
+    		//(및 / 또는 인증) 먼저.
+    		let url = new URL(req.url);
+    		let roomIdParam = url.searchParams.get("roomId");
+
+    		if (roomIdParam) {
+    			//튼튼한 개체를 호출 할 수있는 stub를 가져옵니다
+    			let durableObjectStub = env.YOUR_DO_CLASS.getByName(roomIdParam);
+
+    			//그 튼튼한 개체에 요청을 전달하고 응답을 기다립니다
+    			//이 생성기에서 한 번 튼튼한 개체 클래스 (더 아래로 정의)
+    			//첫번째 초기화에, 그리고 각 요구에 fetch 방법.
+    			//
+    			//당신은 내구성 개체의 fetch 방법에 대한 원래 요청을 통과 할 수
+    			//또는 roomId와 간단한 URL.
+    			let response = await durableObjectStub.fetch(`http://do/${roomId}`);
+
+    			//이것은 당신이 KV *within* 튼튼한 목표에서 읽는 가치를 돌려보낼 것입니다.
+    			return response;
+    		}
+    	},
+    };
+
+    export class YourDurableObject extends DurableObject {
+    	constructor(
+    		public state: DurableObjectState,
+    		env: Env,
+    	) {
+    		super(state, env);
+    	}
+
+    	async fetch(request: Request) {
+    		//brevity를 위해 elided 오류 처리.
+    		//KV에 쓰기
+    		await this.env.YOUR_KV_NAMESPACE.put("some-key");
+
+    		//KV에서 Fetch
+    		let val = await this.env.YOUR_KV_NAMESPACE.get("some-other-key");
+
+    		return Response.json(val);
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import DurableObject, Response, WorkerEntrypoint
+    from urllib.parse import urlparse, parse_qs
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, req):
+    		#각 튼튼한 개체가 쿼리 매개 변수에 RoomId로 맵핑됩니다.
+    		#생산 신청에서, 이것은 당신의 신청에 의해 정의된 roomId일 것입니다
+    		#(및 / 또는 인증) 먼저.
+    		url = req.url
+    		parsed_url = urlparse(url)
+    		room_id_param = parse_qs(parsed_url.query).get('roomId', [None])[0]
+
+    		if room_id_param:
+    			#튼튼한 개체를 호출 할 수있는 stub를 가져옵니다
+    			durable_object_stub = self.env.YOUR_DO_CLASS.getByName(room_id_param)
+
+    			#그 튼튼한 개체에 요청을 전달하고 응답을 기다립니다
+    			#이 생성기에서 한 번 튼튼한 개체 클래스 (더 아래로 정의)
+    			#첫번째 초기화에, 그리고 각 요구에 fetch 방법.
+    			#
+    			#당신은 내구성 개체의 fetch 방법에 대한 원래 요청을 통과 할 수
+    			#또는 roomId와 간단한 URL.
+    			response = await durable_object_stub.fetch(f"http://do/{room_id_param}")
+
+    			#이것은 당신이 KV *within* 튼튼한 목표에서 읽는 가치를 돌려보낼 것입니다.
+    			return response
+
+    class YourDurableObject(DurableObject):
+    	def __init__(self, state, env):
+    		super().__init__(state, env)
+
+    	async def fetch(self, request):
+    		#brevity를 위해 elided 오류 처리.
+    		#KV에 쓰기
+    		await self.env.YOUR_KV_NAMESPACE.put("some-key", "some-value")
+
+    		#KV에서 Fetch
+    		val = await self.env.YOUR_KV_NAMESPACE.get("some-other-key")
+
+    		return Response.json(val)
+    ```
+  </TabItem>
+</Tabs>

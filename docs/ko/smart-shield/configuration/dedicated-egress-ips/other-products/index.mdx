@@ -1,0 +1,59 @@
+---
+title: 다른 Cloudflare 제품과 함께 사용하기
+pcx_content_type: reference
+sidebar:
+  order: 9
+  label: 다른 제품
+---
+
+Dedicated CDN Egress IP를 다양한 Cloudflare 제품과 함께 사용할 수 있습니다.
+
+## Access 및 CNI
+
+서버에 소프트웨어를 설치하거나 코드를 수정하지 않고도 [Cloudflare Access](/cloudflare-one/access-controls/policies/)로 애플리케이션을 보호하기 위해, [Cloudflare Network Interconnect (CNI)](/network-interconnect/)와 결합한 Dedicated CDN Egress IP를 사용할 수 있습니다.
+
+Access를 사용하면 hostname 수준에서 정책을 적용할 수 있지만, origin IP 우회[^1]를 방지하려면 보통 다른 해결책도 필요합니다. Dedicated CDN Egress IP를 사용하면 네트워크 방화벽을 통해 공개되지 않은 소수의 IP만 허용할 수 있으며, Cloudflare Network Interconnect와 함께라면 Cloudflare와 애플리케이션 서버 사이에 공용 인터넷에 노출되지 않는 완전한 private 경로를 사용할 수 있습니다. 자세한 배경은 [Cloudflare 블로그](https://blog.cloudflare.com/access-aegis-cni)를 참고하세요.
+
+Dedicated CDN Egress IP는 [CNI를 통한 BGP advertisement](/network-interconnect/)에 포함됩니다.
+
+## Data Localization Suite
+
+[Data Localization Suite (DLS)](/data-localization/)는 Cloudflare가 데이터를 암호화, 복호화, 저장하는 위치를 선택할 수 있게 해 주는 enterprise add-on입니다.
+
+DLS가 지정한 위치에서 egress가 일어나도록 하려면, 해당 위치에 Dedicated CDN Egress IP가 프로비저닝되어 있는지 확인하세요. 자세한 내용은 [IP 할당](/smart-shield/configuration/dedicated-egress-ips/how-it-works/egress-ips/#ips-allocation)을 참고하세요.
+
+## Load Balancing
+
+[Cloudflare Load Balancing](/load-balancing/)은 정기적인 monitor(원본 상태 평가)를 실행하고 사용자가 정의한 트래픽 steering 정책을 따라 origin 전반에 트래픽을 지능적으로 분산합니다.
+
+기본적으로 Load Balancing monitor는 공개 Cloudflare IP 주소를 사용합니다.
+
+Load Balancing monitor가 보고하는 내용과 Dedicated CDN Egress IP를 사용하는 서비스 트래픽에서 관찰되는 내용 사이의 불일치를 피하려면, [monitor 설정](/load-balancing/monitors/create-monitor/#create-a-monitor)에서 **Simulate Zone** 옵션을 켜세요.
+
+## Spectrum
+
+[Spectrum](/spectrum/)은 이메일, 파일 전송, 게임 등 다양한 트래픽을 Cloudflare를 통해 TCP 또는 UDP로 라우팅할 수 있게 해 줍니다. 즉, origin을 숨기고 DDoS 공격으로부터 보호할 수 있습니다.
+
+Spectrum에서 ingress에 사용할 IP를 제어하기 위해 [BYOIP](/byoip/) 또는 static IP를 사용할 수 있지만, Dedicated CDN Egress IP를 사용하면 [egress IP](/smart-shield/configuration/dedicated-egress-ips/how-it-works/egress-ips/) 목록도 더 엄격하게 통제할 수 있습니다.
+
+Spectrum과 함께 사용하는 Dedicated CDN Egress IP는 TCP와 UDP 애플리케이션 유형을 모두 지원합니다. HTTP/HTTPS 유형도 지원되지만, 구성 방식은 다릅니다.
+
+이러한 솔루션에 관심이 있다면 담당 account 팀에 문의하세요.
+
+## Workers
+
+[Workers](/workers/)는 Cloudflare의 글로벌 네트워크를 활용해 애플리케이션을 만들 수 있는 serverless 실행 환경을 제공합니다.
+
+아래 섹션에서 Dedicated CDN Egress IP와 Workers를 함께 사용할 때의 정보를 확인하세요.
+
+### `fetch`
+
+origin의 서비스에 접근하는 [`fetch()` 요청](/workers/runtime-apis/fetch/)은 Dedicated CDN Egress IP 주소를 사용합니다.
+
+Workers subrequest, 즉 한 Worker에서 다른 Worker로 보내는 요청은 다른 IP를 사용할 것으로 예상됩니다. 하지만 subrequest를 통해 호출된 Worker가 외부 origin으로 보내는 [`fetch()` 요청](/workers/runtime-apis/fetch/)은 Dedicated CDN Egress IP 주소를 사용합니다.
+
+### `connect`
+
+Workers에서 outbound TCP 연결을 생성하는 [`connect()` 요청](/workers/runtime-apis/tcp-sockets/)에는 Dedicated CDN Egress IP가 **사용되지 않습니다**.
+
+[^1]: 공격자가 origin 서버 IP를 알고 이를 사용해 대상 애플리케이션과 직접 상호작용하는 경우를 의미합니다.

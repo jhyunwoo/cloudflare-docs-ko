@@ -1,0 +1,122 @@
+---
+pcx_content_type: how-to
+title: Ethereum gateway 사용
+sidebar:
+  order: 2
+---
+
+Ethereum gateway를 만들었다면, 즉 `target`을 **Ethereum**으로 하여 [새 게이트웨이를 생성](/web3/how-to/manage-gateways/#create-a-gateway)했다면, 쿼리에 맞는 JSON blob을 지정해 [여러 Ethereum network](/web3/ethereum-gateway/reference/supported-networks/)와 상호작용할 수 있습니다.
+
+## 네트워크에서 읽기
+
+Cloudflare Ethereum Gateway는 요청 본문을 원하는 요청의 JSON body로 설정한 HTTP 요청을 허용합니다. 예를 들어 번호 `0x2244`에 있는 블록을 읽고 싶다면 JSON blob은 다음과 같은 형태가 됩니다.
+
+```json
+{
+	"jsonrpc": "2.0",
+	"method": "eth_getBlockByNumber",
+	"params": ["0x2244", true],
+	"id": 1
+}
+```
+
+각 blob은 유효한 [`method` parameter](/web3/ethereum-gateway/reference/supported-api-methods/)를 사용해야 합니다. 여기서 `params` 배열에는 조회하려는 블록 번호와, 블록 안의 각 개별 트랜잭션을 전체 내용으로 보여줄지(`true`) 또는 스텁 형태로 보여줄지(`false`)를 나타내는 boolean 값이 포함됩니다.
+
+[custom Ethereum Gateway](/web3/how-to/manage-gateways/)로 이 쿼리를 보내려면 다음과 같은 cURL 명령을 사용할 수 있습니다.
+
+```sh
+curl https://web3-trial.cloudflare-eth.com/v1/mainnet -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_getBlockByNumber","params":["0x2244", true],"id":1}'
+```
+
+같은 쿼리를 JS Fetch API로 작성할 수도 있습니다.
+
+```js
+await fetch(
+	new Request("https://web3-trial.cloudflare-eth.com/v1/mainnet", {
+		method: "POST",
+		body: JSON.stringify({
+			jsonrpc: "2.0",
+			method: "eth_getBlockByNumber",
+			params: ["0x2244", true],
+			id: 1,
+		}),
+		headers: {
+			"Content-Type": "application/json",
+		},
+	}),
+).then((resp) => {
+	return resp.json();
+});
+```
+
+두 경우 모두 응답은 다음과 같은 형태의 JSON blob이 됩니다.
+
+```json
+{
+	"jsonrpc": "2.0",
+	"id": 1,
+	"result": {
+		"difficulty": "0x746ef15b66",
+		"extraData": "0x476574682f76312e302e302f6c696e75782f676f312e342e32",
+		"gasLimit": "0x1388",
+		"gasUsed": "0x0",
+		"hash": "0xd6bb42034740c5d728e774e43a01f26222e0fcc279c504ca5963dc34fe70f392",
+		"logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+		"miner": "0xf927a40c8b7f6e07c5af7fa2155b4864a4112b13",
+		"mixHash": "0x975da446e302e6da6cedb3fbaa763c3c203ae88d6fab4924e2a3d34a568c4361",
+		"nonce": "0x88a7f12f49151c83",
+		"number": "0x2244",
+		"parentHash": "0x067fd84ecdbc7491bf5ec7d5d4ead361b1f590eec74797a7f90b4a7d7004a48d",
+		"receiptsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+		"sha3Uncles": "0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347",
+		"size": "0x21b",
+		"stateRoot": "0x828dade2067283e370993ec6a1bda0e65c1310e404a6d5bbb030b596eb80017c",
+		"timestamp": "0x55bb040f",
+		"totalDifficulty": "0x5c328da43525d",
+		"transactions": [],
+		"transactionsRoot": "0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421",
+		"uncles": []
+	}
+}
+```
+
+## 네트워크에 쓰기
+
+현재 Ethereum Gateway는 `eth_sendRawTransaction` RPC method를 사용한 네트워크 쓰기를 허용합니다. 이 방법은 서명된 트랜잭션에 대해 새 message call transaction 또는 contract creation을 생성합니다. 트랜잭션은 사용자의 [Ethereum wallet](https://www.ethereum.org/use/#_3-what-is-a-wallet-and-which-one-should-i-use)에 해당하는 secret key를 사용해 서명됩니다.
+
+지갑을 설정하고 트랜잭션에 서명하는 방법을 갖추었다면, 해당 트랜잭션을 [Cloudflare Ethereum Gateway](/web3/ethereum-gateway/reference/supported-api-methods/)를 통해 Ethereum network에 쓸 수 있습니다. 서명된 트랜잭션은 다음과 같은 형태의 hexadecimal 문자열을 사용합니다.
+
+```json
+"0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"
+```
+
+이후 [custom Gateway](/web3/how-to/manage-gateways/)를 사용해 cURL 명령으로 트랜잭션을 네트워크에 보낼 수 있습니다.
+
+```sh
+curl https://web3-trial.cloudflare-eth.com/v1/mainnet -H 'Content-Type: application/json' --data '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675"],"id":1}'
+```
+
+JS Fetch API 요청도 사용할 수 있습니다.
+
+```js
+await fetch(
+	new Request("https://web3-trial.cloudflare-eth.com/v1/mainnet", {
+		method: "POST",
+		body: JSON.stringify({
+			jsonrpc: "2.0",
+			method: "eth_sendRawTransaction",
+			params: [
+				"0xd46e8dd67c5d32be8d46e8dd67c5d32be8058bb8eb970870f072445675058bb8eb970870f072445675",
+			],
+			id: 1,
+		}),
+		headers: {
+			"Content-Type": "application/json",
+		},
+	}),
+).then((resp) => {
+	return resp.json();
+});
+```
+
+_(위 실제 명령은 그대로는 동작하지 않습니다. 사용자의 서명된 트랜잭션을 직접 제공해야 합니다.)_

@@ -1,0 +1,232 @@
+---
+title: HTTP Requests by Colo Groups에서 HTTP Requests by Adaptive Groups로
+pcx_content_type: reference
+sidebar:
+  order: 11
+---
+
+import { Details } from "~/components";
+
+이 가이드에서는 더 이상 사용되지 않는 `httpRequests1mByColoGroups` 및 `httpRequests1dByColoGroups` GraphQL API 노드에서 `httpRequestsAdaptiveGroups` GraphQL API 노드로 마이그레이션할 때 고려해야 할 사항을 설명합니다.
+
+예를 들어 과거에는 요청 수가 가장 많은 5개 데이터 센터와 해당 요청의 총수, 총 데이터 전송량을 확인하려면 다음 예시처럼 `httpRequests1mByColoGroups` GraphQL API 노드를 사용했습니다.
+
+```graphql
+{
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			series: httpRequests1mByColoGroups(
+				limit: 5
+				orderBy: [sum_requests_DESC]
+				filter: { datetime_geq: $start, datetime_lt: $end }
+			) {
+				sum {
+					requests
+					bytes
+				}
+				dimensions {
+					coloCode
+				}
+			}
+		}
+	}
+}
+```
+
+<Details header="응답">
+
+```json
+{
+	"data": {
+		"viewer": {
+			"zones": [
+				{
+					"series": [
+						{
+							"dimensions": {
+								"coloCode": "LHR"
+							},
+							"sum": {
+								"bytes": 18260055,
+								"requests": 4404
+							}
+						},
+						{
+							"dimensions": {
+								"coloCode": "AMS"
+							},
+							"sum": {
+								"bytes": 17563009,
+								"requests": 4302
+							}
+						},
+						{
+							"dimensions": {
+								"coloCode": "CDG"
+							},
+							"sum": {
+								"bytes": 17200434,
+								"requests": 4032
+							}
+						},
+						{
+							"dimensions": {
+								"coloCode": "PTY"
+							},
+							"sum": {
+								"bytes": 10400209,
+								"requests": 2707
+							}
+						},
+						{
+							"dimensions": {
+								"coloCode": "JIB"
+							},
+							"sum": {
+								"bytes": 9040105,
+								"requests": 2601
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+</Details>
+
+## `httpRequestsAdaptiveGroups` GraphQL API 노드
+
+`httpRequests1mByColoGroups` 및 `httpRequests1dByColoGroups` GraphQL API 노드가 폐지되었으므로, 동일한 데이터(`count`, `sum(edgeResponseBytes)`, `visits`)에 접근하려면 `httpRequestsAdaptiveGroups` GraphQL API 노드를 사용하세요.
+
+**요청**
+
+```graphql graphql-api-explorer
+query MigrationSample($zoneTag: string, $start: Time, $end: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			series: httpRequestsAdaptiveGroups(
+				limit: 5
+				orderBy: [count_DESC]
+				filter: {
+					datetime_geq: $start
+					datetime_lt: $end
+					requestSource: "eyeball"
+				}
+			) {
+				count
+				avg {
+					sampleInterval
+				}
+				sum {
+					visits
+					edgeResponseBytes
+				}
+				dimensions {
+					coloCode
+				}
+			}
+		}
+	}
+}
+```
+
+<Details header="응답">
+
+```json
+{
+	"data": {
+		"viewer": {
+			"zones": [
+				{
+					"series": [
+						{
+							"avg": {
+								"sampleInterval": 10
+							},
+							"count": 4350,
+							"dimensions": {
+								"coloCode": "LHR"
+							},
+							"sum": {
+								"edgeResponseBytes": 17860000,
+								"visits": 4120
+							}
+						},
+						{
+							"avg": {
+								"sampleInterval": 10
+							},
+							"count": 4210,
+							"dimensions": {
+								"coloCode": "AMS"
+							},
+							"sum": {
+								"edgeResponseBytes": 17110000,
+								"visits": 3910
+							}
+						},
+						{
+							"avg": {
+								"sampleInterval": 10
+							},
+							"count": 3890,
+							"dimensions": {
+								"coloCode": "CDG"
+							},
+							"sum": {
+								"edgeResponseBytes": 17050000,
+								"visits": 3700
+							}
+						},
+						{
+							"avg": {
+								"sampleInterval": 10
+							},
+							"count": 2550,
+							"dimensions": {
+								"coloCode": "PTY"
+							},
+							"sum": {
+								"edgeResponseBytes": 10286000,
+								"visits": 2130
+							}
+						},
+						{
+							"avg": {
+								"sampleInterval": 10
+							},
+							"count": 2410,
+							"dimensions": {
+								"coloCode": "JIB"
+							},
+							"sum": {
+								"edgeResponseBytes": 9029000,
+								"visits": 2080
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+</Details>
+
+이 쿼리는 다음을 의미합니다.
+
+- 지정한 `zones`, `limit`, `time range`를 기준으로
+- 각 데이터 센터별 총 요청 수(`count`), 총 데이터 전송량(`sum` 객체의 `edgeResponseBytes`), 총 `visits` 수를 가져옵니다.
+
+참고할 점은 다음과 같습니다.
+
+- `eyeball`에 대한 `requestSource` 필터를 추가하면 웹사이트의 최종 사용자에 대한 요청, 데이터 전송, 방문 데이터만 반환됩니다.
+- `httpRequestsAdaptiveGroups` 노드는 `requests` 대신 `count`를 반환하며, 이는 데이터 센터별 요청 수를 나타냅니다.
+- 데이터 전송량을 측정하려면 `sum(edgeResponseBytes)`를 사용합니다. 이전 API에서는 이것을 `bandwidth`라고 불렀지만 실제로는 데이터 전송량을 측정한 것입니다.
+- `httpRequestsAdaptiveGroups`는 `unique visitors per colocation`을 지원하지 않지만, `visits`는 지원합니다. 방문은 다른 웹사이트나 직접 링크에서 시작된 페이지 뷰로 정의됩니다. Cloudflare는 HTTP referer가 호스트명과 일치하지 않는 경우를 확인합니다. 하나의 방문에는 여러 페이지 뷰가 포함될 수 있습니다.

@@ -1,0 +1,63 @@
+---
+pcx_content_type: how-to
+title: HTTP Host 헤더 재정의
+sidebar:
+  order: 16
+
+---
+
+애플리케이션에 특수한 라우팅(`CNAME` 설정 또는 Heroku 같은 사용자 지정 호스트)이 필요하다면, 헬스 모니터에서 사용하는 `Host` 헤더를 엔드포인트별 또는 모니터별 수준에서 사용자 지정할 수 있습니다.
+
+:::caution[중요]
+
+
+개별 엔드포인트에 헤더 재정의를 설정하면 모니터에 설정된 헤더 재정의보다 우선합니다.
+
+또한 hostname을 재정의하는 [Origin Rule](/rules/origin-rules/)을 구성하고 Load Balancer 설정에도 헤더 재정의를 추가한 경우, Load Balancer 설정이 Origin Rule의 hostname 재정의보다 우선합니다.
+
+
+:::
+
+## 엔드포인트별 Host 헤더 재정의
+
+여러 호스트에 걸쳐 트래픽을 분산하려면 같은 풀 안의 개별 엔드포인트에 `Host` 헤더를 추가하세요.
+
+예를 들어 여러 AppEngine 프로젝트나 Amazon S3 버킷에 호스팅된 엔드포인트를 하나의 풀에 둘 수 있습니다. 풀 안에서 특정 장애 조치 엔드포인트를 설정하고 싶을 수도 있습니다.
+
+이러한 예시에서는 엔드포인트마다 특정 hostname이 필요하므로 `Host` 헤더 재정의가 없으면 로드 밸런서가 트래픽을 올바르게 라우팅할 수 없습니다.
+
+엔드포인트 `Host` 헤더 재정의가 필요하다면 풀을 [생성](/load-balancing/pools/create-pool/)하거나 편집할 때 추가하세요. 보안상의 이유로 이 헤더는 다음 기준 중 하나를 충족해야 합니다.
+
+* 이 계정에 연결된 zone의 하위 도메인일 것
+* 엔드포인트 주소와 일치할 것
+* 공개적으로 엔드포인트 주소로 해석될 것
+
+## Host 헤더 우선순위
+
+개별 엔드포인트에 헤더 재정의를 설정하면 헬스 모니터 요청 시 모니터에 설정된 헤더 재정의보다 우선합니다.
+
+예를 들어 `www.example.com`에 대한 로드 밸런서가 다음과 같이 구성되어 있다고 가정해 보겠습니다.
+
+* Pools:
+
+  * Pool 1:
+
+    * Endpoint 1(`Host` 헤더가 `lb-app-a.example.com`으로 설정됨)
+    * Endpoint 2
+
+  * Pool 2:
+
+    * Endpoint 3
+    * Endpoint 4(`Host` 헤더가 `lb-app-b.example.com`으로 설정됨)
+
+* Monitor(`Host` 헤더가 `www.example.com`으로 설정됨)
+
+이 경우 **Endpoint 1**에 대한 헬스 모니터 요청은 `lb-app-a.example.com`을 사용하고, **Endpoint 4**에 대한 헬스 모니터 요청은 `lb-app-b.example.com`을 사용하며, 그 외 모든 헬스 모니터 요청은 기본적으로 `www.example.com`을 사용합니다. 사용자 지정 호스트 구성을 Cloudflare와 호환되도록 업데이트하는 방법에 대한 자세한 내용은 [Configure Cloudflare and Heroku over HTTPS](/support/third-party-software/others/configure-cloudflare-and-heroku-over-https/)를 참고하세요.
+
+모니터의 `Host` 헤더를 재정의하는 엔드포인트 목록을 보려면 다음을 수행하세요.
+
+1. 모니터에서 **Edit**를 선택합니다.
+2. **Advanced health monitor settings**를 선택합니다.
+3. 엔드포인트 재정의가 있으면 **Endpoint host header overrides**가 표시됩니다.
+
+![엔드포인트 Host 헤더 재정의의 예시 구성](~/assets/images/load-balancing/origin-host-header-override.png)

@@ -1,0 +1,298 @@
+---
+pcx_content_type: concept
+title: Cron 트리거
+head: []
+description: 일정에 실행할 수 있는 작업자.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/configuration/cron-triggers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/configuration/cron-triggers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	WranglerConfig,
+	TabItem,
+	Tabs,
+	DashButton,
+} from "~/components";
+
+## 이름 \*
+
+Cron Triggers는 사용자가 Cron expression을 Worker로 맵을 허용합니다.[`scheduled()`회사 소개](/workers/runtime-apis/handlers/scheduled/)Workers를 사용하여 일정에 실행할 수 있습니다.
+
+Cron Triggers는 유지 보수 또는 타사 API를 호출하여 최신 데이터를 수집하는 데 이상적입니다. Cron Triggers에 의해 예정된 Workers는 CloudflareXQ의 수용량과 노선 교통의 제일 사용을 능률적으로 만들기 위하여 underutilized 기계에 달할 것입니다.
+
+:::참조
+
+Cron Triggers는 또한 결합될 수 있습니다[Workflows](/workflows/)다중 단계, 긴 실행 작업을 트리거합니다. 당신은 할 수[작업 흐름에 바인딩](/workflows/build/workers-api/)Cron Trigger에서 일정에 Workflow를 실행합니다.
+
+:::
+
+Cron Triggers는 UTC 시간에 실행합니다.
+
+## Cron 트리거 추가
+
+### 1. 일정한 사건 청취자 정의
+
+Cron Trigger에 응답하려면 추가해야합니다.[`"scheduled"`회사 소개](/workers/runtime-apis/handlers/scheduled/)당신의 노동자에.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async scheduled(controller, env, ctx) {
+    		console.log("cron processed");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async scheduled(
+    		controller: ScheduledController,
+    		env: Env,
+    		ctx: ExecutionContext,
+    	) {
+    		console.log("cron processed");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import WorkerEntrypoint, Response
+
+    class Default(WorkerEntrypoint):
+        async def scheduled(self, controller, env, ctx):
+      			print("cron processed")
+    ```
+  </TabItem>
+</Tabs>
+
+다음 추가 예제를 참조하여 코드를 작성:
+
+- [Cron Triggers 설정](/workers/examples/cron-trigger/)
+- [다수 Cron Triggers](/workers/examples/multiple-cron-triggers/)
+
+### 2. 업데이트 구성
+
+:::note\[Cron Trigger 변경은 propagate에 시간이 걸립니다.]
+
+새로운 Cron 방아쇠를 추가하는 것과 같은 변화는, 오래된 Cron 방아쇠를 새롭게 하고, 또는 Cron 방아쇠를 삭제하는 것은 Cloudflare 글로벌 네트워크에 propagate에 몇몇 분 (최대 15 분)를 가지고 갈지도 모릅니다.
+
+:::
+
+Worker 코드를 업데이트 한 후 포함`"scheduled"`이벤트는 Worker 프로젝트 구성을 업데이트해야합니다.
+
+#### 오시는 길[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+노동자가 Wrangler로 관리되면, Cron Triggers는 독점적으로 관리되어야 합니다[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+Cron Triggers 구성에 대한 아래 예제 참조 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"triggers": {
+  		//일정 cron 방아쇠:
+  		//- 3분마다
+  		//- 월 첫날 15:00 (UTC)
+  		//- 월 마지막 주일 23:59 (UTC)
+  		"crons": [
+  			"*/3 * * * *",
+  			"0 15 1 * *",
+  			"59 23 LW * *"
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+또한 서로 다른 Cron 트리거를 설정할 수 있습니다.[환경분야](/workers/wrangler/environments/)내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/). 당신은`triggers`선택한 환경에서 배열. 예를 들면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"env": {
+  		"dev": {
+  			"triggers": {
+  				"crons": [
+  					"0 * * * *"
+  				]
+  			}
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+#### dashboard를 통해
+
+Cloudflare dashboard에 있는 Cron Triggers를 추가하기 위하여:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**제품정보**, 당신의 노동자를 선정 >**계정 설정** > **트리거** > **Cron 트리거**.
+
+## 지원 cron 표현
+
+Cloudflare는 5개의 분야를 가진 크론 표식을 대부분의과 함께 지원합니다[석영 스케줄러](http://www.quartz-scheduler.org/documentation/quartz-2.3.0/tutorials/crontrigger.html#introduction)- cron 문법 확장과 같은:
+
+| 제품정보  | 제품정보                                                 | 이름 \*         |
+| ----- | ---------------------------------------------------- | ------------- |
+| 이름 \* | 0-59                                                 | \* , - /      |
+| 영업시간  | 0-23                                                 | \* , - /      |
+| 월 일   | 1-31                                                 | \* , -/L W 또는 |
+| 월별 월별 | 1-12, case-insensitive 3-letter 약어 ("JAN", "aug", 등) | \* , - /      |
+| 주 메뉴  | 1-7, case-insensitive 3-letter 약어 ("MON", "fri", 등)  | \* , - / L의 # |
+
+:::참조
+
+주일의 일은 1 = 일요일에서 7 = 토요일, 다른 다른 일부 cron 시스템 (내가 0 = 일요일과 6 = 토요일)과 다릅니다.
+주위를 피하기 위해 당신은 세 letter 약어를 사용 선호 할 수 있습니다 (예 :`SUN`1) 보다는 오히려.
+
+:::
+
+### 이름 \*
+
+Cron Trigger를 설정하는 데 유용 할 수있는 몇 가지 일반적인 시간 간격 :
+
+- `* * * * *`
+  - 각 분
+
+- `*/30 * * * *`
+  - 30분마다
+
+- `45 * * * *`
+  - 매시간 45분
+
+- `0 17 * * sun`또는`0 17 * * 1`
+  - 일요일 17:00 (UTC)
+
+- `10 7 * * mon-fri`또는`10 7 * * 2-6`
+  - 07:10 (UTC) 평일
+
+- `0 15 1 * *`
+  - 월 첫날 15:00 (UTC)
+
+- `0 18 * * 6L`또는`0 18 * * friL`
+  - 18:00 (UTC) 매월 마지막 금요일
+
+- `59 23 LW * *`
+  - 월 마지막 주일 23:59 (UTC)
+
+## 로컬로 Cron Triggers 테스트
+
+Wrangler를 사용하여 Cron 트리거 테스트[`wrangler dev`](/workers/wrangler/commands/#dev), 또는 사용[모델 번호: Cloudflare Vite 플러그인](https://developers.cloudflare.com/workers/vite-plugin/). 이것은 노출될 것입니다`/cdn-cgi/handler/scheduled`HTTP 요청을 사용하여 테스트 할 수있는 경로.
+
+```sh
+curl "http://localhost:8787/cdn-cgi/handler/scheduled"
+```
+
+다른 cron 패턴을 시뮬레이션하기 위해,`cron`질 모수는 안으로 통과될 수 있습니다.
+
+```sh
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*"
+```
+
+선택적으로, 당신은 또한 통과할 수 있습니다`time`override에 쿼리 매개 변수`controller.scheduledTime`예정된 행사 청취자.
+
+```sh
+curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=*+*+*+*+*&time=1745856238"
+```
+
+## 과거 행사
+
+Cron Triggers의 실행 역사를 보려면,보기**Cron 이벤트**:
+
+1. Cloudflare dashboard에서, 갑니다**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**제품정보**, 당신의 선택**작업자**.
+
+3. 제품정보**계정 설정**.
+
+4. 이름 \***Trigger 이벤트**, 선택**공지사항**.
+
+Cron 이벤트는 Cron 예정 이벤트의 가장 최근의 주장을 저장합니다.[Workers 로그인](/workers/observability/logs/workers-logs)또한 더 긴 유지 기간 및 필터 및 쿼리 인터페이스를 가진 Cron Trigger에 대한 invocation 로그를 기록합니다. Cron 이벤트에 액세스하려면 API에 관심이 있다면 Cloudflare의[GraphQL 분석 API](/analytics/graphql-api).
+
+:::참조
+
+이벤트가 표시되기 전에 30 분까지 걸릴 수 있습니다.**과거 Cron 이벤트**새로운 노동자를 만들거나 노동자의 이름을 변경할 때.
+
+:::
+
+더 알아보기[미터 및 분석](/workers/observability/metrics-and-analytics/)더 많은 정보.
+
+## Cron 트리거 제거
+
+### dashboard
+
+dashboard를 통해 배포 된 노동자에 Cron 방아쇠를 삭제하려면 :
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 당신의 노동자를 선택하십시오.
+
+3. 오시는 길**트리거**> 제거하려는 Cron Trigger 옆에 세 개의 도트 아이콘을 선택하십시오 >**이름 \***.
+
+#### 오시는 길[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+노동자가 Wrangler로 관리되면, Cron Triggers는 독점적으로 관리되어야 합니다[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+WranglerXQ로 Worker를 배포할 때 이전의 Cron Triggers가 지정된 것으로 교체됩니다.`triggers`배열.
+
+- 만약에`crons`재산은 빈 배열 그 후에 모든 Cron Triggers 제거됩니다.
+- 만약에`triggers`또는`crons`위치안내`undefined`현재 Cron Triggers를 배포합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"triggers": {
+  		//모든 cron 트리거 제거:
+  		"crons": []
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 제한 사항
+
+더 알아보기[제한 사항](/workers/platform/limits/)노동자 당 Cron Triggers의 최대 수를 추적합니다.
+
+## 녹색 Compute
+
+Green Compute 활성화를 통해 Cron Triggers는 재생 에너지로 순수하게 구동되는 데이터 센터에 위치한 Cloudflare 포인트에서만 실행됩니다. 조직은 100 %의 재생 에너지로 구동되는 것을 주장 할 수 있습니다. 그들은 전체 에너지 사용을 고려하기 위해 충분한 재생 가능한 에너지를 조달 한 경우.
+
+재생 가능한 에너지는 전원 구매 계약(PPA) 또는 재생 가능한 에너지 크레딧 (REC, IRECs, GoOs)의 형태로 Power Buy Agreements (PPA)라는 계약 계약을 통해 재생 가능한 에너지 제작자로부터 직접 현장 생성 (바람 터빈, 태양 전지 패널)을 통해 여러 가지 방법으로 구입할 수 있습니다.
+
+Green Compute는 계정 수준에서 형성될 수 있습니다:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**계정 정보**섹션, 찾기**Compute 설정**.
+
+3. 제품정&#xBCF4;**- 기타**.
+
+4. 제품정보**녹색 Compute**.
+
+5. 제품정보**이름 \***.
+
+## 관련 자료
+
+- [트리거](/workers/wrangler/configuration/#triggers)- Cron Triggers에 대한 Wrangler 구성 파일 구문 검토.
+- Cron Triggers에 액세스하는 방법 알아보기[ES 모듈 구문](/workers/reference/migrate-to-module-workers/)최적화된 경험을 위해.

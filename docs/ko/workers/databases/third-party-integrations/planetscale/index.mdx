@@ -1,0 +1,113 @@
+---
+pcx_content_type: configuration
+title: 플래닛
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/planetscale/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/databases/third-party-integrations/planetscale/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Tabs, TabItem } from "~/components";
+
+[플래닛](https://planetscale.com/)MySQL 호환 및 PostgreSQL 데이터베이스를 제공하는 데이터베이스 플랫폼입니다. 더 확장 가능하고 쉽게 관리할 수 있습니다.
+
+:::참조
+
+PlanetScale에 연결할 수 있습니다.[모델 번호: Hyperdrive](/hyperdrive)(추천), 또는 PlanetScale serverless 드라이버를 사용하여,`@planetscale/database`. 둘 다 연결 풀을 제공하고 당신의 데이타베이스에 WorkersXQ에서 안전한 연결을 창조하기 위하여 요구되는 둥근 여행의 양을 감소시킵니다.
+
+Hyperdrive는 Cloudflare의 네트워크를 통해 데이터베이스 연결 설정 및 연결 풀링을 수행하기 때문에 낮은 latencies를 제공 할 수 있습니다. Hyperdrive는 기본 데이터베이스 드라이버, 라이브러리 및 ORM을 지원하며 모든 것에 포함되어 있습니다.[Workers 계획](/hyperdrive/platform/pricing/). Hyperdrive에 대해 자세히 알아보기[Hyperdrive 이름 \*](/hyperdrive/concepts/how-hyperdrive-works/).
+
+:::
+
+<Tabs>
+  <TabItem label="Hyperdrive (추천)">
+    PlanetScale에 연결하기[Hyperdrive](/hyperdrive), 다음 단계를 따르십시오:
+
+    <Render file="planetscale-partial" product="hyperdrive" />
+  </TabItem>
+
+  <TabItem label="PlanetScale 서버리스 드라이버">
+    ## PlanetScale와의 통합 설정
+
+    PlanetScale와의 통합을 설정하려면:
+
+    1. 기존 PlanetScale 데이터베이스가 있어야 합니다.[PlanetScale 데이터베이스 만들기](https://planetscale.com/docs/tutorials/planetscale-quick-start-guide#create-a-database)또는[PlanetScale에 기존 데이터베이스를 가져 오기](https://planetscale.com/docs/imports/database-imports#overview).
+
+    2. 에 의해[PlanetScale 웹 콘솔](https://planetscale.com/docs/concepts/web-console#get-started), 만들기`products`다음 쿼리를 가진 테이블:
+
+       ```sql
+       CREATE TABLE products (
+         id int NOT NULL AUTO_INCREMENT PRIMARY KEY,
+         name varchar(255) NOT NULL,
+         image_url varchar(255),
+         category_id INT,
+         KEY category_id_idx (category_id)
+       );
+       ```
+
+    3. 새로 만들어진 테이블에 데이터를 삽입합니다. 다음 명령을 실행하여 제품 및 카테고리를 테이블에 추가하십시오.
+
+       ```sql
+       INSERT INTO products (name, image_url, category_id)
+       VALUES ('Ballpoint pen', 'https://example.com/500x500', '1');
+       ```
+
+    4. PlanetScale 데이터베이스 자격 구성:
+
+       PlanetScale 데이터베이스를 작업자에게 비밀로 추가해야 합니다. 연결 세부 정보 얻기[PlanetScale 대시보드](https://app.planetscale.com)연결 문자열을 작성하여 Wrangler를 사용하여 비밀으로 추가하십시오.
+
+       ```sh
+       #데이터베이스 호스트를 비밀로 추가
+       npx wrangler secret put DATABASE_HOST
+       #신속하게 풀면 PlanetScale 호스트
+
+       #데이터베이스 사용자 이름 추가 비밀
+       npx wrangler secret put DATABASE_USERNAME
+       #언제 신속하게, PlanetScale 사용자를 붙여
+
+       #데이터베이스 암호를 비밀로 추가
+       npx wrangler secret put DATABASE_PASSWORD
+       #신속하게 풀면 PlanetScale 비밀번호
+       ```
+
+    5. 직장에서, 설치`@planetscale/database`당신의 PlanetScale 데이터베이스에 연결하는 드라이버 및 데이터를 조작 시작:
+
+       <PackageManagers pkg="@planetscale/database" />
+
+    6. 다음 예제는 Worker에서 PlanetScale 데이터베이스에 쿼리를 만드는 방법을 보여줍니다. PlanetScale에 연결하기 위해 필요한 자격은 작업자에게 비밀로 추가되었습니다.
+
+       ```js
+       import { connect } from "@planetscale/database";
+
+       export default {
+       	async fetch(request, env) {
+       		const config = {
+       			host: env.DATABASE_HOST,
+       			username: env.DATABASE_USERNAME,
+       			password: env.DATABASE_PASSWORD,
+       			//https://github.com/cloudflare/workerd/issues/698를 보십시오
+       			fetch: (url, init) => {
+       				delete init["cache"];
+       				return fetch(url, init);
+       			},
+       		};
+
+       		const conn = connect(config);
+       		const data = await conn.execute("SELECT * FROM products;");
+       		return new Response(JSON.stringify(data.rows), {
+       			status: 200,
+       			headers: {
+       				"Content-Type": "application/json",
+       			},
+       		});
+       	},
+       };
+       ```
+
+    PlanetScale에 대해 자세히 알아 보려면 여기를 클릭하십시오.[PlanetScale의 공식 문서](https://docs.planetscale.com/).
+  </TabItem>
+</Tabs>

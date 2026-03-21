@@ -1,0 +1,137 @@
+---
+title: API 예제
+pcx_content_type: configuration
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: API 예제의 사용자 정의 규칙과 Skip action
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/custom-rules/skip/api-examples/'
+translation_source_md: 'https://developers.cloudflare.com/waf/custom-rules/skip/api-examples/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)API를 통해 사용자 정의 규칙을 구성합니다.
+
+더 보기`skip`동작 지원[옵션 정보](/waf/custom-rules/skip/options/), 당신이 건너뛰기를 원하는 보안 기능 또는 제품에 따라.
+
+## 계속하기
+
+이 페이지에는 사용자 정의 규칙에 대한 다른 건너뛰기 규칙 시나리오의 예가 포함되어 있습니다. 계정으로 다음을 가져 가라:
+
+- 더 보기`$ZONE_ID`값은[지역 ID](/fundamentals/account/find-account-and-zone-ids/)규칙을 추가하고 싶은 곳.
+
+- 더 보기`$RULESET_ID`값은 ID입니다.[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_firewall_custom`단계. 이 규칙 ID를 얻기에 대한 자세한 내용은 참조[목록 및 볼 규칙](/ruleset-engine/rulesets-api/view/). 이 페이지에서 API 예제는 기존의 규칙에 대한 Skip 규칙을 추가합니다.[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)가동.
+
+  그러나 항목 포인트 규칙은 아직 존재하지 않을 수 있습니다. 이 경우, invoke[지역 규칙 만들기](/api/resources/rulesets/methods/create/)Skip 규칙을 가진 항목 포인트 규칙을 만드는 작업. 더 알아보기[규칙 만들기](/ruleset-engine/rulesets-api/create/#example---create-a-zone-level-phase-entry-point-ruleset)예를 들어.
+
+- 각 예제는 하나의 동작 매개 변수만 포함하지만, 같은 규칙에서 여러 건너뛰기 옵션을 사용할 수 있습니다.`ruleset`, `phases`·`products`동시에 동작 매개변수.
+
+## 현재 규칙에 남아있는 규칙을 건너
+
+이 예제는 호출[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)기존에 건너뛰기`http_request_firewall_custom`ID를 가진 단계 입장 점 규칙`$RULESET_ID`. 규칙은 규칙 표현과 일치하는 요청에 대한 현재의 규칙에 남아있는 모든 규칙을 건너 뛸 것입니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "skip",
+  	action_parameters: {
+  		ruleset: "current",
+  	},
+  	expression: 'http.request.uri.path contains "/skip-current-ruleset/"',
+  	description: "",
+  }}
+  roles={false}
+/>
+
+## 연락처
+
+이 예제는 호출[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)기존의 규칙을 추가하는 작업`http_request_firewall_custom`ID를 가진 단계 입장 점 규칙`$RULESET_ID`. 규칙은 건너편`http_ratelimit`규칙 표현과 일치하는 요청에 대한 단계.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "skip",
+  	action_parameters: {
+  		phases: ["http_ratelimit"],
+  	},
+  	expression: 'http.request.uri.path contains "/skip-phase/"',
+  	description: "",
+  }}
+  roles={false}
+/>
+
+더 알아보기[옵션 선택](/waf/custom-rules/skip/options/)당신은 건너뛰는 단계의 명부를 위해.
+
+## 단계 건너뛰고 일치하는 요청을 로그하지 마십시오
+
+이 예제는 호출[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)규칙을 추가하는 작업 :
+
+- 공지사항`http_ratelimit`단계별
+- 현재 규칙에 대한 이벤트 로깅
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "skip",
+  	action_parameters: {
+  		phases: ["http_ratelimit"],
+  	},
+  	logging: {
+  		enabled: false,
+  	},
+  	expression: 'http.request.uri.path contains "/disable-logging/"',
+  	description: "",
+  }}
+  roles={false}
+/>
+
+더 알아보기[옵션 선택](/waf/custom-rules/skip/options/#log-requests-matching-the-skip-rule)Skip 규칙과 일치하는 요청에 대한 블로깅을 비활성화하는 방법에 대한 자세한 내용은.
+
+## 보안 제품
+
+이 예제는[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)실행을 추가하는 규칙을 건너[지역 Lockdown](/waf/tools/zone-lockdown/)·[사용자 에이전트 차단](/waf/tools/user-agent-blocking/)규칙 표현과 일치하는 요청에 대한 제품.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "skip",
+  	action_parameters: {
+  		products: ["zoneLockdown", "uaBlock"],
+  	},
+  	expression: 'http.request.uri.path contains "/skip-products/"',
+  	description: "",
+  }}
+  roles={false}
+/>
+
+더 알아보기[옵션 선택](/waf/custom-rules/skip/options/#skip-products)당신이 건너갈 수 있는 제품의 명부를 위해.
+
+## 현재 단계의 나머지 규칙을 건너
+
+이 예제는 호출[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)기존에 건너뛰기`http_request_firewall_custom`ID를 가진 단계 입장 점 규칙`$RULESET_ID`. 규칙은 모든 나머지 규칙을 건너 뛸 것입니다`http_request_firewall_custom`규칙 표현과 일치하는 요청에 대한 단계.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "skip",
+  	action_parameters: {
+  		phase: "current",
+  	},
+  	expression: 'http.request.uri.path contains "/skip-current-ruleset/"',
+  	description: "",
+  }}
+  roles={false}
+/>
+
+현재 이 건너뛰기 옵션은 영역 수준에서만 사용할 수 있습니다. 더 알아보기[옵션 선택](/waf/custom-rules/skip/options/#skip-the-remaining-custom-rules-current-phase)더 많은 정보.

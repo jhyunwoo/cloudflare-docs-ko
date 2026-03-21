@@ -1,0 +1,207 @@
+---
+pcx_content_type: concept
+title: Workers Logpush의
+head: []
+description: Workers를 보내십시오 Trace Event는 스토리지 또는 로깅 공급자와 같은 지원된 타사에 로그인합니다.
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/logs/logpush/'
+translation_source_md: 'https://developers.cloudflare.com/workers/observability/logs/logpush/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, DashButton } from "~/components";
+
+[모델 번호: Cloudflare 다운로드](/logs/logpush/)전송 능력 지원[Workers Trace 이벤트 로그](/logs/logpush/logpush-job/datasets/account/workers_trace_events/)한국어[지원 대상](/logs/logpush/logpush-job/enable-destinations/). Worker’s Trace Events Logpush에는 요청 및 응답에 대한 메타 데이터가 포함되어 있습니다.`console.log()`메시지 및 기타 예외. 이 제품은 Workers Paid 계획에 유효합니다. 가격 정보, 참조[가격 책정](/workers/platform/pricing/#workers-trace-events-logpush).
+
+:::카트로션
+
+모델 번호: Workers Trace Events Logpush는 지역별로 사용할 수 없습니다.[Cloudflare 중국 네트워크](/china-network/).
+
+:::
+
+## Logpush 액세스 확인
+
+:::note\[Wrangler 버전]
+최소 필요한 Wrangler 버전: 2.2.0. 실행하여 버전 확인`wrangler --version`. Wrangler를 업데이트하려면, 참조[설치/업데이트 Wrangler](/workers/wrangler/install-and-update/).
+:::
+
+Logpush 작업을 구성하려면 Cloudflare 계정 역할이 Logpush를 사용할 수 있는지 확인하십시오. 당신의 역할을 확인하려면:
+
+1. Cloudflare dashboard에서, 가십시오**이름 \***&#xC0AC;이트 맵
+
+   <DashButton url="/?to=/:account/members" />
+
+2. 계정 권한 확인. Logpush 구성 액세스와 역할은 Workers 권한보다 다릅니다. 관리자, 관리자 및 로그 공유 역할은 Logpush에 대한 전체 액세스가 있습니다.
+
+대안으로, 새로운 창조[API 토큰](/fundamentals/api/get-started/create-token/)Logs Edit 권한을 가진 계정 수준에서 범위.
+
+## Logpush 작업 만들기
+
+### Cloudflare dashboard를 통해
+
+Cloudflare dashboardXQ에서 Logpush 작업을 만들려면 :
+
+1. Cloudflare dashboard에서, 가십시오**다운로드**사이트 맵
+
+   <DashButton url="/?to=/:account/logs" />
+
+2. 제품정보**Logpush 작업 만들기**.
+
+3. 목적지를 선택하고, 필요한 경우 구성.
+
+4. 제품정보**Workers 추적 이벤트**데이터 세트 >**이름 \***.
+
+5. 필요한 경우 데이터 필드를 사용자 정의합니다. 그렇지 않으면, 선택**이름 \***.
+
+6. dashboard에 대한 지침을 따르고 데이터의 목적지의 소유권을 확인하고 작업 작성을 완료하십시오.
+
+### 비아 cURL
+
+다음 예제는 Workers 로그를 R2. 더 많은 구성 옵션, 참조[자주 묻는 질문](/logs/logpush/logpush-job/enable-destinations/)·[API 구성](/logs/logpush/logpush-job/api-configuration/)로그 문서에.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/logpush/jobs" \
+--header 'X-Auth-Key: <API_KEY>' \
+--header 'X-Auth-Email: <EMAIL>' \
+--header 'Content-Type: application/json' \
+--data '{
+  "name": "workers-logpush",
+  "output_options": {
+    "field_names": ["Event", "EventTimestampMs", "Outcome", "Exceptions", "Logs", "ScriptName"],
+  },
+  "destination_conf": "r2://<BUCKET_PATH>/{DATE}?account-id=<ACCOUNT_ID>&access-key-id=<R2_ACCESS_KEY_ID>&secret-access-key=<R2_SECRET_ACCESS_KEY>",
+  "dataset": "workers_trace_events",
+  "enabled": true
+}' | jq .
+```
+
+Logpush에서 구성할 수 있습니다.[제품정보](/logs/logpush/logpush-job/filters/)·[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)구성 된 목적지로 전송되는 데이터의 볼륨을 더 제어 할 수 있습니다. 예를 들어, 예외로 발생하지 않은 요청에 대한 로그를 수신하려는 경우 다음을 추가하십시오.`filter`아래의 JSON 속성`output_options`:
+
+`"filter":"{\"where\": {\"key\":\"Outcome\",\"operator\":\"!eq\",\"value\":\"exception\"}}"`
+
+## 당신의 노동자에 로그인
+
+### 지역 개발
+
+새로운 속성을 추가하여 Worker에 로그인할 수 있습니다.`logpush = true`Wrangler 파일에 ,. 상단 레벨 구성 또는 아래에서 추가할 수 있습니다.[환경분야](/workers/wrangler/environments/). 이 재산을 가진 어떤 새로운 Workers는 자동적으로 Logpush 일에 의해 픽업을 얻을 것입니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	//Top-level 구성
+  	"name": "my-worker",
+  	"main": "src/index.js",
+  	"compatibility_date": "$today",
+  	"workers_dev": false,
+  	"logpush": true,
+  	"route": {
+  		"pattern": "example.org/*",
+  		"zone_name": "example.org"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+Multipart 스크립트 업로드 API를 통해 구성:
+
+```bash
+curl --request PUT \
+"https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/{script_name}" \
+--header "Authorization: Bearer <API_TOKEN>" \
+--form 'metadata={"main_module": "my-worker.js", "logpush": true}' \
+--form '"my-worker.js"=@./my-worker.js;type=application/javascript+module'
+```
+
+### 대시보드
+
+dashboardXQ를 통해 Logpush 로깅을 활성화하려면:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 당신의 노동자를 선택하십시오.
+
+3. 오시는 길**계정 설정** > **옵션 정보**.
+
+4. 제품 정보**다운로드**, 선택**이름 \***(이것은 이미 있다면만 사용할 수 있습니다.[logpush 작업 생성](/workers/observability/logs/logpush/#create-a-logpush-job)).
+
+## 제한 사항
+
+더 보기`logs`·`exceptions`필드에는 필드 앞에 16,384 문자의 결합한 한계가 truncated 시작될 것입니다. 문자는 모든 순서로 계산됩니다.`exception.name`·`exception.message`s, 다음`log.message`₢ 킹
+
+문자 제한이 모든 필드에 도달하면`"<<<Logpush: *field* truncated>>>"`로그인 또는 예외를 삭제하기 전에 한 메시지.
+
+### 이름 \*
+
+이것을 설명하기 위해 Logpush 이벤트는 아래의 JSON과 같은 보이고 제한은 50 문자입니다 (실제 제한보다 16,384). 알고리즘은:
+
+1. 문자 수`exception.names`:
+   1. `"SampleError"`·`"AuthError"`20자 이내
+2. 문자 수`exception.message`:
+   1. `"something went wrong"`나머지 10 문자를 남겨 20 문자로 계산됩니다.
+   2. 첫 10자`"unable to process request authentication from client"`truncated 전에 촬영 및 계산`"unable to <<<Logpush: exception messages truncated>>>"`.
+3. 문자 수`log.message`:
+   1. 우리는 이미 truncation를 시작했습니다, 그래서`"Hello "`대체될 것`"<<<Logpush: messages truncated>>>"`·`"World!"`떨어질 것입니다.
+
+#### 표본 입력
+
+```json
+{
+  "Exceptions": [
+    {
+      "Name": "SampleError",
+      "Message": "something went wrong",
+      "TimestampMs": 0
+    },
+    {
+      "Name": "AuthError",
+      "Message": "unable to process request authentication from client",
+      "TimestampMs": 1
+    },
+  ],
+  "Logs": [
+    {
+      "Level": "log",
+      "Message": ["Hello "],
+      "TimestampMs": 0
+    },
+    {
+      "Level": "log",
+      "Message": ["World!"],
+      "TimestampMs": 0
+    }
+  ]
+}
+```
+
+#### 표본 산출
+
+```json
+{
+  "Exceptions": [
+    {
+      "name": "SampleError",
+      "message": "something went wrong",
+      "TimestampMs": 0
+    },
+    {
+      "name": "AuthError",
+      "message": "unable to <<<Logpush: exception messages truncated>>>",
+      "TimestampMs": 1
+    },
+  ],
+  "Logs": [
+    {
+      "Level": "log",
+      "Message": ["<<<Logpush: messages truncated>>>"],
+      "TimestampMs": 0
+    }
+  ]
+}
+```

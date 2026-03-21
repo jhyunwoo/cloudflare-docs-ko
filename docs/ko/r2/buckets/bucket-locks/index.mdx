@@ -1,0 +1,155 @@
+---
+title: 물통 자물쇠
+pcx_content_type: how-to
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/bucket-locks/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/bucket-locks/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+물통 자물쇠는 지정된 기간을 위한 R2 물통에 있는 목표의 deletion 그리고 overwriting를 막습니다 — 또는 무한하게. 지원할 때, 물통 자물쇠는 당신의 목표에 보유 정책을 실행하고, 사고 또는 조기 삭제에서 그들을 보호하는 것을 돕습니다.
+
+## 버킷 자물쇠로 시작
+
+시작하기 전에, 당신은 필요합니다:
+
+- 기존 R2 버킷. 이미 기존 R2 버킷을 가지고 있지 않은 경우, 참조[버킷 만들기](/r2/buckets/create-buckets/).
+- (API 전용) API 토큰[이름 \*](/r2/api/tokens/#permissions)R2 물통 윤곽을 편집하기 위하여.
+
+### dashboard를 통해 Enable 물통 자물쇠
+
+1. Cloudflare dashboard에서, 갑니다**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 버킷을 선택하면 버킷 잠금 규칙을 추가하고 싶습니다.
+3. 전환하기**계정 설정**탭, 다음으로 스크롤**물통 자물쇠 규칙**카드.
+4. 제품정보**규칙 추가**규칙 이름, 접두사 및 보존 기간을 입력하십시오.
+5. 제품정보**비밀번호**.
+
+### Wrangler를 통해 Enable 물통 자물쇠
+
+1. 설치하기[`npm`](https://docs.npmjs.com/getting-started).
+2. 설치하기[Wrangler, 개발자 플랫폼 CLI](/workers/wrangler/install-and-update/).
+3. Wrangler에 로그인[`wrangler login`이름 \*](/workers/wrangler/commands/#login).
+4. 버킷 잠금 규칙을 실행하여 버킷에 추가[`r2 bucket lock add`이름 \*](/workers/wrangler/commands/#r2-bucket-lock-add).
+
+```sh
+npx wrangler r2 bucket lock add <BUCKET_NAME> [OPTIONS]
+```
+
+Alternatively, JSON 파일에서 버킷 전체 잠금 구성을 설정할 수 있습니다.[`r2 bucket lock set`이름 \*](/workers/wrangler/commands/#r2-bucket-lock-set).
+
+```sh
+npx wrangler r2 bucket lock set <BUCKET_NAME> --file <FILE_PATH>
+```
+
+JSON 파일은 요청 본문의 형식에 있어야합니다.[버킷 잠금 설정 API](/api/resources/r2/subresources/buckets/subresources/locks/methods/update/).
+
+### API를 통해 Enable 물통 자물쇠
+
+Cloudflare API로 시작된 정보를 위해, 참조[API 호출](/fundamentals/api/how-to/make-api-calls/). 필요한 매개 변수 및 버킷 잠금 구성을 설정하는 방법의 더 많은 예에 대한 정보는 참조[API 문서](/api/resources/r2/subresources/buckets/subresources/locks/methods/update/).
+
+아래는 버킷 잠금 구성 설정의 예입니다 ( 규칙 수집):
+
+```bash
+curl -X PUT "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/r2/buckets/<BUCKET_NAME>/lock" \
+    -H "Authorization: Bearer <API_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{
+        "rules": [
+            {
+                "id": "lock-logs-7d",
+                "enabled": true,
+                "prefix": "logs/",
+                "condition": {
+                    "type": "Age",
+                    "maxAgeSeconds": 604800
+                }
+            },
+            {
+                "id": "lock-images-indefinite",
+                "enabled": true,
+                "prefix": "images/",
+                "condition": {
+                    "type": "Indefinite"
+                }
+            }
+        ]
+    }'
+```
+
+이 요청은 두 가지 규칙을 만듭니다:
+
+- `lock-logs-7d`: 아래 객체`logs/`접두사는 7 일 (604800 초) 동안 유지됩니다.
+- `lock-images-indefinite`: 아래 객체`images/`접두사는 무한하게 잠겨 있습니다.
+
+:::참조
+
+버킷이 설정되면[관할 구역](/r2/reference/data-location/#jurisdictional-restrictions), 당신은 통과해야 할 것입니다`cf-r2-jurisdiction`해당 관할 구역에 요청 헤더. 예를 들어,`cf-r2-jurisdiction: eu`.
+
+:::
+
+## R2 물통을 위한 물통 자물쇠 규칙을 얻으십시오
+
+### 대시보드
+
+1. Cloudflare QXdashboard에서, 갑니다**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 버킷을 선택하면 버킷 잠금 규칙을 추가하고 싶습니다.
+3. 전환하기**계정 설정**탭, 다음으로 스크롤**물통 자물쇠 규칙**카드.
+
+### Wrangler
+
+버킷 잠금 규칙을 나열하려면[`r2 bucket lock list`이름 \*](/workers/wrangler/commands/#r2-bucket-lock-list):
+
+```sh
+npx wrangler r2 bucket lock list <BUCKET_NAME>
+```
+
+### 사이트맵
+
+필요한 매개 변수와 버킷 잠금 규칙을 얻는 방법의 예에 대한 자세한 내용은 참조[API 문서](/api/resources/r2/subresources/buckets/subresources/locks/methods/get/).
+
+## R2 버킷 잠금 규칙 제거
+
+### 대시보드
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 버킷을 선택하면 버킷 잠금 규칙을 추가하고 싶습니다.
+3. 전환하기**계정 설정**탭, 다음으로 스크롤**물통 자물쇠 규칙**카드.
+4. 제거하고 싶은 규칙을 찾습니다.`...`그 옆에 아이콘을 선택한 다음**이름 \***.
+
+### Wrangler
+
+버킷 잠금 규칙을 제거하려면, 실행[`r2 bucket lock remove`이름 \*](/workers/wrangler/commands/#r2-bucket-lock-remove):
+
+```sh
+npx wrangler r2 bucket lock remove <BUCKET_NAME> --id <RULE_ID>
+```
+
+### 사이트맵
+
+API를 통해 버킷 잠금 규칙을 제거하려면 업데이트 된 구성에서 제외하고 사용[버킷 잠금 설정 API](/api/resources/r2/subresources/buckets/subresources/locks/methods/update/).
+
+## 물통 자물쇠 규칙
+
+물통 자물쇠 윤곽은 1,000까지 규칙을 포함할 수 있습니다. 각 규칙은 물체를 다룹니다 (접두를 통해) 그리고 그 물체가 잠겨야하는 방법. 당신은 할 수 있습니다:
+
+- 특정한 내구를 위한 자물쇠 목표. 예를 들어, 90 일.
+- 특정 날짜까지 개체를 유지합니다. 예를 들어, 1 월 1, 2026까지.
+- 불확실하게 잠긴 개체를 지키십시오.
+
+여러 규칙이 동일한 접두사 또는 객체 키에 적용되면 엄격한 (longest) 보존 요구 사항은 우선합니다.
+
+## 지원하다
+
+- prefix 없이 규칙은 물통에 있는 모든 목표에 적용합니다.
+- 규칙은 버킷의 새로운 기존 객체에 적용됩니다.
+- 물통 자물쇠 규칙은 위에 전진합니다[Lifecycle 규칙](/r2/buckets/object-lifecycles/). 예를 들어, 수명주기 규칙이 30 일 동안 객체를 삭제하려고 시도하지만 버킷 잠금 규칙은 90 일 동안 유지되어야하며, 90 일 요구 사항이 충족 될 때까지 객체가 삭제되지 않습니다.

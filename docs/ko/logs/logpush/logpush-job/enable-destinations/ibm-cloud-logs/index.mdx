@@ -1,0 +1,179 @@
+---
+title: IBM 클라우드 로그 사용
+pcx_content_type: how-to
+sidebar:
+  order: 99
+head:
+  - tag: title
+    content: Logpush IBM 클라우드 로그 사용
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/ibm-cloud-logs/
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/enable-destinations/ibm-cloud-logs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, APIRequest } from "~/components";
+
+모델 번호: Cloudflare Logpush는 대시보드 또는 API를 통해 IBM Cloud Logs에 직접 푸시 로그를 지원합니다.
+
+## Cloudflare 대시보드를 통해 관리
+
+<Render file="enable-logpush-job" product="logs" />
+
+4. 내 계정**자주 묻는 질문**, 선택**IBM 클라우드 로그**.
+
+5. 다음 목적지 정보 입력:
+
+- **HTTP 소스 주소**- 예를 들어,`ibmcl://<INSTANCE_ID>.ingress.<REGION>.logs.cloud.ibm.com/logs/v1/singles`.
+- **IBM API 키**- 더 많은 정보를 원하시면[IBM Cloud 문서](https://cloud.ibm.com/docs/cloud-logs).
+
+목적지 정보를 입력할 때, 선택**계속하기**.
+
+6. Dataset을 선택하여 저장 서비스로 밀어줍니다.
+
+7. 다음 단계에서, 당신은 당신의 logpush 작업을 구성해야:
+   - 이름 \***이름 \***.
+   - 이름 \***로그인**, 당신은 이벤트를 선택하고 / 또는 로그에서 제거 할 수 있습니다. 더 알아보기[필터링](/logs/logpush/logpush-job/filters/)더 많은 정보. 모든 datasets에는 이 선택권이 있습니다.
+   - 내 계정**다음 필드를 보내십시오**, 당신은 당신의 저장 목적지에 모든 로그를 밀어 또는 선택적으로 당신이 밀어하려는 로그를 선택할 수 있습니다.
+
+8. 내 계정**고급 옵션**, 당신은 할 수 있습니다:
+   - 로그인의 타임스탬프 필드의 형식을 선택하십시오 (`RFC3339`(과태)`Unix`, 또는`UnixNano`).
+   - 선택하기[샘플링 비율](/logs/logpush/logpush-job/api-configuration/#sampling-rate)로그인 또는 로그의 무작위 샘플 비율을 밀어.
+   - 사용 가능한 적색`CVE-2021-44228`. 이 선택권은 각 발생을 대체할 것입니다`${`이름 \*`x{`.
+
+9. 제품정보**제출하기**일단 당신이 당신의 logpush 일을 구성하고 있습니다.
+
+## API를 통해 관리
+
+IBM 클라우드 로그 작업을 설정하려면:
+
+1. 적절한 엔드포인트 URL 및 인증 매개 변수로 작업을 만듭니다.
+2. 로그를 푸는 작업을 활성화합니다.
+
+:::주\[주]
+Log Share 권한이 활성화되기 전에 Logpush 작업을 읽거나 구성하려고 시도합니다. 더 많은 정보를 원하시면[역할 섹션](/logs/logpush/permissions/#roles).
+:::
+
+### 1. 작업 만들기
+
+일을 만들려면,`POST`다음 필드에 Logpush 작업 엔드 포인트에 요청:
+
+- **이름 \***(optional) - 도메인 이름을 작업 이름으로 사용하십시오.
+- **output 옵션**(선택) - 이 매개 변수는 원하는 출력 형식과 구조를 정의하는 데 사용됩니다. 아래는 구성 필드입니다:
+  - 출력 type
+  - 타임스탬프 format
+  - batch prefix 및 일괄 처리 suffix
+  - record prefix 및 레코드 suffix
+  - 기록 delimiter
+- **대상 conf**- Instance ID, Region 및[IBM API 키](https://cloud.ibm.com/docs/account?topic=account-iamtoken_from_apikey)아래 문자열 형식에서.
+
+`ibmcl://<INSTANCE_ID>.ingress.<REGION>.logs.cloud.ibm.com/logs/v1/singles?ibm_api_key=<IBM_API_KEY>`
+
+- **최대 upload records**(선택 사항) - 일괄 처리 당 로그 라인의 최대 번호. 1,000개 이상의 라인이 있어야 합니다. 배치 당 최소 로그 라인을 지정하는 방법이 없습니다. 로그 파일이 지정된 것보다 많은 몇 줄을 포함 할 수 있음을 의미합니다.
+- **최대 upload bytes**(선택 사항) - 로그의 일괄 처리를위한 최대 압축 파일 크기. 우리는 IBM의 한계에 따라 업로드 당 2 MB의 기본값을 권장합니다, 우리의 시스템은이 목적지에 시행됩니다. 최소 파일 크기를 설정할 수 없기 때문에 로그 파일이 지정된 일괄 크기보다 작을 수 있습니다.
+- **데이터셋**- 수신하려는 로그의 범주. 더 알아보기[데이터셋](/logs/logpush/logpush-job/datasets/)지원된 datasets의 전체 목록을 위해.
+
+cURL을 사용한 예시 요청:
+
+<APIRequest
+  method="POST"
+  path="/zones/{zone_id}/logpush/jobs"
+  json={{
+  	name: "<DOMAIN_NAME>",
+  	output_options: {
+  		output_type: "ndjson",
+  		timestamp_format: "rfc3339",
+  		batch_prefix: "[",
+  		batch_suffix: "]",
+  		record_prefix:
+  			'{"applicationName":"ibm-platform-log","subsystemName":"internet-svcs:logpush","text":{',
+  		record_suffix: "}}",
+  		record_delimiter: ",",
+  	},
+  	destination_conf:
+  		"ibmcl://<INSTANCE_ID>.ingress.<REGION>.logs.cloud.ibm.com/logs/v1/singles?ibm_api_key=<IBM_API_KEY>",
+  	max_upload_bytes: 2000000,
+  	dataset: "http_requests",
+  	enabled: true,
+  }}
+/>
+
+응답:
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "dataset": "http_requests",
+    "destination_conf": "ibmcl://<INSTANCE_ID>.ingress.<REGION>.logs.cloud.ibm.com/logs/v1/singles?ibm_api_key=<IBM_API_KEY>",
+    "enabled": true,
+    "error_message": null,
+    "id": <JOB_ID>,
+    "kind": "",
+    "last_complete": null,
+    "last_error": null,
+    "output_options": {
+      "output_type": "ndjson",
+      "timestamp_format": "rfc3339",
+      "batch_prefix": "[",
+      "batch_suffix": "]",
+      "record_prefix": "{\"applicationName\":\"ibm-platform-log\",\"subsystemName\":\"internet-svcs:logpush\",\"text\":{",
+      "record_suffix": "}}",
+      "record_delimiter": ","
+    },
+    "max_upload_bytes": 2000000,
+    "name": "<DOMAIN_NAME>"
+  },
+  "success": true
+}
+```
+
+### 2. 직업 (업데이트)
+
+일을 할 수 있도록,`PUT`Logpush 작업 엔드 포인트에 요청. URL에서 이전 단계에서 반환된 작업 ID를 사용하고 전송합니다.`{"enabled": true}`요청 몸에서.
+
+cURL을 사용한 예시 요청:
+
+<APIRequest
+  method="PUT"
+  path="/zones/{zone_id}/logpush/jobs/{job_id}"
+  json={{
+  	enabled: true,
+  }}
+/>
+
+응답:
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "dataset": "http_requests",
+    "destination_conf": "ibmcl://<INSTANCE_ID>.ingress.<REGION>.logs.cloud.ibm.com/logs/v1/singles?ibm_api_key=<IBM_API_KEY>",
+    "enabled": true,
+    "error_message": null,
+    "id": <JOB_ID>,
+    "kind": "",
+    "last_complete": null,
+    "last_error": null,
+    "output_options": {
+      "output_type": "ndjson",
+      "timestamp_format": "rfc3339",
+      "batch_prefix": "[",
+      "batch_suffix": "]",
+      "record_prefix": "{\"applicationName\":\"ibm-platform-log\",\"subsystemName\":\"internet-svcs:logpush\",\"text\":{",
+      "record_suffix": "}}",
+      "record_delimiter": ","
+    },
+    "max_upload_bytes": 2000000,
+    "name": "<DOMAIN_NAME>"
+  },
+  "success": true
+}
+```

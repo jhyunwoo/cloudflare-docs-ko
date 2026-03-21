@@ -1,0 +1,181 @@
+---
+reviewed: 2021-11-30T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: Formspree와 HTML 양식 추가
+tags:
+  - Forms
+description: Formspree와 HTML 양식을 추가하는 방법을 알아보십시오. 양식 처리 및 저장을 처리하는 백엔드 서비스.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/tutorials/add-an-html-form-with-formspree/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/tutorials/add-an-html-form-with-formspree/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+거의 모든 웹 사이트, 간단한 HTML 포트폴리오 페이지 또는 복잡한 JavaScript 응용 프로그램은 사용자 데이터를 수집하는 양식이 필요합니다.[사이트맵](https://formspree.io)서버 측 코드 또는 기능을 작성하지 않고 웹 사이트에 양식을 포함 할 수 있도록 양식 처리 및 저장을 처리하는 백엔드 서비스입니다.
+
+이 튜토리얼에서, 당신은 만들 것입니다`<form>`일반 HTML 및 CSS를 사용하여 Cloudflare PagesXQ에서 호스팅되는 정적 HTML 웹 사이트에 추가하십시오. 더 알아보기[자주 묻는 질문](/pages/get-started/)플랫폼에 익숙해. 제출 된 데이터를 수집하고 새로운 제출이 JavaScript 또는 백엔드 코딩을 필요로하지 않고 도착 할 때 이메일 알림을 보내주십시오.
+
+## 설치하기
+
+시작하려면[새로운 GitHub 저장소](https://repo.new/). 그런 다음 기계에 새로운 로컬 디렉토리를 만들고, git을 초기화하고, GitHub 위치를 원격 목적지로 연결하십시오.
+
+```sh
+#새 디렉토리
+mkdir new-project
+#새 디렉토리
+cd new-project
+#초기화
+git init
+#원격 연결
+git remote add origin git@github.com:<username>/<repo>.git
+#기본 지점 이름 변경
+git branch -M main
+```
+
+지금부터 일할 수 있습니다.`new-project`만든 디렉토리.
+
+## 웹 사이트 마크 업
+
+이 예 프로젝트의 일반 HTML만 사용할 수 있습니다. 홈 페이지에는 이름, 이메일 주소 및 메시지를 수락하는 연락처 양식이 포함됩니다.
+
+:::참조
+
+양식 코드는 HTML 양식 튜토리얼에서 적용됩니다. HTML 양식의 작업 및 추가 학습 리소스에 대한 자세한 내용은 참조[HTML 양식 튜토리얼](/pages/tutorials/forms/).
+
+:::
+
+양식 코드:
+
+```html
+<form method="POST" action="/">
+	<label for="name">Full Name</label>
+	<input id="name" type="text" name="name" pattern="[A-Za-z]+" required />
+
+	<label for="email">Email Address</label>
+	<input id="email" type="email" name="email" required />
+
+	<label for="message">Message</label>
+	<textarea id="message" name="message" required></textarea>
+
+	<button type="submit">Submit</button>
+</form>
+```
+
+더 보기`action`속성은 양식 데이터가 전송되는 것을 결정합니다. Formspree에 양식 데이터를 보내려면 나중에 업데이트됩니다. 모든 것`<input>`태그는 고유해야합니다`name`사용자의 데이터를 캡처하기 위해. 더 보기`for`·`id`값은 연결하기 위해 일치해야 합니다.`<label>`관련 기사`<input>`Screen Reader와 같은 접근성 도구.
+
+:::참조
+
+더 알아보기[HTML 양식 튜토리얼](/pages/tutorials/forms/)HTML 양식을 만드는 방법.
+
+:::
+
+웹 사이트에이 양식을 추가하려면 먼저, 생성`public/index.html`프로젝트 디렉토리에. 더 보기`public`디렉토리는 모든 front-end 자산을 포함해야하며,`index.html`파일은 웹 사이트에 대한 홈 페이지 역할을합니다.
+
+다음 내용을 복사하고 붙여넣기`public/index.html`위의 양식을 포함하는 파일 :
+
+```html
+<html lang="en">
+	<head>
+		<meta charset="utf8" />
+		<title>Form Demo</title>
+		<meta name="viewport" content="width=device-width,initial-scale=1" />
+	</head>
+	<body>
+		<!--위의 양식-->
+
+		<form method="POST" action="/">
+			<label for="name">Full Name</label>
+			<input id="name" type="text" name="name" pattern="[A-Za-z]+" required />
+
+			<label for="email">Email Address</label>
+			<input id="email" type="email" name="email" required />
+
+			<label for="message">Message</label>
+			<textarea id="message" name="message" required></textarea>
+
+			<button type="submit">Submit</button>
+		</form>
+	</body>
+</html>
+```
+
+이제 사용자가 채우기 위해 여러 필드를 사용하여 연락처 양식을 포함하는 HTML 문서가 있습니다. 그러나 아직 설정되지 않았습니다`action`양식 데이터를 처리할 수 있는 서버에 속성. 이 튜토리얼의 다음 섹션에서 이것을 할 것입니다.
+
+:::노트\[GitHub Repository]
+
+이 예제의 소스 코드는[GitHub에서](https://github.com/formspree/formspree-example-cloudflare-html). 그것은 살아있는 Pages 신청입니다[라이브 데모](https://formspree-example-cloudflare-html.pages.dev/)이용 가능
+
+:::
+
+## Formspree 뒤 끝
+
+HTML 양식은 완료되지만 사용자가 이 양식을 제출할 때 데이터가 전송됩니다.`POST`요청하기`/`URL. 서버가 그 URL에서 데이터를 처리하는 것은 존재하지 않습니다. 수정하려면 새로운 Formspree 양식을 작성하고 양식의 고유 URL을 복사하십시오.`action`.
+
+Formspree 양식을 작성하려면 로그인[Formspree 계정](https://formspree.io/register).
+
+다음으로 새 양식을 만듭니다.**+ 새로운 형태**버튼. 이름 그것`Contact-us form`귀하의 양식 제출을 수신하려는 이메일에 수신자 이메일을 업데이트하십시오. 다음 선택**회사 소개**.
+
+![Formspree 양식 만들기](~/assets/images/pages/tutorials/new-form-dialog.png)
+
+새로운 양식을 통합하는 방법에 대한 지침을 제시합니다.
+
+![Formspree 엔드포인트](~/assets/images/pages/tutorials/form-endpoint.png)
+
+제출하기`Form Endpoint`URL로 붙여넣기`action`위에서 만든 양식의 속성.
+
+```html
+<form method="POST" action="https://formspree.io/f/mqldaqwx">
+	<!--자신의 formpree endpoint와 교체-->
+</form>
+```
+
+이제 양식을 제출하면 감사 페이지로 리디렉션해야합니다. 양식 데이터는 계정에 제출됩니다.[프로젝트](https://formspree.io/).
+
+이제 양식 처리 논리를 조정할 수 있습니다.[관련 링크](https://help.formspree.io/hc/en-us/articles/360012378333--Thank-You-redirect), 업데이트[공지사항](https://help.formspree.io/hc/en-us/articles/115008379348-Changing-a-form-email-address), 또는 같은 플러그인 추가[Google 시트](https://help.formspree.io/hc/en-us/articles/360036563573-Use-Google-Sheets-to-send-your-submissions-to-a-spreadsheet), [스크랩](https://help.formspree.io/hc/en-us/articles/360045648933-Send-Slack-notifications)더 많은 것.
+
+Formspree를 설정하는 데 더 많은 도움이 필요하면 다음 리소스를 참조하십시오.
+
+- Formspree에 대한 일반적인 도움말, 참조[Formspree 도움말 사이트](https://help.formspree.io/hc/en-us).
+- 예를 들어, 자신의 HTML 양식에 대한 영감, 리뷰[Formspree 양식 라이브러리](https://formspree.io/library).
+- Next.js, Gatsby 및 Eleventy와 같은 인기있는 플랫폼과 Formspree 통합에 대한 팁은 참조[Formspree 가이드](https://formspree.io/guides).
+
+## 계정 만들기
+
+이제 프로젝트를 배포할 준비가 되어 있습니다.
+
+이미 수행하지 않은 경우, 내의 진행 상황을 저장`git`그리고 GitHub 저장소에 커밋(s)을 밀어:
+
+```sh
+#모든 파일 추가
+git add -A
+#w/ 메시지
+git commit -m "working example"
+#원격에 푸시 커밋(s)
+git push -u origin main
+```
+
+GitHub 저장소 내에서 작업이 중단됩니다. 즉, Pages도 접근할 수 있습니다.
+
+Cloudflare Pages 프로젝트인 경우[시작하기](/pages/get-started/)완전한 설정 가이드를 위해. 적절한 GitHub 저장소를 선택한 후 다음 빌드 설정으로 프로젝트를 구성해야 합니다.
+
+- **프로젝트 이름**– 당신의 선택
+- **생산 지점** – `main`
+- **프레임 워크**– 없음
+- **명령 실행**– 없음 / 빈
+- **출력 디렉토리** – `public`
+
+선택 후**저장 및 배포**, 당신의 Pages 프로젝트는 그것의 첫번째 배치를 시작할 것입니다. 성공할 때, 당신은 독특합니다`*.pages.dev`subdomain 및 라이브 데모에 대한 링크.
+
+이 튜토리얼에서는 Cloudflare Pages 및 Formspree를 사용하여 웹 사이트를 구축하고 배포했습니다. Formspree와 프로세스 및 저장 제출 요청을 처리하고 알림을 보낼 양식으로 정적 HTML 문서를 작성했습니다.
+
+이 응용 프로그램에 대한 전체 소스 코드를 검토하고 싶다면, 당신은 그것을 찾을 수 있습니다[프로젝트](https://github.com/formspree/formspree-example-cloudflare-html).
+
+## 관련 자료
+
+- [Formspree를 가진 React 모양을 추가하십시오](/pages/tutorials/add-a-react-form-with-formspree/)
+- [HTML 양식](/pages/tutorials/forms/)

@@ -1,0 +1,133 @@
+---
+pcx_content_type: how-to
+title: 예약 이벤트 만들기
+sidebar:
+  order: 4
+
+---
+
+특정 기간 동안 대기실의 동작을 맞춤 설정하고 싶다면, 예를 들어 queueing method를 바꾸거나 total active users를 늘리고 싶다면 **예약 이벤트(scheduled event)** 를 설정하세요. 이는 대시보드 또는 API를 통해 수행할 수 있습니다.
+
+이벤트에 설정된 속성은 이벤트가 지속되는 동안 대기실의 기본 속성을 덮어씁니다.
+
+:::note
+일부 고객만 Waiting Room에서 예약 이벤트를 지원합니다. 자세한 내용은 [요금제](/waiting-room/plans/) 페이지를 참고하세요.
+:::
+
+## 대시보드에서 이벤트 만들기
+
+1. 애플리케이션에서 **Traffic** > **Waiting Room**으로 이동합니다.
+
+2. 대기실을 펼친 다음 **Schedule event**를 선택합니다.
+
+3. 이벤트 세부 정보를 설정합니다. 이벤트 이름을 정하고, 설명(선택 사항)을 추가하고, 시작 일시와 종료 일시를 선택합니다.
+
+4. pre-queueing도 활성화할 수 있습니다. 이 경우 pre-queueing 시간을 정의해야 합니다. 또한 **Shuffle at event start**를 선택하면, 사전 대기열에 있던 모든 사용자가 이벤트 시작 시 무작위로 입장하게 됩니다.
+
+   :::note
+   pre-queueing을 활성화하면 pre-queueing 기간 동안 새 사용자는 모두 사전 대기열로 전송됩니다. 이미 활성 상태인 사용자도 사전 대기열에 포함시키고 싶다면 pre-queueing 기간을 session duration보다 길게 설정하고 **Settings** 섹션에서 session renewal을 비활성화하세요. 활성 사용자의 세션이 만료되면 이벤트가 시작되기 전에 pre-queue로 이동합니다.
+   :::
+
+5. **Next**를 선택합니다.
+
+6. **Settings** 섹션에서 Total active users, New users per minute, Session duration, Session Renewal, Queueing Method의 새 값을 정의할 수 있습니다. 또한 각 설정에 대해 대기실에 정의된 값을 항상 상속하도록 선택할 수도 있습니다. 이 옵션을 사용하면 기본 대기실 설정을 변경했을 때 해당 이벤트 설정도 함께 업데이트됩니다.
+
+   :::note
+   Total active users 값을 재정의하려면 New users per minute 값도 함께 재정의해야 하며, 반대의 경우도 마찬가지입니다.
+   :::
+
+7. **Next**를 선택합니다.
+
+8. 사용자 지정 섹션에서 대기실 템플릿을 항상 상속(기본값)할지, 아니면 Custom Event Template로 덮어쓸지 선택할 수 있습니다. 이 경우 자체 템플릿을 가져와야 합니다. 계속하기 전에 결과를 반드시 미리 확인하세요.
+
+9. **Next**를 선택하고 이벤트 세부 정보와 설정을 검토합니다.
+
+10. **Save**를 선택합니다.
+
+:::note
+이벤트가 활성화되려면 대기실 자체가 활성 상태여야 합니다. 이벤트를 활성화했더라도 대기실이 활성화되어 있지 않다면 이벤트는 시작되지 않습니다.
+:::
+
+대기실 페이지의 **Next Event** 열에서는 다음 예약 이벤트 날짜를 확인할 수 있습니다. 해당 대기실에 예정된 이벤트가 없으면 이 열은 `N/A`로 표시됩니다. 이벤트는 언제든지 일시 중지, 수정, 삭제할 수 있습니다.
+
+:::note
+대기실 하나당 이벤트는 최대 5개까지 만들 수 있습니다. 이 한도에 도달한 후 새 이벤트를 만들려면 이전 이벤트 하나를 삭제하면 됩니다.
+:::
+
+## API로 이벤트 만들기
+
+이벤트를 만들려면 [필수 및 선택 파라미터](#parameters)를 포함해 [POST 요청](/api/resources/waiting_rooms/subresources/events/methods/create/)을 보내세요. 이벤트에 설정된 속성은 이벤트 기간 동안 대기실의 기본 속성을 덮어씁니다.
+
+[커스텀 템플릿](/waiting-room/how-to/customize-waiting-room/#custom-waiting-room)을 사용 중이라면 템플릿에 [관련 변수](/api/resources/waiting_rooms/methods/update/)를 추가하는 것이 좋습니다(`json_response_enabled` 파라미터 아래에 나열됨).
+
+:::note
+
+겹치는 이벤트를 만들어야 한다면 서로 다른 대기실을 사용하세요.
+
+:::
+
+### Parameters
+
+대부분의 파라미터는 일반 대기실과 동일하지만, 이벤트 생성에만 필요한 몇 가지 고유 파라미터가 있습니다. 이벤트 설정의 전체 목록은 [Create an Event](/api/resources/waiting_rooms/subresources/events/methods/create/)를 참고하세요.
+
+* `name` (required): 영숫자, 하이픈, 밑줄을 사용할 수 있는 고유 이름.
+* `event_start_time` (required): 이벤트 시작 시점을 나타내는 ISO 8601 타임스탬프. 이 시점부터 대기 중인 사용자는 이벤트 설정에 따라 처리됩니다. `event_end_time`보다 최소 1분 이전이어야 합니다.
+* `event_end_time` (required): 이벤트 종료 시점을 나타내는 ISO 8601 타임스탬프.
+* `shuffle_at_event_start`: **true**이고 `prequeue_start_time`이 null이 아니면, prequeue에 있는 사용자는 `event_start_time`에 무작위로 섞입니다. 이벤트가 [**FIFO** queueing method](#set-up-a-lottery)를 사용할 때 공정성을 위해 자주 사용됩니다.
+* `prequeue_start_time`: 이벤트 시작 전에 모든 사용자를 대기시키기 시작할 시점을 나타내는 ISO 8601 타임스탬프. `event_start_time`보다 최소 **5분 이전**이어야 합니다.
+* `description`: 이벤트에 대한 자세한 설명 텍스트.
+* `suspended`: **true**이면 이벤트는 무시되며 트래픽은 대기실의 일반 구성에 따라 처리됩니다.
+
+### Queueing methods
+
+이벤트를 설정할 때는 대기실의 기본 queueing method도 함께 조정하고 싶을 수 있습니다.
+
+평소에는 트래픽을 정상적으로 허용하다가 예약 이벤트 동안만 제한하고 싶다면 대기실의 queueing method를 [**Passthrough**](/waiting-room/reference/queueing-methods/#passthrough)로 설정하세요.
+
+평소에는 모든 트래픽을 차단하다가 가입이나 티켓 판매 같은 특별 이벤트 동안만 허용하고 싶다면 대기실의 queueing method를 [**Reject**](/waiting-room/reference/queueing-methods/#reject)로 설정하세요.
+
+<div id="set-up-a-lottery"></div>
+
+## "복권" 설정하기
+
+이벤트 시작 시점 전에 대기열에 들어온 모든 사용자에게 기회를 주는 "복권" 시스템을 설정할 수 있습니다.
+
+**prequeue 기간 동안** 애플리케이션에 도달한 사용자는 이벤트가 시작될 때 [무작위로](/waiting-room/reference/queueing-methods/#random) 줄 위치를 배정받습니다. 이벤트가 [FIFO ordering](/waiting-room/reference/queueing-methods/#first-in-first-out-fifo)을 사용한다면, **prequeue 기간 이후**에 애플리케이션에 도달한 사용자는 prequeue 사용자의 뒤에 배치됩니다.
+
+"복권"을 설정하려면 API 요청에 [다음 파라미터](#parameters)를 포함하세요.
+
+* `prequeue_start_time`
+* `shuffle_at_event_start`
+
+## 이벤트 구성 미리 보기
+
+이벤트에 설정한 일부 속성은 이벤트 기간 동안 대기실의 기본 속성을 덮어쓰므로, 이벤트가 시작되기 전에 API를 사용해 [이벤트 구성 미리 보기](/api/resources/waiting_rooms/subresources/events/subresources/details/methods/get/)를 하는 것이 좋습니다.
+
+이 명령은 이벤트가 활성 상태라고 가정한 구성 값을 보여 줍니다. 즉, 대기실에서 상속받는 필드는 현재 값이 표시됩니다.
+
+## 이벤트 수정
+
+이벤트를 수정하려면 [PATCH 요청](/api/resources/waiting_rooms/subresources/events/methods/edit/)을 사용하세요.
+
+## 이벤트 비활성화
+
+이벤트는 `suspended` 파라미터를 `true`로 설정해 비활성화할 수 있습니다.
+
+또한 대기실 자체가 **Disabled** 상태라면 이벤트도 활성화되지 않습니다.
+
+## 유지보수 페이지 예약
+
+유지보수 창 전후로는 대기열 없이, 예약된 유지보수 페이지를 배포하고 싶다면 다음 단계를 따르세요.
+
+1. [대기실 만들기](/waiting-room/how-to/create-waiting-room/)를 하고 [Passthrough](/waiting-room/reference/queueing-methods/#passthrough) queueing method를 활성화합니다.
+2. 이 대기실에 대해 [Reject](/waiting-room/reference/queueing-methods/#reject) queueing method가 활성화된 이벤트를 만듭니다.
+
+예약 이벤트가 끝나면 사용자는 다시 사이트에 접근할 수 있습니다. 예정된 종료 전에 유지보수 창을 끝내고 싶다면 이벤트를 disabled로 설정하세요.
+
+## 기타 API 명령
+
+| Function | Command |
+| --- | --- |
+| [Get event details](/api/resources/waiting_rooms/subresources/events/methods/get/) | `GET` |
+| [List scheduled events](/api/resources/waiting_rooms/subresources/events/methods/list/) | `GET` |
+| [Delete event](/api/resources/waiting_rooms/subresources/events/methods/delete/) | `DELETE` |

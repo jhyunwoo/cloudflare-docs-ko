@@ -1,0 +1,89 @@
+---
+pcx_content_type: configuration
+title: R2 데이터 카탈로그
+description: R2 데이터 카탈로그에 Apache Iceberg 테이블으로 데이터를 작성
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pipelines/sinks/available-sinks/r2-data-catalog/
+translation_source_md: >-
+  https://developers.cloudflare.com/pipelines/sinks/available-sinks/r2-data-catalog/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+QXQX0097XQ 자료 카탈로그는 파이프라인에서 가공한 자료를 것과 같이 씁니다[아파치 Iceberg](https://iceberg.apache.org/)테이블에[R2 데이터 카탈로그](/r2/data-catalog/). Iceberg 테이블은 ACID 거래, 스키마 진화 및 분석 작업 부하의 시간 여행 기능을 제공합니다.
+
+R2 데이터 카탈로그 싱크를 만들려면, 실행[`pipelines sinks create`](/workers/wrangler/commands/#pipelines-sinks-create)명령 및 싱크 유형, 대상 버킷, 네임스페이스 및 테이블 이름을 지정합니다.
+
+```bash
+npx wrangler pipelines sinks create my-sink \
+  --type r2-data-catalog \
+  --bucket my-bucket \
+  --namespace my_namespace \
+  --table my_table \
+  --catalog-token YOUR_CATALOG_TOKEN
+```
+
+싱크는 지정된 네임스페이스와 테이블을 만들지 않는다. 싱크는 기존 Iceberg 테이블에 만들 수 없습니다.
+
+## 지원하다
+
+QXQX0100XQ 데이터 카탈로그는 Parquet 형식만 지원합니다. JSON 형식은 Iceberg 테이블에 지원되지 않습니다.
+
+### 압축 옵션
+
+최적의 스토리지 및 쿼리 성능을위한 Parquet 압축 구성 :
+
+```bash
+--compression zstd
+```
+
+**유효한 압축 선택권:**
+
+- `zstd`(과태) - 최고의 압축 비율
+- `snappy`- 가장 빠른 압축
+- `gzip`- 좋은 압축, 널리 지원
+- `lz4`- 합리적인 비율로 빠른 압축
+- `uncompressed`- 압축 없음
+
+### 줄 그룹 크기
+
+[줄 그룹](https://parquet.apache.org/docs/file-format/configurations/)함께 저장되는 Parquet 파일에서 행의 세트, 메모리 사용 및 쿼리 성능에 영향을 미치는. MB의 대상 행 그룹 크기를 구성:
+
+```bash
+--target-row-group-size 256
+```
+
+## 배팅 및 롤링 정책
+
+데이터가 Iceberg 테이블에 기록될 때 제어. 당신의 필요에 따라 구성:
+
+- **낮은 값**: 더 빈번한 쓰기, 더 작은 파일, 더 낮은 대기 시간
+- **높은 값**: 덜 빈번한 쓰기, 더 큰 파일, 더 나은 쿼리 성능
+
+### 목록 간격
+
+종종 파일을 작성하는 방법을 설정하십시오 (과태: 300 초):
+
+```bash
+--roll-interval 60  #각 60 초마다 파일을 작성
+```
+
+### 목록 크기
+
+새로운 파일을 만들기 전에 MB에서 최대 파일 크기를 설정:
+
+```bash
+--roll-size 100  #100MB 후에 새로운 파일을 창조하십시오
+```
+
+## 인증현황
+
+R2 Data Catalog 싱크에는 API 토큰이 필요합니다.[R2 관리자 읽기 및 쓰기 권한](/r2/data-catalog/manage-catalogs/#create-api-token-in-the-dashboard). 이 허가는 R2 자료 카탈로그와 R2 저장 둘 다에 수채 접근을 보조합니다.
+
+```bash
+--catalog-token YOUR_CATALOG_TOKEN
+```

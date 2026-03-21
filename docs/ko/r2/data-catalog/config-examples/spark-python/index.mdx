@@ -1,0 +1,80 @@
+---
+title: 스파크 (PySpark)
+pcx_content_type: example
+reviewed: 2025-04-09T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/r2/data-catalog/config-examples/spark-python/
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/data-catalog/config-examples/spark-python/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+아래는 사용 예제입니다.[프로모션](https://spark.apache.org/docs/latest/api/python/index.html)R2 데이터 카탈로그에 연결하십시오.
+
+## 자주 묻는 질문
+
+- 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+- [R2 버킷 만들기](/r2/buckets/create-buckets/)·[데이터 카탈로그](/r2/data-catalog/manage-catalogs/#enable-r2-data-catalog-on-a-bucket).
+- [R2 API 토큰 생성](/r2/api/tokens/)둘 다[R2 및 데이터 카탈로그 권한](/r2/api/tokens/#permissions).
+- 설치하기[프로모션](https://spark.apache.org/docs/latest/api/python/getting_started/install.html)도서관.
+
+## 예제 사용
+
+```py
+from pyspark.sql import SparkSession
+
+#Define 카탈로그 연결 세부 사항 (replace variables)
+WAREHOUSE = "<WAREHOUSE>"
+TOKEN = "<TOKEN>"
+CATALOG_URI = "<CATALOG_URI>"
+
+#Iceberg 구성으로 Spark 세션 구축
+spark = SparkSession.builder \
+  .appName("R2DataCatalogExample") \
+  .config('spark.jars.packages', 'org.apache.iceberg:iceberg-spark-runtime-3.5_2.12:1.6.1,org.apache.iceberg:iceberg-aws-bundle:1.6.1') \
+  .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions") \
+  .config("spark.sql.catalog.my_catalog", "org.apache.iceberg.spark.SparkCatalog") \
+  .config("spark.sql.catalog.my_catalog.type", "rest") \
+  .config("spark.sql.catalog.my_catalog.uri", CATALOG_URI) \
+  .config("spark.sql.catalog.my_catalog.warehouse", WAREHOUSE) \
+  .config("spark.sql.catalog.my_catalog.token", TOKEN) \
+  .config("spark.sql.catalog.my_catalog.header.X-Iceberg-Access-Delegation", "vended-credentials") \
+  .config("spark.sql.catalog.my_catalog.s3.remote-signing-enabled", "false") \
+  .config("spark.sql.defaultCatalog", "my_catalog") \
+  .getOrCreate()
+spark.sql("USE my_catalog")
+
+#존재하지 않는 경우 namespace 만들기
+spark.sql("CREATE NAMESPACE IF NOT EXISTS default")
+
+#Iceberg를 사용하여 네임스페이스에서 테이블 만들기
+spark.sql("""
+    CREATE TABLE IF NOT EXISTS default.my_table (
+        id BIGINT,
+        name STRING
+    )
+    USING iceberg
+""")
+
+#간단한 DataFrame 만들기
+df = spark.createDataFrame(
+    [(1, "Alice"), (2, "Bob"), (3, "Charlie")],
+    ["id", "name"]
+)
+
+#DataFrame을 Iceberg 테이블에 쓰기
+df.write \
+    .format("iceberg") \
+    .mode("append") \
+    .save("default.my_table")
+
+#Iceberg 테이블에서 데이터를 다시 읽으십시오
+result_df = spark.read \
+    .format("iceberg") \
+    .load("default.my_table")
+
+result_df.show()
+```

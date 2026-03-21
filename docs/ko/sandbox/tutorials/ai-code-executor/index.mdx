@@ -1,0 +1,250 @@
+---
+title: AI 코드 실행기 구축
+pcx_content_type: tutorial
+sidebar:
+  order: 1
+description: 자연적인 언어에서 Python 코드를 생성하기 위하여 클로드를 이용하고 모래 상자에서 안전하게 실행하십시오.
+reviewed: 2025-10-15T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/tutorials/ai-code-executor/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/tutorials/ai-code-executor/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+Sandbox SDK 및 Claude를 사용하여 AI 전원 코드 실행 시스템을 구축하십시오. Python 코드로 자연적인 언어 질문을, 그것을 안전하게 실행하고, 결과를 반환하십시오.
+
+**완료 시간:**&#x32;0 분
+
+## 당신이 구축 할 것
+
+"What's 100th Fibonacci Number?"와 같은 질문을 수락하는 API는 Claude를 사용하여 Python 코드를 생성하고 격리 된 샌드 박스에서 실행하고 결과를 반환합니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+당신은 또한 필요로 할 것입니다:
+
+- 이름 \*[Anthropic API 키](https://console.anthropic.com/)Claude 소개
+- [기타 제품](https://www.docker.com/)현지에서
+
+## 1. 프로젝트 만들기
+
+새로운 Sandbox SDK 프로젝트 만들기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"ai-code-executor --template=cloudflare/sandbox-sdk/examples/minimal"} />
+
+```sh
+cd ai-code-executor
+```
+
+## 2. 의존성 설치
+
+Anthropic SDK 설치:
+
+<PackageManagers pkg="@anthropic-ai/sdk" />
+
+## 3. 코드를 실행
+
+본문 바로가기`src/index.ts`:
+
+````typescript
+import { getSandbox, type Sandbox } from '@cloudflare/sandbox';
+import Anthropic from '@anthropic-ai/sdk';
+
+export { Sandbox } from '@cloudflare/sandbox';
+
+interface Env {
+	Sandbox: DurableObjectNamespace<Sandbox>;
+	ANTHROPIC_API_KEY: string;
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		if (request.method !== 'POST' || new URL(request.url).pathname !== '/execute') {
+			return new Response('POST /execute with { "question": "your question" }');
+		}
+
+		try {
+			const { question } = await request.json();
+
+			if (!question) {
+				return Response.json({ error: 'Question is required' }, { status: 400 });
+			}
+
+			//Python 코드를 생성하는 클로드 사용
+			const anthropic = new Anthropic({ apiKey: env.ANTHROPIC_API_KEY });
+			const codeGeneration = await anthropic.messages.create({
+				model: 'claude-sonnet-4-5',
+				max_tokens: 1024,
+				messages: [{
+					role: 'user',
+					content: `Generate Python code to answer: "${question}"
+
+Requirements:
+- Use only Python standard library
+- Print the result using print()
+- Keep code simple and safe
+
+Return ONLY the code, no explanations.`
+				}],
+			});
+
+			const generatedCode = codeGeneration.content[0]?.type === 'text'
+				? codeGeneration.content[0].text
+				: '';
+
+			if (!generatedCode) {
+				return Response.json({ error: 'Failed to generate code' }, { status: 500 });
+			}
+
+			//지구 markdown 부호 담은 경우에 현재
+			const cleanCode = generatedCode
+				.replace(/^```python?\n?/, '')
+				.replace(/\n?```\s*$/, '')
+				.trim();
+
+			//sandbox에서 코드를 실행
+			const sandbox = getSandbox(env.Sandbox, 'demo-user');
+			await sandbox.writeFile('/tmp/code.py', cleanCode);
+			const result = await sandbox.exec('python /tmp/code.py');
+
+			return Response.json({
+				success: result.success,
+				question,
+				code: generatedCode,
+				output: result.stdout,
+				error: result.stderr
+			});
+
+		} catch (error: any) {
+			return Response.json(
+				{ error: 'Internal server error', message: error.message },
+				{ status: 500 }
+			);
+		}
+	},
+};
+````
+
+**작동 방법:**
+
+1. POST를 통해 질문을 받는다.`/execute`
+2. Python 코드를 생성하는 Claude를 사용하십시오
+3. 코드 쓰기`/tmp/code.py`샌드박스에서
+4. 수행하기`sandbox.exec('python /tmp/code.py')`
+5. 코드와 실행 결과를 모두 반환
+
+## 4. 로컬 환경 변수 설정
+
+이름 \*`.dev.vars`로컬 개발을위한 프로젝트 루트의 파일 :
+
+```sh
+echo "ANTHROPIC_API_KEY=your_api_key_here" > .dev.vars
+```
+
+기타 제품`your_api_key_here`실제 API 키와 함께[Anthropic 콘솔](https://console.anthropic.com/).
+
+:::참조
+더 보기`.dev.vars`파일은 자동으로 gitignored 및 로컬 개발 중에 사용`npm run dev`.
+:::
+
+## 5. 로컬 테스트
+
+개발 서버 시작:
+
+```sh
+npm run dev
+```
+
+:::참조
+첫 번째 실행 Docker 컨테이너 구축 (2-3 분). 연속 실행은 훨씬 빠릅니다.
+주요 특징
+
+컬을 가진 시험:
+
+```sh
+curl -X POST http://localhost:8787/execute \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is the 10th Fibonacci number?"}'
+```
+
+응답:
+
+```json
+{
+  "success": true,
+  "question": "What is the 10th Fibonacci number?",
+  "code": "def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)\n\nprint(fibonacci(10))",
+  "output": "55\n",
+  "error": ""
+}
+```
+
+## 6. 배포
+
+작업자를 배포:
+
+```sh
+npx wrangler deploy
+```
+
+그런 다음 Anthropic API 키를 생산 비밀로 설정하십시오.
+
+```sh
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+API 키 붙여넣기[Anthropic 콘솔](https://console.anthropic.com/)신속한 경우.
+
+:::카트로션
+첫 번째 배포 후 컨테이너 프로비저닝을 위해 2-3 분 기다립니다. 자주 묻는 질문`npx wrangler containers list`.
+:::
+
+## 7. 배포 테스트
+
+다른 질문을 시도:
+
+```sh
+#회사연혁
+curl -X POST https://ai-code-executor.YOUR_SUBDOMAIN.workers.dev/execute \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Calculate the factorial of 5"}'
+
+#관련 기사
+curl -X POST https://ai-code-executor.YOUR_SUBDOMAIN.workers.dev/execute \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What is the mean of [10, 20, 30, 40, 50]?"}'
+
+#문자열 조작
+curl -X POST https://ai-code-executor.YOUR_SUBDOMAIN.workers.dev/execute \
+  -H "Content-Type: application/json" \
+  -d '{"question": "Reverse the string \"Hello World\""}'
+```
+
+## 당신이 내장 된
+
+AI 코드 실행 시스템을 만들었습니다:
+
+- 자주 묻는 질문
+- Python 코드 생성
+- 격리 샌드박스에서 안전하게 코드 실행
+- 오류 처리 결과 반환
+
+## 다음 단계
+
+- [Workers AI를 가진 부호 해석기](/sandbox/tutorials/workers-ai-code-interpreter/)- 공식 패키지를 가진 Cloudflare의 고유 AI 모형을 사용하십시오
+- [AI로 분석 데이터](/sandbox/tutorials/analyze-data-with-ai/)- 데이터 분석을위한 pandas 및 matplotlib 추가
+- [코드 Interpreter API](/sandbox/api/interpreter/)- 실행 대신 내장 코드 해석기 사용
+- [출력 전력](/sandbox/guides/streaming-output/)- 실시간 실행 진행
+- [API reference](/sandbox/api/)- 모든 사용 가능한 방법을 탐험
+
+## 관련 자료
+
+- [Anthropic Claude 문서](https://docs.anthropic.com/)
+- [Workers AI](/workers-ai/)- Cloudflare의 내장 모델 사용
+- [workers-ai-provider 패키지](https://github.com/cloudflare/ai/tree/main/packages/workers-ai-provider)- 공식 Workers AI 통합

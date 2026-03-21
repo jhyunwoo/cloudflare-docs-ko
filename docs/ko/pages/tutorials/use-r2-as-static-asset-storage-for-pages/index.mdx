@@ -1,0 +1,172 @@
+---
+reviewed: 2024-07-22T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: R2를 Cloudflare QXPages를 가진 정체되는 자산 저장으로 사용하십시오
+products:
+  - r2
+tags:
+  - Hono
+  - JavaScript
+description: 이 튜토리얼은 QXR2를 PagesXQ 앱의 정적 자산 저장 물통으로 사용하는 방법을 가르칩니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/tutorials/use-r2-as-static-asset-storage-for-pages/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/tutorials/use-r2-as-static-asset-storage-for-pages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+이 튜토리얼은 사용 방법을 가르쳐줍니다.[모델 번호: R2](/r2/)정적 자산 저장 물통으로[Pages](/pages/)앱. 이것은 당신이 타격하는 경우에 특히 유용합니다[파일 제한](/pages/platform/limits/#files)또는[최대 파일 크기 제한](/pages/platform/limits/#file-size)Pages.에.
+
+이 작업을 수행하는 방법을 설명하기 위해, 우리는 소설 고양이 블로그에 대한 정적 자산 저장으로 R2를 사용합니다.
+
+## 고양이 블로그
+
+재미있는 고양이 동영상과 고양이 소유자를위한 유용한 팁을 포함하는 정적 고양이 블로그를 실행 상상해보십시오. 블로그가 성장하고 고양이 이미지와 비디오로 더 많은 콘텐츠를 추가해야합니다.
+
+블로그는 Pages에서 호스팅되고 현재 다음과 같은 디렉토리 구조가 있습니다.
+
+```
+.
+├── public
+│   ├── index.html
+│   ├── static
+│   │   ├── favicon.ico
+│   │   └── logo.png
+│   └── style.css
+└── wrangler.jsonc
+```
+
+블로그에 더 많은 동영상과 이미지를 추가하는 것은 훌륭하지만 우리의 자산 크기는 위[Pages에 파일 제한](/pages/platform/limits/#file-size). R2로 이것을 고치십시오.
+
+## R2 버킷 만들기
+
+첫 번째 단계는 정적 자산을 저장하기 위해 R2 버킷을 만듭니다. 새로운 물통은 대시보드 또는 WranglerXQ로 창조될 수 있습니다.
+
+대시보드를 사용하여 R2 탭으로 이동하여 다음을 클릭합니다*버킷 만들기.*&#xC6B0;리는 우리의 블로그에 대한 버킷을 명합니다.*카테고리*. 항상 당신의 물통 descriptive 이름을 주는 것을 기억하십시오:
+
+![대시보드](~/assets/images/pages/tutorials/pages-r2/dash.png)
+
+만든 버킷으로, 우리는 R2에 미디어 파일을 업로드 할 수 있습니다. R2 버킷으로 몇 개의 고양이 이미지와 비디오를 드래그하고 드롭 할 수 있습니다 :
+
+![제품정보](/images/pages/tutorials/pages-r2/upload.gif)
+
+또는 R2 버킷은 실행하여 명령 행에서 Wrangler로 만들 수 있습니다.
+
+```sh
+npx wrangler r2 bucket create <bucket_name>
+#₢ 킹
+#npx wrangler r2 물통은 고양이 매체를 창조합니다
+```
+
+파일은 다음과 같은 명령으로 물통에 업로드 할 수 있습니다.
+
+```sh
+npx wrangler r2 object put <bucket_name>/<file_name> -f <path_to_file>
+#₢ 킹
+#npx wrangler r2 객체는 cat-media/videos/video1.mp4 -f ~/Downloads/videos/video1.mp4를 넣어
+```
+
+## R2에서 Pages
+
+R2 버킷을 바인딩하려면, 우리는 WranglerXQ 구성을 업데이트해야합니다.
+
+자주 묻는 질문[Wrangler 구성 파일](/pages/functions/wrangler-configuration/), 다음 바인딩을 파일에 추가합니다.`bucket_name`버킷의 정확한 이름이 일찍 생성되어야하며,`binding`R2 자원에 어떤 주문 이름 추천일 수 있습니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MEDIA",
+  			"bucket_name": "cat-media"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+
+참고: 키워드`ASSETS`저작권 및 기타 지적 재산권
+주요 특징
+
+구매하기[Wrangler 구성 파일](/pages/functions/wrangler-configuration/), 우리는 마지막 단계로 이동할 준비가되어 있습니다.
+
+또는 Pages 프로젝트에 바인딩을 추가 할 수 있습니다 대시보드 프로젝트에 대한 프로젝트의*계정 설정*탭 >*제품정보* > *R2 물통 바인딩*.
+
+## 모형 R2 Pages의 자산
+
+마지막 단계는 블로그에 R2에서 미디어 자산을 제공. 이를 위해 미디어 파일에 대한 요청을 처리하는 기능을 만들 것입니다.
+
+프로젝트 폴더에서, 생성*제품정보*디렉토리. 그런 다음*주요사업*subdirectory 및 파일 이름`[[all]].js`그것에서. 모든 HTTP 요청`/media`이 파일로 이동합니다.
+
+폴더 및 JavaScript 파일을 생성 한 후, 블로그 디렉토리 구조는 다음과 같습니다.
+
+```
+.
+├── functions
+│   └── media
+│       └── [[all]].js
+├── public
+│   ├── index.html
+│   ├── static
+│   │   ├── favicon.ico
+│   │   └── icon.png
+│   └── style.css
+└── wrangler.jsonc
+
+```
+
+마지막으로, 우리는 핸들러 기능을 추가합니다.`[[all]].js`. 이 기능은 모든 미디어 요청을 수신하고 R2에서 해당 파일 자산을 반환합니다.
+
+```js
+export async function onRequestGet(ctx) {
+	const path = new URL(ctx.request.url).pathname.replace("/media/", "");
+	const file = await ctx.env.MEDIA.get(path);
+	if (!file) return new Response(null, { status: 404 });
+	return new Response(file.body, {
+		headers: { "Content-Type": file.httpMetadata.contentType },
+	});
+}
+```
+
+## 블로그 배포
+
+변경을 배포하기 전에 우리의 고양이 블로그까지, 우리에게 몇 가지 새로운 게시물을 추가하자`index.html`. 이 게시물은 R2에서 제공되는 미디어 자산에 따라 다릅니다.
+
+```html
+<!doctype html>
+<html lang="en">
+	<body>
+		<h1>Awesome Cat Blog! 😺</h1>
+		<p>Today's post:</p>
+		<video width="320" controls>
+			<source src="/media/videos/video1.mp4" type="video/mp4" />
+		</video>
+		<p>Yesterday's post:</p>
+		<img src="/media/images/cat1.jpg" width="320" />
+	</body>
+</html>
+```
+
+저장된 모든 파일과 함께 새로운 터미널 창을 열어 앱을 배포합니다.
+
+```sh
+npx wrangler deploy
+```
+
+배포되면 미디어 자산은 R2 버킷에서 태칭되고 제공됩니다.
+
+![앱 배포](/images/pages/tutorials/pages-r2/deployed.gif)
+
+## **관련 자료**
+
+- [Pages에서 함수 라우팅 작업을 수행하는 방법을 알아보세요.](/pages/functions/routing/)
+- [R2 버킷을 만드는 방법을 알아보세요](/r2/buckets/public-buckets/).
+- [QXQXQXQXQXQXQXQXQXQXQXQ](/r2/api/workers/workers-api-usage/).

@@ -1,0 +1,156 @@
+---
+pcx_content_type: how-to
+title: Microsoft Entra로 프로비저닝
+sidebar:
+  label: Microsoft Entra
+---
+
+import { Render } from "~/components";
+
+<Render file="idp-group-deprecation" product="fundamentals" />
+
+[필요한 데이터 수집](/fundamentals/account/account-security/scim-setup/#gather-the-required-data)을 완료했다면, Entra로 프로비저닝을 마치기 위해 다음 단계를 진행해야 합니다.
+
+## Enterprise application 설정
+
+1. Entra admin center로 이동하여 **Applications** > **Enterprise Applications**를 선택합니다.
+2. Microsoft Entra Gallery에서 **New application** > **Create your own application**을 선택한 다음 이름을 지정합니다.
+3. **Integrate any other application you don't find in the gallery (Non-gallery)**를 선택합니다.
+4. 애플리케이션을 **Create**합니다.
+
+## Enterprise application 프로비저닝
+
+1. 새로 만든 애플리케이션 내부에서 사이드바 메뉴의 **Manage** 아래 **Provisioning**을 선택합니다.
+2. **New configuration**을 선택하고 **Tenant URL**에 `https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/scim/v2`를 입력합니다. `<ACCOUNT_ID>`는 자신의 account ID로 바꾸세요.
+3. SCIM 프로비저닝 API 토큰 값을 **Secret token**에 붙여넣습니다.
+4. **Test Connection**을 선택한 다음 **Save**로 구성을 저장합니다.
+
+## 사용자 및 그룹 동기화 구성
+
+1. 새로 만든 애플리케이션으로 이동한 뒤 사이드바 메뉴의 **Manage** 아래 **Users and groups**를 선택합니다.
+2. [Assign users and groups to the application](https://learn.microsoft.com/entra/identity/enterprise-apps/assign-user-or-group-access-portal)을 수행합니다.
+3. 사용자를 할당한 후 사이드바 메뉴의 **Provisioning**으로 이동하여 **Start Provisioning**을 선택합니다.
+
+:::note
+그룹 세부 정보를 Cloudflare에 성공적으로 동기화하려면 각 사용자의 `User Principal Name` (`Identity`)과 `Email` (`Contact Information`) 필드가 동일해야 합니다. 값은 대소문자를 구분하며, User Principal Name에는 영숫자만 포함될 수 있습니다. 자세한 내용은 [how to create, invite, and delete users](https://learn.microsoft.com/entra/fundamentals/how-to-create-delete-users)를 참고하세요.
+:::
+
+4. 어떤 사용자와 그룹이 동기화되었는지 확인하려면 사이드바 메뉴의 **Provisioning logs**로 이동합니다. [Cloudflare Audit Logs](/fundamentals/account/account-security/review-audit-logs/)도 함께 검토할 수 있습니다.
+
+:::caution[읽기 전용 그룹]
+Entra 그룹 이름이 기존 Cloudflare 사용자 그룹과 같으면 해당 Cloudflare 사용자 그룹은 프로비저닝 후 읽기 전용이 됩니다.
+:::
+
+5. Cloudflare에서 사용자와 그룹에 권한을 부여하려면 [Roles](/fundamentals/manage-members/roles/) 및 [Policies](/fundamentals/manage-members/policies/)를 참고하세요.
+
+## (선택 사항) Cloudflare의 SCIM 통합 자동화
+
+Cloudflare의 SCIM 통합은 계정당 하나의 외부 애플리케이션이 필요합니다. 여러 계정을 보유한 고객은 설정 시간을 줄이고 Entra 관리 UI에서 소비하는 시간을 줄이기 위해 설정의 일부를 자동화하고 싶을 수 있습니다.
+
+Non-gallery 애플리케이션을 만들고 프로비저닝 URL 및 API 키를 추가하는 초기 설정은 API를 통해 스크립트로 처리할 수 있지만, 나머지 설정은 고객의 구체적인 요구 사항과 IDP 구성에 따라 달라집니다.
+
+**1. 액세스 토큰 가져오기**
+
+Entra 액세스 토큰을 가져옵니다. 아래 예시는 Azure CLI를 사용합니다.
+
+```
+# Using azure-cli
+az login
+az account get-access-token --resource https://graph.microsoft.com
+
+(payload with accessToken returned)
+```
+
+**2. 템플릿으로 새 애플리케이션 생성**
+
+템플릿 ID `8adf8e6e-67b2-4cf2-a259-e3dc5476c621`는 Entra 문서에서 non-gallery 앱 생성을 위해 권장하는 템플릿입니다. `<accessToken>`과 `displayName`을 자신의 값으로 바꾸세요.
+
+```curl title="Example request"
+curl -X POST 'https://graph.microsoft.com/v1.0/applicationTemplates/8adf8e6e-67b2-4cf2-a259-e3dc5476c621/instantiate' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <accessToken>' \
+  --data-raw '{
+    "displayName": "Entra API create application test"
+}'
+```
+
+```curl title="Example response"
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#microsoft.graph.applicationServicePrincipal",
+  "application": {
+    "id": "343a8552-f9d9-471c-b677-d37062117cc8", //
+    "appId": "03d8207b-e837-4be9-b4e6-180492eb3b61",
+    "applicationTemplateId": "8adf8e6e-67b2-4cf2-a259-e3dc5476c621",
+    "createdDateTime": "2025-01-30T00:37:44Z",
+    "deletedDateTime": null,
+    "displayName": "Entra API create application test",
+    "description": null,
+    // ... snipped rest of large application payload
+  },
+  "servicePrincipal": {
+    "id": "a8cb133d-f841-4eb9-8bc9-c8e9e8c0d417", // Note this ID for the subsequent request
+    "deletedDateTime": null,
+    "accountEnabled": true,
+    "appId": "03d8207b-e837-4be9-b4e6-180492eb3b61",
+    "applicationTemplateId": "8adf8e6e-67b2-4cf2-a259-e3dc5476c621",
+    "appDisplayName": "Entra API create application test",
+	// ...snipped rest of JSON payload
+}
+}
+```
+
+**3. 프로비저닝 작업 생성**
+
+프로비저닝을 활성화하려면 작업도 생성해야 합니다. 이전 요청의 SERVICE_PRINCIPAL_ID가 아래 요청에서 사용됩니다. SCIM templateId는 Entra에서 제공하는 템플릿입니다.
+
+```curl title="Example request"
+curl -X POST 'https://graph.microsoft.com/v1.0/servicePrincipals/<SERVICE_PRINCIPAL_ID>/synchronization/jobs' \
+  --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <accessToken>' \
+  --data-raw '{
+    "templateId": "scim"
+}'
+```
+
+```curl title="Example response"
+{
+  "@odata.context": "https://graph.microsoft.com/v1.0/$metadata#servicePrincipals('a8cb133d-f841-4eb9-8bc9-c8e9e8c0d417')/synchronization/jobs/$entity",
+  "id": "scim.5b223a2cc249463bbd9a791550f11c76.03d8207b-e837-4be9-b4e6-180492eb3b61",
+  "templateId": "scim",
+  "schedule": {
+    "expiration": null,
+    "interval": "PT40M",
+    "state": "Disabled"
+  },
+}
+// ... snipped rest of JSON payload
+```
+
+**4. SCIM 프로비저닝 URL과 API 토큰 구성**
+
+다음으로 Tenant URL(Cloudflare SCIM endpoint)과 API token(SCIM Provisioning API Token)을 구성합니다.
+
+`<accessToken>`, `<ACCOUNT_ID>`, `<SCIM_PROVISIONING_API_TOKEN_VALUE>`를 자신의 값으로 바꾸세요.
+
+```curl title="Example request"
+ --header 'Content-Type: application/json' \
+  --header 'Authorization: Bearer <accessToken>' \
+  --data-raw '{
+  "value": [
+    {
+      "key": "BaseAddress",
+      "value": "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/scim/v2"
+    },
+    {
+      "key": "SecretToken",
+      "value": "<SCIM_PROVISIONING_API_TOKEN_VALUE>"
+    }
+  ]
+}'
+```
+
+위 작업을 완료한 뒤 Entra에서 남은 다음 단계는 다음과 같습니다.
+
+- 추가 그룹/프로비저닝 구성
+- 구성을 업데이트한 후 테스트 및 저장
+- 구성이 완료된 뒤 프로비저닝 실행

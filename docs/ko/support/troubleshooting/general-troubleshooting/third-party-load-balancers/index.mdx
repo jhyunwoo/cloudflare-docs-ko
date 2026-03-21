@@ -1,0 +1,82 @@
+---
+pcx_content_type: troubleshooting
+title: 제삼자 짐 밸런서
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/third-party-load-balancers/
+translation_source_md: >-
+  https://developers.cloudflare.com/support/troubleshooting/general-troubleshooting/third-party-load-balancers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 Cloudflare를 사용하여 일반적인 문제를 해결하는 방법을 설명합니다.
+
+***
+
+## F5 BIG-IP 쿠키 지속
+
+Cloudflare를 F5 BIG-IP 로드밸런서 앞의 역 프록시(오렌지 클라우드)로 사용할 때, CloudflareXQ가 지속되는 연결을 유지하면서 세션 친화성 문제를 해결할 수 있습니다.
+
+### 문제
+
+F5 BIG-IP Load Balancers는 일반적으로 TCP 연결의 시작 부분에 세션 쿠키를 설정 ( none이 존재하지 않는 경우) 그런 다음 동일한 TCP 연결의 후속 HTTP 요청에서 모든 쿠키를 무시합니다. CloudflareXQXQ가 같은 TCP 연결에 여러 HTTP 세션을 HTTP 유지-알리기 때문에 세션 친화성.
+
+증상은 다음과 같습니다 :
+
+- 인증 흐름 문제를 파악하거나 경험하는 사용자.
+- 체크 아웃에서 빈을 보여주는 쇼핑 카트.
+- 다른 세션 의존성.
+
+#### 1. F5 세션 쿠키 식별
+
+F5 세션 쿠키는 임의 이름을 가질 수 있지만 일반적으로 특정 형식을 따르십시오.
+
+- 암호화없이 (지향 서버 IP 및 포트를 표시하는 것이 금지) :
+
+  ```txt
+  BIGipCookie=16908480.16415.0000;path=/; Httponly; Secure
+  ```
+
+- 암호화:
+
+  ```txt
+  BIGipCookie=TS019a202c=01625f1893a7d6e4b2c1a0f98e7d6c5b4a3f2e1d; path=/; Httponly; Secure
+  ```
+
+#### 2. 문제점을 위한 시험
+
+컬을 사용하여이 문제를 테스트 할 수 있습니다. 여러 요청을 실행하고 세션 쿠키가 지속적으로 설정되면 확인:
+
+```sh
+for i in {1..100}; do curl -sI https://example.com; done 2>&1 | grep "<COOKIE_NAME>" | wc -l
+```
+
+카운트가 Cloudflare를 통해 proxied 때 100보다 크게 작을 경우,이 문제가 발생할 때 100과 동일합니다.
+
+### 해결책: F5 OneConnect 단면도를 구성하십시오
+
+권장 솔루션은 단일 호스트와 F5 OneConnect 프로파일을 구성하는 것입니다 (`/32`) 당신의 F5 BIG-IP 짐 밸런서에 가면.
+
+#### OneConnect 도움말
+
+- 클라이언트는 TCP 연결에 의해 백엔드 서버에 고정되지 않습니다
+- HTTP 요청은 개별적으로로드됩니다.
+- 다른 persistence 정보를 가진 다른 쿠키는 동일한 TCP 회의 안에 명예를 줍니다
+- 각 HTTP 응답 설정
+
+#### 중요한 고려사항
+
+1. OneConnect는 TMOS (Traffic Management OS)의 버전과 호환됩니다.
+2. F5 기기가 어떻게 작동하는지 변경하기 때문에 시효 또는 테스트 가상 IP (VIP)에서이 구성을 테스트하십시오.
+3. 더 보기`/32`가면은 CloudflareXQ를 가진 적당한 가동을 위해 중요합니다.
+
+***
+
+## 관련 자료
+
+- [세션 친화](/load-balancing/understand-basics/session-affinity/)
+- [TCP 연결 및 유지 관리](/fundamentals/reference/tcp-connections/)
+- [F5 K7208 : OneConnect 프로필 개요](https://my.f5.com/manage/s/article/K7208)
+- [F5 K7964: BIG-IP 시스템은 Keep-Alive 연결에 대한 지속적인 정보를 무시할 수 있습니다.](https://my.f5.com/manage/s/article/K7964)

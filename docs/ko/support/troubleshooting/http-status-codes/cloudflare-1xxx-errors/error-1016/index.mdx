@@ -1,0 +1,57 @@
+---
+pcx_content_type: troubleshooting
+title: 오류 1016
+source: null
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1016/
+translation_source_md: >-
+  https://developers.cloudflare.com/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1016/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 오류 1016 : 소스 DNS 오류
+
+이 오류는 Cloudflare가 원래 웹 서버의 IP 주소를 해결할 수 없다는 것을 나타냅니다.
+
+### 일반적인 원인
+
+오류의 원인`1016`이름:
+
+- 누락 된 DNS A 레코드는 원산지 IP 주소를 언급합니다.
+- Cloudflare DNS의 CNAME 레코드는 신뢰할 수있는 외부 도메인에 있습니다.
+- Cloudflare[로드밸런서](/load-balancing/)기본값, 지역 및 fallback 풀은 신뢰할 수 없습니다. 다른 모든 풀이 사용할 수없는 경우 원본 IP로 구성 된 fallback 풀을 사용하십시오.
+- CNAME 근원을 가진 스펙트럼 앱을 만들 때, 당신은 근원에 점이 Cloudflare DNS 측에 CNAME을 창조하기 위하여 첫째로 필요로 합니다. 오시는 길[스펙트럼 CNAME 기원](/spectrum/get-started/#create-a-spectrum-application-using-a-cname-record)더 많은 정보.
+- 대상의 hostname에 DNS 레코드가 없습니다.[Partial (CNAME) 설정 영역](/dns/zone-setups/partial-setup/)Workers subrequest의[페치 API](/workers/runtime-apis/fetch/)).
+
+### 제품 설명
+
+오류를 해결`1016`:
+
+1. Cloudflare DNS 설정을 확인하면 유효한 IP 주소로 포인트를 표시할 수 있습니다.[DNS 조회 도구](https://dnschecker.org/).
+2. CNAME 레코드가 다른 도메인에 지적하면 대상 도메인이 해결하는 것을 보장합니다.[DNS 조회 도구](https://dnschecker.org/).
+3. Workers가 Partial (CNAME) 설정 영역에 대한 하위 퀘스트를 들어 호스트 이름은 Cloudflare 영역에 존재한다는 것을 보증합니다 (그리고 권한 DNS에서만).
+
+## SaaS를 위한 SSL의 컨텍스트에서 오류 1016
+
+Cloudflare 반환 a`1016`오류 때[주문 hostname](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/create-custom-hostnames/)경로를 구할 수 없습니다.
+
+### 일반적인 원인
+
+- Custom hostname 소유권 유효성 검사는 완료되지 않습니다.
+- Fallback 근원은 아닙니다[설정하기](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/#1-create-fallback-origin).
+- 와일드 카드 사용자 정의 호스트 이름은 생성되었지만 요청된 호스트 이름은 독립 영역으로 Cloudflare에 존재하는 도메인과 관련되어 있습니다.
+- SaaS 대상 영역에 대한 Cloudflare의 호스트 이름에 대한 DNS 레코드가 없습니다.
+
+### 제품 설명
+
+1. 검증 상태를 확인하려면 API 호출을 실행하십시오.[hostname에 의해 인증서 검색](/cloudflare-for-platforms/cloudflare-for-saas/start/common-api-calls/)인증 오류 필드를 확인:`"verification_errors": ["custom hostname does not CNAME to this zone."]`. 오류는 한 번 상태가 해결됩니다.`active`.
+2. DNS 레코드를 생성했는지 확인하십시오.[관련 상품](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)그리고 또한 fallback 근원을 놓습니다.
+3. 더 보기[호스트 이름 우선](/ssl/reference/certificate-and-hostname-priority/#hostname-priority)독립 구역의 경우 와일드 카드 사용자 정의 호스트 이름에 대한 우선권을 부여합니다. 이 행동은 이 독립 구역 hostname에 DNS 레코드가 없습니다. 와일드카드 대신 특정 호스트명을 사용하거나[CloudflareXQ에서 독립 지역을 제거합니다](/fundamentals/manage-domains/remove-domain/).
+4. SaaS 부모 영역에 대한 Cloudflare에 의해 제공해야하는 각 호스트 이름이 개별 사용자 정의 호스트 이름으로 추가되었으며 상태를 가지고 있는지 확인하십시오.`active`.
+
+## 모델 번호: Workers
+
+노동자와 함께이 오류를 발생하면, 당신은 사용할 수 있습니다[부분 영역 설정에서 Fetch API](/workers/platform/known-issues/#fetch-api-in-cname-setup).

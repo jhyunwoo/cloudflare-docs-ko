@@ -1,0 +1,222 @@
+---
+title: LLM 호출하기
+pcx_content_type: concept
+tags:
+  - AI
+sidebar:
+  order: 6
+---
+
+import { TypeScriptExample, LinkCard } from "~/components";
+
+Agents는 LLM과 작업하는 방식을 바꿉니다. 상태 없는 Worker에서는 모든 요청이 처음부터 시작됩니다. 문맥을 다시 만들고, 모델을 호출하고, 응답을 반환한 뒤 모든 것을 잊어버립니다. Agent는 호출 사이에 상태를 유지하고, WebSocket으로 클라이언트와 연결된 상태를 유지하며, 사용자가 없을 때도 자기 스케줄에 따라 모델을 호출할 수 있습니다.
+
+이 페이지는 LLM 호출이 상태 유지형 Agent 안에서 일어날 때 가능해지는 패턴을 다룹니다. provider 설정과 코드 예시는 [Using AI Models](/agents/api-reference/using-ai-models/)를 참고하세요.
+
+## 문맥으로서의 상태
+
+모든 Agent는 내장 [SQL database](/agents/api-reference/store-and-sync-state/)와 key-value state를 가집니다. 클라이언트가 매 요청마다 전체 대화 기록을 보내는 대신, Agent가 이를 저장하고 자체 storage로부터 prompt를 구성합니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent } from "agents";
+
+export class ResearchAgent extends Agent<Env> {
+	async buildPrompt(userMessage: string) {
+		const history = this.sql<{ role: string; content: string }>`
+			SELECT role, content FROM messages
+			ORDER BY timestamp DESC LIMIT 50`;
+
+		const preferences = this.sql<{ key: string; value: string }>`
+			SELECT key, value FROM user_preferences`;
+
+		return [
+			{ role: "system", content: this.systemPrompt(preferences) },
+			...history.reverse(),
+			{ role: "user", content: userMessage },
+		];
+	}
+}
+```
+
+</TypeScriptExample>
+
+즉, 클라이언트는 매 메시지마다 전체 대화를 보낼 필요가 없습니다. Agent가 이력을 소유하고, 필요에 따라 정리하고, 검색된 문서를 덧붙이거나, 오래된 턴을 요약한 뒤 모델로 보낼 수 있습니다.
+
+## 연결 끊김을 견디기
+
+DeepSeek R1이나 GLM-4 같은 추론 모델은 응답까지 30초에서 수분이 걸릴 수 있습니다. 상태 없는 요청-응답 구조에서는 클라이언트가 그동안 계속 연결되어 있어야 합니다. 연결이 끊기면 응답도 사라집니다.
+
+Agent는 클라이언트 연결이 끊겨도 계속 실행됩니다. 응답이 도착하면 Agent는 이를 상태에 저장하고, 클라이언트가 다시 연결했을 때 전달할 수 있습니다. 몇 시간, 며칠 후라도 가능합니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent } from "agents";
+import { streamText } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
+
+export class MyAgent extends Agent<Env> {
+	async onMessage(connection: Connection, message: WSMessage) {
+		const { prompt } = JSON.parse(message as string);
+		const workersai = createWorkersAI({ binding: this.env.AI });
+
+		const result = streamText({
+			model: workersai("@cf/zai-org/glm-4.7-flash"),
+			prompt,
+		});
+
+		for await (const chunk of result.textStream) {
+			connection.send(JSON.stringify({ type: "chunk", content: chunk }));
+		}
+
+		this.sql`INSERT INTO responses (prompt, response, timestamp)
+			VALUES (${prompt}, ${await result.text}, ${Date.now()})`;
+	}
+}
+```
+
+</TypeScriptExample>
+
+[`AIChatAgent`](/agents/api-reference/chat-agents/)를 사용하면 이 모든 것이 자동입니다. 메시지는 SQLite에 저장되고, 스트림은 재연결 시 자동으로 이어집니다.
+
+## 자율적인 모델 호출
+
+Agents는 모델을 호출하기 위해 꼭 사용자 요청이 필요하지 않습니다. 야간 요약, 주기적 분류, 모니터링, 혹은 사람 개입 없이 수행되어야 하는 모든 작업을 위해 백그라운드에서 모델 호출을 스케줄링할 수 있습니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent } from "agents";
+
+export class DigestAgent extends Agent<Env> {
+	async onStart() {
+		this.schedule("0 8 * * *", "generateDailyDigest", {});
+	}
+
+	async generateDailyDigest() {
+		const articles = this.sql<{ title: string; body: string }>`
+			SELECT title, body FROM articles
+			WHERE created_at > datetime('now', '-1 day')`;
+
+		const workersai = createWorkersAI({ binding: this.env.AI });
+		const { text } = await generateText({
+			model: workersai("@cf/zai-org/glm-4.7-flash"),
+			prompt: `Summarize these articles:\n${articles.map((a) => a.title + ": " + a.body).join("\n\n")}`,
+		});
+
+		this.sql`INSERT INTO digests (summary, created_at)
+			VALUES (${text}, ${Date.now()})`;
+
+		this.broadcast(JSON.stringify({ type: "digest", summary: text }));
+	}
+}
+```
+
+</TypeScriptExample>
+
+## 멀티 모델 파이프라인
+
+Agent는 호출 간 상태를 유지하므로, 하나의 메서드 안에서 여러 모델을 연결할 수 있습니다. 예를 들어 빠른 모델로 분류하고, 추론 모델로 계획하고, 임베딩 모델로 검색하는 식으로 단계 사이의 문맥을 잃지 않고 사용할 수 있습니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent } from "agents";
+import { generateText, embed } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
+
+export class TriageAgent extends Agent<Env> {
+	async triage(ticket: string) {
+		const workersai = createWorkersAI({ binding: this.env.AI });
+
+		const { text: category } = await generateText({
+			model: workersai("@cf/zai-org/glm-4.7-flash"),
+			prompt: `Classify this support ticket into one of: billing, technical, account. Ticket: ${ticket}`,
+		});
+
+		const { embedding } = await embed({
+			model: workersai("@cf/baai/bge-base-en-v1.5"),
+			value: ticket,
+		});
+		const similar = await this.env.VECTOR_DB.query(embedding, { topK: 5 });
+
+		const { text: response } = await generateText({
+			model: workersai("@cf/zai-org/glm-4.7-flash"),
+			prompt: `Draft a response for this ${category} ticket. Similar resolved tickets: ${JSON.stringify(similar)}. Ticket: ${ticket}`,
+		});
+
+		this.sql`INSERT INTO tickets (content, category, response, created_at)
+			VALUES (${ticket}, ${category}, ${response}, ${Date.now()})`;
+
+		return { category, response };
+	}
+}
+```
+
+</TypeScriptExample>
+
+각 중간 결과는 메서드 실행 동안 Agent의 메모리에 유지되고, 최종 결과는 이후 참조를 위해 SQL에 저장됩니다.
+
+## 캐싱과 비용 제어
+
+영속 저장소가 있으므로 모델 응답을 캐시하고 중복 호출을 피할 수 있습니다. 이는 임베딩이나 장기 추론 체인 같은 비싼 작업에 특히 유용합니다.
+
+<TypeScriptExample>
+
+```ts
+import { Agent } from "agents";
+
+export class CachingAgent extends Agent<Env> {
+	async cachedGenerate(prompt: string) {
+		const cached = this.sql<{ response: string }>`
+			SELECT response FROM llm_cache WHERE prompt = ${prompt}`;
+
+		if (cached.length > 0) {
+			return cached[0].response;
+		}
+
+		const workersai = createWorkersAI({ binding: this.env.AI });
+		const { text } = await generateText({
+			model: workersai("@cf/zai-org/glm-4.7-flash"),
+			prompt,
+		});
+
+		this.sql`INSERT INTO llm_cache (prompt, response, created_at)
+			VALUES (${prompt}, ${text}, ${Date.now()})`;
+
+		return text;
+	}
+}
+```
+
+</TypeScriptExample>
+
+여러 에이전트에 걸친 provider 수준 캐싱과 rate limit 관리는 [AI Gateway](/ai-gateway/)를 사용하세요.
+
+## 다음 단계
+
+<LinkCard
+	title="Using AI Models"
+	href="/agents/api-reference/using-ai-models/"
+	description="Workers AI, OpenAI, Anthropic 등을 위한 provider 설정, 스트리밍, 코드 예제."
+/>
+
+<LinkCard
+	title="Chat agents"
+	href="/agents/api-reference/chat-agents/"
+	description="AIChatAgent는 메시지 저장, 재개 가능한 스트리밍, 도구 처리를 자동화합니다."
+/>
+
+<LinkCard
+	title="Store and sync state"
+	href="/agents/api-reference/store-and-sync-state/"
+	description="문맥 구축과 캐싱을 위한 SQL database 및 key-value state API."
+/>
+
+<LinkCard
+	title="Schedule tasks"
+	href="/agents/api-reference/schedule-tasks/"
+	description="지연, 일정, cron에 따라 자율적인 모델 호출을 실행하세요."
+/>

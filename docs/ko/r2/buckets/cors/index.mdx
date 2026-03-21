@@ -1,0 +1,171 @@
+---
+pcx_content_type: how-to
+title: CORS 구성
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/buckets/cors/'
+translation_source_md: 'https://developers.cloudflare.com/r2/buckets/cors/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {DashButton} from "~/components";
+
+[Cross-Origin 자원 공유 (CORS)](https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS)도메인 Y 리소스에 액세스하여 도메인 X를 방지하는 표준화 된 방법입니다. 그것은 도메인 Y에서 HTTP 응답에 특별한 헤더를 사용하므로 브라우저가 도메인 Y 허용 도메인 X 이러한 리소스에 액세스 할 수 있도록 허용.
+
+CORS는 악성 웹 사이트에서 데이터를 보호하는 데 도움이 될 수 있지만, CORS는 물통에 개체와 상호 작용하고 버킷에 정책을 구성하는 데 사용됩니다.
+
+CORS는 웹 브라우저에서 물통과 상호 작용할 때 사용되며 두 가지 옵션이 있습니다.
+
+**[대중에게 물통을 놓으십시오:](#use-cors-with-a-public-bucket)**&#xC774; 옵션은 읽기 전용으로 인터넷에 액세스 할 수있는 버킷을 만듭니다. 누군가가 브라우저 또는 다른 곳에서 버킷에서 요청 및로드 개체를 요청할 수 있습니다. 이 옵션은 공개 블로그에 사용되는 이미지를 포함하면 이상적입니다.
+
+**[위탁된 URL:](#use-cors-with-a-presigned-url)**&#xACE0;유의 URL에 액세스하여 버킷에 특정 작업을 수행 할 수 있습니다.
+
+## 자주 묻는 질문
+
+CORS를 구성하기 전에 다음을 해야 합니다:
+
+- R2 물통은 적어도 1개의 목표로 묶습니다. 물통을 만들려면, 참조[공공 버킷 만들기](/r2/buckets/public-buckets/).
+- 도메인은 개체에 액세스 할 수 있습니다. 이것은 또한 일 수 있습니다`localhost`.
+- (선택) 접근 열쇠. 지정된 URL을 만들 때 액세스 키 만 필요합니다.
+
+## 공중 물통을 가진 CORS를 사용하십시오
+
+[공중 물통을 가진 CORS를 이용하기 위하여](/r2/buckets/public-buckets/), 당신의 물통은 공중 접근을 허용하기 위하여 놓입니다.
+
+다음 것,[CORS 정책 추가](#add-cors-policies-from-the-dashboard)파일을 공유 할 수 있도록 물통에.
+
+## 사전 서명된 URL을 가진 CORS를 사용하십시오
+
+[위탁된 URL](/r2/api/s3/presigned-urls/)당신의 자격 증명을 exposing 없이 당신의 물통에 특정한 활동을 실행하는 임시 접근을 허용하십시오. URL을 처리하는 경우, 브라우저에서 요청할 때 CORS를 구성해야 합니다.
+
+브라우저가 다른 기원에 할당 된 URL에 요청할 때 브라우저는 CORS를 적용합니다. CORS 정책없이, 사전 서명 된 URL을 사용하여 브라우저 기반 업로드 및 다운로드가 실패합니다. 사전 서명 된 URL 자체가 유효합니다.
+
+사전 서명된 URL과 브라우저 기반 액세스를 활성화하려면:
+
+1. [CORS 정책 추가](#add-cors-policies-from-the-dashboard)당신의 응용 프로그램의 근원에서 요청을 허용하는 물통에.
+
+2. 설치하기`AllowedMethods`사전 서명된 URL을 실행하기 위해, 사용`GET`, `PUT`, `HEAD`, 및/또는`DELETE`.
+
+3. 설치하기`AllowedHeaders`클라이언트는 콘텐츠 유형, 체크섬, 캐싱 또는 사용자 정의 메타데이터를 위한 헤더와 같은 사전 서명된 URL을 사용할 때 보낼 것입니다.
+
+4. (선택) 세트`ExposeHeaders`JavaScript를 허용하여 응답 헤더를 읽고`ETag`객체의 해시를 포함 하 고 업로드를 확인 하는 데 도움이.
+
+5. (선택) 세트`MaxAgeSeconds`선명한 응답을 캐시하고 브라우저를 요청하는 preflight 요청의 번호를 줄입니다.
+
+다음 예제는 브라우저 기반 업로드를 허용`https://example.com`한국어`Content-Type`머리:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://example.com"],
+    "AllowedMethods": ["PUT"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+## 사용자 정의 도메인과 CORS 사용
+
+[주문 영역](/r2/buckets/public-buckets/#custom-domains)CORS 정책으로 R2 Bucket에 연결하여 CORS 응답 헤더를 자동으로 반환합니다.[cross-origin 요청](https://fetch.spec.whatwg.org/#http-cors-protocol).
+
+Cross-origin 요청은 유효하다`Origin`요청 헤더, 예를 들어,`Origin: https://example.com`. 직접 테스트 또는 같은 명령줄 도구를 사용하는 경우`curl`, 당신은 CORS를 볼 수 없습니다`Access-Control-*`응답 헤더 없이`Origin`요청 헤더는 요청에 포함되어 있습니다.
+
+:::카트로션\[카트로잉 및 CORS 헤더]
+
+사용자 정의 도메인을 사용하여 트래픽을 제공하는 버킷에 CORS 정책을 설정하면 기존 캐시 된 자산은 캐시에서 새로 고침 될 때까지 CORS 응답 헤더를 반영하지 않습니다. 제품 정보[캐시 퍼지](/cache/how-to/purge-cache/)모든 CORS 정책 관련 변경 사항을 작성한 후 해당 hostname에 대한 캐시를 제거하십시오.
+
+:::
+
+## dashboard에서 CORS 정책을 추가하십시오
+
+1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+2. 목록에서 물통을 찾습니다.
+3. 제품정보**계정 설정**.
+4. 이름 \***CORS 정책**, 선택**CORS 정책 추가**.
+5. 에 의해**JSON 파일**탭, 수동 입력 또는 복사 및 텍스트 상자에 정책을 붙여 넣습니다.
+6. 당신이 할 때, 선택**제품 정보**.
+
+당신의 정책 표시**계정 설정**당신의 물통을 위한 페이지.
+
+## Wrangler CLI를 통해 CORS 정책을 추가
+
+CORS 규칙을 구성할 수 있습니다.[Wrangler 클립](/r2/reference/wrangler-commands/).
+
+1. 당신의 CORS 윤곽을 가진 JSON 파일을 만드십시오:
+
+```json title="cors.json"
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": ["https://example.com"],
+        "methods": ["GET"]
+      }
+    }
+  ]
+}
+```
+
+2. 당신의 물통에 CORS 정책을 적용하십시오:
+
+```sh
+npx wrangler r2 bucket cors set <BUCKET_NAME> --file cors.json
+```
+
+3. CORS 정책 검증:
+
+```sh
+npx wrangler r2 bucket cors list <BUCKET_NAME>
+```
+
+## 응답 헤더
+
+다음 필드에 R2 CORS 정책지도 HTTP 응답 헤더. 이 응답 헤더는 HTTP 요청이 유효한 CORS 요청일 때만 반환됩니다.
+
+| 필드 이름            | 이름 \*                                                                                                                                                                                                                                             | 이름 \*                                                                                                                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AllowedOrigins` | 값을 지정합니다.`Access-Control-Allow-Origin`브라우저에서 버킷을 요청할 때 헤더 R2 세트.                                                                                                                                                                                  | 웹 사이트`www.test.com`액세스 리소스 (예 : 글꼴, 스크립트)에[사용자 정의 도메인](/r2/buckets/public-buckets/#custom-domains)이름 \*`static.example.com`, 당신은 놓을 것입니다`https://www.test.com`이름 \*`AllowedOrigin`. |
+| `AllowedMethods` | 값을 지정합니다.`Access-Control-Allow-Methods`브라우저에서 버킷을 요청할 때 헤더 R2 세트.                                                                                                                                                                                 | `GET`, `POST`, `PUT`                                                                                                                                                                |
+| `AllowedHeaders` | 값을 지정합니다.`Access-Control-Allow-Headers`브라우저에서 이 물통에 물체를 요청할 때 헤더 R2 세트. 사용자 정의 헤더 (e.g.`x-user-id`) 이 헤더를 지정해야 합니다.`AllowedHeaders`.                                                                                                              | `x-requested-by`, `User-Agent`                                                                                                                                                      |
+| `ExposeHeaders`  | 뒤로 노출될 수 있는 헤더를 지정하고, 교차로 요청을 만드는 JavaScriptXQ. 헤더에 접근해야 하는 경우[안전한 응답 headers](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Access-Control-Expose-Headers#examples), 등`Content-Encoding`또는`cf-cache-status`, 여기에 지정해야 합니다. | `Content-Encoding`, `cf-cache-status`, `Date`                                                                                                                                       |
+| `MaxAgeSeconds`  | CORS preflight 응답을 캐시 할 수 있습니다 (초) 브라우저의 양을 지정합니다. 브라우저는 최대 값 (86400)이 지정되는 경우에도 2 시간 이하로 제한 할 수 있습니다.                                                                                                                                            | `3600`                                                                                                                                                                              |
+
+## 이름 \*
+
+이 예제는 포함 된 물통에 추가 된 CORS 정책을 보여줍니다.`Roboto-Light.ttf`객체, 이는 글꼴 파일입니다.
+
+더 보기`AllowedOrigins`웹 서버가 사용되고,`localhost:3000`웹 서버가 실행되는 호스트 이름입니다. 더 보기`AllowedMethods`지정하기`GET`요청은 허용되며 물통에 개체를 읽을 수 있습니다.
+
+```json
+[
+	{
+		"AllowedOrigins": ["http://localhost:3000"],
+		"AllowedMethods": ["GET"]
+	}
+]
+```
+
+일반적으로 올바른 CORS 규칙을 설정해야 할 좋은 전략은 브라우저에 의해 차단되는 네트워크 요청을 볼 수 있습니다.
+
+- 규칙의 확인`AllowedOrigins`요청이 만든 기원을 포함합니다. (기타)`http://localhost:3000`또는`https://yourdomain.com`)
+- 규칙의 확인`AllowedMethods`blocked request의 메소드를 포함합니다.
+- 규칙의 확인`AllowedHeaders`blocked request의 헤더를 포함합니다.
+
+또한 CORS 규칙 제안은 드문 경우에, 30 초까지 가지고 갑니다.
+
+## 일반적인 문제
+
+- Cross-origin 요청은 CORS 응답 헤더를 포함합니다.
+  - 교차로 요청은 존재에 의해 식별됩니다`Origin`HTTP 요청 헤더, 값의`Origin`유효성을 나타내는, 정의된 근원`AllowedOrigins`CORS 정책의 분야.
+  - 요청 없이`Origin`HTTP 요청 헤더가*아니다.*&#x43;ORS 응답 헤더를 반환합니다. 근원 가치는 정확하게 일치해야 합니다.
+- 값(s)`AllowedOrigins`CORS 정책에서 유효한 것이어야 합니다.[HTTP 근원 우두머리 가치](https://fetch.spec.whatwg.org/#origin-header). 유효한`Origin`헤더는*아니다.*&#xACBD;로 구성 요소만 포함해야 한다.`scheme://host[:port]`(항구가 선택 사항).
+  - (주)`AllowedOrigins`가치:`https://static.example.com`- 계획과 호스트가 포함되어 있습니다. 포트는 옵션이며 계획에 의해 결정됩니다.
+  - 잘못된 정보`AllowedOrigins`가치:`https://static.example.com/`또는`https://static.example.com/fonts/Calibri.woff2`- 잘못된 경로 구성 요소가 포함되어 있습니다.
+- JavaScriptXQ를 통해 특정 헤더 값에 액세스하려면 비디오 플레이어를 사용할 때와 같은 원본 페이지에서 특정 헤더 값에 액세스해야합니다. 설정`Access-Control-Expose-Headers`JavaScriptXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ`Content-Length`.

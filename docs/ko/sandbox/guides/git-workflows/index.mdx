@@ -1,0 +1,149 @@
+---
+title: Git로 일하기
+pcx_content_type: how-to
+sidebar:
+  order: 6
+description: 'Clone 저장소, 지점을 관리하고, Git 작업 자동화.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/git-workflows/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/git-workflows/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+이 가이드는 클론 저장소, 지점 관리 및 샌드박스에서 Git 작업을 자동화하는 방법을 보여줍니다.
+
+## Clone 저장소
+
+<TypeScriptExample>
+  ```
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+
+  // Basic clone
+  await sandbox.gitCheckout('https://github.com/user/repo');
+
+  // Clone specific branch
+  await sandbox.gitCheckout('https://github.com/user/repo', {
+    branch: 'develop'
+  });
+
+  // Shallow clone (faster for large repos)
+  await sandbox.gitCheckout('https://github.com/user/large-repo', {
+    depth: 1
+  });
+
+  // Clone to specific directory
+  await sandbox.gitCheckout('https://github.com/user/my-app', {
+    targetDir: '/workspace/project'
+  });
+  ```
+</TypeScriptExample>
+
+## Clone 개인 저장소
+
+URL에서 개인 액세스 토큰을 사용합니다:
+
+<TypeScriptExample>
+  ```
+  const token = env.GITHUB_TOKEN;
+  const repoUrl = `https://${token}@github.com/user/private-repo.git`;
+
+  await sandbox.gitCheckout(repoUrl);
+  ```
+</TypeScriptExample>
+
+## Clone 및 빌드
+
+저장소를 복제하고 빌드 단계를 실행:
+
+<TypeScriptExample>
+  ```
+  await sandbox.gitCheckout('https://github.com/user/my-app');
+
+  const repoName = 'my-app';
+
+  // Install and build
+  await sandbox.exec(`cd ${repoName} && npm install`);
+  await sandbox.exec(`cd ${repoName} && npm run build`);
+
+  console.log('Build complete');
+  ```
+</TypeScriptExample>
+
+## 사업소개
+
+<TypeScriptExample>
+  ```
+  await sandbox.gitCheckout('https://github.com/user/repo');
+
+  // Switch branches
+  await sandbox.exec('cd repo && git checkout feature-branch');
+
+  // Create new branch
+  await sandbox.exec('cd repo && git checkout -b new-feature');
+  ```
+</TypeScriptExample>
+
+## 변경 및 커밋
+
+<TypeScriptExample>
+  ```
+  await sandbox.gitCheckout('https://github.com/user/repo');
+
+  // Modify a file
+  const readme = await sandbox.readFile('/workspace/repo/README.md');
+  await sandbox.writeFile('/workspace/repo/README.md', readme.content + '\n\n## New Section');
+
+  // Commit changes
+  await sandbox.exec('cd repo && git config user.name "Sandbox Bot"');
+  await sandbox.exec('cd repo && git config user.email "bot@example.com"');
+  await sandbox.exec('cd repo && git add README.md');
+  await sandbox.exec('cd repo && git commit -m "Update README"');
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+- **사용 얕은 clones**- 큰 repos를 위한 더 빠른`depth: 1`
+- **보관 자격 증명**- 토큰의 환경 변수 사용
+- **더 알아보기**- 공간을 절약하기 위해 사용하지 않는 저장소 삭제
+
+## 문제 해결
+
+### 인증 실패
+
+토큰을 검증합니다:
+
+<TypeScriptExample>
+  ```
+  if (!env.GITHUB_TOKEN) {
+    throw new Error('GITHUB_TOKEN not configured');
+  }
+
+  const repoUrl = `https://${env.GITHUB_TOKEN}@github.com/user/private-repo.git`;
+  await sandbox.gitCheckout(repoUrl);
+  ```
+</TypeScriptExample>
+
+### 큰 저장소 timeout
+
+얕은 clone를 사용하십시오:
+
+<TypeScriptExample>
+  ```
+  await sandbox.gitCheckout('https://github.com/user/large-repo', {
+    depth: 1
+  });
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+- [파일 API reference](/sandbox/api/files/)- 복제 후 파일 작업
+- [명령 가이드 실행](/sandbox/guides/execute-commands/)- git 명령어 실행
+- [파일 관리](/sandbox/guides/manage-files/)- 복제 된 파일 작업

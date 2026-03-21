@@ -1,0 +1,225 @@
+---
+title: 문자열 함수
+pcx_content_type: reference
+sidebar:
+  order: 10
+head:
+  - tag: title
+    content: SQL 레퍼런스
+
+---
+
+import { Badge } from "~/components"
+
+## length
+
+사용법:
+
+```sql
+length({string})
+```
+
+문자열의 길이를 반환합니다. 이 함수는 UTF-8과 호환됩니다.
+
+예시:
+
+```sql
+SELECT length('a string') AS s;
+SELECT length(blob1) AS s FROM your_dataset;
+```
+
+하위 호환성을 위해 이 함수는 ClickHouse의 `length` 함수가 아니라 `lengthUTF8` 함수와 동등하게 동작합니다.
+
+## empty
+
+사용법:
+
+```sql
+empty({string})
+```
+
+문자열이 비어 있는지를 나타내는 boolean 값을 반환합니다. 이 계산은 `{string} = ''`와 같은 이항 연산으로도 수행할 수 있습니다.
+
+예시:
+
+```sql
+SELECT empty('a string') AS b;
+SELECT empty(blob1) AS b FROM your_dataset;
+```
+
+하위 호환성을 위해 `empty(<string>)` 형태로도 호출할 수 있습니다.
+
+## lower
+
+사용법:
+
+```sql
+lower({string})
+```
+
+문자열을 소문자로 변환해 반환합니다. 이 함수는 Unicode와 호환되지 않습니다. Unicode가 필요하면 `lowerUTF8`을 참고하세요.
+
+예시:
+
+```sql
+SELECT lower('STRING TO DOWNCASE') AS s;
+SELECT lower(blob1) AS s FROM your_dataset;
+```
+
+## lowerUTF8 <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+lowerUTF8({string})
+```
+
+문자열을 소문자로 변환해 반환합니다. 이 함수는 Unicode와 호환됩니다. 다만 모든 언어에서 완벽하지 않을 수 있으므로, 엄격한 요구 사항이 있는 사용자는 자체 코드에서 처리하는 편이 좋습니다.
+
+예시:
+
+```sql
+SELECT lowerUTF8('STRING TO DOWNCASE') AS s;
+SELECT lowerUTF8(blob1) AS s FROM your_dataset;
+```
+
+하위 호환성을 위해 `toLower({string})`로도 호출할 수 있습니다.
+
+## upper
+
+사용법:
+
+```sql
+upper({string})
+```
+
+문자열을 대문자로 변환해 반환합니다. 이 함수는 Unicode와 호환되지 않습니다. Unicode가 필요하면 `upperUTF8`을 참고하세요.
+
+예시:
+
+```sql
+SELECT upper('string to uppercase') AS s;
+SELECT upper(blob1) AS s FROM your_dataset;
+```
+
+## upperUTF8 <Badge text="New" variant="tip" size="small" />
+
+사용법:
+
+```sql
+upperUTF8({string})
+```
+
+문자열을 대문자로 변환해 반환합니다. 이 함수는 Unicode와 호환됩니다. 결과는 모든 언어에서 완벽하지 않을 수 있으므로, 엄격한 요구가 있는 사용자는 자체 코드에서 처리해야 합니다.
+
+예시:
+
+```sql
+SELECT upperUTF8('string to uppercase') AS s;
+SELECT upperUTF8(blob1) AS s FROM your_dataset;
+```
+
+하위 호환성을 위해 `toUpper({string})`로도 호출할 수 있습니다.
+
+## startsWith
+
+사용법:
+
+```sql
+startsWith({string}, {string})
+```
+
+첫 번째 문자열이 두 번째 문자열로 시작하는지 여부를 boolean으로 반환합니다.
+
+예시:
+
+```sql
+SELECT startsWith('prefix ...', 'prefix') AS b;
+SELECT startsWith(blob1, 'prefix') AS b FROM your_dataset;
+```
+
+## endsWith
+
+사용법:
+
+```sql
+endsWith({string}, {string})
+```
+
+첫 번째 문자열이 두 번째 문자열로 끝나는지 여부를 boolean으로 반환합니다.
+
+예시:
+
+```sql
+SELECT endsWith('prefix suffix', 'suffix') AS b;
+SELECT endsWith(blob1, 'suffix') AS b FROM your_dataset;
+```
+
+## position
+
+사용법:
+
+```sql
+position({needle:string} IN {haystack:string})
+```
+
+문자열 `haystack` 안에서 `needle`이 나타나는 위치를 반환합니다. SQL에서 인덱스는 보통 1부터 시작합니다. 즉, needle이 haystack의 시작에 있으면 `position`은 `1`을 반환합니다. 문자열을 찾지 못한 경우에만 `0`을 반환합니다.
+
+예시:
+
+```sql
+SELECT position(':' IN 'hello: world') AS p;
+SELECT position(':' IN blob1) AS p FROM your_dataset;
+```
+
+## substring
+
+사용법:
+
+```sql
+substring({string}, {offset:integer}[, {length:integer}])
+```
+
+문자열의 일부를 추출합니다. offset이 가리키는 Unicode 코드 포인트부터 시작해, length가 요청하는 수만큼의 코드 포인트를 반환합니다. 앞서 언급했듯 SQL의 인덱스는 보통 1부터 시작하므로, substring에 전달하는 offset은 최소 `1`이어야 합니다.
+
+예시:
+
+```sql
+SELECT substring('hello world', 6) AS s;
+SELECT substring('hello: world', 1, position(':' IN 'hello: world')-1) AS s;
+```
+
+## format
+
+사용법:
+
+```sql
+format({string}[, ...])
+```
+
+이 함수는 문자열, 정수, 부동소수점, datetime, interval 등 `NULL`을 제외한 값을 포맷할 수 있습니다. 형식 문자열 안의 리터럴 `{`와 `}` 문자는 지원하지 않습니다.
+
+예시:
+
+```sql
+SELECT format('blob1: {}', blob1) AS s FROM dataset;
+```
+
+[formatDateTime](/analytics/analytics-engine/sql-reference/date-time-functions/#formatdatetime) 함수도 유용할 수 있습니다.
+
+## extract
+
+사용법:
+
+```sql
+extract(<time unit> from <datetime>)
+```
+
+`extract`는 datetime에서 시간 단위를 정수로 추출합니다. `YEAR`, `MONTH`, `DAY`, `HOUR`, `MINUTE`, `SECOND`를 지원합니다.
+
+예시:
+
+```sql
+-- timestamp에서 초를 추출(이 예시에서는 15 반환)
+extract(SECOND from toDateTime('2022-06-06 11:30:15'))
+```

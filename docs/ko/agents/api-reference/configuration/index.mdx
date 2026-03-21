@@ -1,0 +1,832 @@
+---
+title: 제품 설명
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/configuration/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/configuration/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	FileTree,
+	TypeScriptExample,
+	WranglerConfig,
+	LinkCard,
+	DashButton,
+} from "~/components";
+
+이 가이드는 Wrangler 구성 파일 설정, 유형 생성, 환경 변수 및 Cloudflare 대시보드를 포함하여 로컬 개발 및 생산 배포를위한 에이전트를 구성해야합니다.
+
+## 프로젝트 구조
+
+Agent 프로젝트의 전형적인 파일 구조`npm create cloudflare@latest agents-starter -- --template cloudflare/agents-starter`다음 :
+
+{/* prettier-ignore */}
+
+<FileTree>
+  - 사이트맵
+    - index.ts 너의 대리인 정의
+  - 대중교통
+    - 프로젝트
+  - 시험/
+    - index.spec.ts 테스트
+  - 패키지.json
+  - 사이트맵
+  - 다운로드
+  - 작업자 구성.d.ts
+  - wrangler.jsonc Workers와 에이전트 구성
+</FileTree>
+
+## Wrangler 설정 파일
+
+더 보기`wrangler.jsonc`파일은 Cloudflare Worker와 그 바인딩을 구성합니다. 여기에 에이전트 프로젝트에 대한 완전한 예입니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "node_modules/wrangler/config-schema.json",
+  	"name": "my-agent-app",
+  	"main": "src/server.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+
+  	//(선택) 정체되는 자산
+  	"assets": {
+  		"directory": "public",
+  		"binding": "ASSETS",
+  	},
+
+  	//Agent를 위한 튼튼한 목표 바인딩
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "MyAgent",
+  				"class_name": "MyAgent",
+  			},
+  			{
+  				"name": "ChatAgent",
+  				"class_name": "ChatAgent",
+  			},
+  		],
+  	},
+
+  	//필수: 대리인을 위한 SQLite 저장
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["MyAgent", "ChatAgent"],
+  		},
+  	],
+
+  	//AI 바인딩 (선택, `Workers AI`를 위해)
+  	"ai": {
+  		"binding": "AI",
+  	},
+
+  	//관찰 가능(추천)
+  	"observability": {
+  		"enabled": true,
+  	},
+  }
+  ```
+</WranglerConfig>
+
+### 핵심 분야
+
+#### `compatibility_flags`
+
+더 보기`nodejs_compat`깃발은 대리인을 위해 요구됩니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"compatibility_flags": ["nodejs_compat"],
+  }
+  ```
+</WranglerConfig>
+
+이것은 암호화, 스트림 및 기타 Node.js API에 따라 에이전트가 의존하는 Node.js 호환성 모드를 활성화합니다.
+
+#### `durable_objects.bindings`
+
+각 대리인 종류는 의무를 필요로 합니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "Counter",
+  				"class_name": "Counter",
+  			},
+  		],
+  	},
+  }
+  ```
+</WranglerConfig>
+
+| 제품정보         | 이름 \*                              |
+| ------------ | ---------------------------------- |
+| `name`       | 이름 \*`env`. 이 코드를 사용:`env.Counter` |
+| `class_name` | 수출 된 클래스 이름을 정확히 일치해야합니다           |
+
+:::주\[일시]`name`·`class_name`다른 것]
+
+시간 :`name`·`class_name`다른, 아래 보이는 패턴을 따르십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "COUNTER_DO",
+  				"class_name": "CounterAgent",
+  			},
+  		],
+  	},
+  }
+  ```
+</WranglerConfig>
+
+환경 변수 스타일 naming을 원할 때 유용합니다 (`COUNTER_DO`) 그러나 더 descriptive 종류 이름 (`CounterAgent`).
+:::
+
+#### `migrations`
+
+Migrations는 Cloudflare\`\`Durable Objects에 저장을 설정하는 방법을 알려줍니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["MyAgent"],
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+| 제품정보                 | 이름 \*                                        |
+| -------------------- | -------------------------------------------- |
+| `tag`                | 버전 식별자 (예 : "v1", "v2"). 자주 묻는 질문            |
+| `new_sqlite_classes` | SQLite 저장을 사용하는 에이전트 클래스 (state persistence) |
+| `deleted_classes`    | 제거 된 클래스                                     |
+| `renamed_classes`    | 분류되지 않음                                      |
+
+#### `assets`
+
+정적 파일 제공 (HTML, CSS, JS):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"assets": {
+  		"directory": "public",
+  		"binding": "ASSETS",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+바인딩으로, 당신은 자산 programmatically 봉사할 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env) {
+  		//Static Asset은 기본적으로 worker가 자동으로 제공됩니다.
+
+  		//적절한 대리인에 대한 요청
+  		const agentResponse = await routeAgentRequest(request, env);
+  		if (agentResponse) return agentResponse;
+
+  		//routing 로직을 추가하십시오.
+  		return new Response("Not found", { status: 404 });
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+#### `ai`
+
+\`Workers AI\` 통합:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+당신의 대리인에 있는 접근:
+
+<TypeScriptExample>
+  ```ts
+  const response = await this.env.AI.run("@cf/meta/llama-3-8b-instruct", {
+  	prompt: "Hello!",
+  });
+  ```
+</TypeScriptExample>
+
+## 생성 유형
+
+Wrangler는 TypeScript를 바인딩할 수 있습니다.
+
+### 자동 생성
+
+유형 명령을 실행:
+
+```sh
+npx wrangler types
+```
+
+이 생성 또는 업데이트`worker-configuration.d.ts`너와 함께`Env`유형.
+
+### 공급 능력
+
+사용자 정의 경로 지정:
+
+```sh
+npx wrangler types env.d.ts
+```
+
+### runtime 유형 없이
+
+청결한 산출을 위해 ( 대리인을 위해 추천되는):
+
+```sh
+npx wrangler types env.d.ts --include-runtime false
+```
+
+이것은 Cloudflare runtime type 없이 당신의 바인딩을 생성합니다.
+
+### 생성 된 출력
+
+```ts
+//env.d.ts (일반)
+declare namespace Cloudflare {
+	interface Env {
+		OPENAI_API_KEY: string;
+		Counter: DurableObjectNamespace;
+		ChatAgent: DurableObjectNamespace;
+	}
+}
+interface Env extends Cloudflare.Env {}
+```
+
+### 수동 유형 정의
+
+당신은 또한 수동으로 유형을 정의할 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  //사이트맵
+  import type { Counter } from "./src/agents/counter";
+  import type { ChatAgent } from "./src/agents/chat";
+
+  interface Env {
+  	//계정 관리
+  	OPENAI_API_KEY: string;
+  	WEBHOOK_SECRET: string;
+
+  	//에이전트 바인딩
+  	Counter: DurableObjectNamespace<Counter>;
+  	ChatAgent: DurableObjectNamespace<ChatAgent>;
+
+  	//다른 바인딩
+  	AI: Ai;
+  	ASSETS: Fetcher;
+  	MY_KV: KVNamespace;
+  }
+  ```
+</TypeScriptExample>
+
+### package.json에 추가
+
+쉬운 재생을위한 스크립트를 추가 :
+
+```json
+{
+	"scripts": {
+		"types": "wrangler types env.d.ts --include-runtime false"
+	}
+}
+```
+
+## 환경 변수 및 비밀
+
+### 현지 개발 (`.env`)
+
+이름 \*`.env`로컬 비밀에 대한 파일 (add to`.gitignore`):
+
+```sh
+#사이트맵
+OPENAI_API_KEY=sk-...
+GITHUB_WEBHOOK_SECRET=whsec_...
+DATABASE_URL=postgres://...
+```
+
+당신의 대리인에 있는 접근:
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	async onStart() {
+  		const apiKey = this.env.OPENAI_API_KEY;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 생산 비밀
+
+제품 정보`wrangler secret`생산을 위해:
+
+```sh
+#비밀번호
+npx wrangler secret put OPENAI_API_KEY
+#표시된 값
+
+#비밀번호
+npx wrangler secret list
+
+#비밀 삭제
+npx wrangler secret delete OPENAI_API_KEY
+```
+
+### Non-secret 변수
+
+비 과민한 윤곽을 위해, 사용`vars`Wrangler 설정 파일에서:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"API_BASE_URL": "https://api.example.com",
+  		"MAX_RETRIES": "3",
+  		"DEBUG_MODE": "false",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+모든 값은 문자열이어야 합니다. 코드의 숫자와 불린:
+
+<TypeScriptExample>
+  ```ts
+  const maxRetries = parseInt(this.env.MAX_RETRIES, 10);
+  const debugMode = this.env.DEBUG_MODE === "true";
+  ```
+</TypeScriptExample>
+
+### 환경별 변수
+
+제품 정보`env`다른 환경을 위한 단면도 (예를 들면, staging, 생산):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "my-agent",
+  	"vars": {
+  		"API_URL": "https://api.example.com",
+  	},
+
+  	"env": {
+  		"staging": {
+  			"vars": {
+  				"API_URL": "https://staging-api.example.com",
+  			},
+  		},
+  		"production": {
+  			"vars": {
+  				"API_URL": "https://api.example.com",
+  			},
+  		},
+  	},
+  }
+  ```
+</WranglerConfig>
+
+특정 환경에 배포:
+
+```sh
+npx wrangler deploy --env staging
+npx wrangler deploy --env production
+```
+
+## 지역 개발
+
+### dev 서버 시작
+
+Vite (풀 스택 앱에 대한 권장) :
+
+```sh
+npx vite dev
+```
+
+Vite 없이:
+
+```sh
+npx wrangler dev
+```
+
+### 지역 상태 지속
+
+튼튼한 목표 상태는 현지에서 지속됩니다`.wrangler/state/`:
+
+{/* prettier-ignore */}
+
+<FileTree>
+  - .wrangler / 또는
+    - 국가 /
+      - ₢ 킹
+        - 사이트맵
+          - miniflare-D1DatabaseObject/
+            - ... (SQLite 파일)
+</FileTree>
+
+### 현지 국가 정리
+
+모든 로컬 튼튼한 개체 상태를 재설정하려면:
+
+```sh
+rm -rf .wrangler/state
+```
+
+또는 신선한 상태로 재시작:
+
+```sh
+npx wrangler dev --persist-to=""
+```
+
+### 로컬 SQLite 검사
+
+당신은 직접 대리인 국가를 검열할 수 있습니다:
+
+```sh
+#SQLite 파일 찾기
+ls .wrangler/state/v3/d1/
+
+#sqlite3로 열기
+sqlite3 .wrangler/state/v3/d1/miniflare-D1DatabaseObject/*.sqlite
+```
+
+## Dashboard 설정
+
+### 자동 자원
+
+배포할 때, Cloudflare는 자동으로 생성합니다:
+
+- **작업자**- 배포된 코드
+- **튼튼한 목표 namespaces**- 대리인 종류 당 1개
+- **SQLite 저장**- 각 namespace에 첨부
+
+### Durable 개체 보기
+
+Cloudflare 대시보드로 로그인하면 Durable Objects로 이동합니다.
+
+<DashButton url="/?to=/:account/workers/durable-objects" />
+
+여기에 당신은 할 수 있습니다:
+
+- 모든 튼튼한 개체 네임스페이스 보기
+- 개별 객체 인스턴스 보기
+- 저장 검사 (키와 값)
+- 객체 삭제
+
+### 실시간 로그
+
+에이전트에서 라이브 로그보기:
+
+```sh
+npx wrangler tail
+```
+
+또는 ‘대시보드’에서:
+
+1. 당신의 노동자에게 가기.
+2. 선택하기**옵션 정보**탭.
+3. 실시간 로그인
+
+필터 로:
+
+- 상태 (교육, 오류)
+- 본문 바로가기
+- 샘플링 비율
+
+## 회사연혁
+
+### 기본 배치
+
+```sh
+npx wrangler deploy
+```
+
+이:
+
+1. 코드를 묶음
+2. Cloudflare로 업로드
+3. 앱 마이그레이션
+4. 그것에 살고있다`*.workers.dev`
+
+### 회사 소개
+
+Wrangler 설정 파일에서 경로 추가:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "agents.example.com/*",
+  			"zone_name": "example.com",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+또는 사용자 정의 도메인 (simpler)를 사용:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "agents.example.com",
+  			"custom_domain": true,
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+### 모바일 앱
+
+생산에 영향을 미치지 않고 배포 :
+
+```sh
+npx wrangler deploy --dry-run    #업로드 할 것
+npx wrangler versions upload     #새 버전 업로드
+npx wrangler versions deploy     #Gradually 롤 아웃
+```
+
+### 롤백
+
+이전 버전으로 다시 롤:
+
+```sh
+npx wrangler rollback
+```
+
+## Multi-environment 설정
+
+### 환경 설정
+
+Wrangler 설정 파일에서 환경 정의:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"name": "my-agent",
+  	"main": "src/server.ts",
+
+  	//기본 설정 (shared)
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"durable_objects": {
+  		"bindings": [{ "name": "MyAgent", "class_name": "MyAgent" }],
+  	},
+  	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["MyAgent"] }],
+
+  	//환경 overrides
+  	"env": {
+  		"staging": {
+  			"name": "my-agent-staging",
+  			"vars": {
+  				"ENVIRONMENT": "staging",
+  			},
+  		},
+  		"production": {
+  			"name": "my-agent-production",
+  			"vars": {
+  				"ENVIRONMENT": "production",
+  			},
+  		},
+  	},
+  }
+  ```
+</WranglerConfig>
+
+### 환경 설정
+
+```sh
+#관련 기사
+npx wrangler deploy --env staging
+
+#생산에 배포
+npx wrangler deploy --env production
+
+#환경 당 비밀 설정
+npx wrangler secret put OPENAI_API_KEY --env staging
+npx wrangler secret put OPENAI_API_KEY --env production
+```
+
+### 분리된 Durable Objects
+
+각 환경은 자신의 Durable Objects를 가져옵니다. Staging 대리인은 생산 대리인으로 국가를 공유하지 않습니다.
+
+명시적으로 분리:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"env": {
+  		"staging": {
+  			"durable_objects": {
+  				"bindings": [
+  					{
+  						"name": "MyAgent",
+  						"class_name": "MyAgent",
+  						"script_name": "my-agent-staging",
+  					},
+  				],
+  			},
+  		},
+  	},
+  }
+  ```
+</WranglerConfig>
+
+## 이름 \*
+
+Migrations는 튼튼한 개체 저장 스키마 변화를 관리합니다.
+
+### 새로운 에이전트 추가
+
+더 보기`new_sqlite_classes`새로운 마이그레이션:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["ExistingAgent"],
+  		},
+  		{
+  			"tag": "v2",
+  			"new_sqlite_classes": ["NewAgent"],
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+### 에이전트 클래스
+
+제품 정보`renamed_classes`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["OldName"],
+  		},
+  		{
+  			"tag": "v2",
+  			"renamed_classes": [
+  				{
+  					"from": "OldName",
+  					"to": "NewName",
+  				},
+  			],
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+또한 업데이트:
+
+1. 코드의 클래스 이름
+2. 더 보기`class_name`연결하기
+3. 수출 문
+
+### 에이전트 클래스 삭제
+
+제품 정보`deleted_classes`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["AgentToDelete", "AgentToKeep"],
+  		},
+  		{
+  			"tag": "v2",
+  			"deleted_classes": ["AgentToDelete"],
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+:::카트로션
+
+이 영구적으로 그 클래스에 대한 모든 데이터를 삭제합니다.
+
+:::
+
+### Migration 모범 사례
+
+1. **기존의 마이그레이션을 수정하지 마십시오.**- 항상 새로운 것을 추가합니다.
+2. **사용 순차적 태그**- v1, v2, v3 (또는 사용 날짜 : 2025-01-15).
+3. **로컬 테스트**- 배포에서 Migrations 실행.
+4. **생산 데이터 백업**- renaming 또는 deleting 전에.
+
+## 문제 해결
+
+### 그런 튼튼한 목표 종류 없음
+
+수업은 마이그레이션되지 않습니다 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["MissingClassName"],
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+### 모듈을 찾을 수 없습니다
+
+생성 유형:
+
+```sh
+npx wrangler types env.d.ts --include-runtime false
+```
+
+### 로컬로 적재하지 않는 비밀
+
+여행 정보`.env`존재하고 변수를 포함:
+
+```sh
+cat .env
+#표시해야 합니다: MY SECRET=value
+```
+
+### Migration 태그 충돌
+
+마이그레이션 태그는 고유해야합니다. 충돌을 볼 경우:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//잘못된 - 중복 태그
+  	"migrations": [
+  		{ "tag": "v1", "new_sqlite_classes": ["A"] },
+  		{ "tag": "v1", "new_sqlite_classes": ["B"] },
+  	],
+  }
+  ```
+</WranglerConfig>
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//정확한 - 순차적 태그
+  	"migrations": [
+  		{ "tag": "v1", "new_sqlite_classes": ["A"] },
+  		{ "tag": "v2", "new_sqlite_classes": ["B"] },
+  	],
+  }
+  ```
+</WranglerConfig>
+
+## 다음 단계
+
+<LinkCard title="에이전트 API" href="/agents/api-reference/agents-api/" description="Agents SDK를 위한 API 참고 자료를 완료합니다." />
+
+<LinkCard title="로그아웃" href="/agents/api-reference/routing/" description="에이전트 인스턴스에 경로 요청." />
+
+<LinkCard title="일정 작업" href="/agents/api-reference/schedule-tasks/" description="지연 및 cron 기반 작업을 사용하여 배경 처리." />

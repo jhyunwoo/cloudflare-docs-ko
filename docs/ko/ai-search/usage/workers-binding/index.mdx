@@ -1,0 +1,190 @@
+---
+pcx_content_type: concept
+title: Workers 회사 소개
+tags:
+  - Bindings
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/usage/workers-binding/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/usage/workers-binding/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Description,
+	Render,
+	TabItem,
+	Tabs,
+	WranglerConfig,
+	MetaInfo,
+	Type,
+} from "~/components";
+
+Cloudflare의 서버가 없는 플랫폼은 당신이 가장자리에 코드를 실행할 수 있어 가득 차 있는 신청을 가진 건축하기 위하여[Workers](/workers/)·[관련 제품](/workers/runtime-apis/bindings/)QXQX0196XQ 개발자 플랫폼의 리소스와 상호 작용할 수 있는 Worker 또는 PagesXQ 기능 활성화.
+
+Workers 또는 PagesXQ를 사용하여 AI 검색을 사용하려면 Cloudflare QXQX대시보드 (refer to[AI 바인딩](/pages/functions/bindings/#workers-ai)지시)를 위해, 또는 당신은 당신의 갱신할 수 있습니다[Wrangler 파일](/workers/wrangler/configuration/). 작업자에게 AI 검색을 바인딩하려면 Wrangler 파일에 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI" //i.e. env에 당신의 노동자에서 유효한. 사이트맵
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::note\[AI 검색은 AutoRAG의 새로운 이름]
+API 엔드포인트는 여전히 참고 자료`autorag`시간 동안. Functionality는 동일하, 새로운 naming을 위한 지원은 점차적으로 소개될 것입니다.
+주요 특징
+
+## `aiSearch()`
+
+이 방법은 데이터 소스에서 관련 결과를 검색하고 기본 모델과 검색 된 컨텍스트를 사용하여 응답을 생성합니다. AI Search라는 이름의`my-autorag`:
+
+```js
+const answer = await env.AI.autorag("my-autorag").aiSearch({
+	query: "How do I train a llama to deliver coffee?",
+	model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+	rewrite_query: true,
+	max_num_results: 2,
+	ranking_options: {
+		score_threshold: 0.3
+	},
+  reranking: {
+    enabled: true,
+    model: "@cf/baai/bge-reranker-base"
+  },
+	stream: true,
+});
+```
+
+### 매개 변수
+
+<Render file="ai-search-api-params" product="ai-search" />
+
+### 관련 기사
+
+이것은 없는 응답 구조입니다`stream`지원하다
+
+```sh output
+{
+    "object": "vector_store.search_results.page",
+    "search_query": "How do I train a llama to deliver coffee?",
+    "response": "To train a llama to deliver coffee:\n\n1. **Build trust** — Llamas appreciate patience (and decaf).\n2. **Know limits** — Max 3 cups per llama, per `llama-logistics.md`.\n3. **Use voice commands** — Start with \"Espresso Express!\"\n4.",
+    "data": [
+      {
+        "file_id": "llama001",
+        "filename": "llama/logistics/llama-logistics.md",
+        "score": 0.45,
+        "attributes": {
+          "modified_date": 1735689600000,   // unix timestamp for 2025-01-01
+          "folder": "llama/logistics/",
+        },
+        "content": [
+          {
+            "id": "llama001",
+            "type": "text",
+            "text": "Llamas can carry 3 drinks max."
+          }
+        ]
+      },
+      {
+        "file_id": "llama042",
+        "filename": "llama/llama-commands.md",
+        "score": 0.4,
+        "attributes": {
+          "modified_date": 1735689600000,   // unix timestamp for 2025-01-01
+          "folder": "llama/",
+        },
+        "content": [
+          {
+            "id": "llama042",
+            "type": "text",
+            "text": "Start with basic commands like 'Espresso Express!' Llamas love alliteration."
+          }
+        ]
+      },
+    ],
+    "has_more": false,
+    "next_page": null
+}
+
+```
+
+## `search()`
+
+이 메서드는 corpus에서 결과를 검색하고 관련 결과를 반환합니다. AI Search 인스턴스`my-autorag`:
+
+```js
+const answer = await env.AI.autorag("my-autorag").search({
+	query: "How do I train a llama to deliver coffee?",
+	rewrite_query: true,
+	max_num_results: 2,
+	ranking_options: {
+		score_threshold: 0.3
+	},
+  reranking: {
+    enabled: true,
+    model: "@cf/baai/bge-reranker-base"
+  }
+});
+```
+
+### 매개 변수
+
+<Render file="search-api-params" product="ai-search" />
+
+### 관련 기사
+
+```sh output
+{
+    "object": "vector_store.search_results.page",
+    "search_query": "How do I train a llama to deliver coffee?",
+    "data": [
+      {
+        "file_id": "llama001",
+        "filename": "llama/logistics/llama-logistics.md",
+        "score": 0.45,
+        "attributes": {
+          "modified_date": 1735689600000,   // unix timestamp for 2025-01-01
+          "folder": "llama/logistics/",
+        },
+        "content": [
+          {
+            "id": "llama001",
+            "type": "text",
+            "text": "Llamas can carry 3 drinks max."
+          }
+        ]
+      },
+      {
+        "file_id": "llama042",
+        "filename": "llama/llama-commands.md",
+        "score": 0.4,
+        "attributes": {
+          "modified_date": 1735689600000,   // unix timestamp for 2025-01-01
+          "folder": "llama/",
+        },
+        "content": [
+          {
+            "id": "llama042",
+            "type": "text",
+            "text": "Start with basic commands like 'Espresso Express!' Llamas love alliteration."
+          }
+        ]
+      },
+    ],
+    "has_more": false,
+    "next_page": null
+}
+
+```
+
+## 지역 개발
+
+로컬 개발은 배포된 AI Search 인스턴스에 대한 프록시 요청으로 지원됩니다. 로컬 모드에서 실행할 때, 애플리케이션은 원격 AI Search 인스턴스를 구성하고 로컬로 제공된 것처럼 생성된 응답을 반환합니다.

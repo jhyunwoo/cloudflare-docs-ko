@@ -1,0 +1,94 @@
+---
+pcx_content_type: reference
+source: https://support.cloudflare.com/hc/en-us/articles/218505467-Using-ETag-Headers-with-Cloudflare
+title: Cloudflare에서 ETag 헤더 사용
+
+---
+
+ETag 헤더는 브라우저에 캐시된 리소스 버전이 오리진 웹 서버의 리소스와 같은지 식별합니다. 방문자의 브라우저는 ETag를 저장합니다. 방문자가 사이트를 다시 방문하면 브라우저는 각 ETag를 저장해 둔 값과 비교합니다. 값이 일치하면 캐시된 리소스 버전이 최신임을 나타내는 `304 Not-Modified HTTP` 응답이 반환됩니다. Cloudflare는 오리진 웹 서버에서 구성된 strong ETag와 weak ETag를 모두 지원합니다.
+
+## Weak ETags
+
+Weak ETag 헤더는 캐시된 리소스가 의미상으로는 웹 서버의 버전과 동일하지만, 바이트 단위까지 완전히 동일한 것은 아님을 나타냅니다.
+
+:::note
+
+
+weak ETag 헤더를 사용할 때는 오리진 웹 서버가 설정한 ETag 헤더를 Cloudflare가 제거하지 않도록 [Email Obfuscation](/waf/tools/scrape-shield/email-address-obfuscation/)과 [Automatic HTTPS Rewrites](/ssl/edge-certificates/additional-options/automatic-https-rewrites/) 같은 일부 기능을 비활성화해야 합니다. 비활성화해야 하는 기능의 전체 목록은 [Notes about end-to-end compression](/speed/optimization/content/compression/#notes-about-end-to-end-compression)을 참고하세요.
+
+
+:::
+
+## Strong ETags
+
+Strong ETag 헤더는 브라우저 캐시의 리소스와 웹 서버의 리소스가 바이트 단위까지 완전히 동일함을 보장합니다. strong ETag 헤더를 활성화하려면 [Cache Rules](/cache/how-to/cache-rules/)를 사용하세요.
+
+### Respect Strong ETags 활성화 시 동작
+
+cache rule에서 **Respect Strong ETags**를 활성화하면 Cloudflare는 strong ETag 헤더 검증을 사용해 Cloudflare 캐시의 리소스와 오리진 서버의 리소스가 바이트 단위까지 완전히 동일한지 확인합니다.
+
+하지만 일부 상황에서는 Cloudflare가 strong ETag를 weak ETag로 변환합니다. 예를 들어 다음 조건이 있다고 가정해 보겠습니다.
+
+* **Respect Strong ETags**가 활성화되어 있음
+* [Brotli compression](/speed/optimization/content/compression/)이 활성화되어 있음
+* 오리진 서버 응답에 `etag: "foobar"` strong ETag 헤더가 포함되어 있음
+
+이 경우 Cloudflare 네트워크는 방문자의 `accept-encoding` 헤더와 오리진 서버 응답에 사용된 압축 방식에 따라 다음과 같이 동작합니다.
+
+<table-wrap>
+
+| `accept-encoding`<br/>header from visitor | Compression used in origin server response | Cloudflare actions                                                                                       |
+| ----------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
+| `gzip, br`                                | GZIP                                       | strong ETag 헤더 `etag: "foobar"`와 함께 GZIP 압축 응답을 방문자에게 반환합니다.                    |
+| `gzip, br`                                | Brotli                                     | strong ETag 헤더 `etag: "foobar"`와 함께 Brotli 압축 응답을 방문자에게 반환합니다.                  |
+| `br`                                      | GZIP                                       | GZIP을 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 비압축 응답을 방문자에게 반환합니다.   |
+| `gzip`                                    | Brotli                                     | Brotli를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 비압축 응답을 방문자에게 반환합니다. |
+| `gzip`                                    | (none)                                     | strong ETag 헤더 `etag: "foobar"`와 함께 비압축 응답을 방문자에게 반환합니다.                       |
+| `gzip, br, zstd`                                    | Zstandard                                     | strong ETag 헤더 `etag: "foobar"`와 함께 zstd 압축 응답을 방문자에게 반환합니다.    
+| `gzip, br`                                    | Zstandard                                     | zstd를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 br 응답을 방문자에게 반환합니다.    
+| `zstd`                                    | Brotli/GZIP                                     | zstd를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 zstd 응답을 방문자에게 반환합니다.                       |
+
+</table-wrap>
+
+Cloudflare에서 **Respect Strong ETags**를 활성화하면 Rocket Loader, Email Obfuscation, Automatic HTTPS Rewrites가 자동으로 비활성화됩니다.
+
+### Respect Strong ETags 비활성화 시 동작
+
+**Respect Strong ETags**가 비활성화되어 있을 때 오리진 웹 서버가 설정한 strong ETag 헤더는 다음 조건을 모두 만족하는 경우에만 유지됩니다.
+
+* 오리진 서버가 GZIP 또는 Brotli로 압축된 응답, 또는 비압축 응답을 보냄
+* 오리진 서버가 압축 응답을 보내는 경우 방문자가 `accept-encoding` 헤더에 따라 같은 압축 방식(GZIP, Brotli)을 허용함
+* [Rocket Loader](/speed/optimization/content/rocket-loader/)와 [Email Obfuscation](/waf/tools/scrape-shield/email-address-obfuscation/) 기능이 비활성화되어 있음
+
+그 외 모든 상황에서 Cloudflare는 strong ETag 헤더를 weak ETag 헤더로 변환하거나 strong ETag를 제거합니다. 예를 들어 다음 조건이 있다고 가정해 보겠습니다.
+
+* **Respect Strong ETags**가 비활성화되어 있음
+* [Brotli compression](/speed/optimization/content/compression/)이 활성화되어 있음
+* 오리진 서버 응답에 `etag: "foobar"` strong ETag 헤더가 포함되어 있음
+
+이 경우 Cloudflare 네트워크는 방문자의 `accept-encoding` 헤더와 오리진 서버 응답에 사용된 압축 방식에 따라 다음과 같이 동작합니다.
+
+<table-wrap>
+
+| `accept-encoding`<br/>header from visitor | Compression used in origin server response | Cloudflare actions                                                                                                                                |
+| ----------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `gzip, br`                                | GZIP                                       | GZIP을 압축 해제한 뒤(브로틀리 압축이 활성화되어 있으므로) weak ETag 헤더 `etag: W/"foobar"`와 함께 Brotli 압축 응답을 방문자에게 반환합니다. |
+| `gzip, br`                                | Brotli                                     | strong ETag 헤더 `etag: "foobar"`와 함께 Brotli 압축 응답을 방문자에게 반환합니다.                                                           |
+| `br`                                      | GZIP                                       | GZIP을 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 Brotli 압축 응답을 방문자에게 반환합니다.                                       |
+| `gzip`                                    | Brotli                                     | Brotli를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 GZIP 압축 응답을 방문자에게 반환합니다.                                       |
+| `gzip`                                    | (none)                                     | 오리진 응답을 GZIP으로 압축해 weak ETag 헤더 `etag: W/"foobar"`와 함께 방문자에게 반환합니다.                                           |
+| `gzip, br, zstd`                                   | Zstandard                                    | strong ETag 헤더 `etag: "foobar"`와 함께 zstd 압축 응답을 방문자에게 반환합니다.                                           |
+| `gzip, br`                                   | Zstandard                                    | zstd를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 비압축 응답을 방문자에게 반환합니다.                                          |
+| `zstd`                                   | Brotli                                    | Brotli를 압축 해제하고 weak ETag 헤더 `etag: W/"foobar"`와 함께 비압축 응답을 방문자에게 반환합니다.                                         |
+
+</table-wrap>
+
+자세한 내용은 [Content compression](/speed/optimization/content/compression/)을 참고하세요.
+
+## 중요 참고 사항
+
+* strong ETag 헤더의 값은 반드시 큰따옴표로 감싸야 합니다(예: `etag: "foobar"`). 형식이 잘못되면 Cloudflare는 ETag 헤더를 weak ETag로 변환하는 대신 제거합니다.
+
+* 리소스가 캐시 가능하고 캐시 미스가 발생한 경우 Cloudflare는 오리진 서버로 ETag 헤더를 보내지 않습니다. 이는 Cloudflare가 캐시를 채우기 위해 전체 응답 본문이 필요하기 때문입니다.
+
+* 오리진(또는 R2)이 `accept-encoding`에 따라 압축을 적용하는 경우, 첫 번째 압축 유형이 캐시됩니다. strong ETag가 사용 사례에 적합한지 검토하거나, cache key 규칙을 사용해 서로 다른 압축 유형을 처리하는 것을 고려하세요.

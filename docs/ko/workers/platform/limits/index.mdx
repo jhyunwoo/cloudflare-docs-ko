@@ -1,0 +1,412 @@
+---
+pcx_content_type: concept
+title: 제한 사항
+sidebar:
+  order: 2
+head: []
+description: QXQX0640XQQ Workers 계획과 플랫폼 한계.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/platform/limits/'
+translation_source_md: 'https://developers.cloudflare.com/workers/platform/limits/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig, DashButton } from "~/components";
+
+## 계정 계획 제한
+
+| 제품 정보                                                            | Workers 무료 | 모델 번호: Workers 계정 만들기 |
+| ---------------------------------------------------------------- | ---------- | --------------------- |
+| [제품정보](#daily-requests)                                          | 100,000/일  | 제한 없음                 |
+| [CPU 시간](#cpu-time)                                              | 10 미터      | 5 분                   |
+| [기억하기](#memory)                                                  | 128 MB를    | 128 MB를               |
+| [구독하기](#subrequests)                                             | 50 / 요청    | 10,000원               |
+| [동시 나가기<br />연결/복구](#simultaneous-open-connections)              | 6          | 6                     |
+| [환경 변수](#environment-variables)                                  | 64 / 노동자   | 128 / 노동자             |
+| [환경 변수<br />제품 정보](#environment-variables)                       | 5개 KB      | 5개 KB                 |
+| [작업자 크기](#worker-size)                                           | 3개 MB      | 10 메가바이트              |
+| [Worker 시작 시간](#worker-startup-time)                             | 1 초        | 1 초                   |
+| [Workers의 수](#number-of-workers)<sup>1</sup>                     | 100        | 500                   |
+| 이름 \*[Cron 트리거](/workers/configuration/cron-triggers/)<br />계정 당 | 5          | 250                   |
+| 이름 \*[정적 자산](#static-assets)Worker 버전 당 파일                       | 20,000     | 100,000               |
+| 한국어[정적 자산](#static-assets)파일 크기                                  | 25 미브      | 25 미브                 |
+
+<sup>1</sup>이 제한에 도달하면, 사용 고려[Workers를 위한
+플랫폼](/cloudflare-for-platforms/workers-for-platforms/).
+
+<Render file="limits_increase" product="workers" />
+
+***
+
+## 요청 및 응답 제한
+
+| 지원하다     | 제품정보       |
+| -------- | ---------- |
+| URL 크기   | 16 KB      |
+| 요청 헤더 크기 | 128 KB (총) |
+| 응답 헤더 크기 | 128 KB (총) |
+| 응답 몸 크기  | 제한 없음      |
+
+요청 신체 크기 제한은 Cloudflare 계정 계획에 따라 Workers 계획이 아닙니다. 이 제한을 초과하는 요청은 반환합니다.`413 Request entity too large`오류.
+
+| 모델 번호: Cloudflare 계획하기 | 최대 요구 몸 크기   |
+| ---------------------- | ------------ |
+| 무료 다운로드                | 100개 MB      |
+| 지원하다                   | 100개 MB      |
+| 회사연혁                   | 200 메가바이트    |
+| 회사 소개                  | 500 MB (기본값) |
+
+기업 고객은 그들의 계정 팀 또는 연락할 수 있습니다[Cloudflare 지원](/support/contacting-cloudflare-support/)더 높은 요구 몸 한계를 위해.
+
+Cloudflare는 응답 몸 크기 한계를 실행하지 않습니다.[CDN 캐시 한계](/cache/concepts/default-cache-behavior/)적용 : 무료, Pro 및 비즈니스 계획을위한 512 MB, 기업을위한 5 GB.
+
+***
+
+## CPU 시간
+
+CPU 시간은 CPU가 작업자의 코드를 실행하는 방법을 측정합니다. 네트워크 요청에 대한 대기 (예 :`fetch()`호출, KV 읽기, 또는 데이터베이스 쿼리)는**아니다.**&#x43;PU 시간으로 계산합니다.
+
+| 지원하다              | Workers 무료 | 모델 번호: Workers 계정 만들기                    |
+| ----------------- | ---------- | ---------------------------------------- |
+| HTTP 요청 당 CPU 시간  | 10 미터      | 5 분 (과태: 30 초)                           |
+| Cron 방아쇠 당 CPU 시간 | 10 미터      | 30 초 (\< 1 시간 간격)<br />15 분 (>= 1 시간 간격) |
+
+대부분의 Workers는 아주 작은 CPU 시간을 소모합니다. 평균 노동자는 요구에 의하여 대략 2.2 ms를 이용합니다. 인증, 서버 측 렌더링, 또는 큰 페이로드를 처리하는 Heavier 워크로드는 일반적으로 10-20 ms를 사용합니다.
+
+<Render file="isolate-cpu-flexibility" product="workers" />
+
+#### 오류: CPU 시간 제한을 초과{/* exceeded-cpu */}
+
+노동자가 CPU 시간 제한을 초과 할 때, Cloudflare 반환**오류 1102**메시지로 클라이언트에`Worker exceeded resource limits`. dashboard에서, 이것은 것과 같이 나타납니다`Exceeded CPU Time Limits`이름 \***미터** > **계정 관리** > **업무 상태**. 분석 및 Logpush에서, invocation outcome는`exceededCpu`.
+
+CPU 시간 제한 오류를 해결하려면:
+
+1. **CPU 시간 제한 증가**— Workers 유료 계획에서 기본 30 초에서 5 분 (300,000 ms)까지 제한을 올릴 수 있습니다. WranglerXQ 구성 또는 dashboard에서 이것을 설정합니다.
+2. **코드를 최적화**— 사용[DevTools와 CPU 프로파일링](/workers/observability/dev-tools/cpu-usage/)코드의 CPU 집중적인 부분을 식별합니다.
+3. **Offload 작업**— 비싼 계산을 이동[모델 번호: Durable Objects](/durable-objects/)또는 여러 요청에 걸쳐 작은 펑크에서 처리 데이터.
+
+#### CPU 시간 제한 증가
+
+Workers 유료 계획에서 기본 30 초에서 5 분 (300,000 ms)까지 최대 CPU 시간을 늘릴 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	//당신의 윤곽의 ...rest...
+  	"limits": {
+  		"cpu_ms": 300000, //기본값은 30000 (30 초)
+  	},
+  	//당신의 윤곽의 ...rest...
+  }
+  ```
+</WranglerConfig>
+
+dashboard에서 이것을 변경할 수 있습니다.**Workers & Pages**> 당신의 노동자를 선정 >**계정 설정**> CPU 시간 한계를 조정하십시오.
+
+#### CPU 사용 모니터링
+
+- **모델 번호: Workers 로그인**— CPU 시간과 벽 시간은 안으로 나타납니다[비밀번호](/workers/observability/logs/workers-logs/#invocation-logs).
+- **꼬리 Workers/Logpush**— CPU 시간 및 벽 시간은 최고 수준에 나타납니다[모델 번호: Workers Trace 이벤트 객체](/logs/logpush/logpush-job/datasets/account/workers_trace_events/).
+- **다운로드**— 사용[DevTools와 CPU 프로파일링](/workers/observability/dev-tools/cpu-usage/)코드의 CPU 집중 섹션을 식별하는 로컬.
+
+***
+
+## 기억하기
+
+| 지원하다          | 제품정보    |
+| ------------- | ------- |
+| isolate 당 메모리 | 128 MB를 |
+
+각 각[사이트맵](/workers/reference/how-workers-works/#isolates)JavaScript 힙을 포함하여 최대 128MB의 메모리를 소비할 수 있으며[웹 조립](/workers/runtime-apis/webassembly/)관련 기사 이 한계는 per-isolate, per-invocation입니다. 단일 isolate는 많은 동시 요청을 처리 할 수 있습니다.
+
+고립이 128 MB를 초과할 때, Workers 런타임은 in-flight 요청을 완료하고 후속 요청에 대한 새로운 격리를 만듭니다. 극단적으로 높은 짐 도중, 가동 시간은 안정성을 유지하기 위하여 약간 들어오는 요구를 취소할지도 모릅니다.
+
+#### 에러: 초과된 기억 한계{/* exceeded-memory */}
+
+노동자가 메모리 제한을 초과 할 때, Cloudflare 반환**오류 1102**메시지로 클라이언트에`Worker exceeded resource limits`. dashboard에서, 이것은 것과 같이 나타납니다`Exceeded Memory`이름 \***미터** > **계정 관리** > **업무 상태**. 분석 및 Logpush에서, invocation outcome는`exceededMemory`.
+
+런타임 오류도 볼 수 있습니다.`Memory limit would be exceeded before EOF`한계를 초과하는 응답 몸을 버퍼하려고 할 때.
+
+메모리 제한 오류를 해결하려면:
+
+1. **스트림 요청 및 응답 몸**— 사용[`TransformStream`](/workers/runtime-apis/streams/transformstream/)또는[`node:stream`](/workers/runtime-apis/nodejs/streams/)메모리에서 전체 페이로드를 버퍼링하는 대신.
+2. **큰 in-memory 목표를 피하십시오**— 대용량 데이터 저장[모델 번호: KV](/kv/), [모델 번호: R2](/r2/), 또는[모델 번호: D1](/d1/)대신 Worker 메모리에 보관합니다.
+3. **회사 소개**— 사용[DevTools와 메모리 프로파일링](/workers/observability/dev-tools/memory-usage/)로컬로 누출과 높은 메모리 할당을 식별합니다.
+
+dashboard의 메모리 오류를 볼 수:
+
+1. 오시는 길**Workers & Pages**.
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 설문 조사를 원하는 노동자를 선택하십시오.
+
+3. 이름 \***미터**, 선택**계정 관리** > **업무 상태**관련 기사**흥분된 기억**.
+
+***
+
+## 이름 \*
+
+소요시간은 직장인이 끝날 때부터 벽시 시간입니다. HTTP-triggered Workers를 위한 내구에 단단한 한계가 없습니다. 클라이언트가 연결될 때, 노동자는 처리하고, subrequests를 만들고, timeouts를 놓을 수 있습니다.
+
+| 방아쇠 유형                                                       | 기간 제한 |
+| ------------------------------------------------------------ | ----- |
+| HTTP 요청                                                      | 제한 없음 |
+| [Cron 방아쇠](/workers/configuration/cron-triggers/)            | 15분   |
+| [튼튼한 목표 경보](/durable-objects/api/alarms/)                    | 15분   |
+| [Queue 소비자](/queues/configuration/javascript-apis/#consumer) | 15분   |
+
+클라이언트가 차단되면, 그 요청과 관련된 모든 작업이 취소됩니다. 제품 정보[`event.waitUntil()`](/workers/runtime-apis/handlers/fetch/)다른 30 초 동안의 취소를 지연하거나 약속 할 때까지`waitUntil()`기타 제품
+
+:::참조
+
+Cloudflare 업데이트 Workers 실행 시간 일주일에 몇 번. 런타임은 30초의 우아한 기간을 마무리합니다. 요청이 완료되지 않는 경우, runtime은 종료됩니다. 이 시나리오는 런타임 업데이트로 긴 실행 요청을 요구합니다.
+주요 특징
+
+***
+
+## 매일 요청
+
+Workers는 Cloudflare 글로벌 네트워크를 통해 자동으로 확장됩니다. 두 번째 당 요청에 대한 일반적인 제한이 없습니다.
+
+Workers의 계정 무료 계획에는 100,000 요청의 일일 요청 제한이 있으며, UTC 중반에 재설정됩니다. 노동자가 이 한계를 초과 할 때, Cloudflare 반환**오류 1027**.
+
+| 노선 모드 | 채용 정보                                                        |
+| ----- | ------------------------------------------------------------ |
+| 공지사항  | 노동자를 우회합니다. Worker가 구성되지 않는 것처럼 행동을 요청합니다.                   |
+| 실패 닫힘 | Cloudflare 반환`1027`오류 페이지. 보안 크리티컬 WorkersXQ를 위해 이것을 사용하십시오. |
+
+실패 모드를 설정할 수 있습니다.[오시는 길](/workers/configuration/routing/routes/).
+
+***
+
+## 구독하기
+
+subrequest는 Worker가 사용하도록 요청합니다.[페치 API](/workers/runtime-apis/fetch/)또는 Cloudflare 서비스와 같은[R2](/r2/), [모델 번호: KV](/kv/), 또는[모델 번호: D1](/d1/).
+
+| 지원하다                   | Workers 무료 | 모델 번호: Workers 계정 만들기 |
+| ---------------------- | ---------- | --------------------- |
+| 업무 수행                  | 50         | 10,000 (최대 10M)       |
+| 내부 서비스에 대한 Subrequests | 1,000      | 구분 제한 (기본 10,000)     |
+
+이 제한에 대한 리디렉션 체인의 각 하위 요청. 총 수의 subrequests 수를 초과할 수 있습니다`fetch()`코드를 호출합니다. Worker 당 subrequest limit를 변경할 수 있습니다.[`limits`제품 설명](/workers/wrangler/configuration/#limits)Wrangler 설정 파일에서.
+
+개별 subrequests에 설정된 시간 제한이 없습니다. 클라이언트가 연결될 때, 노동자는 subrequests를 계속할 수 있습니다. 클라이언트가 차단되면 모든 작업이 취소됩니다. 제품 정보[`event.waitUntil()`](/workers/runtime-apis/handlers/fetch/)최대 30 초 동안 취소를 지연시킵니다.
+
+### 작업자에 작업자 잠수함
+
+제품 정보[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)인터넷을 통해 이동하지 않고 하나의 노동자에서 다른 계정에 요청을 보낼 수 있습니다.
+
+글로벌[`fetch()`](/workers/runtime-apis/fetch/)같은 다른 노동자를 호출[이름 \*](/fundamentals/concepts/accounts-and-zones/#zones)서비스 바인딩 없이 실패합니다. Workers는 요청을 수신[주문 영역](/workers/configuration/routing/custom-domains/#worker-to-worker-communication).
+
+***
+
+## 동시 개방 연결
+
+각 노동자 invocation는 6개의 동시 연결까지 열 수 있습니다. 다음 API 호출은 이 한계를 향해 계산합니다:
+
+- `fetch()`방법의[페치 API](/workers/runtime-apis/fetch/)
+- `get()`, `put()`, `list()`·`delete()`방법의[Workers KV 네임스페이스 오브젝트](/kv/api/)
+- `put()`, `match()`·`delete()`방법의[캐시 객체](/workers/runtime-apis/cache/)
+- `list()`, `get()`, `put()`, `delete()`·`head()`방법의[R2](/r2/)
+- `send()`·`sendBatch()`방법의[Queues](/queues/)
+- TCP 소켓을 열기[`connect()`](/workers/runtime-apis/tcp-sockets/)사이트맵
+
+아웃바운드 WebSocket 연결도 이 한계를 향해 계산합니다.
+
+6개의 연결이 열리면, 기존의 연결이 닫힐 때까지 런타임 쿼리 추가 시도가 가능합니다. 런타임은 축축된 연결(동작적으로 읽기 또는 쓰기)을 닫을 수 있습니다.`Response closed due to connection limit`예외.
+
+이용안내`fetch()`그러나 응답 몸이 필요하지 않습니다, 전화`response.body.cancel()`무료 연결:
+
+```ts
+const response = await fetch(url);
+
+//성공적인 응답을 위한 응답 몸만 읽으십시오
+if (response.statusCode <= 299) {
+	//전화 응답.json(), response.text() 또는 그렇지 않으면 몸 처리
+} else {
+	//그것을 취소
+	response.body.cancel();
+}
+```
+
+시스템가 deadlock을 감지하면 (입력없이 연결 시도를 읽거나 쓰기), 그것은 노동자를 막지 않는 최소한의 사용 된 연결을 취소합니다.
+
+:::참조
+
+런타임은 최고 수준의 요청에서 동시 개방형 연결을 측정합니다. Workers 트리거[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)동일한 연결 제한을 공유합니다.
+
+:::
+
+***
+
+## 환경 변수
+
+| 지원하다                     | Workers 무료 | Workers 계정 만들기 |
+| ------------------------ | ---------- | -------------- |
+| 노동자 당 변수 (secrets + 텍스트) | 64         | 128            |
+| 가변 크기                    | 5개 KB      | 5개 KB          |
+| 계정 당 변수                  | 제한 없음      | 제한 없음          |
+
+***
+
+## 작업자 크기
+
+| 지원하다        | Workers 무료 | Workers 계정 만들기 |
+| ----------- | ---------- | -------------- |
+| 압축 후 (gzip) | 3개 MB      | 10 메가바이트       |
+| 압축하기 전에     | 64 메가바이트   | 64 메가바이트       |
+
+더 큰 노동자 뭉치는 시작 시간을 충격을 줄 수 있습니다. 압축 번들 크기를 확인하려면:
+
+```sh
+wrangler deploy --outdir bundled/ --dry-run
+```
+
+```sh output
+#산출은 아래에 닮을 것입니다:
+Total Upload: 259.61 KiB / gzip: 47.23 KiB
+```
+
+노동자 크기를 감소시키기 위하여:
+
+- 불필요한 의존성 및 패키지 제거.
+- 설정 파일, 정적 자산 및 바이너리 데이터 저장[KV](/kv/), [모델 번호: R2](/r2/), [모델 번호: D1](/d1/), 또는[Workers 정적 자산](/workers/static-assets/)그들 대신에.
+- 여러 Workers에서 분할 기능[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/).
+
+***
+
+## Worker 시작 시간
+
+| 지원하다  | 제품정보 |
+| ----- | ---- |
+| 시작 시간 | 1 초  |
+
+Worker는 1초 이내에 글로벌 범위(상위 코드 외부)를 파싱하고 실행해야 합니다. 글로벌 범위에서 큰 번들 및 비싼 초기화 코드는 시작 시간을 증가.
+
+플랫폼이 작업자가 시작 시간 제한을 초과하기 때문에 배포를 거부 할 때, 유효성은 오류를 반환합니다.`Script startup exceeded CPU time limit`(오류 코드)`10021`). Wrangler는 당신이 Chrome DevTools로 가져올 수 있는 CPU 단면도를 자동적으로 생성합니다 또는 VS 부호에서 열립니다. 더 알아보기[`wrangler check startup`](/workers/wrangler/commands/#startup)더 많은 정보.
+
+시작 시간 측정, 실행`npx wrangler@latest deploy`또는`npx wrangler@latest versions upload`. Wrangler 보고서`startup_time_ms`출력에서.
+
+시작 시간을 줄이기 위해 글로벌 범위에서 비싼 작업을 피하십시오. 초기화 논리를 핸들러로 이동하거나 시간을 구축하십시오. 예를 들어, 최고 수준의 큰 스키마를 생성하거나 소모하는 것은이 한계를 초과하는 일반적인 원인입니다.
+
+<Render file="limits_increase" product="workers" />
+
+***
+
+## Workers의 수
+
+| 지원하다         | Workers 무료 | 모델 번호: Workers 계정 만들기 |
+| ------------ | ---------- | --------------------- |
+| 계정 당 Workers | 100        | 500                   |
+
+당신이 500 이상 WorkersXQ를 필요로 하는 경우에, 사용 고려하십시오[플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms/).
+
+***
+
+## 노선 및 도메인
+
+| 지원하다                                                        | 제품정보  |
+| ----------------------------------------------------------- | ----- |
+| [오시는 길](/workers/configuration/routing/routes/)지역 당         | 1,000 |
+| 지역별 노선 ([`wrangler dev --remote`](#routes-remote-dev))      | 50    |
+| [주문 영역](/workers/configuration/routing/custom-domains/)지역 당 | 100   |
+| 노동자 당 지역                                                    | 1,000 |
+
+### 오시는 길`wrangler dev --remote` {/* routes-remote-dev */}
+
+당신이 실행할 때[원격 개발](/workers/development-testing/#remote-bindings)세션 사용`--remote`flag, Cloudflare는 지역 당 50 노선의 한계를 적용합니다. Cloudflare dashboardXQ에 있는 빠른 편집기는 또한 사용합니다`wrangler dev --remote`, 같은 제한이 적용됩니다.
+
+지역이 50 개 이상의 노선을 가지고 있다면, 제한 아래를 얻을 수있는 루트를 제거 할 때까지 원격 세션을 실행할 수 없습니다.
+
+노동자 당 1,000 개 이상의 노선 또는 1,000 개 노선 영역을 필요로하는 경우, 사용 고려[플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms/). 당신은 지역 당 100개 이상 주문 도메인을 요구하는 경우에, wildcard를 사용하여 고려하십시오[오시는 길](/workers/configuration/routing/routes/).
+
+***
+
+## Cache API 제한
+
+| 제품 정보    | Workers 무료 | 모델 번호: Workers 계정 만들기 |
+| -------- | ---------- | --------------------- |
+| 최대 객체 크기 | 512 메가바이트  | 512 메가바이트             |
+| 요청당 통화   | 50         | 1,000                 |
+
+요청당 통화는 숫자입니다.`put()`, `match()`, 또는`delete()`요청 당 Cache API 호출. 이 같은 할당량을 subrequests로 공유합니다 (`fetch()`).
+
+:::참조
+
+chunked 응답 몸의 크기 (`Transfer-Encoding: chunked`)는 미리 알려지지 않습니다. 전화 번호`.put()`그런 응답 블록과 함께`.put()`현재 하나가 완료 될 때까지 호출합니다.
+
+:::
+
+***
+
+## 로그 크기
+
+| 지원하다        | 제품정보   |
+| ----------- | ------ |
+| 요청 당 로그 데이터 | 256 KB |
+
+이 제한은 모든 데이터를 통해 방출`console.log()`문장, 예외, 요청 메타데이터, 단일 요청 헤더. 이 제한을 초과 한 후, 시스템은 로그, 꼬리 로그, 또는 요청에 대한 추가 맥락을 기록하지 않습니다.[꼬리 Workers](/workers/observability/logs/tail-workers/).
+
+더 알아보기[모델 번호: Workers Logpush 문서](/workers/observability/logs/logpush/#limits)Logpush 목적지로 전송되는 필드에 제한.
+
+***
+
+## Workers로 평가하는 이미지
+
+더 알아보기[관련 문서](/images/transform-images/)Workers로 이미지 지정을 사용할 때 적용할 수 있는 제한이 있습니다.
+
+***
+
+## 정적 자산
+
+| 지원하다                    | Workers 무료 | 모델 번호: Workers 계정 만들기 |
+| ----------------------- | ---------- | --------------------- |
+| Worker 버전 당 파일          | 20,000     | 100,000               |
+| 개인 파일 크기                | 25 미브      | 25 미브                 |
+| `_headers`【특전】          | 100        | 100                   |
+| `_headers`줄 당 문자        | 2,000      | 2,000                 |
+| `_redirects`static 리디렉션 | 2,000      | 2,000                 |
+| `_redirects`동적 리디렉션     | 100        | 100                   |
+| `_redirects`전체보기        | 2,100      | 2,100                 |
+| `_redirects`규칙 당 문자     | 1,000      | 1,000                 |
+
+:::참조
+Wrangler에서 증가된 파일 수 제한을 사용하려면 버전 4.34.0 이상을 사용해야 합니다.
+주요 특징
+
+***
+
+## Unbound 및 번들 플랜 제한
+
+:::참조
+언바운드 및 번들 계획은 deprecated 및 새로운 계정에서 더 이상 사용할 수 없습니다.
+주요 특징
+
+근로자가 언바운드 플랜에 있다면 Workers 유료 플랜과 일치합니다.
+
+근로자가 번들 플랜에 있다면 Workers Paid 플랜과 일치합니다.
+
+| 제품 정보            | 번들 플랜 제한 |
+| ---------------- | -------- |
+| 구독하기             | 50 / 요청  |
+| CPU 시간 (HTTP 요청) | 50 미터    |
+| CPU 시간 (크론 트리거)  | 50 미터    |
+| Cache API 호출/복구  | 50       |
+
+번들 플랜 Workers에는 기간 제한이 없습니다.[Cron 트리거](/workers/configuration/cron-triggers/), [튼튼한 목표 경보](/durable-objects/api/alarms/), 또는[Queue 소비자](/queues/configuration/javascript-apis/#consumer).
+
+***
+
+<Render file="wall-time-limits" product="workers" />
+
+***
+
+## 관련 자료
+
+- [KV 제한](/kv/platform/limits/)
+- [튼튼한 목표 한계](/durable-objects/platform/limits/)
+- [Queues 제한](/queues/platform/limits/)
+- [Workers 오류 reference](/workers/observability/errors/)

@@ -1,0 +1,239 @@
+---
+pcx_content_type: how-to
+title: /screenshot - 캡처 스크린 샷
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/browser-rendering/rest-api/screenshot-endpoint/
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/rest-api/screenshot-endpoint/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+더 보기`/screenshot`endpoint는 HTML 및 JavaScript를 처리하여 웹 페이지를 렌더링하고 완전히 렌더링 된 페이지의 스크린 샷을 캡처합니다.
+
+<Render file="rest-api-token-permissions" product="browser-rendering" />
+
+## 끝점
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot
+```
+
+## 관련 분야
+
+자주 묻는 질문`url`또는`html`:
+
+- `url`(문자)
+- `html`(문자)
+
+## 일반적인 사용 사례
+
+- 웹 사이트, 대시보드S 또는 보고서에 대한 미리보기 생성
+- 자동화된 테스트, QA, 또는 시각 회귀를 위한 캡처 스크린
+
+## 기본 사용
+
+### custom HTML에서 스크린 샷을 가져 가라.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="컬럼">
+    페이지의 HTML 콘텐츠 설정`Hello World!`스크린 샷을 찍습니다. 옵션 정보`omitBackground`기본 흰색 배경을 숨기고 투명성 스크린 샷을 캡처 할 수 있습니다.
+
+    ```bash
+    curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+      -H 'Authorization: Bearer <apiToken>' \
+      -H 'Content-Type: application/json' \
+      -d '{
+        "html": "Hello World!",
+        "screenshotOptions": {
+          "omitBackground": true
+        }
+      }' \
+      --output "screenshot.png"
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript SDK 지원">
+    ```typescript
+    import Cloudflare from "cloudflare";
+
+    const client = new Cloudflare({
+    	apiToken: process.env["CLOUDFLARE_API_TOKEN"],
+    });
+
+    const screenshot = await client.browserRendering.screenshot.create({
+    	account_id: process.env["CLOUDFLARE_ACCOUNT_ID"],
+    	html: "Hello World!",
+        screenshotOptions: {
+            omitBackground: true,
+        }
+    });
+
+    console.log(screenshot.status);
+    ```
+  </TabItem>
+</Tabs>
+
+### URL에서 스크린 샷 찍기
+
+<Render file="example-screenshot-from-url" product="browser-rendering" />
+
+마지막 스크린 샷을 제어하는 더 많은 옵션을 위해, 같은`clip`, `captureBeyondViewport`, `fullPage`기타, endpoint를 확인[참고 자료](/api/resources/browser_rendering/subresources/screenshot/methods/create/).
+
+:::note\[기본사용에 대한 주의]
+
+- 더 보기`quality`매개변수는 기본적으로 호환되지 않습니다`.png`형식은 400 오류를 반환합니다. 설정하기`quality`, 당신은 또한 놓아야 합니다`type`으로`.jpeg`또는 다른 지원되는 체재.
+- 기본적으로 브라우저 뷰포트가 설정됩니다.**1920×1080**. 요청 옵션을 통해 기본값을 무시할 수 있습니다.
+  주요 특징
+
+## 고급 사용
+
+:::note\[더 많은 매개 변수를 찾고?]
+자주 묻는 질문[브라우저 렌더링 API 참고 자료](/api/resources/browser_rendering/subresources/screenshot/methods/create/)HTTP credentials 설정과 같은 모든 사용 가능한 매개 변수에 대해`authenticate`, 설정`cookies`, 및 사용자 정의 로드 동작 사용`gotoOptions`.
+:::
+
+### 정품 페이지의 스크린 샷 캡처
+
+일부 웹 페이지는 해당 콘텐츠를 볼 수 있기 전에 인증이 필요합니다. Browser Rendering은 세 가지 인증 방법을 지원합니다.[REST API를](/browser-rendering/rest-api/)끝점. 모든 방법의 빠른 참고 자료를 위해, 참조[REST API를 사용하여 인증된 페이지를 어떻게 렌더링합니까?](/browser-rendering/faq/#how-do-i-render-authenticated-pages-using-the-rest-api).
+
+#### 쿠키 기반 인증
+
+로그인이 필요한 페이지에 액세스하는 유효한 세션 쿠키 제공:
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/protected-page",
+    "cookies": [
+      {
+        "name": "session_id",
+        "value": "your-session-cookie-value",
+        "domain": "example.com",
+        "path": "/"
+      }
+    ]
+  }' \
+  --output "authenticated-screenshot.png"
+```
+
+#### HTTP 기본 Auth
+
+사용 방법`authenticate`HTTP Basic Authentication 뒤에 페이지의 매개 변수:
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/protected-page",
+    "authenticate": {
+      "username": "user",
+      "password": "pass"
+    }
+  }' \
+  --output "authenticated-screenshot.png"
+```
+
+#### 토큰 기반 인증
+
+사용자 정의 권한 헤더를 추가`setExtraHTTPHeaders`:
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/protected-page",
+    "setExtraHTTPHeaders": {
+      "Authorization": "Bearer your-token"
+    }
+  }' \
+  --output "authenticated-screenshot.png"
+```
+
+### Navigate 및 전체 페이지 스크린 샷 캡처
+
+바로가기`https://cloudflare.com/`, 페이지 크기를 변경 (`viewport`) 그리고 능동적 네트워크 연결이 없을 때까지 기다립니다 (`waitUntil`) 또는 최대까지`4500ms` (`timeout`) 포착하기 전에`fullPage`스크린 샷.
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://cloudflare.com/",
+    "screenshotOptions": {
+       "fullPage": true
+    },
+    "viewport": {
+      "width": 1280,
+      "height": 720
+    },
+    "gotoOptions": {
+      "waitUntil": "networkidle0",
+      "timeout": 45000
+    }
+  }' \
+  --output "advanced-screenshot.png"
+```
+
+<Render file="improve-blurry-screenshot-resolution" product="browser-rendering" />
+
+### CSS를 사용자 정의하고 사용자 정의 JavaScript
+
+본문 바로가기`https://example.com`의 embed 관례 JavaScript (`addScriptTag`) 여분 작풍을 추가하십시오 (`addStyleTag`), 인라인 둘 다 (`addStyleTag.content`) 외부 스타일 시트로드 (`addStyleTag.url`).
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/",
+    "addScriptTag": [
+      { "content": "document.querySelector(`h1`).innerText = `Hello World!!!`" }
+    ],
+    "addStyleTag": [
+      {
+        "content": "div { background: linear-gradient(45deg, #2980b9 , #82e0aa; }"
+      },
+      {
+        "url": "https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css"
+      }
+    ]
+  }' \
+  --output "screenshot.png"
+```
+
+### selector 옵션을 사용하여 특정 요소를 캡처
+
+웹 페이지에 특정 요소의 스크린 샷을 캡처하려면, 사용`selector`유효한 CSS selector 옵션. 구성할 수도 있습니다.`viewport`렌더링 중에 페이지 크기를 제어합니다.
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com",
+    "selector": "#example_element_name",
+    "viewport": {
+      "width": 1200,
+      "height": 1600
+    }
+  }' \
+  --output "screenshot.png"
+```
+
+HTTP credentials 설정과 같은 많은 옵션이 존재합니다.`authenticate`, 설정`cookies`, 및 사용`gotoOptions`페이지로드 동작을 제어하기 위해 - endpoint를 확인[참고 자료](/api/resources/browser_rendering/subresources/screenshot/methods/create/)모든 유효한 모수를 위해.
+
+<Render file="javascript-heavy-pages" product="browser-rendering" />
+
+<Render file="setting-custom-user-agent" product="browser-rendering" />
+
+<Render file="faq" product="browser-rendering" />

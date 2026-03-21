@@ -1,0 +1,291 @@
+---
+pcx_content_type: concept
+title: 정적 자산
+description: Cloudflare의 글로벌 네트워크에 대한 정적 자산을 호스팅하고 플랫폼에 대한 WorkersXQ로 전 세계 빠른로드 시간을 제공합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/static-assets/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/static-assets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+플랫폼을위한 Workers는 스케일에서 프런트 엔드 응용 프로그램을 배포 할 수 있습니다. Cloudflare의 글로벌 네트워크에 정적 자산을 호스팅함으로써, 당신은 전 세계 빠른로드 시간을 전달하고 외부 인프라에 대한 필요를 제거 할 수 있습니다. Cloudflare WorkersXQ에 동적 논리를 가진 이 정적 자산을 결합할 수 있습니다, 당신의 고객을 위한 가득 차있 토크 경험을 제공하는.
+
+### 당신은 빌드 할 수 있습니다
+
+#### 정적 위치
+
+호스트 및 HTML, CSS, JavaScript 및 CloudflareQ의 네트워크에서 미디어 파일을 직접 제공, 전세계 빠른 로딩 시간을 보장. 블로그, 방문 페이지 및 문서 사이트에 이상적입니다.
+
+#### Full-stack 응용
+
+Cloudflare Workers를 사용하여 동적, 인터랙티브 애플리케이션을 구동합니다. Cloudflare KV, D1, QXQXQXQ, R2 저장, 당신은 단일 노동자에서 front-end 자산과 백엔드 논리를 둘 다 봉사 할 수 있습니다.
+
+### 이름 \*
+
+#### 빠른 성능을위한 글로벌 캐싱
+
+Cloudflare는 전 세계 데이터 센터의 정적 자산을 자동으로 캐시하고 대기 시간을 줄이고 사용자를 위해 최대 2x까지로드 시간을 개선합니다.
+
+#### 인프라 관리 없이 확장 가능
+
+귀사의 애플리케이션 규모를 자동으로 처리하거나 인프라를 관리하지 않고 높은 트래픽을 처리할 수 있습니다. Cloudflare는 동적인 순간에 수요에 조정합니다.
+
+#### 정적 및 동적 콘텐츠에 대한 통합 배포
+
+QXQX0039XQQ WorkersXQXQXQ 내에서 서버 측 논리와 함께 프론트 엔드 자산을 배포합니다. 이 별도의 호스팅 공급자에 대한 필요성을 제거하고 간소화 된 배포 프로세스를 보장합니다.
+
+***
+
+## 사용자 Workers에 정적 자산 배포
+
+플랫폼으로는 최종 사용자를 대신하여 정적 자산을 업로드 할 수 있습니다. 이것은 종종 다음과 같습니다 :
+
+1. 사용자 업로드 파일 (HTML, CSS, 이미지) 인터페이스를 통해.
+2. 플랫폼에 대한 Workers와 상호 작용하여 사용자 작업자 스크립트에 정적 자산을 첨부합니다.
+
+사용자로부터 정적 파일을 수신하면 (새로운 업데이트된 사이트), 해당 사용자 작업자에게 파일을 첨부하기 위해 다음 단계를 완료하십시오.
+
+1. 업로드 세션
+2. 첨부파일
+3. 배포/업데이트
+
+이 단계가 완료되면, 사용자 작업자의 정적 자산은 Cloudflare의 글로벌 네트워크에 살고 있습니다.
+
+### 1. 업로드 세션 만들기
+
+모든 파일 데이터를 전송하기 전에 업로드하려는 파일 Cloudflare를 알려야합니다. 파일의 목록은 나타났습니다. 각 항목은 다음과 같습니다 :
+
+- 파일 경로 (예를 들어,`"/index.html"`또는`"/assets/logo.png"`)
+- 파일 내용을 나타내는 해시 (32-hex Character)
+- 바이트의 파일 크기
+
+:::노트\[건축사고]
+플랫폼에 대한 Workers에 업로드한 정적 자산은 개별 사용자 작업자보다는 네임스페이스와 관련이 있습니다. 여러 사용자 Workers가 같은 네임스페이스에서 존재한다면, 동일한 해시를 가진 자산이 공유될 수 있습니다.**JWTs는 신뢰할 수있는 플랫폼 서비스와 공유하고 최종 사용자에게 배포 할 수 없습니다.**
+
+자산의 엄격한 고립이 필요한 경우, 매번 임의 값으로 소금을 권장하거나, 해싱 프로세스 내에서 end-user 식별자 (예를 들어, 계정 ID 또는 Worker 스크립트 ID)를 통합하는 것이 좋습니다. 예를 들어,`hash = slice(sha256(accountID + fileContents), 32)`.
+:::
+
+#### 예시 (JSON)
+
+```json
+{
+	"/index.html": {
+		"hash": "08f1dfda4574284ab3c21666d1ee8c7d4",
+		"size": 1234
+	},
+	"/styles.css": {
+		"hash": "36b8be012ee77df5f269b11b975611d3",
+		"size": 5678
+	}
+}
+```
+
+업로드 프로세스를 시작하려면 Create Assets Upload Session에 POST 요청을 보냅니다.[API 엔드포인트](/api/resources/workers_for_platforms/subresources/dispatch/subresources/namespaces/subresources/scripts/subresources/asset_upload/methods/create/).
+
+```bash
+POST /accounts/{account_id}/workers/dispatch/namespaces/{namespace}/scripts/{script_name}/assets-upload-session
+```
+
+경로 모수:
+
+- `namespace`: 플랫폼에 대한 Workers의 이름
+- `script_name`: 사용자 작업자의 이름
+
+요청 몸에서 JSON 객체는 해시 및 크기와 함께 각 파일 경로 목록을 포함합니다. 이 도움말 Cloudflare는 업로드하고 이미 저장되는 경우에 확인하는 CloudflareXQ를 허용합니다.
+
+#### 표본 요구
+
+```bash
+curl -X POST \
+  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/dispatch/namespaces/$NAMESPACE_NAME/scripts/$SCRIPT_NAME/assets-upload-session" \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $API_TOKEN" \
+  --data '{
+    "manifest": {
+      "/index.html": {
+        "hash": "08f1dfda4574284ab3c21666d1ee8c7d4",
+        "size": 1234
+      },
+      "/styles.css": {
+        "hash": "36b8be012ee77df5f269b11b975611d3",
+        "size": 5678
+      }
+    }
+  }'
+```
+
+#### 해시 생성
+
+파일 내용의 SHA-256 다이제스트를 계산할 수 있으며, truncate 또는 그렇지 않으면 32-hex-character 문자열로 일관성을 나타냅니다. CloudflareXQ는 파일을 업로드 할 수 있습니다.
+
+#### API 응답
+
+모든 파일이 이미 Cloudflare에 저장되면 응답은 JWT 토큰 만 반환됩니다. 새 또는 업데이트 된 파일이 필요하면 응답이 반환됩니다.
+
+- `jwt`: API 요청에서 파일 내용을 업로드하는 데 사용되는 업로드 토큰 (1 시간 동안 유효).
+- `buckets`: 파일 업로드를 나타내는 파일 해시 그룹의 배열. 최근에 업로드 된 파일은 버킷에 나타나지 않습니다. CloudflareXQ는 이미 가지고 있습니다.
+
+:::참조
+이 단계는 혼자 Cloudflare에 파일을 저장하지 않습니다. 다음 단계에서 실제 파일 데이터를 업로드해야합니다.
+주요 특징
+
+### 2. 업로드 파일 내용
+
+Upload Session API에 대한 응답이 반환된 경우`buckets`Cloudflare에 업로드해야 할 새 또는 변경 된 파일이 있음을 의미합니다.
+
+사용 방법[Workers 자산 API 업로드](/api/resources/workers/subresources/assets/subresources/upload/)base64-encoded 형식의 원시 파일 바이트를 전달하려면 누락되거나 변경된 파일. 업로드되면 Cloudflare는 이러한 파일을 저장하므로 사용자가 작업자에게 첨부할 수 있습니다.
+
+:::카트로션
+Asset uniqueness는 제공된 해시에 의해 결정되며, 각 특정 사용자 작업자가 아닌 네임스페이스에 전 세계적으로 관련됩니다. 자산이 이미 그 네임스페이스에 업로드된 경우, Cloudflare는 이 자산 해시를 다시 전송할 것입니다.`buckets`응답은 두 번 동일한 것을 다시로드에서 당신을 저장합니다. 이것은 자산이 여러 사용자 WorkersXQ 사이에서 공유 될 수 있음을 의미합니다.**명시적으로 hash 독특한**. 당신은 사용자 Workers에 걸쳐 자산 사이의 전체 고립을 요구하면, 자산 해싱 프로세스 내에서 고유 식별자를 통합 (각각각 임의의 무언가로 완전히 무작위로 소금, 또는 최종 사용자 계정 ID 또는 자신의 노동자 이름을 포함).
+주요 특징
+
+#### API 요청 인증
+
+대부분의 Cloudflare API 호출과는 달리, 파일 내용을 업로드하는 저자화 헤더의 계정 넓은 API 토큰을 사용하는 것은 짧은 라이브 JWT 토큰을 사용하여 필요합니다.`jwt`분야의`assets-upload-session`응답.
+
+헤더에 Bearer 토큰으로 포함:
+
+```bash
+Authorization: Bearer <upload-session-token>
+```
+
+이 토큰은 1 시간 동안 유효하며 Workers 자산 업로드 API에 각 업로드 요청에 대해 공급해야합니다.
+
+#### 파일 필드 (multipart/form-data)
+
+base64-encoded 콘텐츠를 가진 multipart/form-data로 파일을 보내야 합니다:
+
+- 필드 이름: 파일 해시 (예를 들면,`36b8be012ee77df5f269b11b975611d3`)
+- 필드 값: 파일의 원시 바이트의 Base64 인코딩 문자열
+
+#### 예제: 단일 버킷 내에서 여러 파일을 업로드
+
+업로드 세션 응답이 두 파일 해시를 포함하는 단일 "bucket"에 나열된 경우:
+
+```json
+"buckets": [
+  [
+    "08f1dfda4574284ab3c21666d1ee8c7d4",
+    "36b8be012ee77df5f269b11b975611d3"
+  ]
+]
+```
+
+한 요청에서 파일을 모두 업로드 할 수 있습니다. 각 양식 데이터 필드로:
+
+```bash
+curl -X POST \
+  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/assets/upload?base64=true" \
+  -H "Authorization: Bearer <upload-session-token>" \
+  -F "08f1dfda4574284ab3c21666d1ee8c7d4=<BASE64_OF_INDEX_HTML>" \
+  -F "36b8be012ee77df5f269b11b975611d3=<BASE64_OF_STYLES_CSS>"
+```
+
+- `<upload-session-token>`단계 1의 자산에 대한 응답의 토큰입니다.
+- `<BASE64_OF_INDEX_HTML>`index.html의 Base64 인코딩된 내용입니다.
+- `<BASE64_OF_STYLES_CSS>`styles.css의 Base64 인코딩된 내용입니다.
+
+여러 버킷이 있다면 (예를 들어,`[["hashA"], ["hashB"], ["hashC"]]`), 당신은 각 물통을 위한 이 과정을 반복할 필요가 있을지도 모릅니다, 물통 그룹 당 1개의 요구를 만들기.
+
+표시된 모든 파일이 업로드되면 상태 코드`201`반환됩니다, 와`jwt`현재 위치 이 JWT는 자산의 설정으로 노동자의 배포를 만들 수있는 최종 "completion" 토큰입니다. 이 완료 토큰은 1 시간 동안 유효합니다.
+
+```json
+{
+	"success": true,
+	"errors": [],
+	"messages": [],
+	"result": {
+		"jwt": "<completion-token>"
+	}
+}
+```
+
+`<completion-token>`Cloudflare가 성공적으로 받은 파일 내용을 그대로 저장한다는 것을 나타냅니다. 당신은 이것을 사용할 것입니다`<completion-token>`Step 3에서 이 파일의 첨부 파일을 Worker에 완성합니다.
+
+### 3. 정적 자산을 가진 사용자 작업자 배치
+
+이제 Cloudflare는 모든 파일이 필요합니다 (이전 업로드 단계에서), 당신은 PUT 요청을 만들기 위해 사용자 작업자에게 첨부해야합니다[사용자 작업자 API 업로드](/api/resources/workers_for_platforms/subresources/dispatch/subresources/namespaces/subresources/scripts/methods/update/). 이 최종 단계는 파일 내용을 업로드한 후 받은 완료 토큰을 사용하여 사용자 작업자에게 정적 자산을 연결합니다.
+
+또한 옵션 설정을 지정할 수 있습니다.`assets.config`파일이 제공되는 방법을 사용자 정의 할 수있는 필드 (예를 들어, HTML 경로의 흔적을 처리).
+
+#### API 요청 예
+
+```bash
+curl -X PUT \
+  "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/workers/dispatch/namespaces/$NAMESPACE_NAME/scripts/$SCRIPT_NAME" \
+  -H "Content-Type: multipart/form-data" \
+  -H "Authorization: Bearer $API_TOKEN" \
+  -F 'metadata={
+    "main_module": "index.js",
+    "assets": {
+      "jwt": "<completion-token>",
+      "config": {
+        "html_handling": "auto-trailing-slash"
+      }
+    },
+    "compatibility_date": "2025-01-24"
+  };type=application/json' \
+  -F 'index.js=@/path/to/index.js;type=application/javascript'
+```
+
+- 더 보기`"jwt": "<completion-token>"`새로 업로드된 파일을 Worker에 연결
+- "html handling" (또는 "config")의 다른 필드는 선택 사항이며 정적 파일이 제공되는 방법을 사용자 정의 할 수 있습니다.
+- user's Worker 코드가 변경되지 않은 경우, 코드 파일을 omit 또는 동일한 index.js를 다시로드 할 수 있습니다.
+
+이 PUT 요청이 성공하면, 파일은 사용자 작업자에게 제공됩니다. 그 노동자가 새로운 또는 업데이트 된 정적 자산을 제공하도록 경로를 요청합니다.
+
+***
+
+## Wrangler로 정적 자산 배포
+
+CLI 기반 접근법을 선호한다면 플랫폼 설정은 직접 게시 할 수 있습니다. Wrangler를 사용하여 Worker 코드와 정적 자산을 배포 할 수 있습니다. Wrangler 번들 및 업로드 정적 자산 ( 지정된 디렉토리에서) 작업자 스크립트와 함께, 그래서 당신은 한 곳에서 모든 것을 관리 할 수 있습니다.
+
+생성 또는 업데이트[Wrangler 구성 파일](/workers/wrangler/configuration/)Wrangler가 정적 파일에 대해 살펴야 할 위치를 지정하려면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-static-site",
+  	"main": "./src/index.js",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./public",
+  		"binding": "ASSETS",
+  	},
+  }
+  ```
+</WranglerConfig>
+
+- `directory`: 정적 파일을 포함하는 로컬 폴더 (예를 들면,`./public`).
+- `binding`: reference에 사용되는 바인딩 이름은 작업자 코드 내에서 이러한 자산입니다.
+
+### 1. 파일 구성
+
+지정된 디렉토리에서 정적 파일 (HTML, CSS, 이미지 등)를 배치하십시오 (이 예에서,`./public`). Wrangler는 당신이 노동자를 발행할 때 이 파일을 검출하고 뭉치할 것입니다.
+
+reference이 작업자 스크립트에서 이러한 파일이 동적으로 작동하려면 사용할 수 있습니다.`ASSETS`이 같은 바인딩:
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		return env.ASSETS.fetch(request);
+	},
+};
+```
+
+### 2. 정적 자산으로 사용자 작업자를 배포
+
+Wrangler를 실행하여 작업자 코드와 정적 자산을 모두 게시합니다.
+
+```bash
+npx wrangler deploy --name <USER_WORKER_NAME> --dispatch-namespace <NAMESPACE_NAME>
+```
+
+Wrangler는 자동적으로 당신의 정적 파일을 검출하고, 그(것)들을 묶고, 당신의 노동자 부호와 함께 CloudflareXQ에 올려주기할 것입니다.

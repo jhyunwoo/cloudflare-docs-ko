@@ -1,0 +1,134 @@
+---
+title: 3 – HTTPS 설정 구성
+pcx_content_type: tutorial
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: HTTPS 설정 구성
+description: >-
+  이 튜토리얼은 TLS 1.3, 자동 HTTPS 재 작성 및 업데이트 v5 공급자를 사용하여 엄격한 SSL 모드를 활성화하는 방법을
+  보여줍니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/tutorial/configure-https-settings/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/tutorial/configure-https-settings/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+기본 DNS 레코드 설정 후, Terraform을 사용하여 영역 설정을 구성할 수 있습니다. 이 튜토리얼은 가능한 방법을 보여줍니다[사이트맵](/ssl/edge-certificates/additional-options/tls-13/), [자동 HTTPS 리깅](/ssl/edge-certificates/additional-options/automatic-https-rewrites/)·[SSL 모드](/ssl/origin-configuration/ssl-modes/full-strict/)업데이트된 v5 공급자를 사용하여.
+
+## 자주 묻는 질문
+
+- 완료된 튜토리얼[1](/terraform/tutorial/initialize-terraform/)·[2](/terraform/tutorial/track-history/)
+- 원래 서버에서 유효한 SSL 인증서 (사용[Cloudflare 근원 캘리포니아](/ssl/origin-configuration/origin-ca/)엄격한 SSL 모드에 대해 하나 생성)
+
+<Render file="v5-code-snippets" product="terraform" />
+
+## 1. 설정 설정 영역 만들기
+
+새로운 지점을 만들고 구역 설정을 추가:
+
+```bash
+git checkout -b step3-zone-setings
+```
+
+다음을 추가하십시오.`main.tf`파일 :
+
+```hcl
+# Enable TLS 1.3
+resource "cloudflare_zone_setting" "tls_1_3" {
+  zone_id    = var.zone_id
+  setting_id = "tls_1_3"
+  value      = "on"
+}
+
+# Enable automatic HTTPS rewrites
+resource "cloudflare_zone_setting" "automatic_https_rewrites" {
+  zone_id    = var.zone_id
+  setting_id = "automatic_https_rewrites"
+  value      = "on"
+}
+
+# Set SSL mode to strict
+resource "cloudflare_zone_setting" "ssl" {
+  zone_id    = var.zone_id
+  setting_id = "ssl"
+  value      = "strict"
+}
+```
+
+## 2. 미리보기 및 변경 적용
+
+제안 된 변경 사항 :
+
+```sh
+terraform plan
+```
+
+예상 출력
+
+```sh output
+Plan: 3 to add, 0 to change, 0 to destroy.
+
+Terraform will perform the following actions:
+
+  #cloudflare zone setting.automatic https rewrites는 생성될 것입니다
+  + resource "cloudflare_zone_setting" "automatic_https_rewrites" {
+      + setting_id = "automatic_https_rewrites"
+      + value      = "on"
+      + zone_id    = "your-zone-id"
+    }
+
+  #cloudflare zone setting.sssl은 생성될 것입니다
+  + resource "cloudflare_zone_setting" "ssl" {
+      + setting_id = "ssl"
+      + value      = "strict"
+      + zone_id    = "your-zone-id"
+    }
+
+  #cloudflare zone setting.tls 1 3가 생성됩니다.
+  + resource "cloudflare_zone_setting" "tls_1_3" {
+      + setting_id = "tls_1_3"
+      + value      = "on"
+      + zone_id    = "your-zone-id"
+    }
+```
+
+변경 및 합병:
+
+```bash
+git add main.tf
+git commit -m "Step 3 - Enable TLS 1.3, automatic HTTPS rewrites, and strict SSL"
+git checkout main
+git merge step3-zone-settings
+git push
+```
+
+변화를 적용하기 전에 TLS 1.3과 연결하려고합니다. 기술적으로, 당신은 기본 설정으로 할 수 없습니다. 이 시험과 함께 따라, 당신은 필요가 있을 것입니다[관련 기사`curl`BoringSSL에 대하여](https://everything.curl.dev/source/build/tls/boringssl#build-boringssl).
+
+```sh
+curl -v --tlsv1.3 https://www.example.com 2>&1 | grep "SSL connection\|error"
+```
+
+위와 같이 TLS 1.3이 아직 영역에서 활성화되지 않기 때문에 오류를 받아야합니다. 실행하여`terraform apply`그리고 다시 시도.
+
+설정 적용:
+
+```sh
+terraform apply
+```
+
+제품정보`yes`신속한 경우.
+
+## 3. 설정 확인
+
+이전과 같은 명령을 시도하십시오. 명령은 이제 성공합니다.
+
+```sh
+curl -v --tlsv1.3 https://www.example.com 2>&1 | grep "SSL connection\|error"
+```

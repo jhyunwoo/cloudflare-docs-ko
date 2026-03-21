@@ -1,0 +1,43 @@
+---
+pcx_content_type: configuration
+title: R-U-Dead-Yet 중지? (R.U.D.Y.) 공격
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/custom-rules/use-cases/stop-rudy-attacks/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/custom-rules/use-cases/stop-rudy-attacks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+R-U-Dead-Yet (R.U.D.Y.) 공격은 긴 형식 필드를 제출함으로써 서비스 (DoS)의 파괴를 수행합니다. 사용자 정의 규칙을 사용하여 합법적 인 세션 쿠키가없는 요청을 차단하여이 공격을 중지합니다.
+
+이 예제는 HTTP를 대상으로 세 가지 표현을 결합합니다.`POST`합법적 인 정통 세션 쿠키를 포함하지 않는 요청 :
+
+- 첫 번째 표현은 사용[`http.request.uri.path`](/ruleset-engine/rules-language/fields/reference/http.request.uri.path/)R.U.D.Y에서 보안하는 경로를 대상으로 합니다.:
+
+  ```txt
+  http.request.uri.path matches "(comment|conversation|event|poll)/create"
+  ```
+
+- 두 번째는 합법적 인 형식과 일치하기 위해 정규 표현식을 사용합니다.`auth_session`사이트 맵 더 보기`not`운영자는 쿠키가 올바르게 포맷되지 않는 요청을 대상:
+
+  ```txt
+  not http.cookie matches "auth_session=[0-9a-zA-Z]{32}-[0-9]{10}-[0-9a-z]{6}"
+  ```
+
+- 세 번째 표현 목표 HTTP`POST`요구 사항:
+
+  ```txt
+  http.request.method eq "POST"
+  ```
+
+이 예제의 최종 사용자 정의 규칙 표현을 생성하려면 세 가지 표현은 화합물 표현으로 결합됩니다.`and`회사 소개 HTTP의 경우`POST`지정된 URI의 모든 요청은 제대로 포맷되지 않습니다.`auth_session`쿠키, Cloudflare 블록 요청:
+
+- **패스워드**: `(http.request.method eq "POST" and http.request.uri.path matches "(comment|conversation|event|poll)/create" and not http.cookie matches "auth_session=[0-9a-zA-Z]{32}-[0-9]{10}-[0-9a-z]{6}")`
+- **- 연혁**: *제품정보*
+
+:::참조
+더 보기[`matches`](/ruleset-engine/rules-language/operators/#comparison-operators)운영자는 Cloudflare 사업 또는 기업 계획을 요구합니다.
+주요 특징

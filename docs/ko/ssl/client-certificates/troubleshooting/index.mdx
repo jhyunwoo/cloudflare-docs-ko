@@ -1,0 +1,112 @@
+---
+title: 문제 해결
+pcx_content_type: troubleshooting
+description: 클라이언트 인증서 관련 문제를 해결합니다
+sidebar:
+  order: 10
+head:
+  - tag: title
+    content: 클라이언트 인증서 문제 해결
+---
+
+import { DashButton } from "~/components";
+
+클라이언트 SSL 인증서를 구성하고 삽입한 뒤에도 쿼리에서 오류가 반환된다면, 다음 설정을 확인하세요.
+
+:::note
+문제 해결을 시작하기 전에 VPN과 프록시를 비활성화하세요. 이런 요소는 mTLS 핸드셰이크를 방해할 수 있습니다.
+:::
+
+---
+
+## SSL/TLS 핸드셰이크 확인
+
+터미널에서 다음 명령을 사용해 클라이언트와 API 엔드포인트 사이에 SSL/TLS 연결이 성공적으로 설정될 수 있는지 확인합니다.
+
+```sh
+curl --verbose --cert /path/to/certificate.pem --key /path/to/key.pem https://your-api-endpoint.com
+```
+
+SSL/TLS 핸드셰이크를 완료할 수 없다면 인증서와 개인 키가 올바른지 확인하세요.
+핸드셰이크는 완료되는데도 요청이 계속 차단된다면, Cloudflare가 클라이언트 인증서를 검증하고 있는지 확인하세요.
+
+---
+
+## mTLS 호스트 확인
+
+올바른 호스트에 대해 [mTLS가 활성화되어 있는지](/ssl/client-certificates/enable-mtls/) 확인하세요. 해당 호스트는 보호하려는 API 엔드포인트와 일치해야 합니다.
+
+---
+
+## mTLS 규칙 검토
+
+mTLS 규칙을 검토하려면 아래 단계를 참고하세요. 자세한 안내는 [사용자 지정 규칙](/waf/custom-rules/create-dashboard/)을 참고하세요.
+
+1. Cloudflare 대시보드에서 **Security rules** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/security/security-rules" />
+
+2. 특정 규칙에서 **Edit**를 선택합니다.
+
+3. 해당 규칙에서 다음 사항을 확인합니다.
+
+   - Expression Preview가 올바른지.
+   - 호스트 이름이 정의되어 있다면 API 엔드포인트와 일치하는지. 예를 들어 API 엔드포인트가 `api.trackers.ninja/time`이라면 규칙은 다음과 같아야 합니다.
+
+     ```txt
+     (http.host in {"api.trackers.ninja"} and not cf.tls_client_auth.cert_verified)
+     ```
+
+4. 규칙을 수정하려면 사용자 인터페이스를 사용하거나 **Edit expression**을 선택합니다.
+
+---
+
+## 고급 디버깅
+
+[Cloudflare Workers](/workers/)를 사용하여 클라이언트 인증서 검증 실패를 디버깅할 수 있습니다.
+
+1. [cf.properties](/workers/runtime-apis/request/#incomingrequestcfproperties)를 디버그 출력하는 Worker를 만듭니다.
+
+   ```js
+   export default {
+     async fetch(request, env, ctx) {
+       console.info({ message: JSON.stringify(request.cf, null, 2) });
+       return new Response(JSON.stringify(request.cf, null, 2))
+     }
+   };
+   ```
+
+2. [Worker route](/workers/configuration/routing/routes/) 또는 [Custom Domain](/workers/configuration/routing/custom-domains/)을 사용해 mTLS가 활성화된 호스트 이름에 Worker를 연결합니다.
+
+3. mTLS 클라이언트 인증서를 보내는 경우와 보내지 않는 경우 각각에 대해, 설정한 호스트 이름 및/또는 경로로 요청을 보냅니다.
+
+4. [Observability](/workers/observability/) 대시보드에서 로그를 확인하고 아래에 나열된 예상 값과 응답을 비교합니다.
+
+	 <DashButton url="/?to=/:account/workers-and-pages/observability" />
+
+- 유효한 인증서
+
+   ```json
+   "tlsClientAuth": {
+     "certPresented": "1",
+     "certVerified": "SUCCESS",
+   },
+   ```
+
+- 유효하지 않은 인증서(예: 자체 서명 인증서)
+
+   ```json
+   "tlsClientAuth": {
+     "certPresented": "1",
+     "certVerified": "FAILED:self signed certificate",
+   },
+   ```
+
+- 인증서 없음
+
+   ```json
+   "tlsClientAuth": {
+     "certPresented": "0",
+     "certVerified": "NONE",
+   },
+   ```

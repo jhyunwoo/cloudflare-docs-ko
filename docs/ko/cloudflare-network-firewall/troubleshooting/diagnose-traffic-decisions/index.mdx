@@ -1,0 +1,107 @@
+---
+title: 교통 결정
+pcx_content_type: troubleshooting
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/troubleshooting/diagnose-traffic-decisions/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/troubleshooting/diagnose-traffic-decisions/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Aside, GlossaryTooltip } from "~/components";
+
+트래픽이 예기치 않게 차단되면 여러 Cloudflare 시스템이 책임질 수 있습니다. 이 가이드는 트래픽을 차단하고 해결하는 방법을 식별하는 방법을 통해 걸어갑니다.
+
+Cloudflare의 네트워크를 통해 트래픽은 다음과 같은 순서로 여러 독립적 인 보안 시스템에 의해 평가됩니다.
+
+1. Network-layer DDoS 보호: 이 레이어는 DDoS 규칙을 관리합니다.
+2. 진보된 TCP 보호: Cloudflare는 (로 알려지는 국가 TCP 검사를 나릅니다)[관련 링크](https://blog.cloudflare.com/announcing-flowtrackd/)).
+3. Network Firewall: 사용자 정의 및 관리 방화벽 규칙.
+
+각 시스템은 독립적으로 작동합니다. 이전 시스템에 의해 차단 된 트래픽은 나중에 평가 시스템에 도달하지 않습니다.
+
+:::카트로션
+Network Firewall의 규칙 만들기**아니다.**&#x44;DoS 공격
+보호. 트래픽이 고급 TCP 보호 또는 DDoS로 차단되는 경우
+규칙, 당신은 그 시스템에서 우회를 따로 설정해야합니다.
+주요 특징
+
+차단된 트래픽을 진단하기 위해, 사용[네트워크 Analytics](/analytics/network-analytics/)이 시스템은 트래픽과 왜 차단되는지 확인합니다. Network Analytics가 충분한 정보를 제공하지 않는 경우, 더 깊은 분석에 대한 패킷 캡처를 사용할 수 있습니다.
+
+## 빠른 triage 체크리스트
+
+변경하기 전에 다음 정보를 수집하십시오.
+
+- 어떤 교통이 영향을 받습니까? 소스 IP, 목적지 IP, 항구 및 의정서를 검사하십시오.
+- 문제가 시작되었을 때?
+- 최근 어떤 구성 변경 사항이 있습니까?
+- 이 모든 트래픽 또는 특정 흐름에 영향을 미치는가?
+- 기타[Cloudflare 상태](https://www.cloudflarestatus.com/)자주 묻는 질문
+
+## 필터 떨어졌다 트래픽
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/).
+2. 이름 \***보호 및 연결**, 이동**관련 기사** > **Network 분석**.
+3. 내 계정**모든 교통**탭, 선택**필터 추가**.
+4. 필터 구성:
+   - 제품정&#xBCF4;**- 연혁** > **이름 \*** > **팟캐스트**
+   - 제품정보**지원하다**.
+5. 문제가 발생했을 때 시간 범위를 필터링합니다.
+6. 영향을받는 트래픽 특성을 알고 있다면 추가 필터를 추가하십시오 ( Source IP, Destination IP 등).
+7. 차단 시스템을 식별하려면:
+   내 계정**Packet 소개**그래프, 세 가지 점 선택 >**Mitigation 시스템**·
+   Cloudflare 시스템이 트래픽을 차단하는 것을 말합니다.
+
+### 완화 시스템이 DDoS Managed Ruleset을 표시하는 경우
+
+완화 시스템이 DDoS Managed Ruleset을 표시하는 경우, 이는 DDoS Managed Ruleset에 의해 트래픽이 차단되었다는 것을 의미합니다. 이름 \***규칙 ID**·**규칙 이름**특정 규칙 트리거를 식별하는 필드.
+
+1. 맨 위로**Network 분석**, 선택**DDoS 관리 규정**.
+2. 관련 필터를 포함 하 여 트래픽을 식별 하 고 관련된 문제 타이밍에 시간 범위를 좁은.
+3. 내 계정**Packets 요약**도표는, 3개의 점을 선정하고, 그 후에 선택합니&#xB2E4;**【특전】**. 대시보드는 당신의 교통에 행동한 규칙을 보여줄 것입니다.
+4. 해결하기: DDoS 관리 규칙 감도를 조정하거나[오버라이드](/ddos-protection/managed-rulesets/network/network-overrides/)영향을받는 트래픽 패턴을 위해.
+
+### 완화 시스템이 TCP 보호를 표시하는 경우
+
+완화 시스템이 TCP 보호를 표시하면 트래픽이 차단 된 것을 의미합니다.[TCP 보호](/ddos-protection/advanced-ddos-systems/overview/advanced-tcp-protection/). 참고[완화 Reason](/ddos-protection/advanced-ddos-systems/concepts/#mitigation-reasons)왜 TCP 보호를 표시합니다.
+
+**해결하기**, 창조[고급 TCP 관련 상품](/ddos-protection/advanced-ddos-systems/how-to/add-prefix-allowlist/)또는[제품정보](/ddos-protection/advanced-ddos-systems/how-to/create-filter/)영향을받는 트래픽에 대한 우회 보호.
+
+### 완화 시스템이 방화벽 정책을 표시하는 경우
+
+트래픽이 네트워크 방화벽 구성에 의해 차단 된 경우:
+
+1. 맨 위로**Network 분석**, 선택**비밀번호**탭.
+2. 관련 필터를 포함 하 여 트래픽을 식별 하 고 관련된 문제 타이밍에 시간 범위를 좁은.
+3. 내 계정**Packets 요약**도표는, 3개의 점을 선정하고, 그 후에 선택합니&#xB2E4;**【특전】**. 대시보드는 당신의 교통에 행동한 규칙을 보여줄 것입니다.
+4. 자주 묻는 질문[Network 방화벽 정책](/cloudflare-network-firewall/how-to/add-policies/)규칙 순서 또는 표현을 필요에 따라 조정합니다.
+
+## 더 깊은 분석을위한 패킷 캡처
+
+Network Analytics의 문제점을 식별할 수 없는 경우, 사용[패킷 캡처](/cloudflare-network-firewall/packet-captures/)실제 트래픽을 검사하기 위해:
+
+1. 로그인하기[Cloudflare 대시보드](https://dash.cloudflare.com/).
+2. 이름 \***보호 및 연결**, 이동**관련 기사** > **네트워크 건강**.
+3. 오시는 길**진단**, 영향을받는 트래픽을 일치하는 패킷 캡처 필터를 구성합니다. 너무 많은 패킷 캡처 파일을 생성하는 것을 방지 할 수 있기 때문에 특정해야합니다.
+4. 캡처 된 패킷을 분석하여 트래픽 특성을 이해합니다.
+5. 규칙 구성에 대한 비교.
+
+## 일반적인 시나리오
+
+| 채용정보        | 증상                | 자주 묻는 질문                    | 자주 묻는 질문                   |
+| ----------- | ----------------- | --------------------------- | -------------------------- |
+| 파트너 트래픽 차단  | 특정 소스 IP 차단       | DDoS 또는 ATP 감도              | Allowlist 파트너 IP 범위 모두 시스템 |
+| 새로운 규칙 작동하지 | 교통 여전히 패스         | 규칙 명령 순서 (시작 규칙은 첫째로 일치합니다) | 규칙 우선 순위를 조정하거나 일치 기준을 정제  |
+| 변화 후에 막힌 교통 | 설정 변경 후 Sudden 방울 | 규칙 misconfiguration         | 최근 변경 사항 및 마지막 버전으로 돌아가기   |
+
+## 관련 자료
+
+- [네트워크 Analytics](/analytics/network-analytics/)
+- [고급 TCP 보호](/ddos-protection/advanced-ddos-systems/overview/advanced-tcp-protection/)
+- [Network Firewall 규칙 구성](/cloudflare-network-firewall/how-to/add-policies/)
+- [Packet 캡처](/cloudflare-network-firewall/packet-captures/)

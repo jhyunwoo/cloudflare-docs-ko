@@ -1,0 +1,101 @@
+---
+pcx_content_type: how-to
+title: 웹 사이트
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/rest-api/content-endpoint/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/rest-api/content-endpoint/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+더 보기`/content`endpoint는 웹 사이트에 탐색하고 페이지를 완전히 렌더링 한 HTML을 캡처하기 위해 브라우저를 지시합니다.`head`JavaScript 실행 후 섹션. JavaScript-heavy 또는 대화형 웹 사이트에서 콘텐츠를 캡처하는 데 이상적입니다.
+
+<Render file="rest-api-token-permissions" product="browser-rendering" />
+
+## 끝점
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/content
+```
+
+## 관련 분야
+
+자주 묻는 질문`url`또는`html`:
+
+- `url`(문자)
+- `html`(문자)
+
+## 일반적인 사용 사례
+
+- 동적 페이지의 완전히 렌더링 된 HTML 캡처
+- 파싱, 스크랩, 또는 다운스트림 처리를위한 HTML 추출
+
+## 기본 사용
+
+### Fetch URL에서 HTML 렌더링
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="컬럼">
+    오시는 길`https://developers.cloudflare.com/`렌더링 된 HTML을 반환합니다.
+
+    ```bash
+    curl -X 'POST' 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/content' \
+      -H 'Content-Type: application/json' \
+      -H 'Authorization: Bearer <apiToken>' \
+      -d '{"url": "https://developers.cloudflare.com/"}'
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript SDK 지원">
+    ```typescript
+    import Cloudflare from "cloudflare";
+
+    const client = new Cloudflare({
+    	apiToken: process.env["CLOUDFLARE_API_TOKEN"],
+    });
+
+    const content = await client.browserRendering.content.create({
+    	account_id: process.env["CLOUDFLARE_ACCOUNT_ID"],
+    	url: "https://developers.cloudflare.com/",
+    });
+
+    console.log(content);
+    ```
+  </TabItem>
+</Tabs>
+
+## 고급 사용
+
+:::note\[더 많은 매개 변수를 찾고?]
+자주 묻는 질문[브라우저 렌더링 API 참고 자료](/api/resources/browser_rendering/subresources/content/methods/create/)HTTP credentials 설정과 같은 모든 사용 가능한 매개 변수에 대해`authenticate`, 설정`cookies`, 및 사용자 정의 로드 동작 사용`gotoOptions`.
+:::
+
+### 블록 특정 리소스 유형
+
+바로가기`https://cloudflare.com/`하지만 로드에서 이미지와 스타일 시트를 차단. Undesired 요청은 리소스 유형에 의해 차단 될 수 있습니다 (`rejectResourceTypes`) 또는 regex 패턴을 사용하여 (`rejectRequestPattern`). 반대도 할 수 있습니다, 만 일치 요청을 허용`allowRequestPattern`또는`allowResourceTypes`.
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/content' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+      "url": "https://cloudflare.com/",
+      "rejectResourceTypes": ["image"],
+      "rejectRequestPattern": ["/^.*\\.(css)"]
+		}'
+
+```
+
+더 많은 옵션은 HTTP 헤더 설정과 같은 존재`setExtraHTTPHeaders`, 설정`cookies`, 및 사용`gotoOptions`페이지로드 동작을 제어하기 위해 - endpoint를 확인[참고 자료](/api/resources/browser_rendering/subresources/content/methods/create/)모든 유효한 모수를 위해.
+
+<Render file="javascript-heavy-pages" product="browser-rendering" />
+
+<Render file="setting-custom-user-agent" product="browser-rendering" />
+
+<Render file="faq" product="browser-rendering" />

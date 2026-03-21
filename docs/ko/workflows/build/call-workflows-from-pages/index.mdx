@@ -1,0 +1,166 @@
+---
+title: WorkflowsXQXQXQXQXQ
+pcx_content_type: concept
+sidebar:
+  order: 11
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/build/call-workflows-from-pages/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workflows/build/call-workflows-from-pages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample } from "~/components";
+
+:::tip\[액정 자산 사용]
+
+WorkflowsXQXQXQXQXQXQXQXQXQ에서 WorkflowsXQXQXQ를 포함하는 별도의 노동자를 배치해야 합니다. 자주 묻는 질문[**정적 자산**](/workers/static-assets/)대신, 이것은 당신이 당신의 정체되는 자산 노동자에 Workflows를 직접 추가하는 것을 허용합니다.
+
+Pages 프로젝트를 정적 자산으로 마이그레이션하려면이를 따르십시오.[- 연혁](/workers/static-assets/migration-guides/migrate-from-pages/).
+
+:::
+
+***
+
+당신은에서 Workflows를 묶고 방아쇠 할 수 있습니다[Pages 기능](/pages/functions/)작업 흐름 정의와 Workers 프로젝트를 배포하여 작업자가 사용하는 것을 주장합니다.[서비스 바인딩](/pages/functions/bindings/#service-bindings)또는 표준`fetch()`전화.
+
+:::참조
+
+PagesQXQ의 앞에 독립 QXQXQX0027X0027XQXQXQ로 워크플로를 배포해야 합니다. 함수는 호출할 수 있습니다. 아직 Workflow를 배포하지 않은 경우 WorkflowsXQ[get started 가이드](/workflows/get-started/guide/).
+
+:::
+
+### 서비스 Bindings
+
+[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)다른 노동자 또는 직접 노출 없이 Pages 기능에서 노동자를 부르는 것을 허용하십시오.
+
+이렇게하려면:
+
+1. 직장에서 작업 흐름을 배포
+2. Pages 프로젝트에서 작업자에게 서비스 바인딩
+3. 묶음을 사용하여 작업자를 원격으로 호출
+
+예를 들어, 노동자가 호출 한 경우`workflows-starter`, 당신은 다음과 같이 Pages 프로젝트에 새로운 서비스 바인딩을 만들 것입니다, 그것을 지키다`service`name은 Workflow의 이름을 다음과 같이 정의합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"services": [
+  		{
+  			"binding": "WORKFLOW_SERVICE",
+  			"service": "workflows-starter"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+당신의 노동자는 다른 Workers 또는 PagesXQXQ 함수는 Service Binding에 호출할 수 있습니다.
+
+다음 예제에서, 우리는 특정을 노출`createInstance`우리의 접근법`Payload`그리고 반환[`InstanceStatus`](/workflows/build/workers-api/#instancestatus)Workflows API에서:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  interface Env {
+  	MY_WORKFLOW: Workflow;
+  }
+
+  type Payload = {
+  	hello: string;
+  };
+
+  export default class WorkflowsService extends WorkerEntrypoint<Env> {
+  	//현재 handler가 지원되지 않는 항목은 지원되지 않습니다.
+  	async fetch() {
+  		return new Response(null, { status: 404 });
+  	}
+
+  	async createInstance(payload: Payload) {
+  		let instance = await this.env.MY_WORKFLOW.create({
+  			params: payload,
+  		});
+
+  		return Response.json({
+  			id: instance.id,
+  			details: await instance.status(),
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+Pages 기능은 다음과 같습니다:
+
+<TypeScriptExample filename="functions/request.ts">
+  ```ts
+  interface Env {
+  	WORKFLOW_SERVICE: Service;
+  }
+
+  export const onRequest: PagesFunction<Env> = async (context) => {
+  	//이 페이로드는 앱 내에서 또는 프론트엔드에서 아무것도 할 수 있습니다.
+  	let payload = { hello: "world" };
+  	return context.env.WORKFLOWS_SERVICE.createInstance(payload);
+  };
+  ```
+</TypeScriptExample>
+
+Pages 기능에서 리소스에 대해 자세히 알아 보려면 Cloudflare QXQXQXQXdashboardXQ를 통해 바인딩하는 방법을 포함하여[Pages 기능에 대한 바인딩 문서](/pages/functions/bindings/#service-bindings).
+
+### fetch 사용
+
+:::노트\[서비스 바인딩 vs. fetch]
+
+자주 묻는 질문[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)자신의 계정에 노동자를 호출 할 때.
+
+Service Bindings는 작업자에서 공개 엔드포인트를 노출해야 할 필요가 없으며 인증 구성을 요구하지 않으며 직접 작업자에 메소드를 호출 할 수 있으므로 HTTP 요청 및 응답 관리의 오버 헤드를 피하십시오.
+
+:::
+
+서비스 바인딩을 설정하는 대안은 WorkflowsXQ를 사용하여 HTTP를 통해 노동자를 호출하는 것입니다[모델 번호: Workers](/workflows/build/workers-api/#workflow)으로`create`각 수신 HTTP 호출에 대한 새로운 워크 플로우 인스턴스:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  //이것은 당신의 Workflow 정의와 같은 파일에 있습니다.
+  export default {
+  	async fetch(req: Request, env: Env): Promise<Response> {
+  		let instance = await env.MY_WORKFLOW.create({
+  			params: payload,
+  		});
+  		return Response.json({
+  			id: instance.id,
+  			details: await instance.status(),
+  		});
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+내 계정[Pages 기능](/pages/functions/get-started/)다음을 만들 수 있습니다`fetch`노동자에게 전화 :
+
+<TypeScriptExample filename="functions/request.ts">
+  ```ts
+  export const onRequest: PagesFunction<Env> = async (context) => {
+  	//다른 코드
+  	let payload = { hello: "world" };
+  	const instanceStatus = await fetch("https://YOUR_WORKER.workers.dev/", {
+  		method: "POST",
+  		body: JSON.stringify(payload), //Workflow에 전달하기 위해 Worker의 페이로드를 보내십시오.
+  	});
+
+  	return Response.json(instanceStatus);
+  };
+  ```
+</TypeScriptExample>
+
+당신은 또한이 요청을 머리에 공유 비밀을 전달하고 당신의 노동자에 그것을 검증하여 선택할 수 있습니다.
+
+### 다음 단계
+
+- programatically 호출 및 트리거 Workflows에 대해 자세히 알아보기[Workers API를](/workflows/build/workers-api/)
+- 전송 방법[이벤트 및 매개 변수](/workflows/build/events-and-parameters/)작업 흐름을 트리거 할 때
+- 자주 묻는 질문[Workflows의 규칙](/workflows/build/rules-of-workflows/)Workflows

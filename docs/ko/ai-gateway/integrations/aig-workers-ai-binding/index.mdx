@@ -1,0 +1,163 @@
+---
+title: '모델 번호: Workers AI'
+pcx_content_type: tutorial
+reviewed: 2024-10-17T00:00:00.000Z
+description: >-
+  이 가이드는 Workers AI 프로젝트를 설정하고 배포합니다. Workers, AI Gateway 바인딩 및 Cloudflare 글로벌
+  네트워크에서 최초의 AI 전원 응용 프로그램을 배포하기 위해 큰 언어 모델 (LLM)을 사용합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-gateway/integrations/aig-workers-ai-binding/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/integrations/aig-workers-ai-binding/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 가이드는 Workers AI 프로젝트를 설정하고 배포합니다. 이용안내[모델 번호: Workers](/workers/), AI 게이트웨이 바인딩 및 큰 언어 모델 (LLM), Cloudflare 글로벌 네트워크에 최초의 AI 전원 응용 프로그램을 배포하기 위해.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker Project 만들기
+
+create-Cloudflare CLI (C3)를 사용하여 새로운 Worker 프로젝트를 만들 것입니다. C3는 Cloudflare에 새로운 응용 프로그램을 설정하고 배치하는 데 도움이되는 명령 줄 도구입니다.
+
+새 프로젝트 만들기`hello-ai`으로 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"hello-ai"} />
+
+(주)`npm create cloudflare@latest`create-cloudflare 패키지를 설치하고 설치를 통해 리드합니다. C3도 설치[모델 번호: Wrangler](/workers/wrangler/)Cloudflare 개발자 플랫폼 CLI.
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새로운 것`hello-ai`디렉토리. 당신의 새로운`hello-ai`디렉토리는 다음과 같습니다:
+
+- "Hello World"에서 노동자`src/index.ts`.
+- ·[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+앱 디렉토리로 이동:
+
+```bash
+cd hello-ai
+```
+
+## 2. Workers AIXQ에 당신의 노동자를 연결하십시오
+
+당신은 Workers AI에 연결하기 위하여 노동자를 위한 AI 바인딩을 창조해야 합니다. 바인딩은 Cloudflare 개발자 플랫폼에서 Workers AIXQ와 같은 리소스와 상호 작용하는 WorkersXQXQ를 허용합니다.
+
+Workers AI를 노동자에게 묶기 위하여는, 당신의 노동자의 끝에 뒤에 오는 추가합니다[Wrangler 구성 파일](/workers/wrangler/configuration/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+당신의 바인딩은 입니다[당신의 노동자 부호에서 유효한](/workers/reference/migrate-to-module-workers/#bindings-in-es-modules-format)에 의해[`env.AI`](/workers/runtime-apis/handlers/fetch/).
+
+당신은 당신의 필요가 있을 것입니다`gateway id`다음 단계. 당신은 배울 수 있습니다[이 튜토리얼에서 AI Gateway를 만드는 방법](/ai-gateway/get-started/).
+
+## 3. 당신의 노동자에 있는 AI Gateway를 포함하는 inference 업무를 실행하십시오
+
+당신은 지금 당신의 노동자에 inference 업무를 실행할 준비가되어 있습니다. 이 경우 LLM을 사용할 것입니다.[`llama-3.1-8b-instruct-fast`](/workers-ai/models/llama-3.1-8b-instruct-fast/), 질문에 대답하기. 귀하의 게이트웨이 ID는 대시보드에서 찾을 수 있습니다.
+
+업데이트`index.ts`파일 형식`hello-ai`다음 코드와 응용 프로그램 디렉토리:
+
+```typescript title="src/index.ts" {78-81}
+export interface Env {
+	//[WranglerXQ 설정 파일](/workers/wrangler/configuration/)의 이름을 'binding'의 값으로 설정하면
+	//정의 된 변수 이름과 "AI"를 대체합니다.
+	AI: Ai;
+}
+
+export default {
+	async fetch(request, env): Promise<Response> {
+		//게이트웨이 라벨 및 기타 옵션을 여기에서 지정하십시오.
+		const response = await env.AI.run(
+			"@cf/meta/llama-3.1-8b-instruct-fast",
+			{
+				prompt: "What is the origin of the phrase Hello, World",
+			},
+			{
+				gateway: {
+					id: "GATEWAYID", //게이트웨이 라벨 사용
+					skipCache: true, //선택 사항: 필요한 경우 캐시를 건너
+				},
+			},
+		);
+
+		//JSON 객체로 AI 응답을 반환
+		return new Response(JSON.stringify(response), {
+			headers: { "Content-Type": "application/json" },
+		});
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+이 점까지, 당신은 당신의 노동자를 위한 AI 바인딩을 창조하고 Llama 3.1 모형을 실행할 수 있는 노동자를 형성했습니다. 로컬로 프로젝트를 테스트할 수 있습니다.
+
+## 4. WranglerXQ로 로컬 개발
+
+프로젝트 디렉토리에서 Workers AI를 로컬로 테스트합니다.[`wrangler dev`](/workers/wrangler/commands/#dev):
+
+```bash
+npx wrangler dev
+```
+
+<Render file="ai-local-usage-charges" product="workers" />
+
+실행 후 로그인할 수 있습니다.`wrangler dev`. 실행할 때`npx wrangler dev`, Wrangler는 당신에게 URL을 줄 것입니다 (최대 가능성`localhost:8787`) 당신의 노동자를 검토하는. URL WranglerXQ에 들어가면 다음 예제와 비슷한 메시지를 볼 수 있습니다.
+
+````json
+{
+  "response": "A fascinating question!\n\nThe phrase \"Hello, World!\" originates from a simple computer program written in the early days of programming. It is often attributed to Brian Kernighan, a Canadian computer scientist and a pioneer in the field of computer programming.\n\nIn the early 1970s, Kernighan, along with his colleague Dennis Ritchie, were working on the C programming language. They wanted to create a simple program that would output a message to the screen to demonstrate the basic structure of a program. They chose the phrase \"Hello, World!\" because it was a simple and recognizable message that would illustrate how a program could print text to the screen.\n\nThe exact code was written in the 5th edition of Kernighan and Ritchie's book \"The C Programming Language,\" published in 1988. The code, literally known as \"Hello, World!\" is as follows:\n\n```
+main()
+{
+  printf(\"Hello, World!\");
+}
+```\n\nThis code is still often used as a starting point for learning programming languages, as it demonstrates how to output a simple message to the console.\n\nThe phrase \"Hello, World!\" has since become a catch-all phrase to indicate the start of a new program or a small test program, and is widely used in computer science and programming education.\n\nSincerely, I'm glad I could help clarify the origin of this iconic phrase for you!"
+}
+````
+
+## 5. AI Worker 배포
+
+전 세계 AI Worker를 배포하기 전에 Cloudflare 계정으로 로그인하십시오.
+
+```bash
+npx wrangler login
+```
+
+QXQX0002XQQ 대시보드에 로그인하려면 웹 페이지로 이동합니다. 로그인한 후 Wrangler가 Cloudflare 계정에 변경할 수 있는 경우 요청됩니다. 스크롤 다운 및 선택**지원하다**계속.
+
+마지막으로 Worker를 배포하여 인터넷에 접근할 수 있는 프로젝트를 만들 수 있습니다. 노동자를 배포하려면, 실행:
+
+```bash
+npx wrangler deploy
+```
+
+배포되면 작업자는 URL에서 사용할 수 있습니다.
+
+```bash
+https://hello-ai.<YOUR_SUBDOMAIN>.workers.dev
+```
+
+당신의 노동자는 당신의 관례에 배치될 것입니다[`workers.dev`](/workers/configuration/routing/workers-dev/)하위 도메인. 이제 AI Worker를 실행하는 URL을 방문할 수 있습니다.
+
+이 튜토리얼을 완료하면 Worker를 만들었습니다. AI 게이트웨이 바인딩을 통해 Workers AIXQ에 연결하고 Llama 3.1 모델을 사용하여 의도적 작업을 성공적으로 실행합니다.

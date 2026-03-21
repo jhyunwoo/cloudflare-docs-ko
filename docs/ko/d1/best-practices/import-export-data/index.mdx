@@ -1,0 +1,213 @@
+---
+title: 수입 및 수출 자료
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/best-practices/import-export-data/'
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/best-practices/import-export-data/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+D1를 사용하면 기존 SQLite 테이블과 데이터를 직접 가져올 수 있으며 기존 데이터를 D1XQ로 마이그레이션할 수 있습니다. Workers 및 D1를 사용하기 위해 응용 프로그램을 마이그레이션 할 때 유용 할 수 있습니다, 또는 로컬 D1 데이터베이스에 가져 오기 전에 스키마를 프로토 타입 할 때.
+
+D1는 또한 당신은 데이터베이스를 수출할 수 있습니다. 이것은 유용할 수 있습니다[지역 개발](/d1/best-practices/local-development/)또는 테스트.
+
+## 기존 데이터베이스 가져 오기
+
+기존 SQLite 데이터베이스를 D1XQ로 가져 오기 위해서는 다음을해야합니다.
+
+1. Cloudflare[Wrangler CLI 설치](/workers/wrangler/install-and-update/).
+2. 타겟으로 사용하는 데이터베이스.
+3. 기존 SQLite (version 3.0+) 데이터베이스 파일 가져 오기.
+
+:::참조
+
+SQLite 데이터베이스를 가져올 수 없습니다 (`.sqlite3`파일) 직접. 더 알아보기[기존 SQLite 파일을 변환하는 방법](#convert-sqlite-database-files)처음.
+
+:::
+
+예를 들어, 다음을 고려`users_export.sql`schema & 값, 포함`CREATE TABLE IF NOT EXISTS`성명 :
+
+```sql
+CREATE TABLE IF NOT EXISTS users (
+	id VARCHAR(50),
+	full_name VARCHAR(50),
+	created_on DATE
+);
+INSERT INTO users (id, full_name, created_on) VALUES ('01GREFXCN9519NRVXWTPG0V0BF', 'Catlaina Harbar', '2022-08-20 05:39:52');
+INSERT INTO users (id, full_name, created_on) VALUES ('01GREFXCNBYBGX2GC6ZGY9FMP4', 'Hube Bilverstone', '2022-12-15 21:56:13');
+INSERT INTO users (id, full_name, created_on) VALUES ('01GREFXCNCWAJWRQWC2863MYW4', 'Christin Moss', '2022-07-28 04:13:37');
+INSERT INTO users (id, full_name, created_on) VALUES ('01GREFXCNDGQNBQAJG1AP0TYXZ', 'Vlad Koche', '2022-11-29 17:40:57');
+INSERT INTO users (id, full_name, created_on) VALUES ('01GREFXCNF67KV7FPPSEJVJMEW', 'Riane Zamora', '2022-12-24 06:49:04');
+```
+
+너와 함께`users_export.sql`현재 작업 디렉토리의 파일, 당신은 통과 할 수 있습니다`--file=users_export.sql`본문 바로가기`d1 execute`실행 (import) 우리의 테이블 스키마와 값:
+
+```sh
+npx wrangler d1 execute example-db --remote --file=users_export.sql
+```
+
+테이블을 올바르게 가져 와서 쿼리 할 수 있도록`SELECT`D1 데이터베이스에서 모든 테이블을 fetch하는 성명 :
+
+```sh
+npx wrangler d1 execute example-db --remote --command "SELECT name FROM sqlite_schema WHERE type='table' ORDER BY name;"
+```
+
+```sh output
+...
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 commands in 0.3165ms
+┌────────┐
+│ name   │
+├────────┤
+│ _cf_KV │
+├────────┤
+│ users  │
+└────────┘
+```
+
+:::참조
+
+더 보기`_cf_KV`테이블은 D1의 underlying 저장 체계에 의해 이용된 예약된 테이블입니다. queried 할 수 없으며 계정에 대한 읽기 / 쓰기 작업 수수료가 없습니다.
+
+:::
+
+여기에서, 당신은 지금 우리의 노동자에게서 우리의 새로운 테이블을 쿼리할 수 있습니다[D1 Workers를 사용하여 바인딩 API](/d1/worker-api/).
+
+:::카ution\[Known 제한]
+
+수입을 위해,`wrangler d1 execute --file`5GiB 파일로 제한되어 있으며,[R2 업로드 제한](/r2/platform/limits/). 5GiB 보다는 더 큰 수입을 위해, 우리는 다수 파일로 자료를 나누는 것을 추천합니다.
+주요 특징
+
+### SQLite 데이터베이스 파일 변환
+
+:::참조
+
+SQLite3 데이터베이스 덤프 변환하기 (a)`.sqlite3`파일) 당신은 필요로 할 것이다[sqlite 명령 줄 도구](https://sqlite.org/cli.html)시스템에 설치.
+
+:::
+
+다른 시스템에서 기존 SQLite 데이터베이스를 가지고 있다면 테이블을 D1 데이터베이스로 가져올 수 있습니다. 사용 방법`sqlite`명령행 도구, 당신은 변환 할 수 있습니다`.sqlite3`D1 데이터베이스에 대해 가져온 SQL 문 시리즈로 파일.
+
+예를 들어, SQLite 덤프가 호출되면`db_dump.sqlite3`, 다음을 실행`sqlite`변환 명령:
+
+```sh
+sqlite3 db_dump.sqlite3 .dump > db.sql
+```
+
+위의 명령을 실행하면 D1와 호환되는 출력 SQL 파일을 편집해야합니다.
+
+1. 기타 제품`BEGIN TRANSACTION`·`COMMIT;`파일에서
+2. 다음 표 생성 문 제거 (현재 경우):
+   ```sql
+   CREATE TABLE _cf_KV (
+    	key TEXT PRIMARY KEY,
+    	value BLOB
+   ) WITHOUT ROWID;
+   ```
+
+다음 단계를 따라갈 수 있습니다.[기존 데이터베이스 가져 오기](#import-an-existing-database)D1로`.sql`데이터베이스 덤프에서 생성 된 파일 입력으로`wrangler d1 execute`.
+
+## 기존 D1 데이터베이스 수출
+
+기존 SQLite 데이터베이스를 가져올뿐만 아니라 로컬 개발 또는 테스트를 위해 D1 데이터베이스를 수출 할 수 있습니다. D1 데이터베이스를 가져올 수 있습니다.`.sql`파일 사용[wrangler d1 수출](/workers/wrangler/commands/#d1-export)그리고 나서 (import)를 실행합니다.`d1 execute --file`.
+
+전체 D1 데이터베이스 스키마 및 데이터를 내보내려면 :
+
+```sh
+npx wrangler d1 export <database_name> --remote --output=./database.sql
+```
+
+단일 테이블 스키마 및 데이터를 수출하려면 :
+
+```sh
+npx wrangler d1 export <database_name> --remote --table=<table_name> --output=./table.sql
+```
+
+D1 데이터베이스 스키마 만 내보내기 :
+
+```sh
+npx wrangler d1 export <database_name> --remote --output=./schema.sql --no-data
+```
+
+D1 테이블 스키마만 수출하려면:
+
+```sh
+npx wrangler d1 export <database_name> --remote --table=<table_name> --output=./schema.sql --no-data
+```
+
+D1 데이터베이스 데이터만 내보내기:
+
+```sh
+npx wrangler d1 export <database_name> --remote --output=./data.sql --no-schema
+```
+
+D1 테이블 자료만 수출하기 위하여:
+
+```sh
+npx wrangler d1 export <database_name> --remote --table=<table_name> --output=./data.sql --no-schema
+```
+
+### Known 제한
+
+- 수출은 가상 테이블과 데이터베이스를 포함한 가상 테이블에 지원되지 않습니다. D1는 SQLite를 사용하여 전체 텍스트 검색을위한 가상 테이블을 지원합니다.[FTS5 모듈](https://www.sqlite.org/fts5.html). 작업으로, 어떤 가상 테이블을 삭제, 수출, 그리고 그 후에 가상 테이블을 재구성.
+- 실행 수출은 다른 데이터베이스 요청을 차단합니다.
+- 열에 있는 어떤 숫자 가치든지 JavaScript의 수를 위한 52 비트 정밀도에 의해 영향을 받습니다. 매우 큰 번호를 저장하는 경우 (in`int64`), 그 후에 동일한 가치를 검색합니다, 반환 값은 당신의 고유 번호 보다는 더 적은 정확할지도 모릅니다.
+
+## 문제 해결
+
+기존 스키마 및/또는 데이터셋을 D1로 가져올 때 오류가 발생하면 됩니다.
+
+- SQL 형식으로 데이터를 가져올 수 있습니다 (일반적으로`.sql`파일 확장). 더 알아보기[SQLite 파일을 변환하는 방법](#convert-sqlite-database-files)당신이 가지고 있다면`.sqlite3`데이터베이스 덤프.
+- schema가 있는지 확인하십시오.[SQLite3 다운로드](https://www.sqlite.org/docs.html)호환. MySQL 또는 PostgreSQL 데이터베이스에서 D1로 데이터를 가져올 수 없습니다.
+- 테이블 사이에 외국 키 관계를 가지고 있다면, 오른쪽 순서에 테이블을 가져야합니다. 아직 존재하지 않는 테이블을 참조 할 수 없습니다.
+- 당신이 받은 경우`"cannot start a transaction within a transaction"`오류, 당신은 제거해야합니다`BEGIN TRANSACTION`·`COMMIT`덤프 SQL 문에서.
+
+### 해결하기`Statement too long`오류 수정
+
+당신이 만난다면`Statement too long`큰 SQL 파일을 D1로 가져올 때 오류, 그것은 당신의 파일에 SQL 문 중 하나가 최대 허용 길이를 초과한다는 것을 의미한다.
+
+이 문제를 해결하려면 단일 대형 변환`INSERT`여러 개의 작문`INSERT`이름 \* 예를 들어, 1개의 문에 1,000개의 행을 삽입하는 대신, 250개의 행의 4개 그룹으로 나누고, 아래 코드에서 설명된 것과 같이.
+
+이전 :
+
+```sql
+INSERT INTO users (id, full_name, created_on)
+VALUES
+  ('1', 'Jacquelin Elara', '2022-08-20 05:39:52'),
+  ('2', 'Hubert Simmons', '2022-12-15 21:56:13'),
+  ...
+  ('1000', 'Boris Pewter', '2022-12-24 07:59:54');
+```
+
+후:
+
+```sql
+INSERT INTO users (id, full_name, created_on)
+VALUES
+  ('1', 'Jacquelin Elara', '2022-08-20 05:39:52'),
+  ...
+  ('100', 'Eddy Orelo', '2022-12-15 22:16:15');
+...
+INSERT INTO users (id, full_name, created_on)
+VALUES
+  ('901', 'Roran Eroi', '2022-08-20 05:39:52'),
+  ...
+  ('1000', 'Boris Pewter', '2022-12-15 22:16:15');
+```
+
+## 외국 키 제약
+
+데이터를 가져올 때 일시적으로 비활성화 할 수 있습니다.[외국 키 제약](/d1/sql-api/foreign-keys/). 이렇게하려면, 전화`PRAGMA defer_foreign_keys = true`외국 키를 위반하는 변경 전에.
+
+더 알아보기[외국 키 문서](/d1/sql-api/foreign-keys/)외국 키와 D1로 작업하는 방법에 대해 자세히 알아보세요.
+
+## 다음 단계
+
+- SQLite 읽기[`CREATE TABLE`](https://www.sqlite.org/lang_createtable.html)문서.
+- 자주 묻는 질문[D1 Workers 바인딩 API](/d1/worker-api/)노동자 안에.
+- 자주 묻는 질문[데이터베이스 마이그레이션 작업](/d1/reference/migrations/)D1로.

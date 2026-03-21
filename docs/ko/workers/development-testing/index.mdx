@@ -1,0 +1,434 @@
+---
+pcx_content_type: navigation
+title: 개발 및 테스트
+sidebar:
+  order: 6
+head: []
+description: 로컬 WorkersXQ 개발 및 테스트.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/development-testing/'
+translation_source_md: 'https://developers.cloudflare.com/workers/development-testing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Details,
+	LinkCard,
+	Render,
+	PackageManagers,
+	WranglerConfig,
+	InlineBadge,
+	CardGrid,
+	Card,
+	Type,
+	TypeScriptExample,
+} from "~/components";
+
+Cloudflare의 네트워크에 배포하기 전에 자신의 로컬 기계에 당신의 노동자 코드를 구축, 실행 및 테스트 할 수 있습니다. 이용 가능[미니 플레어](/workers/testing/miniflare/), 생산에서 사용되는 동일한 실행 시간을 사용하여 노동자 코드를 실행하는 시뮬레이터,[`workerd`](https://github.com/cloudflare/workerd).
+
+[기본 정보](/workers/development-testing/#defaults), 당신의 노동자의 의무[로컬로 시뮬레이션 된 리소스에 연결](/workers/development-testing/#bindings-during-local-development), 그러나 실제, 생산 자원과 상호 작용하기 위하여 형성될 수 있습니다[먼 바인딩](/workers/development-testing/#remote-bindings).
+
+## 핵심 개념
+
+### Worker 실행 vs 바인딩
+
+Workers를 개발할 때, 그것은 2개의 명백한 개념을 이해하는 것이 중요합니다:
+
+- **Worker 실행**: 작업자 코드가 실제로 실행되는 곳 (Cloudflare의 인프라에서 로컬 머신 vs).
+
+- [**회사 소개**](/workers/runtime-apis/bindings/): Cloudflare 리소스와 어떻게 상호 작용합니까?[KV 네임스페이스](/kv), [R2 물통](/r2), [D1 데이터베이스](/d1), [모델 번호: Queues](/queues/), [모델 번호: Durable Objects](/durable-objects/)등). 당신의 노동자 부호에서는, 이들은 접근됩니다`env`객체 (예 :`env.MY_KV`).
+
+## 지역 개발
+
+**로컬 개발 서버를 사용하여 시작할 수 있습니다.**
+
+1. Cloudflare Workers 클립[**모델 번호: Wrangler**](/workers/wrangler/), 내장을 사용하여[`wrangler dev`](/workers/wrangler/commands/#dev)명령.
+
+<PackageManagers type="exec" pkg="wrangler" args="dev" />
+
+2. [**뚱 베어**](https://vite.dev/), 사용[**모델 번호: Cloudflare Vite 플러그인**](/workers/vite-plugin/).
+
+<PackageManagers type="exec" pkg="vite" args="dev" />
+
+Wrangler와 Cloudflare Vite 플러그인 사용[미니 플레어](/workers/testing/miniflare/)후드 아래에 Cloudflare 팀에 의해 개발되고 유지됩니다. Wrangler versus Vite를 사용할 때 선택에 대한 지침은 우리의 가이드를 참조하십시오[Wrangler & Vite 사이 선택](/workers/development-testing/wrangler-vs-vite/).
+
+- [Wrangler로 시작](/workers/wrangler/install-and-update/)
+- [Cloudflare Vite 플러그인](/workers/vite-plugin/get-started/)
+
+### 기본 사항
+
+기본적으로, 실행`wrangler dev` / `vite dev`(사용 중)[Vite 플러그인](/workers/vite-plugin/get-started/))는 말한다:
+
+- 당신의 노동자 부호는 당신의 국부적으로 기계에 달립니다.
+- 당신의 노동자는 당신의 일에 경계[Wrangler 구성](/workers/wrangler/configuration/)로컬로 시뮬레이션됩니다.
+
+### 현지 개발 중 Binding
+
+[회사 소개](/workers/runtime-apis/bindings/)다양한 Cloudflare 자원과 상호 작용할 수 있도록 작업자를 허용하는 인터페이스입니다.[KV 네임스페이스](/kv), [R2 물통](/r2), [D1 데이터베이스](/d1), [Queues](/queues/), [모델 번호: Durable Objects](/durable-objects/)등). 당신의 노동자 부호에서는, 이들은 접근됩니다`env`객체 (예 :`env.MY_KV`).
+
+로컬 개발 중에 Worker 코드는 정확한 동일한 API 호출을 사용하여 이러한 바인딩과 상호 작용합니다.`env.MY_KV.put()`) 배치된 환경에 있을 것입니다. 이 지역 자원은 처음 비어 있지만, 문서화 된 데이터로 변환 할 수 있습니다.[현지 데이터 추가](/workers/development-testing/local-data/).
+
+- 기본적으로 바인딩은 연결**지역 자원 시뮬레이션**(예를 들면[AI 바인딩](/workers-ai/configuration/bindings/)AI 모형으로 항상 원격으로 달리십시오.
+- 이 기본 동작을 무시할 수 있습니다.**원격 리소스에 연결**per-binding 기초에[먼 바인딩](/workers/development-testing/#remote-bindings). 이것은 당신이 진짜, 생산 자원에 연결하는 것을 아직도 직장 코드를 로컬로 실행하는 동안.
+- 사용 방법`wrangler dev`, 당신은 일시적으로 모든 비활성화 할 수 있습니다[먼 바인딩](/workers/development-testing/#remote-bindings)(그리고 로컬 리소스에만 연결) 제공`--local`플래그 (i.e.)`wrangler dev --local`)
+
+## 먼 바인딩
+
+**먼 바인딩**로컬 개발 중에 배포, 원격 리소스에 연결하도록 구성되는 바인딩*이름 \**&#xD604;지에서 가장 오래된 자원의. 원격 바인딩은 지원됩니다[**Wrangler**](/workers/wrangler/)·[**Cloudflare Vite 플러그인**](/workers/vite-plugin/), 그리고`@cloudflare/vitest-pool-workers`패키지. 설정하여 원격 바인딩을 구성할 수 있습니다.`remote: true`바인딩 정의에서.
+
+### 예제 구성
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+
+  	"r2_buckets": [
+  		{
+  			"bucket_name": "screenshots-bucket",
+  			"binding": "screenshots_bucket",
+  			"remote": true,
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+원격 바인딩이 형성될 때, 당신의 노동자는 아직도**로컬 실행**, 다만 underlying 자원 당신의 의무는 변화에 연결합니다. 표시된 모든 바인딩을 위해`remote: true`, Miniflare는 그것의 가동을 노선할 것입니다 (예를들면`env.MY_KV.put()`) 배포된 자원에. 다른 모든 바인딩은 명시적으로 구성되지 않습니다.`remote: true`기본 로컬 시뮬레이션을 계속 사용합니다.
+
+### 환경과 통합
+
+원격 바인딩은 잘과 함께 일합니다[Workers 환경분야](/workers/wrangler/environments). 생산 데이터를 보호하려면 개발 또는 시효 환경을 만들 수 있으며 다른 리소스를 지정할 수 있습니다.[Wrangler 구성](/workers/wrangler/configuration/)당신은 생산을 위해 사용할 것입니다.
+
+**예를 들면:**
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+
+  	"env": {
+  		"production": {
+  			"r2_buckets": [
+  				{
+  					"bucket_name": "screenshots-bucket",
+  					"binding": "screenshots_bucket",
+  				},
+  			],
+  		},
+  		"staging": {
+  			"r2_buckets": [
+  				{
+  					"bucket_name": "preview-screenshots-bucket",
+  					"binding": "screenshots_bucket",
+  					"remote": true,
+  				},
+  			],
+  		},
+  	},
+  }
+  ```
+</WranglerConfig>
+
+(주)`wrangler dev -e staging`(주)`CLOUDFLARE_ENV=staging vite dev`) 위의 구성으로는 다음과 같다:
+
+- 당신의 노동자 코드는 로컬로 실행
+- 자주 묻는 질문`env.screenshots_bucket`이용안내`preview-screenshots-bucket`자원, 오히려 생산 보다는`screenshots-bucket`.
+
+### 추천된 먼 바인딩
+
+원격 카운터에 연결하는 특정 바인딩을 구성하는 것이 좋습니다. 이 서비스는 종종 Cloudflare의 네트워크 인프라에 의존하거나 완전히 로컬로 시뮬레이션되지 않는 복잡한 백엔드가 있습니다.
+
+다음과 같은 바인딩이 권장됩니다.`remote: true`당신의 Wrangler 윤곽에서:
+
+#### [브라우저 렌더링](/workers/wrangler/configuration/#browser-rendering):
+
+렌더링을위한 실제 헤드리스 브라우저와 상호 작용합니다. Browser Rendering의 현재 로컬 시뮬레이션이 없습니다.
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"browser": {
+  		"binding": "MY_BROWSER",
+  		"remote": true
+  	},
+  }
+  ```
+</WranglerConfig>
+
+#### [모델 번호: Workers AI](/workers/wrangler/configuration/#workers-ai):
+
+실제 AI 모델을 사용하여 Cloudflare의 네트워크에 배치. Workers AI에 대한 현재 로컬 시뮬레이션이 없습니다.
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"ai": {
+  		"binding": "AI",
+  		"remote": true
+  	},
+  }
+  ```
+</WranglerConfig>
+
+#### [Vectorize](/workers/wrangler/configuration/#vectorize-indexes):
+
+생산 Vectorize에 연결하기 정확한 벡터 검색 및 유사성 작업을 위한 인덱스. Vectorize에 대한 현재 로컬 시뮬레이션이 없습니다.
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"vectorize": [
+  		{
+  			"binding": "MY_VECTORIZE_INDEX",
+  			"index_name": "my-prod-index",
+  			"remote": true
+  		}
+  	],
+  }
+  ```
+</WranglerConfig>
+
+#### [사이트맵](/workers/wrangler/configuration/#mtls-certificates):
+
+인증서 교환 및 검증 프로세스가 예상되는 것으로 확인하려면. mTLS 바인딩에 대한 현재 로컬 시뮬레이션이 없습니다.
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"mtls_certificates": [
+  		{
+  			"binding": "MY_CLIENT_CERT_FETCHER",
+  			"certificate_id": "<YOUR_UPLOADED_CERT_ID>",
+  			"remote": true
+  			}
+  	]
+  }
+
+  ```
+</WranglerConfig>
+
+#### [제품정보](/workers/wrangler/configuration/#images):
+
+Images API의 높은 보안 버전에 연결하고 예상대로 모든 변환 작업을 확인합니다. Cloudflare 이미지는[기능의 하위 세트로 제한](/images/transform-images/bindings/#interact-with-your-images-binding-locally).
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"images": {
+  		"binding": "IMAGES" ,
+  		"remote": true
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+이름 \*`remote: true`브라우저 렌더링, Vectorize, mTLS 또는 이미지, CloudflareXQ**경고를 발급**. 이것은 당신이 더 많은 생산 같이 테스트 경험을 위해 그것을 가능하게 하는 것을 고려할 것이다.
+
+Workers AI 바인딩이 있는 경우에`remote`설정하기`false`Cloudflare는**오류 생성**. 재산이 omitted인 경우에, Cloudflare는 원격 자원에 연결하고 구성에 재산을 추가하는 경고를 발행할 것입니다.
+주요 특징
+
+#### [Namespaces 제거](/cloudflare-for-platforms/workers-for-platforms/reference/local-development/):
+
+플랫폼 사용자를 위한 Workers는 구성할 수 있습니다`remote: true`파견 namespace 바인딩 정의에서:
+
+<WranglerConfig>
+  ```jsonc title="wrangler.jsonc"
+  {
+  	"dispatch_namespaces": [
+  		{
+  			"binding": "DISPATCH_NAMESPACE",
+  			"namespace": "testing",
+  			"remote":true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이 작업을 수행 할 수 있습니다[동적인 파견 노동자](/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/#dynamic-dispatch-worker)로컬로, 원격 파견 네임스페이스 바인딩에 연결하면서. 이것은 당신이 실제에 대한 당신의 핵심 파견 논리에 변화를 테스트 할 수 있습니다, 배치[사용자 Workers](/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/#user-workers).
+
+### 지원되는 먼 바인딩
+
+특정 바인딩은 원격 연결을 위해 지원되지 않습니다 (즉.`remote: true`) 현지 개발 중. 이들은 항상 로컬 시뮬레이션 또는 로컬 값을 사용합니다.
+
+이름 \*`remote: true`다음 지원되지 않은 바인딩 유형, CloudflareXQXQ의 어떤을 위한 WranglerXQ 윤곽에서 지정됩니다**오류가 발생**. 보기[원격 바인딩에 대한 모든 지원 및 지원 바인딩](/workers/development-testing/bindings-per-env/).
+
+- [**모델 번호: Durable Objects**](/workers/wrangler/configuration/#durable-objects): Durable Objects를 위한 원격 연결 활성화는 미래에 지원될지도 모르지만, 현재는 항상 로컬로 달릴 것입니다. 그러나, 원격 바인딩과 함께 Durable Objects를 사용하여 가능합니다. 더 알아보기[Durable Objects 및 Workflows](#using-remote-resources-with-durable-objects-and-workflows)아래.
+
+- [**Workflows**](/workflows/): Workflows를 위한 원격 연결 활성화는 미래에 지원될지도 모르지만 현재는 로컬로만 실행될 것입니다. 그러나, 원격 바인딩과 함께 Workflows를 사용하여 가능합니다. 더 알아보기[Durable Objects 및 Workflows](#using-remote-resources-with-durable-objects-and-workflows)아래.
+
+- [**환경 변수 (Environment Variables)`vars`)**](/workers/wrangler/configuration/#environment-variables): 환경변수는 로컬 개발과 배치된 환경과 구별될 것입니다. 그들은 쉽게 로컬로 구성 (예 :`.dev.vars`Wrangler 윤곽에서 또는 직접.
+
+- [**계정 관리**](/workers/wrangler/configuration/#secrets): 환경 변수처럼, 비밀은 보안상의 이유로 로컬 개발 versus 배포 환경에 다른 값을 가질 것으로 예상됩니다. 제품 정보`.dev.vars`현지 비밀 관리.
+
+- [**정적 자산**](/workers/wrangler/configuration/#assets)정적 자산은 항상 변화에 대한 속도와 직접 피드백을 위해 개발 중에 로컬 디스크에서 제공됩니다.
+
+- [**버전 Metadata**](/workers/runtime-apis/bindings/version-metadata/): Worker 코드가 로컬로 실행되기 때문에, 특정 배포판과 관련된 버전 메타데이터(Comput hash, version tags)는 적용하거나 정확하지 않습니다.
+
+- [**Analytics 엔진**](/analytics/analytics-engine/): 로컬 개발 세션은 일반적으로 생산 분석 엔진에 직접 데이터를 제공하지 않습니다.
+
+- [**Hyperdrive**](/workers/wrangler/configuration/#hyperdrive): 이것은 적극적으로 일하고 있지만 현재 지원되지 않습니다.
+
+- [**비율 제한**](/workers/runtime-apis/bindings/rate-limit/#configuration): 로컬 개발 세션은 일반적으로 배포 된 Workers의 비율 제한을 공유하거나 영향을 미칩니다. 제한 논리 비율은 국부적으로 가장에 대하여 시험되어야 합니다.
+
+:::참조
+위의 원격 리소스에 대한 사용 사례가 있다면, 제발[기능 요청 열기](https://github.com/cloudflare/workers-sdk/issues)우리의 제품[`workers-sdk`관련 기사](https://github.com/cloudflare/workers-sdk).
+:::
+
+#### Durable Objects 및 Workflows
+
+튼튼한 목표와 Workflow 바인딩이 현재 원격이 될 수 있지만, 로컬 개발 중에 여전히 사용할 수 있으며 원격 리소스와 상호 작용할 수 있습니다.
+
+이 두 가지 권장 패턴이 있습니다 :
+
+- **원격 바인딩을 가진 국부적으로 Durable Objects/Workflows:**
+
+  원격 바인딩을 사용할 때[Wrangler 구성](/workers/wrangler/configuration), 당신의 국부적으로 운영하는 Durable Objects와 Workflows는 원격 자원에 접근할 수 있습니다. 이 같은 바인딩을 사용할 수 있지만 로컬 개발 중에 원격 리소스와 상호 작용합니다.
+
+- **원격 액세스 Durable Objects/Workflows 서비스 바인딩을 통해:**
+
+  원격 내구성 객체 또는 Workflow 인스턴스와 상호 작용하려면, 그 정의를 정의하는 Worker를 배치합니다. 그런 다음 로컬 노동자에서 원격 구성[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)배포 된 노동자에게 지적.
+  로컬 노동자는 원격 배치 된 노동자와 상호 작용할 수 있으며 원격 Durable Objects/WorkflowsXQ와 통신 할 수 있습니다. 이 방법을 사용하여 원격 서비스 바인딩을 통해 통신 채널을 만들 수 있으며 로컬 개발 중에 원격 바인딩에 프록시 인터페이스로 배포 된 노동자를 효과적으로 사용합니다.
+
+### 중요한 고려 사항
+
+- **데이터 수정**: 원격 연결되는 바인딩에 가동 (쓰기, 삭제, 갱신)는 표적 Cloudflare 자원에 있는 당신의 실제적인 자료에 영향을 미칠 것입니다 (예시 또는 생산).
+
+- **계정 관리**: 이 연결을 통해 원격 Cloudflare 서비스와 상호 작용은 해당 서비스에 대한 표준 운영 비용 (KV 운영, R2 저장 / 운영, AI 요청, D1 사용).
+
+- **네트워크 지연**: 이 원격 연결 바인딩에 대한 작업에 대한 네트워크 지연, 그들은 인터넷에 통신을 포함.
+
+### 사이트맵
+
+Wrangler는 Workers 코드를 실행할 때 공구 저자 지원 먼 의무 연결을 돕기 위하여 programmatic 유틸리티를 제공합니다[미니 플레어](/workers/testing/miniflare/).
+
+**주요 API는 다음을 포함합니다:**
+
+- [`startRemoteProxySession`](#startRemoteProxySession): 원격 바인딩과 상호 작용할 수 있는 프록시 세션을 시작합니다.
+- [`unstable_convertConfigBindingsToStartWorkerBindings`](#unstable_convertconfigbindingstostartworkerbindings): 바인딩 정의 변환을위한 유틸리티.
+- [`experimental_maybeStartOrUpdateProxySession`](#experimental_maybestartorupdatemixedmodesession): 쉽게 프록시 세션을 시작하거나 업데이트하는 Convenience 기능.
+
+#### `startRemoteProxySession`
+
+이 기능은 묶음의 주어진 세트를 위한 프록시 세션을 시작합니다. 세션 행동을 제어하는 옵션을 수락합니다.`auth`원격 바인딩 액세스를 위한 Cloudflare 계정 ID 및 API 토큰을 가진 선택권.
+
+객체를 반환합니다:
+
+- `ready` <Type text="Promise<void>" />: 세션이 준비될 때 해결합니다.
+- `dispose` <Type text="() => Promise<void>" />: 세션 중지.
+- `updateBindings` <Type text="(bindings: StartDevWorkerInput['bindings']) => Promise<void>" />: 업데이트 세션 바인딩.
+- `remoteProxyConnectionString` <Type text="remoteProxyConnectionString" />: 원격 바인딩 접근을 위한 Miniflare에 전달하는 문자열.
+
+#### `unstable_convertConfigBindingsToStartWorkerBindings`
+
+더 보기`unstable_readConfig`유틸리티 반환`Unstable_Config`구성 파일에 포함된 바인딩의 정의를 포함하는 객체. 이 바인딩 정의
+그러나 직접 호환되지 않음`startRemoteProxySession`. 그러나 바인딩 선언을 읽는 것은 확실히 편리한 일 수 있습니다`unstable_readConfig`그리고 그때
+그대에게`startRemoteProxySession`, 그래서이 wrangler 노출`unstable_convertConfigBindingsToStartWorkerBindings`변환하는 간단한 유틸리티
+관련 기사`Unstable_Config`에 전달 될 수있는 구조로 객체`startRemoteProxySession`.
+
+:::참조
+이 유형 변환은 임시입니다. 앞으로는, 유형은 통합될 것입니다 그래서 당신은 config 목표를 직접 통과할 수 있습니다`startRemoteProxySession`.
+:::
+
+#### `maybeStartOrUpdateRemoteProxySession`
+
+이 래퍼는 프록시 세션 관리를 단순화합니다. 그것은 걸립니다:
+
+- 다음을 포함하는 객체:
+  - Wrangler 구성 및 잠재적 대상 환경에 대한 경로
+  - 노동자와 바인딩의 이름은 사용
+- 현재 프록시 세션 세부 사항(이 매개 변수는 설정할 수 있습니다.`null`또는 none이 있다면 제공되지 않습니다.
+- 원격 프록시 세션을 사용하는 auth 데이터.
+
+시작 또는 업데이트된 경우 프록시 세션 세부 사항과 객체를 반환하거나`null`프록시 세션이 필요없는 경우.
+
+기능:
+
+- 첫 번째 인수를 기반으로 프록시 세션의 입력 인수를 준비합니다.
+- 사용되지 않은 원격 바인딩이 없으면 (이전 프록시 세션 없음) 그것은 null을 반환하고, 프록시 세션이 필요하지 않습니다.
+- 기존 프록시 세션의 세부 사항이 제공되면 프록시 세션을 업데이트했습니다.
+- 다른 경우 새로운 프록시 세션을 시작합니다.
+- 프록시 세션 세부 사항을 반환 (그 나중에 두 번째 인수로 전달 될 수 있음)`maybeStartOrUpdateRemoteProxySession`).
+
+#### 이름 \*
+
+Miniflare를 사용하여 기본 예입니다.`maybeStartOrUpdateRemoteProxySession`원격 바인딩으로 로컬 dev 세션을 제공합니다. 이 예제는 단일 하드 코딩 KV 바인딩을 사용합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { Miniflare, MiniflareOptions } from "miniflare";
+  import { maybeStartOrUpdateRemoteProxySession } from "wrangler";
+
+  let mf: Miniflare | null;
+
+  let remoteProxySessionDetails: Awaited<
+  	ReturnType<typeof maybeStartOrUpdateRemoteProxySession>
+  > | null = null;
+
+  async function startOrUpdateDevSession() {
+  	remoteProxySessionDetails = await maybeStartOrUpdateRemoteProxySession(
+  		{
+  			bindings: {
+  				MY_KV: {
+  					type: "kv_namespace",
+  					id: "kv-id",
+  					remote: true,
+  				},
+  			},
+  		},
+  		remoteProxySessionDetails,
+  	);
+
+  	const miniflareOptions: MiniflareOptions = {
+  		scriptPath: "./worker.js",
+  		kvNamespaces: {
+  			MY_KV: {
+  				id: "kv-id",
+  				remoteProxyConnectionString:
+  					remoteProxySessionDetails?.session.remoteProxyConnectionString,
+  			},
+  		},
+  	};
+
+  	if (!mf) {
+  		mf = new Miniflare(miniflareOptions);
+  	} else {
+  		mf.setOptions(miniflareOptions);
+  	}
+  }
+
+  //... `startOrUpdateDevSession()`XQ를 호출하는 도구 논리 ...
+
+  //... 한 번 dev 세션은 더 이상 필요하지 않습니다.
+  //모델 번호: `remoteProxySessionDetails?.session.dispose()`
+  ```
+</TypeScriptExample>
+
+## `wrangler dev --remote`(라이시)
+
+Miniflare-powered 로컬 개발과 별도로 Wrangler는 또한 완전히 원격 개발 모드를 제공합니다[`wrangler dev --remote`](/workers/wrangler/commands/#dev). 먼 발달은 입니다[**아니다.**&#x56;ite 플러그인 지원](/workers/development-testing/wrangler-vs-vite/).
+
+<PackageManagers type="exec" pkg="wrangler" args="dev --remote" />
+
+기간 중**원격 개발**, 모든 작업자의 코드는 Cloudflare의 인프라에서 임시 미리보기 환경에 업로드되며 코드를 자동으로 업로드합니다.
+
+원격 개발을 사용할 때 모든 바인딩은 원격 리소스에 자동으로 연결됩니다. 로컬 개발과 달리 로컬 시뮬레이션을 사용할 바인딩을 구성 할 수 없습니다 - 그들은 항상 Cloudflare의 네트워크에 배치 된 리소스를 사용합니다.
+
+### 원격 개발을 사용할 때
+
+- 대부분의 개발 작업을 위해 가장 효율적이고 생산적인 경험은 현지 개발과 함께 될 것입니다.[먼 바인딩](/workers/development-testing/#remote-bindings)필요한 경우.
+- 당신은 사용할 수 있습니다`wrangler dev --remote`Cloudflare의 네트워크에 매우 특정한 테스트 기능 또는 행동을 위해 국부적으로 또는 원격 바인딩을 통해 시험해 적절하게 가장된 것은 수 없습니다.
+
+### 관련 기사
+
+- Iteration은 각 변화에 대한 업로드 / 배포 단계로 인해 로컬 개발보다 크게 느립니다.
+
+### 제한 사항
+
+- 원격 개발 세션을 실행할 때`--remote`깃발, 50의 한계[오시는 길](/workers/configuration/routing/routes/)지역 당 집행됩니다. 더 알아보기[Workers 플랫폼 제한](/workers/platform/limits/#number-of-routes-per-zone-when-using-wrangler-dev---remote).

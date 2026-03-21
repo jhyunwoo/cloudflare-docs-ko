@@ -1,0 +1,410 @@
+---
+pcx_content_type: navigation
+title: Core SDK 사용
+slug: realtime/realtimekit/core
+sidebar:
+  order: 6
+  label: 시작하기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/core/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/realtimekit/core/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+### 핵심 SDK를 초기화
+
+Core SDK를 통합하려면, 초기화해야 합니다.[participant의 auth 토큰](/api/resources/realtime_kit/#create-a-participant), 해당 SDK API를 사용하여 세션에서 피어를 제어합니다.
+
+초기화는 기술 스택에 따라 약간 다를 수 있습니다. 아래에서 선호하는 기술 스택을 선택하십시오.
+
+<RTKSDKSelector />
+
+<RTKCodeSnippet id="web-react">
+  클라이언트 SDK 설치
+
+  ```bash
+  npm i @cloudflare/realtimekit-react
+  ```
+
+  사용 방법`useRealtimeKitClient`SDK를 초기화하는 후크.
+
+  ```ts title=App.tsx
+  import { useEffect } from 'react';
+  import { useRealtimeKitClient } from '@cloudflare/realtimekit-react';
+
+  export default function App() {
+  	const [meeting, initMeeting] = useRealtimeKitClient();
+
+      useEffect(() => {
+        const meetingDefaultOptions = {
+          audio: true,
+          video: true,
+        };
+
+      	initMeeting({
+          authToken: "<auth-token>",
+          defaults: meetingDefaultOptions, //옵션 정보
+        });
+      }, []);
+
+      useEffect(() => {
+      	//다음 - if (meeting) meeting.join();
+      }, [meeting])
+
+      return <div></div>;
+
+  }
+
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant)으로 fetch`authToken`.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  클라이언트 SDK를 설치합니다.
+
+  ```bash
+  npm i @cloudflare/realtimekit
+  ```
+
+  또는 CDN도 사용할 수 있습니다.
+
+  ```html
+  <script src="https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/browser.js"></script>
+  ```
+
+  SDK를 초기화할 수 있습니다.`RealtimeKitClient.init`.
+
+  ```js
+  	const authToken = <auth-token>;
+
+    const meetingDefaultOptions = {
+      audio: true,
+      video: true,
+    };
+
+  	RealtimeKitClient.init({
+  	  authToken,
+  	  defaults: meetingDefaultOptions, //옵션 정보
+  	}).then((meeting) => {
+  		//다음 - Meeting.join();
+  	});
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant)으로 fetch`authToken`.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  클라이언트 SDK를 설치합니다.
+
+  ```bash
+  npm i @cloudflare/realtimekit-angular
+  ```
+
+  SDK를 초기화할 수 있습니다.`RealtimeKitClient.init`.
+
+  ```ts
+  class AppComponent {
+  	title = "MyProject";
+  	@ViewChild("myid") meetingComponent: RtkMeeting;
+  	rtkMeeting: RealtimeKitClient;
+
+  	async ngAfterViewInit() {
+  		const meetingDefaultOptions = {
+  			audio: true,
+  			video: true,
+  		};
+  		const meeting = await RealtimeKitClient.init({
+  			authToken: "<auth-token>",
+  			defaults: meetingDefaultOptions, //옵션 정보
+  		});
+  		//다음 - Meeting.join();
+  	}
+  }
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant)으로 fetch`authToken`.
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  RealtimeKit SDK 초기화`RealtimeKitClient`사용 방법`RealtimeKitMeetingBuilder`도움.
+
+  ```kotlin
+  val meeting = RealtimeKitMeetingBuilder.build(activity)
+  ```
+
+  회의 속성을 구성`RtkMeetingInfo`유효한 참가자를 가진 종류`authToken`으로[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant).
+
+  ```kotlin
+  val meetingInfo =
+    RtkMeetingInfo(
+      authToken = authToken,
+      enableAudio = true,
+      enableVideo = true,
+    )
+  ```
+
+  호출하여 회의를 초기화`init()`방법. RealtimeKit 미팅 서버와 연결을 설정합니다.
+
+  ```kotlin
+  meeting.init(
+    meetingInfo,
+    onInitCompleted = { ... },
+    onInitFailed = { ... },
+  )
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-ios">
+  RealtimeKit SDK를 초기화하여 인스턴스 생성`RealtimeKitClient`.
+
+  ```swift
+  let meeting = RealtimeKitiOSClientBuilder().build()
+  ```
+
+  회의 행사에 대한 콜백을받을 필요한 청취자를 추가하십시오.
+
+  ```swift
+  meeting.addMeetingRoomEventListener(meetingRoomEventListener: self)
+  meeting.addParticipantsEventListener(participantsEventListener: self)
+  meeting.addSelfEventListener(selfEventListener: self)
+  ```
+
+  회의 속성을 구성`RtkMeetingInfo`유효한 참가자를 가진 종류`authToken`으로[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant).
+
+  ```swift
+  let meetingInfo = RtkMeetingInfo(authToken: authToken,
+                                    enableAudio: true,
+                                    enableVideo: true)
+  ```
+
+  호출하여 회의를 초기화`doInit()`방법. RealtimeKit 미팅 서버와 연결을 설정합니다.
+
+  ```swift
+  meeting.doInit(meetingInfo: meetingInfo, onSuccess: {}, onFailure: {_ in})
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-flutter">
+  RealtimeKit SDK를 초기화하여 인스턴스 생성`RealtimeKitClient`.
+
+  ```dart
+  final meeting = RealtimeKitClient();
+  ```
+
+  회의 속성을 구성`RtkMeetingInfo`유효한 참가자를 가진 종류`authToken`으로[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant).
+
+  ```dart
+  final meetingInfo = RtkMeetingInfo(
+                      authToken: authToken,
+                      enableAudio: false,
+                      enableVideo: false,
+                    );
+  ```
+
+  호출하여 연결 초기화`init()`방법. RealtimeKit 미팅 서버와 연결을 설정합니다.
+
+  ```dart
+  meeting.init(meetingInfo);
+  ```
+
+  구독하기`RtkMeetingRoomEventListener`회의 행사에 대한 콜백을받을 수 있습니다.
+
+  ```dart
+  meeting.addMeetingRoomEventListener(RoomStateNotifier());
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-react-native">
+  RealtimeKit SDK를 초기화`useRealtimeKitClient`걸이.
+
+  ```js
+  import React from 'react';
+  import { View, Text } from 'react-native';
+  import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react-native';
+
+  export default function App() {
+    const [meeting, initMeeting] = useRealtimeKitClient();
+    React.useEffect(() => {
+      const init = async () => {
+        const meetingOptions = {
+          audio: true,
+          video: true,
+        };
+        await initMeeting({
+          authToken: 'YourAuthToken',
+          defaults: meetingOptions,
+        });
+      };
+      init();
+      //다음 - if (meeting) meeting.joinRoom();
+    }, []);
+
+    if (meeting) {
+      return (
+        <RealtimeKitProvider value={meeting}>
+          {/*여기에 당신의 성분을 렌더링*/}
+        </RealtimeKitProvider>
+      );
+    } else {
+      return (
+        <View>
+          <Text>Loading...</Text>
+        <View>
+      )
+    }
+  }
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant)으로 fetch`authToken`.
+</RTKCodeSnippet>
+
+### 고급 옵션
+
+<RTKCodeSnippet id={["web-react", "web-angular", "web-web-components", "mobile-react-native"]}>
+  당신은 할 수**옵션으로**기본적으로 회의를 구성, 미디어 품질, 스크린 공유 preference, simulcast 설정, 얼음 연결 행동, 로깅 및 오류 처리는 SDK 초기화.
+
+  ```ts
+  init({
+  	authToken: "<auth_token>",
+  	defaults: {
+  		video: true,
+  		audio: true,
+  		mediaConfiguration: {
+  			//사용자 정의 비디오 품질을 구성 (예 : 1080p). 단일 레이어 스트리밍에 대한 `simulcastConfig` override를 사용하여 시뮬레이션을 비활성화합니다.
+  			video: {
+  				width: { ideal: 1920 },
+  				height: { ideal: 1080 },
+  				frameRate: { ideal: 15 },
+  			},
+  			screenshare: {
+  				frameRate: { ideal: 15, max: 30 }, //기본 5
+  				displaySurface: "monitor", //Given 표면은 최종 사용자에게 제안됩니다.
+  			},
+  		},
+  	},
+  	overrides: {
+  		simulcastConfig: {
+  			//simulcast를 비활성화하려면
+  			disable: false,
+  			//사용자 정의 simulcast 인코딩을 전달하려면
+  			encodings: [
+  				{
+  					rid: "f", /// 고품질
+  					scaleResolutionDownBy: 1.0,
+  					maxBitrate: 2500000, //~2.5 Mbps의
+  				},
+  				{
+  					rid: "h", //30 분
+  					scaleResolutionDownBy: 2.0,
+  					maxBitrate: 900000, //~0.9 Mbps의
+  				},
+  				{
+  					rid: "q", //주요 특징
+  					scaleResolutionDownBy: 4.0,
+  					maxBitrate: 250000, //~0.25 Mbps의
+  				},
+  			],
+  		},
+  		forceRelay: false, //forceRelay, true인 경우, TURN은 STUN에서 선호됩니다.
+  	},
+  	modules: {
+  		devTools: {
+  			logs: true, //prints SDK는 콘솔에 로그인하여 초기 통합 단계에 유용합니다.
+  		},
+  	},
+  	onError: (error) => {
+  		console.error(error); //SDK 오류, 일반적인 문제를 감지하는 데 유용한
+  	},
+  });
+  ```
+
+  :::가격
+  `onError`콜백은 SDK 오류를 처리하는 데 사용됩니다. 이 오류는 잘못된 auth 토큰, 네트워크 문제, 미디어 권한 등으로 인해 발생할 수 있습니다. 각 오류는 고유 오류 코드로 던져집니다. SDK에 대해 자세히 알아보기[오류 코드](/realtime/realtimekit/core/error-codes/).
+  :::
+
+  다음과 같은 옵션을 전달할 수 있습니다.`defaults`기본 동작을 변경합니다.
+
+  | 옵션 정보                 | 이름 \*                            | 제품정보                                   | 견적 요청 |
+  | --------------------- | -------------------------------- | -------------------------------------- | ----- |
+  | **동영상**               | 기본적으로 비디오가 활성화되어야 합니다.           | `boolean`                              | 이름 \* |
+  | **언어: 영어**            | 오디오가 기본적으로 활성화되어야 합니다.           | `boolean`                              | 이름 \* |
+  | **미디어 구성**            | 사용자 정의 미디어 품질 제약을 통과 할 수 있습니다    | `MediaConfiguration`                   | 이름 \* |
+  | **자동 스위치AudioDevice** | 새로 폐쇄 된 마이크 또는 스피커로 자동 전환        | `boolean`                              | 이름 \* |
+  | **isNonPreferred장치**  | 특정 장치를 "not prefer"로 설정할 수 있습니다. | `(device: MediaDeviceInfo) => boolean` | 이름 \* |
+  | **관련 기사**             | 녹화 설정을 구성할 수 있습니다.               | 기록Config                               | 이름 \* |
+
+  :::정보
+  기본적으로 오디오 및 비디오는 자동 활성화되어 사전 설정 권한 당. SDK는 그룹 통화에 대한 기본으로 640x480 품질을 사용합니다.`mediaConfiguration`. 기본적으로, SDK는 자동적으로 제일 유효한 장치로 전환하고 사실상 장치를 선호하지 않기 때문에 표합니다.
+  주요 특징
+
+  유형에 대한 참조 :
+
+  ```ts
+  interface AudioQualityConstraints {
+  	echoCancellation?: boolean;
+  	noiseSupression?: boolean;
+  	autoGainControl?: boolean;
+  	enableStereo?: boolean;
+  	enableHighBitrate?: boolean;
+  }
+
+  interface VideoQualityConstraints {
+  	width: { ideal: number };
+  	height: { ideal: number };
+  	frameRate?: { ideal: number };
+  }
+
+  interface ScreenshareQualityConstraints {
+  	width?: { max: number };
+  	height?: { max: number };
+  	frameRate?: {
+  		ideal: number;
+  		max: number;
+  	};
+  	displaySurface?: "window" | "monitor" | "browser";
+  	selfBrowserSurface?: "include" | "exclude";
+  }
+
+  interface MediaConfiguration {
+  	video?: VideoQualityConstraints;
+  	audio?: AudioQualityConstraints;
+  	screenshare?: ScreenshareQualityConstraints;
+  }
+
+  interface RecordingConfig {
+  	fileNamePrefix?: string;
+  	videoConfig?: {
+  		height?: number;
+  		width?: number;
+  		codec?: string;
+  	};
+  }
+
+  interface DefaultOptions {
+  	video?: boolean;
+  	audio?: boolean;
+  	mediaConfiguration?: MediaConfiguration;
+  	isNonPreferredDevice?: (device: MediaDeviceInfo) => boolean;
+  	autoSwitchAudioDevice?: boolean;
+  	recording?: RecordingConfig;
+  }
+
+  interface Overrides {
+  	simulcastConfig?: {
+  		disable?: boolean;
+  		encodings?: RTCRtpEncodingParameters[];
+  	};
+  	forceRelay?: boolean;
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id={["mobile-android", "mobile-ios", "mobile-flutter"]}>
+  기본적으로 회의를 구성할 수 있습니다.`enableAudio`·`enableVideo`모수.
+</RTKCodeSnippet>

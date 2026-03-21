@@ -1,0 +1,222 @@
+---
+pcx_content_type: configuration
+title: 좋은 관행
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/terraform/advanced-topics/best-practices/'
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/advanced-topics/best-practices/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+모든 Terraform 배포가 독특하지만, 이 최고의 관행을 따라 성공을 거둘 수 있습니다.
+
+## Terraform 리소스 관리
+
+Terraform은 모든 변화와 자원의 수명주기를 관리 할 때 가장 잘 작동합니다.
+
+구성에 어떤 작업 후, Terraform는 로컬 상태에 원격을 동기화하여 차이를 재구성하려고 시도합니다. 지역 및 원격의 차이가 있는 경우 - Terraform 외부의 리소스 관리에 의해 발생 - 당신은 모든 리소스 지원 in-place 업데이트되지 않기 때문에 국가 파일 (보통 수입을 통해)의 리소스를 삭제하고 다시 만들 필요가 있습니다.
+
+## 디렉토리 구조
+
+Cloudflare는 계정, 지역 및 제품의 조합에 의존하는 디렉토리 구조를 사용하여 좋습니다. 이 설정은 영역의 특정 제품에 미세 곡물 소유자 및 범위 된 Terraform 작업을 할 수 있습니다. 그것은 또한 Cloudflare's를 가진 더 밀접한 정렬 주인[기본 역할](/fundamentals/manage-members/roles/), AWS 또는 GCP 저장과 같은 추가 도구는 별도의 상태 파일을 허가합니다.
+
+규칙 세트와 같은 많은 책임을 우회하는 제품을 위해, 당신은 단계 수준 (WAFXQXQ, 리디렉션, 기원 규칙)에 분할하여 이것을 더 확장할 수 있습니다.
+
+```txt
+example-tf/
+├── demo_account_a                  # per account segregation of resources
+│   ├── users                       # top level directory for account members as they are "zoneless"
+│   │   ├── provider.tf             # `provider.tf` is for configuring the providers
+│   │   ├── users.tf                # `<subject>.tf` (users.tf) is for managing the individual resources
+│   │   └── vars.tf                 # manage all variables for this component
+│   ├── zone_a                      # group all zone based features together
+│   │   ├── dns                     # individual (or grouped, your choice) of products or features to manage together
+│   │   │   ├── dns.tf              # `<subject>.tf` (dns.tf) is for managing the individual resources
+│   │   │   ├── provider.tf         # `provider.tf` is for configuring the providers
+│   │   │   └── vars.tf             # manage all variables for this component
+│   │   └── page_rules              # ... same as above but for Page Rules
+│   │       ├── page_rules.tf
+│   │       ├── provider.tf
+│   │       └── vars.tf
+│   ├── zone_b
+│   │   ├── dns
+│   │   │   ├── dns.tf
+│   │   │   ├── provider.tf
+│   │   │   └── vars.tf
+│   │   └── page_rules
+│   │       ├── page_rules.tf
+│   │       ├── provider.tf
+│   │       └── vars.tf
+│   └── zone_c
+│       ├── dns
+│       │   ├── dns.tf
+│       │   ├── provider.tf
+│       │   └── vars.tf
+│       └── page_rules
+│           ├── page_rules.tf
+│           ├── provider.tf
+│           └── vars.tf
+└── demo_account_b
+    ├── users
+    │   ├── provider.tf
+    │   ├── users.tf
+    │   └── vars.tf
+    ├── zone_a
+    │   ├── dns
+    │   │   ├── dns.tf
+    │   │   ├── provider.tf
+    │   │   └── vars.tf
+    │   └── page_rules
+    │       ├── page_rules.tf
+    │       ├── provider.tf
+    │       └── vars.tf
+    ├── zone_b
+    │   ├── dns
+    │   │   ├── dns.tf
+    │   │   ├── provider.tf
+    │   │   └── vars.tf
+    │   └── page_rules
+    │       ├── page_rules.tf
+    │       ├── provider.tf
+    │       └── vars.tf
+    └── zone_c
+        ├── dns
+        │   ├── dns.tf
+        │   ├── provider.tf
+        │   └── vars.tf
+        └── page_rules
+            ├── page_rules.tf
+            ├── provider.tf
+            └── vars.tf
+```
+
+## 단위를 피하십시오 (또는 그(것)들을 sparingly 사용하십시오)
+
+Terraform 모듈은 추상 인터페이스에서 논리로 여러 리소스를 캡슐화하는 방법입니다. 모듈이 풀, 일부 DNS 항목, 아마도 페이지 규칙과 기본 로드밸런서를 설정하는 예를 고려하십시오. 최종 사용자는 다음과 같이 사용할 수 있습니다:
+
+```hcl
+module "example" "an_example_site" {
+  domain = "example.com"
+  origin_ip = "192.168.0.1"
+}
+```
+
+Terraform 리소스의 관점에서, 그러나 위의 예는 다음과 같이 번역 될 것입니다:
+
+```hcl
+resource "cloudflare_record" "example_1" {
+  zone_id = var.cloudflare_zone_id
+  name    = "terraform"
+  value   = "198.51.100.11"
+  type    = "A"
+  ttl     = 3600
+}
+
+resource "cloudflare_record" "example_2" {
+  zone_id = var.cloudflare_zone_id
+  name    = "terraform"
+  value   = "198.51.100.12"
+  type    = "A"
+  ttl     = 3600
+}
+
+resource "cloudflare_record" "example_3" {
+  zone_id = var.cloudflare_zone_id
+  name    = "terraform"
+  value   = "198.51.100.13"
+  type    = "A"
+  ttl     = 3600
+}
+
+resource "cloudflare_load_balancer" "bar" {
+  zone_id          = var.cloudflare_zone_id
+  name             = "example-load-balancer.example.com"
+  fallback_pool_id = cloudflare_load_balancer_pool.foo.id
+  default_pool_ids = [cloudflare_load_balancer_pool.foo.id]
+  description      = "example load balancer using geo-balancing"
+  proxied          = true
+  steering_policy  = "geo"
+
+  pop_pools {
+    pop      = "LAX"
+    pool_ids = [cloudflare_load_balancer_pool.foo.id]
+  }
+
+  country_pools {
+    country  = "US"
+    pool_ids = [cloudflare_load_balancer_pool.foo.id]
+  }
+
+  region_pools {
+    region   = "WNAM"
+    pool_ids = [cloudflare_load_balancer_pool.foo.id]
+  }
+
+  rules {
+    name      = "example rule"
+    condition = "http.request.uri.path contains \"testing\""
+    fixed_response {
+      message_body = "hello"
+      status_code  = 200
+      content_type = "html"
+      location     = "www.example.com"
+    }
+  }
+}
+
+resource "cloudflare_load_balancer_pool" "example_lb_pool" {
+  name = "example-lb-pool"
+  origins {
+    name    = "example-1"
+    address = "198.51.100.1"
+    enabled = true
+  }
+}
+
+resource "cloudflare_page_rule" "example_page_rule" {
+  zone_id = var.cloudflare_zone_id
+  target = "sub.${var.cloudflare_zone}/page"
+  priority = 1
+
+  actions {
+    ssl = "flexible"
+    email_obfuscation = "on"
+  }
+}
+```
+
+편리한 동안이 설정은 예상되지 않은 문제를 일으킬 수 있습니다. 이 모듈이 공유되고 그 후에 내부적으로 변경되는 경우, 모듈은 동기화 또는 재조합의 자원이있을 수 있습니다.
+
+모듈을 사용하여 Terraform 코어와 Cloudflare 공급자의 외부 잠재적 논리 버그를 무시하거나 재제작 문제의 어려움을 증가시킵니다.
+
+:::카트로션
+
+이 통보는 또한 적용합니다[Terraform 동적인 구획](https://www.terraform.io/language/expressions/dynamic-blocks)그것은 당신의 HCL에 논리를 할 수 있습니다. 이 동적 블록은 항상 평가되어 있기 때문에 구성에서 논리 버그가 있는 상황으로 자신을 얻을 수 있습니다 (그리고 최종 결과가 비공개).
+
+:::
+
+## Terraform에 리소스를 마이그레이션
+
+Cloudflare는 사용을 추천합니다[`cf-terraforming`](/terraform/advanced-topics/import-cloudflare-resources/)기존 리소스를 CloudflareXQ로 마이그레이션합니다.
+
+## Terraform 이외의 리소스 관리
+
+다른 도구를 사용하여 Terraform 및 기타 내부 리소스를 관리하는 것이 완벽합니다. 그러나 당신은 확실하지 않습니다[같은 리소스를 모두 수행](#manage-terraform-resources-in-terraform).
+
+## 별도의 환경
+
+별도의 환경(staging, QA, UAT, Production)을 안전하게 관리할 수 있도록 별도의 Cloudflare 계정과 별도의 도메인(예:`example.com`·`example-staging.com`).
+
+계정 수준에 정의 된 일부 제품이 공유되기 때문에 (Load Balancer monitors and pools와 같은) 그들은 같은 계정에있는 경우 격리 된 변경을 만들 수 없습니다. 별도의 계정도 DNSSEC와 같은 것을 테스트하려는 경우도 유용합니다. 즉, 설정된 경우 전체 도메인에 영향을 줄 수 있습니다.
+
+drift를 최소화하기 위해 Terraform과 CI/CD 파이프라인을 사용하여 필요한 동기화를 유지하도록 합니다.
+
+## 매장 안내
+
+일반 텍스트로 Cloudflare 자격 증명을 저장하는 것이 좋습니다.
+
+Locally, 당신은 같은 타사 도구를 사용할 수 있습니다[cf 볼트](https://github.com/jacobbednarz/cf-vault/)Cloudflare 자격 증명을 저장하십시오.
+
+CI 파이프라인의 경우 내부 또는 비밀 저장 도구를 사용하십시오 (예 :[볼트](https://www.hashicorp.com/products/vault/secrets-management)).

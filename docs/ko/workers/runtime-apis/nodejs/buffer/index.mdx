@@ -1,0 +1,52 @@
+---
+pcx_content_type: configuration
+title: 기본 정보
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/buffer/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/buffer/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="nodejs-compat-howto" product="workers" />
+
+더 보기[`Buffer`](https://nodejs.org/docs/latest/api/buffer.html)Node.js의 API는 바이너리 데이터를 조작하기위한 가장 일반적으로 사용되는 Node.js API 중 하나입니다. 모든 제품`Buffer`인스턴스는 표준에서 확장됩니다.[`Uint8Array`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Uint8Array)클래스, 그러나 내장 base64 및 hex 인코딩/decoding, byte-order operion 및 인코딩-aware substring 검색과 같은 고유의 기능을 추가합니다.
+
+```js
+import { Buffer } from "node:buffer";
+
+const buf = Buffer.from("hello world", "utf8");
+
+console.log(buf.toString("hex"));
+//인쇄: 68656c6c6f20776f726c64
+console.log(buf.toString("base64"));
+//인쇄: aGVsbG8gd29ybGQ=
+```
+
+버퍼가`Uint8Array`. 그러므로, 그것은 현재 수락하는 어떤 Workers API에서 사용될 수 있습니다`Uint8Array`새로운 응답을 창조와 같은:
+
+```js
+const response = new Response(Buffer.from("hello world"));
+```
+
+또한 사용할 수 있습니다`Buffer`스트림과 상호 작용할 때 API:
+
+```js
+const writable = getWritableStreamSomehow();
+const writer = writable.getWriter();
+writer.write(Buffer.from("hello world"));
+```
+
+Workers 구현의 핵심 차이점`Buffer`Node.js
+구현은 어떤 방법을 만드는`Buffer`Node.js에서 할당
+글로벌 메모리 풀에서 성능 최적화. Workers 구현
+메모리 풀을 사용하지 않고 모두`Buffer`인스턴스는 독립적으로 할당됩니다.
+
+더구나, Node.js에서 그것은 할당할 수 있습니다`Buffer`uninitialized 기억
+사용 방법`Buffer.allocUnsafe()`방법. 이것은 Workers에서 지원되지 않으며`Buffer`인스턴스는 항상 초기화됩니다.`Buffer`항상 채워
+null 바이트로 (`0x00`) 할당될 때.
+
+더 알아보기[Node.js 문서`Buffer`](https://nodejs.org/dist/latest-v19.x/docs/api/buffer.html)더 많은 정보.

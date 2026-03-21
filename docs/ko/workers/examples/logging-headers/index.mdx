@@ -1,0 +1,201 @@
+---
+summary: Examine the contents of a Headers object by logging to console with a Map.
+tags:
+  - Debugging
+  - Headers
+  - JavaScript
+  - Rust
+  - TypeScript
+  - Python
+preview:
+  - true
+pcx_content_type: example
+title: 콘솔 로깅 헤더
+sidebar:
+  order: 1001
+description: Headers object의 내용을 Map로 콘솔로 변환합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/logging-headers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/logging-headers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get startedXQ를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/logging-headers)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		console.log(new Map(request.headers));
+    		return new Response("Hello world");
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		console.log(new Map(request.headers));
+    		return new Response("Hello world");
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            print(dict(request.headers))
+            return Response('Hello world')
+    ```
+  </TabItem>
+
+  <TabItem label="Rust" icon="seti:rust">
+    ```rs
+    use worker::*;
+
+    #[event(fetch)]
+    async fn fetch(req: HttpRequest, _env: Env, _ctx: Context) -> Result<Response> {
+        console_log!("{:?}", req.headers());
+        Response::ok("hello world")
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    const app = new Hono();
+
+    app.get('*', (c) => {
+      //Hono에서 헤더를 로그 하는 다른 방법:
+
+      //1. 콘솔에 있는 headers를 표시하는 지도 사용하기
+      console.log('Headers as Map:', new Map(c.req.raw.headers));
+
+      //2. headers를 로그하기 위해 스프레드 연산자 사용
+      console.log('Headers spread:', [...c.req.raw.headers]);
+
+      //3. Object.fromEntries를 사용하여 객체로 변환
+      console.log('Headers as Object:', Object.fromEntries(c.req.raw.headers));
+
+      //4. 호노의 내장 헤더 accessor (개인 헤더 용)
+      console.log('User-Agent:', c.req.header('User-Agent'));
+
+      //5. c.req.headers를 사용하여 모든 헤더를 얻을
+      console.log('All headers from Hono context:', c.req.header());
+
+      return c.text('Hello world');
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>
+
+***
+
+## 콘솔로깅 헤더
+
+지원하다`Map`로그인해야 하는 경우`Headers`콘솔에 객체:
+
+```js
+console.log(new Map(request.headers));
+```
+
+사용 방법`spread`작업자가 신속하게 묶는 경우`Headers`객체:
+
+```js
+let requestHeaders = JSON.stringify([...request.headers]);
+```
+
+제품 정보`Object.fromEntries`헤더를 객체로 변환하기:
+
+```js
+let requestHeaders = Object.fromEntries(request.headers);
+```
+
+### 문제
+
+Workers를 디버깅하면 요청 또는 응답에 헤더를 검사합니다. 일반적인 실수는 다음과 같은 코드를 통해 개발자 콘솔에 헤더를 로그하려고합니다 :
+
+```js
+console.log(request.headers);
+```
+
+또는이:
+
+```js
+console.log(`Request headers: ${JSON.stringify(request.headers)}`);
+```
+
+두 시도는 빈 객체가 나타나는 결과 — 문자열`"{}"`- 심지어 호출`request.headers.has("Your-Header-Name")`true를 반환합니다. 브라우저가 실행되는 것과 같은 행동입니다.
+
+이런 일이 일어나기 때문에[기타 제품](https://developer.mozilla.org/en-US/docs/Web/API/Headers)객체는 enumerable JavaScript 속성에서 헤더를 저장하지 않습니다, 그래서 개발자 콘솔 및 JSON stringifier는 헤더의 이름과 값을 읽는 방법을 모른다. 실제로 빈 객체는 아니지만 opaque 객체는 아닙니다.
+
+`Headers`객체는 디버그 인쇄 헤더에 대한 빠른 원 라이너를 개발하기 위해 활용할 수 있습니다.
+
+### 패스 헤더를 통해 지도
+
+Headers 만들기를 위한 첫번째 일반적인 idiom`console.log()`-친환경은`Map`객체에서`Headers`객체와 로그`Map`객체.
+
+```js
+console.log(new Map(request.headers));
+```
+
+이 작품 때문에:
+
+- `Map`물체는 iterables에서, 같이 건설될 수 있습니다`Headers`.
+
+- 더 보기`Map`객체는 enumerable JavaScript 속성에서 항목을 저장하므로 개발자 콘솔이 볼 수 있습니다.
+
+### spread headers 에 a 배열
+
+더 보기`Map`호출에 대한 접근`console.log()`. 당신이 당신의 헤더를 문자열화해야하는 경우, 당신은 그 문자열화 발견`Map`수율 더 이상`[object Map]`.
+
+심지어는`Map`해당 이용 후기에 달린 코멘트가 없습니다.[계정 만들기](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol)-키드. 이 때문에,`JSON.stringify()`으로[Symbol-keyed 속성 무시](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Symbol#symbols_and_json.stringify)그리고 당신은 빈을 받게됩니다`{}`.
+
+대신 iterability를 활용할 수 있습니다.`Headers`새로운 방법으로 객체[연락처](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax) (`...`) 그것에.
+
+```js
+let requestHeaders = JSON.stringify([...request.headers], null, 2);
+console.log(`Request headers: ${requestHeaders}`);
+```
+
+### Object.fromEntries (ES2019)와 객체로 헤더를 변환
+
+ES2019 제공[`Object.fromEntries`](https://github.com/tc39/proposal-object-from-entries)headers를 객체로 변환하는 호출은:
+
+```js
+let headersObject = Object.fromEntries(request.headers);
+let requestHeaders = JSON.stringify(headersObject, null, 2);
+console.log(`Request headers: ${requestHeaders}`);
+```
+
+이 결과는 다음과 같습니다:
+
+```js
+Request headers: {
+  "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+  "accept-encoding": "gzip",
+  "accept-language": "en-US,en;q=0.9",
+  "cf-ipcountry": "US",
+  //· ...
+}"
+```

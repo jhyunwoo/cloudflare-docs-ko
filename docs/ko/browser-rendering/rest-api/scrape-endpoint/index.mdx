@@ -1,0 +1,144 @@
+---
+pcx_content_type: how-to
+title: /scrape - 스크랩 HTML 요소
+sidebar:
+  order: 7
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/rest-api/scrape-endpoint/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/rest-api/scrape-endpoint/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+더 보기`/scrape`endpoint는 웹 페이지의 특정 요소에서 구조화 된 데이터를 추출하고 요소 치수 및 내부 HTML과 같은 세부 정보를 반환합니다.
+
+<Render file="rest-api-token-permissions" product="browser-rendering" />
+
+## 끝점
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/scrape
+```
+
+## 관련 분야
+
+자주 묻는 질문`url`또는`elements`:
+
+- `url`(문자)
+- `elements`(물자의 레이) - 각 개체는 포함해야합니다`selector`(문자)
+
+## 일반적인 사용 사례
+
+- headings, 링크, 가격, 또는 CSS selectors와 다른 반복된 내용 추출
+- metadata 수집 (예, 제목, 설명, canonical 링크)
+
+## 기본 사용
+
+### URL에서 headings 및 링크 추출
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="컬럼">
+    오시는 길`https://example.com`메타데이터 추출`h1`·`a`DOM의 요소.
+
+    ```bash
+    curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/scrape' \
+      -H 'Authorization: Bearer <apiToken>' \
+      -H 'Content-Type: application/json' \
+      -d '{
+      "url": "https://example.com/",
+      "elements": [{
+        "selector": "h1"
+      },
+      {
+        "selector": "a"
+      }]
+    }'
+    ```
+
+    ```json output
+    {
+    	"success": true,
+    	"result": [
+    		{
+    			"results": [
+    				{
+    					"attributes": [],
+    					"height": 39,
+    					"html": "Example Domain",
+    					"left": 100,
+    					"text": "Example Domain",
+    					"top": 133.4375,
+    					"width": 600
+    				}
+    			],
+    			"selector": "h1"
+    		},
+    		{
+    			"results": [
+    				{
+    					"attributes": [
+    						{ "name": "href", "value": "https://www.iana.org/domains/example" }
+    					],
+    					"height": 20,
+    					"html": "More information...",
+    					"left": 100,
+    					"text": "More information...",
+    					"top": 249.875,
+    					"width": 142
+    				}
+    			],
+    			"selector": "a"
+    		}
+    	]
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript SDK는">
+    ```typescript
+    import Cloudflare from "cloudflare";
+
+    const client = new Cloudflare({
+    	apiToken: process.env["CLOUDFLARE_API_TOKEN"],
+    });
+
+    const scrapes = await client.browserRendering.scrape.create({
+    	account_id: process.env["CLOUDFLARE_ACCOUNT_ID"],
+    	elements: [
+            { selector: "h1" },
+            { selector: "a" }
+        ]
+    });
+
+    console.log(scrapes);
+    ```
+  </TabItem>
+</Tabs>
+
+HTTP credentials 설정과 같은 많은 옵션이 존재합니다.`authenticate`, 설정`cookies`, 및 사용`gotoOptions`페이지로드 동작을 제어하기 위해 - endpoint를 확인[참고 자료](/api/resources/browser_rendering/subresources/scrape/methods/create/)모든 유효한 모수를 위해.
+
+### 응답 분야
+
+- `results` *(물자의 레이)*- 각 선택자를 위한 추출된 자료를 포함합니다.
+  - `selector` *(문자)*- CSS 선택기 사용.
+  - `results` *(물자의 레이)*- selector와 일치하는 추출 된 요소 목록.
+    - `text` *(문자)*- 요소의 내부 텍스트.
+    - `html` *(문자)*- 요소의 내부 HTML.
+    - `attributes` *(물자의 레이)*- 추출된 속성 목록`href`링크입니다.
+    - `height`, `width`, `top`, `left` *(번호)*- 요소의 위치 및 치수.
+
+## 고급 사용
+
+:::note\[더 많은 매개 변수를 찾고?]
+자주 묻는 질문[브라우저 렌더링 API 참고 자료](/api/resources/browser_rendering/subresources/scrape/methods/create/)HTTP credentials 설정과 같은 모든 사용 가능한 매개 변수에 대해`authenticate`, 설정`cookies`, 및 사용자 정의 로드 동작 사용`gotoOptions`.
+:::
+
+<Render file="javascript-heavy-pages" product="browser-rendering" />
+
+<Render file="setting-custom-user-agent" product="browser-rendering" />
+
+<Render file="faq" product="browser-rendering" />

@@ -1,0 +1,222 @@
+---
+pcx_content_type: how-to
+title: 대용량 파일(tus)
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/uploading-videos/resumable-uploads/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/uploading-videos/resumable-uploads/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+200MB 이상의 비디오 업로드가 필요하면 사용해야 합니다.[tus 프로토콜](https://tus.io/). 비디오가 200MB 미만인 경우에도 연결이 잠재적으로 신뢰할 수 없는 경우 Cloudflare는 tus 프로토콜을 사용하여 권장됩니다. Resumable 업로드는 업로드가 중단되고 이전 데이터를 다시 업로드하지 않고 재개 할 수 있음을 보장합니다.
+
+최종 사용자 동영상과 tus 프로토콜을 사용하려면, 참조[Direct Creator tus로 업로드](/stream/uploading-videos/direct-creator-uploads/#direct-creator-uploads-with-tus-protocol).
+
+동영상이 200MB 이하이고 연결이 신뢰할 수 있는 경우, 기본 사용 가능`POST`대신 요청. API 토큰을 사용하여 직접 API 업로드를 위해, 참조[연결하기](/stream/uploading-videos/upload-video-file/). 최종 사용자 업로드의 경우, 참조[Direct Creator에 대한 기본 POST 요청](/stream/uploading-videos/direct-creator-uploads/#basic-post-request).
+
+## 제품 정보
+
+- Resumable uploads은 최소 5,242,880 바이트의 펑크 크기를 요구합니다. 클라이언트 연결이 믿을 수 있을 것으로 예상될 때 더 나은 성과를 위해, 52,428,800 바이트에 펑크 크기를 증가하십시오.
+- 최대 펑크 크기는 209,715,200 바이트입니다.
+- Chunk 크기는 256 KiB (256x1024 바이트)에 의해 divisible이어야 합니다. 256 KiB의 가장 가까운 다중에 펑크 크기 라운드. 단일 펑크 내에서 맞는 업로드의 최종 펑크가이 요구 사항에서 면제됩니다.
+
+## 자주 묻는 질문
+
+tus를 사용하여 비디오를 업로드하기 전에 tus 클라이언트를 다운로드해야합니다.
+
+더 많은 정보를 원하시면, 참조[tus Python 클라이언트](https://github.com/tus/tus-py-client)pip, Python의 패키지 관리자를 통해 사용할 수 있습니다.
+
+```python title="Install Python client"
+pip install -U tus.py
+```
+
+## tus를 사용하여 동영상 업로드
+
+```sh title="Upload using tus"
+tus-upload --chunk-size 52428800 --header \
+Authorization "Bearer <API_TOKEN>"
+<PATH_TO_VIDEO> https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream
+```
+
+```sh title="tus response"
+INFO Creating file endpoint
+INFO Created: https://api.cloudflare.com/client/v4/accounts/d467d4f0fcbcd9791b613bc3a9599cdc/stream/dd5d531a12de0c724bd1275a3b2bc9c6
+...
+```
+
+### Golang 예제
+
+시작하기 전에 tus 클라이언트를 가져 오기[오시는길](https://github.com/eventials/go-tus)당신의 Go 신청에서 업로드하기.
+
+더 보기`go-tus`라이브러리는 호출 기능에 응답 헤더를 반환하지 않습니다, 그것은에서 비디오 ID를 읽을 어렵게`stream-media-id`헤더. 운동으로, 창조[Direct Creator 업로드](/stream/uploading-videos/direct-creator-uploads/)사이트 맵 API 응답은 TUS 엔드 포인트뿐만 아니라 비디오 ID를 포함합니다. Creator ID 설정은 필요하지 않습니다.
+
+```go title="Upload with Golang"
+package main
+
+import (
+	"net/http"
+	"os"
+
+	tus "github.com/eventials/go-tus"
+)
+
+func main() {
+	accountID := "<ACCOUNT_ID>"
+
+	f, err := os.Open("videofile.mp4")
+
+	if err != nil {
+		panic(err)
+	}
+
+	defer f.Close()
+
+	headers := make(http.Header)
+	headers.Add("Authorization", "Bearer <API_TOKEN>")
+
+	config := &tus.Config{
+		ChunkSize:           50 * 1024 * 1024, // Required a minimum chunk size of 5 MB, here we use 50 MB.
+		Resume:              false,
+		OverridePatchMethod: false,
+		Store:               nil,
+		Header:              headers,
+		HttpClient:          nil,
+	}
+
+	client, _ := tus.NewClient("https://api.cloudflare.com/client/v4/accounts/"+ accountID +"/stream", config)
+
+	upload, _ := tus.NewUploadFromFile(f)
+
+	uploader, _ := client.CreateUpload(upload)
+
+	uploader.Upload()
+}
+```
+
+Goroutine에서 업로드를 실행하면 업로드의 진행 상황을 얻을 수 있습니다.
+
+```go title="Get progress of upload"
+// returns the progress percentage.
+upload.Progress()
+
+// returns whether or not the upload is complete.
+upload.Finished()
+```
+
+더 알아보기[오시는길](https://github.com/eventials/go-tus)resuming uploads와 같은 기능을 위해.
+
+### Node.js 예
+
+시작하기 전에 tus-js-client를 설치하십시오.
+
+<PackageManagers pkg="tus-js-client" />
+
+이름 \*`index.js`파일 및 구성:
+
+- Cloudflare 계정 ID.
+- API 토큰을 포함하는 요청 헤더.
+
+```js title="Configure index.js"
+var fs = require("fs");
+var tus = require("tus-js-client");
+
+//아래에 업로드 할 파일의 위치 지정
+var path = __dirname + "/test.mp4";
+var file = fs.createReadStream(path);
+var size = fs.statSync(path).size;
+var mediaId = "";
+
+var options = {
+	endpoint: "https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream",
+	headers: {
+		Authorization: "Bearer <API_TOKEN>",
+	},
+	chunkSize: 50 * 1024 * 1024, //최소 5MB의 펑크 크기가 필요합니다. 여기에 우리는 50 MB를 사용합니다.
+	retryDelays: [0, 3000, 5000, 10000, 20000], //tus-js-client를 표시하면 업로드가 실패한 경우 재발송됩니다.
+	metadata: {
+		name: "test.mp4",
+		filetype: "video/mp4",
+		//워터 마크를 포함하려는 경우 옵션
+		//워터마크: '<WATERMARK UID>',
+	},
+	uploadSize: size,
+	onError: function (error) {
+		throw error;
+	},
+	onProgress: function (bytesUploaded, bytesTotal) {
+		var percentage = ((bytesUploaded / bytesTotal) * 100).toFixed(2);
+		console.log(bytesUploaded, bytesTotal, percentage + "%");
+	},
+	onSuccess: function () {
+		console.log("Upload finished");
+	},
+	onAfterResponse: function (req, res) {
+		return new Promise((resolve) => {
+			var mediaIdHeader = res.getHeader("stream-media-id");
+			if (mediaIdHeader) {
+				mediaId = mediaIdHeader;
+			}
+			resolve();
+		});
+	},
+};
+
+var upload = new tus.Upload(file, options);
+upload.start();
+```
+
+## 업로드 옵션
+
+tus 프로토콜을 사용하면 옵션 매개 변수를 추가 할 수 있습니다.[`Upload-Metadata`기타 제품](https://tus.io/protocols/resumable-upload.html#upload-metadata).
+
+### 지원 옵션`Upload-Metadata`
+
+arbitrary metadata 값 설정`Upload-Metadata`헤더 세트 값[Stream API의 메타 키](/api/resources/stream/methods/list/).
+
+- `name`
+
+  - 이 키 설정`meta.name`API에서 dashboard에서 비디오의 이름으로 값을 표시합니다.
+
+- `requiresignedurls`
+
+  - 이 키가 존재하는 경우, 이 비디오의 비디오 재생은 업로드 후 서명 된 URL을 사용해야합니다.
+
+- `scheduleddeletion`
+
+  - 비디오가 삭제될 때 날짜와 시간을 지정합니다. 비디오가 삭제되면 더 이상 볼 수 없으며 더 이상 청구를위한 저장을 계산하지 않습니다. 지정된 날짜와 시간은 비디오의 생성 된 타임 스탬프에서 30 일 이상 또는 1,096 일보다 이전 할 수 없습니다.
+
+- `allowedorigins`
+
+  - 문자열 목록의 배열은 비디오를 표시 할 수 있습니다. 이 설정[허용된 근원 조정](/stream/viewing-videos/securing-your-stream/#security-considerations)영상을 위해.
+
+- `thumbnailtimestamppct`
+
+  - 기본 thumbnail 지정[타임스탬프 비율](/stream/viewing-videos/displaying-thumbnails/). 비율은 0.0와 1.0 사이 떠 있는 점 가치입니다.
+
+- `watermark`
+
+  - 워터마크 프로파일 UID.
+
+## 제작자 재산
+
+제작자의 가치를 설정`Upload-Creator`헤더는 비디오 콘텐츠의 제작자를 식별하는 데 사용할 수 있습니다, 사용자 또는 제작자가 Stream 계정에서 비디오를 식별하는 방법을 연결.
+
+제작자 ID를 설정하고 수정하는 방법의 예를 들어, 참조[Associate 영화와 제작자](/stream/manage-video-library/creator-id/).
+
+## tus를 사용할 때 비디오 ID를 가져옵니다
+
+초기 tus 요청을 할 때 스트림은 URL에 응답합니다.`Location`헤더. 이 URL은 비디오 ID를 포함 할 수 있지만, ID를 얻기 위해이 URL을 파싱하는 것이 좋습니다.
+
+대신, 당신은 사용해야`stream-media-id`HTTP 헤더는 비디오 ID를 검색합니다.
+
+예를 들어, 요청은`https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/stream`tus 프로토콜은 다음과 같은 HTTP 헤더를 포함합니다:
+
+```
+stream-media-id: cab807e0c477d01baq20f66c3d1dfc26cf
+```

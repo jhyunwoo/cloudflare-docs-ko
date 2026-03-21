@@ -1,0 +1,90 @@
+---
+title: API로 zone 버전 제거
+pcx_content_type: how-to
+sidebar:
+  order: 8
+
+---
+
+Cloudflare API를 사용해 zone 버전을 purge하려면 다음 단계를 따르세요.
+
+## 1단계: 환경 ID 가져오기
+
+먼저 다음 API 엔드포인트에 요청을 보내 zone의 environment ID를 가져옵니다.
+
+```bash
+https://api.cloudflare.com/client/v4/zones/<zone_id>/environments
+```
+
+이 API 호출은 아래 예시와 비슷한 JSON 응답을 반환합니다.
+
+```json
+{
+  "result": {
+    "environments": [
+      {
+        "name": "Production",
+        "ref": "12abcd3e45f678940a573f51834a54",
+        "version": 0,
+        "expression": "(cf.zone.name eq \"example.com\")",
+        "locked_on_deployment": false,
+        "position": {
+          "before": "5d41402abc4b2a76b9719d911017c"
+        }
+      },
+      {
+        "name": "Staging",
+        "ref": "5d41402abc4b2a76b9719d911017c",
+        "version": 0,
+        "expression": "((cf.edge.server_ip in {1.2.3.4 5.6.7.8})) and (cf.zone.name eq \"example.com\")",
+        "locked_on_deployment": false,
+        "position": {
+          "before": "49f0bad299687c62334182178bfd",
+          "after": "12abcd3e45f678940a573f51834a54"
+        }
+      },
+      {
+        "name": "Development",
+        "ref": "49f0bad299687c62334182178bfd",
+        "version": 0,
+        "expression": "((any(http.request.cookies[\"development\"][*] eq \"true\"))) and (cf.zone.name eq \"example.com\")",
+        "locked_on_deployment": false,
+        "position": {
+          "after": "5d41402abc4b2a76b9719d911017c"
+        }
+      }
+    ]
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+이 예시에는 Production, Staging, Development의 세 가지 환경이 있습니다. environment ID는 `ref` 필드에서 확인할 수 있습니다.
+
+## 2단계: 환경별 캐시 제거
+
+Production 환경을 purge하려면 일반 캐시 purge 엔드포인트를 사용합니다.
+
+```bash
+https://api.cloudflare.com/client/v4/zones/<zone_id>/purge_cache/
+```
+
+비프로덕션 환경을 purge하려면 새 `purge_cache` 엔드포인트를 사용하고 제거하려는 환경을 지정해야 합니다.
+
+위 예시의 Staging 환경을 purge하려면 다음 엔드포인트에 요청을 보냅니다.
+
+```bash
+https://api.cloudflare.com/client/v4/zones/<zone_id>/environments/5d41402abc4b2a76b9719d911017c/purge_cache/
+```
+
+위 예시의 Development 환경을 purge하려면 다음 엔드포인트에 요청을 보냅니다.
+
+```bash
+https://api.cloudflare.com/client/v4/zones/<zone_id>/environments/49f0bad299687c62334182178bfd/purge_cache/
+```
+
+:::note
+비프로덕션 캐시 환경에서 purge everything을 수행하면 해당 캐시 환경의 모든 파일이 제거됩니다. 하지만 프로덕션 환경에서 purge everything을 수행하면 모든 환경의 모든 파일이 제거됩니다.
+:::

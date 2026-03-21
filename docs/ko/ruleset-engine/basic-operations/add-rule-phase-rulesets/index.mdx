@@ -1,0 +1,150 @@
+---
+pcx_content_type: how-to
+title: 단계 항목 포인트 규칙에 규칙을 추가
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/basic-operations/add-rule-phase-rulesets/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/basic-operations/add-rule-phase-rulesets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, APIRequest } from "~/components";
+
+·[단계 항목 점 규칙](/ruleset-engine/about/rulesets/#entry-point-ruleset)해당 단계에서 실행되는 규칙의 주문 목록이 포함되어 있습니다. 항목의 규칙은 다른 규칙을 실행할 수 있습니다. 계정 수준과 영역 수준에서 각 단계의 항목 포인트 규칙을 가질 수 있습니다.
+
+단계 항목 포인트 규칙에 하나 이상의 규칙을 추가하려면, 사용 하나의[규칙 업데이트 작업](/ruleset-engine/rulesets-api/update/)이름 \*[규칙 세트 API](/ruleset-engine/rulesets-api/). 입력 포인트 규칙에 규칙을 추가할 때, 항목 포인트 규칙은 존재하지 않는 경우 자동으로 생성됩니다. 이 API 방법은 당신이 규칙에 유지하려는 모든 규칙을 포함해야, 또는 그들은 제거 될 것입니다.
+
+규칙에 대한 단일 규칙을 추가하는 경우, 하나를 사용하여 고려[회사 소개](/ruleset-engine/rulesets-api/add-rule/)대신. 이 경우, 요청은 새로운 규칙의 정의를 포함한다.
+
+:::note\[입점 규칙]
+항목 포인트 규칙의 자동 생성에 의존하는 대신이 규칙을 명시적으로 사용하여이 규칙을 만들 수 있습니다[비밀번호](/ruleset-engine/rulesets-api/create/).
+:::
+
+## 예: 영역 수준에서 단계 항목 포인트 규칙의 규칙을 설정
+
+다음 예제는 영역 수준에서 단계 항목 포인트 규칙의 규칙을 설정합니다.`http_request_firewall_managed`단계 사용[지역 항목 포인트 규칙 업데이트](/api/resources/rulesets/subresources/phases/methods/update/)가동.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID_1>",
+  			},
+  			expression: "true",
+  		},
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID_2>",
+  			},
+  			expression: "true",
+  		},
+  	],
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Default",
+		"description": "",
+		"kind": "zone",
+		"version": "1",
+		"rules": [
+			{
+				"id": "<RULE_ID_1>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID_1>"
+				},
+				"last_updated": "2021-06-17T15:42:37.917815Z"
+			},
+			{
+				"id": "<RULE_ID_2>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID_2>"
+				},
+				"last_updated": "2021-06-17T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2021-06-17T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+## 예제: 영역 수준에서 단계 항목 포인트 규칙에 단일 규칙을 추가
+
+다음 예제는 단계 항목 포인트 규칙에 단일 규칙을 추가 (ID로`$RULESET_ID`) 영역 수준에서[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)가동.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+  method="POST"
+  json={{
+  	action: "execute",
+  	action_parameters: {
+  		id: "<MANAGED_RULESET_ID>",
+  	},
+  	expression: "true",
+  }}
+/>
+
+```json output
+{
+	"result": {
+		"id": "<RULESET_ID>",
+		"name": "Zone-level phase entry point ruleset",
+		"description": "",
+		"kind": "root",
+		"version": "2",
+		"rules": [
+			{
+				"id": "<EXISTING_RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<ANOTHER_MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2021-03-17T15:42:37.917815Z"
+			},
+			{
+				"id": "<NEW_RULE_ID>",
+				"version": "1",
+				"action": "execute",
+				"expression": "true",
+				"action_parameters": {
+					"id": "<MANAGED_RULESET_ID>"
+				},
+				"last_updated": "2021-06-30T15:42:37.917815Z"
+			}
+		],
+		"last_updated": "2021-06-30T15:42:37.917815Z",
+		"phase": "http_request_firewall_managed"
+	},
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```

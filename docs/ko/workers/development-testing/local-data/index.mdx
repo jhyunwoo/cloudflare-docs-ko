@@ -1,0 +1,128 @@
+---
+pcx_content_type: navigation
+title: 현지 데이터 추가
+sidebar:
+  order: 4
+head: []
+description: 데이터에 대한 현지 자원
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/development-testing/local-data/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/development-testing/local-data/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Details,
+	LinkCard,
+	Render,
+	PackageManagers,
+	FileTree,
+} from "~/components";
+
+Wrangler 또는[Cloudflare Vite 플러그인](https://developers.cloudflare.com/workers/vite-plugin/), 작업 흐름**이름 \***&#xD604;지 개발 중에 데이터가 동일하게 유지됩니다. 그러나, 당신은 할 수 있습니다[데이터로 로컬 리소스를](/workers/development-testing/local-data/#populating-local-resources-with-data)Wrangler CLI를 통해.
+
+### 어떻게 작동합니까?
+
+당신은 할 때`wrangler dev`또는[`vite`](https://vite.dev/guide/cli#dev-server), [미니 플레어](/workers/testing/miniflare/)자동 생성**지역 버전**당신의 자원 (like)[KV](/kv), [D1](/d1/), 또는[R2](/r2)). 견적 요청**뚱 베어**수동으로 각 서비스에 대한 별도의 로컬 인스턴스를 설정해야합니다. 그러나 새로 만들어진 로컬 리소스**계정 없음**모든 데이터를 포함 — 당신은 Wrangler 명령을 사용해야합니다`--local`그들을 포용하는 깃발. 로컬 리소스로 만든 변경은 생산 데이터에 영향을 미치지 않습니다.
+
+## 데이터에 대한 현지 자원
+
+처음 시작하면 현지 리소스가 비어있을 것입니다. Wrangler CLI를 사용하여 데이터를 작성해야 합니다.
+
+### KV 네임스페이스
+
+:::caution\[Syntax 참고]
+버전 3.60.0부터, Wrangler는 지원합니다`kv ...`구문. 3.60.0 이하의 버전을 사용하는 경우, 명령은 다음과 같습니다.`kv:...`구문. 더 알아보기[Wrangler 명령 KV 페이지](/kv/reference/kv-commands/).
+:::
+
+#### [단일 키 값 쌍 추가](/workers/wrangler/commands/#kv-key)
+
+<PackageManagers type="exec" pkg="wrangler" args="kv key put <KEY> <VALUE> --binding=<BINDING> --local " />
+
+#### [대량 업로드](/workers/wrangler/commands/#kv-bulk)
+
+<PackageManagers type="exec" pkg="wrangler" args="kv bulk put <FILENAME.json> --binding=<BINDING> --local" />
+
+### R2 물통
+
+#### [파일 업로드](/workers/wrangler/commands/#r2-object)
+
+<PackageManagers type="exec" pkg="wrangler" args="r2 object put <BUCKET>/<KEY> --file=<PATH_TO_FILE> --local" />
+
+당신은 또한 포함 할 수 있습니다[다른 메타데이터](/workers/wrangler/commands/#r2-object-put).
+
+### D1 데이터베이스
+
+#### [SQL 문 실행](/workers/wrangler/commands/#d1-execute)
+
+<PackageManagers type="exec" pkg="wrangler" args="d1 execute <DATABASE_NAME> --command=&#x22;<SQL_QUERY>&#x22; --local" />
+
+#### [SQL 파일을 실행](/workers/wrangler/commands/#d1-execute)
+
+<PackageManagers type="exec" pkg="wrangler" args="d1 execute <DATABASE_NAME> --file=./schema.sql --local" />
+
+### 모델 번호: Durable Objects
+
+Durable Objects, KV, D1, R2와는 달리 QXQXQXQ는, 국부적으로 자료로 그(것)들을 대중화하는 CLI 명령이 없습니다. 로컬 개발 중에 Durable Objects에 데이터를 추가하려면 SoftLayer Object 인스턴스를 생성하는 애플리케이션 코드를 작성해야 합니다.[state를 저장하는 방법에 대한 호출 방법](/durable-objects/best-practices/access-durable-objects-storage/). 이것은 일반적으로 Durable Objects를 원하는 데이터로 초기화하는 개발 엔드포인트 또는 테스트 경로 생성을 포함한다.
+
+## 로컬 데이터가 저장되는 곳
+
+기본적으로 Wrangler와 Vite 플러그인은 같은 위치에 로컬 바인딩 데이터를 저장합니다.`.wrangler/state`프로젝트 디렉토리에 폴더. 모든 로컬 바인딩에 대한 하위 디렉토리에이 폴더 저장 데이터 : KV 이름 공간, R2 물통, QXQX0180XQ 데이터베이스, Durable Objects 등
+
+### 현지 저장
+
+삭제할 수 있습니다.`.wrangler/state`로컬 환경을 재설정하기 위해 언제든지 폴더, Miniflare는 다음 시간을 다시 만들 것입니다.`dev`명령. 특정 하위 폴더를 삭제할 수 있습니다.`.wrangler/state`더 많은 타겟팅을 위해.
+
+### 로컬 데이터 디렉토리 변경
+
+로컬 저장소에 다른 디렉토리를 지정하려면 Wranlger CLI 또는 Vite 플러그인 구성을 통해 수행 할 수 있습니다.
+
+#### Wrangler 사용하기
+
+사용 방법[`--persist-to`](/workers/wrangler/commands/#dev)플래그와`wrangler dev`. 이 플래그를 매번 지정해야 합니다.`dev`명령:
+
+<PackageManagers type="exec" pkg="wrangler" args="dev --persist-to <DIRECTORY>" />
+
+:::참조
+로컬 persistence 폴더 (like)`.wrangler/state`또는 당신이 놓는 어떤 주문 폴더)는 당신에 추가되어야 합니다`.gitignore`로컬 개발 데이터를 버전 제어에 방지하기 위해.
+주요 특징
+
+<Details header="`--local`를 사용하여 `--persist-to`">
+  당신이 실행하는 경우`wrangler dev --persist-to <DIRECTORY>`로컬 데이터에 대한 사용자 지정 위치를 지정하려면, 당신은 또한 같은 포함해야`--persist-to <DIRECTORY>`다른 Wrangler 명령을 실행하면 로컬 데이터를 수정할 수 있습니다 (그리고 포함해야 합니다)`--local`플래그).
+
+  예를 들어, KV 키 이름을 만들려면`test`값으로`12345`로컬 KV 네임스페이스에서 실행:
+
+  <PackageManagers type="exec" pkg="wrangler" args="kv key put test 12345 --binding MY_KV_NAMESPACE --local --persist-to worker-local" />
+
+  이 명령:
+
+  - KV 키 설정`test`으로`12345`연결하기`MY_KV_NAMESPACE`(당신의 정의)[Wrangler 구성 파일](/workers/wrangler/configuration/)).
+  - 기타 제품`--persist-to worker-local`데이터가 생성되도록**채용 정보**default 대신 디렉토리`.wrangler/state`.
+  - 추가하기`--local`플래그, 로컬 데이터를 수정하고 싶습니다.
+
+  이름 \*`--persist-to`지정되지 않습니다, Wrangler 기본 사용`.wrangler/state`현지 정보
+</Details>
+
+#### Cloudflare Vite 플러그인
+
+Vite 플러그인 저장소 로컬 데이터를 사용자 정의하려면, 구성[`persistState`옵션 정보](/workers/vite-plugin/reference/api/#interface-pluginconfig)Vite 설정 파일에서:
+
+```js title="vite.config.js"
+import { defineConfig } from "vite";
+import { cloudflare } from "@cloudflare/vite-plugin";
+
+export default defineConfig({
+	plugins: [
+		cloudflare({
+			persistState: { path: "./my-custom-directory" },
+		}),
+	],
+});
+```
+
+#### 도구 간의 공유 상태
+
+Wrangler 및 Vite 플러그인을 원하는 경우 동일한 상태를 공유하고 동일한 지속 경로를 사용하여 구성합니다.

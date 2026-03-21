@@ -1,0 +1,171 @@
+---
+title: 브라우저 터미널
+pcx_content_type: how-to
+sidebar:
+  order: 9
+description: xterm.js 또는 raw WebSockets를 사용하여 sandbox 쉘에 브라우저 기반 터미널을 연결합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/browser-terminals/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/browser-terminals/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, PackageManagers } from "~/components";
+
+이 가이드는 브라우저 기반 터미널을 샌드박스 쉘에 연결하는 방법을 보여줍니다. 당신은 사용할 수 있습니다`SandboxAddon`xterm.js로, 또는 WebSockets에 직접 연결하십시오.
+
+## 자주 묻는 질문
+
+기존 Cloudflare sandbox 바인딩을 가진 노동자. 더 알아보기[시작하기](/sandbox/get-started/)당신이 하나가없는 경우.
+
+프론트엔드 프로젝트의 터미널 의존도를 설치:
+
+<PackageManagers type="install" pkg="@xterm/xterm @xterm/addon-fit @cloudflare/sandbox" />
+
+xterm.js를 사용하지 않는 경우만 필요`@cloudflare/sandbox`유형.
+
+## Worker에서 WebSocket 업그레이드 처리
+
+프록시 WebSocket 연결을 sandbox 터미널에 추가하십시오. 아래 예제는 기본 세션을 지원하며 쿼리 매개 변수를 통해 세션 이름을 지정합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from '@cloudflare/sandbox';
+
+  export { Sandbox } from '@cloudflare/sandbox';
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const url = new URL(request.url);
+
+      if (url.pathname === '/ws/terminal' && request.headers.get('Upgrade') === 'websocket') {
+        const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+        const sessionId = url.searchParams.get('session');
+
+        if (sessionId) {
+          const session = await sandbox.getSession(sessionId);
+          return await session.terminal(request);
+        }
+
+        return await sandbox.terminal(request, { cols: 80, rows: 24 });
+      }
+
+      return new Response('Not found', { status: 404 });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+## xterm.js 및 SandboxAddon과 연결
+
+브라우저 코드에서 터미널을 만들고 첨부`SandboxAddon`. addon는 WebSocket 연결, 자동 연결 및 resize 운송을 처리합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { Terminal } from '@xterm/xterm';
+  import { FitAddon } from '@xterm/addon-fit';
+  import { SandboxAddon } from '@cloudflare/sandbox/xterm';
+  import '@xterm/xterm/css/xterm.css';
+
+  const terminal = new Terminal({ cursorBlink: true });
+  const fitAddon = new FitAddon();
+  terminal.loadAddon(fitAddon);
+
+  const addon = new SandboxAddon({
+    getWebSocketUrl: ({ sandboxId, sessionId, origin }) => {
+      const params = new URLSearchParams({ id: sandboxId });
+      if (sessionId) params.set('session', sessionId);
+      return `${origin}/ws/terminal?${params}`;
+    },
+    onStateChange: (state, error) => {
+      console.log(`Terminal ${state}`, error ?? '');
+    }
+  });
+
+  terminal.loadAddon(addon);
+  terminal.open(document.getElementById('terminal'));
+  fitAddon.fit();
+
+  //기본 세션에 연결
+  addon.connect({ sandboxId: 'my-sandbox' });
+
+  //또는 특정 세션에 연결
+  //애드온.connect({ sandboxId: 'my-sandbox', sessionId: 'development'
+
+  window.addEventListener('resize', () => fitAddon.fit());
+  ```
+</TypeScriptExample>
+
+전체 addon API의 경우, 참조[끝 API reference](/sandbox/api/terminal/).
+
+## xterm.js 없이 연결
+
+xterm.js없이 사용자 정의 터미널 UI 또는 실행중인 경우 WebSockets에서 직접 연결하십시오. 프로토콜은 터미널 데이터 및 JSON 텍스트 프레임에 대한 바이너리 프레임을 사용하여 제어 메시지.
+
+<TypeScriptExample>
+  ```ts
+  const ws = new WebSocket('wss://example.com/ws/terminal?id=my-sandbox');
+  ws.binaryType = 'arraybuffer';
+
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+
+  ws.addEventListener('message', (event) => {
+    if (event.data instanceof ArrayBuffer) {
+      //터미널 출력 (기본) - ANSI 탈출 시퀀스를 포함
+      const text = decoder.decode(event.data);
+      appendToDisplay(text);
+      return;
+    }
+
+    //제어 메시지 (JSON 텍스트)
+    const msg = JSON.parse(event.data);
+
+    switch (msg.type) {
+      case 'ready':
+        //맨끝은 입력을 받아들입니다 — 처음 크기를 보냅니다
+        ws.send(JSON.stringify({ type: 'resize', cols: 80, rows: 24 }));
+        break;
+
+      case 'exit':
+        console.log(`Shell exited: code ${msg.code}`);
+        break;
+
+      case 'error':
+        console.error('Terminal error:', msg.message);
+        break;
+    }
+  });
+
+  //바이너리로 키 입력을 전송
+  function sendInput(text: string): void {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(encoder.encode(text));
+    }
+  }
+  ```
+</TypeScriptExample>
+
+중요한 의정서 세부사항:
+
+- 설치하기`binaryType`으로`arraybuffer`연결하기 전에.
+- 이전 연결에서 버퍼 출력은 이진 프레임으로 도착`ready`이름 \*
+- 바이너리로 키 입력을 전송 (UTF-8). 제어 메시지 보내기 (`resize`) JSON 텍스트로.
+- PTY는 클라이언트가 연결될 때 살아있다. Reconnecting 재생 버퍼 출력.
+
+전체 프로토콜 사양의 경우, 참조[WebSocket 프로토콜 섹션](/sandbox/api/terminal/#websocket-protocol)API reference에서.
+
+## 좋은 관행
+
+- **항상 use FitAddon**— 그것 없이, 끝 차원은 콘테이너와 원본 포장 incorrectly 일치하지 않습니다.
+- **손잡이 resize 사건**— 통화`fitAddon.fit()`윈도우의 크기 때문에 터미널과 PTY가 동기화됩니다.
+- **설치되지 않음**— 통화`addon.disconnect()`페이지에서 터미널을 제거 할 때.
+- **고립을위한 세션 사용**- 사용자가 별도의 쉘 환경을 필요로한다면, 다른 작업 디렉토리 및 환경 변수와 세션을 만듭니다.
+
+## 관련 자료
+
+- [끝 API reference](/sandbox/api/terminal/)- 방법 서명, addon API 및 WebSocket 프로토콜
+- [터미널 연결](/sandbox/concepts/terminal/)— 어떻게 터미널 연결 작업
+- [세션 관리](/sandbox/concepts/sessions/)— 세션 작업 방법

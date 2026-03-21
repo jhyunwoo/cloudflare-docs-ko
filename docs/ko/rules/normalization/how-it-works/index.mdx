@@ -1,0 +1,51 @@
+---
+title: URL 정상화가 작동하는 방법
+pcx_content_type: concept
+sidebar:
+  order: 3
+  label: 어떻게 작동합니까?
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/normalization/how-it-works/'
+translation_source_md: 'https://developers.cloudflare.com/rules/normalization/how-it-works/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps } from "~/components";
+
+URL 정상화는 분리기, 인코딩 된 요소 및 수신 URL의 리터 바이트를 조절하여 일관된 포맷 표준을 준수합니다.
+
+예를 들어, URL 일치를 차단하는 WAF 사용자 정의 규칙을 고려하십시오.`www.example.com/hello`. 규칙은 인코딩된 요소가 포함된 요청을 차단하지 않을 것입니다.`www.example.com/%68ello`. Cloudflare 글로벌 네트워크에서 수신 URL을 정상화하는 것은 URL을 포함하는 규칙 표현을 단순화하는 데 도움이됩니다.
+
+URL 정상화의 두 가지 유효한 유형은:
+
+- [RFC 3986 정상화](#rfc-3986-normalization)
+- [Cloudflare 정상화](#cloudflare-normalization)
+
+URL 정상화가 일어나는 위치는[설정 설정](/rules/normalization/settings/).
+
+다른 설정의 예와 요청 URL에 미치는 영향, 참조[URL 정상화 예](/rules/normalization/examples/).
+
+## RFC 3986 정상화
+
+URL 정상화에 따라 수행[RFC 3986년](https://www.ietf.org/rfc/rfc3986.txt)다음과 같이:
+
+- 다음 비예약된 문자는[퍼센트](https://tools.ietf.org/html/rfc3986#section-2.1):
+  - 알파벳 문자:`a`-`z`, `A`-`Z`(출시)`%41`-`%5A`·`%61`-`%7A`)
+  - 손가락 특성:`0`-`9`(출시)`%30`-`%39`)
+  - 하이픈`-` (`%2D`), 기간`.` (`%2E`)의 underscore`_` (`%5F`), 그리고 tilde`~` (`%7E`)
+- 이 예약된 문자는 인코딩 또는 디코딩되지 않습니다:`: / ? # [ ] @ ! $ & ' ( ) * + , ; =`
+- 다른 문자, 예를 들어 리터 바이트 값, % 인코딩.
+- Percent encoded 표현은 상단 케이스로 변환됩니다.
+- URL 경로는 정상화됩니다.[Dot Segments 제거](https://tools.ietf.org/html/rfc3986#section-5.2.4)프로토콜.
+
+## Cloudflare 정상화
+
+Cloudflare URL 정상화를 사용할 때, 몇몇 여분 정상적인화 기술은 들어오는 요구에, 뒤에 오는 순서에서 적용될 것입니다:
+
+<Steps>
+  1. 정상적인 뒤 슬픔 (`\`) 앞으로 슬픔으로 (`/`).
+  2. Merge successive forward slashes (예를 들면,`//`정상화될 것입니다`/`).
+  3. 이름 \*[RFC 3986 정상화](#rfc-3986-normalization)결과 URL의.
+</Steps>

@@ -1,0 +1,1574 @@
+---
+title: Durable Objects의 규칙
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/rules-of-durable-objects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, TypeScriptExample, Render } from "~/components";
+
+Durable Objects는 건물 stateful, 협조한 신청을 위한 강력한 primitive를 제공합니다. 각 튼튼한 목표는 단일 스레드, 글로벌 고유 인스턴스 자체 영구 저장. 이 속성의 주위에 설계하는 방법을 이해하는 것은 효과적인 응용 프로그램을 구축하는 데 필수적입니다.
+
+이 가이드북은 더 효과적이며 튼튼한 개체 응용 프로그램을 수정하는 방법입니다.
+
+## Durable Objects를 사용할 때
+
+### stateful coordination를 위한 Durable Objects를 사용하여, 무정한 요구 취급
+
+Workers는 stateless 기능입니다: 각 요구는 다른 위치에서 실행할지도 모릅니다, 다른 위치에서, 요구 사이 공유한 기억 없음. Durable Objects는 현명한 계산입니다: 각 인스턴스에는 고유한 ID가 있고, 단 하나 위치에서 실행하고, 요구에 따라 국가를 유지합니다.
+
+당신이 필요로 할 때 Durable Objects를 사용하십시오:
+
+- **회사연혁**— 다중 클라이언트는 공유 상태와 상호 작용해야합니다 (chat 객실, 멀티 플레이어 게임, 협업 문서)
+- **강한 견실함**- 운영은 인종 조건을 피하기 위해 serialized해야합니다 (인벤토리 관리, 예약 시스템, 회전 기반 게임)
+- **Per-entity 저장**— 각 사용자, tenant, 또는 리소스는 자체 격리 된 데이터베이스 (멀티텐트 SaaS, per-user data)가 필요합니다.
+- **Persistent 연결**— Long-lived WebSocket 연결은 요청에 따라 생존 (실시간 알림, 라이브 업데이트)
+- **기업별 일정**- 각 법인은 자신의 타이머 또는 예정된 작업을 필요로 합니다 (subscription 갱신, 게임 타임아웃)
+
+당신이 필요로 할 때 일반 Workers를 사용하십시오:
+
+- **Stateless 요청 처리**— API endpoints, 프록시, 또는 공유된 상태로 변환
+- **최대 글로벌 배포**- 가장 가까운 가장자리 위치에 처리해야합니다
+- **높은 팬-아웃**— 각 요청은 독립적이며 병렬로 처리 될 수 있습니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	BOOKING: DurableObjectNamespace<SeatBooking>;
+  }
+
+  //✅ Durable Objects의 좋은 사용: 좌석 예약은 조정을 요구합니다
+  //모든 예약 요청은 이중 예약을 방지하기 위해 serialized해야합니다.
+  export class SeatBooking extends DurableObject<Env> {
+  	async bookSeat(
+  		seatId: string,
+  		userId: string
+  	): Promise<{ success: boolean; message: string }> {
+  		//좌석이 이미 예약된 경우 확인
+  		const existing = this.ctx.storage.sql
+  			.exec<{ user_id: string }>(
+  				"SELECT user_id FROM bookings WHERE seat_id = ?",
+  				seatId
+  			)
+  			.toArray();
+
+  		if (existing.length > 0) {
+  			return { success: false, message: "Seat already booked" };
+  		}
+
+  		//좌석 예약 - 이것은 Durable Objects가 단일 스레드이기 때문에 안전합니다.
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO bookings (seat_id, user_id, booked_at) VALUES (?, ?, ?)",
+  			seatId,
+  			userId,
+  			Date.now()
+  		);
+
+  		return { success: true, message: "Seat booked successfully" };
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const eventId = url.searchParams.get("event") ?? "default";
+
+  		//이벤트 ID로 튼튼한 개체로 경로
+  		//동일한 이벤트에 대한 모든 예약은 같은 인스턴스로 이동
+  		const id = env.BOOKING.idFromName(eventId);
+  		const booking = env.BOOKING.get(id);
+
+  		const { seatId, userId } = await request.json<{
+  			seatId: string;
+  			userId: string;
+  		}>();
+  		const result = await booking.bookSeat(seatId, userId);
+
+  		return Response.json(result, {
+  			status: result.success ? 200 : 409,
+  		});
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+일반적인 패턴은 WorkersXQ를 사용하여 코디네이션이 필요할 때 Durable ObjectsXQXQ에 대한 요청을 전달하는 stateless 엔트리 포인트로 사용합니다. Worker는 인증, 검증 및 응답 포맷을 처리하며, 튼튼한 개체는 stateful logic을 처리합니다.
+
+## 디자인과 sharding
+
+### 당신의 Durable Objects를 조정의 당신의 "atom"의 주위에 만드십시오
+
+가장 중요한 디자인 결정은 각 튼튼한 목표가 나타내는 것을 선택하는 것입니다. 코디네이션을 필요로 하는 논리 단위 당 1개의 튼튼한 목표를 창조하십시오: 대화방, 게임 회의, 문서, 사용자의 자료, 또는 tenant's workspace.
+
+이것은 강력한 Durable ObjectsXQ를 만드는 중요한 통찰력입니다. 잠금을 가진 공유 데이터베이스 대신, 당신의 응용 프로그램의 각 "atom"는 개인 저장과 함께 자신의 단일 스레드 실행 환경을 가져옵니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  //각 채팅 룸은 자체 튼튼한 개체 인스턴스입니다.
+  export class ChatRoom extends DurableObject<Env> {
+  	async sendMessage(userId: string, message: string) {
+  		//이 방의 모든 메시지는이 단일 인스턴스에 의해 순차적으로 처리됩니다.
+  		//어떤 인종 조건, 필요 분산 잠금 없음.
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?)",
+  			userId,
+  			message,
+  			Date.now()
+  		);
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const roomId = url.searchParams.get("room") ?? "lobby";
+
+  		//각 방 ID는 정확하게 1개의 튼튼한 목표 인스턴스를 세계적으로 맵니다
+  		const id = env.CHAT_ROOM.idFromName(roomId);
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		await stub.sendMessage("user-123", "Hello, room!");
+  		return new Response("Message sent");
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+:::참조
+
+자주 액세스해야 하는 글로벌 응용 프로그램 또는 사용자 구성이 있는 경우 (각 요청에 따라), 사용 고려[QXQX0185XQQKV](/kv/)대신.
+
+:::
+
+모든 요청을 처리하는 단일 "global" 튼튼한 개체를 만들지 마십시오 :
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  //✓ 나쁜 : 단일 튼튼한 개체 처리 모든 채팅 룸
+  export class ChatRoom extends DurableObject<Env> {
+  	async sendMessage(roomId: string, userId: string, message: string) {
+  		//모든 메시지는 이 단일 인스턴스를 통해 이동합니다.
+  		//이것은 교통이 성장함에 병목이됩니다.
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (room_id, user_id, content) VALUES (?, ?, ?)",
+  			roomId,
+  			userId,
+  			message
+  		);
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		//✓ 나쁜 : 항상 같은 ID를 사용하여 하나의 글로벌 인스턴스를 의미합니다.
+  		const id = env.CHAT_ROOM.idFromName("global");
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		await stub.sendMessage("room-123", "user-456", "Hello!");
+  		return new Response("Sent");
+  	},
+  };
+
+  ```
+</TypeScriptExample>
+
+### 메시지 처리량 제한
+
+단 하나 튼튼한 목표는 대략 취급할 수 있습니다**초당 500-1,000 요청**간단한 작업. 이 제한은 요청에 따라 수행 된 작업에 따라 다릅니다.
+
+| 작업 유형                  | 회사연혁               |
+| ---------------------- | ------------------ |
+| 간단한 패스로 (분자 파싱)        | \~1,000원           |
+| 모더레이트 처리 (JSON 패싱, 검증) | \~500-750의 req/sec |
+| 복잡한 작업 (변환, 저장 쓰기)     | \~200-500의 req/sec |
+
+"atom"를 모델링 할 때 예상 요청 비율의 요소. 사용 사례가 이러한 제한을 초과하면 여러 Durable Objects를 통해 작업 부하를 초래합니다.
+
+예를 들어, 초당 10 업데이트를 전송하는 50,000 동시 플레이어와 실시간 게임을 고려하십시오. 이것은 초당 500,000 요청을 생성합니다. 당신은 500-1,000 게임 세션 Durable Objects-하나의 글로벌 코디네이터가 필요하지 않습니다.
+
+당신의 sharding 필요조건을 산출하십시오:
+
+```
+
+Required DOs = (Total requests/second) / (Requests per DO capacity)
+
+```
+
+### 예측 가능한 routing을 위한 deterministic ID를 사용하십시오
+
+제품 정보`getByName()`일관성 있는 라우팅을 위한 의미있는, 결정적인 문자열. 동일한 입력은 항상 동일한 튼튼한 목표 ID를 생산하고, 동일한 논리성체를 위한 요구를 항상 도달합니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	GAME_SESSION: DurableObjectNamespace<GameSession>;
+  }
+
+  export class GameSession extends DurableObject<Env> {
+  	async join(playerId: string) {
+  		//게임 논리 여기
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const gameId = url.searchParams.get("game");
+
+  		if (!gameId) {
+  			return new Response("Missing game ID", { status: 400 });
+  		}
+
+  		//✅ 좋은: 의미 있는 문자열에서 결정적인 ID
+  		//"game-abc123"의 모든 요청은 동일한 내구성 개체로 이동합니다.
+  		const stub = env.GAME_SESSION.getByName(gameId);
+
+  		await stub.join("player-xyz");
+  		return new Response("Joined game");
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+stub를 만드는 것은 즉시 또는 튼튼한 개체를 깨지 않습니다. 튼튼한 개체는 스텁에 방법을 호출 할 때만 활성화됩니다.
+
+제품 정보`newUniqueId()`새로운, 임의 인스턴스가 필요하면 mapping을 외부로 저장합니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	GAME_SESSION: DurableObjectNamespace<GameSession>;
+  }
+
+  export class GameSession extends DurableObject<Env> {
+  	async join(playerId: string) {
+  		//게임 논리 여기
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		//newUniqueId()는 임의의 ID를 생성합니다.
+  		//나중에 다시 찾을 수 있도록이 ID 어딘가 (예 : D1)를 저장해야합니다
+  		const id = env.GAME_SESSION.newUniqueId();
+  		const stub = env.GAME_SESSION.get(id);
+
+  		//매핑 저장: gameCode -> id.toString()
+  		//env.DB.prepare("INSERT INTO 게임 (코드, do id) VALUES (?, ?)").bind(gameCode, id.toString()).run();
+
+  		return Response.json({ gameId: id.toString() });
+  	},
+  };
+
+  ```
+</TypeScriptExample>
+
+### 관련 기관에 대한 부모의 관계 사용
+
+단일 튼튼한 개체에서 모든 데이터를 넣지 마십시오. 당신은 계층 데이터가있을 때 (프로젝트, 게임 서버 관리 일치를 포함하는 작업 공간), 각 법인에 대한 별도의 어린이 Durable Objects를 만듭니다. 부모의 협조와 트랙 어린이, 아이들은 독립적으로 자신의 상태를 처리하는 동안.
+
+이 병렬을 활성화: 다른 아이들의 작업은 동시 발생 할 수 있으며, 각 아이는 자신의 단일 스레드 일관성을 유지합니다 ([이 패턴에 대해 더 읽어보기](/reference-architecture/diagrams/storage/durable-object-control-data-plane-pattern/)).
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	GAME_SERVER: DurableObjectNamespace<GameServer>;
+  	GAME_MATCH: DurableObjectNamespace<GameMatch>;
+  }
+
+  //부모: 좌표 일치, 하지만 일치 하지 않습니다 데이터
+  export class GameServer extends DurableObject<Env> {
+  	async createMatch(matchName: string): Promise<string> {
+  		const matchId = crypto.randomUUID();
+
+  		//저장 참고 자료 부모의 데이터베이스에 아이
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO matches (id, name, created_at) VALUES (?, ?, ?)",
+  			matchId,
+  			matchName,
+  			Date.now()
+  		);
+
+  		//아이 튼튼한 개체를 초기화
+  		const childId = this.env.GAME_MATCH.idFromName(matchId);
+  		const childStub = this.env.GAME_MATCH.get(childId);
+  		await childStub.init(matchId, matchName);
+
+  		return matchId;
+  	}
+
+  	async listMatches(): Promise<{ id: string; name: string }[]> {
+  		//부모는 각 아이를 깨지 않고 모든 경기에 대해 알고
+  		const cursor = this.ctx.storage.sql.exec<{ id: string; name: string }>(
+  			"SELECT id, name FROM matches ORDER BY created_at DESC"
+  		);
+  		return cursor.toArray();
+  	}
+  }
+
+  //어린이 : 독립적으로 자신의 게임 상태를 취급
+  export class GameMatch extends DurableObject<Env> {
+  	async init(matchId: string, matchName: string) {
+  		await this.ctx.storage.put("matchId", matchId);
+  		await this.ctx.storage.put("matchName", matchName);
+  		this.ctx.storage.sql.exec(`
+  			CREATE TABLE IF NOT EXISTS players (
+  				id TEXT PRIMARY KEY,
+  				name TEXT NOT NULL,
+  				score INTEGER DEFAULT 0
+  			)
+  		`);
+  	}
+
+  	async addPlayer(playerId: string, playerName: string) {
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO players (id, name, score) VALUES (?, ?, 0)",
+  			playerId,
+  			playerName
+  		);
+  	}
+
+  	async updateScore(playerId: string, score: number) {
+  		this.ctx.storage.sql.exec(
+  			"UPDATE players SET score = ? WHERE id = ?",
+  			score,
+  			playerId
+  		);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이 본으로:
+
+- 목록은 부모 만 쿼리합니다 (어린이 체재 hibernated)
+- 다른 경기 프로세스 플레이어 작업 병렬
+- 각 경기에는 플레이어 데이터에 대한 자체 SQLite 데이터베이스가 있습니다.
+
+### 대기 오염 물질에 대한 위치 힌트 고려
+
+기본적으로, 튼튼한 개체는 첫번째 요청의 위치 근처에 생성됩니다. 대부분의 신청을 위해, 이것은 잘 작동합니다. 그러나, 당신은 튼튼한 개체가 생성되는 곳에 영향을 미칠 위치 hint를 제공 할 수 있습니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	GAME_SESSION: DurableObjectNamespace<GameSession>;
+  }
+
+  export class GameSession extends DurableObject<Env> {
+  	//게임 세션 논리
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const gameId = url.searchParams.get("game") ?? "default";
+  		const region = url.searchParams.get("region") ?? "wnam"; //미국 서부
+
+  		//이 튼튼한 개체가 생성되어야 하는 위치를 hint 제공
+  		const id = env.GAME_SESSION.idFromName(gameId);
+  		const stub = env.GAME_SESSION.get(id, { locationHint: region });
+
+  		return new Response("Connected to game session");
+  	},
+  };
+
+  ```
+</TypeScriptExample>
+
+위치 힌트는 제안이 아닙니다. 더 알아보기[데이터 위치](/durable-objects/reference/data-location/)유효한 지구 및 세부사항을 위해.
+
+## 저장과 국가
+
+### SQLite 백업 Durable Objects
+
+[SQLite 저장](/durable-objects/api/sqlite-storage-api/)새로운 Durable Objects를 위한 추천된 저장 백엔드입니다. 관계 쿼리, 지수, 거래 및 레거시 키 가치 저장 백업 Durable Objects보다 더 나은 성능을 위해 익숙한 SQL API를 제공합니다. SQLite Durable Objects는 또한 동시와 비동기 버전에 있는 KV API를 지원합니다.
+
+Wrangler 설정에서 SQLite 저장소를 사용하기 위해 튼튼한 개체 클래스 구성:
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "migrations": [
+      { "tag": "v1", "new_sqlite_classes": ["ChatRoom"] }
+    ]
+  }
+  ```
+</WranglerConfig>
+
+그런 다음 SQL API를 사용하여 내구성 객체:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  type Message = {
+  	id: number;
+  	user_id: string;
+  	content: string;
+  	created_at: number;
+  };
+
+  export class ChatRoom extends DurableObject<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+  		//첫 순간에 테이블 만들기
+  		this.ctx.storage.sql.exec(`
+  			CREATE TABLE IF NOT EXISTS messages (
+  				id INTEGER PRIMARY KEY AUTOINCREMENT,
+  				user_id TEXT NOT NULL,
+  				content TEXT NOT NULL,
+  				created_at INTEGER NOT NULL
+  			)
+  		`);
+  	}
+
+  	async addMessage(userId: string, content: string) {
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?)",
+  			userId,
+  			content,
+  			Date.now()
+  		);
+  	}
+
+  	async getRecentMessages(limit: number = 50): Promise<Message[]> {
+  		//typed 결과를 위한 type 매개변수 사용
+  		const cursor = this.ctx.storage.sql.exec<Message>(
+  			"SELECT * FROM messages ORDER BY created_at DESC LIMIT ?",
+  			limit
+  		);
+  		return cursor.toArray();
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+더 알아보기[접근 Durable Objects 저장](/durable-objects/best-practices/access-durable-objects-storage/)SQL API에 대한 자세한 내용은.
+
+### 저장을 초기화하고 생성자에서 마이그레이션을 실행
+
+제품 정보`blockConcurrencyWhile()`모든 요청이 처리되기 전에 마이그레이션 및 초기 상태를 실행하는 constructor. 이 스키마를 준비하고 초기화 중에 레이스 상태를 방지합니다.
+
+:::참조
+`PRAGMA user_version`Durable Objects SQLite 저장에 의해 지원되지 않습니다. 스키마 버전을 추적하는 대안 접근 방식을 사용해야합니다.
+주요 특징
+
+생산 응용 프로그램을 위해 버전 추적 및 실행을 자동으로 처리하는 마이그레이션 라이브러리를 사용합니다.
+
+- [`durable-utils`](https://github.com/lambrospetrou/durable-utils#sqlite-schema-migrations)— 제공`SQLSchemaMigrations`메모리와 저장에서 실행된 마이그레이션을 추적하는 클래스.
+- [`@cloudflare/actors`저장 유틸리티](https://github.com/cloudflare/actors/blob/main/packages/storage/src/sql-schema-migrations.ts)— 참고 자료XQ는 Cloudflare Actors Framework에 의해 사용되는 동일한 패턴의 구현입니다.
+
+라이브러리를 사용하지 않는 경우, schema 버전을 수동으로 추적할 수 있습니다.`_sql_schema_migrations`테이블. 다음 예제는이 접근 방식을 보여줍니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+  		//blockConcurrencyWhile()는 이 완료까지 처리되지 않습니다.
+  		ctx.blockConcurrencyWhile(async () => {
+  			await this.migrate();
+  		});
+  	}
+
+  	private async migrate() {
+  		//존재하지 않는 경우 이동 추적 테이블 만들기
+  		this.ctx.storage.sql.exec(`
+  			CREATE TABLE IF NOT EXISTS _sql_schema_migrations (
+  				id INTEGER PRIMARY KEY,
+  				applied_at TEXT NOT NULL DEFAULT (datetime('now'))
+  			);
+  		`);
+
+  		//현재 schema 버전 결정
+  		const version =
+  			this.ctx.storage.sql
+  				.exec<{ version: number }>(
+  					"SELECT COALESCE(MAX(id), 0) as version FROM _sql_schema_migrations",
+  				)
+  				.one().version;
+
+  		if (version < 1) {
+  			this.ctx.storage.sql.exec(`
+  				CREATE TABLE IF NOT EXISTS messages (
+  					id INTEGER PRIMARY KEY AUTOINCREMENT,
+  					user_id TEXT NOT NULL,
+  					content TEXT NOT NULL,
+  					created_at INTEGER NOT NULL
+  				);
+  				CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+  				INSERT INTO _sql_schema_migrations (id) VALUES (1);
+  			`);
+  		}
+
+  		if (version < 2) {
+  			//미래 마이그레이션: 새로운 열을 추가
+  			this.ctx.storage.sql.exec(`
+  				ALTER TABLE messages ADD COLUMN edited_at INTEGER;
+  				INSERT INTO _sql_schema_migrations (id) VALUES (2);
+  			`);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### in-memory 상태와 persistent 저장의 차이를 이해하십시오
+
+Durable Objects는 다른 특성에 각각 다수 국가 관리 층을, 제공합니다:
+
+| 제품정보               | 제품 정보 | 이름 \*              | 사용 사례          |
+| ------------------ | ----- | ------------------ | -------------- |
+| In-memory (클래스 속성) | 빠른 속도 | eviction 또는 충돌에 손실 | Caching, 활성 연결 |
+| SQLite 저장          | 빠른 속도 | 재시작에 따른 내구성        | 데이터 저장         |
+| 외부 (R2, D1)        | 옵션 정보 | 내구재, 접근 가능         | 큰 파일, 공유 데이터   |
+
+In-memory 상태는 입니다**시설안내**튼튼한 개체가 inactivity 때문에 메모리에서 evicted 경우, 또는 uncaught 예외에서 충돌. 항상 SQLite 저장소에 중요한 상태.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  type Message = {
+  	id: number;
+  	user_id: string;
+  	content: string;
+  	created_at: number;
+  };
+
+  export class ChatRoom extends DurableObject<Env> {
+  	//In-memory 캐시 - 빠른하지만 퇴치 또는 충돌에 따라 보존되지 않음
+  	private messageCache: Message[] | null = null;
+
+  	async getRecentMessages(): Promise<Message[]> {
+  		//사용 가능한 경우 캐시에서 반환 (만 유효하면서도 메모리에 있습니다)
+  		if (this.messageCache !== null) {
+  			return this.messageCache;
+  		}
+
+  		//그렇지 않으면, 튼튼한 저장에서 짐
+  		const cursor = this.ctx.storage.sql.exec<Message>(
+  			"SELECT * FROM messages ORDER BY created_at DESC LIMIT 100"
+  		);
+  		this.messageCache = cursor.toArray();
+  		return this.messageCache;
+  	}
+
+  	async addMessage(userId: string, content: string) {
+  		//✅ 항상 튼튼한 저장에 persist 첫째로
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?)",
+  			userId,
+  			content,
+  			Date.now()
+  		);
+
+  		//그런 다음 캐시를 업데이트 (이 존재하면)
+  		//DO가 여기에 충돌하면 메시지는 여전히 SQLite에 저장됩니다.
+  		this.messageCache = null; //잘못된 캐시
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+:::카트로션
+
+uncaught 예외가 튼튼한 개체에서 발생하면, 실행 시간은 인스턴스를 종료 할 수 있습니다. 어떤 in-memory 국가가 손실 될 것입니다, 그러나 SQLite 저장은 intact 남아. 항상 실패 할 수있는 작업을 수행하기 전에 저장하는 중요한 상태.
+
+:::
+
+### 자주 묻는 질문
+
+모든 데이터베이스와 마찬가지로, 극적으로 자주 필터링 된 열에 대한 읽기 성능을 향상시킵니다. 비용이 약간 더 저장되고 마진적으로 느린 쓰기입니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+  		ctx.blockConcurrencyWhile(async () => {
+  			this.ctx.storage.sql.exec(`
+  				CREATE TABLE IF NOT EXISTS messages (
+  					id INTEGER PRIMARY KEY AUTOINCREMENT,
+  					user_id TEXT NOT NULL,
+  					content TEXT NOT NULL,
+  					created_at INTEGER NOT NULL
+  				);
+
+  				-- Index for queries filtering by user
+  				CREATE INDEX IF NOT EXISTS idx_messages_user_id ON messages(user_id);
+
+  				-- Index for time-based queries (recent messages)
+  				CREATE INDEX IF NOT EXISTS idx_messages_created_at ON messages(created_at);
+
+  				-- Composite index for user + time queries
+  				CREATE INDEX IF NOT EXISTS idx_messages_user_time ON messages(user_id, created_at);
+  			`);
+  		});
+  	}
+
+  	//idx messages user time의 쿼리 혜택
+  	async getUserMessages(userId: string, since: number) {
+  		return this.ctx.storage.sql
+  			.exec(
+  				"SELECT * FROM messages WHERE user_id = ? AND created_at > ? ORDER BY created_at",
+  				userId,
+  				since
+  			)
+  			.toArray();
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 입력 및 출력 게이트 작업에 대해 이해
+
+Durable Objects는 단 하나 보였습니다, JavaScript's`async`/`await`요청이 비동기 작동의 결과에 대해 기다리는 동안 interleave 실행에 여러 요청을 허용 할 수 있습니다. Cloudflare의 런타임 사용**입력 문**·**산출 문**Data Race를 방지하고 기본값으로 정확함을 보장합니다.
+
+**입력 문**비동기 JavaScriptXQ 실행이 진행중인 동안 새로운 이벤트 ( 수신 요청, fetch 응답)를 차단합니다. Awaiting async 가동은 좋아합니다`fetch()`또는 KV 저장 방법은 입력 게이트를 열고, interleave에 다른 요청을 허용한다. 그러나 저장 가동은 특별한 보호를 제공합니다:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	COUNTER: DurableObjectNamespace<Counter>;
+  }
+
+  export class Counter extends DurableObject<Env> {
+  	//이 코드는 입력 게이트 때문에 안전
+  	async increment(): Promise<number> {
+  		//이 저장 가동이 실행하는 동안, 다른 요구 없음
+  		//interleave 할 수 있습니다 - 입력 게이트 블록 새로운 이벤트
+  		const value = (await this.ctx.storage.get<number>("count")) ?? 0;
+  		await this.ctx.storage.put("count", value + 1);
+  		return value + 1;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+**산출 문**저장이 완료 될 때까지 네트워크 메시지 (responses, fetch request)를 잡아. 이것은 클라이언트가 지속되지 않은 데이터의 확인을 결코 볼 수 없습니다:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async sendMessage(userId: string, content: string): Promise<string> {
+  		//저장에 쓰기 - 교정을 기다릴 필요가 없습니다
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?)",
+  			userId,
+  			content,
+  			Date.now()
+  		);
+
+  		//이 응답은 쓰기가 완료 될 때까지 출력 게이트에 의해 이루어집니다.
+  		//클라이언트는 데이터가 안전하게 지속되는 후 "Message sent"를받습니다.
+  		return "Message sent";
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+**표를 하기:**&#xBCF5;수의 저장은 intervening 없이 씁니다`await`호출은 단일 원자 implicit 거래로 자동으로 배치됩니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	ACCOUNT: DurableObjectNamespace<Account>;
+  }
+
+  export class Account extends DurableObject<Env> {
+  	async transfer(fromId: string, toId: string, amount: number) {
+  		//✅ 좋은: 이 쓰기는 1개의 원자 거래로 석탄화됩니다
+  		this.ctx.storage.sql.exec(
+  			"UPDATE accounts SET balance = balance - ? WHERE id = ?",
+  			amount,
+  			fromId
+  		);
+  		this.ctx.storage.sql.exec(
+  			"UPDATE accounts SET balance = balance + ? WHERE id = ?",
+  			amount,
+  			toId
+  		);
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO transfers (from_id, to_id, amount, created_at) VALUES (?, ?, ?, ?)",
+  			fromId,
+  			toId,
+  			amount,
+  			Date.now()
+  		);
+  		//모든 3개의 글은 atomically를 함께 합니다.
+  	}
+
+  	//✓ 나쁜 : KV 운영은 석탄을 파괴
+  	async transferBrokenKV(fromId: string, toId: string, amount: number) {
+  		const fromBalance = (await this.ctx.storage.get<number>(`balance:${fromId}`)) ?? 0;
+  		await this.ctx.storage.put(`balance:${fromId}`, fromBalance - amount);
+  		//다음 쓰기가 실패하면, 이미 헌신적 인!
+  		const toBalance = (await this.ctx.storage.get<number>(`balance:${toId}`)) ?? 0;
+  		await this.ctx.storage.put(`balance:${toId}`, toBalance + amount);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+더 자세한 내용을 보려면[Durable Objects: 쉬운, 빠른, 정확한 — 3를 선택하십시오](https://blog.cloudflare.com/durable-objects-easy-fast-correct-choose-three/)그리고[글 탐색](/durable-objects/reference/glossary/).
+
+### non-storage I/를 가진 인종 상태를 피하십시오 ₢ 킹
+
+입력 문은 저장 가동 도중만 보호합니다. 비 저장 I/O 같이`fetch()`또는 R2에 쓰기는 다른 요청을 interleave 할 수 있습니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	PROCESSOR: DurableObjectNamespace<Processor>;
+  }
+
+  export class Processor extends DurableObject<Env> {
+  	//⚠️ 잠재적 인 인종 조건 : fetch()는 interleaving을 허용
+  	async processItem(id: string) {
+  		const item = await this.ctx.storage.get<{ status: string }>(`item:${id}`);
+
+  		if (item?.status === "pending") {
+  			//이 fetch에서 다른 요청은 저장을 실행하고 수정할 수 있습니다.
+  			const result = await fetch("https://api.example.com/process");
+
+  			//또 다른 요청은 이미이 항목을 처리 할 수 있습니다!
+  			await this.ctx.storage.put(`item:${id}`, { status: "completed" });
+  		}
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+이를 처리하기 위해 낙관적 잠금 (check-and-set) 패턴을 사용합니다. 외부 통화 전에 버전 번호를 읽으면 쓰기 전에 변경되지 않았습니다.
+
+:::참조
+
+레거시 KV 저장 백엔드로, 사용[`transaction()`](/durable-objects/api/sqlite-storage-api/#transaction)async 경계에서 atomic read-modify-write 작업을 위한 방법.
+
+:::
+
+### 제품 정보`blockConcurrencyWhile()`뚱 베어
+
+더 보기[`blockConcurrencyWhile()`](/durable-objects/api/state/#blockconcurrencywhile)메소드는 제공된 콜백이 완료 될 때까지 다른 이벤트가 처리되지 않습니다, 콜백이 비동기 I/O를 수행하더라도. 이것은 생성기에 저장에서 상태 초기화와 같은 원자가 있어야 하는 가동을 위해 유용합니다:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	constructor(ctx: DurableObjectState, env: Env) {
+  		super(ctx, env);
+
+  		//✅ 좋은: BlockConcurrencyWhile를 한 번 초기화 사용
+  		ctx.blockConcurrencyWhile(async () => {
+  			this.ctx.storage.sql.exec(`
+  				CREATE TABLE IF NOT EXISTS messages (
+  					id INTEGER PRIMARY KEY,
+  					content TEXT
+  				)
+  			`);
+  		});
+  	}
+
+  	//✓ 나쁜 : 모든 요청에 BlockConcurrencyWhile을 사용하지 마십시오
+  	async sendMessageSlow(content: string) {
+  		await this.ctx.blockConcurrencyWhile(async () => {
+  			this.ctx.storage.sql.exec(
+  				"INSERT INTO messages (content) VALUES (?)",
+  				content
+  			);
+  		});
+  		//~5ms가면 ~200 요청/초로 제한됩니다.
+  	}
+
+  	//✅ 좋은: 산출 문은 견실함을 취급합니다
+  	async sendMessageFast(content: string) {
+  		this.ctx.storage.sql.exec(
+  			"INSERT INTO messages (content) VALUES (?)",
+  			content
+  		);
+  		//산출 문은 응답의 앞에 완전한 쓰기 지킵니다
+  		//다른 요청은 동시 처리 될 수 있습니다.
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이름 \*`blockConcurrencyWhile()`관련 기사*모든 것*concurrency unconditionally, 그것은 두드러지게 처리량을 감소시킵니다. 각 호출이 \~5ms 인 경우, 개별 내구성 개체는 약 200 요청 / 초로 제한됩니다. 초기화 및 마이그레이션에 관해서는 일반 요청 처리가 아닙니다. 정상적인 가동을 위해, 입력/출력 문에 의지하고 대신에 탄탄한 쓰기.
+
+요청 처리 중에 atomic read-modify-write 작업에 대해 선호합니다.[`transaction()`](/durable-objects/api/sqlite-storage-api/#transaction)지원하다`blockConcurrencyWhile()`. Transaction은 관련 동시 요청을 차단하지 않고 저장 작업에 대한 원자성을 제공합니다.
+
+:::카트로션
+
+사용 방법`blockConcurrencyWhile()`I/O 운영 전반에 걸쳐`fetch()`, KV, R2, 또는 다른 외부 API 호출)는 반대로 pattern입니다. 이것은 다른 언어 또는 concurrency 프레임 워크에서 I / O의 잠금을 유지와 동일 - 그것은 낮은 외부 운영을 기다리고있는 동안 다른 모든 요청을 차단, 심한 분해 처리 처리 처리 처리. 제품 정보`blockConcurrencyWhile()`로컬 스토리지 작업에 빠르고 제한된 콜백.
+
+:::
+
+## 통신 및 API 설계
+
+### 대신 RPC 방법을 사용하십시오`fetch()`회사 소개
+
+프로젝트[호환성 날짜](/workers/configuration/compatibility-flags/)이름 \*`2024-04-03`또는 나중에 RPC 방법을 사용해야합니다. RPC는 더 인체공학적이고, 더 나은 유형 안전을 제공하고, 수동 요구/response 파싱을 삭제합니다.
+
+당신의 튼튼한 목표 종류에 대중적인 방법을 정의하고, 가득 차있는 TypeScript 지원을 가진 stubs에서 직접 부르십시오:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	//Type 매개 변수는 stub에서 typed 메소드 호출을 제공합니다
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  type Message = {
+  	id: number;
+  	userId: string;
+  	content: string;
+  	createdAt: number;
+  };
+
+  export class ChatRoom extends DurableObject<Env> {
+  	//공공 방법은 RPC 엔드포인트로 자동으로 노출됩니다.
+  	async sendMessage(userId: string, content: string): Promise<Message> {
+  		const createdAt = Date.now();
+  		const result = this.ctx.storage.sql.exec<{ id: number }>(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?) RETURNING id",
+  			userId,
+  			content,
+  			createdAt
+  		);
+  		const { id } = result.one();
+  		return { id, userId, content, createdAt };
+  	}
+
+  	async getMessages(limit: number = 50): Promise<Message[]> {
+  		const cursor = this.ctx.storage.sql.exec<{
+  			id: number;
+  			user_id: string;
+  			content: string;
+  			created_at: number;
+  		}>("SELECT * FROM messages ORDER BY created_at DESC LIMIT ?", limit);
+
+  		return cursor.toArray().map((row) => ({
+  			id: row.id,
+  			userId: row.user_id,
+  			content: row.content,
+  			createdAt: row.created_at,
+  		}));
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const roomId = url.searchParams.get("room") ?? "lobby";
+
+  		const id = env.CHAT_ROOM.idFromName(roomId);
+  		//stub는 내구재ObjectStub<ChatRoom>로 구분됩니다.
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		if (request.method === "POST") {
+  			const { userId, content } = await request.json<{
+  				userId: string;
+  				content: string;
+  			}>();
+  			//직접 방법 전체 유형 검사 호출
+  			const message = await stub.sendMessage(userId, content);
+  			return Response.json(message);
+  		}
+
+  		//TypeScript는 getMessages()를 반환합니다 Promise<Message[]>
+  		const messages = await stub.getMessages(100);
+  		return Response.json(messages);
+  	},
+  };
+
+  ```
+</TypeScriptExample>
+
+더 알아보기[Invoke 방법](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/)RPC와 유산에 대한 자세한 내용은`fetch()`핸들러.
+
+### Durable Objects를 명시적으로 초기화`init()`제품 설명
+
+Durable Objects는 안에 그들의 자신의 이름 또는 ID를 알지 못합니다. 튼튼한 개체가 정체성을 알 필요가 있다면 (예를 들어, 참고 자료를 자체로 저장하거나 관련 개체와 통신해야 함), 명시적으로 초기화해야합니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	private roomId: string | null = null;
+
+  	//첫번째를 위한 튼튼한 목표 창조 후에 이것을 부르십시오
+  	async init(roomId: string, createdBy: string) {
+  		//자주 묻는 질문
+  		const existing = await this.ctx.storage.get("roomId");
+  		if (existing) {
+  			return; //Already 초기화
+  		}
+
+  		//ID 저장
+  		await this.ctx.storage.put("roomId", roomId);
+  		await this.ctx.storage.put("createdBy", createdBy);
+  		await this.ctx.storage.put("createdAt", Date.now());
+
+  		//이 세션에 대한 메모리에서 캐시
+  		this.roomId = roomId;
+  	}
+
+  	async getRoomId(): Promise<string> {
+  		if (this.roomId) {
+  			return this.roomId;
+  		}
+
+  		const stored = await this.ctx.storage.get<string>("roomId");
+  		if (!stored) {
+  			throw new Error("ChatRoom not initialized. Call init() first.");
+  		}
+
+  		this.roomId = stored;
+  		return stored;
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const roomId = url.searchParams.get("room") ?? "lobby";
+
+  		const id = env.CHAT_ROOM.idFromName(roomId);
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		//첫번째 접근에 초기화
+  		await stub.init(roomId, "system");
+
+  		return new Response(`Room ${await stub.getRoomId()} ready`);
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+### (주)`await`RPC 통화
+
+내구재 목표 stub에 방법을 호출 할 때, 항상 사용`await`. Unawaited 호출은 dangling 약속을 생성하고 오류를 삼키고 손실 된 값을 반환합니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async sendMessage(userId: string, content: string): Promise<number> {
+  		const result = this.ctx.storage.sql.exec<{ id: number }>(
+  			"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?) RETURNING id",
+  			userId,
+  			content,
+  			Date.now()
+  		);
+  		return result.one().id;
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const id = env.CHAT_ROOM.idFromName("lobby");
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		//✓ 나쁜 : 전화를 기다리고 없습니다
+  		//메시지 ID는 잃고 오류가 삼키지 않습니다.
+  		stub.sendMessage("user-123", "Hello");
+
+  		//✅ 좋은: Properly는 기다립니다
+  		const messageId = await stub.sendMessage("user-123", "Hello");
+
+  		return Response.json({ messageId });
+  	},
+  };
+
+  ```
+</TypeScriptExample>
+
+## 오류 처리
+
+### 핸들 오류 및 사용 예외
+
+튼튼한 개체의 불안정한 예외는 알 수없는 상태로 떠나고 인스턴스를 종결하기 위해 실행 시간을 일으킬 수 있습니다. try/catch 블록에서 위험 작업, 그리고 적절하게 처리 오류를 처리.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async processMessage(userId: string, content: string) {
+  		//✅ 좋은 : 시도 / 캐치에서 위험 작업 랩
+  		try {
+  			//처리하기 전에 입력을 유효
+  			if (!content || content.length > 10000) {
+  				throw new Error("Invalid message content");
+  			}
+
+  			this.ctx.storage.sql.exec(
+  				"INSERT INTO messages (user_id, content, created_at) VALUES (?, ?, ?)",
+  				userId,
+  				content,
+  				Date.now()
+  			);
+
+  			//실패할 수 있는 외부 호출
+  			await this.notifySubscribers(content);
+  		} catch (error) {
+  			//디버깅에 대한 오류를 로그
+  			console.error("Failed to process message:", error);
+
+  			//유효성 검사 오류가 있다면 재검토
+  			if (error instanceof Error && error.message.includes("Invalid")) {
+  				throw error;
+  			}
+
+  			//과도한 과실을 위해, 당신은 다르게 취급하고 싶을지도 모릅니다
+  			throw error;
+  		}
+  	}
+
+  	private async notifySubscribers(content: string) {
+  		//외부 알림 논리
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+노동자에서 Durable Objects를 호출하면 오류가 포함될 수 있습니다.`.retryable`·`.overloaded`작업이 검색 될 수 있는지 나타내는 속성. 일시적인 실패를 위해, 체계를 압도하는 것을 피하기 위하여 exponential backoff를 실행하십시오.
+
+더 알아보기[오류 처리](/durable-objects/best-practices/error-handling/)오류 속성에 대한 세부 사항, 재try 전략, 그리고 exponential backoff 패턴.
+
+## WebSockets 및 실시간
+
+### 비용 효율성을 위한 Hibernatable WebSockets API를 사용하십시오
+
+Hibernatable WebSockets API는 WebSocket 연결을 유지하면서 Durable Objects를 잠을 수 있습니다. 이 두드러지게 많은 idle 연결을 가진 신청을 위한 비용을 감소시킵니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async fetch(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		if (url.pathname === "/websocket") {
+  			//WebSocket 업그레이드
+  			if (request.headers.get("Upgrade") !== "websocket") {
+  				return new Response("Expected WebSocket", { status: 400 });
+  			}
+
+  			const pair = new WebSocketPair();
+  			const [client, server] = Object.values(pair);
+
+  			//Hibernation API를 가진 WebSocket를 받아들이십시오
+  			this.ctx.acceptWebSocket(server);
+
+  			return new Response(null, { status: 101, webSocket: client });
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+
+  	//메시지가 수신 될 때 전화 (수신 후)
+  	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+  		const data = typeof message === "string" ? message : "binary data";
+
+  		//모든 연결 클라이언트에 방송
+  		for (const client of this.ctx.getWebSockets()) {
+  			if (client !== ws && client.readyState === WebSocket.OPEN) {
+  				client.send(data);
+  			}
+  		}
+  	}
+
+  	//WebSocket이 닫힐 때 호출
+  	async webSocketClose(
+  		ws: WebSocket,
+  		code: number,
+  		reason: string,
+  		wasClean: boolean
+  	) {
+  		//Calling close()는 WebSocket Handhake를 완료합니다.
+  		ws.close(code, reason);
+  		console.log(`WebSocket closed: ${code} ${reason}`);
+  	}
+
+  	//WebSocket 오류가 발생했을 때 호출
+  	async webSocketError(ws: WebSocket, error: unknown) {
+  		console.error("WebSocket error:", error);
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+Hibernation API로, 당신의 튼튼한 목표는 활동적인 JavaScript 실행이 없을 때 잠에 갈 수 있습니다, 그러나 WebSocket 연결은 열립니다. 메시지가 도착했을 때, 튼튼한 개체는 자동으로 일어나.
+
+모범 사례:
+
+- 더 보기[웹소켓 Hibernation API](/durable-objects/best-practices/websockets/#durable-objects-hibernation-websocket-api)뚱 베어`webSocketError`, `webSocketMessage`·`webSocketClose`각각의 WebSocket 이벤트를 위한 핸들러.
+- 실행 중`webSocketClose`·**지원하다**자주 묻는 질문`ws.close()`WebSocket 닫기 프레임을 삼키기 위해. 너무 많은 결과`1006`WebSocket 사양에 대한 이상적 근접성을 나타내는 오류.
+
+더 알아보기[웹소켓](/durable-objects/best-practices/websockets/)더 많은 정보.
+
+### 제품 정보`serializeAttachment()`per-connection 상태의 persist에
+
+WebSocket 첨부파일은 각 연결에 메타데이터를 저장할 수 있도록 합니다. 사용자 ID, 세션 토큰 또는 기타 연결 데이터에 이것을 사용하십시오.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  type ConnectionState = {
+  	userId: string;
+  	username: string;
+  	joinedAt: number;
+  };
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async fetch(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		if (url.pathname === "/websocket") {
+  			if (request.headers.get("Upgrade") !== "websocket") {
+  				return new Response("Expected WebSocket", { status: 400 });
+  			}
+
+  			const userId = url.searchParams.get("userId") ?? "anonymous";
+  			const username = url.searchParams.get("username") ?? "Anonymous";
+
+  			const pair = new WebSocketPair();
+  			const [client, server] = Object.values(pair);
+
+  			this.ctx.acceptWebSocket(server);
+
+  			//고용을 살아남는 1 연결 상태
+  			const state: ConnectionState = {
+  				userId,
+  				username,
+  				joinedAt: Date.now(),
+  			};
+  			server.serializeAttachment(state);
+
+  			//방송 가입 메시지
+  			this.broadcast(`${username} joined the chat`);
+
+  			return new Response(null, { status: 101, webSocket: client });
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+
+  	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+  		//연결 상태를 검색 (수신 후도 작품)
+  		const state = ws.deserializeAttachment() as ConnectionState;
+
+  		const chatMessage = JSON.stringify({
+  			userId: state.userId,
+  			username: state.username,
+  			content: message,
+  			timestamp: Date.now(),
+  		});
+
+  		this.broadcast(chatMessage);
+  	}
+
+  	async webSocketClose(ws: WebSocket, code: number, reason: string) {
+  		//Calling close()는 WebSocket Handhake를 완료합니다.
+  		ws.close(code, reason);
+  		const state = ws.deserializeAttachment() as ConnectionState;
+  		this.broadcast(`${state.username} left the chat`);
+  	}
+
+  	private broadcast(message: string) {
+  		for (const client of this.ctx.getWebSockets()) {
+  			if (client.readyState === WebSocket.OPEN) {
+  				client.send(message);
+  			}
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 일정 및 생활주기
+
+### 지속 가능한 작업에 대한 경보 사용
+
+각 내구재 목표는 자신의 미래 일을 사용하여 계획할 수 있습니다[경보 API](/durable-objects/api/alarms/), Incoming request, RPC call 또는 WebSocket 메시지없이 모든 간격에서 배경 작업을 수행 할 수있는 튼튼한 개체를 허용.
+
+경보에 관하여 중요한 점:
+
+- **`setAlarm(timestamp)`**&#xC77C;정표`alarm()`미래의 모든 시간에 실행하는 핸들러 (millisecond Precision)
+- **알람은 자동으로 반복하지 않습니다.**- 당신은 호출해야합니다`setAlarm()`다음 실행을 다시 계획
+- **작업 할 때만 일정 알람**— 짧은 간격 (둘째로)에 각 내구재 목표를, 각 경보 invocation incurs 비용에 waking
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	GAME_MATCH: DurableObjectNamespace<GameMatch>;
+  }
+
+  export class GameMatch extends DurableObject<Env> {
+  	async startGame(durationMs: number = 60000) {
+  		await this.ctx.storage.put("gameStarted", Date.now());
+  		await this.ctx.storage.put("gameActive", true);
+
+  		//기간 후에 끝나는 게임 일정
+  		await this.ctx.storage.setAlarm(Date.now() + durationMs);
+  	}
+
+  	//알람 화재 때 호출
+  	async alarm(alarmInfo?: AlarmInvocationInfo) {
+  		const isActive = await this.ctx.storage.get<boolean>("gameActive");
+
+  		if (!isActive) {
+  			return; //게임이 이미 종료되었습니다.
+  		}
+
+  		//게임 종료
+  		await this.ctx.storage.put("gameActive", false);
+  		await this.ctx.storage.put("gameEnded", Date.now());
+
+  		//최종 점수를 계산, 플레이어를 통지, 등.
+  		try {
+  			await this.calculateFinalScores();
+  		} catch (err) {
+  			//우리는 거의 retries에서이지만 여전히 일을하고 새로운 알람을 일정
+  			//그러나 우리의 retries는 우리가 invoked 얻고 지키는 것을 밖으로 실행합니다.
+  			if (alarmInfo && alarmInfo.retryCount >= 5) {
+  				await this.ctx.storage.setAlarm(Date.now() + 30 * 1000);
+  				return;
+  			}
+  			throw err;
+  		}
+
+  		//더 많은 일을 할 경우에만 다음 경보를 계획하십시오
+  		//이 경우, 24 시간 내에 정리 일정
+  		await this.ctx.storage.setAlarm(Date.now() + 24 * 60 * 60 * 1000);
+  	}
+
+  	private async calculateFinalScores() {
+  		//게임 종료 논리
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+### 알람 핸들러 idempotent를 만드십시오
+
+드문 경우 알람은 한 번 이상 불릴 수 있습니다. 내 계정`alarm()`핸들러는 문제가 발생하지 않고 여러 번 실행할 수 있습니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	SUBSCRIPTION: DurableObjectNamespace<Subscription>;
+  }
+
+  export class Subscription extends DurableObject<Env> {
+  	async alarm() {
+  		//✅ 좋은: 행동을 실행하기 전에 국가를 확인
+  		const lastRenewal = await this.ctx.storage.get<number>("lastRenewal");
+  		const renewalPeriod = 30 * 24 * 60 * 60 * 1000; //30 일
+
+  		//우리가 이미 최근에 갱신 한 경우, 다시하지 마십시오
+  		if (lastRenewal && Date.now() - lastRenewal < renewalPeriod - 60000) {
+  			console.log("Already renewed recently, skipping");
+  			return;
+  		}
+
+  		//업데이트
+  		const success = await this.processRenewal();
+
+  		if (success) {
+  			//갱신 시간 기록
+  			await this.ctx.storage.put("lastRenewal", Date.now());
+
+  			//다음 갱신 일정
+  			await this.ctx.storage.setAlarm(Date.now() + renewalPeriod);
+  		} else {
+  			//1 시간 동안 재량
+  			await this.ctx.storage.setAlarm(Date.now() + 60 * 60 * 1000);
+  		}
+  	}
+
+  	private async processRenewal(): Promise<boolean> {
+  		//지불 처리 논리
+  		return true;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 깨끗한 저장과`deleteAll()`
+
+튼튼한 개체의 저장을 완전히 삭제하려면 전화`deleteAll()`. 다만 개인적인 열쇠를 삭제하거나 테이블을 떨어지는 것은, 몇몇 내부 metadata가 남아 있을지도 모르기 때문에 충분하지 않습니다. Workers 호환성 날짜 전[2026-02-24](/workers/configuration/compatibility-flags/#delete-all-deletes-alarms)그리고 경보 세트는 경보를 첫번째로 삭제해야 합니다`deleteAlarm()`.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	CHAT_ROOM: DurableObjectNamespace<ChatRoom>;
+  }
+
+  export class ChatRoom extends DurableObject<Env> {
+  	async clearStorage() {
+
+  		//모든 저장 삭제, 어떤 설정 알람 포함
+  		await this.ctx.storage.deleteAll();
+
+  		//튼튼한 객체 인스턴스는 여전히 존재하지만 빈 저장소
+  		//이후 요청은 데이터가 없습니다.
+  	}
+  }
+
+  ```
+</TypeScriptExample>
+
+### 예상치 못한 폐쇄에 대한 설계
+
+Durable Objects는 배포, inactivity 또는 런타임 결정으로 인해 언제든지 종료 할 수 있습니다. 폐쇄 후크에 의존하는 것보다 (제공되지 않는), 응용 프로그램을 설계하여 국가 증가를 기록합니다.
+
+<Render file="working-without-shutdown-hooks" product="durable-objects" />
+
+## 안티-패턴 방지
+
+### 단일 튼튼한 개체를 글로벌 싱글톤으로 사용하지 마십시오.
+
+모든 트래픽을 처리하는 단일 내구성 객체는 Bottleneck이됩니다. 동기화 작업을 허용하는 동안, 모든 동기 JavaScriptQ 실행은 단일 스레드이며, 스토리지 작업은 연속 처리 보장을 제공합니다.
+
+일반적인 실수는 글로벌 비율 제한 또는 글로벌 카운터에 대한 튼튼한 개체를 사용합니다. 이 funnels 모든 트래픽을 통해 단일 인스턴스:
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  export interface Env {
+  	RATE_LIMITER: DurableObjectNamespace<RateLimiter>;
+  }
+
+  //✓ 나쁜 : 글로벌 속도 제한 - 모든 요청은 하나의 인스턴스를 통해 이동
+  export class RateLimiter extends DurableObject<Env> {
+  	async checkLimit(ip: string): Promise<boolean> {
+  		const key = `rate:${ip}`;
+  		const count = (await this.ctx.storage.get<number>(key)) ?? 0;
+  		await this.ctx.storage.put(key, count + 1);
+  		return count < 100;
+  	}
+  }
+
+  //✓ 나쁜 : 항상 같은 ID를 사용하여 글로벌 병목을 만듭니다.
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		//귀하의 응용 프로그램에 대한 모든 단일 요청은이 하나를 통해 이동합니다.
+  		const limiter = env.RATE_LIMITER.get(
+  			env.RATE_LIMITER.idFromName("global")
+  		);
+
+  		const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  		const allowed = await limiter.checkLimit(ip);
+
+  		if (!allowed) {
+  			return new Response("Rate limited", { status: 429 });
+  		}
+
+  		return new Response("OK");
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+이 패턴은 스케일이 없습니다. 트래픽이 증가함에 따라 단일 내구성 객체가 chokepoint가됩니다. 대신, 응용 프로그램에서 자연 조정 경계를 식별 (사용자 당, 문서 당, 객실 당) 그리고 각각 Durable ObjectsXQ를 만들.
+
+## 테스트 및 마이그레이션
+
+### Vitest와 클래스 마이그레이션 계획 테스트
+
+제품 정보`@cloudflare/vitest-pool-workers`테스트 Durable Objects. 통합은 직접 인스턴스 액세스를 위한 테스트 및 유틸리티당 격리된 스토리지를 제공합니다.
+
+<TypeScriptExample filename="test/chat-room.test.ts">
+  ```ts
+  import {
+  	env,
+  	runInDurableObject,
+  	runDurableObjectAlarm,
+  } from "cloudflare:test";
+  import { describe, it, expect } from "vitest";
+
+  describe("ChatRoom", () => {
+  	//각 시험은 격리한 저장을 자동적으로 얻습니다
+  	it("should send and retrieve messages", async () => {
+  		const id = env.CHAT_ROOM.idFromName("test-room");
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		//직접 stub에 RPC 방법을 호출
+  		await stub.sendMessage("user-1", "Hello!");
+  		await stub.sendMessage("user-2", "Hi there!");
+
+  		const messages = await stub.getMessages(10);
+  		expect(messages).toHaveLength(2);
+  	});
+
+  	it("can access instance internals and trigger alarms", async () => {
+  		const id = env.CHAT_ROOM.idFromName("test-room");
+  		const stub = env.CHAT_ROOM.get(id);
+
+  		//Access Storage 직접 검증
+  		await runInDurableObject(stub, async (instance, state) => {
+  			const count = state.storage.sql
+  				.exec<{ count: number }>("SELECT COUNT(*) as count FROM messages")
+  				.one();
+  			expect(count.count).toBe(0); //시험 고립 때문에 신선한 인스턴스
+  		});
+
+  		//Trigger는 대기 없이 즉각 경보합니다
+  		const alarmRan = await runDurableObjectAlarm(stub);
+  		expect(alarmRan).toBe(false); //알람이 예약되었습니다
+  	});
+  });
+
+  ```
+</TypeScriptExample>
+
+당신의 Vitest 구성`vitest.config.ts`:
+
+```ts
+import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
+
+export default defineWorkersConfig({
+	test: {
+		poolOptions: {
+			workers: {
+				wrangler: { configPath: "./wrangler.jsonc" },
+			},
+		},
+	},
+});
+```
+
+schema 변경을 위해, 생성기에서 마이그레이션을 실행`blockConcurrencyWhile()`. 클래스 이름 또는 삭제를 위해, Wrangler 마이그레이션을 사용하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "migrations": [
+      //수업 이름
+      { "tag": "v2", "renamed_classes": [{ "from": "OldChatRoom", "to": "ChatRoom" }] },
+      //클래스 삭제 (모든 데이터를 제거!)
+      { "tag": "v3", "deleted_classes": ["DeprecatedRoom"] }
+    ]
+  }
+  ```
+</WranglerConfig>
+
+더 알아보기[Durable Objects 마이그레이션](/durable-objects/reference/durable-objects-migrations/)class migrations에 대한 자세한 내용은[Durable Objects로 테스트](/durable-objects/examples/testing-with-durable-objects/)SQLite 쿼리 및 알람 테스트를 포함한 종합 테스트 패턴.
+
+## 관련 자료
+
+- [Workers 최고의 연습](/workers/best-practices/workers-best-practices/): WorkersXQ를 호출하는 Durable ObjectsXQXQ에 적용하는 요청에 대한 코드 패턴.
+- [Workflows의 규칙](/workflows/build/rules-of-workflows/): 내구성, 다중 단계 WorkflowsXQ에 대한 모범 사례 - 장기간 관현을 위해 QXQX0238XQXDurable ObjectsXQ를 결합 할 때 유용합니다.

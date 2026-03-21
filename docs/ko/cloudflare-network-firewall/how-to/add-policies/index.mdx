@@ -1,0 +1,137 @@
+---
+title: 사용자 정의 정책
+pcx_content_type: how-to
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/add-policies/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-network-firewall/how-to/add-policies/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+기본적으로 최대 200개의 정책을 만들 수 있습니다. 정책 내에서 참고 자료에 IP 주소 목록을 작성하는 것이 좋습니다.
+
+## 정책 추가
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com)대시보드, 이동**방화벽 정책** > **주문 정책**.
+2. 제품정보**정책 추가**.
+3. 새로운 정책에 대한 정보를 작성하십시오. 모든 기존 정책은 IPv4에 적용됩니다. 관리할 수 있습니다.[IP 목록](https://www.cloudflare.com/en-gb/ips/)때 populating**제품정보**.
+4. 당신이 할 때, 선택**새 정책 추가**.
+
+## 장애인 정책 만들기
+
+당신은 새로운 정책을 추가 할 때, 정책은**이름 \***&#xAE30;본적으로.
+
+회사 소개**지원하다**정책, 단계에 따라[정책 추가](#add-a-policy)위와 toggle**이름 \***&#xC73C;로 정책이 장애인 상태에있을 때, 정책은 설정 될 때까지 조치를 수행하지 않습니다**이름 \***.
+
+기존 정책을 비활성화하려면**주문 정책**탭, 설정**이름 \***&#x74;oggle 에 떨어져.
+
+## 정책 업데이트
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com)대시보드, 이동**방화벽 정책** > **주문 정책**.
+2. 편집하고 세 가지 점을 선택하십시오 >**제품정보**.
+3. 변경 사항 및 선택에 대한 정책 업데이트**제품 정보**.
+
+## 기존 정책 삭제
+
+1. 목록에서 삭제하려는 정책을 찾습니다.
+2. 행 끝에서, 선택**이름 \***.
+3. 제품정보**이름 \***&#xC0AD;제를 다시 확인합니다.
+
+## 사이트맵
+
+아래에서 API를 사용하여 특정 작업을 수행하는 방법을 찾을 수 있습니다.
+
+:::카트로션\[Warning]
+
+이 페이지의 예는 모두 사용`https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets`끝점. 이 엔드포인트는 처음부터 정책을 만들고**기존의 정책을 작성할 수 있습니다.**.
+
+이미 배포된 규칙이 있다면,`https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets/{ruleset_id}/rules`대신 종료.
+
+더 알아보기[규칙에 추가](/ruleset-engine/rulesets-api/add-rule/)·[계정 규칙 만들기](/api/resources/rulesets/methods/create/)더 많은 정보.
+
+:::
+
+### 공지사항
+
+아래 예제는 모든 TCP 포트를 차단하지만, 하나의 포트를 허용 (`8080`) Skip 동작을 이용하여
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "Example ruleset",
+  "kind": "root",
+  "phase": "magic_transit",
+  "description": "Example ruleset description",
+  "rules": [
+    {
+      "action": "skip",
+      "action_parameters": { "ruleset": "current" },
+      "expression": "tcp.dstport in { 8080 } ",
+      "description": "Allow port 8080"
+    },
+    {
+      "action": "block",
+      "expression": "tcp.dstport in { 1..65535 }",
+      "description": "Block all TCP ports"
+    }
+  ]
+}'
+```
+
+### 국가 차단
+
+아래 예제는 브라질에서 온 소스 또는 목적지 IP 주소로 모든 패킷을 차단하여 2-letter 국가 코드를 사용하여[ISO 3166-1 알파 2](https://www.iso.org/obp/ui/#search/code/)파일 형식.
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "Example ruleset",
+  "kind": "root",
+  "phase": "magic_transit",
+  "description": "Example ruleset description",
+  "rules": [
+    {
+      "action": "block",
+      "expression": "ip.src.country == \"BR\"",
+      "description": "Block traffic from Brazil"
+    }
+  ]
+}'
+```
+
+### IP 목록 사용
+
+Cloudflare 네트워크 방화벽 지원[본문 바로가기](/waf/tools/lists/use-in-expressions/)제품정보`ip.src`·`ip.dst`이름 \* 지원된 목록은:
+
+- `$cf.anonymizer`- 익명 프록시
+- `$cf.botnetcc`- Botnet 명령 및 제어 채널
+- `$cf.malware`- 악성 코드의 소스
+- `$<IP_LIST_NAME>`- 계정 수준 IP 목록의 이름
+
+```bash
+curl https://api.cloudflare.com/client/v4/accounts/{account_id}/rulesets \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "name": "Example ruleset",
+  "kind": "root",
+  "phase": "magic_transit",
+  "description": "Example ruleset description",
+  "rules": [
+    {
+      "action": "block",
+      "expression": "ip.src in $cf.anonymizer",
+      "description": "Block traffic from anonymizer proxies"
+    }
+  ]
+}'
+```

@@ -1,0 +1,74 @@
+---
+summary: Query your D1 database from a Remix application.
+tags:
+  - Remix
+pcx_content_type: example
+title: Remix에서 쿼리 D1
+sidebar:
+  order: 2
+description: Remix 응용 프로그램에서 D1 데이터베이스를 쿼리하십시오.
+reviewed: 2023-07-07T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/examples/d1-and-remix/'
+translation_source_md: 'https://developers.cloudflare.com/d1/examples/d1-and-remix/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+:::참조
+Remix는 새로운 프로젝트에 더 이상 권장되지 않습니다. 새로운 신청을 위해, 사용[모델 번호: React 관련 링크](/workers/framework-guides/web-apps/react-router)대신. 기존 Remix 응용 프로그램을 가지고 있다면, 고려[React 라우터에 마이그레이션](https://reactrouter.com/upgrading/remix).
+:::
+
+Remix는 클라이언트와 서버 모두에서 작동하는 풀 스택 웹 프레임 워크입니다. Remix를 사용하여 D1 데이터베이스(s)를 쿼리할 수 있습니다.[데이터 로딩](https://remix.run/docs/en/main/guides/data-loading)API 와[`useLoaderData`](https://remix.run/docs/en/main/hooks/use-loader-data)걸이.
+
+Cloudflare QXPagesXQ에 새로운 혼합 사이트를 설정하려면 D1XQ를 쿼리 할 수 있습니다 :
+
+1. **더 알아보기[Remix 가이드](/pages/framework-guides/deploy-a-remix-site/)**.
+2. Bind a D1 데이터베이스로[Pages 기능](/pages/functions/bindings/#d1-databases).
+3. 패스워드`--d1 BINDING_NAME=DATABASE_ID`본문 바로가기`wrangler dev`현지 개발`BINDING_NAME`코드에 어떤 통화를 일치해야하며,`DATABASE_ID`일치해야`database_id`사용자 정의[Wrangler 구성 파일](/workers/wrangler/configuration/): 예를 들어,`--d1 DB=xxxx-xxxx-xxxx-xxxx-xxxx`.
+
+다음 예제는 Remix를 정의하는 방법을 보여줍니다[`loader`](https://remix.run/docs/en/main/route/loader)D1 데이터베이스에 바인딩이 있습니다.
+
+- Bindings는 위에 통과됩니다`context.cloudflare.env`매개 변수에 전달`LoaderFunction`.
+- 설정하면[관련 제품](/pages/functions/bindings/#d1-databases)이름 \*`DB`, 다음 액세스 할 것[D1Workers 바인딩 API](/d1/worker-api/prepared-statements/)방법 via`context.cloudflare.env.DB`.
+
+<Tabs>
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import type { LoaderFunction } from "@remix-run/cloudflare";
+    import { json } from "@remix-run/cloudflare";
+    import { useLoaderData } from "@remix-run/react";
+
+    interface Env {
+      DB: D1Database;
+    }
+
+    export const loader: LoaderFunction = async ({ context, params }) => {
+      let env = context.cloudflare.env as Env;
+
+      try {
+        let { results } = await env.DB.prepare("SELECT * FROM users LIMIT 5").run();
+        return json(results);
+      } catch (error) {
+        return json({ error: "Failed to fetch users" }, { status: 500 });
+      }
+    };
+
+    export default function Index() {
+      const results = useLoaderData<typeof loader>();
+      return (
+        <div style={{ fontFamily: "system-ui, sans-serif", lineHeight: "1.8" }}>
+          <h1>Welcome to Remix</h1>
+          <div>
+            A value from D1:
+            <pre>{JSON.stringify(results)}</pre>
+          </div>
+        </div>
+      );
+    }
+    ```
+  </TabItem>
+</Tabs>

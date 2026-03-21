@@ -1,0 +1,99 @@
+---
+title: 대량 Redirects 작업 방법
+pcx_content_type: concept
+sidebar:
+  order: 4
+  label: 어떻게 작동합니까?
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/how-it-works/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/how-it-works/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { MetaInfo } from "~/components";
+
+각 수신 요청을 위해 Cloudflare는 대량 리디렉션 규칙에 의해 활성화되는 각 대량 리디렉션 목록의 모든 URL 리디렉션을 평가합니다.
+
+URL 일치하는 알고리즘에 따라 URL 리디렉션의 일치가 있는 경우, 리디렉션은 URL 리디렉션 설정 매개 변수에 따라 즉시 수행됩니다. Cloudflare는 리디렉션 작업을 한 번 처리하지 않습니다.
+
+## 리디렉션의 소스 URL 일치
+
+다음과 같은 URL 리디렉션 매개 변수는 요청 URL과 소스 URL 사이의 일치 동작을 제어 (및 활성화) URL 리디렉션:
+
+- **Subpath 일치** <MetaInfo text="(default: false)" />
+
+  - 이름 \*`true`, URL 리디렉션은 주어진 소스 경로의 밑에 모든 경로에 적용합니다. 예를 들어 URL 리디렉션의 다음 소스 및 대상 URL을 고려하십시오.
+
+    - 소스 URL:`https://example.com/foo/`
+    - 대상 URL:`https://example.com/qux/`
+
+  - 이 구성과**Subpath 일치**지원, 수신 요청`example.com/foo/bar`본문 바로가기`https://example.com/qux/bar`.
+
+  :::참조
+  URL 리디렉션**Subpath 일치**활성화는 16 이상 포함할 수 없습니다`/`(slash) 소스 URL 경로의 문자.
+  주요 특징
+
+- **하위 도메인 포함** <MetaInfo text="(default: false)" />
+
+  - 이름 \*`true`, URL 리디렉션의 소스 URL 호스트명은 또한 모든 하위 도메인에 적용됩니다. 예를 들어 URL 리디렉션의 다음 소스 및 대상 URL을 고려하십시오.
+
+    - 소스 URL:`https://example.com/about`
+    - 대상 URL:`https://example.com/newpage`
+
+  - 이 구성과**subdomains 포함**지원, 수신 요청`http://a.example.com/about`·`http://a.b.example.com/about`또한 일치할 것, 지정된 도메인에 하위 도메인이 없습니다 (`https://example.com/about`).
+
+이 매개 변수에 대한 자세한 내용은 참조[URL 리디렉션 매개 변수](/rules/url-forwarding/bulk-redirects/reference/parameters/).
+
+## 경로 및 쿼리 문자열 동작 구성
+
+다음 매개 변수는 Cloudflare가 최종 대상 URL의 경로와 쿼리 문자열을 결정하는 방법을 구성합니다.
+
+- **자주 묻는 질문** <MetaInfo text="(default: false)" />
+
+  - 이름 \*`true`, 최종 대상 URL은 원래 요청의 쿼리 문자열을 유지합니다. 예를 들어 URL 리디렉션의 다음 소스 및 대상 URL을 고려하십시오.
+
+    - 소스 URL:`https://example.com/about`
+    - 대상 URL:`https://example.com/newpage`
+
+  - 이 구성과**자주 묻는 질문**지원, 수신 요청`http://example.com/about?q=term`관련 기사`https://example.com/newpage?q=term`. 만약**자주 묻는 질문**장애인, 같은 수신 요청이 리디렉션됩니다.`https://example.com/newpage`.
+
+- **예약 경로 suffix** <MetaInfo text="(default: true)" />
+
+  - 마지막 대상 URL이 URL을 리디렉션의 소스 URL과 일치하지 않은 요청 경로의 부분을 포함하지 않는 경우 Defines.
+
+  - 시간 :**Subpath 일치**일치하지 않은 경로는 최종 대상 URL에 복사됩니다. 예를 들어 URL 리디렉션의 다음 소스 및 대상 URL을 고려하십시오.
+
+    - 소스 URL:`https://example.com/a/`
+    - 대상 URL:`https://example.com/b/`
+
+  - 자주 묻는 질문`https://example.com/a/foo`본문 바로가기`https://example.com/b/foo`.
+
+  - 설정하기**예약 경로 suffix**으로`false`, 같은 요청은 여전히 리디렉션과 일치하지만, 그것은 리디렉션됩니다`https://example.com/b/`.
+
+이 매개 변수에 대한 자세한 내용은 참조[URL 리디렉션 매개 변수](/rules/url-forwarding/bulk-redirects/reference/parameters/).
+
+## URL 매칭 알고리즘
+
+수신 요청의 URL은 목록에서 URL을 리디렉션합니다.
+
+1. 계획 (`http`또는`https`) URL 리디렉션 정의의 소스 URL과 동일합니다. 계획이없는 소스 URL은 모두 일치합니다.`http`·`https`.
+
+2. hostname은 URL 리디렉션 정의의 소스 URL의 호스트 이름과 동일합니다. 이름 \***하위 도메인 포함**리디렉션 정의의 hostname의 하위 도메인도 일치합니다.
+
+3. 경로는 소스 URL과 동일합니다. 이름 \***Subpath 일치**활성화, Cloudflare는 또한 URL 리다이렉트의 소스 URL에 경로의 하위 방향을 고려하면 일치하면 결정합니다. 예를 들어, URL은 소스 URL로 리디렉션됩니다.`example.com/blog`또한 요청에 일치`example.com/blog/foo`·`example.com/blog/bar`.
+
+### URL을 리디렉션하여 적용
+
+여러 URL 리디렉션을 적용 할 수 있다면, 다음 규칙에 따라 승리가 결정되는 리디렉션 :
+
+1. 두 URL을 리디렉션으로 제공**Subpath 일치**활성화, URL은 다른 URL 리디렉션을 통해 가장 특정 경로 승리로 리디렉션.<br />두 URL이 소스 URL 경로로 리디렉션되는 경우`/folder`·`/folder/subfolder`, 수신 요청`/folder/subfolder/item`URL 경로는 두 번째 리디렉션과 일치합니다 (`/folder/subfolder`) 더 특정하기 때문에.
+
+2. URL 리디렉션은 URL 리디렉션을 통해 정확한 hostname 승리**하위 도메인 포함**옵션 설정.
+
+3. 두 URL을 리디렉션으로 제공**하위 도메인 포함**활성화, 다른 URL 리디렉션을 통해 가장 특정 도메인의 URL.<br />두 URL이 소스 URL hostnames로 리디렉션되는 경우`bar.com`·`foo.bar.com`, 수신 요청`qux.foo.bar.com`두 번째 리디렉션과 일치합니다 (`foo.bar.com`) 더 특정하기 때문에.
+
+4. URL 리디렉션은 URL 리디렉션을 통해 URL 리디렉션을 통해`http`·`https`계획.

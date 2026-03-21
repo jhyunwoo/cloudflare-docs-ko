@@ -1,0 +1,54 @@
+---
+pcx_content_type: concept
+title: Cloudflare DNS 작동 방식
+sidebar:
+  order: 2
+
+---
+
+import { Stream, GlossaryTooltip } from "~/components"
+
+웹사이트나 웹 애플리케이션을 최적화하기 위해 Cloudflare는 [DNS](https://www.cloudflare.com/learning/dns/what-is-dns/)와 [CDN](https://www.cloudflare.com/learning/cdn/what-is-a-cdn/) 서비스를 제공하며, 이를 통해 도메인으로 오가는 웹 트래픽을 [리버스 프록시](https://www.cloudflare.com/learning/cdn/glossary/reverse-proxy/)할 수 있습니다.
+
+<Stream id="980c8494f2403b95473d2ed687b4f402" title="도메인에서 Cloudflare DNS가 작동하는 방식" thumbnail="https://imagedelivery.net/xDOJvHcv1KwTQn6S-BGFIw/fe425a25-66e7-4975-f4e3-32822987e000/public" />
+
+## DNS 설명
+
+도메인 이름 시스템(DNS)은 인터넷의 전화번호부처럼 작동하며, 도메인 이름(예: `cloudflare.com`)을 숫자로 된 인터넷 프로토콜(IP) 주소(예: `103.21.244.0`)로 변환합니다.
+
+IP 주소는 웹사이트가 위치한 집 주소와 같고, 도메인 이름은 사람이 읽을 수 있는 이름입니다.
+
+DNS 쿼리는 어떤 장소로 가는 길을 묻는 것과 비슷하며, DNS 레코드는 무엇이 어디에 존재하는지에 대한 기준 정보입니다. DNS 레코드는 권한 있는 [DNS 서버](https://www.cloudflare.com/learning/dns/dns-server-types/)에 저장되며, 해당 도메인에서 웹 콘텐츠와 서비스를 호스팅하는 서버의 [IP 주소](https://www.cloudflare.com/learning/dns/glossary/what-is-my-ip-address/)처럼 도메인에 대한 정보를 제공합니다. 이 정보를 통해 인터넷 브라우저는 웹사이트나 앱이 어디에 있는지 알고, 방문자에게 [HTTP](https://www.cloudflare.com/learning/ddos/glossary/hypertext-transfer-protocol-http/)를 사용해 이를 렌더링할 수 있습니다.
+
+<div id="cloudflare-as-a-dns-provider"></div>
+
+## DNS 공급자로서의 Cloudflare
+
+웹사이트나 애플리케이션을 Cloudflare에 온보딩하면 Cloudflare는 도메인의 기본 권한 DNS 공급자가 됩니다. 기본 권한 DNS 공급자가 되면 Cloudflare는 도메인에 대한 DNS 쿼리에 응답하고, 사용자는 Cloudflare 대시보드나 API를 통해 도메인의 DNS 레코드를 관리합니다.
+
+:::note
+Cloudflare는 기본 전체 DNS 설정을 사용할 때만 기본 권한 DNS 공급자가 됩니다. 다른 옵션은 [DNS 설정](/dns/zone-setups/)을 참고하세요.
+:::
+
+[도메인 상태](/dns/zone-setups/reference/domain-status/)가 활성 상태이고 조회된 DNS 레코드가 `proxied`로 설정되어 있다면, Cloudflare는 DNS 테이블에 정의된 원본 IP 주소 대신 [애니캐스트 IP 주소](/fundamentals/concepts/cloudflare-ip-addresses/)로 응답합니다.
+
+도메인 상태는 [네임서버가 업데이트](/dns/nameservers/update-nameservers/)되어 Cloudflare를 가리키고 인증되었을 때 활성 상태가 됩니다. [프록시 상태](/dns/proxy-status/)는 특정 DNS 레코드에 대한 쿼리를 Cloudflare가 어떻게 처리할지 정의합니다. [애니캐스트 IP 주소](/fundamentals/concepts/cloudflare-ip-addresses/)는 Cloudflare 네트워크 전체에 트래픽을 분산하는 데 사용되며, 이를 통해 웹사이트나 앱을 [DDoS](https://www.cloudflare.com/learning/ddos/what-is-a-ddos-attack/) 및 기타 공격으로부터 보호하면서 사이트 속도도 최적화합니다.
+
+<div id="cloudflare-as-a-reverse-proxy"></div>
+
+## 리버스 프록시로서의 Cloudflare
+
+리버스 프록시는 웹 서버 앞에 위치하여 요청을 해당 웹 서버로 전달하거나, 웹 서버를 대신해 요청을 처리하는 서버 네트워크입니다. 리버스 프록시는 일반적으로 웹사이트와 웹 애플리케이션의 보안, 성능, 신뢰성을 높이기 위해 구현됩니다.
+
+![Cloudflare가 리버스 프록시일 때 서버에서 Cloudflare를 거쳐 원본 서버로 요청이 흐르는 모습](~/assets/images/fundamentals/reverse-proxy.png)
+
+Cloudflare가 도메인에 대한 DNS 쿼리를 수신하면, 응답은 [DNS 테이블에 설정된 구성](/dns/manage-dns-records/how-to/create-dns-records/)에 따라 결정됩니다. 여기에는 [레코드 유형](/dns/manage-dns-records/reference/dns-record-types/), 레코드의 [프록시 가능 여부](/dns/proxy-status/limitations/#proxy-eligibility), [프록시 상태](/dns/proxy-status/#proxied-records)가 포함됩니다.
+
+DNS 테이블의 DNS 레코드가 `proxied` 상태이면 해당 레코드의 HTTP/HTTPS 트래픽은 클라이언트와 원본 서버 사이를 이동할 때 Cloudflare를 거칩니다. 도메인 상태가 활성 상태라면 프록시된 DNS 레코드에 대한 모든 HTTP/HTTPS 요청은 Cloudflare를 통과합니다.
+
+Cloudflare를 리버스 프록시로 사용하면 다음과 같은 장점이 있습니다.
+
+- **로드 밸런싱** 리버스 프록시는 들어오는 트래픽을 여러 서버에 고르게 분산하는 로드 밸런싱 솔루션을 제공하여 특정 서버 하나에 과부하가 걸리는 것을 방지할 수 있습니다. 서버가 완전히 장애가 나면 다른 서버가 트래픽을 처리할 수 있습니다.
+- **공격으로부터 보호.** 리버스 프록시를 사용하면 웹사이트나 서비스는 원본 서버의 IP 주소를 공개할 필요가 없으므로, 공격자가 DDoS 공격과 같은 표적 공격을 수행하기가 훨씬 어려워집니다. 대신 공격자는 Cloudflare CDN 같은 리버스 프록시만 대상으로 삼을 수 있고, 이는 더 강력한 보안과 더 많은 리소스로 사이버 공격에 대응할 수 있습니다.
+- **캐싱.** 리버스 프록시는 콘텐츠를 캐시하여 더 빠른 성능을 제공할 수 있습니다. 예를 들어 로스앤젤레스에 웹 서버가 있는 리버스 프록시 웹사이트를 파리의 사용자가 방문하면, 실제로는 파리의 로컬 리버스 프록시 서버에 연결되고 해당 서버가 L.A.의 원본 서버와 통신합니다. 이후 프록시 서버는 응답 데이터를 캐시(또는 임시 저장)할 수 있습니다. 그러면 이후 같은 사이트를 방문한 파리 사용자들은 파리 리버스 프록시 서버의 로컬 캐시 버전을 받아 더 빠른 성능을 경험합니다.
+- **SSL 암호화.** SSL/TLS는 필수입니다. SSL/TLS 인증서가 없으면 방문자 브라우저에 웹사이트나 애플리케이션이 안전하지 않다는 경고가 표시됩니다. 하지만 각 클라이언트의 SSL(또는 TLS) 통신을 암호화하고 복호화하는 작업은 원본 서버에 큰 계산 비용을 요구할 수 있습니다. 리버스 프록시는 모든 수신 요청을 복호화하고 모든 발신 응답을 암호화하도록 구성할 수 있어, 원본 서버의 중요한 리소스를 절약할 수 있습니다.

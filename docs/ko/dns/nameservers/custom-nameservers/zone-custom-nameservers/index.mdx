@@ -1,0 +1,88 @@
+---
+pcx_content_type: how-to
+title: 영역 사용자 지정 네임서버 설정
+sidebar:
+  order: 3
+  label: Zone level
+head:
+  - tag: title
+    content: Zone custom nameservers
+description: 각 영역 수준 사용자 지정 네임서버 이름은 사용자 지정 네임서버가 구성된 영역의 하위 도메인이어야 합니다. 이 사용자 지정 네임서버는 해당 영역 안에서만 사용할 수 있습니다.
+---
+
+import { TabItem, Tabs, DashButton } from "~/components";
+
+영역 사용자 지정 네임서버(ZCNS)를 사용하면 각 사용자 지정 네임서버 이름은 사용자 지정 네임서버가 구성된 영역의 하위 도메인이어야 합니다.
+
+예를 들어 영역이 `domain.test`라면 ZCNS는 `ns1.domain.test`, `ns2.domain.test`가 될 수 있지만, 다른 TLD(`ns1.domain.org`)나 다른 도메인(`ns1.example.com`)은 사용할 수 없습니다.
+
+## 제공 여부
+
+영역 사용자 지정 네임서버는 Business 또는 Enterprise 요금제의 영역에서 사용할 수 있습니다. API 또는 대시보드로 구성할 수 있습니다.
+
+## 영역 사용자 지정 네임서버 사용
+
+### 기본 영역(Full setup)
+
+영역 사용자 지정 네임서버를 만들려면 다음 단계를 따르세요.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. **Custom nameservers**에서 **Configure**를 선택합니다.
+3. **Create custom nameservers just for `your-domain.com`**을 선택하고 ZCNS 이름에 사용할 하위 도메인(예: `ns1`, `ns2`, `ns3`)을 입력합니다.
+4. **Save**를 선택해 확인합니다.
+
+</TabItem> <TabItem label="API">
+
+[Edit zone endpoint](/api/resources/zones/methods/edit/)를 사용하고 페이로드에 사용자 지정 네임서버를 지정합니다.
+
+```txt
+"vanity_name_servers": ["ns1.example.com","ns2.example.com"]
+```
+
+</TabItem> </Tabs>
+
+Cloudflare는 각 ZCNS 이름에 IPv4 하나와 IPv6 하나를 할당하고, 연결된 `A` 또는 `AAAA` 레코드를 자동으로 생성합니다.
+
+다음 단계는 도메인에 대해 [Cloudflare Registrar](/registrar/)를 사용 중인지에 따라 달라집니다.
+
+- Cloudflare Registrar를 사용 중이라면 [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의하여 사용자 지정 네임서버와 IP 주소를 도메인의 글루 레코드로 추가하도록 요청하세요.
+- Cloudflare Registrar를 사용하지 않는다면, 등록기관에서 영역 사용자 지정 네임서버를 권한 네임서버로 설정하고 글루(A 및 AAAA) 레코드로도 추가하세요([RFC 1912](https://www.rfc-editor.org/rfc/rfc1912.html)). 이 레코드를 추가하지 않으면 도메인의 DNS 조회가 실패합니다.
+
+### 보조 영역
+
+[Cloudflare를 보조 DNS 공급자](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/)로 사용하는 경우에도 영역 사용자 지정 네임서버를 설정할 수 있습니다. 위의 [단계](/dns/nameservers/custom-nameservers/zone-custom-nameservers/#primary-zones-full-setup)에 따라 영역 사용자 지정 네임서버를 만든 다음, 다음을 수행하세요.
+
+1. ZCNS IP를 가져옵니다. [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지에서 확인하거나 [Zone details endpoint](/api/resources/zones/methods/get/)를 사용해 `vanity_name_servers_ips`를 가져올 수 있습니다.
+2. 기본 DNS 공급자에서 [`NS` 레코드](/dns/manage-dns-records/reference/dns-record-types/#ns)를 추가하고, ZCNS 이름으로 사용한 하위 도메인에 `A/AAAA` 레코드도 추가합니다.
+3. 등록기관에서 영역 사용자 지정 네임서버를 권한 네임서버이자 글루(A 및 AAAA) 레코드로 추가합니다([RFC 1912](https://www.rfc-editor.org/rfc/rfc1912.html)).
+
+## 영역 사용자 지정 네임서버 제거
+
+영역 사용자 지정 네임서버(및 연결된 읽기 전용 DNS 레코드)를 제거하려면 다음을 수행하세요.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. Cloudflare 대시보드에서 **DNS Records** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/records" />
+
+2. **Custom nameservers**에서 **Disable**을 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+[Edit zone endpoint](/api/resources/zones/methods/edit/)를 사용하고 페이로드에 빈 배열을 포함합니다.
+
+```txt
+"vanity_name_servers": []
+```
+
+</TabItem> </Tabs>
+
+Cloudflare는 ZCNS와 연결된 읽기 전용 `A` 또는 `AAAA` 레코드를 제거합니다.
+
+도메인에 대해 Cloudflare Registrar를 사용하지 않는다면, 등록기관, 부모 영역 또는 기본 DNS 공급자에서 네임서버 설정도 함께 조정해야 합니다.

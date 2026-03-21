@@ -1,0 +1,317 @@
+---
+pcx_content_type: tutorial
+title: Cloudflare 리소스 가져 오기
+description: >-
+  Cloudflare Terraform 도구는 Terraform ME 저장소에서 사용할 수 있습니다. 사용하려면 먼저 Mac 또는 Linux
+  시스템에 Terraform 앱을 설치해야합니다. CloudflareQ 리소스를 개별적으로 가져야 합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/terraform/advanced-topics/import-cloudflare-resources/
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/advanced-topics/import-cloudflare-resources/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Terraform에 대해 이해하는 중요한 점은 구성을 생성하거나 명시적으로 고려할 수 있다는 것입니다. 이 제한의 이유는 Terraform이 자원에 대한 권한이 될 것으로 예상됩니다. 그것은 두 가지 유형의 파일에 의존하여 어떤 리소스를 제어하고 어떤 상태인지 이해합니다. Terraform은 다음과 같이 변경할 때 결정합니다.
+
+- ·[구성 파일](https://developer.hashicorp.com/terraform/language)(출발)`.tf`) Terraform의 구성을 관리하기 위해 정의합니다. 이것은 튜토리얼 단계에서 일한 것입니다.
+- 한국어[국가 파일](https://developer.hashicorp.com/terraform/language/state)즉, 구성 파일에 정의된 리소스 이름을 매기 — 예를 들면,`cloudflare_load_balancer.www-lb`- CloudflareXQ에 존재하는 자원에.
+
+Terraform이 Cloudflare의 API로 호출하면 새로운 리소스를 작성하여 설명합니다.[관련 기사](/terraform/tutorial/), 그것은 그 ID를 국가 파일로 인식합니다. 기본적으로 Terraform은`terraform.tfstate`디렉토리에 파일, 하지만 이것은 또한 할 수 있습니다[원격 위치](https://developer.hashicorp.com/terraform/language/state/remote). 이 ID는 나중에 전화를 걸고 새로 고침합니다.`terraform plan`·`terraform apply`.
+
+다른 수단을 통해 Cloudflare를 구성하면, 예를 들어, Cloudflare QXQXQX대시보드 또는 만들기에 로그인하여`curl`전화 번호`api.cloudflare.com`, Terraform은 아직 국가 파일에 이러한 리소스 ID가 없습니다. 이 preexisting 구성을 관리하려면 먼저 구성 파일의 구성을 재현하고 ID 및 리소스 이름을 제공함으로써 개별 리소스를 가져올 필요가 있습니다.
+
+## `cf-terraforming`
+
+[`cf-terraforming`](https://github.com/cloudflare/cf-terraforming)기존의 Cloudflare 고객 시작하기를 Terraform으로 지원합니다. 현재,`cf-terraforming`선택의 계정 및 / 또는 영역에서 지정된 유형의 모든 리소스를 fetching하여 Terraform config state를 생성하는 데 도움이됩니다.
+
+### 설치하기
+
+시작하기 전에 설치해야 합니다.`cf-terraforming`.
+
+macOS에서 Homebrew를 사용하는 경우 터미널을 열고 다음 명령을 실행하십시오.
+
+```sh
+brew tap cloudflare/cloudflare
+brew install cloudflare/cloudflare/cf-terraforming
+```
+
+다른 OS를 사용하는 경우,[최신 버전 다운로드](https://github.com/cloudflare/cf-terraforming/releases)으로`cf-terraforming`GitHub 저장소.
+
+도움말 파일을 보려면, 실행`cf-terraforming`또는`cf-terraforming -h`.
+
+### 기본 사용
+
+이용안내`cf-terraforming`, 아래의 항목을 지정:
+
+1. 실행 명령 (예를 들어,`generate`또는`import`).
+2. Cloudflare 사용자 이메일 -`--email`또는`-e`.
+3. Cloudflare API 토큰 -`--token`또는`-t`.
+4. 계정 및 / 또는 영역에서 리소스를 끌어 -`--account`/`--zone`또는`-a`/`-z`.
+5. config를 생성하는 Cloudflare 자원.
+
+지원되는 자료의 목록은 유효합니다[README 정보](https://github.com/cloudflare/cf-terraforming#supported-resources).
+
+## 기존 Cloudflare 리소스 가져 오기
+
+기존의 CloudflareQ 리소스를 Terraform에서 관리하려면, 예를 들어, DNS 레코드가 필요합니다.
+
+- 그 자원의 Terraform 구성 (에서 정의 됨)`.tf`파일)
+- 해당 리소스 상태의 Terraform state 파일과 함께 (에서 정의 됨)`.tfstate`파일)
+
+### Terraform 구성 생성`cf-terraforming`
+
+정의 된 Terraform 구성 파일이 없다면,`provider`다음과 같이 정의된 구획:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```hcl
+provider 'cloudflare' {
+ # Cloudflare email saved in $CLOUDFLARE_EMAIL
+ # Cloudflare API token saved in $CLOUDFLARE_API_TOKEN
+}
+```
+
+소스 파일로 검사되지 않은 환경변수 또는 지형 autovars에서 저장된 자격 증명을 유지하십시오.
+
+자주 묻는 질문`cf-terraforming generate`Terraform과 관리하려는 영역의 DNS 레코드에 대한 Terraform 구성을 생성합니다.
+
+```sh
+cf-terraforming generate --email $CLOUDFLARE_EMAIL --token $CLOUDFLARE_API_TOKEN -z 1109d899a5ff5fd74bc01e581693685b --resource-type cloudflare_record > importing-example.tf
+```
+
+출력을 리디렉션하지 않았다면`importing-example.tf`파일, 표준 출력 (당신의 끝 창)에 표시된 결과는 다음과 같이 보일 것입니다:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_record" "terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31" {
+    name    = "@"
+    type    = "A"
+    ttl     = 1
+    proxied = true
+    value   = "192.0.2.1"
+    zone_id = "1109d899a5ff5fd74bc01e581693685b"
+}
+
+resource "cloudflare_record" "terraform_managed_resource_5e10399a590a45279f09aa8fb1163354" {
+    name    = "www"
+    type    = "CNAME"
+    ttl     = 1
+    proxied = true
+    value   = "mitigateddos.net"
+    zone_id = "1109d899a5ff5fd74bc01e581693685b"
+}
+
+resource "cloudflare_record" "terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248" {
+    name    = "a123"
+    type    = "NS"
+    ttl     = 300
+    proxied = false
+    value   = "rafe.ns.cloudflare.com"
+    zone_id = "1109d899a5ff5fd74bc01e581693685b"
+}
+
+resource "cloudflare_record" "terraform_managed_resource_5799bb01054843eea726758f935d2aa2" {
+    name    = "a123"
+    type    = "NS"
+    ttl     = 300
+    proxied = false
+    value   = "terin.ns.cloudflare.com"
+    zone_id = "1109d899a5ff5fd74bc01e581693685b"
+}
+```
+
+전화 번호`terraform plan`이 시점에서이 리소스를 생성하려고합니다. 그렇지 않은 경우, 그들은 로컬 파일에 존재하지 않기 때문에:
+
+```sh
+terraform plan
+```
+
+```txt output
+Terraform used the selected providers to generate the following execution plan.
+Resource actions are indicated with the following symbols:
+  + create
+
+Terraform will perform the following actions:
+
+  # cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31 will be created
+  + resource "cloudflare_record" "terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31" {
+      + id          = (known after apply)>
+      + created_on  = (known after apply)
+      + domain      = "mitigateddos.net"
+      + hostname    = (known after apply)
+      + metadata    = (known after apply)
+      + modified_on = (known after apply)
+      + name        = "mitigateddos.net"
+      + proxiable   = (known after apply)
+      + proxied     = true
+      + ttl         = 1
+      + type        = "A"
+      + value       = "192.0.2.1"
+      + zone_id     = "1109d899a5ff5fd74bc01e581693685b"
+    }
+
+  # cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354 will be created
+  + resource "cloudflare_record" "terraform_managed_resource_5e10399a590a45279f09aa8fb1163354" {
+      + id          = (known after apply)
+      + created_on  = (known after apply)
+      + domain      = "mitigateddos.net"
+      + hostname    = (known after apply)
+      + metadata    = (known after apply)
+      + modified_on = (known after apply)
+      + name        = "www.mitigateddos.net"
+      + proxiable   = (known after apply)
+      + proxied     = true
+      + ttl         = 1
+      + type        = "CNAME"
+      + value       = "mitigateddos.net"
+      + zone_id     = "1109d899a5ff5fd74bc01e581693685b"
+    }
+
+  # cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248 will be created
+  + resource "cloudflare_record" "terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248" {
+      + id          = (known after apply)
+      + created_on  = (known after apply)
+      + domain      = "mitigateddos.net"
+      + hostname    = (known after apply)
+      + metadata    = (known after apply)
+      + modified_on = (known after apply)
+      + name        = "a123.mitigateddos.net"
+      + proxiable   = (known after apply)
+      + proxied     = false
+      + ttl         = 300
+      + type        = "NS"
+      + value       = "rafe.ns.cloudflare.com"
+      + zone_id     = "1109d899a5ff5fd74bc01e581693685b"
+    }
+
+  # cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2 will be created
+  + resource "cloudflare_record" "terraform_managed_resource_5799bb01054843eea726758f935d2aa2" {
+      + id          = (known after apply)
+      + created_on  = (known after apply)
+      + domain      = "mitigateddos.net"
+      + hostname    = (known after apply)
+      + metadata    = (known after apply)
+      + modified_on = (known after apply)
+      + name        = "a123.mitigateddos.net"
+      + proxiable   = (known after apply)
+      + proxied     = false
+      + ttl         = 300
+      + type        = "NS"
+      + value       = "terin.ns.cloudflare.com"
+      + zone_id     = "1109d899a5ff5fd74bc01e581693685b"
+    }
+
+Plan: 4 to add, 0 to change, 0 to destroy.
+
+------------------------------------------------------------------------
+
+Note: You didn't use the -out option to save this plan, so Terraform can't
+guarantee to take exactly these actions if you run "terraform apply" now.
+```
+
+이 문제를 해결하려면 Cloudflare에서 Terraform state 파일로 해당 리소스의 실제 상태를 가져올 수 있어야합니다 (`.tfstate`).
+
+### Terraform 상태에 리소스를 가져 오기
+
+`cf-terraforming`로컬 상태를 가져올 수 있습니다 (`.tfstate`파일) 구성 중에 가져온 동일한 리소스.
+
+당신이 실행할 때`cf-terraforming import ...`, 당신은 목록을 얻을 것이다`terraform import ...`Terraform 상태에 해당 리소스를 가져 오기 위해 수동으로 실행해야 할 명령. 이것은 현재 수동 프로세스이지만 미래의 자동화 될 수 있습니다.
+
+1. 다음 명령을 실행:
+
+   ```sh
+   cf-terraforming import --resource-type "cloudflare_record" --email $CLOUDFLARE_EMAIL --key $CLOUDFLARE_API_KEY --zone $CLOUDFLARE_ZONE_ID
+   ```
+
+2. 각 복사`terraform import ...`출력에 포함 된 명령을 실행합니다. Terraform은 각각의 리소스를 개별적으로 Terraform 상태로 가져올 것입니다.
+
+예를 들어, 첫 번째 명령의 출력이면 (`cf-terraforming import ...`) 다음을 포함`terraform`명령:
+
+```txt
+terraform import cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31 1109d899a5ff5fd74bc01e581693685b/3c0b456bc2aa443089c5f40f45f51b31
+terraform import cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354 1109d899a5ff5fd74bc01e581693685b/d09d916d059aa9fc8cb54bdd49deea5f
+terraform import cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248 1109d899a5ff5fd74bc01e581693685b/8d6ec0d02c5b22212ff673782c816ef8
+terraform import cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2 1109d899a5ff5fd74bc01e581693685b/3766b952a2dda4c47e71952aeef33c77
+```
+
+터미널에서 각 명령을 개별적으로 실행할 수 있습니다.
+
+```sh
+terraform import cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31 1109d899a5ff5fd74bc01e581693685b/3c0b456bc2aa443089c5f40f45f51b31
+```
+
+```txt output
+cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Importing from ID "1109d899a5ff5fd74bc01e581693685b/3c0b456bc2aa443089c5f40f45f51b31"...
+cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Import complete!
+  Imported cloudflare_record [id=3c0b456bc2aa443089c5f40f45f51b31]
+cloudflare_record.terraform_managed_resource_3c0b456bc2aa443089c5f40f45f51b31: Refreshing state... [id=3c0b456bc2aa443089c5f40f45f51b31]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+```
+
+```sh
+terraform import cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354 1109d899a5ff5fd74bc01e581693685b/d09d916d059aa9fc8cb54bdd49deea5f
+```
+
+```txt output
+cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354: Importing from ID "1109d899a5ff5fd74bc01e581693685b/d09d916d059aa9fc8cb54bdd49deea5f"...
+cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354: Import complete!
+  Imported cloudflare_record [id=d09d916d059aa9fc8cb54bdd49deea5f]
+cloudflare_record.terraform_managed_resource_5e10399a590a45279f09aa8fb1163354: Refreshing state... [id=d09d916d059aa9fc8cb54bdd49deea5f]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+```
+
+```sh
+terraform import cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248 1109d899a5ff5fd74bc01e581693685b/8d6ec0d02c5b22212ff673782c816ef8
+```
+
+```txt output
+cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248: Importing from ID "1109d899a5ff5fd74bc01e581693685b/8d6ec0d02c5b22212ff673782c816ef8"...
+cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248: Import complete!
+  Imported cloudflare_record [id=8d6ec0d02c5b22212ff673782c816ef8]
+cloudflare_record.terraform_managed_resource_de1cb74bae184b569bb7f83fefe72248: Refreshing state... [id=8d6ec0d02c5b22212ff673782c816ef8]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+```
+
+```sh
+terraform import cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2 1109d899a5ff5fd74bc01e581693685b/3766b952a2dda4c47e71952aeef33c77
+```
+
+```txt output
+cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2: Importing from ID "1109d899a5ff5fd74bc01e581693685b/3766b952a2dda4c47e71952aeef33c77"...
+cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2: Import complete!
+  Imported cloudflare_record [id=3766b952a2dda4c47e71952aeef33c77]
+cloudflare_record.terraform_managed_resource_5799bb01054843eea726758f935d2aa2: Refreshing state... [id=3766b952a2dda4c47e71952aeef33c77]
+
+Import successful!
+
+The resources that were imported are shown above. These resources are now in
+your Terraform state and will henceforth be managed by Terraform.
+```
+
+지금 실행`terraform plan`, 당신은 Terraform가 더 이상 다시 만들려고하지 않을 것입니다`cloudflare_record`자료:
+
+```sh
+terraform plan | grep changes
+```
+
+```sh output
+No changes. Infrastructure is up-to-date.
+```

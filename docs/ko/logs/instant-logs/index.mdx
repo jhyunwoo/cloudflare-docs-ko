@@ -1,0 +1,158 @@
+---
+pcx_content_type: concept
+title: 즉시 로그인
+sidebar:
+  order: 116
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/instant-logs/'
+translation_source_md: 'https://developers.cloudflare.com/logs/instant-logs/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FeatureTable, APIRequest, DashButton } from "~/components";
+
+Instant Logs를 사용하면 Cloudflare 고객이 Cloudflare 대시보드 또는 명령줄 인터페이스(CLI)에서 자신의 도메인으로 향하는 트래픽의 실시간 스트림에 액세스할 수 있습니다. 실시간 데이터 보고를 통해 공격을 조사하고, 문제를 해결 및 디버그하거나, 네트워크 변경 사항을 테스트할 수 있습니다. Instant Logs는 가볍고 사용하기 쉬우며 추가 설정이 필요하지 않습니다.
+
+## 적용분야
+
+<FeatureTable id="analytics.instant_logs" />
+
+## 즉시 Cloudflare 대시보드를 통해 통나무
+
+1. Cloudflare 대시보드에서, 갑니다**즉시 로그인**사이트 맵
+
+   <DashButton url="/?to=/:account/:zone/analytics/instant-logs" />
+
+2. 제품정보**스트리밍**.
+
+3. (옵션) 선택**필터 추가**이벤트를 좁히기 위해.
+
+우리에서 지원하는 필드[HTTP 요청 데이터셋](/logs/logpush/logpush-job/datasets/zone/http_requests/)필터를 추가할 때 사용할 수 있습니다. 추가 구독이있는 일부 필드는 대시보드에서 지원되지 않습니다. 대신 CLI를 사용해야합니다.
+
+필터가 선택되고 스트림이 시작되면 필터 표준과 일치하는 로그 라인 만 나타납니다. 필터는 대시보드에서 이미 보여주는 로그에 복부적으로 적용되지 않습니다.
+
+## CLI를 통해 즉시 로그인
+
+### 1. 즉시 로그 작업 만들기
+
+세션 만들기`POST`다음 매개 변수를 가진 즉시 로그 작업 엔드 포인트에 요청:
+
+- **제품정보**- 어떤 필드를 나열[HTTP 요청 데이터셋](/logs/logpush/logpush-job/datasets/zone/http_requests/).
+
+- **제품 설명**- 표본 모수는 클라이언트에 의해 놓은 기록의 표본 비율입니다:`"sample": 1`100%의 기록`"sample": 10`10% 등입니다.
+
+:::참조
+
+Instant Logs는 최대 데이터 속도가 지원됩니다. 높은 볼륨 도메인의 경우, 우리는 서버 측에 명시된대로 샘플`"sampleInterval"`로그에 반환된 매개 변수.
+
+:::
+
+- **필터링**- 특정 이벤트로 드릴 필터를 사용합니다. 필터는 3개의 부품으로 이루어져 있습니다: 열쇠, 통신수 및 가치.
+
+지원되는 모든 통신수는 안으로 찾아낼 수 있습니다[필터링](/logs/logpush/logpush-job/filters/)사이트 맵
+
+우리는 필터의 세 가지 예가 있습니다.
+
+```bash
+#클라이언트 IP 국가가 캐나다가 아닌 경우 필터:
+"filter": "{\"where\":{\"and\":[{\"key\":\"ClientCountry\",\"operator\":\"neq\",\"value\":\"ca\"}]}}"
+```
+
+```bash
+#상태 부호가 Cloudflare에서 반환될 때 필터는 200 또는 201입니다:
+"filter": "{\"where\":{\"and\":[{\"key\":\"EdgeResponseStatus\",\"operator\":\"in\",\"value\":[200,201]}]}}"
+```
+
+```bash
+#요청 경로가 "/static"을 포함 할 때 필터와 요청 호스트 이름은 "example.com":
+"filter": "{\"where\":{\"and\":[{\"key\":\"ClientRequestPath\",\"operator\":\"contains\",\"value\":\"/static\"}, {\"where\":{\"and\":[{\"key\":\"ClientRequestHost\",\"operator\":\"eq\",\"value\":\"example.com\"}]}}"
+```
+
+cURL을 사용한 예시 요청:
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/edge/jobs"
+  method="POST"
+  json={{
+  	fields:
+  		"ClientIP,ClientRequestHost,ClientRequestMethod,ClientRequestURI,EdgeEndTimestamp,EdgeResponseBytes,EdgeResponseStatus,EdgeStartTimestamp,RayID",
+  	sample: 100,
+  	filter: "",
+  	kind: "instant-logs",
+  }}
+/>
+
+응답:
+
+응답은 호출 된 새로운 필드를 포함한다**대상 conf**. 이 분야의 가치는 Cloudflare의 글로벌 네트워크에서 메시지를 받을 것이다 당신의 유일한 WebSocket 주소입니다.
+
+```json
+{
+  "errors": [],
+  "messages": [],
+  "result": {
+    "id": <JOB_ID>,
+    "fields": "ClientIP,ClientRequestHost,ClientRequestMethod,ClientRequestURI,EdgeEndTimestamp,EdgeResponseBytes,EdgeResponseStatus,EdgeStartTimestamp,RayID",
+    "sample": 100,
+    "filter": "",
+    "destination_conf": "wss://logs.cloudflare.com/instant-logs/ws/sessions/<SESSION_ID>",
+    "kind": "instant-logs"
+  },
+  "success": true
+}
+```
+
+### 2. WebSocket에 연결
+
+CLI 유틸리티 사용[웹소캣](https://github.com/vi/websocat), WebSocket에 연결할 수 있으며 즉시 로그를 수신합니다.
+
+```bash
+websocat wss://logs.cloudflare.com/instant-logs/ws/sessions/<SESSION_ID>
+```
+
+응답:
+
+websocket에 연결되면, line-delimited JSON의 메시지를 받게 됩니다.
+
+### 각도 분쇄기
+
+이제 Cloudflare의 websocket에 연결이 있으며 Cloudflare의 글로벌 네트워크에서 로그를 수신하고 로그를 디싱 할 수 있습니다. 이를위한 편리한 도구는[각도 분쇄기](https://github.com/rcoh/angle-grinder). 각 분쇄기는 첫 번째 클래스 JSON 지원으로 stdin에 필터링, 변환 및 집계를 적용합니다. 예를 들어, 각 국가의 방문자 수를 얻으려면 이벤트 수를 요약 할 수 있습니다.`ClientCountry`이름 \*
+
+```bash
+websocat wss://logs.cloudflare.com/instant-logs/ws/sessions/<SESSION_ID> | agrind '* | json | sum(sampleInterval) by ClientCountry'
+```
+
+응답:
+
+| **고객Country** | **여름** |
+| ------------- | ------ |
+| 사이트맵          | `4`    |
+| ₢ 킹           | `3`    |
+| 제품 정보         | `3`    |
+| ᄋᄋ            | `2`    |
+| 이름 \*         | `1`    |
+| ₢ 킹           | `1`    |
+
+## Datasets 사용 가능
+
+현재`HTTP requests`지원되는 유일한 dataset입니다. 앞으로, 우리는 다른 datasets에 확장할 것입니다.
+
+## 수출입
+
+JSON 형식에서 대시보드에 나타나는 로그 테이블을 다운로드 할 수 있습니다.**수출입**버튼.
+
+## 제한 사항
+
+Instant Logs에는 3 개의 제한이 있습니다.
+
+- Zone당 1개의 Active Instant Logs 세션 만.
+- 최대 세션 시간은 60 분입니다.
+- 5 분 이상 소켓을 듣는 경우.
+
+이 제한 중 하나가 도달되면 로그 스트림이 자동으로 중지됩니다.
+
+## 연결하기
+
+어떤 기능 요청이나 버그를 발견하면 직접 피드백을 우리와 함께 공유하십시오.[모델 번호: Cloudflare Discord의 개발자 커뮤니티](https://discord.cloudflare.com).

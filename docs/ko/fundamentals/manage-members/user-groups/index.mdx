@@ -1,0 +1,286 @@
+---
+pcx_content_type: how-to
+title: 사용자 그룹
+sidebar:
+  badge:
+    text: 신규
+  order: 5
+---
+
+import { DashButton, Tabs, TabItem } from '~/components';
+
+사용자 그룹(User Groups)은 접근 제어 관점에서 동일하게 취급되는 [계정 멤버](/fundamentals/manage-members/)의 모음입니다. 사용자 그룹에는 권한 정책을 할당할 수 있으며, 그룹의 개별 멤버는 사용자 그룹에 할당된 역할의 모든 권한을 받습니다. 사용자가 개별적으로도 권한을 부여받았다면, 그 사용자의 실효 권한은 개별 권한 전체와 자신이 속한 모든 사용자 그룹의 권한을 합친 결과가 됩니다.
+
+:::note
+사용자 그룹 권한은 그룹의 각 멤버에게 상속되지만 현재는 **Members** 페이지의 역할 필드에 반영되지 않습니다. 멤버의 전체 권한 집합을 보려면 다음 두 곳을 모두 확인하세요.
+
+- 직접 할당된 정책이 있는지 **Members** 페이지 확인
+- 멤버가 속한 그룹과 해당 그룹에 적용된 정책을 확인하기 위한 **Groups** 탭 확인
+
+Cloudflare는 상속 권한과 직접 권한을 더 쉽게 볼 수 있도록 이 경험을 적극적으로 개선하고 있습니다.
+:::
+
+## 사용자 그룹 수동 생성
+
+1. Cloudflare 대시보드에서 **Members** 페이지로 이동합니다.
+
+    <DashButton url="/?to=/:account/members" />
+
+2. **Groups** 탭을 선택합니다.
+3. **Create a Group**을 선택하고 새 그룹의 이름과 설명을 입력합니다.
+4. **Create group**을 선택해 변경 사항을 확인합니다. 그러면 **Group members** 탭이 표시됩니다.
+5. **Add members**를 선택합니다.
+6. 그룹에 포함할 관련 멤버를 선택한 뒤 **Add to Group**을 선택합니다.
+
+### 권한 정책 할당
+
+그룹을 만들었다면 이제 그룹에 [권한 정책](/fundamentals/manage-members/policies/)을 추가할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. **Groups** 탭의 **Permission policies** 아래에서 **Add a Policy**를 선택합니다.
+2. 그룹 멤버에게 적용할 범위와 권한을 지정합니다.
+3. **Create Policy**를 선택해 그룹에 적용합니다.
+
+</TabItem> <TabItem label="API">
+
+이전 섹션의 역할 식별자를 사용해 그룹에 대한 권한 정책을 만들 수 있습니다.
+
+`export ADMIN_ROLE='...' # permission_groups API response에서 admin 또는 원하는 역할 항목의 id 필드`
+
+```curl title="Example request"
+$ cat <<-PAYLOAD | curl -XPUT  -H "Authorization: Bearer $AOT" -H "Content-type: application/json" --data-binary @- https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/user_groups/$PUSHED_GROUP  | jq .
+{
+    "policies": [
+        {
+            "access": "allow",
+            "permission_groups": [{"id": "$ADMIN_ROLE"}],
+            "resource_groups": [{
+                "scope": {
+                    "key": "com.cloudflare.api.account.$ACCT",
+                    "objects": [{"key":"*"}]
+                }
+            }]
+        }
+    ]
+}
+PAYLOAD
+```
+
+**정책을 빈 상태로 초기화**
+
+그룹 정책을 만드는 과정에서 실수했거나 정책을 빈 상태로 초기화해야 한다면, 빈 policy 배열을 담은 PUT 요청을 그룹 API로 다시 보내 새 정책으로 덮어쓰세요.
+
+```curl
+$ cat <<-PAYLOAD | curl -XPUT  -H "Authorization: Bearer $AOT" -H "Content-type: application/json" --data-binary @- https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/user_groups/$PUSHED_GROUP  | jq .
+{
+    "policies": []
+}
+PAYLOAD
+```
+
+</TabItem> </Tabs>
+
+## SCIM으로 사용자 그룹 생성
+
+SCIM 통합을 구성한 고객은 상위 ID 공급자에서 사용자 그룹을 Cloudflare로 동기화할 수 있습니다. Cloudflare의 SCIM 통합은 계정당 외부 애플리케이션 하나를 필요로 합니다.
+
+
+:::note
+[Cloudflare 대시보드 SCIM 통합](/fundamentals/account/account-security/scim-setup/)을 사용하는 경우 상위 ID 공급자에서 그룹을 동기화할 수 있습니다. 이를 통해 사용자와 그룹 관리를 ID 공급자에서 중앙 집중화할 수 있습니다.
+
+SCIM으로 사용자 그룹을 관리할 때 유의할 점은 다음과 같습니다.
+- Cloudflare 대시보드나 API에서 그룹 이름이나 멤버를 수동으로 변경하거나 그룹을 삭제할 수 없습니다.
+- 통합에는 Cloudflare 계정당 외부 SCIM 애플리케이션이 하나 필요합니다.
+- Cloudflare는 현재 SCIM을 통해 사용자 프로필 필드(`firstName`, `lastName`, `email`) 업데이트를 지원하지 않습니다. 이러한 속성이 IdP에서 바뀌어도 Cloudflare에는 업데이트되지 않으며, 초기 프로비저닝 시에만 설정됩니다.
+:::
+
+
+SCIM으로 사용자 그룹을 설정하려면 [SCIM 프로비저닝 가이드](/fundamentals/account/account-security/scim-setup/)를 참고하세요.
+
+### 사용자 그룹 권한 설정
+
+사용자 그룹이 Cloudflare 대시보드에서 수동으로 생성되었든 SCIM 통합을 통해 생성되었든, 마지막 단계는 해당 그룹에 권한을 연결하는 것입니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+1. **Manage members** > **Members** > **User groups**로 이동합니다.
+2. 권한을 연결할 사용자 그룹을 선택합니다.
+3. **Permission policies** 탭에서 **Add policy**를 선택합니다.
+4. 정책에 적용할 범위와 역할을 선택합니다.
+5. **Save**를 선택해 정책을 적용합니다.
+
+</TabItem> <TabItem label="API">
+
+시작하기 전에 아래 명령을 사용해 내부적으로 생성되었거나 Cloudflare에 푸시된 그룹을 확인하세요.
+
+**1. 사용자 그룹 가져오기**
+
+```curl title="Example request"
+$ curl -X GET -H "Authorization: Bearer $AOT" https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/user_groups | jq .
+```
+
+```curl title="Example response"
+{
+    "errors": [],
+    "messages": [],
+    "result": [
+        {
+            "created_on": "2025-01-24T15:31:36.759979Z",
+            "id": "f234f49f66df4db8864c5189fe78c87f",
+            "modified_on": "2025-01-24T15:35:50.151764Z",
+            "name": "My Cool Demo Group",
+            "status": "V"
+        },
+        {
+            "created_on": "2025-01-16T20:43:01.019311Z",
+            "id": "7148c1e4d9f247f5b6dcd3ef20f998f9",
+            "modified_on": "2025-01-16T20:44:07.627233Z",
+            "name": "My Cool Demo Group, now with policies!",
+            "policies": [
+                {
+                    "access": "allow",
+                    "created_on": "2025-01-16T20:44:07.627233Z",
+                    "id": "8d82cf8c15c64e07a4bee58e00d80bca",
+                    "modified_on": "2025-01-16T20:44:07.627233Z",
+                    "permission_groups": [
+                        {
+                            "created_on": "2023-06-21T18:58:29.907496Z",
+                            "id": "a1a099e3256942259bfde18c688b67d5",
+                            "meta": {
+                                "description": "Grants write access to Page Shield for domain",
+                                "editable": "false",
+                                "label": "domain_page_shield",
+                                "scopes": "com.cloudflare.api.account.zone"
+                            },
+                            "modified_on": "2023-06-21T18:58:29.907496Z",
+                            "name": "Domain Page Shield",
+                            "permissions": ["dev note: snipped for length"],
+                            "status": "V"
+                        }
+                    ],
+                    "resource_groups": [
+                        {
+                            "created_on": "2025-01-16T20:44:07.627233Z",
+                            "modified_on": "2025-01-16T20:44:07.627233Z",
+                            "scope": {
+                                "key": "com.cloudflare.api.account.a3324a084cd290080b563ab39c91545a",
+                                "objects": [
+                                    {
+                                        "key": "*"
+                                    }
+                                ]
+                            }
+                        }
+                    ],
+                    "status": "V"
+                }
+            ],
+            "status": "V"
+        }
+    ],
+    "result_info": {
+        "count": 2,
+        "page": 1,
+        "per_page": 100,
+        "total_count": 2,
+        "total_pages": 1
+    },
+    "success": true
+}
+```
+
+**2. 리소스 ID로 조회**
+
+IdP에서 푸시한 그룹의 태그를 찾은 뒤, 해당 값을 사용해 리소스 ID로 직접 조회를 수행합니다.
+
+`export PUSHED_GROUP='...' # group list response의 "id" json 필드 값 사용`
+
+```curl title="Example request"
+$ curl -XGET -H "Authorization: Bearer $AOT" https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/user_groups/$PUSHED_GROUP | jq .
+```
+
+이 응답에는 ID 공급자에서 지정한 그룹 이름이 연결된 정책 없이 표시되어야 합니다.
+
+**3. 사용 가능한 권한 그룹 검토**
+
+그룹의 정책을 수정하기 전에, API를 조회해 계정에서 사용할 수 있는 권한 그룹(역할)을 검토하세요.
+
+```curl title="Example request"
+$ curl -XGET -H "Authorization: Bearer $DEMO_AOT" https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/permission_groups | jq .
+```
+
+```curl title="Example response"
+{
+  "result": [
+    {
+      "id": "1a0fc8bdeae24387b64d5b8de1ad052a",
+      "name": "Administrator Read Only",
+      "status": "V",
+      "meta": {
+        "description": "Can access the full account in read-only mode.",
+        "editable": "false",
+        "label": "admin_readonly",
+        "scopes": "com.cloudflare.api.account"
+      },
+      "created_on": "2020-07-06T12:19:13.099114Z",
+      "modified_on": "2020-10-13T11:18:00.208228Z"
+    },
+    {
+      "id": "ce2c69b09baf4ca38223910a8b7e07a9",
+      "name": "Administrator",
+      "status": "V",
+      "meta": {
+        "description": "Can access the full account, except for membership management and billing.",
+        "editable": "false",
+        "label": "admin",
+        "scopes": "com.cloudflare.api.account"
+      },
+      "created_on": "2020-07-06T12:19:13.099114Z",
+      "modified_on": "2020-10-13T11:18:00.208228Z"
+    }
+  ],
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```
+
+:::note
+이 권한 그룹은 스테이징 환경 기준이므로 태그는 실제 프로덕션 배포에서는 동작하지 않습니다.
+:::
+
+</TabItem> </Tabs>
+
+## 그룹 멤버 확인
+
+SCIM 작업에서 IdP가 그룹과 사용자 멤버를 제대로 동기화했는지 확인하려면 Group Members API를 조회하세요.
+
+```curl title="Example request"
+$ curl -XGET -H "Authorization: Bearer $DEMO_AOT" https://api.cloudflare.com/client/v4/accounts/$ACCT/iam/user_groups/$PUSHED_GROUP/members | jq .
+```
+
+```curl title="Example response"
+{
+  "result": [
+    {
+      "id": "a4366a09c43a0b0c4606dc5528472bb6",
+      "email": "luke.skywalker@rebelalliance.net"
+    },
+    {
+      "id": "0329c17f6c13f5202dc38d2036efb1a9",
+      "email": "arya.stark@winterfell.place"
+    }
+  ],
+  "result_info": {
+    "page": 1,
+    "per_page": 100,
+    "total_pages": 1,
+    "count": 2,
+    "total_count": 2
+  },
+  "success": true,
+  "errors": [],
+  "messages": []
+}
+```

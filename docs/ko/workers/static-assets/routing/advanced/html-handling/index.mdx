@@ -1,0 +1,156 @@
+---
+pcx_content_type: concept
+title: HTML 처리
+description: 작업자의 정적 자산을 위해 HTML 처리 및 추적을 구성하는 방법.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/static-assets/routing/advanced/html-handling/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/static-assets/routing/advanced/html-handling/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree, WranglerConfig } from "~/components";
+
+요청 경로 (예를 들어,)에 충돌하거나 삭제`example.com/page/`대.`example.com/page`)는 종종 개발자가 화장품상의 이유를 통제 할 것을. 또한, 검색 엔진이 종종 URL을 치료하고 다른, 별도의 페이지로 슬픔없이 SEO에 영향을 미칠 수 있습니다. 이 구분은 페이지의 올바른 운하 버전에 대한 내용 문제, 색인 문제 및 전체 혼란을 복제 할 수 있습니다.
+
+더 보기[`assets.html_handling`제품 설명](/workers/wrangler/configuration/#assets)HTML 콘텐츠에 대한 요청의 리디렉션 및 리디렉션을 결정합니다. Cloudflare가 HTML 콘텐츠와 QXQX0781XQ가 비현상 URL을 리디렉션하는 canonical URL에 대한 패턴을 지정하는 데 사용됩니다.
+
+다음 디렉토리 구조를 가지고:
+
+<FileTree>
+  - 뚱 베어
+    - 파일.html
+    - 파일 형식
+      - 프로젝트
+</FileTree>
+
+## 자동적인 뾰루지 (과태)
+
+이것은 보통 당신에게 원하는 행동을 자동적으로 줄 것입니다: 개별 파일 (예를들면.`foo.html`) 제공*없음*트레일 슬래시 및 폴더 인덱스 파일 (e.g.`foo/index.html`) 제공*이름 \**&#xD2B8;레일 슬래시.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/",
+  		"html_handling": "auto-trailing-slash"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+들어오는 요청에 따라 다음과 같은 자산이 제공됩니다.
+
+| 자주 묻는 질문             | 관련 기사         | 자산 봉사               |
+| -------------------- | ------------- | ------------------- |
+| /파일                  | 200           | 파일 형식               |
+| 다운로드                 | 307로 /file    | -                   |
+| /파일/                 | 307로 /file    | -                   |
+| /파일/index            | 307로 /file    | -                   |
+| /file/index.html의 경우 | 307로 /file    | -                   |
+| 연락처                  | 307에 /folder/ | -                   |
+| 다운로드                 | /folder에 307  | -                   |
+| /폴더/                 | 200           | /dist/폴더/index.html |
+| /폴더/index            | /folder에 307  | -                   |
+| /폴더/index.html       | /folder에 307  | -                   |
+
+## 힘 trailing 슬픔
+
+대안으로, 당신은 충돌을 강제 할 수 있습니다 (`force-trailing-slash`).
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/",
+  		"html_handling": "force-trailing-slash"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+들어오는 요청에 따라 다음과 같은 자산이 제공됩니다.
+
+| 자주 묻는 질문             | 관련 기사         | 자산 봉사               |
+| -------------------- | ------------- | ------------------- |
+| /파일                  | 307로 /file/   | -                   |
+| 다운로드                 | 307로 /file/   | -                   |
+| /파일/                 | 200           | 파일 형식               |
+| /파일/index            | 307로 /file/   | -                   |
+| /file/index.html의 경우 | 307로 /file/   | -                   |
+| 연락처                  | 307에 /folder/ | -                   |
+| 다운로드                 | 307에 /folder/ | -                   |
+| /폴더/                 | 200           | /dist/폴더/index.html |
+| /폴더/index            | 307에 /folder/ | -                   |
+| /폴더/index.html       | 307에 /folder/ | -                   |
+
+## 드롭 트레일 슬링
+
+또는 당신은 슬픔을 떨어 뜨릴 수 있습니다 (`drop-trailing-slash`).
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/",
+  		"html_handling": "drop-trailing-slash"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+들어오는 요청에 따라 다음과 같은 자산이 제공됩니다.
+
+| 자주 묻는 질문             | 관련 기사        | 자산 봉사               |
+| -------------------- | ------------ | ------------------- |
+| /파일                  | 200          | 파일 형식               |
+| 다운로드                 | 307로 /file   | -                   |
+| /파일/                 | 307로 /file   | -                   |
+| /파일/index            | 307로 /file   | -                   |
+| /file/index.html의 경우 | 307로 /file   | -                   |
+| 연락처                  | 200          | /dist/폴더/index.html |
+| 다운로드                 | /folder에 307 | -                   |
+| /폴더/                 | /folder에 307 | -                   |
+| /폴더/index            | /folder에 307 | -                   |
+| /폴더/index.html       | /folder에 307 | -                   |
+
+## HTML 처리
+
+대안으로, 당신이 필요로하는 경우에, 당신은 완전히 붙박이 HTML 취급을 해제할 수 있습니다 (`none`).
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/",
+  		"html_handling": "none"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+들어오는 요청에 따라 다음과 같은 자산이 제공됩니다.
+
+| 자주 묻는 질문             | 관련 기사                    | 자산 봉사                    |
+| -------------------- | ------------------------ | ------------------------ |
+| /파일                  | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| 다운로드                 | 200                      | 파일 형식                    |
+| /파일/                 | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| /파일/index            | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| /file/index.html의 경우 | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| 연락처                  | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| 다운로드                 | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| /폴더/                 | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| /폴더/index            | 에 따라`not_found_handling` | 에 따라`not_found_handling` |
+| /폴더/index.html       | 200                      | /dist/폴더/index.html      |

@@ -1,0 +1,158 @@
+---
+title: 이벤트 알림 R2에서 업로드 이벤트 로그 및 저장
+pcx_content_type: tutorial
+products:
+  - queues
+  - workers
+difficulty: Beginner
+reviewed: 2024-04-02T00:00:00.000Z
+tags:
+  - TypeScript
+description: 이 예제는 이벤트 알림을 사용하여 단계별 가이드를 제공하여 별도의 버킷에서 R2 업로드 로그를 캡처하고 저장합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/r2/tutorials/upload-logs-event-notifications/
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/tutorials/upload-logs-event-notifications/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 예제는 사용 단계별 가이드를 제공합니다.[이벤트 알림](/r2/buckets/event-notifications/)별도의 버킷에서 R2 업로드 로그를 캡처하고 저장합니다.
+
+![푸시 기반 R2 이벤트 알림](~/assets/images/reference-architecture/event-notifications-for-storage/pushed-based-event-notification.svg)
+
+## 1. Wrangler 설치
+
+시작하기[설치/업데이트 Wrangler](/workers/wrangler/install-and-update/#install-wrangler)Wrangler, Cloudflare 개발자 플랫폼 CLI를 설치하십시오.
+
+## 2. R2 물통 만들기
+
+당신은 2개의 R2 물통을 창조할 필요가 있을 것입니다:
+
+- `example-upload-bucket`: 새로운 개체가 이 물통에 업로드되면,[소비자 노동자](/queues/get-started/#4-create-your-consumer-worker)로그를 작성합니다.
+- `example-log-sink-bucket`: 로그 업로드`example-upload-bucket`이 물통에 기록될 것입니다.
+
+물통을 만들려면 다음 Wrangler 명령을 실행하십시오.
+
+```sh
+npx wrangler r2 bucket create example-upload-bucket
+npx wrangler r2 bucket create example-log-sink-bucket
+```
+
+## 3. queue 만들기
+
+Event 알림 캡처는 데이터로 변경됩니다.`example-upload-bucket`. 알림을 받기 위해 새로운 큐를 만들 필요가 있습니다.
+
+```sh
+npx wrangler queues create example-event-notification-queue
+```
+
+## 4. 노동자 만들기
+
+이벤트 알림을 활성화하기 전에`example-upload-bucket`, 당신은 만들 필요가[소비자 노동자](/queues/reference/how-queues-works/#create-a-consumer-worker)알림 받기
+
+C3로 새로운 노동자 만들기 ()`create-cloudflare`CLI).[사이트맵](/pages/get-started/c3/)Workers, CloudflareXQ를 포함한 새로운 응용 프로그램을 설정하고 배포하는 데 도움이되는 명령 줄 도구입니다.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"consumer-worker"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+그런 다음 새로 생성 된 디렉토리로 이동합니다.
+
+```sh
+cd consumer-worker
+```
+
+## 5. 당신의 노동자를 구성하십시오
+
+당신의 노동자 프로젝트의 \[[Wrangler 구성 파일](/workers/wrangler/configuration/)]\(/workers/wrangler/configuration/), 추가[고객 서비스](/workers/wrangler/configuration/#queues)·[R2 물통 바인딩](/workers/wrangler/configuration/#r2-buckets). 큐 소비자 의무는 당신의 미래 사건 통보의 소비자로 당신의 노동자를 등록하고 R2 물통 의무는 당신의 노동자가 당신의 QXQX1223XQ 물통에 접근하기 위하여 허용할 것입니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "event-notification-writer",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "example-event-notification-queue",
+  				"max_batch_size": 100,
+  				"max_batch_timeout": 5
+  			}
+  		]
+  	},
+  	"r2_buckets": [
+  		{
+  			"binding": "LOG_SINK",
+  			"bucket_name": "example-log-sink-bucket"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 6. R2로 이벤트 알림 메시지 쓰기
+
+추가하기[`queue`회사 소개](/queues/configuration/javascript-apis/#consumer)으로`src/index.ts`우리의 로그 싱크 버킷에 알림의 배치를 처리하기 위해 (당신은 필요가 없습니다[회사 소개](/workers/runtime-apis/handlers/fetch/)):
+
+```ts
+export interface Env {
+	LOG_SINK: R2Bucket;
+}
+
+export default {
+	async queue(batch, env): Promise<void> {
+		const batchId = new Date().toISOString().replace(/[:.]/g, "-");
+		const fileName = `upload-logs-${batchId}.json`;
+
+		//JSON에 메시지의 전체 배치를 직렬화
+		const fileContent = new TextEncoder().encode(
+			JSON.stringify(batch.messages),
+		);
+
+		//R2에 메시지의 배치를 쓰기
+		await env.LOG_SINK.put(fileName, fileContent, {
+			httpMetadata: {
+				contentType: "application/json",
+			},
+		});
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+## 7. 노동자를 배포
+
+소비자 노동자를 배포하려면, 실행[`wrangler deploy`](/workers/wrangler/commands/#deploy)명령:
+
+```sh
+npx wrangler deploy
+```
+
+## 8. 이벤트 알림
+
+이제 소비자 근로자가 들어오는 이벤트 알림 메시지를 처리 할 준비가되어있어 이벤트 알림을 활성화해야합니다.[`wrangler r2 bucket notification create`이름 \*](/workers/wrangler/commands/#r2-bucket-notification-create)제품 정보`example-upload-bucket`:
+
+```sh
+npx wrangler r2 bucket notification create example-upload-bucket --event-type object-create --queue example-event-notification-queue
+```
+
+## 9. 시험
+
+이제 객체를 업로드하여 전체 엔드 투 엔드 흐름을 테스트 할 수 있습니다.`example-upload-bucket`Cloudflare dashboard에서. 객체를 업로드한 후 로그가 나타납니다.`example-log-sink-bucket`몇 초 안에.

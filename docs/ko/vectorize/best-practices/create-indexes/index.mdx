@@ -1,0 +1,119 @@
+---
+title: 인덱스 보기
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/vectorize/best-practices/create-indexes/'
+translation_source_md: >-
+  https://developers.cloudflare.com/vectorize/best-practices/create-indexes/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+지수는 Vectorize의 "atom"입니다. 벡터는 인덱스에 삽입되며 주어진 입력 벡터에 대한 유사한 벡터에 대한 인덱스를 쿼리할 수 있습니다.
+
+색인을 창조하는 것은 3개의 입력을 요구합니다:
+
+- kebab-cased 이름과 같은`prod-search-index`또는`recommendations-idx-dev`.
+- (연결)[차원 크기](#dimensions)각 벡터의 예를 들면 384 또는 1536.
+- (연결)[거리 미터](#distance-metrics)벡터 유사성을 계산하기 위해.
+
+인덱스는 현재 계정에서 활성화되는 인덱스와 같은 이름을 사용하여 만들 수 없습니다. 그러나, 인덱스는 삭제 된 인덱스에 속한 이름으로 만들 수 있습니다.
+
+인덱스의 구성은 생성 후 변경할 수 없습니다.
+
+## 인덱스 보기
+
+### wrangler 클립
+
+<Render file="vectorize-wrangler-version" product="vectorize" />
+
+<Render file="vectorize-legacy" product="vectorize" />
+
+인덱스를 만들려면`wrangler`:
+
+```sh
+npx wrangler vectorize create your-index-name --dimensions=NUM_DIMENSIONS --metric=SELECTED_METRIC
+```
+
+Worker의 AI의 벡터 embeddings를 허용할 수 있는 인덱스를 만들려면[`@cf/baai/bge-base-en-v1.5`](/workers-ai/models/#text-embeddings)768 차원을 가진 벡터를 출력하는 embedding 모형은, 뒤에 오는 명령을 이용합니다:
+
+```sh
+npx wrangler vectorize create your-index-name --dimensions=768 --metric=cosine
+```
+
+### 웹 사이트
+
+Vectorize는 또한 색인을 통해 창조합니다[REST API를](/api/resources/vectorize/subresources/indexes/methods/create/).
+
+예를 들어, Python 스크립트에서 인덱스를 직접 만들려면:
+
+```py
+import requests
+
+url = "https://api.cloudflare.com/client/v4/accounts/{}/vectorize/v2/indexes".format("your-account-id")
+
+headers = {
+    "Authorization": "Bearer <your-api-token>"
+}
+
+body = {
+	"name": "demo-index",
+	"description": "some index description",
+  "config": {
+    "dimensions": 1024,
+    "metric": "euclidean"
+  },
+}
+
+resp = requests.post(url, headers=headers, json=body)
+
+print('Status Code:', resp.status_code)
+print('Response JSON:', resp.json())
+```
+
+이 스크립트는 상태 코드와 응답을 인쇄해야합니다`201`, JSON 응답 몸과 함께 제공된 구성으로 인덱스의 생성을 나타내는.
+
+## 크기 (mm)
+
+차원은 기계 학습 (ML) 모형의 산출 크기에서 그(것)들을 생성하기 위하여 결정되고, 모형 인코딩의 기능이고 벡터 embedding로 특징을 설명합니다.
+
+출력 치수의 수는 벡터 검색 정확도, 검색 성능 (latency) 및 인덱스의 전체 크기를 결정할 수 있습니다. 더 작은 산출 차원은 사용자 직면 신청을 위해 유용할 수 있는, 맞은편에 검색하기 위하여 빨리 일 수 있습니다. 더 큰 산출 차원은 실질적으로 유사한 입력을 가진 더 큰 datasets 그리고/or datasets에 더 정확한 수색을 제공할 수 있습니다.
+
+인덱스의 개수는 변경할 수 없습니다. 인덱스는 동일한 크기로 dense 벡터를 받을 것으로 예상됩니다.
+
+뒤에 오는 테이블 강조 몇몇 예 embeddings 모형 및 그들의 산출 차원:
+
+| 모형/Edbeddings API                       | 산출 차원 | 사용 사례                  |
+| --------------------------------------- | ----- | ---------------------- |
+| Workers AI -`@cf/baai/bge-base-en-v1.5` | 768   | 이름 \*                  |
+| 오시는 길`ada-002`                          | 1536  | 이름 \*                  |
+| 카테고리`embed-multilingual-v2.0`           | 768   | 이름 \*                  |
+| Google 클라우드 -`multimodalembedding`      | 1408  | Multi-modal (텍스트, 이미지) |
+
+:::주\[Workers AI에 대해 자세히 알아보기]
+더 알아보기[Workers AI 문서](/workers-ai/models/#text-embeddings)내장 embedding 모델에 대해 알아보세요.
+주요 특징
+
+## 거리 미터
+
+거리 미터는 가까운 벡터가 서로에서 있는지 결정하는 기능입니다. Vectorize 색인은 뒤에 오는 거리 미터를 지원합니다:
+
+| 기본 정보         | 이름 \*                                                                                               |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| `cosine`      | 거리는 사이 측정됩니다`-1`(최대 dissimilar)에`1`(필수).`0`직각 벡터를 나타냅니다.                                            |
+| `euclidean`   | Euclidean (L2) 거리.`0`동일한 벡터를 나타냅니다. 더 큰 긍정적 인 수, 더 많은 벡터가 출발합니다.                                    |
+| `dot-product` | 부정적인 점 제품. 더 큰 부정적인 값*또는*작은 긍정적인 값은 더 유사한 벡터를 나타냅니다. 점수의`-1000`더 유사하다 보다는`-500`, 점수의`15`더 유사하다`50`. |
+
+벡터 사이의 유사성을 결정하는 것은 결과 벡터 embeddings의 특징을 나타내는 기계 학습 모델에 따라 주제가 될 수 있습니다. 예를 들어, 점수`0.8511`사용시`cosine`미터법은 두 개의 벡터가 거리에서 가깝습니다. 그러나 그들이 나타내는 데이터는*이름 \**&#xBAA8;델이 원래 콘텐츠를 나타내는 방법의 기능입니다.
+
+벡터를 쿼리 할 때 Vectorize를 지정할 수 있습니다.
+
+- 높은 정밀도 득점, 쿼리 일치 점수의 정밀도뿐만 아니라 쿼리 결과의 정확도를 증가.
+- 빠른 응답 시간 동안 대략 득점. 대략적인 득점을 사용하여, 반환 점수는 당신 조회와 반환된 벡터 사이 진짜 거리/similarity의 대략일 것입니다. 더 알아보기[정밀도 및 쿼리 정확도를 득점하는 제어](/vectorize/best-practices/query-vectors/#control-over-scoring-precision-and-query-accuracy).
+
+거리 미터는 색인 창조 후에 변화될 수 없고, 각 미터에는 다른 득점방해 기능이 있습니다.

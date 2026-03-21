@@ -1,0 +1,92 @@
+---
+pcx_content_type: tutorial
+title: DNS 지속성
+sidebar:
+  order: 15
+---
+
+이 가이드는 Cloudflare Load Balancing을 사용할 때 기존 DNS 기반 로드 밸런서가 제공하는 기능과 유사한 DNS 지속성을 구현하는 방법을 설명합니다.
+
+DNS 지속성은 동일한 로컬 DNS 서버에서 오는 후속 DNS 요청이 항상 같은 IP 주소를 받도록 보장합니다. 이는 VPN 연결이나 인증 시스템처럼 세션 일관성이 필요한 애플리케이션에 유용합니다.
+
+Cloudflare Load Balancing은 DNS-only 로드 밸런싱에서 서로 다른 구성 방식을 사용해 DNS 지속성을 구현할 수 있습니다.
+
+---
+
+## DNS-only 로드 밸런싱 지속성
+
+DNS-only 로드 밸런싱에서 Cloudflare는 DNS 지속성을 달성하는 세 가지 방법을 제공합니다.
+
+### 방법 1: PoP 위치 기반 Geo Steering(권장)
+
+이 방법은 DNS 요청을 수신한 Cloudflare Point of Presence(PoP)를 기준으로 geographic steering을 수행합니다.
+
+#### 구성 단계
+
+1. 각 엔드포인트마다 풀을 하나씩 생성합니다. 어느 풀에도 load shedding을 적용하지 않습니다.
+2. DNS-only 로드 밸런서를 생성하고 두 풀을 모두 추가합니다. `pool_1`이 `pool_2`보다 앞에 오도록 순서를 맞춥니다.
+3. **Traffic Steering**에서 **Geo Steering**을 선택합니다.
+4. 한 지역(예: **Eastern North America**)에 대한 geo-steering 규칙을 만들고, 같은 풀을 역순(`pool_2` 먼저, 그다음 `pool_1`)으로 선택합니다.
+5. 요청의 출처를 결정할 때 **Never prefer ECS**와 **PoP location**을 사용합니다.
+
+#### 작동 방식
+
+지정한 지역의 Cloudflare PoP에서 수신된 모든 요청은 한 엔드포인트로 전송되고, 다른 지역에서 온 요청은 다른 엔드포인트로 전송됩니다.
+
+#### 이 방법을 권장하는 이유
+
+요청을 수신한 Cloudflare PoP를 steering 기준으로 사용하면 IP 해싱이나 IP 공간 분할보다 더 안정적입니다. 이는 재귀 DNS 제공업체가 서로 다른 송신 IP를 사용하더라도 영향을 받지 않기 때문입니다.
+
+### 방법 2: IP hash를 사용한 Load Shedding
+
+이 방법은 재귀 DNS 리졸버의 소스 IP 주소를 기준으로 트래픽을 분산하기 위해 load shedding을 사용합니다.
+
+#### 구성 단계
+
+1. 각 엔드포인트에 대해 풀을 하나씩 생성합니다(예: `endpoint_1`을 포함하는 `pool_1`, `endpoint_2`를 포함하는 `pool_2`).
+2. 첫 번째 풀에서 **Endpoint Steering** 아래 **Hash**를 선택합니다.
+3. **Load Shedding**을 구성합니다.
+   - **Policy**: IP Hash
+   - **Shed %**: 50%(두 풀 사이에 트래픽을 균등하게 분할하기 위해)
+4. DNS-only 로드 밸런서를 생성하고 두 풀을 모두 추가합니다. `pool_1`이 `pool_2`보다 앞에 오도록 순서를 맞춥니다.
+5. 추가 traffic steering이나 규칙은 구성하지 않습니다.
+
+#### 작동 방식
+
+이 구성은 IP hash를 사용해 요청의 절반을 두 번째 풀로 흘려보내며, 재귀 리졸버의 소스 IP별로 session affinity를 유지합니다.
+
+#### 제한 사항
+
+일부 재귀 DNS 제공업체(예: Google DNS `8.8.8.8`, Quad9 `9.9.9.9`)는 서로 다른 송신 IP를 무작위로 사용할 수 있으므로 지속성 안정성이 낮아질 수 있습니다.
+
+### 방법 3: IP source filtering을 사용하는 사용자 지정 규칙
+
+이 방법은 IP 주소 범위를 기준으로 트래픽을 분할하기 위해 사용자 지정 규칙을 사용합니다.
+
+#### 구성 단계
+
+1. 각 엔드포인트마다 풀을 하나씩 생성합니다. 어느 풀에도 load shedding을 적용하지 않습니다.
+2. DNS-only 로드 밸런서를 생성하고 두 풀을 모두 추가합니다. `pool_1`이 `pool_2`보다 앞에 오도록 순서를 맞춥니다.
+3. Traffic Steering은 구성하지 않습니다.
+4. 다음과 같이 **Custom Rule**을 생성합니다.
+   - **Field**: IP Source Address
+   - **Operator**: is in
+   - **Value**: IP 공간의 일부(예: IPv4 공간의 하위 절반에 해당하는 `0.0.0.0/1`)
+5. 규칙 동작으로 **Override** > **Endpoints**를 선택하고 풀 순서를 역순(`pool_2`, `pool_1`)으로 설정합니다.
+
+#### 작동 방식
+
+IPv4 공간의 하위 절반에 속하는 소스 IP 트래픽은 한 엔드포인트로 전송되고, 상위 절반에 속하는 트래픽은 다른 엔드포인트로 전송됩니다.
+
+#### 제한 사항
+
+방법 2와 마찬가지로, 이 접근 방식도 서로 다른 송신 IP를 사용하는 재귀 DNS 제공업체에서는 안정성이 떨어질 수 있습니다.
+
+---
+
+## 관련 리소스
+
+- [Session Affinity](/load-balancing/understand-basics/session-affinity/)
+- [Load Shedding](/load-balancing/additional-options/load-shedding/)
+- [Geo Steering](/load-balancing/understand-basics/traffic-steering/steering-policies/geo-steering/)
+- [사용자 지정 규칙](/load-balancing/additional-options/load-balancing-rules/)

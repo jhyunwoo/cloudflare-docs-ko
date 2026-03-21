@@ -1,0 +1,128 @@
+---
+pcx_content_type: reference
+title: 용기의 수명주기
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/containers/platform-details/architecture/'
+translation_source_md: >-
+  https://developers.cloudflare.com/containers/platform-details/architecture/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 계정 만들기
+
+컨테이너와 함께 응용 프로그램을 배포 한 후 이미지가 업로드됩니다.
+[Cloudflare의 등록](/containers/platform-details/image-management)Cloudflare의 네트워크에 전 세계적으로 배포
+Cloudflare는 빠른 시작을 보장하기 위하여 지구의 전 조각 이미지 및 전 조각 이미지를 미리 계획할 것입니다
+동시 컨테이너 인스턴스의 수를 스케일링 할 때 시간.
+
+배포시 즉시 업데이트되는 Workers와 달리, 컨테이너 인스턴스는 롤링 배포 전략을 사용하여 업데이트됩니다.
+이것은 롤아웃 중에 모든 실행 인스턴스를 완전히 종료 할 수 있습니다. 더 알아보기[롤아웃](/containers/platform-details/rollouts/)더 많은 정보.
+
+## 요청의 수명주기
+
+### 고객 지원
+
+컨테이너가 백업되는 것을 Recall[Durable Objects](/durable-objects/)·[Workers](/workers/)·
+요청은 일반적으로 처리되는 노동자를 통해 첫 번째 경로입니다.
+datacenter에 의해 자체와 요청 사용자 사이의 최고의 대기 시간.
+다른 데이터 센터는 전반적인 대기 시간을 최적화 할 수 있습니다.[스마트 배치](/workers/configuration/placement/)또는 가장 가까운 위치가 무거운 짐의 밑에 있는 경우에.
+
+모든 컨테이너 요청이 Worker를 통해 전달되기 때문에 end-users는 non-HTTP TCP 또는
+컨테이너 인스턴스에 UDP 요청. 인바운드 TCP가 필요한 경우
+또는 최종 사용자의 UDP, 제발[우리를 알고](https://forms.gle/AGSq54VvUje6kmKu8).
+
+### 작업자에 튼튼한 목표
+
+Worker에서 요청은 튼튼한 Object 인스턴스를 통과합니다.[컨테이너 패키지](/containers/container-package)튼튼한 개체 클래스를 확장합니다.
+각 튼튼한 객체 인스턴스는 코드를 실행하고 state를 저장할 수 있는 globally routable isolate입니다. 이 허용
+개발자는 특정 컨테이너 인스턴스에 쉽게 주소와 경로 (그들은 어디에 배치되지 않음),
+컨테이너 상태 변경에 훅을 정의하고 실행하고 인스턴스에 재크링 체크를 실행하고 persistent를 저장합니다.
+각 인스턴스와 관련된 상태.
+
+### 컨테이너 시작
+
+튼튼한 Object 인스턴스 요청이 새로운 컨테이너 인스턴스를 시작할 때,**호텔 위치
+본문 바로가기**선택 사항
+
+:::참조
+현재 Durable Objects는 관련 컨테이너 인스턴스와 공동으로 배치 될 수 있지만 종종 아닙니다.
+
+Cloudflare는 현재 튼튼한 목표가 실행될 수 있는 위치의 수를 확장하는 일에,
+컨테이너 인스턴스를 허용하면 항상 같은 위치에서 실행할 수 있습니다.
+주요 특징
+
+추가 컨테이너 인스턴스를 시작하면 이전 이미지로 다른 위치를 사용할 수 있습니다.
+그리고 Cloudflare는 자동적으로 장면 뒤에 추가 기계를 prepping 시작합니다
+추가 스케일링 및 빠른 콜드 시작. 전폭의 무한 숫자가 있기 때문에
+위치, 일부 컨테이너 인스턴스는 멀리 떨어져있는 위치에서 시작할 수 있습니다
+최종 사용자. 컨테이너 인스턴스가 신속하게 시작되도록합니다. 현재 위치
+단지 적극적으로 실행 인스턴스를 청구하고 사용하지 않는 사전 경고 이미지.
+
+#### 콜드 시작
+
+찬 시작은 컨테이너 인스턴스가 완전히 중단 된 상태로 시작될 때입니다.
+전화 번호`env.MY_CONTAINER.get(id)`완전히 새로운 ID와 출시
+이 인스턴스는 첫 번째 시간 동안, 그것은 콜드 시작에서 결과.
+처음에는 컨테이너 이미지를 시작합니다. 제품정보
+이 엔트리 포인트가 무엇인지에, 그것은 시작 할 시간의 변수 금액을 취할 것입니다.
+
+콘테이너 찬 시작은 수시로 2-3 초 범위일 수 있습니다, 그러나 이것은 의존합니다
+이미지 크기 및 코드 실행 시간, 다른 요인 중.
+
+### 컨테이너를 실행하는 요청
+
+요청시*시작하기*새로운 컨테이너 인스턴스, 사전 그림이있는 가장 가까운 위치는 선택됩니다.
+특정 인스턴스에 대한 적법한 요청은, 그들이 시작된 곳과 관계없이, 이 위치에 경로를 길게
+인스턴스는 살아있다.
+
+그러나 컨테이너 인스턴스가 중지 및 재시작 한 번, 미래의 요청은 경로가 될 수 있음*다른 것*이름 \*
+이 위치는 이전 이미지로 시작된 요청에 가장 가까운 위치가 될 것입니다.
+
+### 컨테이너 런타임
+
+각 컨테이너 인스턴스는 자체 VM 내부에서 실행되며 강력한 기능을 제공합니다.
+Cloudflare의 네트워크에서 실행되는 다른 workloads에서 고립. 회사 소개
+건설해야 한다`linux/amd64`건축, 그리고 체재해야
+[크기 제한](/containers/platform-details/limits).
+
+[로그아웃](/containers/faq/#how-do-container-logs-work), 미터 수집 및
+[네트워크](/containers/faq/#how-do-i-allow-or-disallow-egress-from-my-container)각 컨테이너에 자동으로 설정되어 개발자가 구성합니다.
+
+### 콘테이너 폐쇄
+
+설정하지 않는 경우[`sleepAfter`](https://github.com/cloudflare/containers/blob/main/README.md#properties)컨테이너 클래스에, 또는 수동으로 인스턴스를 중지, 컨테이너가 요청을 수신 한 후 곧 종료됩니다.
+설정하기`sleepAfter`, 콘테이너는 대략 지정된 기간 동안 살아있을 것입니다.
+
+호출하여 컨테이너 인스턴스를 수동으로 종료할 수 있습니다.`stop()`또는`destroy()`그것에 - 참조[컨테이너 패키지 docs](https://github.com/cloudflare/containers/blob/main/README.md#container-methods)더 많은 정보.
+
+컨테이너 인스턴스가 종료 될 때, 그것은 전송됩니다`SIGTERM`신호,
+그리고 그 후에`SIGKILL`15 분 후에 신호. 필요한 것을 수행해야합니다.
+이 시간에 우아한 폐쇄를 보장하기 위해 정리.
+
+#### Persistent 디스크
+
+모든 디스크는 ephemeral입니다. 컨테이너 인스턴스가 잠에 갈 때, 다음 시간
+그것은 시작, 그것은 컨테이너 이미지에 의해 정의 된 신선한 디스크가있을 것입니다.
+Persistent 디스크는 Cloudflare 팀은 미래에 탐구하고 있습니다, 그러나
+가까운 기간 동안 슬링되지 않습니다.
+
+## 예제 요청
+
+- 개발자는 컨테이너를 배포합니다. Cloudflare는 자동적으로 그것의 네트워크의 맞은편에 인스턴스를 읽습니다.
+- 요청은 아르헨티나 Bariloche의 클라이언트에서 이루어집니다. 근처에 노동자에 도달
+  아르헨티나 Neuquen의 Cloudflare 위치.
+- 이 Worker 요청 호출`getContainer(env.MY_CONTAINER, "session-1337")`. 두건의 밑에, 이것은 내구재를 위로 가져옵니다
+  객체, 즉 호출`this.ctx.container.start`.
+- 이 요청은 가장 가까운 무료 컨테이너 인스턴스. Cloudflare는 부에노스 아이레스, 아르헨티나 및 그 인스턴스가 자유롭다는 것을 인식합니다.
+  시작하세요.
+- 다른 사용자는 동일한 콘테이너에 노선을 필요로 합니다. 이 사용자의 요청 도달
+  샌디에고의 Cloudflare의 위치에서 운영하는 노동자.
+- 노동자는 다시 호출`getContainer(env.MY_CONTAINER, "session-1337")`.
+- 초기 컨테이너 인스턴스가 여전히 실행되는 경우, 요청은 원래 위치로 이동합니다.
+  부에노스 아이레스. 초기 컨테이너가 수면으로 사라지면 Cloudflare가 한 번
+  컨테이너의 가장 가까운 "free" 인스턴스를 찾을 수 있도록 다시 시도, 가능성이
+  북미에서 하나, 그리고 거기에 인스턴스를 시작.

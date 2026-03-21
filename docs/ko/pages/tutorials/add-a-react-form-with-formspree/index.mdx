@@ -1,0 +1,255 @@
+---
+reviewed: 2021-11-30T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: Formspree와 React 양식 추가
+tags:
+  - Forms
+  - JavaScript
+description: Formspree와 React 양식을 추가하는 방법을 알아보세요.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/pages/tutorials/add-a-react-form-with-formspree/
+translation_source_md: >-
+  https://developers.cloudflare.com/pages/tutorials/add-a-react-form-with-formspree/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+거의 모든 React 웹 사이트는 사용자 데이터를 수집하기위한 양식을 필요로한다.[사이트맵](https://formspree.io/)서버 측 코드 또는 기능을 작성하지 않고 웹 사이트에 양식을 포함 할 수 있도록 양식 처리 및 저장을 처리하는 백엔드 서비스입니다.
+
+이 튜토리얼에서, 당신은 만들 것입니다`<form>`React를 사용하는 구성 요소와 단일 페이지 응용 프로그램에 추가`create-react-app`. 사용중인 것`create-react-app`(CRA), 개념은 Next.js, Gatsby 및 더 많은 것을 포함하여 어떤 QXReact 기구든지에 적용합니다. Formspree를 사용하여 제출 된 데이터를 수집하고 새로운 제출이 도착하면 이메일을 보내드립니다. 서버 측 코딩을 필요로하지 않고.
+
+당신은 Cloudflare Pages에 당신의 위치를 배치할 것입니다. 더 알아보기[자주 묻는 질문](/pages/get-started/)플랫폼에 익숙해.
+
+## 설치하기
+
+시작하려면, 당신의 국부적으로 기계에 새로운 React 프로젝트를 창조하십시오`create-react-app`. 그런 다음[새로운 GitHub 저장소](https://repo.new/), 그리고 GitHub 위치에 원격 목적지로 연결:
+
+```sh
+#create-react-app로 새로운 프로젝트 생성
+npx create-react-app new-app
+#새 디렉토리
+cd new-app
+#연결 git 리모트
+git remote add origin git@github.com:<username>/<repo>.git
+#기본 지점 이름 변경
+git branch -M main
+```
+
+이제 React 응용 프로그램을 수정할 수 있습니다.`new-app`만든 디렉토리.
+
+## 프론트 엔드 코드
+
+출발점`create-react-app`Hello World 웹 사이트가 포함되어 있습니다. 이름, 이메일 주소 및 메시지를 수신하는 연락처 양식을 추가합니다. 양식 코드는 HTML 양식 튜토리얼에서 적용됩니다. HTML 양식의 작업 및 추가 학습 리소스에 대한 자세한 내용은 참조[HTML 양식 튜토리얼](/pages/tutorials/forms/).
+
+첫째, 호출 된 새로운 원자 구성 요소를 만들`ContactForm.js`그리고 그것에서`src`함께 폴더`App.js`.
+
+```
+project-root/
+├─ package.json
+└─ src/
+   ├─ ContactForm.js
+   ├─ App.js
+   └─ ...
+```
+
+Next, Formspree의 헬퍼 라이브러리를 사용하여 폼 구성 요소를 구축 할 것입니다.[`@formspree/react`](https://github.com/formspree/formspree-react). 이 라이브러리에는`useForm`양식 제출 이벤트 및 양식 상태를 처리하는 프로세스를 단순화하기 위해 후크.
+
+설치 :
+
+<PackageManagers pkg="@formspree/react" />
+
+다음 코드를 붙여넣기 snippet로`ContactForm.js`파일 :
+
+```jsx
+import { useForm, ValidationError } from "@formspree/react";
+
+export default function ContactForm() {
+	const [state, handleSubmit] = useForm("YOUR_FORM_ID");
+
+	if (state.succeeded) {
+		return <p>Thanks for your submission!</p>;
+	}
+
+	return (
+		<form method="POST" onSubmit={handleSubmit}>
+			<label htmlFor="name">Full Name</label>
+			<input id="name" type="text" name="name" required />
+			<ValidationError prefix="Name" field="name" errors={state.errors} />
+
+			<label htmlFor="email">Email Address</label>
+			<input id="email" type="email" name="email" required />
+			<ValidationError prefix="Email" field="email" errors={state.errors} />
+
+			<label htmlFor="message">Message</label>
+			<textarea id="message" name="message" required></textarea>
+			<ValidationError prefix="Message" field="message" errors={state.errors} />
+
+			<button type="submit" disabled={state.submitting}>
+				Submit
+			</button>
+			<ValidationError errors={state.errors} />
+		</form>
+	);
+}
+```
+
+현재, 양식은 placeholder를 포함합니다`YOUR_FORM_ID`. 이 튜토리얼에서 자신의 양식 엔드 포인트로 이것을 대체합니다.
+
+더 보기`useForm`Hook 반환`state`객체와`handleSubmit`당신이 통행하는 기능`onSubmit`form 속성. 결합 된, 이러한 AJAX를 통해 양식 데이터를 제출하고 응답에 따라 양식 상태를 업데이트하는 방법을 제공합니다.
+
+명확성을 위해이 양식은 스타일링을 포함하지 않지만 GitHub 프로젝트에서 ([https://github.com/formspree/formspree-example-cloudflare-react](https://github.com/formspree/formspree-example-cloudflare-react)) 양식에 스타일을 적용하는 방법의 예를 검토 할 수 있습니다.
+
+:::참조
+
+`ValidationError`구성 요소는 필드 오류 메시지 표시, 또는 일반 양식 오류 (하지 않은 경우`field`속성이 제공됩니다. 유효성에 대한 자세한 내용은 참조[양식 React 문서](https://help.formspree.io/hc/en-us/articles/360055613373-The-Formspree-React-library#validation).
+
+:::
+
+웹 사이트에이 양식을 추가하려면 구성 요소를 가져야합니다.
+
+```jsx
+import ContactForm from "./ContactForm";
+```
+
+그런 다음 원자 구성 요소로 페이지를 삽입하십시오.
+
+```jsx
+<ContactForm />
+```
+
+예를 들어, 업데이트할 수 있습니다.`src/App.js`형식을 추가하는 파일 :
+
+```jsx
+import ContactForm from "./ContactForm"; //<-- 형태 성분을 수입하십시오
+import logo from "./logo.svg";
+import "./App.css";
+
+function App() {
+	return (
+		<div className="App">
+			<header className="App-header">
+				<img src={logo} className="App-logo" alt="logo" />
+				<p>
+					Edit <code>src/App.js</code> and save to reload.
+				</p>
+				<a
+					className="App-link"
+					href="https://reactjs.org"
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					Learn React
+				</a>
+
+				{/*연락처 폼 구성 요소가 여기에 간다*/}
+				<ContactForm />
+			</header>
+		</div>
+	);
+}
+
+export default App;
+```
+
+이제 사용자가 채우기 위해 여러 필드와 연락 양식을 포함하는 단일 페이지 응용 프로그램이 있습니다. 그러나 유효한 양식을 제출하기 위해 양식을 설정하지 않아도됩니다. 당신은 그에[다음 섹션](#the-formspree-back-end).
+
+:::노트\[GitHub 저장소]
+
+이 예제의 소스 코드는[GitHub에서](https://github.com/formspree/formspree-example-cloudflare-react). 그것은 살아있는 Pages 신청입니다[라이브 데모](https://formspree-example-cloudflare-react.pages.dev/)이용 가능
+
+:::
+
+## Formspree 뒤 끝
+
+React 양식은 완료되지만 사용자가이 양식을 제출할 때 그들은 얻을 것이다`Form not found`오류. 이 문제를 해결하려면 새로운 Formspree 양식을 작성하고 고유 ID를 양식에 복사하십시오.`useForm`관련 기사
+
+Formspree 양식을 작성하려면 로그인[Formspree 계정](https://formspree.io/register). 그런 다음 새 양식을 작&#xC131;**+ 새로운 형태**버튼. 이름 새 양식`Contact-us form`귀하의 양식 제출을 수신하려는 이메일에 수신자 이메일을 업데이트하십시오. 마지막으로, 선택**회사 소개**.
+
+![Formspree 양식 만들기](~/assets/images/pages/tutorials/react-new-form-dialog.png)
+
+새로운 양식을 통합하는 방법에 대한 지침을 제시합니다. 양식의 복사`hashid`(URL의 마지막 8개의 알파벳 문자)`useForm`기능에`ContactForm`위에서 만든 구성 요소.
+
+![ContactForm 컴포넌트에서 사용할 수 있는 새로운 생성된 폼 엔드포인트](~/assets/images/pages/tutorials/react-form-endpoint.png)
+
+당신의 성분은 지금 이것 같이 선이 있어야 합니다:
+
+```jsx
+const [state, handleSubmit] = useForm("mqldaqwx");
+
+/*자신의 양식의 ID로 위의 임의 문자열을 교체*/
+```
+
+이제 양식을 제출할 때, 당신은 감사 메시지를 표시해야합니다. 양식 데이터는 계정에 제출됩니다.[프로젝트](https://formspree.io/).
+
+여기에서 귀하의 양식 처리 논리를 조정할 수 있습니다.[공지사항](https://help.formspree.io/hc/en-us/articles/115008379348-Changing-a-form-email-address), 또는 같은 플러그인 추가[Google 시트](https://help.formspree.io/hc/en-us/articles/360036563573-Use-Google-Sheets-to-send-your-submissions-to-a-spreadsheet), [스크랩](https://help.formspree.io/hc/en-us/articles/360045648933-Send-Slack-notifications), 더 많은 것.
+
+Formspree를 설정하는 데 더 많은 도움이 필요하면 다음 리소스를 참조하십시오.
+
+- Formspree에 대한 일반적인 도움말, 참조[Formspree 도움말 사이트](https://help.formspree.io/hc/en-us).
+- React에서 양식을 작성하는 데 더 많은 도움으로, 참조[formpree-react 문서](https://help.formspree.io/hc/en-us/articles/360055613373-The-Formspree-React-library)
+- Next.js, Gatsby 및 Eleventy와 같은 인기있는 플랫폼과 Formspree 통합에 대한 팁은 참조[Formspree 가이드](https://formspree.io/guides).
+
+## 계정 만들기
+
+이제 프로젝트를 배포할 준비가 되어 있습니다.
+
+이미 수행하지 않은 경우, 내의 진행 상황을 저장`git`그리고 GitHub 저장소에 커밋(s)을 밀어:
+
+```sh
+#모든 파일 추가
+git add -A
+#w/ 메시지
+git commit -m "working example"
+#원격에 푸시 커밋(s)
+git push -u origin main
+```
+
+GitHub 저장소 내에서 작업이 중단됩니다. 즉, Pages도 접근할 수 있습니다.
+
+이것은 당신의 첫번째 Cloudflare Pages 프로젝트인 경우에, 참조합니다[자주 묻는 질문](/pages/get-started/)완전한 walkthrough를 위해. 적절한 GitHub 저장소를 선택한 후 다음 빌드 설정으로 프로젝트를 구성해야 합니다.
+
+- **프로젝트 이름**– 당신의 선택
+- **생산 지점** – `main`
+- **프레임 워크**– React 만들기 앱 다운로드
+- **명령 실행** – `npm run build`
+- **출력 디렉토리** – `build`
+
+선택 후**저장 및 배포**, 당신의 Pages 프로젝트는 그것의 첫번째 배치를 시작할 것입니다. 성공할 때, 당신은 독특합니다`*.pages.dev`subdomain 및 라이브 데모에 대한 링크.
+
+## 환경변수 사용
+
+때로는 두 가지 형태를 설정하는 데 도움이, 개발을위한 하나, 생산에 대한 하나. 즉, 생산 데이터셋을 손상시키지 않고 양식을 개발 및 테스트할 수 있으며, 테스트 알림을 고객에게 전송할 수 있습니다.
+
+생산 및 개발 양식을 설정하려면 먼저 Formspree의 두 번째 양식을 만듭니다. 이름 이 양식 연락처 테스트, 및 양식의 메모[`hashid`](https://help.formspree.io/hc/en-us/articles/360015130174-Getting-your-form-s-hashid-).
+
+다음 변경`useForm`당신의 손에`ContactForm.js`file so that it is initialized with the environment variable, 오히려 문자열보다:
+
+```jsx
+const [state, handleSubmit] = useForm(process.env.REACT_APP_FORM_ID);
+```
+
+Cloudflare Pages 프로젝트 설정에서 추가`REACT_APP_FORM_ID`생산 및 미리보기 환경에 대한 환경 변수. 당신의 원본 모양을 사용하십시오`hashid`생산 및 새로운 테스트 폼의`hashid`미리보기 환경에 대한:
+
+![당신의 생산 및 미리보기 환경에서 환경 변수에 대한 옵션을 편집](~/assets/images/pages/tutorials/env-vars.png)
+
+이제 git 저장소의 지점으로 변경하고 푸시하면 새로운 미리보기 앱이 테스트 양식 URL에 제출하는 형태로 생성됩니다. 그러나, 당신의 생산 웹 사이트는 원래 양식 URL에 제출 계속됩니다.
+
+:::참조
+
+React 만들기 앱은 prefix를 사용합니다.`REACT_APP_`JavaScript 코드 앞에 접근할 수 있는 환경변수를 지정하기 위하여. 다른 프레임 워크는 환경 변수를 노출하기 위해 다른 접두사를 사용합니다. 예를 들어, Next.js의 경우, 접두사는`NEXT_PUBLIC_`. React 코드에서 환경 변수에 액세스하는 방법을 결정하기 위해 프런트 엔드 프레임 워크의 문서를 문의하십시오.
+
+:::
+
+이 튜토리얼에서는 Cloudflare Pages 및 Formspree를 사용하여 웹 사이트를 구축하고 배포했습니다. React 응용 프로그램을 작성하여 Formspree와 통신하고 제출 요청을 저장하고 알림을 보내주십시오.
+
+이 응용 프로그램에 대한 전체 소스 코드를 검토하고 싶다면, 당신은 그것을 찾을 수 있습니다[프로젝트](https://github.com/formspree/formspree-example-cloudflare-react).
+
+## 관련 자료
+
+- [Formspree와 HTML 양식 추가](/pages/tutorials/add-an-html-form-with-formspree/)
+- [HTML 양식](/pages/tutorials/forms/)

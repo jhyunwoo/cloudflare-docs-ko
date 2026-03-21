@@ -1,0 +1,102 @@
+---
+summary: Write custom analytics events to Workers Analytics Engine.
+pcx_content_type: example
+title: Analytics Engine에 쓰기
+sidebar:
+  order: 1001
+description: 'Workers High-cardinality의 분석 엔진, 시간 시리즈 데이터.'
+reviewed: 2026-01-07T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/analytics-engine/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/analytics-engine/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+[Workers Analytics 엔진](/analytics/analytics-engine/)time-series 분석을 제공합니다. 사용자 정의 메트릭을 추적하거나 사용 기반 청구를 구축하거나 per-customer 기반 서비스 건강을 이해하십시오.
+
+로그와 달리 Analytics Engine은 고수도 데이터에 통합된 쿼리를 위해 설계되었습니다. 쓰기는 비 차단이며 요청 대기 시간에 영향을 미치지 않습니다.
+
+## 바인딩
+
+Wrangler 설정 파일에 대한 Analytics Engine dataset 바인딩을 추가하십시오. dataset는 자동으로 생성됩니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"analytics_engine_datasets": [
+  		{
+  			"binding": "ANALYTICS",
+  			"dataset": "my_dataset",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+## 데이터 포인트 작성
+
+<TypeScriptExample>
+  ```ts
+  interface Env {
+  	ANALYTICS: AnalyticsEngineDataset;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//페이지보기 이벤트 작성
+  		env.ANALYTICS.writeDataPoint({
+  			blobs: [
+  				url.pathname,
+  				request.headers.get("cf-connecting-country") ?? "unknown",
+  			],
+  			doubles: [1], //제품정보
+  			indexes: [url.hostname], //샘플링 키
+  		});
+
+  		//응답 타이밍 이벤트 작성
+  		const start = Date.now();
+  		const response = await fetch(request);
+  		const duration = Date.now() - start;
+
+  		env.ANALYTICS.writeDataPoint({
+  			blobs: [url.pathname, response.status.toString()],
+  			doubles: [duration],
+  			indexes: [url.hostname],
+  		});
+
+  		//쓰기는 차단되지 않습니다 - 기다리거나 사용 할 필요가 없습니다 ()
+  		return response;
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+## 데이터 포인트 구조
+
+각 자료 점은 이루어져 있습니다:
+
+- **뚱 베어**(strings) - 그룹화 및 필터링에 대한 치수. 경로, 지역, 상태 코드 또는 고객 ID에 대한 사용.
+- **두 배**(numbers) - 숫자, 기간 또는 크기와 같은 기록할 수 있는 수치.
+- **이름 \***(strings) - 단일 문자열로 사용[샘플링 키](/analytics/analytics-engine/sql-api/#sampling). 동일한 색인의 밑에 그룹 관련 사건.
+
+## 데이터 조회
+
+데이터를 Query[SQL API를](/analytics/analytics-engine/sql-api/):
+
+```bash
+curl "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/analytics_engine/sql" \
+  --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  --data "SELECT blob1 AS path, SUM(_sample_interval) AS views FROM my_dataset WHERE timestamp > NOW() - INTERVAL '1' HOUR GROUP BY path ORDER BY views DESC LIMIT 10"
+```
+
+## 관련 자료
+
+- [Analytics Engine 문서](/analytics/analytics-engine/)- referenceXQXQXQXQ Analytics 엔진.
+- [SQL API reference](/analytics/analytics-engine/sql-api/)- Query 문법 및 사용 가능한 기능.
+- [Grafana 통합](/analytics/analytics-engine/grafana/)- Grafana의 Analytics Engine 데이터를 시각화합니다.

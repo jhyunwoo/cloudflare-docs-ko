@@ -1,0 +1,410 @@
+---
+reviewed: 2024-09-25T00:00:00.000Z
+difficulty: Beginner
+title: 외부 API의 핸들 속도 제한
+summary: Example of how to use Queues to handle rate limits of external APIs.
+pcx_content_type: tutorial
+products:
+  - workers
+tags:
+  - TypeScript
+sidebar:
+  order: 1002
+head:
+  - tag: title
+    content: Cloudflare Queues - Queues & 비율 한계 한계
+description: Queues를 사용하여 외부 API의 비율 제한을 처리하는 방법의 예.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/tutorials/handle-rate-limits/'
+translation_source_md: 'https://developers.cloudflare.com/queues/tutorials/handle-rate-limits/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼은 Queues를 사용하여 이메일 알림을 보내는 응용 프로그램을 구축하여 외부 API의 비율 제한을 처리하는 방법을 설명합니다.[이름 \*](https://www.resend.com/). 그러나, 이 패턴을 사용하여 외부 API의 비율 제한을 처리 할 수 있습니다.
+
+Resend는 API를 통해 응용 프로그램에서 이메일을 보낼 수있는 서비스입니다. Resend는 기본적으로[비율 제한](https://resend.com/docs/api-reference/introduction#rate-limit)초당 두 요청의. 당신은 Queues를 사용하여 Resend의 비율 한계를 취급합니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+4. 로그인[이름 \*](https://resend.com/)API 키를 생성하여 가이드에 따라[자주 묻는 질문](https://resend.com/docs/dashboard/api-keys/introduction).
+
+5. 또한 QXQX0369XQQ Queues에 액세스 할 수 있습니다.
+
+<Render file="enable-queues" product="queues" />
+
+## 1. 새로운 Workers 신청 창조
+
+get started에, 노동자 신청을 사용하여 창조하십시오[`create-cloudflare`제품정보](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare). 터미널 창을 열고 다음 명령을 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"resend-rate-limit-queue"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+그런 다음 새로 생성 된 디렉토리로 이동하십시오.
+
+```sh frame="none"
+cd resend-rate-limit-queue
+```
+
+## 2. 큐를 설정
+
+당신은 Queue와 당신의 노동자에 바인딩을 만들 필요가 있습니다. 다음과 같은 명령을 실행하여 Queue 이름을 만듭니다.`rate-limit-queue`:
+
+```sh title="Create a Queue"
+npx wrangler queues create rate-limit-queue
+```
+
+```sh output
+Creating queue rate-limit-queue.
+Created queue rate-limit-queue.
+```
+
+### Queue 바인딩을 추가하십시오.[Wrangler 구성 파일](/workers/wrangler/configuration/)
+
+Wrangler 파일에서 다음을 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"producers": [
+  			{
+  				"binding": "EMAIL_QUEUE",
+  				"queue": "rate-limit-queue"
+  			}
+  		],
+  		"consumers": [
+  			{
+  				"queue": "rate-limit-queue",
+  				"max_batch_size": 2,
+  				"max_batch_timeout": 10,
+  				"max_retries": 3
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+그것은 포함 하는 중요 한`max_batch_size`Resend API가 초당 두 개의 요청의 기본 속도 제한이 있기 때문에 두 개의 소비자 큐가 중요합니다. 이 배치 크기는 2의 일괄 크기에 메시지를 처리 할 수 있습니다. 배치 크기가 2 미만인 경우, 큐는 다음 메시지를 수집하기 위해 10 초 동안 기다립니다. 더 이상 메시지가 유효하지 않은 경우, 큐는 배치에 메시지를 처리 할 것입니다. 더 많은 정보를 원하시면, 참조[Batching, Retries 및 Delays 문서](/queues/configuration/batching-retries)
+
+마지막 Wrangler 파일은 아래 예와 유사해야합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "resend-rate-limit-queue",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": [
+  		"nodejs_compat"
+  	],
+  	"queues": {
+  		"producers": [
+  			{
+  				"binding": "EMAIL_QUEUE",
+  				"queue": "rate-limit-queue"
+  			}
+  		],
+  		"consumers": [
+  			{
+  				"queue": "rate-limit-queue",
+  				"max_batch_size": 2,
+  				"max_batch_timeout": 10,
+  				"max_retries": 3
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 3. 환경에 바인딩을 추가하십시오
+
+환경 인터페이스에 바인딩을 추가`worker-configuration.d.ts`, 그래서 TypeScriptXQ 올바르게 유형 바인딩. 큐는`Queue<Message>`, 어디`Message`다음 단계에서 정의됩니다.
+
+```ts title="worker-configuration.d.ts"
+interface Env {
+	EMAIL_QUEUE: Queue<Message>;
+}
+```
+
+## 4. 메시지 보내기
+
+신청은 노동자가 요청을받을 때 큐에 메시지를 보낼 것입니다. simplicity를 위해, 당신은 큐에 메시지로 이메일 주소를 보낼 것입니다. 새로운 메시지는 1 초 지연으로 큐에 전송됩니다.
+
+```ts title="src/index.ts"
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		try {
+			await env.EMAIL_QUEUE.send(
+				{ email: await req.text() },
+				{ delaySeconds: 1 },
+			);
+			return new Response("Success!");
+		} catch (e) {
+			return new Response("Error!", { status: 500 });
+		}
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+이것은 어떤 subpath에 요청을 받아들이고 요청의 몸을 전달합니다. 이메일만 포함할 수 있는 요청체가 예상됩니다. 생산에서 요청이 있었는지 확인해야합니다.`POST`이름 \* 당신은 또한 같은 민감한 정보를 보낼 수 있어야합니다 (email) 큐에 직접. 대신 사용자의 고유 식별자를 포함하는 큐에 메시지를 보낼 수 있습니다. 그런 다음 소비자 큐는 데이터베이스의 이메일 주소를 확인하고 이메일을 보내려면 고유 식별자를 사용할 수 있습니다.
+
+## 5. 큐에 메시지 처리
+
+메시지가 큐에 전송되면 소비자 노동자가 처리됩니다. 소비자 노동자는 메시지를 처리하고 이메일을 보낼 것입니다.
+
+아직 해결되지 않았기 때문에 콘솔에 메시지를 기록합니다. Resend를 구성하면 이메일을 보낼 수 있습니다.
+
+추가하기`queue()`아래와 같이 핸들러:
+
+```ts title="src/index.ts" ins={1-3,17-28}
+interface Message {
+	email: string;
+}
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		try {
+			await env.EMAIL_QUEUE.send(
+				{ email: await req.text() },
+				{ delaySeconds: 1 },
+			);
+			return new Response("Success!");
+		} catch (e) {
+			return new Response("Error!", { status: 500 });
+		}
+	},
+	async queue(batch, env, ctx): Promise<void> {
+		for (const message of batch.messages) {
+			try {
+				console.log(message.body.email);
+				//configuring Resend 후에, 당신은 이메일을 보낼 수 있습니다
+				message.ack();
+			} catch (e) {
+				console.error(e);
+				message.retry({ delaySeconds: 5 });
+			}
+		}
+	},
+} satisfies ExportedHandler<Env, Message>;
+```
+
+위의 것`queue()`핸들러는 콘솔에 이메일 주소를 로그인하고 이메일을 보내드립니다. 이메일 전송이 실패하면 메시지를 다시 보낼 것입니다. 더 보기`delaySeconds`이메일 전송을 방지하기 위해 5 초로 설정됩니다.
+
+응용 프로그램을 테스트하려면 다음 명령을 실행하십시오.
+
+```sh title="Start the development server"
+npm run dev
+```
+
+다음 cURL 명령을 사용하여 응용 프로그램에 요청을 보낼 수 있습니다.
+
+```sh title="Test with a cURL request"
+curl -X POST -d "test@example.com" http://localhost:8787/
+```
+
+```sh output
+[wrangler:inf] POST / 200 OK (2ms)
+QueueMessage {
+  attempts: 1,
+  body: { email: 'test@example.com' },
+  timestamp: 2024-09-12T13:48:07.236Z,
+  id: '72a25ff18dd441f5acb6086b9ce87c8c'
+}
+```
+
+## 6. Resend 설정
+
+Resend API를 호출하려면 Resend API 키를 구성해야 합니다. 이름 \*`.dev.vars`프로젝트의 루트에 파일과 다음을 추가:
+
+```txt title=".dev.vars"
+RESEND_API_KEY='your-resend-api-key'
+```
+
+기타 제품`your-resend-api-key`실제 Resend API 키로.
+
+다음, 업데이트`Env`인터페이스 in`worker-configuration.d.ts`다음을 포함`RESEND_API_KEY`변수.
+
+```ts title="worker-configuration.d.ts" ins={3}
+interface Env {
+	EMAIL_QUEUE: Queue<Message>;
+	RESEND_API_KEY: string;
+}
+```
+
+마지막으로, 설치[`resend`제품 설명](https://www.npmjs.com/package/resend)다음 명령을 사용하여:
+
+<PackageManagers pkg="resend" />
+
+지금 사용할 수 있습니다`RESEND_API_KEY`코드의 변수.
+
+## 7. 이메일 보내기
+
+내 계정`src/index.ts`파일, 잔고 패키지 및 업데이트`queue()`이메일 보내기
+
+```ts title="src/index.ts" ins={1,21,26-40} del={24,41}
+import { Resend } from "resend";
+
+interface Message {
+	email: string;
+}
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		try {
+			await env.EMAIL_QUEUE.send(
+				{ email: await req.text() },
+				{ delaySeconds: 1 },
+			);
+			return new Response("Success!");
+		} catch (e) {
+			return new Response("Error!", { status: 500 });
+		}
+	},
+	async queue(batch, env, ctx): Promise<void> {
+		//자주 묻는 질문
+		const resend = new Resend(env.RESEND_API_KEY);
+		for (const message of batch.messages) {
+			try {
+				console.log(message.body.email);
+				//이메일:
+				const sendEmail = await resend.emails.send({
+					from: "onboarding@resend.dev",
+					to: [message.body.email],
+					subject: "Hello World",
+					html: "<strong>Sending an email from Worker!</strong>",
+				});
+
+				//이메일이 실패한 경우
+				if (sendEmail.error) {
+					console.error(sendEmail.error);
+					message.retry({ delaySeconds: 5 });
+				} else {
+					//성공하면 메시지
+					message.ack();
+				}
+				message.ack();
+			} catch (e) {
+				console.error(e);
+				message.retry({ delaySeconds: 5 });
+			}
+		}
+	},
+} satisfies ExportedHandler<Env, Message>;
+```
+
+더 보기`queue()`handler는 이제 Resend API를 사용하여 이메일을 보낼 것입니다. 이메일이 실패하고 메시지를 다시 보낼 경우도 확인합니다.
+
+마지막 스크립트는 다음과 같습니다:
+
+```ts title="src/index.ts"
+import { Resend } from "resend";
+
+interface Message {
+	email: string;
+}
+
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		try {
+			await env.EMAIL_QUEUE.send(
+				{ email: await req.text() },
+				{ delaySeconds: 1 },
+			);
+			return new Response("Success!");
+		} catch (e) {
+			return new Response("Error!", { status: 500 });
+		}
+	},
+	async queue(batch, env, ctx): Promise<void> {
+		//자주 묻는 질문
+		const resend = new Resend(env.RESEND_API_KEY);
+		for (const message of batch.messages) {
+			try {
+				//이메일:
+				const sendEmail = await resend.emails.send({
+					from: "onboarding@resend.dev",
+					to: [message.body.email],
+					subject: "Hello World",
+					html: "<strong>Sending an email from Worker!</strong>",
+				});
+
+				//이메일이 실패한 경우
+				if (sendEmail.error) {
+					console.error(sendEmail.error);
+					message.retry({ delaySeconds: 5 });
+				} else {
+					//성공하면 메시지
+					message.ack();
+				}
+			} catch (e) {
+				console.error(e);
+				message.retry({ delaySeconds: 5 });
+			}
+		}
+	},
+} satisfies ExportedHandler<Env, Message>;
+```
+
+응용 프로그램을 테스트하려면 다음 명령을 사용하여 개발 서버를 시작합니다.
+
+```sh title="Start the development server"
+npm run dev
+```
+
+다음 cURL 명령을 사용하여 응용 프로그램에 요청을 보낼 수 있습니다.
+
+```sh title="Test with a cURL request"
+curl -X POST -d "delivered@resend.dev" http://localhost:8787/
+```
+
+수신 dashboard에, 당신은 이메일이 제공 된 이메일 주소로 전송 된 것을 볼 수 있습니다.
+
+## 8. 작업자를 배포
+
+노동자를 배포하려면 다음 명령을 실행하십시오.
+
+```sh title="Deploy your Worker"
+npx wrangler deploy
+```
+
+마지막으로, 다음 명령을 사용하여 Resend API 키 추가:
+
+```sh title="Add the Resend API key"
+npx wrangler secret put RESEND_API_KEY
+```
+
+API 키의 값을 입력합니다. API 키가 프로젝트에 추가됩니다. 지금 사용할 수 있습니다`RESEND_API_KEY`코드의 변수.
+
+Resend API를 사용하여 이메일을 보낼 수있는 Worker를 성공적으로 만들었습니다.
+
+노동자를 테스트하려면 다음 cURL 요청을 사용할 수 있습니다. 기타 제품`<YOUR_WORKER_URL>`배포 된 노동자의 URL로.
+
+```bash title="Test with a cURL request"
+curl -X POST -d "delivered@resend.dev" <YOUR_WORKER_URL>
+```
+
+더 알아보기[GitHub 저장소](https://github.com/harshil1712/queues-rate-limit)이 튜토리얼의 전체 코드를 위해. 자주 묻는 질문[호노](https://hono.dev/), 당신은 참조할 수 있습니다[Hono 예제](https://github.com/harshil1712/resend-rate-limit-demo).
+
+## 관련 자료
+
+- [Queues는 어떻게 작동합니까?](/queues/reference/how-queues-works/)
+- [Queues 배팅 및 재촉](/queues/configuration/batching-retries/)
+- [이름 \*](https://resend.com/docs/)

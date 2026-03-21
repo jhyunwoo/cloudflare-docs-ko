@@ -1,0 +1,136 @@
+---
+title: Terraform을 사용하여 대량 Redirects 구성
+pcx_content_type: configuration
+sidebar:
+  order: 8
+  label: Terraform을 사용하여 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/terraform-example/
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/url-forwarding/bulk-redirects/terraform-example/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem } from "~/components";
+
+<Render file="v4-code-snippets" product="terraform" />
+
+이 Terraform 예제는 계정 수준 대량 Redirects를 구성합니다. 그것은 만듭니다[대량 Redirect 목록](/rules/url-forwarding/bulk-redirects/concepts/#bulk-redirect-lists)관련 상품[URL 리디렉션](/rules/url-forwarding/bulk-redirects/concepts/#url-redirects)그리고 대응[대량 Redirect 규칙](/rules/url-forwarding/bulk-redirects/concepts/#bulk-redirect-rules)그것을 활성화합니다.
+
+```tf
+# Cloudflare account ID
+variable "cloudflare_account_id" {
+  default = "<ACCOUNT_ID>"
+}
+
+# Bulk redirect list description
+variable "bulk_redirect_list_description" {
+  default = "my bulk redirect description"
+}
+
+# Bulk redirect list name
+variable "bulk_redirect_list_name" {
+  default = "my_bulk_redirect_list_name"
+}
+
+# Bulk redirect list item (URL redirect)
+variable "bulk_redirects" {
+  type = map(object({
+    source_url  = string
+    target_url  = string
+    status_code = number
+  }))
+
+  default = {
+    "redirect1" = {
+      source_url = "https://source.url/redirect/1"
+      target_url = "https://target.url/?redirect=1"
+      status_code = 301
+    }
+    "redirect2" = {
+      source_url = "https://source.url/redirect/2"
+      target_url = "https://target.url/?redirect=2"
+      status_code = 302
+    }
+    "redirect3" = {
+      source_url = "https://source.url/redirect/3"
+      target_url = "https://target.url/?redirect=3"
+      status_code = 307
+    }
+  }
+}
+
+# Create redirect list
+resource "cloudflare_list" "bulk_redirect_to_id" {
+  account_id  = var.cloudflare_account_id
+  name        = var.bulk_redirect_list_name
+  description = var.bulk_redirect_list_description
+  kind        = "redirect"
+}
+
+# Add redirect item into the redirect list
+resource "cloudflare_list_item" "bulk_redirect_to_id_item" {
+  for_each = { for redirect in var.bulk_redirects : "${redirect.source_url}" => redirect }
+
+  account_id = var.cloudflare_account_id
+  list_id    = cloudflare_list.bulk_redirect_to_id.id
+
+  redirect {
+    source_url  = each.value.source_url
+    target_url  = each.value.target_url
+    status_code = each.value.status_code
+  }
+
+  depends_on = [
+    cloudflare_list.bulk_redirect_to_id
+  ]
+
+}
+
+# Create bulk redirect and attach redirect list
+resource "cloudflare_ruleset" "bulk_root_redirect_to_id" {
+  account_id  = var.cloudflare_account_id
+  name        = var.bulk_redirect_list_name
+  description = var.bulk_redirect_list_description
+  kind        = "root"
+  phase       = "http_request_redirect"
+
+  rules {
+    action = "redirect"
+    action_parameters {
+      from_list {
+        name = var.bulk_redirect_list_name
+        key  = "http.request.full_uri"
+      }
+    }
+    expression  = "http.request.full_uri in ${"$"}${var.bulk_redirect_list_name}"
+    description = var.bulk_redirect_list_description
+    enabled     = true
+  }
+
+  depends_on = [
+    cloudflare_list_item.bulk_redirect_to_id_item
+  ]
+}
+```
+
+## 필수 토큰 권한
+
+API 토큰은 적어도 다음과 같습니다.[이름 \*](/fundamentals/api/reference/permissions/):
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    - 계정 필터 목록 > 제품정보
+    - 대량 URL Redirects > 제품정보
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    - 계정 규칙 목록 쓰기
+    - 대량 URL Redirects 쓰기
+  </TabItem>
+</Tabs>
+
+<Render file="terraform-additional-resources" product="rules" />

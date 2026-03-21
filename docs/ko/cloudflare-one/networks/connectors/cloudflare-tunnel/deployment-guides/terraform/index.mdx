@@ -1,0 +1,117 @@
+---
+pcx_content_type: how-to
+title: 옵션 정보
+sidebar:
+  order: 7
+head:
+  - tag: title
+    content: Terraform을 가진 배포 터널
+description: 'Terraform 및 경량 서버 측 daemon, cloudflared를 사용하여 Cloudflare 터널을 배포하는 방법을 알아보십시오.'
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/terraform/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/deployment-guides/terraform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+[옵션 정보](https://www.terraform.io/)표준 구성 구문을 사용하여 다른 공급자로부터 서비스를 배포 할 수있는 코드 소프트웨어 도구로 인프라입니다. Terraform 구성 파일을 만들 때 단계별로 구성의 최종 상태를 정의합니다. 쉽게 배포, 수정 및 다른 인프라와 함께 터널을 관리 할 수 있습니다.
+
+이 가이드에서는 Terraform을 배포합니다.
+
+- HTTP 테스트 서버를 실행하는 Google Cloud Project (GCP) 가상 머신
+- Cloudflare의 특징 서버가 인터넷에서 사용할 수 있는 터널
+- Cloudflare의 특징 서버에 연결할 수 있는 정의 접근 정책
+
+<Render file="tunnel/connectivity-prechecks-note" product="cloudflare-one" />
+
+## 자주 묻는 질문
+
+다음 절차를 완료하려면 다음을해야합니다.
+
+- [Google Cloud 프로젝트](https://cloud.google.com/resource-manager/docs/creating-managing-projects#creating_a_project)
+- [Cloudflare의 영역](/fundamentals/manage-domains/add-site/)
+- 이름 \*[1회 PIN 로그인](/cloudflare-one/integrations/identity-providers/one-time-pin/)또는 통합[회사 소개](/cloudflare-one/integrations/identity-providers/)
+
+## 1. Terraform 설치
+
+더 알아보기[Terraform 설치 가이드](https://developer.hashicorp.com/terraform/tutorials/aws-get-started/install-cli)당신의 운영 체계를 위해.
+
+## 2. gcloud CLI 설치
+
+1. [gcloud CLI 설치](https://cloud.google.com/sdk/docs/install)Terraform은 GCP 계정과 상호 작용할 수 있습니다.
+
+2. CLI를 실행하여 인증:
+
+   ```sh
+   gcloud auth application-default login
+   ```
+
+## 3. Cloudflare API 토큰 생성
+
+[API 토큰 만들기](/fundamentals/api/get-started/create-token/)그래서 Terraform은 Cloudflare 계정과 상호 작용할 수 있습니다. 최소한 토큰은 다음과 같은 권한을 포함해야 합니다.
+
+| 제품정보  | 제품 정보         | 제출   |
+| ----- | ------------- | ---- |
+| 계좌정보  | Cloudflare 갱도 | 제품정보 |
+| 계좌정보  | 액세스 : 앱 및 정책  | 제품정보 |
+| 지역 명소 | DNS 보호        | 제품정보 |
+
+## 4. 설정 디렉토리 만들기
+
+<Render file="terraform/config-directory" product="cloudflare-one" />
+
+## 5. Terraform 구성 파일 만들기
+
+### 입력 변수 정의
+
+<Render file="terraform/input-variables" product="cloudflare-one" />
+
+### 변수에 할당 값
+
+<Render file="terraform/variable-values" product="cloudflare-one" />
+
+### Terraform 공급자 구성
+
+<Render file="terraform/providers" product="cloudflare-one" />
+
+### Cloudflare 리소스 구성
+
+<Render file="terraform/cloudflare-resources" product="cloudflare-one" />
+
+### GCP 리소스 구성
+
+<Render file="terraform/gcp-resources" product="cloudflare-one" />
+
+### 시작 스크립트 만들기
+
+<Render file="terraform/startup-script" product="cloudflare-one" />
+
+## 6. 배포 Terraform
+
+<Render file="terraform/deploy-terraform" product="cloudflare-one" />
+
+GCP 인스턴스와 터널에 대한 몇 분이 걸릴 수 있습니다. 새로운 터널, 액세스 응용 프로그램 및 액세스 정책을 볼 수 있습니다[사이트맵 한국어](https://one.dash.cloudflare.com). 새로운 DNS 레코드를 사용할 수 있습니다[Cloudflare 대시보드](/dns/manage-dns-records/how-to/create-dns-records/).
+
+:::노트\[법률]
+
+구성을 다시 롤해야하는 경우, 실행`terraform destroy`Terraform을 통해 생성된 모든 것을 삭제합니다. 모두 보기`terraform apply`·`terraform destroy`변경을 적용하기 전에 사용자 입력에 대한 신속한. 사용자 입력없이 실행하려면 추가 할 수 있습니다.`-auto-approve`명령에 플래그.
+주요 특징
+
+## 7. 연결을 시험하십시오
+
+1. 내 계정**네트워크** > **연결관** > **사이트맵 연락처**, 당신의 갱도가 활성화된다는 것을 확인합니다.
+
+2. 내 계정**액세스 제어** > **이름 \***, Cloudflare 이메일이 액세스 정책에 의해 허용된다는 것을 확인합니다.
+
+3. 모든 장치에서 브라우저를 열고 이동`http_app.<CLOUDFLARE_ZONE>`(예:`http_app.example.com`).
+
+   로그인하지 않은 경우 액세스 로그인 페이지를 볼 수 있습니다.
+
+4. Cloudflare 메일로 로그인하십시오.
+
+   당신은 볼 수[HTTP빈](https://httpbin.org/)홈페이지

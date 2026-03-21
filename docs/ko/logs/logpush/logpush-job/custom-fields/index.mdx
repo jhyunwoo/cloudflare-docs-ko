@@ -1,0 +1,288 @@
+---
+pcx_content_type: how-to
+title: 회사 소개
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/logpush/logpush-job/custom-fields/'
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/logpush/logpush-job/custom-fields/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest, DashButton } from "~/components";
+
+HTTP 요청 데이터셋은 기본적으로 대부분의 표준 로그 정보를 포함합니다. 그러나 추가 요청 또는 응답 헤더 또는 쿠키를 캡처해야하는 경우 특정 필요에 로그를 맞춤 필드를 사용할 수 있습니다.
+
+사용자 정의 필드는 영역 당 구성되며, 한 번 설정하면 HTTP 요청 데이터 세트를 사용하고 요청 헤더, 응답 헤더, 쿠키 필드를 포함하는 해당 영역의 모든 Logpush 작업을 활성화합니다. 당신은 그들의 원료 또는 변환 된 값으로이 필드를 기록 할 수 있습니다.
+
+:::note\[기본값:]
+
+- **요청 헤더**로그인**원료 값**.
+- **응답 헤더**로그인**변환된 값**.
+  :::
+
+이 기본 동작을 변경할 수 있습니다. 요청 또는 응답 헤더를 구성할 수 있습니다. 원시 또는 변환으로 로그인할 수 있습니다., 필요에 따라 - 하지만 같은 헤더에 모두는 없습니다.
+
+주문 분야는 API 또는 Cloudflare 대시보드를 통해 활성화될 수 있습니다.
+
+:::참조
+사용자 정의 필드는 사용할 수 있습니다[HTTP 요청 데이터셋](/logs/logpush/logpush-job/datasets/zone/http_requests/).
+:::
+
+:::참조
+수동으로 각 것을 지정하지 않고 Logpush에서 모든 사용자 정의 헤더를 자동으로 전달하는 방법이 없습니다.
+각 요청 또는 응답 헤더는 사용자 지정 필드를 사용하여 개별적으로 구성해야합니다.
+주요 특징
+
+## API를 통해 사용자 정의 규칙
+
+사용 방법[규칙 세트 API](/ruleset-engine/rulesets-api/)사용자 정의 필드를 구성하는 규칙을 만들려면. 단계, 규칙 및 규칙과 같은 개념에 대한 자세한 내용은 사용 가능한 API 작업뿐만 아니라 참조[Ruleset 엔진](/ruleset-engine/)문서.
+
+사용자 정의 필드를 구성하려면:
+
+1. 사용자 정의 필드의 목록을 구성하는 규칙을 만듭니다.
+2. 관련 기사`Cookies`, `RequestHeaders`, 및/또는`ResponseHeaders`Logpush 작업에 필드.
+
+### 1. 사용자 정의 필드의 목록을 구성하는 규칙 만들기
+
+사용자 정의 필드의 목록을 구성하는 규칙 만들기`http_log_custom_fields`영역 수준에서 단계. 규칙 작업을 설정`log_custom_field`그리고 규칙 표현`true`.
+
+더 보기`action_parameters`사용자 정의 필드의 목록을 구성하는 규칙에 포함해야 하는 객체는 다음과 같은 구조가 있어야 합니다.
+
+```json
+"action_parameters": {
+//select raw (default) or transformed request header
+  "request_fields": [
+    { "name": "<http_request_header_raw>" }
+  ],
+  "transformed_request_fields": [
+    { "name": "<http_request_header_transformed>" }
+  ],
+//select raw or transformed (default) response header
+  "response_fields": [
+    { "name": "<http_response_header_transformed>" }
+  ],
+  "raw_response_fields": [
+    { "name": "<http_response_header_raw>" }
+  ],
+  "cookie_fields": [
+    { "name": "<cookie_name>" }
+  ]
+}
+```
+
+규칙 정의가 다음과 같이 따릅니다.
+
+- 다음 배열 중 적어도 하나를 포함해야합니다.`action_parameters`객체:`request_fields`, `transformed_request_fields`, `response_fields`, `raw_response_fields`·`cookie_fields`.
+- HTTP 요청 및 응답 헤더 이름을 더 낮은 경우에 입력해야합니다.
+- 쿠키 이름은 민감한 경우입니다 - HTTP 요청에 따라 동일한 자본화로 쿠키 이름을 입력해야합니다.
+- 규칙 표현을 설정해야 합니다.`true`.
+- 요청 또는 응답 헤더에 대한 원시 또는 변환 된 값 만 로그인 할 수 있지만 동일한 헤더에 모두 없습니다.
+
+규칙을 만들려면 다음 단계를 수행:
+
+1. 사용 방법[영역 규칙](/ruleset-engine/rulesets-api/view/#list-existing-rulesets)이미 있는지 확인하는 작업[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)제품정보`http_log_custom_fields`영역 수준에서 단계 (당신은 단계 당 하나의 항목 포인트 규칙을 가질 수있다):
+
+   <APIRequest path="/zones/{zone_id}/rulesets" method="GET" roles={false} />
+
+   입장 포인트 규칙이 있는 경우`http_log_custom_fields`단계 (즉, 규칙과`"kind": "zone"`·`"phase": "http_log_custom_fields"`), 규칙 ID의 주의를 가지고.
+
+2. (선택) 응답이 규칙을 포함하지 않았다면`"kind": "zone"`·`"phase": "http_log_custom_fields"`, 단계 항목 포인트 룰렛 만들기[지역 규칙 만들기](/ruleset-engine/rulesets-api/create/)가동:
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets"
+     method="POST"
+     json={{
+      name: "Zone-level phase entry point",
+      kind: "zone",
+      description: "This ruleset configures custom log fields.",
+      phase: "http_log_custom_fields",
+   }}
+     roles={false}
+   />
+
+   응답에 포함 된 규칙 ID를주의하십시오.
+
+3. 사용 방법[지역 규칙 업데이트](/ruleset-engine/rulesets-api/update/)사용자 정의 필드 구성에 규칙을 추가 (또는 이전 단계에서 생성) 발견 된 항목 점 규칙의 규칙을 정의하는 작업. 요청에 포함 된 규칙은 규칙의 모든 규칙을 대체합니다.
+
+   다음 예제는 HTTP 요청 헤더, HTTP 응답 헤더 및 Logpush 로그에 포함하려는 쿠키의 이름을 가진 사용자 정의 필드를 구성:
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}"
+     method="PUT"
+     json={{
+      rules: [
+      	{
+      		action: "log_custom_field",
+      		expression: "true",
+      		description: "Set Logpush custom fields for HTTP requests",
+      		action_parameters: {
+      			request_fields: [
+      				{ name: "content-type" },
+      				{ name: "x-forwarded-for" },
+      			],
+      			transformed_request_fields: [{ name: "host" }],
+      			response_fields: [{ name: "server" }, { name: "content-type" }],
+      			raw_response_fields: [{ name: "allow" }],
+      			cookie_fields: [
+      				{ name: "__ga" },
+      				{ name: "accountNumber" },
+      				{ name: "__cfruid" },
+      			],
+      		},
+      	},
+      ],
+   }}
+     roles={false}
+   />
+
+   ```json output
+   {
+   	"result": {
+   		"id": "<RULESET_ID>",
+   		"name": "Zone-level phase entry point",
+   		"description": "This ruleset configures custom log fields.",
+   		"kind": "zone",
+   		"version": "2",
+   		"rules": [
+   			{
+   				"id": "<RULE_ID_1>",
+   				"version": "1",
+   				"action": "log_custom_field",
+   				"action_parameters": {
+   					"request_fields": [
+   						{ "name": "content-type" },
+   						{ "name": "x-forwarded-for" }
+   					],
+   					"transformed_request_fields": [{ "name": "host" }],
+   					"response_fields": [
+   						{ "name": "server" },
+   						{ "name": "content-type" }
+   					],
+   					"raw_response_fields": [{ "name": "allow" }],
+   					"cookie_fields": [
+   						{ "name": "__ga" },
+   						{ "name": "accountNumber" },
+   						{ "name": "__cfruid" }
+   					]
+   				},
+   				"expression": "true",
+   				"description": "Set Logpush custom fields for HTTP requests",
+   				"last_updated": "2021-11-21T11:02:08.769537Z",
+   				"ref": "<RULE_REF_1>",
+   				"enabled": true
+   			}
+   		],
+   		"last_updated": "2021-11-21T11:02:08.769537Z",
+   		"phase": "http_log_custom_fields"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+#### 기록 중복 응답 헤더 값
+
+몇몇 우두머리는 근원에서 보낸 —와 같은`set-cookie`- 캡처하려는 여러 값이있을 수 있습니다. 레셋 API를 사용하여 헤더가 기록된 모든 값이 있어야 합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/{ruleset_id}"
+  method="PUT"
+  json={{
+  	rules: [
+  		{
+  			action: "log_custom_field",
+  			expression: "true",
+  			description: "Set Logpush custom fields for HTTP requests",
+  			action_parameters: {
+  				response_fields: [{ name: "set-cookie", preserve_duplicates: true }],
+  			},
+  		},
+  	],
+  }}
+  roles={false}
+/>
+
+주의사항`preserve_duplicates`모두에 적용`response_fields`·`raw_response_fields`. 헤더에 영향을 미치는 변형 규칙이 없다면`preserve_duplicates`중 하나`response_fields`또는`raw_response_fields`동일한 결과를 달성해야 합니다.
+
+이 예에서, 모든 값의`set-cookie`헤더가 로그아웃됩니다. 그들은 아래 문자열 값의 배열로 나타납니다`ResponseFields`예를 들면:
+
+```json
+{
+  // ...
+  "ResponseFields": {
+    "set-cookie": ["name1=val1", "name2=val2", ...]
+  }
+}
+```
+
+이 값을 추출하기 위해 Logpush 대상에서 노동자 또는 사용자 정의 논리를 사용할 수 있습니다.
+
+### 2. 당신의 Logpush 일에 있는 주문 분야를 포함하십시오
+
+다음, 포함`Cookies`, `RequestHeaders`, `ResponseHeaders`, 및/또는`ResponseFields`사용자 정의 필드 구성에 따라, 필드의 목록`output_options`작업 매개 변수 생성 또는 작업을 업데이트 할 때. 로그는 구성된 사용자 정의 필드와 요청/response의 값이 포함되어 있습니다.
+
+예를 들어, 사용자 정의 필드를 포함하는 작업을 만드는 다음 요청을 고려하십시오.
+
+<APIRequest
+  path="/zones/{zone_id}/logpush/jobs"
+  method="POST"
+  json={{
+  	name: "<DOMAIN_NAME>",
+  	destination_conf: "s3://<BUCKET_PATH>?region=us-west-2",
+  	dataset: "http_requests",
+  	output_options: {
+  		field_names: [
+  			"RayID",
+  			"EdgeStartTimestamp",
+  			"Cookies",
+  			"RequestHeaders",
+  			"ResponseHeaders",
+  		],
+  		timestamp_format: "rfc3339",
+  	},
+  	ownership_challenge: "<OWNERSHIP_CHALLENGE_TOKEN>",
+  }}
+/>
+
+:::note\[Cloudflare를 위한 주 액세스 사용자]
+
+Cloudflare 액세스 사용자 인 경우 3 월 2022로 수동으로 추가해야합니다.`cf-access-user`사용자 ID 헤더를 사용자 정의 필드 규칙을 생성하거나 추가하여 로그에`cf-access-user`HTTP 요청 헤더를 사용자 정의 필드 구성. 또한, 당신이 포함 한 것을 확인`RequestHeaders`당신의 Logpush 일에 있는 분야.
+
+:::
+
+## 대시보드를 통해 Enable 주문 분야
+
+1. Cloudflare 대시보드에서, 갑니다**다운로드**사이트 맵
+
+   <DashButton url="/?to=/:account/:zone/analytics/logs" />
+
+2. 내 계정**회사소개**섹션, 선택**사용자 정의 필드 편집**.
+
+3. 제품정보**새로운 사용자 정의 필드 설정**.
+
+4. 에 의해**필드 유형**dropdown, 선택*요청 헤더*, *응답 헤더*또는*제품 정보*그리고 유형**필드 이름**.
+
+5. 당신이 할 때, 선택**제품 정보**.
+
+## 사용 케이스: 로깅 mTLS 인증서 헤더
+
+mTLS 인증서 세부 사항을 로그하려면 (예 :`cf-cert-subject-dn`또는`cf-cert-issuer-dn`) Logpush에서, 당신은 필요로 합니다:
+
+1. 이름 \*[TLS 클라이언트 auth 헤더 추가](/rules/transform/managed-transforms/reference/#add-tls-client-auth-headers)인증서 헤더를 주입하는 관리형.
+2. Logpush 사용자 정의 필드 구성`transformed_request_fields`(없음)`request_fields`) 이 Cloudflare 주사한 우두머리를 붙잡기 위하여.
+3. Logpush 작업에 대해`RequestHeaders`이름 \*
+
+mTLS 헤더는 클라이언트 요청이 수신된 후 Cloudflare에 의해 주사됩니다, 그래서 그들은 사용하여 캡처해야합니다`transformed_request_fields`그러나`request_fields`.
+
+클라이언트 인증서 구성에 대한 자세한 내용은 참조[mTLS 인증](/ssl/client-certificates/enable-mtls/).
+
+## 제한 사항
+
+- 사용자 정의 필드는 필드 유형 당 100 헤더를 허용 — 이것은 별도로 적용`request_fields`, `transformed_request_fields`, `response_fields`, `raw_response_fields`·`cookie_fields`.
+- 요청 헤더`Range`Custom Fields에 의해 현재 지원되지 않습니다.
+- 요청 및 응답 헤더에 대한 변형 및 원시 값은 API를 통해만 사용할 수 있으며 UI를 통해 설정할 수 없습니다.

@@ -1,0 +1,62 @@
+---
+title: 덕DB
+pcx_content_type: example
+reviewed: 2025-05-27T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/config-examples/duckdb/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/data-catalog/config-examples/duckdb/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+아래는 사용 예제입니다.[덕DB](https://duckdb.org/)R2 데이터 카탈로그에 연결하십시오. DuckDB를 가진 R2 데이터 카탈로그에 연결에 대한 자세한 내용은 참조[DuckDB 문서](https://duckdb.org/docs/stable/core_extensions/iceberg/iceberg_rest_catalogs#r2-catalog).
+
+## 자주 묻는 질문
+
+- 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+- [R2 버킷 만들기](/r2/buckets/create-buckets/)·[데이터 카탈로그](/r2/data-catalog/manage-catalogs/#enable-r2-data-catalog-on-a-bucket).
+- [R2 API 토큰 생성](/r2/api/tokens/)둘 다[R2 및 데이터 카탈로그 권한](/r2/api/tokens/#permissions).
+- 설치하기[덕DB](https://duckdb.org/docs/installation/).
+  - 참고 :[오리DB 1.4.0](https://github.com/duckdb/duckdb/releases/tag/v1.4.0)또는 더 큰 첨부 및 쓰기에 필요한[Iceberg REST 카탈로그](https://duckdb.org/docs/stable/core_extensions/iceberg/iceberg_rest_catalogs).
+- 참고: DuckDB[현재 지원되지 않음](https://duckdb.org/docs/stable/core_extensions/iceberg/iceberg_rest_catalogs#limitations-for-update-and-delete) `DELETE`파티션 테이블에.
+
+## 예제 사용
+
+내 계정[DuckDB 클립](https://duckdb.org/docs/stable/clients/cli/overview.html)(Command Line Interface)는 다음 명령을 실행합니다.
+
+```sql
+-- Install the iceberg DuckDB extension (if you haven't already) and load the extension.
+INSTALL iceberg;
+LOAD iceberg;
+
+-- Install and load httpfs extension for reading/writing files over HTTP(S).
+INSTALL httpfs;
+LOAD httpfs;
+
+-- Create a DuckDB secret to store R2 Data Catalog credentials.
+CREATE SECRET r2_secret (
+    TYPE ICEBERG,
+    TOKEN '<token>'
+);
+
+-- Attach R2 Data Catalog with the following ATTACH statement.
+ATTACH '<warehouse_name>' AS my_r2_catalog (
+    TYPE ICEBERG,
+    ENDPOINT '<catalog_uri>'
+);
+
+-- Create the default schema in the catalog and set it as the active schema.
+CREATE SCHEMA my_r2_catalog.default;
+USE my_r2_catalog.default;
+
+-- Create and populate a sample Iceberg table with data.
+CREATE TABLE my_iceberg_table AS SELECT a FROM range(4) t(a);
+
+-- Show all available tables.
+SHOW ALL TABLES;
+
+-- Query the Iceberg table you just created.
+SELECT * FROM my_r2_catalog.default.my_iceberg_table;
+```

@@ -1,0 +1,507 @@
+---
+pcx_content_type: troubleshooting
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/200170786-Restoring-original-visitor-IPs
+title: 원래 방문자 IP를 복원
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/
+translation_source_md: >-
+  https://developers.cloudflare.com/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+너에게[웹 사이트 트래픽은 Cloudflare 네트워크를 통해 경로](/fundamentals/concepts/how-cloudflare-works/), 우리는 역 프록시 역할을합니다. 이것은 Cloudflare를 사용하여 페이지로드 시간을 가속화 할 수 있습니다. 더 효율적으로 패킷과 캐싱 정적 자원 (이미지, JavaScript, CSS 등). 그 결과, 요청에 응답 할 때, 당신의 기원 서버가 반환[Cloudflare IP 주소](https://www.cloudflare.com/ips/).
+
+예를 들어, 원래 방문자의 들어오는 IP 주소에 따라 응용 프로그램을 설치하면 Cloudflare IP 주소는 기본적으로 로그인됩니다. 원래 방문자 IP 주소는 HTTP 헤더 호출에 나타납니다[`CF-Connecting-IP`](/fundamentals/reference/http-headers/#cf-connecting-ip). 다음으로[웹 서버 지침](#web-server-instructions), 당신은 당신의 근원 서버에 본래 방문자 IP 주소를 기록할 수 있습니다. 이 HTTP 헤더가 요청이 Origin 서버에 도달하면 사용할 수 없습니다.[Transform 규칙](/rules/transform/)·[관리된 Transforms](/rules/transform/managed-transforms/)구성.
+
+:::참조
+
+<Render file="pseudo-ipv4-warning" product="fundamentals" />
+
+:::
+
+아래 다이어그램은 IP 주소가 Cloudflare없이 처리되는 다른 방법을 보여줍니다.
+
+![다이어그램은 IP 주소가 CloudflareXQ없이 처리되는 다른 방법을 보여줍니다.](~/assets/images/support/Restoring_IPs__1_.png)
+
+:::카트로션
+
+Cloudflare 더 이상 업데이트 및 지원*mod cloudflare는*시작하기
+버전으로**데비안 9**·**우분투 18.04 LTS**리눅스의
+운영 체계. 지금 추천
+[*아파치 모듈 mod remoteip*](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)Apache 웹 서버를 사용하여 고객. 관심있는 고객
+회사연혁*mod cloudflare는*포장 깡통[다운로드
+코드베이스](https://github.com/cloudflare/mod_cloudflare)GitHub에서
+주요 특징
+
+***
+
+## 아파치 모듈 mod remoteip
+
+Cloudflare 더 이상 업데이트 및 지원*mod cloudflare는*그러나 Apache 웹 서버를 사용하여 운영 체제와 같은 경우**우분투 서버 18.04**·**데비안 9 스트레치**, 당신은 사용할 수 있습니다*아파치 모듈 mod remoteip*방문자의 원래 IP 주소를 로그.
+
+**이 모듈은 외부 파티에 의해 만들어졌으며 플러그인과 관련된 문제에 대한 기술 지원을 제공하지 않습니다.**
+
+설치하기*아파치 모듈 mod remoteip*Apache 웹 서버에서:
+
+1. 이름 \**아파치 모듈 mod remoteip*다음 명령을 발급함으로써:
+
+```sh
+sudo a2enmod remoteip
+```
+
+2. 사이트 구성 업데이트*RemoteIPHeader CF 연결 IP*, 예를들면`/etc/apache2/sites-available/000-default.conf`
+
+```
+ServerAdmin webmaster@localhost
+DocumentRoot /var/www/html
+ServerName remoteip.andy.support
+RemoteIPHeader CF-Connecting-IP
+ErrorLog ${APACHE_LOG_DIR}/error.log
+CustomLog ${APACHE_LOG_DIR}/access.log combined
+```
+
+3. 결합된 업데이트*로그인*이름 \*`apache.conf`, 교체*100%년*이름 \**%a에서* `/etc/apache2/apache2.conf.`예를 들어, 현재*로그인*다음과 같이
+
+```
+LogFormat "%h %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+```
+
+업데이트*로그인*다음으로:
+
+```
+LogFormat "%a %l %u %t \"%r\" %>s %O \"%{Referer}i\" \"%{User-Agent}i\"" combined
+```
+
+4. 신뢰할 수있는 프록시 주소를 정의`/etc/apache2/conf-available/remoteip.conf`다음 코드를 입력하고[Cloudflare의 IP](https://www.cloudflare.com/ips/):
+
+```
+RemoteIPHeader CF-Connecting-IP
+RemoteIPTrustedProxy 192.0.2.1 (example IP address)
+RemoteIPTrustedProxy 192.0.2.2 (example IP address)
+(repeat for all Cloudflare IPs listed at https://www.cloudflare.com/ips/)
+```
+
+5. Apache 설정 활성화:
+
+```sh
+sudo a2enconf remoteip
+```
+
+```sh output
+Enabling conf remoteip.
+To activate the new configuration, you need to run:
+service apache2 reload
+```
+
+6. Apache 설정 테스트:
+
+```sh
+sudo apache2ctl configtest
+```
+
+```sh output
+Syntax OK
+```
+
+7. 아파치 재시작:
+
+```sh
+sudo systemctl restart apache2
+```
+
+:::참조
+
+더 많은 정보*아파치 모듈 mod remoteip*, 참조[아파치
+관련 기사](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html "Apache Module mod_remoteip").
+:::
+
+***
+
+## mod cloudflare는
+
+:::카트로션
+
+Cloudflare 더 이상 업데이트 및 지원*mod cloudflare는*시작하기
+버전으로**데비안 9**·**우분투 18.04 LTS**리눅스의
+운영 체계. 지금 추천
+[*아파치 모듈 mod remoteip*](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)Apache 웹 서버를 사용하여 고객. 관심있는 고객
+회사연혁*mod cloudflare는*포장 깡통[다운로드
+코드베이스](https://github.com/cloudflare/mod_cloudflare)GitHub에서
+주요 특징
+
+### 설치하기
+
+mod cloudflare를 설치하기위한 두 가지 방법이 있습니다. GitHub에서 아파치 확장을 다운로드하거나 소스 웹 서버에 코드를 추가하여.
+
+#### GitHub에서 패킷 또는 스크립트 다운로드
+
+Apache 웹 서버를 사용하는 경우 mod cloudflare를 다운로드할 수 있습니다.[프로젝트](https://github.com/cloudflare/mod_cloudflare).
+
+#### 소스 웹 서버에 코드를 추가
+
+mod cloudflare를 설치할 수 없는 경우, 또는 콘텐츠 관리 시스템 플랫폼에서 사용 가능한 Cloudflare 플러그인이 없는 경우, 원본 방문자 IP를 복원할 수 있는 경우, 이 코드를 원래 웹 서버로 추가하거나 이전하기 전에`<body>`원본 방문자 IP를 필요로하는 페이지에 태그:
+
+```php
+<?php if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];?>
+```
+
+이 명령은 필요한 스크립트에 사용할 수있는 IP 주소를 만들 것입니다. 실제 서버 로그에 IP를 저장하지 않습니다.
+
+### 제거하기
+
+#### 아파치
+
+제거하기*mod cloudflare는*, 아파치 설정 줄을 읽어야 합니다.*mod cloudflare는*.
+
+이것은 리눅스 배포에 따라 다르지만 대부분의 사람들이 볼 경우`in /etc/apache2`, 당신은 선을 찾기 위해 검색 할 수 있어야합니다 :
+
+`LoadModule cloudflare_module`
+
+이 줄을 읽거나 제거하면 apache를 재시작하고*mod cloudflare는*갔다.
+
+Ubuntu 또는 Debian을 실행하면 볼 수 있습니다.
+
+`file/etc/apache2/mods-enabled/cloudflare.load`
+
+이 파일을 삭제*mod cloudflare는*아파치를 다시 시작한다.
+
+#### 사이트맵
+
+*mod cloudflare는*Nginx는 필요하지 않습니다. 사용 방법[`ngx_http_realip_module`NGINX 모듈](http://nginx.org/en/docs/http/ngx_http_realip_module.html)그리고 설정 파라미터는[웹 서버 지침](https://developers.cloudflare.com/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/#web-server-instructions)대신.
+
+***
+
+## 웹 서버 지침
+
+웹 서버를 구성하는 방법에 대한 지침에 따라 웹 서버 유형에 따라 원래 방문자 IP를 로그:
+
+### 아파치 2.4
+
+:::카트로션
+
+Cloudflare 더 이상 업데이트 및 지원*mod cloudflare는*시작하기
+버전으로**데비안 9**·**우분투 18.04 LTS**리눅스의
+운영 체계. 지금 추천
+[*아파치 모듈 mod remoteip*](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)Apache 웹 서버를 사용하여 고객. 관심있는 고객
+회사연혁*mod cloudflare는*포장 깡통[다운로드
+코드베이스](https://github.com/cloudflare/mod_cloudflare)GitHub에서
+주요 특징
+
+1. 다음이 설치되어 있는지 확인:
+   - 빨간 모자/Fedora`sudo yum install httpd-devel libtool git`
+   - 데비안 / Ubuntu`sudo apt-get install apache2-dev libtool git`
+2. Clone 가장 최근의 빌드에 대한 다음*mod cloudflare는*:
+   - 빨간 모자/Fedora/Debian/Ubuntu:`git clone https://github.com/cloudflare/mod_cloudflare.git; cd mod_cloudflare`
+3. Apache 확장 도구를 사용하여 .c 파일을 모듈로 변환하십시오.
+   - 빨간 모자/Fedora/Debian/Ubuntu:`apxs -a -i -c mod_cloudflare.c`
+4. Restart와 확인 모듈은 활성:
+   - 빨간 모자/Fedora`service httpd restart; httpd -M|grep cloudflare`
+   - 데비안 / Ubuntu :`sudo apachectl restart; apache2ctl -M|grep cloudflare`
+5. 웹 서버가 로드밸런서 뒤에 있는 경우, Apache 설정(httpd.conf)에 다음 줄을 추가하고, 로드밸런서의 IP 주소로 123.123.123을 대체합니다.
+
+```
+IfModule cloudflare_module
+CloudFlareRemoteIPHeader X-Forwarded-For
+CloudFlareRemoteIPTrustedProxy [insert your load balancer’s IP address]
+DenyAllButCloudFlare
+/IfModule
+```
+
+### 사이트맵
+
+사용 방법[`ngx_http_realip_module`Nginx 모듈](http://nginx.org/en/docs/http/ngx_http_realip_module.html)그리고 뒤에 오는 윤곽 모수:
+
+```
+#example IP address
+set_real_ip_from 192.0.2.1; 
+
+#use any of the following two
+
+real_ip_header CF-Connecting-IP;
+#real_ip_header X-Forwarded-For;
+```
+
+그것은 prefixes의 목록은 정기적으로 업데이트되어야하며, 우리는 전체 목록을 게시합니다.[Cloudflare IP 주소](https://www.cloudflare.com/ips).
+
+:::참조
+
+로그인에서 원래 방문자 IP를 포함, 변수를 추가
+$http cf connecting ip 및 $http x forwarded for 에서
+log format 지시어
+주요 특징
+
+또한 참조 :[Cloudflare 및 NGINX](https://danielmiessler.com/blog/getting-real-ip-addresses-using-cloudflare-nginx-and-varnish/).
+
+### EasyApache와 cPanel
+
+:::카트로션
+
+Cloudflare 더 이상 업데이트 및 지원*mod cloudflare는*시작하기
+버전으로**데비안 9**·**우분투 18.04 LTS**리눅스의
+운영 체계. 지금 추천
+[*아파치 모듈 mod remoteip*](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)Apache 웹 서버를 사용하여 고객. 관심있는 고객
+회사연혁*mod cloudflare는*포장 깡통[다운로드
+코드베이스](https://github.com/cloudflare/mod_cloudflare)GitHub에서
+주요 특징
+
+1. EasyApache의 일부로 mod cloudflare를 설치하려면 다음 스크립트를 실행하십시오.`bash <(curl -s https://raw.githubusercontent.com/cloudflare/mod_cloudflare/master/EasyApache/installer.sh)`
+2. 설치시 새 mod cloudflare 플러그인으로 아파치를 다시 컴파일해야 합니다.
+3. 이를 수정하려면 Apache 구성을 엽니다. 이것은 일반적으로 발견될 수 있습니다`/etc/apache2/apache2.conf`, `/etc/httpd/httpd.conf`, `/usr/local/apache/conf/httpd.conf`또는 구성에 따라 다른 위치. 당신이 확신하지 않은 경우, 호스팅 제공 업체를 요청.
+4. 아주 끝에 추가하십시오:`CloudflareRemoteIPTrustedProxy {LOOPBACK_ADDRESS}`그래서 서버가 127.0.0.1에 위치한 경우 다음과 같습니다.`CloudflareRemoteIPTrustedProxy 127.0.0.1`
+5. 신뢰할 수있는 프록시 목록에 추가 할 하나의 서버가 있다면, 당신은 끝에 추가 할 수 있습니다: CloudflareRemoteIPTrustedProxy 127.0.0.1 127.0.0.2
+
+### 사이트맵
+
+Lighttpd가 자동으로 액세스 로그 및 응용 프로그램에 대한 서버 IP를 다시 작성하려면 아래 두 가지 솔루션 중 하나를 따를 수 있습니다.
+
+1. 자주 묻는 질문**엠에디터 매크로 참조:lighttpd.conf**파일 및 추가*mod extforward 지시어*이름 \**서버.modules*이름 \* 그것은 온다**후에** *아파치 모듈 mod accesslog*액세스 로그에서 실제 IP 표시
+2. 다음 코드를 추가하십시오.**엠에디터 매크로 참조:lighttpd.conf**서버 모듈 목록 후에 파일을 다시 시작 Lighttpd
+
+```
+$HTTP["remoteip"] == "192.2.0.1 (example IP address)"
+{
+extforward.forwarder = ( "all" => "trust" )
+extforward.headers = ("CF-Connecting-IP")
+}
+```
+
+:::참조
+
+소스가 IPv6로 인터넷에 연결하면
+**$HTTP\["remoteip"]**&#xB9AC;모트 IP 일치를 위해 요구되는 ,
+범위는 IPv6가 활성화되면 작동하지 않습니다. 위의 방법을 사용하여
+IP 범위를 전달하려고 할 때 작동하지 않습니다. 다음 줄을 추가하여
+lighttpd.conf의 대안 솔루션:
+`extforward.forwarder = ( "all" => "trust" ) extforward.headers = ("CF-Connecting-IP")`
+:::
+
+### LiteSpeed 서버
+
+1. LiteSpeed 웹 관리자 콘솔로 이동하십시오.
+2. 구성의 헤더에 있는 옵션을 사용 Client IP를 사용할 수 있습니다.
+3. 활성화되면 액세스 로그는 이제 올바른 IP 주소를 표시하고 PHP의`$_SERVER['REMOTE_ADDR']`변수는 클라이언트 실제 IP 주소를 포함, 대신 Cloudflare IP 주소, 자체에서 당신이 PHP-enabled 웹 사이트에 Cloudflare를 활성화 할 때 발생할 수있는 대부분의 문제를 해결 할 것입니다 ( 워드 프레스 또는 vBulletin 설치와 같은).
+
+### 마이크로 소프트 IIS
+
+#### IIS 7 - 8를 위해:
+
+오시는 길[Microsoft 커뮤니티](https://techcommunity.microsoft.com/t5/iis-support-blog/how-to-use-x-forwarded-for-header-to-log-actual-client-ip/ba-p/873115).
+
+#### IIS 8.5 - 10를 위해:
+
+IIS 8.5 이후, 사용자 정의 로깅은 내장 옵션입니다. 더 알아보기[IIS 향상된 로깅](http://www.iis.net/learn/get-started/whats-new-in-iis-85/enhanced-logging-for-iis85).
+
+1. IIS Manager에서 더블 클릭**로그아웃**내 계정*관련 기사*당신이 일하고 있는 사이트의 메뉴.
+
+2. 이 출시 후, 선택**사이트맵**형식으로 다음 클릭**연락처**형식의 드롭다운 옆에*로그 파일*하위 섹션.
+
+3. 관련 기사**더 보기**그리고 추가*CF 연결 IP*헤더.
+
+4. 이름 \***·**. 새 항목이 아래 반영되어야 합니다.**주문 분야**. 클릭**지원하다**당신이 돌아올 때*로그아웃*창.
+
+5. 이 성공하면 로그 파일이 언젠가 있어야 합니다. 당신은 또한 필드의 변화를 볼 수:
+
+6. 사이트 복원, 그런 다음 W3SVC, 변경이 즉시 반영되지 않는 경우 전체 인스턴스. IIS 8.5+에서 향상된 로깅을 사용할 때**복원되지 않음**신청 수준에 본래 방문자 IP.
+
+### 톰캣 7
+
+Tomcat7이 자동으로 액세스 로그 및 응용 프로그램에 고유 방문자 IP를 복원하려면 추가해야합니다.`%{CF-Connecting-IP}i`로그인 schema.
+
+예를 들어 아래 블록을 추가 할 수 있습니다.`server.xml`파일.
+
+```xml
+<Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs" prefix="localhost_access_log." suffix=".txt" pattern="%{CF-Connecting-IP}i - %h %u %t - &quot;%r&quot; - %s - %b - %{CF-RAY}i"/>
+```
+
+이처럼 보이는 로그에서 어떤 결과가:
+
+`Visitor IP - Cloudflare IP - [04/Dec/2014:23:18:15 -0500] - "GET / HTTP/1.1" - 200 - 1895 - 193d704b85200296-SJC`
+
+### 마젠토
+
+원본 방문자 IP를 복원하려면이 타사 자습서를 참조하십시오.[마젠토와 Cloudflare](https://tall-paul.co.uk/2012/03/02/magento-show-remote-ip-when-using-cloudflare/).
+
+마찬가지로 Cloudflare는 이것을 쓰지 않았습니다[Magento 확장](https://marketplace.magento.com/), 그러나 우리의 고객의 몇몇은 그것을 도움이 찾았습니다.
+
+이 플러그인은 외부 파티에 의해 만들어졌다, 우리는 플러그인과 관련된 문제에 대한 기술 지원을 제공 할 수 없습니다.
+
+### IPB (Invision 힘 널)
+
+Cloudflare를 통해 Invision Power Board 3 설치를 실행할 때 올바른 IP 일치를 활성화하려면이 방향을 따르십시오.
+
+IPB 설치의 ACP로 로그인하십시오.
+
+1. 이름 \***시스템**.
+2. 자주 묻는 질문**보안 보안**.
+3. Security Center에서 클릭**보안 설정**.체크*프록시에 의해 제공된 신뢰할 IP 주소?*&#xB179;색입니다.
+
+#### IPB4 설명*프록시에 의해 제공된 신뢰할 IP 주소?*
+
+네트워크 환경이 요청이 프록시를 통해 처리되는 경우 (청소 또는 대학의 인터넷 상황과 같은, 또는 로드밸런스 서버 클러스터에서), 올바른 IP 주소가 사용됩니다. 그러나, 활성화 할 때, 악성 사용자는 가짜 IP 주소를 제공하기 위해 시스템을 학대 할 수 있습니다. 대부분의 환경에서, 이 설정은 꺼져야한다.
+
+### PHPBB 소개
+
+Apache 서버를 사용한다면, 설치를 권장합니다.[아파치 모듈 mod remoteip](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)방문자 IP를 로그로 복원합니다.
+
+서버에 액세스 할 수없는 경우 mod를 설치하기 위해, 다음 당신은 할 수 있습니다[핵심 수정](https://www.phpbb.com/community/viewtopic.php?p=13936406#p13936406).
+
+### MyBB 포럼
+
+MyBB의 최근 버전은 Scrutinize User의 IP 주소 옵션을 포함합니다.
+
+`Admin CP > Configuration > Server and Optimization Options > Scrutinize User's IP address? > Yes`
+
+대안으로, 당신은 설치할 수 있습니다[Cloudflare 관리 플러그인](https://mods.mybb.com/view/antoligy-mybb-cloudflare-management-plugin)MyBB 1.6에서 사용할 수 있습니다.
+
+#### 1.6.0, 1.6.1, 1.6.2 또는 1.6.3
+
+1. 바로가기`./inc/functions.php`.
+2. 2790호선으로 가십시오.
+3. 교체:`if(isset($_SERVER['REMOTE_ADDR']))`으로:`if(isset($_SERVER['HTTP_CF_CONNECTING_IP']))`
+4. 다음, 교체 :`$ip = $_SERVER['REMOTE_ADDR'];`으로:`$ip = $_SERVER['HTTP_CF_CONNECTING_IP'];`
+
+### Vanilla 포럼
+
+Vanilla 팀의 일원이 작성했습니다.[Vanilla 용 Cloudflare 플러그인](https://open.vanillaforums.com/addon/cloudflaresupport-plugin)자체 호스팅 사이트의 로그 파일에 원본 방문자 IP를 복원합니다.
+
+이 플러그인은 외부 파티에 의해 만들어졌다, 우리는 플러그인과 관련된 문제에 대한 기술 지원을 제공 할 수 없습니다. 미디어Wiki
+
+1. 기타`includes/GlobalFunctions.php`. 대략 선 370에서, 뒤에 바꾸십시오:`$forward = "\t(proxied via {$_SERVER['REMOTE_ADDR']}{$forward})";`으로`$forward = "\t(proxied via {$_SERVER['HTTP_CF_CONNECTING_IP']}{$forward})";`
+2. 기타`includes/ProxyTools.php`. 대략 선 79에서는, 찾아냅니다:`if ( isset( $_SERVER['REMOTE_ADDR'] ) ){`그리고 교체:`if ( isset( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ){`두 번째 단계는 MediaWiki 버전 1.18.0 이상에서만 적용됩니다. MediaWiki의 새로운 버전은 완전히 ProxyTools.php를 rewritten하고 다음 코드는 더 이상 존재하지 않습니다.
+3. 약 80선 찾기:`$ipchain = array( IP::canonicalize($_SERVER['REMOTE_ADDR']) );`웹 서버에 저장 및 업로드.
+
+#### 1.27.1의 주위에 버전을 위해:
+
+1. 1232호선으로 이동`GlobalFunctions.php`, 변화`REMOTE_ADDR`으로`HTTP_CF_CONNECTING_IP`.
+2. 다음으로 이동`WebRequest.php`1151호선에서 1159호선으로 변경`REMOTE_ADDR`으로`HTTP_CF_CONNECTING_IP`.
+
+### 인기 카테고리
+
+XenForo 사용자가 만든[CloudflareQ를 위한 플러그인](https://xenforo.com/community/resources/solidmean-cloudflare-detect.1595/).
+
+이 플러그인은 외부 파티에 의해 만들어졌다, 우리는 플러그인과 관련된 문제에 대한 기술 지원을 제공 할 수 없습니다.
+
+1. 기타`library/config.php`.
+2. 끝에서, 추가:`if (isset($_SERVER['HTTP_CF_CONNECTING_IP'])) { $_SERVER['REMOTE_ADDR'] = $_SERVER['HTTP_CF_CONNECTING_IP'];}`
+3. 다운로드
+
+### 뚱 베어
+
+외부 파티를 만들었습니다.[Cloudflare와 PunBB를 위한 단위](http://punbb.informer.com/forums/post/147539/#p147539)그것은 원래 방문자 IP를 복원합니다.
+
+이 플러그인은 외부 파티에 의해 만들어졌다, 우리는 플러그인과 관련된 문제에 대한 기술 지원을 제공 할 수 없습니다. Cherokee 서버
+
+1. 시작하다`cherokee-admin`서버에서.
+2. 탐색하기**Cherokee 관리 공용영역**웹 브라우저에서.
+3. 선택하기**가상 서버**CloudflareXQ에 의해 봉사되는 도메인을 위해.
+4. 에 의해*로그아웃*선택한 탭**가상 서버**, 합격된 IPs를 가능하게 합니다.
+5. 내 계정*자주 묻는 질문*상자, 입력[Cloudflare의 IP 주소](https://www.cloudflare.com/ips/).
+
+### 스낵 바
+
+IP 주소를 변경하여 수정할 수 있습니다.`PHP IP Server Param`Livezilla 서버 구성에 필드`HTTP_CF_CONNECTING_IP`.
+
+### Datalife 엔진
+
+DataLife 엔진에 방문자 IP를 복원하려면:
+
+1. 오픈:/엔진/inc/include/functions.inc.phpFind:`$db_ip_split = explode( ".", $_SERVER['REMOTE_ADDR'] );`수정 :`$db_ip_split = explode(".", $_SERVER['HTTP_CF_CONNECTING_IP'] );`
+2. 태그 :`$ip_split = explode( ".", $_SERVER['REMOTE_ADDR'] );`수정 :`$ip_split = explode(".", $_SERVER['HTTP_CF_CONNECTING_IP'] );`
+3. 오픈:/엔진/modules/addcomments.phpFind:`$_SERVER['REMOTE_ADDR'],`수정 :`$_SERVER['HTTP_CF_CONNECTING_IP'],`
+4. 태그 :`$db_ip_split = explode( ".", $_SERVER['REMOTE_ADDR'] );`수정 :`$db_ip_split = explode( ".", $_SERVER['HTTP_CF_CONNECTING_IP'] );`
+
+### 사이트맵
+
+외부 개발자가 만든[TYPO3를 위한 Cloudflare 연장](https://extensions.typo3.org/extension/cloudflare/)그것은 당신의 로그에 원본 방문자 IP를 복원합니다. 확장은 또한 Cloudflare 캐시를 지우는 기능을 줄 것입니다.
+
+이 플러그인은 외부 파티에 의해 만들어졌다, 우리는 플러그인과 관련된 문제에 대한 기술 지원을 제공 할 수 없습니다.
+
+### 언어 선택
+
+호스팅 제어판 VestaCP를 사용하는 경우 서버에서 Nginx와 Apache 둘 다 있습니다. 요청은 Apache로 이동하기 전에 Nginx를 통해 proxied.
+
+이 Nginx 프록시 때문에 실제로 Nginx를 구성하는 지침을 따라 실제 방문자 IP 주소를 반환해야합니다.[아파치 모듈 mod remoteip](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)아파치는 Nginx 서버가 일부 요청을 비활성화하지 않는 한 필요하지 않습니다. 더 보기[아파치 모듈 mod remoteip](https://httpd.apache.org/docs/2.4/mod/mod_remoteip.html)Apache는 Nginx 서버 구성과 충돌하지 않습니다.
+
+### 노드.js
+
+외부 개발자는 방문자 IP를 호출하는 모듈을 만들었습니다.[노드 cloudflare.](https://github.com/keverw/node_CloudFlare)
+
+### 다운로드
+
+X FORWARDED FOR 헤더에서 원래 클라이언트 IP를 추출하려면 HAProxy의 다음 구성을 사용해야합니다.
+
+1. 텍스트 파일 만들기`CF_ips.lst`모든 IP 범위를 포함[모델 번호: https://www.cloudflare.com/en-gb/ips/](https://www.cloudflare.com/en-gb/ips/)
+2. 비활성화`option forwardfor`HAProxy에서
+
+HAProxy 설정:
+
+```
+acl from_cf src -f /path/to/CF_ips.lst
+acl cf_ip_hdr req.hdr(CF-Connecting-IP) -m found
+http-request set-header X-Forwarded-For %[req.hdr(CF-Connecting-IP)] if from_cf cf_ip_hdr
+```
+
+### Envoy 게이트웨이
+
+Envoy Gateway에 대한 원래 클라이언트 IP를 추출하려면, 설정[고객 교통 정책](https://gateway.envoyproxy.io/latest/tasks/traffic/client-traffic-policy/#configure-client-ip-detection)사용자 정의[`CF-Connecting-IP`기타 제품](/fundamentals/reference/http-headers/#cf-connecting-ip).
+
+```txt title="Truncated Client Traffic Policy example"
+clientIPDetection:
+    customHeader:
+        name: CF-Connecting-IP
+        failClosed: true
+```
+
+더 자세한 내용은 참조[주문 헤더 원본 IP 탐지 연장](https://www.envoyproxy.io/docs/envoy/latest/api-v3/extensions/http/original_ip_detection/custom_header/v3/custom_header.proto).
+
+### 카테고리
+
+응용 프로그램을 실행하는 경우[카테고리](https://caddyserver.com/)그것은에 의존`X-Forwarded-For`헤더, Cloudflare의 헤더를 override하는 Caddy를 구성할 수 있습니다.[CF-Connecting-IP 헤더](/fundamentals/reference/http-headers/#cf-connecting-ip).
+
+그것은 당신이 또한 트래픽을 받아 들인 것을 조언합니다[Cloudflare의 IP 주소](https://www.cloudflare.com/ips/); 그렇지 않으면, 우두머리는 spoofed 일 수 있었습니다. 즉, 두 번째 예에서, 우리는 Caddy 구성의 일부로 이것을 처리합니다. 또는 방화벽 수준에서 이것을 처리 할 수 있습니다. 일반적으로 자동화가 쉽습니다. 이미 방화벽 또는 다른 측정이 있는 경우, Caddyfile은 다음과 같이 보일 수 있습니다.
+
+```txt title="Caddyfile"
+https://example.com {
+    reverse_proxy localhost:8080 {
+				# Sets X-Forwarded-For as the value Cloudflare gives us for CF-Connecting-IP.
+				header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+		}
+}
+```
+
+Caddy를 선택하면 트래픽 만 허용[Cloudflare의 IP 주소](https://www.cloudflare.com/ips/), 당신은 이 것 같이 윤곽을 사용할 수 있습니다:
+
+```txt title="Caddyfile"
+https://example.com {
+    # Restrict access to Cloudflare IPs (https://www.cloudflare.com/ips/)
+    @cloudflare {
+        remote_ip 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22 2400:cb00::/32 2606:4700::/32 2803:f800::/32 2405:b500::/32 2405:8100::/32 2a06:98c0::/29 2c0f:f248::/32
+    }
+
+    # Process requests from Cloudflare IPs
+    handle @cloudflare {
+        reverse_proxy localhost:8080 {
+            # Sets X-Forwarded-For as the value Cloudflare gives us for CF-Connecting-IP.
+            header_up X-Forwarded-For {http.request.header.CF-Connecting-IP}
+        }
+    }
+
+    # Deny requests from non-Cloudflare IPs
+    handle {
+        respond "Access Denied" 403
+    }
+}
+```
+
+***
+
+## 관련 자료
+
+- [Cloudflare HTTP 헤더](/fundamentals/reference/http-headers/)
+- [Transform 규칙](/rules/transform/)

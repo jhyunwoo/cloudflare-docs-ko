@@ -1,0 +1,118 @@
+---
+title: Cisco - MX 기록으로 Cisco
+pcx_content_type: integration-guide
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/email-security/setup/pre-delivery-deployment/prerequisites/cisco-mx/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/email-security/setup/pre-delivery-deployment/prerequisites/cisco-mx/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+![이메일 보안이 수신된 이메일의 수명주기에 있는 schematic 전시](src/assets/email-security/Cisco_to_Cisco_MX_Inline.png)
+
+이 튜토리얼에서는 Cisco에서 MX 레코드로 이메일 보안을 구성하는 방법을 배울 수 있습니다.
+
+## 1. 이메일 보안 이메일 보호 IPs에 대한 Sender 그룹 추가
+
+새로운 Sender 그룹을 추가하려면:
+
+1. 오시는 길**메일 정책** > **HAT 개요**.
+
+2. 선택하기**Sender 그룹 추가**버튼.
+
+3. 다음과 같이 새로운 Sender 그룹 구성:
+   - **이름 \***: `Email security`.
+   - **이름 \***: 기존 주문**화이트리스트**sender 그룹.
+   - **이름 \***: `Email security Email Protection egress IP Addresses`.
+   - **- 연혁**: `TRUSTED`(기본적으로, 스팸 탐지는 이 메일 흐름 정책에 대한 비활성화).
+   - **사이트맵**: 공백을 남겨두십시오.
+   - **DNS 목록**: 공백을 남겨두십시오.
+   - **호스트 DNS 검증 연결**: 모든 옵션을 취소.
+
+4. 제품정보**제출 및 제출**, 그리고 위에서 언급 한 IP 주소를 추가<a href="/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/" target="_blank">IP 등급</a>. EU 또는 인도 지역의 이메일 처리가 필요한 경우 준수 목적으로 IP 주소를 추가하십시오.
+
+## 2. 추가<GlossaryTooltip term="SMTP">사이트맵</GlossaryTooltip>이메일 보안 이메일 보호 호스트에 대한 경로
+
+새로운 SMTP 루트를 추가하려면:
+
+1. 오시는 길**회사연혁** > **SMTP 노선**.
+
+2. 제품정보**오시는 길**.
+
+3. 다음과 같이 새로운 SMTP 루트 구성:
+   - **도메인 선택**: `a1s.mailstream`
+   - 내 계정**여행 일정**, 선택**줄 추가**, 이메일 보안 MX 호스트를 추가합니다. 더 알아보기[Geographic 위치](#5-geographic-locations)어떤 MX 호스트에 대한 자세한 내용은 테이블.
+
+## 3. 들어오는 내용 여과기를 창조하십시오
+
+이메일 보안 및 Cisco ESA 간의 메일 흐름을 관리하려면 두 개의 필터가 필요합니다.
+
+- 이메일 보안에 들어오는 모든 메시지에 직접.
+- 이메일 보안에서 정상적인 배송을 위해 경로로 돌아 오는 메시지를 인식하는 한.
+
+### 들어오는 내용 필터 - 이메일 보안
+
+새로운 내용 필터를 만들려면:
+
+1. 오시는 길**메일 정책** > **들어오는 내용 필터**.
+
+2. 제품정보**필터 추가**새로운 필터를 만듭니다.
+
+3. 새로운 들어오는 내용 필터를 다음과 같이 구성하십시오:
+   - **이름 \***: `ESA_to_A1S`
+   - **이름 \***: `Redirect messages to Email security for anti-phishing inspection`
+   - **이름 \***: 다른 필터에 따라 달라집니다.
+   - **(주)**: 없음.
+   - **관련 기사**:
+     - 제품 정&#xBCF4;**- 연혁**제품정보**Alternate Destination Host에 보내기**.
+     - 제품 정보**메일 호스트**이름 \*`a1s.mailstream`(단계 2)로 구성된 SMTP 경로.
+
+### 들어오는 내용 필터 - 이메일 보안에서
+
+새로운 내용 필터를 만들려면:
+
+1. 오시는 길**메일 정책** > **들어오는 내용 필터**.
+
+2. 선택하기**필터 추가**새로운 필터를 만들려면 버튼.
+
+3. 새로운 들어오는 내용 필터를 다음과 같이 구성하십시오:
+
+   - **이름 \***: `A1S_to_ESA`
+   - **이름 \***: `Email security inspected messages for final delivery`
+   - **이름 \***: 이전에 필터를 생성하기 전에 필터가 있어야 합니다.
+   - **\* 이름**: 유형 추가**먼 IP/Hostname**모든 IP 주소로<a href="/cloudflare-one/email-security/setup/pre-delivery-deployment/egress-ips/" target="_blank">IP 등급</a>. 예를 들면:
+
+   | 이름 \* | (주)                  | 【특전】                 |
+   | ----- | -------------------- | -------------------- |
+   | `1`   | `Remote IP/Hostname` | `Remote IP/Hostname` |
+   | `2`   | `Remote IP/Hostname` | `52.89.255.11`       |
+   | `3`   | `Remote IP/Hostname` | `52.0.67.109`        |
+   | `4`   | `Remote IP/Hostname` | `54.173.50.115`      |
+   | `5`   | `Remote IP/Hostname` | `104.30.32.0/19`     |
+   | `6`   | `Remote IP/Hostname` | `158.51.64.0/26`     |
+   | `7`   | `Remote IP/Hostname` | `158.51.65.0/26`     |
+
+   - 더 알아보기*규칙을 적용:*&#x64;ropdown 설정**1개 이상의 조건 일치**.
+   - **관련 기사**: 선택**관련 기사**, 다음을 추가:
+     | 이름 \* | - 연혁                                            | 【특전】             |
+     | ----- | ----------------------------------------------- | ---------------- |
+     | --1   | `Skip Remaining Content Filters (Final Action)` | `skip-filters()` |
+
+## 4. Inbound 정책 테이블에 들어오는 내용 필터 추가
+
+Incoming Content Filters를 할당합니다.[단계 3](#3-create-incoming-content-filters)Incoming Mail Policy 테이블의 기본 메일 정책. 그런 다음 이메일 리디렉션을 활성화하기 위해 변경 사항을 투입하십시오.
+
+## 5. 지리적 위치
+
+<Render file="email-security/deployment/mx-geographic-locations" product="cloudflare-one" />
+
+## 6. MX / 인라인 설정
+
+<Render file="email-security/deployment/set-up-mx-inline-step" product="cloudflare-one" />

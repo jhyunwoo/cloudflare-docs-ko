@@ -1,0 +1,210 @@
+---
+pcx_content_type: how-to
+title: 사용자 지정 인증서 관리
+sidebar:
+  order: 2
+---
+
+import {
+	Details,
+	GlossaryTooltip,
+	Render,
+	TabItem,
+	Tabs,
+	APIRequest,
+	DashButton,
+} from "~/components";
+
+이 페이지에서는 Cloudflare의 사용자 지정 인증서 요구 사항을 나열하고, Cloudflare 대시보드 또는 API를 사용해 이러한 인증서를 업로드하고 업데이트하는 방법을 설명합니다.
+
+## 인증서 요구 사항
+
+Cloudflare는 사용자 지정 인증서를 수락하기 전에 유효성을 검사하고 일련의 요구 사항을 충족하는지 확인합니다.
+
+<Details header="전체 요구 사항 목록">
+
+업로드하는 각 사용자 지정 인증서는 다음 조건을 충족해야 합니다.
+
+- PEM 형식(PEM, PKCS#7 또는 PKCS#12)으로 인코딩되어 있어야 합니다. 변환 예시는 [Converting Using OpenSSL](https://www.sslshopper.com/article-most-common-openssl-commands.html)을 참고하세요.
+- [키 파일 비밀번호](/ssl/edge-certificates/custom-certificates/remove-file-key-password/)가 없어야 합니다.
+- 업로드 시점으로부터 14일 미만으로 남은 인증서는 허용되지 않습니다.
+- 업로드되는 영역의 최소 한 개 호스트 이름과 일치하는 subject alternative name(SAN)을 포함해야 합니다.
+- 최소 길이 이상의 개인 키를 사용해야 합니다. 현재 기준은 RSA 2048비트, ECDSA 225비트입니다.
+- 주요 브라우저가 공개적으로 신뢰하는 인증서여야 합니다. 단, [bundling methodology](/ssl/edge-certificates/custom-certificates/bundling-methodologies/)로 `User Defined`를 지정한 인증서는 예외입니다.
+- 다음 인증서 유형 중 하나여야 합니다.
+  - Unified Communications Certificates (UCC)
+  - Extended Validation (EV)
+  - Domain Validated (DV)
+  - Organization Validated (OV)
+
+</Details>
+
+---
+
+## 사용자 지정 인증서 업로드
+
+:::caution
+`compatible` 또는 `modern` [bundling](/ssl/edge-certificates/custom-certificates/bundling-methodologies)을 사용할 때는 리프 인증서만 업로드하세요. 그래야 Cloudflare가 [중간 인증서와 루트 인증서의 만료](/ssl/edge-certificates/custom-certificates/bundling-methodologies/#intermediate-and-root-certificates)를 적절히 처리할 수 있습니다.
+:::
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 사용자 지정 SSL 인증서를 업로드하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Edge Certificates**에서 **Upload Custom SSL Certificate**를 선택합니다.
+
+3. 관련 값을 **SSL Certificate** 및 **Private key** 텍스트 영역에 복사해 붙여넣습니다(또는 **Paste from file** 선택).
+
+   :::note
+   수동으로 입력하는 경우 플레이스홀더 텍스트처럼 `---BEGIN CERTIFICATE---`와 `---END CERTIFICATE---`를 포함하세요.
+   :::
+
+4. 적절한 [**Bundle Method**](/ssl/edge-certificates/custom-certificates/bundling-methodologies/)를 선택합니다.
+
+5. [**Private Key Restriction**](/ssl/edge-certificates/custom-certificates/#geo-key-manager-private-key-restriction) 값을 선택합니다.
+
+6. **Legacy Client Support** 값을 선택합니다. 이 값은 <GlossaryTooltip term="Server Name Indication (SNI)" link="/ssl/reference/browser-compatibility/#non-sni-support">Server Name Indication (SNI)</GlossaryTooltip> 지원을 지정합니다.
+   - **Modern (recommended)**: SNI만 지원
+   - **Legacy**: 비-SNI 지원
+     :::caution
+
+     `legacy_custom` 유형의 사용자 지정 인증서는 [BYOIP](/byoip/)와 호환되지 않습니다.
+     :::
+
+7. **Upload Custom Certificate**를 선택합니다. `The key you provided does not match the certificate` 오류가 보이면 인증 기관에 문의하여 개인 키가 인증서와 일치하는지 확인하세요.
+
+8. (선택 사항) [CAA DNS 레코드](/ssl/edge-certificates/caa-records/)를 추가합니다.
+
+</TabItem>
+
+<TabItem label="API">
+
+다음 호출은 `app.example.com`에서 사용할 인증서를 업로드합니다. Cloudflare는 브라우저와 최대한 호환되도록 최적화된 인증서 체인으로 자동 번들링합니다.
+
+:::caution
+
+OpenSSL로 생성한 ECC 키를 사용하는 경우 먼저 파일에서 `-----BEGIN EC PARAMETERS-----...-----END EC PARAMETERS-----` 섹션을 제거해야 합니다.
+:::
+
+1. 파일을 업데이트하고 payload를 만듭니다.
+
+<Render file="custom-cert-file-example" product="ssl" />
+
+```bash
+request_body=$(< <(cat <<EOF
+{
+  "certificate": "$MYCERT",
+  "private_key": "$MYKEY",
+  "bundle_method": "ubiquitous"
+}
+EOF
+))
+```
+
+개인 키를 물리적으로 복호화할 수 있는 위치를 지정하는 [지리적 제한](https://blog.cloudflare.com/introducing-cloudflare-geo-key-manager/)도 선택적으로 추가할 수 있습니다.
+
+```bash
+request_body=$(< <(cat <<EOF
+{
+  "certificate": "$MYCERT",
+  "private_key": "$MYKEY",
+  "bundle_method": "ubiquitous",
+  "geo_restrictions": {"label": "us"}'
+}
+EOF
+))
+```
+
+TLS 핸드셰이크에 SNI를 포함하지 않는 레거시 클라이언트를 위한 지원도 활성화할 수 있습니다.
+
+```bash
+request_body=$(< <(cat <<EOF
+{
+  "certificate": "$MYCERT",
+  "private_key": "$MYKEY",
+  "bundle_method": "ubiquitous",
+  "geo_restrictions": {"label": "us"}',
+  "type":"sni_custom"
+}
+EOF
+))
+```
+
+Cloudflare는 `sni_custom`을 권장합니다. 특정 클라이언트가 비-SNI 지원을 필요로 하는 경우 `legacy_custom`을 사용하세요. Cloudflare API는 기본적으로 모든 사용자 지정 SSL 인증서를 Legacy로 취급합니다.
+
+:::caution
+
+`legacy_custom` 유형의 사용자 지정 인증서는 [BYOIP](/byoip/)와 호환되지 않습니다.
+:::
+
+2. 인증서와 키 업로드
+
+[POST](/api/resources/custom_certificates/methods/create/) endpoint를 사용해 인증서와 키를 업로드합니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_certificates \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data "$request_body"
+```
+
+3. (선택 사항) CAA 레코드 추가
+
+<Render file="caa-records-definition" product="ssl" />
+
+자세한 내용은 [CAA 레코드 생성](/ssl/edge-certificates/caa-records/)을 참고하세요.
+
+</TabItem> </Tabs>
+
+---
+
+## 기존 사용자 지정 인증서 업데이트
+
+기존 사용자 지정 인증서를 업데이트하기 전에 동일한 호스트 이름을 포괄하는 활성 [universal](/ssl/edge-certificates/universal-ssl/) 또는 [advanced](/ssl/edge-certificates/advanced-certificate-manager/) 인증서를 대체 옵션으로 보유하는 것이 좋을 수 있습니다. 영역의 에지 인증서 호스트 이름과 상태 목록은 [**Edge Certificates**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/edge-certificates) 페이지에서 확인할 수 있습니다.
+
+Enterprise 플랜을 사용 중이며 사용자 지정(modern) 인증서를 업데이트하려는 경우 [Staging environment (Beta)](/ssl/edge-certificates/staging-environment/) 접근 요청도 고려하세요.
+
+다음 단계에 따라 사용자 지정 인증서를 교체해도 다운타임은 발생하지 않습니다. 어떤 연결도 종료되지 않으며 새 연결은 새 인증서를 사용합니다. 이전 인증서는 새 인증서가 업로드되어 활성 상태가 된 후에만 실제로 삭제됩니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 인증서를 업데이트하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Edge Certificates**에서 사용자 지정 인증서를 찾아 펼칩니다.
+
+3. 렌치 버튼을 선택하고 **Replace SSL certificate and key**를 선택합니다.
+
+4. [새 인증서 업로드](#사용자-지정-인증서-업로드)와 동일한 단계를 수행합니다.
+
+</TabItem> <TabItem label="API">
+
+API를 사용해 인증서를 업데이트하려면 [`PATCH`](/api/resources/custom_certificates/methods/edit/) 명령을 보냅니다.
+
+</TabItem> </Tabs>
+
+:::note
+
+인증서의 **Private Key Restriction** 설정을 업데이트하려면 인증서를 삭제한 뒤 다시 추가해야 합니다.
+
+:::
+
+---
+
+## 사용자 지정 인증서 삭제
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Edge Certificates**에서 사용자 지정 인증서를 찾아 펼칩니다.
+3. X 버튼을 선택합니다.
+4. **Confirm**을 선택하여 인증서를 삭제합니다.

@@ -1,0 +1,99 @@
+---
+title: API를 통해 클라우드 커넥터 규칙 구성
+pcx_content_type: how-to
+sidebar:
+  order: 3
+  label: API를 통한 규칙 구성
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/cloud-connector/create-api/'
+translation_source_md: 'https://developers.cloudflare.com/rules/cloud-connector/create-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest } from "~/components";
+
+Cloud Connector 규칙을 구성할 수 있습니다.[모델 번호: Cloudflare](/fundamentals/api/).
+
+## 자주 묻는 질문
+
+더 보기[API 토큰](/fundamentals/api/get-started/create-token/)Cloud Connector 규칙을 관리하려면 API 요청에서 사용해야 합니다.
+
+- *지역 명소* > *클라우드 커넥터* > *이름 \**
+
+:::참조
+이 권한을 가진 토큰은 이 페이지에서 설명된 Cloud Connector 엔드포인트에만 유효합니다. 상호 작용할 수 없습니다.`http_cloud_connector`단계 via[규칙 세트 API](/ruleset-engine/rulesets-api/).
+:::
+
+## 이름 \*
+
+완전한 엔드포인트를 얻기 위해 Cloudflare API 기본 URL 아래에 나열된 Cloud Connector 엔드포인트를 추가하십시오.
+
+```txt
+https://api.cloudflare.com/client/v4
+```
+
+더 보기`{zone_id}`인수는[지역 ID](/fundamentals/account/find-account-and-zone-ids/)(진수 문자열). QXQX0002XQQ 대시보드에서 이 값을 찾을 수 있습니다.
+
+다음 테이블은 사용할 수있는 작업을 요약합니다.
+
+| - 연혁                             | Verb + 엔드포인트                                 |
+| -------------------------------- | -------------------------------------------- |
+| Cloud Connector 규칙 목록            | `GET /zones/{zone_id}/cloud_connector/rules` |
+| Create/update/delete 클라우드 커넥터 규칙 | `PUT /zones/{zone_id}/cloud_connector/rules` |
+
+## API 호출
+
+### Cloud Connector 규칙 목록
+
+다음 예제는 기존 Cloud Connector 규칙의 목록을 반환합니다.
+
+<APIRequest path="/zones/{zone_id}/cloud_connector/rules" method="GET" />
+
+```json output
+{
+	"result": [
+		{
+			"id": "<RULE_1_ID>",
+			"provider": "aws_s3",
+			"expression": "http.request.uri.path wildcard \"/images/*\"",
+			"description": "Connect to S3 bucket containing images",
+			"enabled": true,
+			"parameters": {
+				"host": "examplebucketwithimages.s3.north-eu.amazonaws.com"
+			}
+		}
+	],
+	"success": true,
+	"errors": [],
+	"messages": []
+}
+```
+
+### Create/update/delete 클라우드 커넥터 규칙
+
+:::카트로션
+새로운 규칙을 만들고 모든 기존 규칙을 유지하려면 요청 몸에서 그들 모두를 포함해야합니다. 요청 본문의 기존 규칙을 삭제하면 해당 클라우드 커넥터 규칙을 삭제합니다.
+주요 특징
+
+다음 예제 요청은 모든 기존 클라우드 커넥터 규칙을 단일 규칙으로 대체합니다.
+
+<APIRequest
+  path="/zones/{zone_id}/cloud_connector/rules"
+  method="PUT"
+  json={[
+  	{
+  		expression: 'http.request.uri.path wildcard "/images/*"',
+  		provider: "cloudflare_r2",
+  		description: "Connect to R2 bucket containing images",
+  		parameters: {
+  			host: "mybucketcustomdomain.example.com",
+  		},
+  	},
+  ]}
+/>
+
+각 규칙에 필요한 신체 매개 변수는:`expression`, `provider`·`parameters.host`.
+
+더 보기`provider`값은 다음과 같습니다.`cloudflare_r2`, `aws_s3`, `azure_storage`·`gcp_storage`.

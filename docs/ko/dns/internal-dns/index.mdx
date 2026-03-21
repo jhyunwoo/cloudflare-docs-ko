@@ -1,0 +1,132 @@
+---
+pcx_content_type: overview
+title: Internal DNS (베타)
+sidebar:
+  order: 14
+  label: 개요
+  group:
+    badge:
+      text: Beta
+    label: Internal DNS
+head:
+  - tag: title
+    content: Internal DNS
+---
+
+import {
+	Render,
+	Description,
+	Plan,
+	RelatedProduct,
+	DirectoryListing,
+	GlossaryTooltip,
+	Example,
+} from "~/components";
+
+<Description>
+	내부 리소스를 위한 Cloudflare DNS로 사설 네트워크 관리를 단순화하세요.
+</Description>
+
+<Plan type="enterprise" />
+
+사설 네트워크 내부에서만 접근 가능해야 하는 DNS 레코드를 관리하세요. Internal DNS [zones](/dns/internal-dns/internal-zones/)와 [views](/dns/internal-dns/dns-views/)는 [Gateway resolver policies](/cloudflare-one/traffic-policies/resolver-policies/)와 함께 동작하여, 쿼리 소스 IP 같은 쿼리 컨텍스트에 따라 DNS 쿼리에 어떻게 응답할지 제어할 수 있게 해 줍니다.
+
+<Render file="internal-dns-beta-note" product="dns" />
+
+## 아키텍처 개요
+
+트래픽을 Cloudflare로 온보딩하기 위해 여러 [연결 옵션](/dns/internal-dns/connectivity/)을 사용할 수 있습니다. 그런 다음 Cloudflare Gateway resolver가 DNS 클라이언트와 내부 DNS 영역 사이의 인터페이스 역할을 합니다.
+
+Internal DNS 영역에는 Cloudflare 네임서버가 할당되지 않으며, Cloudflare Gateway resolver를 통해서만 질의할 수 있습니다.
+
+```mermaid
+flowchart LR
+        accTitle: Internal DNS query overview
+        accDescr: Diagram comparing internal DNS query with public DNS
+        A[Client]
+        subgraph Cloudflare account
+        subgraph Gateway
+				B[Default 1.1.1.1 resolver]
+        X[Resolver policy selecting an internal DNS view]
+        end
+        subgraph Authoritative DNS
+        Y[(Public DNS)]
+				Z[(Internal DNS)]
+        end
+        end
+
+			  C[Public resolver]
+
+        B --Query--> Y
+        X --Query + View ID--> Z
+        A --Query--> B
+				A --Query--> X
+				C --Query--> Y
+```
+
+Internal DNS 영역은 DNS 뷰로 그룹화되며, 사용자가 정의한 resolver policy가 이 뷰를 선택합니다. 뷰는 일반적으로 서로 다른 지리적 위치처럼 조직과 관련된 논리적 그룹입니다.
+
+```mermaid
+flowchart LR
+        accTitle: Internal DNS views and zones
+        accDescr: Diagram exemplifying Internal DNS views and zones relationship
+        subgraph Internal DNS
+        subgraph View 111 - London
+        Y[Zone 600 <br /> example.local]
+				Z[Zone 601 <br /> local]
+        end
+        subgraph View 110 - San Francisco
+        X[Zone 101 <br /> example.com]
+				B[Zone 100 <br /> example.local]
+				S[Zone 102 <br /> com]
+        end
+				W[Zone 701 <br /> net]
+				end
+```
+
+Internal DNS 영역에는 내부 DNS 쿼리를 해석하는 데 사용해야 하는 <GlossaryTooltip term="DNS record" link="/dns/internal-dns/internal-zones/internal-dns-records/">DNS 레코드</GlossaryTooltip>가 포함됩니다. 또한 일치하는 내부 영역 안에서 내부 레코드를 찾지 못하면, Cloudflare는 해당 내부 영역이 [다른 내부 영역을 참조](/dns/internal-dns/internal-zones/reference-zones/)하고 있는지 확인합니다.
+
+<Example>
+
+```mermaid
+flowchart LR
+        accTitle: Internal DNS zones and internal records
+        accDescr: Diagram exemplifying Internal DNS zones and records relationship
+        subgraph View 111 - London
+				subgraph Zone 601 - local
+				S["@ A 192.0.2.10"]
+				T["ghi.example A 192.0.2.15"]
+				end
+        subgraph Zone 600 - example.local
+				X["@ A 192.0.2.1"]
+				Y["abc A 192.0.2.6"]
+				Z["def A 192.0.2.9"]
+				end
+				end
+```
+
+이 예시에서 view ID 111로 라우팅된 `ghi.example.local`에 대한 쿼리는 가장 긴 일치 영역 이름(`example.local`)을 가진 zone 600으로 이동합니다. zone 600에는 `ghi`에 대한 레코드가 없지만, zone 601을 참조하고 있다면 Cloudflare는 참조 영역 안에서 요청된 레코드를 계속 조회합니다.
+
+</Example>
+
+## 리소스
+
+<DirectoryListing />
+
+## 관련 제품
+
+<RelatedProduct
+	header="Cloudflare Gateway"
+	href="/cloudflare-one/traffic-policies/"
+	product="privacy-gateway"
+>
+	DNS, Network, HTTP, Egress 트래픽을 검사하는 정책을 설정합니다.
+</RelatedProduct>
+
+<RelatedProduct
+	header="Cloudflare WAN"
+	href="/cloudflare-wan/"
+	product="cloudflare-wan"
+>
+	기업 전체 네트워킹의 보안과 성능을 개선하고 비용과 운영 복잡성을 줄입니다.
+</RelatedProduct>

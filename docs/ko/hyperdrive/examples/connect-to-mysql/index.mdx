@@ -1,0 +1,120 @@
+---
+pcx_content_type: example
+title: MySQL에 연결
+hideChildren: false
+sidebar:
+  order: 2
+  badge:
+    text: Beta
+  group:
+    hideIndex: false
+reviewed: 2025-04-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/'
+translation_source_md: >-
+  https://developers.cloudflare.com/hyperdrive/examples/connect-to-mysql/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, Render, WranglerConfig } from "~/components";
+
+Hyperdrive는 MySQL 및 MySQL 호환 데이터베이스를 지원합니다.[인기 드라이버](#supported-drivers), Object Relational Mapper (ORM)는 해당 드라이버를 사용하는 라이브러리입니다.
+
+## Hyperdrive
+
+:::참조
+
+Hyperdrive에 새로운? 더 알아보기[자주 묻는 질문](/hyperdrive/get-started/)처음 Hyperdrive를 설정하는 방법을 배우십시오.
+
+:::
+
+기존 MySQL 데이터베이스에 연결되는 Hyperdrive를 만들려면[Wrangler](/workers/wrangler/install-and-update/)CLI 또는[QXQX0371XQQ대시보드](https://dash.cloudflare.com/?to=/:account/workers/hyperdrive).
+
+Wrangler를 사용할 때, 위주값을 대신하여`--connection-string`데이터베이스에 대한 연결 문자열:
+
+```sh
+#wrangler v3.11 이상 필요
+npx wrangler hyperdrive create my-first-hyperdrive --connection-string="mysql://user:password@database.host.example.com:3306/databasenamehere"
+```
+
+위의 명령은 Hyperdrive의 ID를 출력합니다.[Wrangler 구성 파일](/workers/wrangler/configuration/)Workers 프로젝트를 위해:
+
+<Render file="hyperdrive-node-compatibility-requirement" product="hyperdrive" />
+
+이것은 Hyperdrive를 허용하여 기존 데이터베이스 드라이버로 전달할 수 있는 작업자의 동적 연결 문자열을 생성합니다. 더 알아보기[드라이버 예제](#driver-examples)Hyperdrive로 데이터베이스 드라이버를 설정하는 방법을 배우려면.
+
+더 알아보기[예제 문서](/hyperdrive/examples/)몇 가지 인기있는 데이터베이스 제공 업체와 Hyperdrive를 설정하는 방법에 대한 단계별 가이드.
+
+## 지원된 운전사
+
+Hyperdrive는 Workers를 이용합니다[TCP 소켓 지원](/workers/runtime-apis/tcp-sockets/#connect)데이터베이스에 TCP 연결을 지원합니다. 다음 테이블은 지원된 데이터베이스 드라이버와 Hyperdrive와 함께 작동하는 최소 버전을 나열합니다.
+
+| 관련 기사             | 회사연혁                                                  | 최소 버전 필수             | 지원하다                                                                                                                                                          |
+| ----------------- | ----------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 한국어 (ko)**뚱 베어**) | [mysql2 문서](https://github.com/sidorares/node-mysql2) | `mysql2@3.13.0`      | Workers & PagesXQ 둘 다에서 지원되는. Promise API를 사용하는 것이 좋습니다.                                                                                                      |
+| 사이트맵              | [mysql 문서](https://github.com/mysqljs/mysql)          | `mysql@2.18.0`       | 이름 \*`compatibility_flags = ["nodejs_compat"]`·`compatibility_date = "2024-09-23"`- 참고[Node.js 호환성](/workers/runtime-apis/nodejs). wrangler 요구`3.78.7`또는 나중에. |
+| 제품 소개             | [Drizzle 문서](https://orm.drizzle.team/)               | 이름 \*`mysql2@3.13.0` |                                                                                                                                                               |
+| 인기 카테고리           | [Kysely 문서](https://kysely.dev/)                      | 이름 \*`mysql2@3.13.0` |                                                                                                                                                               |
+
+^ *표시된 라이브러리는 mysql 또는 mysql2를 의존성으로 사용할 수 있습니다.*
+
+다른 드라이버 및 ORMs는 목록이 지원 될 수 없습니다. 이 목록은 소진되지 않습니다.
+
+### 데이터베이스 드라이버 및 Node.js 호환성
+
+[Node.js 호환성](/workers/runtime-apis/nodejs/)mysql 및 mysql2를 포함한 데이터베이스 드라이버에 필요한 경우 Workers 프로젝트에 구성해야 합니다.
+
+<Render file="nodejs_compat" product="workers" />
+
+## 지원된 TLS (SSL) 형태
+
+Hyperdrive는 당신의 근원 데이타베이스에 연결할 때 뒤에 오는 MySQL TLS/SSL 연결 형태를 지원합니다:
+
+| 주요 특징             | 지원되는               | 이름 \*                                                               |
+| ----------------- | ------------------ | ------------------------------------------------------------------- |
+| `DISABLED`        | 이름 \*              | Hyperdrive는 insecure 일반 텍스트 연결을 지원하지 않습니다.                          |
+| `PREFERRED`       | 없음 (사용)`required`) | Hyperdrive는 항상 TLS를 사용합니다.                                          |
+| `REQUIRED`        | 그렇습니다 (과태)         | TLS는 필수이며, 서버 인증서는 WebPKI에 따라 검증됩니다.                                |
+| `VERIFY_CA`       | 현재 베타에서 지원되지 않음    | 서버의 TLS 인증서는 클라이언트의 루트 CA에 의해 서명됩니다.                                |
+| `VERIFY_IDENTITY` | 현재 베타에서 지원되지 않음    | 본문 바로가기`VERIFY_CA`, 또한 데이터베이스 hostname은 인증서의 일반적인 이름 (CN)와 일치해야합니다. |
+
+:::참조
+
+Hyperdrive는 현재 지원하지 않습니다`VERIFY_CA`또는`VERIFY_IDENTITY`MySQL의 경우 (beta).
+
+:::
+
+## 드라이버 예제
+
+다음 예제는 다음과 같은 방법을 보여줍니다:
+
+1. 데이터베이스 드라이버로 데이터베이스 클라이언트를 만듭니다.
+2. Hyperdrive 연결 문자열을 통과하고 데이터베이스에 연결하십시오.
+3. Hyperdrive를 통해 데이터베이스를 쿼리합니다.
+
+### `mysql2`
+
+다음 Workers 코드는 당신이 사용하는 방법을 보여줍니다[사이트맵](https://github.com/sidorares/node-mysql2)Promise API를 사용하여 Hyperdrive.
+
+<Render file="use-mysql2-to-make-query" product="hyperdrive" />
+
+### `mysql`
+
+다음 Workers 코드는 사용 방법을 보여줍니다[사이트맵](https://github.com/mysqljs/mysql)Hyperdrive로.
+
+<Render file="use-mysql-to-make-query" product="hyperdrive" />
+
+## Hyperdrive의 연결을 식별
+
+Hyperdrive에서 MySQL 데이터베이스 서버에 대한 활성 연결을 식별하려면:
+
+- Hyperdrive의 데이터베이스에 연결하면`Cloudflare Hyperdrive`내 계정`PROGRAM_NAME`열에서`performance_schema.threads`테이블.
+- 지원하다`SELECT DISTINCT USER, HOST, PROGRAM_NAME FROM performance_schema.threads WHERE PROGRAM_NAME = 'Cloudflare Hyperdrive'`Hyperdrive가 현재 데이터베이스에 연결 (또는 연결)을 열지 여부를 보여줍니다.
+
+## 다음 단계
+
+- 목록 참조[지원된 데이터베이스 통합](/workers/databases/connecting-to-databases/)기존 데이터베이스에 연결하는 다른 방법을 이해합니다.
+- 어떻게 사용하나요?[소켓 API](/workers/runtime-apis/tcp-sockets)직장에서.
+- 이름 \*[Workers에 의해 지원되는 의정서](/workers/reference/protocols/).

@@ -1,0 +1,198 @@
+---
+pcx_content_type: tutorial
+source: https://support.cloudflare.com/hc/articles/360000841472
+title: 자동화로 여러 사이트 추가하기
+description: 여러 사이트를 한 번에 더 효율적으로 Cloudflare에 추가하려면 Cloudflare API를 사용할 수 있습니다.
+reviewed: 2026-01-26
+---
+
+import { Render } from "~/components";
+
+여러 사이트를 한 번에 더 효율적으로 Cloudflare에 추가하려면 Cloudflare API를 사용할 수 있습니다.
+
+다음과 같은 경우 여러 사이트를 추가하는 것이 유용할 수 있습니다.
+
+- 하나의 정식 도메인으로 매핑되는 여러 도메인(예: `.com.au`, `.co.uk` 같은 국가별 도메인)을 Cloudflare로 보호하려는 경우
+- [파트너](https://www.cloudflare.com/partners/), 에이전시 또는 IT 컨설팅 업체로서 고객을 대신해 여러 도메인을 관리하는 경우
+- 기존 사이트 집합을 Cloudflare로 옮기는 경우
+
+API를 사용하면 여러 사이트를 빠르고 효율적으로 추가할 수 있으며, 특히 [네임서버 변경 방법](/dns/zone-setups/full-setup/setup/)이나 [DNS 레코드 추가](/dns/manage-dns-records/how-to/create-dns-records/)에 이미 익숙하다면 더욱 편리합니다.
+
+이 튜토리얼은 도메인을 [기본 DNS 설정(Full)](/dns/zone-setups/full-setup/)으로 추가한다고 가정합니다.
+
+---
+
+## 사전 준비
+
+자동화로 여러 사이트를 Cloudflare에 추가하려면 다음이 필요합니다.
+
+- 기존 [Cloudflare 계정](/fundamentals/account/create-account/)
+- `curl`을 사용할 수 있는 명령줄 환경
+- 다음 권한 중 하나가 포함된 Cloudflare [API 토큰](/fundamentals/api/get-started/create-token/)
+  - 영역 수준 `Administrator`
+  - 영역 수준 `Zone: Edit` 및 `DNS: Edit`
+  - 계정 수준 `Domain Administrator`
+- 각 도메인을 구매한 등록기관에서 해당 도메인의 [DNSSEC](/dns/concepts/#dnssec)를 비활성화해 둘 것
+
+   <Render file="dnssec-providers" product="dns" />
+
+   <Render file="dnssec-enabled-migration" product="dns" />
+
+---
+
+## 1. 도메인 추가
+
+1. 추가하려는 도메인 목록을 각 줄에 하나씩(줄바꿈 구분) `domains.txt` 같은 파일에 저장합니다.
+2. `add-multiple-zones.sh`라는 bash 스크립트를 만들고 아래 내용을 추가합니다. `domains.txt`를 같은 디렉터리에 두거나 경로를 알맞게 수정하세요.
+
+```bash
+  for domain in $(cat domains.txt); do
+    printf "Adding ${domain}:\n"
+
+    curl https://api.cloudflare.com/client/v4/zones \
+    --header "Authorization: Bearer <API_TOKEN>" \
+    --header "Content-Type: application/json" \
+    --data '{
+      "account": {
+        "id":"<ACCOUNT_ID>"
+      },
+      "name": "'"$domain"'",
+      "type": "full"
+    }'
+
+    printf "\n\n"
+  done
+```
+
+3. 명령줄을 열고 다음을 실행합니다.
+
+```sh
+bash add-multiple-zones.sh
+```
+
+:::caution
+한 번에 추가할 수 있는 도메인 수에는 제한이 있습니다. 자세한 내용은 [제한 사항](#limitations)을 참고하세요.
+:::
+
+도메인을 추가한 뒤에는 [`Pending Nameserver Update`](/dns/zone-setups/reference/domain-status/) 상태가 됩니다.
+
+### 추가 옵션
+
+#### jq
+
+[`jq`](https://jqlang.github.io/jq/)는 JSON 출력을 파싱하고 보기 좋게 정리해 주는 명령줄 도구입니다.
+
+이 튜토리얼의 추가 옵션 단계를 진행하려면 이 도구가 필요합니다.
+
+```sh
+echo '{"foo":{"bar":"foo","testing":"hello"}}' | jq .
+```
+
+자세한 내용은 `jq` [문서](https://jqlang.github.io/jq/manual/#basic-filters)를 참고하세요.
+
+#### 빠른 스캔
+
+Cloudflare는 영역의 DNS 레코드를 채우는 데 도움을 주는 [빠른 스캔](/dns/zone-setups/reference/dns-quick-scan/) 기능을 제공합니다. 이 스캔은 일반적으로 많이 사용하는 레코드 이름과 유형의 사전 정의된 목록을 기반으로 수행되는 최선의 시도입니다.
+
+이 API 호출에는 도메인 ID가 필요합니다. 다음 위치에서 확인할 수 있습니다.
+
+- [Create Zone](/api/resources/zones/methods/create/#Request)
+- [List Zones](/api/resources/zones/methods/list/)
+
+위 첫 번째 옵션에서 `jq`를 사용하도록 `add-multiple-zones.sh` 스크립트를 수정해 도메인 ID를 추출하고, 이어서 DNS 레코드 빠른 스캔 API를 호출합니다.
+
+```js
+  for domain in $(cat domains.txt); do
+    printf "Adding ${domain}:\n"
+
+    add_output=`curl https://api.cloudflare.com/client/v4/zones \
+      --header "Authorization: Bearer <API_TOKEN>" \
+      --header "Content-Type: application/json" \
+      --data '{
+        "account": {
+          "id":"<ACCOUNT_ID>"
+        },
+        "name": "'"$domain"'",
+        "type": "full"
+      }'`
+
+    echo $add_output | jq .
+
+    domain_id=`echo $add_output | jq -r .result.id`
+
+    printf "\n\n"
+    printf "DNS quick scanning ${domain}:\n"
+
+    scan_output=`curl --request POST https://api.cloudflare.com/client/v4/zones/$domain_id/dns_records/scan \
+      --header "X-Auth-Email: <EMAIL>" \
+      --header "X-Auth-Key: <API_KEY>"`
+
+    echo $scan_output | jq .
+
+  done
+```
+
+## 2. 네임서버 업데이트
+
+각 도메인이 Cloudflare에서 활성화되려면 [Full setup](/dns/zone-setups/full-setup/setup/) 또는 [Partial setup](/dns/zone-setups/partial-setup/setup/) 중 하나로 활성화되어야 합니다. 아래 스크립트는 각 도메인에 연결된 네임서버 목록을 출력합니다.
+
+영역의 네임서버는 다음 위치에서 확인할 수 있습니다.
+
+- [Create Zone](/api/resources/zones/methods/create/#Request)
+- [Zone Details](/api/resources/zones/methods/get/)
+
+1. `Create Zone` JSON 응답에서 데이터를 추출해 CSV를 출력하도록 `add-multiple-zones.sh` 스크립트를 수정합니다.
+
+```js
+  for domain in $(cat domains.txt); do
+    printf "Adding ${domain}:\n"
+
+    add_output=`curl https://api.cloudflare.com/client/v4/zones \
+      --header "Authorization: Bearer <API_TOKEN>" \
+      --header "Content-Type: application/json" \
+      --data '{
+        "account": {
+          "id": "<ACCOUNT_ID>"
+        },
+        "name": "'"$domain"'",
+        "type": "full"
+      }'`
+
+    # Create csv of nameservers
+    echo $add_output | jq -r '[.result.name,.result.id,.result.name_servers[]] | @csv' >> /tmp/domain_nameservers.csv
+
+    domain_id=`echo $add_output | jq -r .result.id`
+
+    printf "\n\n"
+    printf "DNS quick scanning ${domain}:\n"
+
+    scan_output=`curl --request POST https://api.cloudflare.com/client/v4/zones/$domain_id/dns_records/scan \
+      --header "X-Auth-Email: <EMAIL>" \
+      --header "X-Auth-Key: <API_KEY>"`
+
+    echo $scan_output | jq .
+
+  done
+
+  printf "name_servers are saved in /tmp/domain_nameservers"
+  cat /tmp/domain_nameservers.csv
+```
+
+| ID         | 영역          | 네임서버                                        |
+| ---------- | ------------- | ----------------------------------------------- |
+| \<ZONE_ID> | `example.com` | `arya.ns.cloudflare.com`, `tim.ns.cloudflare.com` |
+
+2. 각 도메인의 등록기관에서 **NAME SERVERS** 열의 값을 사용해 [네임서버를 업데이트](/dns/zone-setups/full-setup/setup/#update-your-registrar)합니다.
+
+---
+
+<a id="limitations"></a>
+## 제한 사항
+
+한 번에 추가할 수 있는 도메인 수에는 제한이 있습니다. 구체적으로는 10분마다 최대 25개의 도메인만 등록할 수 있습니다.
+
+또한 도메인이 50개를 초과하고, 그중 활성 상태보다 대기 중 상태가 더 많으면 추가 등록이 차단됩니다. 대기 중인 사이트가 활성화될 때까지 기다린 뒤 더 추가하는 것을 권장합니다.
+
+## 일반적인 문제
+
+이 과정에서 오류가 반환되었다면, 해당 도메인이 등록되지 않았거나(또는 막 등록되었거나), 서브도메인이거나, 그 밖에 유효하지 않을 수 있습니다. 자세한 내용은 [도메인을 추가할 수 없음](/dns/zone-setups/troubleshooting/cannot-add-domain/)을 참고하세요.

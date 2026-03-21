@@ -1,0 +1,79 @@
+---
+title: 도메인 온보딩
+pcx_content_type: tutorial
+description: 웹사이트나 애플리케이션의 속도를 높이고 보호하기 위해 도메인을 Cloudflare에 온보딩하는 방법을 알아보세요.
+---
+
+import { DashButton, GlossaryTooltip, Render, Stream, Details } from "~/components";
+
+도메인을 온보딩하면 Cloudflare가 사이트의 [리버스 프록시](/fundamentals/concepts/how-cloudflare-works/#cloudflare-as-a-reverse-proxy)이자 [DNS 제공자](/fundamentals/concepts/how-cloudflare-works/#cloudflare-as-a-dns-provider)로 동작합니다.
+
+이 가이드는 다른 제공업체에서 구매한 기존 도메인에 적용되며, 가장 일반적인 구성인 [전체 DNS 설정](/dns/zone-setups/full-setup)을 사용합니다. 이 구성을 위해서는 Cloudflare에서 몇 가지 단계를 완료해야 하며, 도메인 등록기관[^1]과 이전 DNS 제공업체(사용 중이었다면)에서도 일부 설정을 업데이트해야 합니다.
+
+:::tip[Cloudflare Registrar]
+새 도메인이 필요하다면 수수료 없이 [Cloudflare에서 구매](/registrar/get-started/register-domain/)할 수 있습니다. 나머지 설정은 Cloudflare가 대신 완료합니다.
+:::
+
+<Stream id="980c8494f2403b95473d2ed687b4f402" title="How Cloudflare DNS works for your domain" thumbnail="https://imagedelivery.net/xDOJvHcv1KwTQn6S-BGFIw/fe425a25-66e7-4975-f4e3-32822987e000/public" />
+
+## 시작하기 전에
+
+- 등록기관에 로그인해 DNS 설정을 확인하세요. 등록기관이 누구인지 모른다면 [ICANN Lookup](https://lookup.icann.org/) 같은 Whois 검색을 사용할 수 있습니다.
+- 진행하기 전에 반드시 [DNSSEC를 끄세요](/dns/dnssec/#disable-dnssec). 온보딩이 끝난 뒤 [Cloudflare를 통해 DNSSEC를 활성화](/dns/dnssec/#enable-dnssec)하여 스푸핑으로부터 도메인을 계속 보호할 수 있습니다.
+
+   <Render file="dnssec-providers" product="dns" />
+
+## 1. Cloudflare에서 도메인 온보딩
+
+1. Cloudflare 대시보드에 로그인합니다.
+
+      <DashButton url="/?to=/:account/domains/overview" />
+
+2. **Onboard a domain**을 선택합니다.
+3. 웹사이트의 <GlossaryTooltip term="apex domain">apex domain</GlossaryTooltip> (예: `example.com`)을 입력하고, [DNS 레코드](/dns/manage-dns-records/)를 추가할 방법을 선택한 다음 **Continue**를 선택합니다.
+   :::note
+   Cloudflare가 도메인을 등록된 도메인으로 식별하지 못하면 기존 [최상위 도메인](https://www.cloudflare.com/learning/dns/top-level-domain/) (`.com`, `.net`, `.biz` 등)을 사용하고 있는지 확인하세요.
+
+   Cloudflare는 apex domain이 [Public Suffix List (PSL)](https://github.com/publicsuffix/list/blob/master/public_suffix_list.dat)에 정의된 유효한 TLD 바로 아래 한 단계여야 합니다. 예를 들어 `example.com`은 유효하지만 `level2.example.com`[^2]이나 `example.home`은 유효하지 않습니다.
+   :::
+
+4. [플랜](https://www.cloudflare.com/plans/#compare-features)을 선택합니다.
+5. DNS 레코드를 검토하여 누락된 항목이 없는지 확인합니다. 도메인이 제대로 작동하려면 DNS 레코드가 정확해야 합니다. Cloudflare의 레코드 목록을 이전 제공업체의 레코드 목록과 비교하면 됩니다.
+
+   <Render file="dns-scan-intro" product="dns" /> <br />
+
+   1. <Render file="dns-scan-procedure" product="dns" />
+
+      <Render file="dns-nxdomain-warning" product="dns" />
+
+   2. 누락된 레코드를 찾았다면 해당 레코드를 [수동으로 추가](/dns/manage-dns-records/how-to/create-dns-records/)합니다.
+   3. 사이트 구성에 따라 특정 `A`, `AAAA`, `CNAME` 레코드의 <GlossaryTooltip term="proxy status" link="/dns/proxy-status/">프록시 상태</GlossaryTooltip>를 조정할 수 있습니다.
+
+      :::note[Review CNAME records]
+	    일반적으로 타사 서비스에서 도메인 소유권을 검증하는 데 사용하는 CNAME 레코드는 프록시하지 않아야 합니다. 자세한 내용은 [프록시된 CNAME 레코드](/dns/proxy-status/#cname-records)를 참고하세요.
+	    :::
+
+   4. **Continue**를 선택합니다.
+
+## 2. 네임서버 업데이트
+
+<Render file="minimize-downtime-tip" product="dns" />
+
+<Render file="nameserver-preamble" product="dns" />
+
+<Render file="update-nameservers" product="fundamentals" />
+
+## 3. SSL/TLS 설정 완료
+
+안전하지 않은 연결과 방문자 브라우저 오류를 방지하려면 [SSL/TLS 인증서](/ssl/get-started/)를 검토하세요. 네임서버를 업데이트하고 DNS 레코드를 프록시하면 많은 Cloudflare 서비스가 웹 트래픽을 자동으로 보호하고 가속화합니다. 자세한 내용은 [프록시 상태](/dns/proxy-status/)를 참고하세요.
+
+네임서버를 변경할 때 예상치 못한 결과가 발생하면 [DNS Full Setup 문제 해결](/dns/zone-setups/full-setup/troubleshooting/)을 참고하세요.
+
+## 다른 설정 옵션
+
+- Cloudflare를 리버스 프록시로 사용하면서 기존 DNS 제공업체를 유지하려면 [부분 설정](/dns/zone-setups/partial-setup/)을 참고하세요.
+- 하나 이상의 DNS 제공업체를 사용하려면 [DNS Zone transfers](/dns/zone-setups/zone-transfers/)를 참고하세요.
+- Enterprise 고객은 [Subdomain setup](/dns/zone-setups/subdomain-setup/)을 사용해 더 하위 수준의 서브도메인을 온보딩할 수 있습니다.
+
+[^1]: 도메인을 구매한 제공업체입니다.
+[^2]: Enterprise 고객은 [Subdomain setup](/dns/zone-setups/subdomain-setup/)을 사용해 이러한 도메인을 온보딩할 수 있습니다.

@@ -1,0 +1,108 @@
+---
+title: AI Vibe 코딩 플랫폼
+pcx_content_type: reference-architecture-diagram
+products:
+  - ai-gateway
+  - workers-for-platforms
+sidebar:
+  order: 0
+  label: AI Vibe 코딩 플랫폼
+updated: 2025-08-28T00:00:00.000Z
+description: >-
+  Cloudflare의 저경도, 완전히 서버가 없는 compute 플랫폼, Workers는 서버 측 구현을 사용하여 A/B 테스트를 가능하게
+  하는 강력한 기능을 제안합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/ai/ai-vibe-coding-platform/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/ai/ai-vibe-coding-platform/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+AI-powered 코딩 플랫폼 (일부로 언급 된)["vibe 코딩"](https://www.cloudflare.com/learning/ai/ai-vibe-coding/)플랫폼) 사용자가 자연 언어로 원하는 것을 설명하여 응용 프로그램을 구축 할 수 있습니다. 이 플랫폼은 코드 생성, 테스트 및 디버깅, 프로젝트 배포에 이르기까지 모든 것을 처리하여 응용 프로그램을 구축 할 수 있습니다.
+
+이러한 플랫폼에 대한 인프라 구축은 고유의 과제를 소개합니다. AI-generated 코드는 믿을 수 없게되고, 남용을 방지하기 위하여 안전한, sandbox에서 실행되어야 하고 사용자 사이 고립을 지킵니다. 급속한, 대화 발달을 지원하기 위하여, 플랫폼은 살아있는 시사 및 순간 디버깅을 가진 근실한 의견 반복을 제공해야 합니다. 마지막으로, 플랫폼은 수천 또는 수백만의 애플리케이션을 배포하고 호스팅하는 방법이 필요하며 기존 서버 인프라의 비용을 실행하지 않고 만들 것입니다.
+
+Cloudflare는 AI 모델에 연결되는 미들웨어에서, 코드 실행을 위한 샌드박스를 확보하기 위해, 이 플랫폼 중 하나를 구축해야 하는 모든 구성품을 가지고 있으며, 수백만 개의 애플리케이션을 확장하는 서버리스 배포 플랫폼.
+
+![그림 1: Cloudflare에 AI Vibe 기호화 플랫폼](~/assets/images/reference-architecture/ai-vibe-coding/cf-vibe-plat.svg)
+
+AI vibe 코딩 플랫폼의 레퍼런스 구현을 바로 시작하려면, 이 [Starter 템플릿](https://github.com/cloudflare/vibesdk)을 Cloudflare 계정에 배포하세요:
+
+[![Cloudflare Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/vibesdk)
+
+## 핵심 구성 요소
+
+![그림 2: Vibe 호스팅 개요](~/assets/images/reference-architecture/ai-vibe-coding/vibe-hosting-overview.svg)
+
+AI 전원 코딩 플랫폼을 구축하려면이 키 구성 요소가 필요합니다.
+
+- **코드 생성을 위한 AI:**&#x41;I 모델과 통합하여 사용자 프롬프트를 해석하고 코드를 자동으로 생성합니다.
+- **안전한 실행 Sandbox:**&#xC0AC;용자가 즉시 실행할 수 있는 안전한 고립된 환경을 제공하고, 믿을 수 없는 시험, AI-generated 부호.
+- **확장 가능한 신청 Deployment:**&#xC2A4;케일에서 AI-generated 응용 프로그램을 배포합니다.
+- **분석 및 관찰성:**&#xB85C;그 및 메트릭을 수집하여 AI 사용, 응용 성능 및 플랫폼 비용을 모니터링합니다.
+
+## AI 통합 및 코드 생성
+
+#### Code Generation에 대한 AI 공급자 연결
+
+첫 번째 단계는 사용자의 자연적인 언어를 신속하고 안전하게 코드를 생성하기 위해 AI 모델에 routing.
+
+다양한 AI 공급자를 사용할 때, 당신은 비용으로 가시성을 필요로 할 때, 비용 절감, 신뢰성을 보장하기 위해 실패 기능.[AI 게이트웨이](/ai-gateway/)플랫폼과 AI 공급자 간의 통합된 제어 포인트로 이러한 기능을 전달하기 위해:
+
+- ·[통합 액세스 포인트](/ai-gateway/usage/chat-completion/)LLM 제공 업체의 경로 요청으로, 사용 가능[모델 번호:](/workers-ai/models/)공급자 (OpenAI, Anthropic, Google 및 기타)의 범위에서
+- [뚱 베어](/ai-gateway/features/caching/)인기있는 응답을 위해 누군가가 "도구 목록 앱 구축"을 요청할 때 게이트웨이는 공급자로 이동 대신 캐시 된 응답을 제공 할 수 있습니다 (절약 비용 절감)
+- [옵션 정보](/ai-gateway/observability/analytics/)요청으로, 토큰 사용 및 모든 공급자의 응답 시간 한 곳에서
+- [비용 추적](/ai-gateway/observability/costs/)AI 공급자
+
+#### Cloudflare에 건물에 당신의 AI를 더 나은 만들기
+
+AI 코드 생성기를 구축하고 Cloudflare에서 최고의 빌드 응용 프로그램에 대한 더 많은 지식을 원하면, 우리가 사용하는 두 가지 도구가 있습니다.
+
+- **[Cloudflare Workers 사이트맵](/workers/get-started/prompting/#build-workers-using-a-prompt):**&#x43;loudflare의 API, 구성 패턴 및 모범 사례에 대한 AI 모델을 가르치는 예로 구조화 된 프롬프트. 더 높은 품질 코드 출력에 대한 AI 시스템에서 이러한 포함.
+- **[Cloudflare의 문서 MCP 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/docs-vectorize):**&#x41;I 도구 지원[모형 Context 의정서 (MCP)](/agents/model-context-protocol/), Cloudflare의 문서 MCP 서버에 연결하여 Cloudflare의 플랫폼에 대한 최신 지식을 얻을 수 있습니다.
+
+## AI-generated 코드 실행 환경
+
+모두 보기[샌드박스](/changelog/2025-06-24-announcing-sandboxes/)·[회사 소개](/containers/)신뢰할 수 없는 AI-generated 코드를 실행하는 보안, 격리된 환경을 제공합니다. 그들은 제안한다:
+
+- **강한 고립 및 sandboxing 통제**다른 인스턴스에 영향을 미치는 악성 또는 buggy 코드를 방지
+- **빠른 시작 시간**실시간 피드백을 가진 급속한 반복 주기를 가능하게 하십시오
+- **실시간 출력 스트리밍**실시간 진행 업데이트 및 디버깅을 위한 로그 및 결과
+- **미리보기 URL**사용자가 개발 중에 응용 프로그램을 테스트 할 수 있도록
+- **Global Edge 배포**전 세계 Cloudflare 네트워크에서
+
+**Sandboxes는 완전 관리된 해결책을 제공합니다**그와 함께 out-of-the-box를 작동[사전 제작된 API](/changelog/2025-08-05-sandbox-sdk-major-update/)코드 실행, 출력 포맷 및 개발자 도구, 대부분의 AI 코드 실행 사용 사례에 이상적입니다.
+
+![그림 3 : Vibe 코드 개발 - Sandbox SDK](~/assets/images/reference-architecture/ai-vibe-coding/ai-platform-sandbox.svg)
+
+**콘테이너 제안 완전한 runtime 통제**사용자 정의 도커 이미지를 통해 4GB RAM 및 전용 vCPU로 모든 언어 또는 프레임 워크를 실행할 수 있으며 사용자 정의 런타임 또는 리소스 기반 워크로드가 필요할 때 가장 좋습니다.
+
+![그림 4: 격리된 콘테이너](~/assets/images/reference-architecture/ai-vibe-coding/BYO-sandbox.svg)
+
+## 생산에 응용 프로그램을 배포
+
+AI-powered 코딩 플랫폼을 구축 할 때 플랫폼이 생성 될 응용 프로그램의 수천을 배포하고 호스트 할 수 있어야합니다.
+
+[플랫폼을위한 Workers](/cloudflare-for-platforms/workers-for-platforms/)이 인프라를 제공하여 무제한 애플리케이션을 배포할 수 있도록, 각각의 애플리케이션은 자체 격리 된 작업자 인스턴스에서 실행되며 다른 사람들에게 영향을 미치는 하나의 응용 프로그램을 방지합니다.
+
+**플랫폼에 대한 Workers로, 당신은 얻을:**
+
+- **고립과 multitenancy**— 모든 응용 프로그램은 자체 전용 노동자에서 실행, 안전하고 격리 샌드 박스 환경
+- **Egress 제어 및 사용 제한**— 방화벽 정책 구성[아웃바운드 작업자](/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/)·[사용자 정의 사용 제한](/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/)관련 기사
+- **프로젝트 당 전용 자원:**&#x4B;V 저장소 또는 데이터베이스를 각 응용 프로그램에 첨부하여 더 강력한 기능을 확보하면서[회사연혁](/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/)해당 이용 후기에 달린 코멘트가 없습니다.
+- **로깅 및 Observability**Insights, 모니터링 성능 및 애플리케이션 전반에 걸쳐 문제 해결
+
+![그림 5: 완전한 Vibe 기호화 플랫폼](~/assets/images/reference-architecture/ai-vibe-coding/vibe-hosting-analytics.svg)
+
+## 이름 \*
+
+Cloudflare는 AI-powered 플랫폼 구축에 필요한 완전한 세트를 제공합니다.
+
+Cloudflare에는 배포할 수 있는 템플릿 AI vibe 코딩 플랫폼이 있습니다. 시작하기는 코드 생성, 모래 상자 개발, 미리보기 환경, 플랫폼에 대한 Workers와 통합하여 규모에서 응용 프로그램을 배포하고 호스팅할 수 있는 완벽한 예입니다.
+
+[![Cloudflare Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/vibesdk)

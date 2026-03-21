@@ -1,0 +1,100 @@
+---
+pcx_content_type: concept
+title: 자신의 세대 모델을 가져
+tags:
+  - AI
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ai-search/how-to/bring-your-own-generation-model/
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-search/how-to/bring-your-own-generation-model/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Description,
+	Render,
+	TabItem,
+	Tabs,
+	WranglerConfig,
+	MetaInfo,
+	Type,
+	TypeScriptExample,
+} from "~/components";
+
+사용 방법`AI Search`, AI 검색은 응답을 생성하기 위해 Workers AI 모델을 활용합니다. Workers AIXQ 밖에 모델을 사용하려면 AI 검색을 사용할 수 있습니다.`search`Workers AI 밖에 모델을 활용하여 응답을 생성합니다.
+
+다음은 OpenAI 모델을 사용하여 응답을 생성 할 수있는 방법입니다. 이 예제는[Workers 회사 소개](/ai-search/usage/workers-binding/).
+
+:::참조
+AI 검색은 이제 지원[자신의 모델을 기본적으로 가져](/ai-search/configuration/models/). AI Gateway를 통해 공급자 키를 첨부하고 AI 검색 설정에서 타사 모델을 직접 선택할 수 있습니다. 아래 예제는 여전히 작동하지만 권장 방법은 AI Gateway를 통해 외부 모델을 구성하는 것입니다.\
+:::
+
+<TypeScriptExample>
+  ```ts
+  import { openai } from "@ai-sdk/openai";
+  import { generateText } from "ai";
+
+  export interface Env {
+  	AI: Ai;
+  	OPENAI_API_KEY: string;
+  }
+
+  export default {
+  	async fetch(request, env): Promise<Response> {
+  		//수신 URL
+  		const url = new URL(request.url);
+
+  		//사용자 쿼리 또는 기본값을 predefined로 가져옵니다.
+  		const userQuery =
+  			url.searchParams.get("query") ??
+  			"How do I train a llama to deliver coffee?";
+
+  		//AI 검색에서 문서 검색
+  		const searchResult = await env.AI.autorag("my-rag").search({
+  			query: userQuery,
+  		});
+
+  		if (searchResult.data.length === 0) {
+  			//관련 문서
+  			return Response.json({ text: `No data found for query "${userQuery}"` });
+  		}
+
+  		//모든 문서 chunks에 단일 문자열에 가입
+  		const chunks = searchResult.data
+  			.map((item) => {
+  				const data = item.content
+  					.map((content) => {
+  						return content.text;
+  					})
+  					.join("\n\n");
+
+  				return `<file name="${item.filename}">${data}</file>`;
+  			})
+  			.join("\n\n");
+
+  		//답을 위해 openai에 사용자 쿼리 + 일치 문서를 보내
+  		const generateResult = await generateText({
+  			model: openai("gpt-4o-mini"),
+  			messages: [
+  				{
+  					role: "system",
+  					content:
+  						"You are a helpful assistant and your task is to answer the user question using the provided files.",
+  				},
+  				{ role: "user", content: chunks },
+  				{ role: "user", content: userQuery },
+  			],
+  		});
+
+  		//생성된 답변을 반환
+  		return Response.json({ text: generateResult.text });
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>

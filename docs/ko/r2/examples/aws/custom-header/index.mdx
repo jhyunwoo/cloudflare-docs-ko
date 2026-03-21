@@ -1,0 +1,174 @@
+---
+title: 사용자 정의 헤더 구성
+pcx_content_type: example
+reviewed: 2023-07-06T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/examples/aws/custom-header/'
+translation_source_md: 'https://developers.cloudflare.com/r2/examples/aws/custom-header/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+R2의 몇몇[관련 상품](/r2/api/s3/extensions/)S3 호환 API에서 사용할 때 특정 헤더를 설정해야합니다. 일부 기능을 위해 요청 헤더를 전체 범주의 요청에 설정할 수 있습니다. 다른 시간은 각 개별 요청에 대한 다른 헤더를 구성 할 수 있습니다. 이 페이지에는 다음과 같은 몇 가지 예제가 포함되어 있습니다.`boto3`그리고 함께`aws-sdk-js-v3`.
+
+## 모든 요청에 맞춤 헤더 설정
+
+특정 기능을 사용할 때`cf-create-bucket-if-missing`헤더, 모든 것을 위한 일정한 헤더를 설정할 수 있습니다.`PutObject`당신이 만드는 요청.
+
+### 모든 요청에 대한 헤더를 설정`boto3`
+
+`Boto3`요청을 수정할 수 있는 이벤트 시스템이 있습니다. 여기에 우리는 모든에 우리의 헤더를 추가 이벤트 시스템에 기능을 등록`PutObject`견적 요청
+
+```python
+import boto3
+
+client = boto3.resource('s3',
+  #Cloudflare 계정 ID 제공
+  endpoint_url = 'https://<ACCOUNT_ID>.r2.cloudflarestorage.com',
+  #API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+  aws_access_key_id = '<ACCESS_KEY_ID>',
+  aws_secret_access_key = '<SECRET_ACCESS_KEY>'
+)
+
+event_system = client.meta.events
+
+#헤더를 추가하는 데 책임있는 정의 기능
+def add_custom_header(params, **kwargs):
+    params["headers"]['cf-create-bucket-if-missing'] = 'true'
+
+event_system.register('before-call.s3.PutObject', add_custom_header)
+
+response = client.put_object(Bucket="my_bucket", Key="my_file", Body="file_contents")
+print(response)
+```
+
+### 모든 요청에 대한 헤더를 설정`aws-sdk-js-v3`
+
+`aws-sdk-js-v3`사용자 지정 요청 행동을 통해 그것의 사용[Midware 더미](https://aws.amazon.com/blogs/developer/middleware-stack-modular-aws-sdk-js/). 이 예제는 각 헤더를 추가하는 클라이언트에 미들웨어를 추가합니다.`PutObject`견적 요청
+
+```ts
+import {
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+
+const client = new S3Client({
+  region: "auto", //SDK에 의해 필요하지만 R2
+  endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  //API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+  credentials: {
+    accessKeyId: ACCESS_KEY_ID,
+    secretAccessKey: SECRET_ACCESS_KEY,
+  },
+});
+
+client.middlewareStack.add(
+  (next, context) => async (args) => {
+      const r = args.request as RequestInit
+      r.headers["cf-create-bucket-if-missing"] = "true";
+
+      return await next(args)
+    },
+  { step: 'build', name: 'customHeaders' },
+)
+
+const command = new PutObjectCommand({
+  Bucket: "my_bucket",
+  Key: "my_key",
+  Body: "my_data"
+});
+
+const response = await client.send(command);
+
+console.log(response);
+```
+
+## 각 요청에 다른 헤더를 설정
+
+R2가 S3 호환 api에서 제공 한 특정 확장은 각 요청에 다른 헤더를 설정할 수 있습니다. 예를 들어, etag가 특정 예상 값을 일치하면 객체를 덮고 싶을 수도 있습니다. 이 값은 overwritten 인 각 객체에 대해 다를 것입니다.`If-Match`당신이 만드는 각 요구와 다른 사람. 이 섹션은 그 수행 방법을 보여줍니다.
+
+### 요청 당 헤더를 설정`boto3`
+
+사용자 정의 헤더를 추가 인수로 전달할 수 있도록`client.put_object()`우리는 2개의 기능을 into 등록해야 합니다`boto3`'s 이벤트 시스템. 이 때문에`boto3`추가 방법 인수를 거부하는 매개 변수 검증 단계. 이 매개 변수 검증이 우리가 요청에 헤더를 설정하기 전에 발생했기 때문에, 먼저 매개 변수 유효성 검사 전에 요청 컨텍스트로 사용자 정의 인수를 이동해야합니다. 후속 단계에서 우리는 실제로 요청 상황에 넣어 정보를 기반으로 헤더를 설정할 수 있습니다.
+
+```python
+import boto3
+
+client = boto3.resource('s3',
+  #Cloudflare 계정 ID 제공
+  endpoint_url = 'https://<ACCOUNT_ID>.r2.cloudflarestorage.com',
+  #API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+  aws_access_key_id = '<ACCESS_KEY_ID>',
+  aws_secret_access_key = '<SECRET_ACCESS_KEY>'
+)
+
+event_system = client.meta.events
+
+#요청 상황에 매개 변수에서 사용자 정의 헤더를 이동합니다
+def process_custom_arguments(params, context, **kwargs):
+    if (custom_headers := params.pop("custom_headers", None)):
+        context["custom_headers"] = custom_headers
+
+#여기에 우리는 요청 컨텍스트에서 헤더를 추출하고 실제로 그들을 설정
+def add_custom_headers(params, context, **kwargs):
+    if (custom_headers := context.get("custom_headers")):
+        params["headers"].update(custom_headers)
+
+event_system.register('before-parameter-build.s3.PutObject', process_custom_arguments)
+event_system.register('before-call.s3.PutObject', add_custom_headers)
+
+custom_headers = {'If-Match' : '"29d911f495d1ba7cb3a4d7d15e63236a"'}
+
+#boto3가 precondition가 실패한 경우 예외를 던집니다. 필요한 경우이 예외를 배치
+response = client.put_object(Bucket="my_bucket", Key="my_key", Body="file_contents", custom_headers=custom_headers)
+print(response)
+```
+
+### 요청 당 헤더를 설정`aws-sdk-js-v3`
+
+여기에 우리는 다시 헤더를 구성합니다. 우리는 미들웨어를 만들기 위해 설정하고 싶습니다. 그러나 이번에는 전체 클라이언트 대신 요청 자체에 미들웨어를 추가합니다.
+
+```ts
+import {
+  PutObjectCommand,
+  S3Client,
+} from "@aws-sdk/client-s3";
+
+const client = new S3Client({
+  region: "auto", //SDK가 필요하지만 R2
+  //Cloudflare 계정 ID 제공
+  endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  //API 토큰을 통해 R2 버킷에 대한 S3 API 자격 증명을 검색하십시오 (참고 : https://developers.cloudflare.com/r2/api/tokens)
+  credentials: {
+    accessKeyId: ACCESS_KEY_ID,
+    secretAccessKey: SECRET_ACCESS_KEY,
+  },
+});
+
+const command = new PutObjectCommand({
+  Bucket: "my_bucket",
+  Key: "my_key",
+  Body: "my_data"
+});
+
+const headers = { 'If-Match': '"29d911f495d1ba7cb3a4d7d15e63236a"' }
+command.middlewareStack.add(
+  (next) =>
+    (args) => {
+      const r = args.request as RequestInit
+
+      Object.entries(headers).forEach(
+        ([k, v]: [key: string, value: string]): void => {
+          r.headers[k] = v
+        },
+      )
+
+      return next(args)
+    },
+  { step: 'build', name: 'customHeaders' },
+)
+const response = await client.send(command);
+
+console.log(response);
+```

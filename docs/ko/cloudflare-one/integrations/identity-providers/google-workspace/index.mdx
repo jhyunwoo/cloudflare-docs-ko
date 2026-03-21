@@ -1,0 +1,143 @@
+---
+pcx_content_type: how-to
+title: Google 작업 공간
+tags:
+  - Google
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/google-workspace/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/google-workspace/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+:::참조
+
+Google Workspace IdP 통합[지원되지 않음](/cloudflare-one/faq/troubleshooting/#after-putting-google-workspace-behind-access-i-cant-log-in-it-keeps-redirecting-between-access-and-google-without-ever-completing-authentication)Google Workspace 계정이 Access에 의해 보호되는 경우.
+주요 특징
+
+Cloudflare 액세스로 Google Workspace(이전 G Suite) 계정을 통합할 수 있습니다. 자주 묻는 질문[Google 인증](/cloudflare-one/integrations/identity-providers/google/)아래 단계는 Google Workspace 계정에서 그룹 회원 정보를 끌어낼 수 있습니다.
+
+통합되면 사용자는 Cloudflare Access에 의해 보호 된 리소스에 도달하거나 Cloudflare Gateway로 장치를 등록 할 수 있도록 Google Workspace 자격 증명으로 로그인합니다.
+
+Cloudflare One을 통해 Google Workspace를 통합할 필요가 없습니다. IdP 통합 설정을 구성하려면 Google Cloud Platform을 열 필요가 있습니다.
+
+## ID 공급자로 Google Workspace 설정
+
+### 1. Google Workspace 구성
+
+1. Google Cloud Platform에 로그인[회사 소개](https://console.cloud.google.com/). 이것은 Google Workspace 콘솔에서 분리됩니다.
+
+2. Google Cloud 프로젝트는 Google Workspace API를 활성화해야합니다. 이미 Google Cloud 프로젝트를 가지고 있지 않은 경우**IAM 및 관리자** > **프로젝트**. 프로젝트 이름 및 선택**이름 \***.
+
+3. 오시는 길**API 및 서비스**선택하기**API 및 서비스 활성화**. API 라이브러리가 로드됩니다.
+
+4. API 라이브러리에서 검색`admin`선택하기**관리자 SDK API**.
+
+5. **이름 \***&#xAD00;리자 SDK API.
+
+6. 자주 묻는 질문**API 및 서비스**사이트 맵**회사 소개**.
+
+7. 제품정보**Consent Screen 구성**.
+
+   ![Google Cloud Platform 콘솔에서 일관된 화면을 구성하는 위치.](~/assets/images/cloudflare-one/identity/google/configure-consent-screen.png)
+
+8. 동의 화면을 구성하려면:
+   1. 제품정보**시작하기**.
+   2. 이름 \***앱 이름**·**사용자 지원 이메일**.
+   3. 제품 정보**내 계정**Audience 유형으로. 이 Audience 유형은 Google Workspace에서 사용자에게 권한 부여 요청을 제한하고 일반 Gmail 주소가있는 사용자를 차단합니다.
+   4. 이름 \***연락처**. Google Cloud Platform은 계정의 이메일이 필요합니다.
+   5. Google의 사용자 데이터 정책에 동의하고 선택**계속하기**.
+   6. 제품정보**이름 \***.
+
+9. OAuth 개요 페이지가로드됩니다. 제품정보**OAuth 클라이언트 만들기**.
+
+   ![Google Cloud Platform 콘솔에서 OAuth 클라이언트를 만드는 위치.](~/assets/images/cloudflare-one/identity/google/create-oauth-client.png)
+
+10. 제품 정보*웹 신청*으로**신청 유형**OAuth Client ID를 이름에 부여합니다.
+
+11. 이름 \***공인 JavaScript 원산지**, 에서**한국어**필드, 팀 도메인 입력:
+
+    ```txt
+    https://<your-team-name>.cloudflareaccess.com
+    ```
+
+    <Render file="find-team-name" product="cloudflare-one" />
+
+12. 이름 \***공인 리디렉션 URI**, 에서**한국어**필드, 다음 URL을 입력:
+
+    ```txt
+    https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+    ```
+
+13. OAuth 클라이언트를 만들면 OAuth 클라이언트를 선택합니다. Google은 현재**OAuth 클라이언트 ID**가치와**고객 비밀**가치. 비밀번호와 같은 클라이언트 비밀 필드 함수는 공유하지 않아야 합니다. 모두 복사**OAuth 클라이언트 ID**가치와**고객 비밀**가치.
+
+14. 내 계정[Google 관리자 콘솔](https://admin.google.com), 이동**보안 보안** > **액세스 및 데이터 제어** > **API 제어**.
+
+15. 내 계정**API 제어**, 선택**계정 설정**.
+
+16. 제품정보**내부 앱**그리고 옆에 상자를 검사하십시오**신뢰 내부 앱**이 옵션을 활성화합니다. 더 보기**신뢰 내부 앱**설정은 기본적으로 비활성화되어 Cloudflare Access에서 올바르게 작동해야 합니다.
+
+    ![Google Cloud Platform 콘솔에서 내부 앱을 신뢰하는 위치.](~/assets/images/cloudflare-one/identity/gsuite/trust-internal-apps.png)
+
+### 2. Cloudflare에 Google Workspace 추가 한국어
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**통합** > **Identity 공급자**.
+
+2. 제품정보**새로운 ID 공급자 추가**선택하기**Google 작업 공간**.
+
+3. 클라이언트 ID를 입력 (**앱 ID**Cloudflare 대시보드) 및 이전에 생성 된 클라이언트 비밀 필드. 또한 Google Workspace 계정의 도메인에 입력하십시오.
+
+4. (선택) 사용[키 교환 증명 (PKCE)](https://www.oauth.com/oauth2-servers/pkce/). PKCE는 모든 로그인 시도에서 수행됩니다.
+
+5. (선택) 밑에**옵션 구성**, 입력[사용자 정의 OIDC 주장](/cloudflare-one/integrations/identity-providers/generic-oidc/#custom-oidc-claims)사용자의 정체성에 추가하고자 합니다.
+
+6. 제품정보**제품 정보**. 설정을 완료하려면 생성 된 링크를 방문해야합니다. Google Workspace 관리자가 아닌 경우 관리자와의 연결을 공유합니다.
+
+7. 생성 된 링크는 Google 관리자 계정에 로그인하고 Cloudflare 액세스 권한을 부여하여 그룹 정보를 볼 수 있습니다. 권한을 허용한 후 Cloudflare 액세스에서 성공 페이지를 볼 수 있습니다.
+
+당신의 연결이 작동되는 것을 시험하기 위하여, 가기**통합** > **Identity 공급자**선택하기**제품정보**Google Workspace에 다음. 사용자 ID 및 그룹 회원은 반환해야 합니다.
+
+:::카트로션\[SCIM Provisioning (베타)]
+Google Workspace와 직접 SCIM 제공 통합은 현재 지원되지 않습니다. Cloudflare는 Google과 협력하여이 기능을 활성화하기 위해 필요한 최종 승인 프로세스를 완료합니다. SCIM 엔드포인트는 SCIM 호환 서비스에서 인바운드 SCIM 이벤트를 수락합니다.
+
+SCIM 엔드포인트를 생성하려면:
+
+1. Cloudflare에서 Google Workspace 로그인 방법을 저장하십시오. 1 (단계 6 위) 및 선택**인증 받기**또는 반환**통합** > **Identity 공급자**Cloudflare에 한국어
+2. 생성된 Google Workspace 로그인 방법 찾기 > 선택**제품정보**.
+3. 이름 \***SCIM 지원**토글.
+4. 제품정보**비밀번호**.
+
+이것은 생성한다**SCIM 엔드포인트**SCIM 호환 서비스에서 inbound SCIM 이벤트를 수용 할 수 있습니다.
+
+:::
+
+:::주최\[`Failed to fetch group information from the identity provider`오류]
+
+성공적으로 테스트하려면, 당신은해야합니다[끝 설정](https://community.cloudflare.com/t/google-workspace-failed-to-fetch-group-information-from-the-identity-provider/313361/2). 끝마무리 설정의 앞에 시험은 결과에 있을 것입니다[`Failed to fetch user/group information from the identity provider`오류 수정](/cloudflare-one/faq/troubleshooting/#i-am-getting-the-error-failed-to-fetch-usergroup-information-from-the-identity).
+
+:::
+
+## API 구성 보기
+
+```json
+{
+	"config": {
+		"client_id": "<your client id>",
+		"client_secret": "<your client secret>",
+		"apps_domain": "mycompany.com"
+	},
+	"type": "google-apps",
+	"name": "my example idp"
+}
+```
+
+## 문제 해결
+
+### `Error 401: deleted_client`
+
+<Render file="access/error-401" product="cloudflare-one" />

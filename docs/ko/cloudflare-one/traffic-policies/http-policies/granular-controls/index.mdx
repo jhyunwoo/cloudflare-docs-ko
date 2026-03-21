@@ -1,0 +1,120 @@
+---
+pcx_content_type: concept
+title: 신청 과립상 통제
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/granular-controls/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/http-policies/granular-controls/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	GranularControlApplicationsList,
+	Render,
+	Details,
+	Tabs,
+	TabItem,
+	APIRequest,
+} from "~/components";
+
+신청 과립상 통제로, 당신은 창조할 수 있습니다[Gateway HTTP 정책](/cloudflare-one/traffic-policies/http-policies/)지원된 SaaS 애플리케이션 내에서 특정 사용자 작업을 제어합니다. 이 응용 프로그램 내에서 수행 할 수있는 작업을 제한하는 동안 응용 프로그램에 액세스 할 수 있습니다.
+
+## 자주 묻는 질문
+
+Application Granular Controls를 사용하려면 다음을 수행해야합니다.
+
+- 설치하기[Cloudflare 증명서](/cloudflare-one/team-and-resources/devices/user-side-certificates/)또는[주문 증명서](/cloudflare-one/team-and-resources/devices/user-side-certificates/custom-certificate/)사용자의 장치.
+- 기타 제품[TLS 해독](/cloudflare-one/traffic-policies/http-policies/tls-decryption/).
+- 계속하기[Gateway 프록시](/cloudflare-one/traffic-policies/proxy/#turn-on-the-gateway-proxy).
+- (선택) HTTP/3을 사용하는 경우, 켜기[UDP 트래픽에 대한 게이트웨이 프록시](/cloudflare-one/traffic-policies/http-policies/http3/#enable-http3-inspection).
+- (선택) 계속하기[AI 신속한 로깅](/cloudflare-one/data-loss-prevention/dlp-policies/logging-options/#log-generative-ai-prompt-content), 만들기[DLP 페이로드 암호화 공개 키](/cloudflare-one/data-loss-prevention/dlp-policies/logging-options/#set-a-dlp-payload-encryption-public-key).
+
+## Application Granular Controls의 정책 작성
+
+Application Granular Controls와 Gateway HTTP 정책을 작성하려면:
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **방화벽 정책**. 선택**HTTP: HTTP**.
+
+    2. 제품정보**정책 추가**.
+
+    3. 이름 정책.
+
+    4. 이름 \***교통안내**, 당신이 허용하거나 차단 할 트래픽을 정의하는 논리 표현을 구축. 과립상 통제가 각 신청에 특정하기 때문에, 당신은 사용해야 합니다*제품 설명*선택기와*이름 \**&#xD68C;사 소개
+
+    5. 내 계정**제품정보**, 당신의 원한 신청을 선택하십시오.
+
+    6. 내 계정**제품정보**, 1개 이상 신청 통제 또는 개인적인 가동을 선택하십시오. 예를 들어, ChatGPT 파일 업로드를 차단하는 정책을 만들 수 있습니다.
+
+       | 옵션 정보 | 회사연혁  | 제품정보    | 제품정보   | - 연혁 |
+       | ----- | ----- | ------- | ------ | ---- |
+       | 제품 설명 | 이름 \* | *채팅GPT* | *제품정보* | 제품정보 |
+
+    7. 제품정보**공지사항**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    사용 방법[Zero Trust 만들기 Gateway 규칙](/api/resources/zero_trust/subresources/gateway/subresources/rules/methods/create/)정책을 만들려면 endpoint. 예를 들어, ChatGPT 파일 업로드를 차단하는 정책을 만들 수 있습니다.
+
+    <APIRequest
+      path="/accounts/{account_id}/gateway/rules"
+      method="POST"
+      json={{
+  	name: "Block ChatGPT uploads",
+  	description: "Block file uploads to ChatGPT while allowing other usage",
+  	enabled: true,
+  	action: "block",
+  	filters: ["http"],
+  	traffic:
+  		"any(app.ids[*] == 1199) and any(app_control.controls[*] in {1653})",
+  	identity: "",
+  	device_posture: "",
+  }}
+    />
+  </TabItem>
+</Tabs>
+
+더 많은 정보를 원하시면, 참조[HTTP 정책](/cloudflare-one/traffic-policies/http-policies/).
+
+## 제어 정의
+
+Gateway는 Application Controls 및 Operations를 포함한 다양한 granularity에서 Application Granular Controls를 정의합니다.
+
+### 신청 통제
+
+애플리케이션 컨트롤은 사전 정의된 컨트롤이며, 사용자 의도를 나타내는 것은 업로드 또는 다운로드와 같습니다. Cloudflare는 응용 프로그램에 특정한 intents와 관련된 작업의 세트를 정의하고 구성합니다. Application Controls는 가장 일반적으로 사용되는 컨트롤을 나타냅니다.
+
+### 영업 시간
+
+Operations는 애플리케이션이 사용하는 개별 API-level 작업입니다. 작업 수준에서 정의 컨트롤을 통해 더 미세 곡물 정책을 통해 특정 유형의 다운로드 만 차단 같은 사용 사례를 지원할 수 있습니다. 이 웹 사이트는 귀하가 웹 사이트를 탐색하는 동안 귀하의 경험을 향상시키기 위해 쿠키를 사용합니다. 그러나 각 SaaS 애플리케이션은 자신의 범위와 행동을 가진 고유 한 운영을 사용하므로 작업 수준 제어의 사용은 종종 각 원하는 사용 사례에 대한 분석이 필요합니다. Cloudflare-defined 애플리케이션 컨트롤에 대한 변형이 필요한 경우 작업 수준 제어도 사용할 수 있습니다.
+
+Cloudflare는 가동을에 근거를 둔 제공합니다[적용 가능한 API](#application-apis). Operations map에 대한 자세한 내용은[신청 통제](#application-controls), 참조[호환성 신청](#compatible-applications).
+
+#### 작업 그룹
+
+Operation Groups는 애플리케이션 공급업체에 의해 정의된 작업 그룹입니다. Operation Groups는 일반적으로 서명 요청과 같은 응용 프로그램의 다른 기능 영역의 categorization을 기반으로합니다. 또는 응용 프로그램은 파일이나 폴더와 같은 정의를 정의합니다. 이 정의는 응용 프로그램에 따라 다릅니다. Gateway 그룹은 해당 공급업체 API 문서와 함께 작업을 일치하기 위해 이러한 작업 그룹으로 운영합니다.
+
+### DLP 페이로드
+
+애플리케이션 과립 제어를 사용할 수 있습니다.[데이터 손실 방지 (DLP)](/cloudflare-one/data-loss-prevention/)스캔 가능한 콘텐츠를 포함 하는 작업. 업로드 또는 다운로드 된 파일 또는 AI 프롬프트의 콘텐츠를 포함하는 작업을 포함합니다. 예를 들어, 사용자가 파일 업로드를 수행 할 때, API 작업의 순서는 파일 메타데이터를 설정하고 파일 콘텐츠를 업로드하고 업로드 할 수 있습니다. Zero Trust 트래픽에 DLP를 적용하면 파일 콘텐츠를 포함하는 작업에 특히 도움이 될 수 있습니다.
+
+## 신청 APIs
+
+SaaS 애플리케이션은 일반적으로 여러 API를 제공합니다. 각 애플리케이션의 경우, Application Granular Controls는 다음과 같은 API 유형을 지원할 수 있습니다.
+
+- Web Application API: 이 API는 사용자가 브라우저를 통해 상호 작용하는 웹 애플리케이션에 의해 소모됩니다.
+- Platform API: 이 API는 SaaS 애플리케이션과 프로그래밍 상호 작용을 허용하기 위해 사용자에게 노출됩니다. 이것은 일반적으로 자동화, 스크립트 또는 기타 응용 프로그램에 의해 사용됩니다.
+
+[신청 통제](#application-controls)API 유형 모두의 작업을 포함합니다. 두 API 유형 모두 HTTP 정책을 만들 때 사용할 수 있습니다.[영업 시간](#operations), 당신은 사용중인 API에 맞추는 가동을 선택해야 합니다, 또는 더 넓은 적용을 위해 둘 다.
+
+## 호환성 신청
+
+신청 과립상 통제는 뒤에 오는 신청을 지원합니다:
+
+<GranularControlApplicationsList />

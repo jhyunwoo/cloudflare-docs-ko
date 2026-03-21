@@ -1,0 +1,309 @@
+---
+pcx_content_type: concept
+title: 원격 관리 전화 (RPC)
+tags:
+  - RPC
+head: []
+description: JavaScript-native RPC 시스템은 Workers 및 Durable Objects로 제작되었습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	DirectoryListing,
+	Render,
+	YouTube,
+	WranglerConfig,
+	TypeScriptExample,
+} from "~/components";
+
+:::참조
+RPC를 사용하기 위하여,[호환성 날짜 정의](/workers/configuration/compatibility-dates)이름 \*`2024-04-03`또는 더 높은, 또는 포함`rpc`내 계정[모델 번호: compatibility flags](/workers/configuration/compatibility-flags/#nodejs-compatibility-flag).
+:::
+
+Workers는 붙박이, JavaScript-native를 제공합니다[RPC (리모드 절차 호출)](https://en.wikipedia.org/wiki/Remote_procedure_call)시스템, 당신을 허용:
+
+- 같은 Cloudflare 계정에 다른 WorkersXQ에 의해 호출 될 수있는 작업자의 공개 방법을 정의,[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/rpc)
+- 공공 방법 정의[Durable Objects](/durable-objects)동일한 CloudflareQ 계정에 다른 노동자에 의해 호출 될 수 있습니다.
+
+RPC 시스템은 동일한 노동자에 JavaScript 기능을 호출 할 수있는 것과 유사하게 느낄 수 있도록 설계되었습니다. 대부분의 경우, 당신은 같은 방법으로 코드를 작성할 수 있어야 당신은 모든 단일 노동자에 있었다.
+
+## 이름 \*
+
+<Render file="service-binding-rpc-example" product="workers" />
+
+클라이언트는 이 경우 Worker A에서 Worker B를 호출하고 클라이언트가 제공하는 특정 인수를 사용하여 특정 절차를 실행하는 것을 말합니다. 이것은 표준 JavaScript 종류로 성취됩니다.
+
+## 모든 통화는 비동기
+
+서버 측에 비동기 선언 된 방법 또는 그렇지 않으면 클라이언트 측과 같은 행동합니다. 당신은`await`결과.
+
+RPC 통화는 실제로 반환하지 않습니다.`Promise`s, 그러나 그들은 같은 유형을 반환`Promise`. 유형은 "custom thenable", 즉, 그것은 방법을 구현`then()`. JavaScript는 어떤 “thenable” 유형을 기다리고, 그래서, 대부분의 부분을 위해, 당신은 Promise 같이 반환 가치를 대우할 수 있습니다.
+
+(우리는 유형이 실제로 조금 나중에 약속하지 않는 이유를 볼 수 있습니다.)
+
+## 구조화된 clonable 유형 및 더 많은 것
+
+거의 모든 유형은[통합 Cloneable](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm#supported_types)RPC 방법의 매개 변수 또는 반환 값으로 사용할 수 있습니다. JavaScript의 기본 "값" 유형이 포함되며, 객체, 배열, 문자열 및 숫자를 포함한 대부분의 기본 "값" 유형이 포함되어 있습니다.
+
+Structured Clone, Application-defined (또는 custom prototype을 가진 객체)를 제외하고 RPC를 통해 전달할 수 없습니다.
+
+RPC 시스템은 다음과 같은 구조화 된 복제가 아닌 다양한 유형도 지원합니다.
+
+- sender로 돌아가는 stubs에 의해 대체되는 기능.
+- 애플리케이션 정의 클래스 확장`RpcTarget`stubs에 의해 유사하게 대체되는 ,.
+- [읽을 수 있는Stream](/workers/runtime-apis/streams/readablestream/)·[관련 링크](/workers/runtime-apis/streams/writablestream/), 자동적인 흐르는 교류 통제와 더불어.
+- [제품 정보](/workers/runtime-apis/request/)·[관련 기사](/workers/runtime-apis/response/), 편리하게 HTTP 메시지를 나타냅니다.
+- RPC는 세번째 노동자에게서 얻은 경우에 그들 스스로, 조차.
+
+## 제품정보
+
+당신은 RPC에 기능을 보낼 수 있습니다. 그렇게 할 때, 함수는 "stub"로 대체됩니다. 수신자는 함수처럼 stub를 호출 할 수 있지만, 함수가 시작된 장소에 새로운 RPC를 다시 만듭니다.
+
+### RPC 방법의 반환 기능
+
+<Render file="service-binding-rpc-functions-example" product="workers" />
+
+### RPC 방법의 모수로 기능을 보내십시오
+
+RPC의 매개 변수에 함수를 보낼 수도 있습니다. "서버"를 활성화하여 "클라이언트"로 돌아가며 관계의 방향을 반전합니다.
+
+이 때문에 "클라이언트"와 "서버"는 RPC에 대해 이야기 할 때 주변 일 수 있습니다. "서버"는 튼튼한 개체 또는 WorkerEntrypoint이며, "클라이언트"는 바인딩을 통해 서버를 호출하는 노동자입니다. 하지만, RPC는 두 가지 방법 모두 흐름 할 수 있습니다. 개인 RPC에 대해 이야기 할 때 "caller"과 "callee"라는 단어를 사용하는 것이 좋습니다.
+
+## 종류 Instances
+
+RPC 방법의 매개 변수 또는 반환 값으로 정의하는 클래스의 인스턴스를 사용하려면 내장형을 확장해야합니다.`RpcTarget`수업.
+
+다음 예제를 고려:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "counter",
+  	"main": "./src/counter.js"
+  }
+  ```
+</WranglerConfig>
+
+<TypeScriptExample>
+  ```ts
+  import { WorkerEntrypoint, RpcTarget } from "cloudflare:workers";
+
+  class Counter extends RpcTarget {
+  	#value = 0;
+
+  	increment(amount: number) {
+  		this.#value += amount;
+  		return this.#value;
+  	}
+
+  	get value() {
+  		return this.#value;
+  	}
+  }
+
+  export class CounterService extends WorkerEntrypoint {
+  	async newCounter() {
+  		return new Counter();
+  	}
+  }
+
+  export default {
+  	fetch() {
+  		return new Response("ok");
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+이 방법`increment`클라이언트에 의해 직접 호출 할 수 있습니다, 공공 재산 할 수`value`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "client-worker",
+  	"main": "./src/clientWorker.js",
+  	"services": [
+  		{
+  			"binding": "COUNTER_SERVICE",
+  			"service": "counter",
+  			"entrypoint": "CounterService"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env) {
+  		using counter = await env.COUNTER_SERVICE.newCounter();
+
+  		await counter.increment(2); //반환 2
+  		await counter.increment(1); //반환 3
+  		await counter.increment(-5); //반환 -2
+
+  		const count = await counter.value; //반환 -2
+
+  		return new Response(count);
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+:::참조
+
+더 알아보기[Explicit 자원 관리](/workers/runtime-apis/rpc/lifecycle)더 알아보기`using`위의 예에서 표시된 선언.
+주요 특징
+
+확장된 클래스`RpcTarget`함수와 같은 많은 작업을 수행: 객체 자체는 직렬화되지 않습니다, 하지만 대신 stub에 의해 대체. 이 경우, 그 자체는 호출 할 수 없습니다, 하지만 그 방법은. stub에 어떤 방법을 호출 실제로 만든 원래 객체로 RPC를 다시 만든다.
+
+위와 같이 클래스의 속성에 접근할 수 있습니다. 속성은 RPC 메소드와 같은 행동은 어떤 인수를하지 않습니다 - 당신은 현재의 값을 비동기적으로 fetch하는 속성을 기다립니다. 해당 이용 후기에 달린 코멘트가 없습니다.`.then()`그것에) 재산이 fetched 무슨 원인 이다. 이용안내`await`재산에 액세스 할 때, 그것은 fetched되지 않습니다.
+
+:::참조
+
+많은 기능을 포함하는 객체를 사용하여 콜러에 유사한 인터페이스를 정의 할 수 있지만, 이것은 덜 효율적입니다. 5 가지 기능을 포함하는 객체를 반환하면 5 개의 스텁을 만듭니다. 클래스 인스턴스를 반환하면 클래스가 5 가지 방법을 선언하면 단일 스텁을 반환합니다. 단일 스텁을 반환하는 것은 종종 더 효율적이고 더 쉬운 이유입니다. 또한, 일반 객체를 반환할 때 (클래스 없음), 객체의 비 기능 속성은 객체 자체가 전송되는 시간에 전달됩니다; 그들은 비동기적으로 주문할 수 없습니다.
+주요 특징
+
+:::참조
+
+상속하지 않는 클래스`RpcTarget`RPC를 통해 전송할 수 없습니다. 이 클래스는 Clone 구조와 다릅니다. 왜 차이? 기본적으로 Structured Clone 알고리즘은 객체의 클래스를 완전히 무시합니다. 그래서, 수신자는 원래 객체의 인스턴스 속성을 포함하는 일반 객체를 수신하지만 완전히 원래 유형을 누락. 이 행동은 연습에서 거의 유용하며 개발자가 치료하는 클래스를 마련한 경우 혼란스럽습니다.`RpcTarget`. 따라서, Workers RPC는 종류가 아닙니다`RpcTarget`s, 어떤 혼란을 피하기 위해.
+주요 특징
+
+### 공급 업체
+
+RPC 메소드를 호출하고 객체를 다시 얻을 때 즉시 객체에 메소드를 호출하는 것이 일반적입니다.
+
+<TypeScriptExample>
+  ```ts
+  //2 왕복.
+  using counter = await env.COUNTER_SERVICE.getCounter();
+  await counter.increment();
+  ```
+</TypeScriptExample>
+
+그러나 당신이 호출하는 노동자 서비스가 네트워크에서 멀리있을 수 있음을 고려하면[스마트 배치](/workers/configuration/placement/)또는[모델 번호: Durable Objects](/durable-objects). 위의 코드는 두 라운드 여행, 한 번 호출 할 때`getCounter()`, 그리고 다시 호출 할 때`.increment()`. 우리는 이것을 피하고 싶습니다.
+
+대부분의 RPC 시스템을 사용하면 문제가 단일 "배치" 통화로 두 개의 통화를 결합 할 수있는 유일한 방법은 아마도 호출됩니다.`getCounterAndIncrement()`. 그러나, 이것은 인터페이스를 더 악화한다. 로컬 인터페이스를 설계하지 않을 것입니다.
+
+QXQX0908XQRPC는 다른 접근을 허용합니다: 당신은 단순히 첫번째를 omit 할 수 있습니다`await`:
+
+<TypeScriptExample>
+  ```ts
+  //1 왕복 한정! 누락된 `await`를 참고하십시오.
+  using promiseForCounter = env.COUNTER_SERVICE.getCounter();
+  await promiseForCounter.increment();
+  ```
+</TypeScriptExample>
+
+이 코드에서,`getCounter()`카운터에 대한 약속을 반환합니다. 일반적으로, 당신이 약속과 할 유일한 것은`await`그것은. 그러나, Workers RPC는 특별합니다: 그들은 또한 당신이 약속의 미래 결과에 speculative 전화를 개시하는 것을 허용합니다. 이 호출은 초기 통화를 완료하지 않고 즉시 서버에 전송됩니다. 따라서 다중 체인 통화는 단일 왕복에서 완료 될 수 있습니다.
+
+이 작업은 어떻게 합니까? RPC가 반환된 약속은 실제 JavaScript`Promise`. 대신, 그것은 관례입니다["사용 가능"](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise#thenables). 그것은 있다`.then()`같은 방법`Promise`당신이 정상을 사용하는 모든 장소에서 사용할 수있는`Promise`. 예를 들면, 당신은 할 수 있습니다`await`그것은. 그러나, 그 외에도 RPC는 또한 스텁처럼 작동합니다. 약속에 어떤 방법 이름을 부르는 것은 약속의 eventual 결과에 대한 speculative 호출을 형성합니다. 이것은 "promise pipelining"로 알려져 있습니다.
+
+RPC 방법으로 반환된 개체의 속성을 호출 할 때이 작품. 예를 들면:
+
+<TypeScriptExample>
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export class MyService extends WorkerEntrypoint {
+  	async foo() {
+  		return {
+  			bar: {
+  				baz: () => "qux",
+  			},
+  		};
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request, env) {
+  		using foo = env.MY_SERVICE.foo();
+  		let baz = await foo.bar.baz();
+  		return new Response(baz);
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+초기 RPC가 예외를 던지는 경우 어떤 파이프라인 통화도 동일한 예외로 실패합니다.
+
+## ReadableStream, WriteableStream, 요청 및 응답
+
+보낼 수 있으며 수신[`ReadableStream`](/workers/runtime-apis/streams/readablestream/), [`WriteableStream`](/workers/runtime-apis/streams/writablestream/), [`Request`](/workers/runtime-apis/request/)·[`Response`](/workers/runtime-apis/response/)RPC 방법을 사용하여. 이렇게 할 때, 몸에 있는 바이트는 적당한 교류 통제로 자동적으로 흐릅니다. 이것은 RPC 이상의 메시지를 보낼 수 있습니다.[전형적인 32 MiB 한계](#limitations).
+
+한국어[byte 중심의 스트림](https://developer.mozilla.org/en-US/docs/Web/API/Streams_API/Using_readable_byte_streams)(내부 byte 소스와 스트림`type: "bytes"`) 지원됩니다.
+
+모든 경우에, 스트림의 소유권은 수신자에게 전송됩니다. sender는 더 이상 그것을 보내기 후에 스트림을 읽을 수 없습니다. sender가 자신의 사본을 지키는 것을 희망하는 경우에, 그것을 사용할 수 있습니다[`tee()`방법의`ReadableStream`](https://developer.mozilla.org/en-US/docs/Web/API/ReadableStream/tee)또는[`clone()`방법의`Request`또는`Response`](https://developer.mozilla.org/en-US/docs/Web/API/Response/clone). 이것을 하는 마음에서 유지 하는 것은 시스템 버퍼 바이트를 강제 하 고 흐름 제어의 혜택을 잃을 수 있습니다.
+
+## 앞으로 RPC stubs
+
+한 노동자에게서 RPC에 받아진 stub는 다른 노동자에 RPC에 전달될 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  using counter = env.COUNTER_SERVICE.getCounter();
+  await env.ANOTHER_SERVICE.useCounter(counter);
+  ```
+</TypeScriptExample>
+
+여기, 3 다른 노동자는 관여됩니다:
+
+1. Worker 호출 (우리는이 "introducer")
+2. `COUNTER_SERVICE`
+3. `ANOTHER_SERVICE`
+
+시간 :`ANOTHER_SERVICE`자주 묻는 질문`counter`즉, 이 호출은 자동으로 소개자와 소개를 통해 발음됩니다[`RpcTarget`](/workers/runtime-apis/rpc/)클래스 구현`COUNTER_SERVICE`.
+
+이 방법에서는, 소개인 노동자는 다른 사람에 직접 연결을 형성하는 어떤 능력이 없는 그렇지 않으면 없는 2개의 WorkersXQ를 연결할 수 있습니다.
+
+현재이 프록시는 Workers' 실행 컨텍스트가 끝날 때까지만 지속됩니다. 프록시 연결은 나중에 사용할 수 없습니다.
+
+## 비디오 자습서
+
+이 비디오에서 Cloudflare WorkersXQ 지원 원격 절차 통화 (RPC)가 WorkersQQQXQ의 통신을 단순화하는 방법을 탐구합니다. JavaScript 애플리케이션에서 RPC를 구현하는 방법을 알아보세요. 마이크로 서비스 관리 또는 웹 아키텍처 최적화 여부,이 튜토리얼은 신속하게 설정하고 RPC 통화에 대한 Cloudflare WorkersXQ를 사용하는 방법을 보여줍니다. 이 비디오의 끝에 Workers 사이의 함수를 호출하는 방법을 이해하고, 인수로 함수를 전달하고, Cloudflare WorkersXQXQ를 사용하여 사용자 인증을 구현합니다.
+
+<YouTube id="Ei8VRDNoD7I" />
+
+## 더 많은 정보
+
+<DirectoryListing />
+
+## 제한 사항
+
+- [스마트 배치](/workers/configuration/placement/)현재 RPC 통화를 만들 때 무시됩니다. Smart Placement가 Worker A를 활성화하고, Worker B는 선언합니다.[서비스 바인딩](/workers/runtime-apis/bindings)그것은, 노동자 B가 RPC를 통해 노동자 A를 부르는 때, 노동자 A는 국부적으로, 동일한 기계에 달할 것입니다.
+
+- 최대 직렬 RPC 제한은 32 MiB입니다. 사용 고려[`ReadableStream`](/workers/runtime-apis/streams/readablestream/)더 많은 데이터를 반환 할 때.
+
+  <TypeScriptExample>
+    ```ts
+    export class MyService extends WorkerEntrypoint {
+    	async foo() {
+    		//이 작품이지만, 그것은 isolate에 많은 메모리 압력을 넣어.
+    		//원본 소스에서 데이터를 스트리밍하면 훨씬 선호되고 더 나은 성능을 얻을 수 있습니다.
+    		//메모리에 데이터를 버퍼해야하는 경우 가능한 한 작은 조각으로 chunking을 고려하십시오.
+
+    		const sizeInBytes = 33 * 1024 * 1024; //33 미비
+    		const arr = new Uint8Array(sizeInBytes);
+
+    		return new ReadableStream({
+    			start(controller) {
+    				controller.enqueue(arr);
+    				controller.close();
+    			},
+    		});
+    	}
+    }
+    ```
+  </TypeScriptExample>

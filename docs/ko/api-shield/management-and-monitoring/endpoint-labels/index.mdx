@@ -1,0 +1,248 @@
+---
+pcx_content_type: how-to
+
+title: Endpoint labeling service
+sidebar:
+  order: 2
+  label: Labeling service
+---
+
+import { Render, Steps, Tabs, TabItem, DashButton } from "~/components";
+
+API Shield의 labeling service는 엔드포인트를 정리하고 API의 취약점을 해결하는 데 도움을 줍니다. Labeling service에는 managed labels와 user-defined labels가 포함됩니다.
+
+현재 managed labels는 사용 사례별로 엔드포인트를 정리하는 데 유용합니다. 향후 릴리스에서는 managed labels가 사용 사례와 정보성 또는 보안 위험이 있는 엔드포인트를 자동으로 레이블링하여, 주의가 필요한 엔드포인트를 알려주게 됩니다.
+
+User-defined labels도 label을 만들고 개별 엔드포인트 또는 여러 엔드포인트에 추가하여 API Shield 엔드포인트에 붙일 수 있습니다. User-defined labels는 엔드포인트를 소유자, 버전, 유형별로 정리하는 데 유용합니다.
+
+라벨을 기준으로 엔드포인트를 필터링할 수 있습니다.
+
+## 카테고리
+
+### Managed labels
+
+managed labels를 사용해 사용 사례별로 엔드포인트를 식별하세요. 향후 릴리스에서는 Cloudflare가 이러한 라벨을 자동으로 적용할 수 있습니다.
+
+`cf-log-in`: 사용자 자격 증명을 받는 엔드포인트에 이 라벨을 추가하세요. 사용자 이름, 비밀번호, 다단계 인증(MFA)을 여러 엔드포인트나 요청에 걸쳐 받는다면 여러 엔드포인트가 있을 수 있습니다.
+
+`cf-sign-up`: 사이트나 애플리케이션에서 사용자 계정 생성의 마지막 단계가 되는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-content`: 상품 세부 정보, 사용자 리뷰, 가격, 기타 고유한 정보처럼 고유한 콘텐츠를 제공하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-purchase`: 온라인에서 상품이나 서비스를 구매하는 마지막 단계가 되는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-password-reset`: 사용자 비밀번호 재설정 과정에 참여하는 엔드포인트에 이 라벨을 추가하세요. 여기에는 초기 비밀번호 재설정 요청과 최종 비밀번호 재설정 제출이 포함됩니다.
+
+`cf-add-cart`: 사용자의 장바구니에 상품을 추가하거나 상품 가용성을 확인하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-add-payment`: 신용카드나 은행 계좌 정보를 받는 엔드포인트에 이 라벨을 추가하세요. 이런 엔드포인트는 사기꾼이 유효한 결제 정보 조합을 추측하기 위해 계좌 번호를 반복 시도할 수 있는 지점입니다.
+
+`cf-check-value`: 리워드 포인트, 게임 내 화폐, 기타 현금 또는 실물 상품으로 적립, 이전, 교환할 수 있는 stored value 상품의 잔액을 확인하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-add-post`: 커뮤니케이션 포럼의 메시지나 상품 또는 판매자 리뷰를 게시하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-account-update`: 사용자 계정 또는 프로필 업데이트에 참여하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-llm`: Large Language Model(LLM)로 전체 또는 일부가 구동되는 서비스입니다.
+
+`cf-rss-feed`: RSS 클라이언트에서 오는 트래픽을 예상하는 엔드포인트에 이 라벨을 추가하세요.
+
+`cf-web-page`: HTML 페이지를 제공하는 엔드포인트에 이 라벨을 추가하세요.
+
+:::note
+[Bot Fight Mode](/bots/get-started/bot-fight-mode/)는 `cf-rss-feed` 라벨이 붙은 엔드포인트 요청을 차단하지 않습니다.
+
+[Super Bot Fight Mode rules](/bots/get-started/super-bot-fight-mode/#ruleset-engine)는 `cf-rss-feed` 라벨이 붙은 요청을 매치하거나 challenge하지 않습니다.
+:::
+
+<div id="risk-labels"></div>
+
+### Risk labels
+
+Cloudflare는 저장된 엔드포인트에 대해 24시간마다 자동으로 risk scan을 실행합니다. scan에서 엔드포인트의 보안 위험을 발견하면 API Shield가 이 라벨을 적용합니다. 위험이 발견되면 해당 Security Center Insight도 함께 생성됩니다.
+
+`cf-risk-missing-auth`: 성공한 모든 요청에 session identifier가 없을 때 자동으로 추가됩니다. 자세한 내용은 [Authentication Posture](/api-shield/security/authentication-posture/#process)를 참고하세요.
+
+`cf-risk-mixed-auth`: 일부 성공한 요청에는 session identifier가 있고, 일부 성공한 요청에는 session identifier가 없을 때 자동으로 추가됩니다. 자세한 내용은 [Authentication Posture](/api-shield/security/authentication-posture/#process)를 참고하세요.
+
+`cf-risk-sensitive`: HTTP 응답이 WAF의 [Sensitive Data Detection](/api-shield/management-and-monitoring/#sensitive-data-detection) ruleset과 일치할 때 엔드포인트에 자동으로 추가됩니다.
+
+`cf-risk-missing-schema`: active schema가 없는 엔드포인트에 learned schema를 사용할 수 있을 때 자동으로 추가됩니다.
+
+`cf-risk-error-anomaly`: 지난 24시간 동안 엔드포인트의 응답 오류가 최근 증가한 경우 자동으로 추가됩니다.
+
+`cf-risk-latency-anomaly`: 지난 24시간 동안 엔드포인트의 응답 지연 시간이 최근 증가한 경우 자동으로 추가됩니다.
+
+`cf-risk-size-anomaly`: 지난 24시간 동안 엔드포인트의 응답 본문 크기가 급증한 경우 자동으로 추가됩니다.
+
+`cf-risk-bola-enumeration`: 서로 다른 사용자 세션이 요청한 고유 요소 수에 큰 차이가 있는 성공 응답이 엔드포인트에서 발생한 경우 자동으로 추가됩니다.
+
+`cf-risk-bola-pollution`: API schema에서 기대하는 방식과 달리 요청 내 여러 위치에서 파라미터가 발견되는 성공 응답이 엔드포인트에서 발생한 경우 자동으로 추가됩니다.
+
+:::note
+Cloudflare는 성공 응답 코드를 가진 엔드포인트에만 authentication labels를 추가합니다. 자세한 내용은 아래 표를 참고하세요.
+:::
+
+#### 권장 조치
+
+엔드포인트 위험에 대응하는 방법은 라벨에 따라 달라집니다. 아래 단계는 일반적인 대응 지침을 제공합니다.
+
+<Steps>
+1. 엔드포인트 위험을 검토합니다. 
+   
+   위험 라벨이 붙은 엔드포인트를 보고, 다른 위험 라벨도 함께 붙어 있는지 확인합니다. 
+
+   예를 들어 `cf-risk-sensitive`와 `cf-risk-missing-auth` 또는 `cf-risk-mixed-auth` 라벨이 함께 붙은 엔드포인트는 인증되지 않은 사용자에게 민감한 데이터를 노출할 수 있습니다.
+
+   <DashButton url="/?to=/:account/:zone/security/web-assets" />
+
+   `cf-risk-missing-auth` 또는 `cf-risk-mixed-auth` 라벨이 붙은 엔드포인트의 상세 페이지로 이동해, 최근 24시간과 7일 동안 인증된 트래픽 프로필에 변화가 있는지 확인합니다.
+
+2. Security Analytics에서 이 라벨이 붙은 엔드포인트의 트래픽을 검토합니다.
+
+   예상치 못한 트래픽 소스를 확인하고, 비정상적인 트래픽 패턴이 있는지 살펴봅니다. 
+
+   :::caution[Filtering]
+   위험 라벨로 필터링하면 해당 위험 때문에 라벨이 적용된 트래픽만이 아니라, 그 위험 라벨이 붙은 모든 엔드포인트의 전체 트래픽이 포함됩니다.
+   :::
+
+   <DashButton url="/?to=/:account/:zone/security/analytics" />
+
+3. 개발 팀과 함께 origin의 authorization 및 authentication 정책을 검토합니다.
+
+   조직 내 개발자나 애플리케이션 소유자와 상의하여, 이 엔드포인트에 대한 모든 요청이 반드시 인증되어야 하는지 확인합니다. 그리고 이러한 엔드포인트에 접근하는 모든 트래픽에 대해 인증 요구 사항이 일관되게 적용되도록 애플리케이션을 수정합니다.
+
+	[Authentication Posture](/api-shield/security/authentication-posture/)를 참고하세요.
+   
+</Steps>
+
+---
+
+## 라벨 만들기
+
+<Tabs syncKey="dashNewNav">
+<TabItem label="New dashboard" icon="rocket">
+
+<Steps>
+
+1. In the Cloudflare dashboard, go to the **Security Settings** page.
+
+   <DashButton url="/?to=/:account/:zone/security/settings" />
+
+2. Filter by **API abuse**.
+3. Under **Endpoint labels**, select **Manage labels**.
+4. Name the label and add an optional label description.
+5. Apply the label to your selected endpoints.
+6. Select **Create label**.
+
+</Steps>
+
+또는 **Security** > **Web Assets**에서 user-defined label을 만들 수 있습니다.
+
+<Steps>
+
+1. In the Cloudflare dashboard, go to the **Web Assets** page.
+
+   <DashButton url="/?to=/:account/:zone/security/web-assets" />
+
+2. Go to the **Endpoints** tab.
+3. Choose the endpoint that you want to label.
+4. Select **Edit endpoint labels**.
+5. Under **User**, select **Create user label**.
+6. Enter the label name.
+7. Select **Create**.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Old dashboard">
+
+<Steps>
+
+1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/), and select your account and domain.
+2. Go to **Security** > **Settings** > **Labels**.
+3. Under **Security labels**, select **Create label**.
+4. Name the label and add an optional label description.
+5. Apply the label to your selected endpoints.
+6. Select **Create label**.
+
+</Steps>
+
+또는 API Shield의 Endpoint Management를 통해 user-defined label을 만들 수 있습니다.
+
+<Steps>
+
+1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/), and select your account and domain.
+2. Go to **Security** > **Settings** > **Labels**.
+3. Choose the endpoint that you want to label.
+4. Select **Edit labels**.
+5. Under **User**, select **Create user label**.
+6. Enter the label name.
+7. Select **Create**.
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## 개별 엔드포인트에 라벨 적용
+
+<Tabs syncKey="dashNewNav">
+<TabItem label="New dashboard" icon="rocket">
+
+<Steps>
+
+<Render file="labels-add" product="api-shield" />
+
+</Steps>
+
+</TabItem>
+<TabItem label="Old dashboard">
+
+<Steps>
+
+<Render file="labels-add-old-nav" product="api-shield" />
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## 여러 엔드포인트에 라벨 일괄 적용
+
+<Tabs syncKey="dashNewNav">
+<TabItem label="New dashboard" icon="rocket">
+
+<Steps>
+
+1. In the Cloudflare dashboard, go to the **Security Settings** page.
+
+   <DashButton url="/?to=/:account/:zone/security/settings" />
+
+2. Filter by **API abuse**.
+3. On **Endpoint labels**, select **Manage labels**.
+4. On the existing label that you want to apply to multiple endpoints, select **Bulk apply**.
+5. Choose the endpoints that you want to label by selecting its checkbox.
+6. Select **Apply label**.
+
+</Steps>
+
+</TabItem>
+<TabItem label="Old dashboard">
+
+<Steps>
+
+1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/), and select your account and domain.
+2. Go to **Security** > **Settings** > **Labels**.
+3. On the existing label that you want to apply to multiple endpoints, select **Bulk apply**.
+4. Choose the endpoints that you want to label by selecting its checkbox.
+5. Select **Save label**.
+
+</Steps>
+
+</TabItem>
+</Tabs>
+
+## 제공 대상
+
+Endpoint labeling은 모든 고객이 사용할 수 있습니다.

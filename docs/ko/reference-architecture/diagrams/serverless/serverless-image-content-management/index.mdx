@@ -1,0 +1,81 @@
+---
+title: Serverless 이미지 콘텐츠 관리
+pcx_content_type: reference-architecture-diagram
+products:
+  - bots
+  - ddos-protection
+  - kv
+  - r2
+  - waf
+  - workers
+  - workers-ai
+sidebar:
+  order: 1
+  label: Serverless 이미지 콘텐츠 관리
+reviewed: 2024-03-18T00:00:00.000Z
+description: Cloudflare의 생태계의 다양한 구성 요소로 확장 가능한 이미지 관리 솔루션 구축
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/serverless/serverless-image-content-management/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/serverless/serverless-image-content-management/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+이 레퍼런스 아키텍처 다이어그램에서는 Cloudflare 생태계의 다양한 구성 요소를 활용해 확장 가능한 이미지 관리 솔루션을 구축하는 방법을 설명합니다. 이 솔루션은 Cloudflare Workers AI 플랫폼을 통해 moderation 원칙을 통합하고, 엣지에서 추론을 수행해 이미지 분류를 실행합니다. 이미지 저장은 Cloudflare의 R2 제품인 S3 API 유사 객체 스토리지가 담당하며, 메타데이터는 콘텐츠 보강을 가능하게 하기 위해 key/value 저장소에 보관됩니다.
+
+클라이언트를 요청하는 이미지의 서비스는 장치 유형에 근거를 둔 연결 서명에 의해 보호되고 또는 요구한 변환 및 Cloudflare의 기본 안전 및 성과 특징을 레버리지.
+
+![Figure 1: Serverless 이미지 콘텐츠 관리](~/assets/images/reference-architecture/serverless_image_content_management/diagram.svg "Figure 1: Serverless image content management reference architecture diagram")
+
+### 레시피에 포함 된 제품
+
+| 제품정보                                                                                   | 제품정보                        |
+| -------------------------------------------------------------------------------------- | --------------------------- |
+| [DDoS 공격](https://www.cloudflare.com/application-services/products/bot-management/)    | Volumetric 공격 보호            |
+| [Bot 관리](https://www.cloudflare.com/ddos/)                                             | 스크랩 및 일반 정교한 자동화 남용에 대한 보호  |
+| [웹 애플리케이션 방화벽](https://www.cloudflare.com/application-services/products/waf/)          | 웹 위협에 대한 보호                 |
+| [사이트맵](https://www.cloudflare.com/application-services/products/cdn/)                  | 이미지의 Cache 확산               |
+| [사업영역](https://www.cloudflare.com/application-services/products/website-optimization/) | 이미지 납품의 압축과 가속              |
+| [모델 번호: Workers](https://workers.cloudflare.com/)                                      | 몇몇 serverless 마이크로 서비스의 컴퓨터 |
+| [사이트맵](https://ai.cloudflare.com/)                                                     | 이미지 분류                      |
+| [모델 번호: R2](https://www.cloudflare.com/developer-platform/r2/)                         | S3-type 객체 저장 플랫폼           |
+| [모델 번호: KV](/kv/)                                                                      | 이미지 metadata 저장             |
+
+## 시작하기
+
+이 레퍼런스 아키텍처 다이어그램은 Cloudflare 플랫폼의 역량을 활용해 완전한 serverless 이미지 및 콘텐츠 관리 시스템을 구축하는 방법을 보여줍니다. 이 구현은 Cloudflare Workers, KV, R2 객체 스토리지, 애플리케이션 성능 최적화 및 캐싱, Rate Limiting과 DDoS 완화 같은 애플리케이션 보안 기능, 그리고 Workers AI를 포함한 Cloudflare 스택의 다양한 구성 요소를 활용합니다.
+
+궁극적 인 목표는 글로벌 이미지 저장 및 서빙을위한 확장 가능한 플랫폼 만들기입니다. 이 참고 자료 아키텍처는 Cloudflare의 기본 기능뿐만 아니라 Cloudflare의 강력한 컴퓨팅 기능을 사용할 수있는 주요 기능과 메커니즘을 통해 걸어갈 것입니다.
+
+### 1. 이미지 servicing
+
+Clients 요청 이미지[HMAC 서명](/workers/examples/signing-requests/)그리고 필요한 변환. 변환 모수는 안으로 포함될 수 있습니다[프로젝트](/images/transform-images/make-responsive-images/#srcset-for-high-dpi-displays)HTML 콘텐츠 또는 직접 전송[HTTP 요청](/images/transform-images/transform-via-url/).
+
+### 2. 부피 보호
+
+Cloudflare의 Application Security stack은 악의적인 활동에서 이미지 세분화에 대한 종합적인 접근 방식을 취합니다. Volumetric 보호 구현[제한 속도](/waf/rate-limiting-rules/), 우리는 효과적으로 남용의 위험을 완화[DDoS 공격](/ddos-protection/)공격, uninterrupted 서비스 배달을 보장.
+
+### 3. 서명 검증
+
+·[Cloudflare 노동자](/workers/)기능 validates[연락처](/workers/examples/signing-requests/)요청의 정체성과 무결성을 보장하기 위해. 이 보안 조치는 요청을 동반 한 서명이 합법적 인 것으로 확인하여 서비스의 내용 evasion 및 학대를 방지하는 데 도움이됩니다. 콘텐츠 및 관련 서명을 생성하는 응용 프로그램은 링크에 대한 만료 날짜를 설정할 수 있으며, tampering 또는 man-in-the-middle 공격에 대한 추가 보호. HMAC (Hash-based Message Authentication Code)는 이 목적을 위해 선택의 서명 메커니즘으로 일반적으로 사용됩니다.
+
+### 4. 이미지 최적화 및 캐싱
+
+이미지는 에서 retrieved[뚱 베어](/cache/)서버에서 사용할 수 있거나 첫 번째 시간에 저장하고 요청시 고객에게 전달됩니다. 우리는 각 장치를 위한 가장 적당한 체재를 봉사해서 이미지 납품을 낙관합니다[웹 또는 AVIF](/images/polish/), 또한 파일 크기를 줄이기 위하여 압축을 적용하는 동안. 이것은 사용자를 위한 매끄럽고 이음새가 없는 시각적인 경험을 지킵니다.
+
+### 4. 이미지 변환
+
+Cloudflare의[이미지 resizing](/images/)이 웹 사이트는 귀하가 웹 사이트를 탐색하는 동안 귀하의 경험을 향상시키기 위해 쿠키를 사용합니다. 이 쿠키들 중에서 필요에 따라 분류 된 쿠키는 웹 사이트의 기본적인 기능을 수행하는 데 필수적이므로 브라우저에 저장됩니다. 이 빠르고 효율적인 프로세스는 다양한 변환 옵션을 제공합니다.
+
+### 5. 내용 형태 및 저장
+
+·[모델 번호: Cloudflare 작업자](/workers/)script meticulously 분석 들어오는 이미지, 활용[분류 메타데이터](/workers-ai/models/)설치 정책의 준수를 보장하기 위해.[Cloudflare R2](/r2/)S3-like object storage solution은 전 세계적으로 접근 및 확장 가능한 방식으로 이미지 및 관련 메타데이터를 저장합니다. 번개 빠른 납품 기능 및 0, Cloudflare R2에서 가늠자하는 능력은 이미지의 큰 수집을 저장하고 관리하는 이상적인 해결책입니다.
+
+### 6. 이미지 분류
+
+이름 \*[Cloudflare AI의](https://ai.cloudflare.com/)핵심에, 우리의[이미지 분류](/workers-ai/models/)inference 모형은 급속하게 각 들어오는 이미지를 검열할 것입니다, 순간에 분류. 이 최첨단 기술은 각 제출을 통해 전용 팀에 대한 필요성을 크게 줄이고 검토 할 수 있습니다.

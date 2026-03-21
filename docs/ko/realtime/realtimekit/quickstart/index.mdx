@@ -1,0 +1,296 @@
+---
+pcx_content_type: navigation
+title: 빠른 시작
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/quickstart/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/realtimekit/quickstart/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+### 자주 묻는 질문
+
+RealtimeKit을 응용 프로그램에 통합하려면, 당신은해야합니다[Cloudflare 계정](https://dash.cloudflare.com).
+
+1. 자주 묻는 질문[API 토큰 가이드](/fundamentals/api/get-started/create-token/)새로운 토큰 만들기[Cloudflare dashboard](https://dash.cloudflare.com/profile/api-tokens).
+2. 권한을 설정할 때,**현재 위치** / **실시간 관리자**권한이 선택되어 있습니다.
+3. 추가 설정[액세스 정책 및 제한](/fundamentals/api/reference/permissions/)당신의 사용 케이스에 필요한.
+
+*옵션 :*&#xB300;안으로,[API를 통해 토큰 프로그래밍](/fundamentals/api/how-to/create-via-api/). 귀하의 액세스 정책을 준수하십시오.**현재 위치**이름 \*
+
+<iframe style="width: 100%; height: auto; aspect-ratio: 16 / 9;" src="https://www.youtube.com/embed/z4ZQIjN3I7k?si=iVO7F5wbhQXAqBB2" title="YouTube 비디오 플레이어" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen />
+
+### 설치하기
+
+<Render file="realtimekit/common/installation" product="realtime" />
+
+### RealtimeKit 앱 만들기
+
+응용 프로그램을 만들 수 있습니다.[Cloudflare 대시보드](https://dash.cloudflare.com/?to=/:account/realtime/kit), Create App을 클릭하여.
+
+*옵션 :*&#xB610;한 사용할 수 있습니다.[API reference](/api/resources/realtime_kit/)응용 프로그램 만들기:
+
+```bash
+curl --location 'https://api.cloudflare.com/client/v4/accounts/<account_id>/realtime/kit/apps' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <api_token>' \
+--data '{"name": "My First Cloudflare RealtimeKit app"}'
+```
+
+> **참고 :**&#xC6B0;리는 staging와 생산 환경을 위한 다른 앱을 창조하는 것을 추천합니다.
+
+### 회의 만들기
+
+우리를 따르라[회의 API](/api/resources/realtime_kit/subresources/meetings/methods/create/)회의를 만들려면. 우리는 사용할 것입니다**응답의 ID**다음 단계.
+
+```bash
+curl --location 'https://api.cloudflare.com/client/v4/accounts/<account_id>/realtime/kit/<app_id>/meetings' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <api_token>' \
+--data '{"title": "My First Cloudflare RealtimeKit meeting"}'
+```
+
+### 참가자 추가
+
+#### Preset 만들기
+
+Presets는 사용자가해야 할 권한을 정의합니다. Concepts 가이드에서 더 알아보기.
+새로운 프리셋을 만들 수 있습니다.[사전 설정 API](/api/resources/realtime_kit/subresources/presets/methods/create/)또는 통해[RealtimeKit dashboard](https://dash.cloudflare.com/?to=/:account/realtime/kit).
+
+> **참고 :**&#x64;ashboard-default presets에 앱을 생성하면이 단계를 건너 뛸 수 있습니다.
+
+> **참고 :**&#x50;resets는 다수 회의를 통하여 재사용될 수 있습니다. 한 번에 역할 (예를 들어, 관리자 또는 시청자)를 정의하고 참가자에게 어떤 회의에서 적용하십시오.
+
+#### 참가자 추가
+
+참여자는 회의에 추가됩니다.`Meeting ID`위의 생성 및 선택`Preset Name`사용 가능한 옵션에서.
+
+응답은 포함`authToken`그대는**Client SDK는 회의에 이 참여자를 추가합니다.**&#xBC29;.
+
+```bash
+curl --location 'https://api.cloudflare.com/client/v4/accounts/<account_id>/realtime/kit/<app_id>/meetings/<meeting_id>/participants' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer <api_token>' \
+--data '{
+  "name": "Mary Sue",
+  "preset_name": "<preset_name>",
+  "custom_participant_id": "<uuid_of_the_user_in_your_system>"
+}'
+```
+
+참가자에게 더 자세히 알아보기[API reference](/api/resources/realtime_kit/subresources/meetings/methods/add_participant/).
+
+### Frontend 통합
+
+RealtimeKit Client SDK를 응용 프로그램에 추가할 수 있습니다.
+
+<RTKCodeSnippet id="web-react">
+  react 애플리케이션 내에서 다음 코드를 추가하십시오:
+
+  ```ts
+
+  import { useEffect } from "react";
+  import {
+  	useRealtimeKitClient,
+  	useRealtimeKitMeeting,
+  	RealtimeKitProvider,
+  } from "@cloudflare/realtimekit-react";
+  import { RtkMeeting } from "@cloudflare/realtimekit-react-ui";
+
+  export default function App() {
+    const [meeting, initMeeting] = useRealtimeKitClient();
+
+  useEffect(() => {
+  initMeeting({ authToken: '<auth-token>' });
+  }, []);
+
+  return (
+
+  <RealtimeKitProvider value={meeting}>
+  	<MyMeetingUI />
+  </RealtimeKitProvider>
+  ); }
+
+  export default function MyMeetingUI() {
+    const { meeting } = useRealtimeKitMeeting();
+    return (
+      <RtkMeeting mode="fill" meeting={meeting} showSetupScreen={true} />
+    );
+
+  }
+
+  ```
+
+  기타 제품`<auth-token>`이전 단계에서 authToken을 획득했습니다.
+
+  애플리케이션을 실행하고 미팅 페이지로 이동하여 RealtimeKit Client SDK가 동작합니다.
+
+  ```bash
+  npm run dev
+  ```
+
+  *옵션 :*&#xC900;비된 템플릿을 사용하는 경우 다음 명령을 실행하여 응용 프로그램을 시작합니다.
+
+  ```bash
+  npm i -g vite && npm run dev
+  ```
+
+  브라우저에서 앱을 엽니다. 회의에 가입하려면 auth 토큰을 미리보기 URL에 추가하십시오.
+
+  ```bash
+  http://localhost:5173?authToken=<auth_token>
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  html 응용 프로그램을 내부, 다음 코드를 추가:
+
+  ```html
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Default Meeting UI | RealtimeKit</title>
+
+      <!--UI Kit 컴포넌트를 로드하는 데 도움을 줍니다.-->
+      <script type="module">
+        import { defineCustomElements } from 'https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit-ui@latest/loader/index.es2017.js';
+        defineCustomElements();
+      </script>
+
+      <!--CDN을 통해 RealtimeKit 코어 가져 오기-->
+      <script src="https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/browser.js"></script>
+
+    </head>
+    <body>
+      <rtk-meeting id="my-meeting" show-setup-screen="true" />
+
+      <script>
+        const searchParams = new URL(window.location.href).searchParams;
+
+        const authToken = searchParams.get('authToken');
+
+        if (!authToken) {
+          alert(
+            "An authToken wasn't passed, please pass an authToken in the URL query to join a meeting."
+          );
+        }
+
+        // Initialize a meeting
+        RealtimeKitClient.init({
+          authToken,
+        }).then((meeting) => {
+          document.getElementById('my-meeting').meeting = meeting;
+        });
+      </script>
+
+    </body>
+  </html>
+
+  ```
+
+  기타 제품`<auth-token>`이전 단계에서 authToken을 획득했습니다.
+
+  애플리케이션을 실행하고 미팅 페이지로 이동하여 RealtimeKit Client SDK가 동작합니다.
+
+  ```bash
+  npm run dev
+  ```
+
+  *옵션 :*&#xC900;비된 템플릿을 사용하는 경우 다음 명령을 실행하여 응용 프로그램을 시작합니다.
+
+  ```bash
+  npm i -g vite && npm run dev
+  ```
+
+  브라우저에서 앱을 엽니다. 회의에 가입하려면 auth 토큰을 미리보기 URL에 추가하십시오.
+
+  ```bash
+  http://localhost:5173?authToken=<auth_token>
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  RTKComponentsModule을 앱 모듈로 로드합니다. 이것은 일반적으로 app.module.ts 파일입니다.
+  구성 요소 HTML 파일에서 UI 구성 요소를 사용할 수 있습니다.
+
+  ```ts
+  import { NgModule } from '@angular/core';
+  import { BrowserModule } from '@angular/platform-browser';
+  import { RTKComponentsModule } from '@cloudflare/realtimekit-angular';
+  import { AppComponent } from './app.component';
+
+  @NgModule({
+  declarations: [AppComponent],
+  imports: [BrowserModule, RTKComponentsModule],
+  providers: [],
+  bootstrap: [AppComponent],
+  })
+  export class AppModule {};
+
+  ```
+
+  *옵션 :*&#x54;ypeScript를 사용하는 경우, tsconfig.json에서 true로 AllowSyntheticDefaultImports를 설정합니다.
+
+  ```ts
+  {
+  	"compilerOptions": {
+  		"allowSyntheticDefaultImports": true
+  	}
+  }
+  ```
+
+  RtkMeeting 컴포넌트를 템플릿 파일(component.html)에 로드합니다.
+
+  ```html
+  <rtk-meeting #myid></rtk-meeting>
+  ```
+
+  미팅 시작
+
+  ```ts
+  	class AppComponent {
+  	title = 'MyProject';
+  	@ViewChild('myid') meetingComponent: RtkMeeting;
+  	rtkMeeting: RealtimeKitClient;
+
+  	async ngAfterViewInit() {
+  		const meeting = await RealtimeKitClient.init({
+  		authToken: '<auth-token>',
+  		});
+  		meeting.join();
+  		this.rtkMeeting = meeting;
+  		if (this.meetingComponent) this.meetingComponent.meeting = meeting;
+  	}
+  	}
+  ```
+
+  기타 제품`<auth-token>`이전 단계에서 authToken을 획득했습니다.
+
+  애플리케이션을 실행하고 미팅 페이지로 이동하여 RealtimeKit Client SDK가 동작합니다.
+
+  ```bash
+  npm run dev
+  ```
+
+  *옵션 :*&#xC900;비된 템플릿을 사용하는 경우 다음 명령을 실행하여 응용 프로그램을 시작합니다.
+
+  ```bash
+  npm i -g vite && npm run dev
+  ```
+
+  브라우저에서 앱을 엽니다. 회의에 가입하려면 auth 토큰을 미리보기 URL에 추가하십시오.
+
+  ```bash
+  http://localhost:5173?authToken=<auth_token>
+  ```
+</RTKCodeSnippet>

@@ -1,0 +1,92 @@
+---
+reviewed: 2023-12-08T00:00:00.000Z
+category: Zero Trust
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: 전용 IP로 Microsoft 365에 대한 액세스를 보호합니다.
+description: >-
+  이 튜토리얼은 Cloudflare Gateway 전용 egress IP를 사용하여 Microsoft 365 애플리케이션에 액세스하는 방법을
+  다룹니다.
+tags:
+  - Microsoft
+  - IPv4
+  - IPv6
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/m365-dedicated-egress-ips/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/m365-dedicated-egress-ips/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+:::참조
+
+Zero Trust Enterprise 플랜에서만 사용할 수 있습니다.
+
+:::
+
+이 튜토리얼은 Cloudflare Gateway 전용 egress IP를 사용하여 Microsoft 365 애플리케이션에 액세스하는 방법을 다룹니다.
+
+전용 IP와 관련된 위치에 Microsoft Entra ID의 이름을 지정할 수 있습니다. 트래픽은 Cloudflare에서 이러한 IP 주소로 이동합니다. 사용자가 이러한 IP없이 Microsoft 응용 프로그램에 액세스하려고하면 Entra ID는 액세스 차단됩니다.
+
+## 시작하기 전에
+
+당신이 가지고 있는지 확인:
+
+- Cloudflare에서 Zero Trust 기업 계획[전용 egress IP](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/)
+- Microsoft 365에서 관리 된 조직[마이크로 소프트 엔트라 ID](https://learn.microsoft.com/en-us/entra/identity/)
+
+## Cloudflare Gateway의 egress 정책 만들기
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**교통 정책** > **Egress 정책**.
+
+2. 제품정보**정책 추가**.
+
+3. 정책 이름을 지정한 다음 사용자가 Microsoft Entra ID로 구성되도록 조건을 추가합니다. 예를 들면, 당신은 검사할 수 있습니다[ID 상태](/cloudflare-one/traffic-policies/identity-selectors/):
+
+   | 옵션 정보     | 회사연혁 | 제품정보                                          |
+   | --------- | ---- | --------------------------------------------- |
+   | 사용자 그룹 이름 | 내 계정 | `Sales and Marketing`, `Retail`, `U.S. Sales` |
+
+   또한 체크인 할 수 있습니다.[장치 자세 조건](/cloudflare-one/reusable-components/posture-checks/):
+
+   | 옵션 정보                    | 회사연혁  | 제품정보                                              | 로그인   |
+   | ------------------------ | ----- | ------------------------------------------------- | ----- |
+   | Passed Device Posture 체크 | 이름 \* | `CrowdStrike Overall ZTA score (Crowdstrike s2s)` | 이름 \* |
+   | Passed Device Posture 체크 | 이름 \* | `AppCheckMac - Required Software (Application)`   |       |
+
+4. 이름 \***전용 Cloudflare egress IPs 사용**. 원하는 IPv4 및 IPv6 주소를 선택하십시오. 예를 들면:
+
+   | 기본 IPv4 주소    | IPv6 주소         |
+   | ------------- | --------------- |
+   | `203.0.113.0` | `2001:db8::/32` |
+
+## Microsoft Entra ID의 IP 범위 위치를 만듭니다.
+
+1. 로그인하기[Microsoft Azure 포털](https://aka.ms/azureportal).
+2. 사이드바에서, 선택**마이크로 소프트 엔트라 ID**.
+3. 오시는 길**보안 보안** > **이름**.
+4. 제품정보**IP 범위 위치**.
+5. 귀하의 위치를 이름을 따서 Cloudflare 전용 egress IP 정책에 사용되는 IP 주소를 추가하십시오.
+6. 제품정보**제품정보**.
+
+이 이름의 위치는 전용 IP의 위치와 일치합니다.
+
+## Microsoft Entra ID의 상태 접근 정책 생성
+
+1. 내 계정**제품정보**, 이동**상태 접근**.
+2. 제품정보**새로운 정책 만들기**.
+3. Entra ID 사용자를 구성하여 액세스 제한 및 트래픽, 응용 프로그램, 또는 보호하려는 작업.
+4. 내 계&#xC815;**\* 이름**, 선택**회사연혁**. 사용**설정하기**.
+5. 내 계정**이름 \***, 선택*모든 위치*. 에서**이름 \***, 당신이 만든 이름을 선택합니다.
+6. 내 계정**액세스 제어**, 이동**지원하다**. 사용*블록 액세스*.
+
+귀하의 정책은 전용 IP를 사용하여 해당 위치에서 선택한 사용자에 대한 액세스를 차단합니다.
+
+## 당신의 정책
+
+1. 사용 방법[사이트맵](/cloudflare-one/team-and-resources/devices/warp/), 사용자 계정으로 Zero Trust 조직에 로그인하십시오.
+2. 조직 내에서 Microsoft 365 앱으로 이동하십시오. Entra ID는 접근을 허용해야 합니다.
+3. Zero Trust 조직에서 WARP를 분리하십시오. Entra ID는 어떤 Microsoft 365 신청든지에 접근을 막아야 합니다.

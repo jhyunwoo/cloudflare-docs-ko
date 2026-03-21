@@ -1,0 +1,117 @@
+---
+reviewed: 2024-03-04T00:00:00.000Z
+category: Zero Trust
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: WARP없이 개인 별명을 통해 웹 응용
+description: >-
+  Cloudflare로 Browser Isolation and fixr policy, 사용자는 개인 호스트 이름을 통해 개인 웹 기반 응용
+  프로그램에 연결할 수 있습니다.
+tags:
+  - DNS
+  - Private networks
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/clientless-access-private-dns/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/clientless-access-private-dns/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+Cloudflare로 Browser Isolation and fixr policy, 사용자는 WARP 클라이언트를 설치하지 않고 개인 호스트 이름을 통해 개인 웹 기반 응용 프로그램에 연결할 수 있습니다. 이 튜토리얼의 끝에 게이트웨이 DNS 및 네트워크 정책을 통과하는 사용자는 개인 응용 프로그램에 액세스 할 수 있습니다`https://<your-team-name>.cloudflareaccess.com/browser/https://internalrecord.com`.
+
+## 시작하기 전에
+
+당신이 가지고 있는지 확인:
+
+- [Cloudflare 브라우저 고립](/cloudflare-one/remote-browser-isolation/)계정에서 활성화
+- [Resolver 정책](/cloudflare-one/traffic-policies/resolver-policies/)계정에서 활성화
+- HTTP 또는 HTTPS 응용 프로그램 사용자가 브라우저를 통해 액세스
+
+## Cloudflare 터널 만들기
+
+첫째, 설치`cloudflared`개인 네트워크에서 서버:
+
+<Render file="tunnel/create-tunnel" product="cloudflare-one" />
+
+## 개인 네트워크 경로 추가
+
+1. 내 계정**CIDR 소개**탭, 다음 IP 주소를 추가:
+   - 애플리케이션 서버의 Private IP/CIDR (예를 들면,`10.128.0.175/32`)
+   - DNS 서버의 개인 IP/CIDR
+
+2. 제품정보**저장 터널**.
+
+응용 프로그램 및 DNS 서버는 이제 Cloudflare에 연결됩니다.
+
+## Enable Clientless 웹 고립
+
+<Render file="clientless-browser-isolation" product="cloudflare-one" />
+
+3. 제품 정보**제출**, 선택**계정 관리**.
+
+4. 제품정보**규칙 추가**.
+
+5. Clientless Web Isolation 브라우저를 열 수 있는 정의를 만듭니다. 예를 들어,
+
+   | 규칙 활동 | 규칙 유형 | 옵션 정보   | 제품정보           | - 연혁           |
+   | ----- | ----- | ------- | -------------- | -------------- |
+   | 지원하다  | 이름 \* | 이메일 보내기 | `@example.com` | 제품정보**제품 정보**. |
+
+테스트하려면 브라우저를 열고 이동`https://<team-name>.cloudflareaccess.com/browser/https://<private-IP-of-application>`.
+
+## Gateway fixr 정책 생성
+
+1. 오시는 길**교통 정책** > **Resolver 정책**.
+
+2. 제품정보**정책 추가**.
+
+3. 개인에 대한 일치를 만들기[이름 \*](/cloudflare-one/traffic-policies/resolver-policies/#domain)또는[이름 \*](/cloudflare-one/traffic-policies/resolver-policies/#host)신청의:
+
+   | 옵션 정보 | 회사연혁 | 제품정보                 |
+   | ----- | ---- | -------------------- |
+   | 이름 \* | 내 계정 | `internalrecord.com` |
+
+4. 내 계정**DNS 해결자 선택**, 선택*사용자 정의 DNS 해결사 구성*.
+
+5. DNS 서버의 개인 IP 주소를 입력하십시오.
+
+6. 드롭다운 메뉴에서, 선&#xD0DD;*`<IP-address> - Private`*.
+
+7. (선택) 주문 포트를 입력하십시오.
+
+8. 제품정보**공지사항**.
+
+테스트하려면 브라우저를 열고 이동`https://<team-name>.cloudflareaccess.com/browser/https://internalrecord.com`.
+
+## Gateway Network 정책 만들기 (추천)
+
+1. 오시는 길**교통 정책** > **방화벽 정책** > **회사연혁**.
+
+2. 추가하기[네트워크 정책](/cloudflare-one/traffic-policies/network-policies/)그것은 응용 프로그램의 개인 IP 주소를 대상으로합니다. 애플리케이션 액세스에 관련된 포트 또는 프로토콜을 포함 할 수 있습니다. 예를 들어,
+
+   | 옵션 정보   | 회사연혁     | 제품정보            | 로그인   | - 연혁 |
+   | ------- | -------- | --------------- | ----- | ---- |
+   | 대상 IP   | 내 계정     | `10.128.0.175`  | 이름 \* | 지원하다 |
+   | 관광 명소   | 내 계정     | `80`            | 또는    |      |
+   | 사용자 이메일 | 경기 regex | `.*example.com` |       |      |
+
+:::참조
+
+장치 자세 검사는 WARP 클라이언트가 요구되기 때문에 지원되지 않습니다.
+
+:::
+
+개인 용도를 확보하는 최고의 관행을 위해, 참조[보안 액세스 정책](/learning-paths/replace-vpn/build-policies/).
+
+## 사용자로 연결
+
+사용자는 다음 URL에서 응용 프로그램에 액세스 할 수 있습니다.
+
+`https://<team-name>.cloudflareaccess.com/browser/https://internalrecord.com`
+
+이 응용 프로그램은 격리 된 브라우저에로드합니다. 당신은 선택적으로 할 수 있습니다[원격 브라우저 제어 구성](/cloudflare-one/remote-browser-isolation/isolation-policies/#policy-settings)copy/paste, 인쇄, 또는 키보드 입력을 해제하는 것과 같은.

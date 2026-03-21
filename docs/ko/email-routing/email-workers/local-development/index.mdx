@@ -1,0 +1,211 @@
+---
+title: 지역 개발
+sidebar:
+  order: 6
+  badge: Beta
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/email-routing/email-workers/local-development/
+translation_source_md: >-
+  https://developers.cloudflare.com/email-routing/email-workers/local-development/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Type, MetaInfo, WranglerConfig } from "~/components";
+
+Wrangler를 사용하여 로컬 개발의 이메일 작업 스크립트의 동작을 테스트 할 수 있습니다.[다운로드](/workers/wrangler/commands/#dev), 또는 사용[Cloudflare Vite 플러그인](https://developers.cloudflare.com/workers/vite-plugin/).
+
+이 이메일 Worker를 로컬로 실행하려면 최소한의 wrangler 구성입니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+    "send_email": [
+      {
+        "name": "EMAIL"
+      }
+    ]
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+
+스크립트를 배포하려면 필요한 경우[이메일 Routing](/email-routing/get-started/enable-email-routing/)적어도 1개의 확인이 있습니다[대상 주소](/email-routing/setup/email-routing-addresses/#destination-addresses).
+
+:::
+
+당신은 지금 당신의 국부적으로 환경에 있는 수신, 대답 및 이메일을 보낼 수 있습니다.
+
+## 자주 묻는 질문
+
+이 예제를 고려하십시오 이메일 Worker 스크립트는 오픈 소스를 사용하는[`postal-mime`](https://www.npmjs.com/package/postal-mime)이메일:
+
+```ts
+import * as PostalMime from 'postal-mime';
+
+export default {
+	async email(message, env, ctx) {
+		const parser = new PostalMime.default();
+		const rawEmail = new Response(message.raw);
+		const email = await parser.parse(await rawEmail.arrayBuffer());
+		console.log(email);
+	},
+};
+```
+
+지금 실행할 때`npx wrangler dev`, wrangler는 현지에 노출됩니다`/cdn-cgi/handler/email`당신이 할 수있는 끝점`POST`이메일 메시지 및 작업자의 트리거`email()`핸들:
+
+```bash
+curl --request POST 'http://localhost:8787/cdn-cgi/handler/email' \
+  --url-query 'from=sender@example.com' \
+  --url-query 'to=recipient@example.com' \
+  --header 'Content-Type: application/json' \
+  --data-raw 'Received: from smtp.example.com (127.0.0.1)
+        by cloudflare-email.com (unknown) id 4fwwffRXOpyR
+        for <recipient@example.com>; Tue, 27 Aug 2024 15:50:20 +0000
+From: "John" <sender@example.com>
+Reply-To: sender@example.com
+To: recipient@example.com
+Subject: Testing Email Workers Local Dev
+Content-Type: text/html; charset="windows-1252"
+X-Mailer: Curl
+Date: Tue, 27 Aug 2024 08:49:44 -0700
+Message-ID: <6114391943504294873000@ZSH-GHOSTTY>
+
+Hi there'
+```
+
+콘솔에서 얻는 것은 무엇입니까?
+
+```json
+{
+  headers: [
+    {
+      key: 'received',
+      value: 'from smtp.example.com (127.0.0.1) by cloudflare-email.com (unknown) id 4fwwffRXOpyR for <recipient@example.com>; Tue, 27 Aug 2024 15:50:20 +0000'
+    },
+    { key: 'from', value: '"John" <sender@example.com>' },
+    { key: 'reply-to', value: 'sender@example.com' },
+    { key: 'to', value: 'recipient@example.com' },
+    { key: 'subject', value: 'Testing Email Workers Local Dev' },
+    { key: 'content-type', value: 'text/html; charset="windows-1252"' },
+    { key: 'x-mailer', value: 'Curl' },
+    { key: 'date', value: 'Tue, 27 Aug 2024 08:49:44 -0700' },
+    {
+      key: 'message-id',
+      value: '<6114391943504294873000@ZSH-GHOSTTY>'
+    }
+  ],
+  from: { address: 'sender@example.com', name: 'John' },
+  to: [ { address: 'recipient@example.com', name: '' } ],
+  replyTo: [ { address: 'sender@example.com', name: '' } ],
+  subject: 'Testing Email Workers Local Dev',
+  messageId: '<6114391943504294873000@ZSH-GHOSTTY>',
+  date: '2024-08-27T15:49:44.000Z',
+  html: 'Hi there\n',
+  attachments: []
+}
+```
+
+## 자주 묻는 질문
+
+Wrangler는 또한 이메일을 로컬로 보낼 수 있습니다. 이 예제를 고려하십시오 이메일 Worker 스크립트를 사용하는[`mimetext`](https://www.npmjs.com/package/mimetext)npm 포장:
+
+```ts
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from 'mimetext';
+
+export default {
+	async fetch(request, env, ctx) {
+		const msg = createMimeMessage();
+		msg.setSender({ name: 'Sending email test', addr: 'sender@example.com' });
+		msg.setRecipient('recipient@example.com');
+		msg.setSubject('An email generated in a worker');
+		msg.addMessage({
+			contentType: 'text/plain',
+			data: `Congratulations, you just sent an email from a worker.`,
+		});
+
+		var message = new EmailMessage('sender@example.com', 'recipient@example.com', msg.asRaw());
+		await env.EMAIL.send(message);
+		return Response.json({ ok: true });
+	}
+};
+```
+
+지금 실행할 때`npx wrangler dev`, 이동[모델 번호: http://localhost:8787/](http://localhost:8787/)트리거하기`fetch()`핸들러와 이메일을 보내. 당신은 당신의 맨끝에 있는 뒤에 오는 메시지를 볼 것입니다:
+
+```txt
+⎔ Starting local server...
+[wrangler:inf] Ready on http://localhost:8787
+[wrangler:inf] GET / 200 OK (19ms)
+[wrangler:inf] send_email binding called with the following message:
+  /var/folders/33/pn86qymd0w50htvsjp93rys40000gn/T/miniflare-f9be031ff417b2e67f2ac4cf94cb1b40/files/email/33e0a255-a7df-4f40-b712-0291806ed2b3.eml
+```
+
+Wrangler 시뮬레이션`env.EMAIL.send()`로컬 파일로 이메일을 작성하여[eml는](https://datatracker.ietf.org/doc/html/rfc5322)파일 형식. 파일에는 raw 이메일 메시지가 포함되어 있습니다.
+
+```
+Date: Fri, 04 Apr 2025 12:27:08 +0000
+From: =?utf-8?B?U2VuZGluZyBlbWFpbCB0ZXN0?= <sender@example.com>
+To: <recipient@example.com>
+Message-ID: <2s95plkazox@example.com>
+Subject: =?utf-8?B?QW4gZW1haWwgZ2VuZXJhdGVkIGluIGEgd29ya2Vy?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 7bit
+
+Congratulations, you just sent an email from a worker.
+```
+
+## 답변 및 전달 메시지
+
+이름 \*[`EmailMessage`](/email-routing/email-workers/runtime-api/#emailmessage-definition)이름 \*`forward()`·`reply()`로컬로 시뮬레이션됩니다. 이 Worker를 고려하여 이메일을 수신하고, 송수신에 응답하고, 확인된 수신자 주소로 원본 메시지를 전달합니다.
+
+```ts
+import * as PostalMime from 'postal-mime';
+import { createMimeMessage } from 'mimetext';
+import { EmailMessage } from 'cloudflare:email';
+
+export default {
+	async email(message, env: any, ctx: any) {
+		//자주 묻는 질문
+		const parser = new PostalMime.default();
+		const rawEmail = new Response(message.raw);
+		const email = await parser.parse(await rawEmail.arrayBuffer());
+
+		//일부 티켓 만들기
+		//const ticket = createTicket (이메일);
+
+		//응답 메시지 생성
+		const msg = createMimeMessage();
+		msg.setSender({ name: 'Thank you for your contact', addr: 'sender@example.com' });
+		msg.setRecipient(message.from);
+		msg.setHeader('In-Reply-To', message.headers.get('Message-ID'));
+		msg.setSubject('An email generated in a worker');
+		msg.addMessage({
+			contentType: 'text/plain',
+			data: `This is an automated reply. We received you email with the subject "${email.subject}", and will handle it as soon as possible.`,
+		});
+
+		const replyMessage = new EmailMessage('sender@example.com', message.from, msg.asRaw());
+
+		await message.reply(replyMessage);
+		await message.forward("recipient@example.com");
+	},
+};
+```
+
+지원하다`npx wrangler dev`그리고 사용 컬에`POST`같은 메시지에서[자주 묻는 질문](#receive-an-email)예. 당신의 맨끝은 당신 국부적으로 디스크에 있는 대답한 메시지를 찾아내고 그 이메일이 전달된 누구에게 보여줄 것입니다:
+
+```txt
+⎔ Starting local server...
+[wrangler:inf] Ready on http://localhost:8787
+[wrangler:inf] Email handler replied to sender with the following message:
+  /var/folders/33/pn86qymd0w50htvsjp93rys40000gn/T/miniflare-381a79d7efa4e991607b30a079f6b17d/files/email/a1db7ebb-ccb4-45ef-b315-df49c6d820c0.eml
+[wrangler:inf] Email handler forwarded message with
+  rcptTo: recipient@example.com
+```

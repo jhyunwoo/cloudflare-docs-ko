@@ -1,0 +1,106 @@
+---
+pcx_content_type: example
+title: GraphQL로 Access 로그인 이벤트 조회하기
+
+---
+
+이 예제에서는 GraphQL Analytics API를 사용해 Access 로그인 이벤트의 로그를 가져옵니다. 이 로그는 대시보드 Access 로그에 표시되는 정보보다 더 많은 데이터를 보여 주므로, 사용자가 `403` Forbidden 오류를 받은 이유를 파악하는 데 특히 유용합니다.
+
+다음 API 호출은 단일 Access 로그인 이벤트의 로그를 요청하고, 요청한 필드를 출력합니다. 인증 요청은 사용자에게 표시된 `403` Forbidden 페이지에서 확인할 수 있는 **Ray ID**로 식별됩니다.
+
+`<CLOUDFLARE_ACCOUNT_TAG>`와 `<API_TOKEN>`[^1]에 API 자격 증명을 입력하고, 다음 변수에는 자신의 값을 넣어야 합니다.
+
+* `rayID`: 인증 요청에 할당된 고유 식별자
+* `datetimeStart`: 조회할 가장 이른 이벤트 시간(2022년 9월 16일 이전은 불가)
+* `datetimeEnd`: 조회할 가장 늦은 이벤트 시간. 조회하려는 로그인 이벤트가 포함되도록 시간 범위를 지정하세요.
+
+## API 호출
+
+```bash
+echo '{ "query":
+  "query accessLoginRequestsAdaptiveGroups($accountTag: string, $rayId: string, $datetimeStart: string, $datetimeEnd: string) {
+    viewer {
+      accounts(filter: {accountTag: $accountTag}) {
+        accessLoginRequestsAdaptiveGroups(limit: 100, filter: {datetime_geq: $datetimeStart, datetime_leq: $datetimeEnd, cfRayId: $rayId}, orderBy: [datetime_ASC]) {
+          dimensions {
+            datetime
+            isSuccessfulLogin
+            hasWarpEnabled
+            hasGatewayEnabled
+            hasExistingJWT
+            approvingPolicyId
+            cfRayId
+            ipAddress
+            userUuid
+            identityProvider
+            country
+            deviceId
+            mtlsStatus
+            mtlsCertSerialId
+            mtlsCommonName
+            serviceTokenId
+          }
+        }
+      }
+    }
+  }",
+  "variables": {
+    "accountTag": "<CLOUDFLARE_ACCOUNT_TAG>",
+    "rayId": "74e4ac510dfdc44f",
+    "datetimeStart": "2022-09-20T14:36:38Z",
+    "datetimeEnd": "2022-09-22T14:36:38Z"
+}
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+```
+
+:::note
+
+`cfRayId`로 필터링하는 대신 `userUuid`나 `deviceId` 같은 쿼리 내 다른 필드로도 [filter](/analytics/graphql-api/features/filtering/)할 수 있습니다.
+:::
+
+## 응답
+
+```json
+{
+  "data": {
+    "viewer": {
+      "accounts": [
+        {
+          "accessLoginRequestsAdaptiveGroups": [
+            {
+              "dimensions": {
+                "approvingPolicyId": "",
+                "cfRayId": "744927037ce06d68",
+                "country": "US",
+                "datetime": "2022-09-02T20:56:27Z",
+                "deviceId": "",
+                "hasExistingJWT": 0,
+                "hasGatewayEnabled": 0,
+                "hasWarpEnabled": 0,
+                "identityProvider": "nonidentity",
+                "ipAddress": "2a09:bac0:15::814:7b37",
+                "isSuccessfulLogin": 0,
+                "mtlsCertSerialId": "",
+                "mtlsCommonName": "",
+                "mtlsStatus": "NONE",
+                "serviceTokenId": "",
+                "userUuid": ""
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+쿼리 결과를 Access 정책과 비교해 사용자가 차단된 이유를 이해할 수 있습니다. 예를 들어 애플리케이션에서 유효한 mTLS 인증서를 요구한다면, 위 요청이 차단된 이유는 `mtlsStatus`, `mtlsCommonName`, `mtlsCertSerialId`가 비어 있기 때문입니다.
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

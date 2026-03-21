@@ -1,0 +1,81 @@
+---
+pcx_content_type: concept
+title: Python Workers 일하기
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: Python Workers 일하기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/languages/python/how-python-workers-work/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/languages/python/how-python-workers-work/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+Workers는 Python에 의해 실행됩니다[사이트맵](https://pyodide.org/en/stable/index.html). Pyodide는 항구입니다[CPython](https://github.com/python)(referenceXQXQXQXQXQXQXQXQXPythonXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQ
+
+Python를 쓸 때 노동자, 당신의 코드는 Pyodide에 의해 직접 해석됩니다, V8 isolate 안에. 더 알아보기[Workers는 어떻게 작동합니까?](/workers/reference/how-workers-works/)더 알아보기.
+
+## 지역 개발
+
+기본 Python 노동자는 Python 파일을 가진 포함합니다`Default`클래스 확장`WorkerEntrypoint`같은:
+
+```python
+from workers import Response, WorkerEntrypoint
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return Response("Hello world!")
+```
+
+·[Wrangler 구성 파일](/workers/wrangler/configuration/)이 점은`.py`파일 :
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "hello-world-python-worker",
+  	"main": "src/entry.py",
+  	"compatibility_date": "$today"
+  }
+  ```
+</WranglerConfig>
+
+당신이 실행할 때`uv run pywrangler dev`로컬 dev를 수행하려면 Workers 실행 시간은 다음과 같습니다.
+
+1. Pyodide의 버전이 필요한 경우 호환성 날짜에 따라
+2. 필요한 모든 패키지를 설치`pyproject.toml`이름 \*
+3. 당신의 노동자를 위한 새로운 v8 고립을 창조하고, 자동적으로 Pyodide를 주사하십시오
+4. Pyodide를 사용하여 Python 코드를 Serve
+
+추가 도구 체인 또는 사전 컴파일 단계가 필요하지 않습니다. Python 실행 환경은 Workers 런타임에 의해 직접 제공되며 WorkersXQ가 JavaScriptQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQQ
+
+더 알아보기[Python 예제](/workers/languages/python/examples/)WorkersXQ에서 Python를 사용하는 방법을 배우십시오.
+
+## 배치 수명주기 및 콜드 시작 최적화
+
+추운 시작 시간을 줄이기 위해 Python Worker를 배포 할 때 Cloudflare는 배치 시간에 가능한 전방으로 비싼 작업의 대부분을 수행합니다. npx를 실행할 때`uv run pywrangler deploy`, 다음 발생:
+
+1. Wrangler 는 Python 코드 및 패키지에 포함되어 있습니다`pyproject.toml`Workers API에.
+2. Cloudflare는 유효한 PythonXQ 부호를 Workers 런타임에 보냅니다.
+3. Cloudflare는 당신의 노동자를 위한 새로운 v8 고립을 창조합니다, 자동적으로 Pyodide를 주사합니다.
+4. Cloudflare는 수입 문에 대한 Worker의 코드를 스캔하고 실행하고, Worker의 WebAssembly 선형 메모리의 스냅 샷을 찍습니다. 효과적인, 우리는 배포 시간에 패키지의 비싼 작업을 수행, 오히려 runtime보다.
+5. Cloudflare는 작업자의 Python 코드를 Cloudflare 네트워크 옆에 이 스냅샷을 배포합니다.
+
+요청이 작업자에게 제공되면, 우리는이 스냅 샷을로드하고 isolate에서 노동자를 부트 스트랩에 사용, 비싼 초기화 시간을 피 :
+
+![Python Workers가 CloudflareXQ에 배포되는 방법의 다이어그램](~/assets/images/workers/languages/python/python-workers-deployment.png)
+
+더 알아보기[블로그 게시물 소개 Python Workers](https://blog.cloudflare.com/python-workers)성능 최적화에 대한 자세한 내용은 Workers 런타임이 Python QXQXQXQXQXQXQXQ에 대한 콜드 시작을 줄일 수 있습니다.
+
+## Pyodide 및 Python 버전
+
+Python의 새로운 버전은 8 월에 매년 출시되며 Pyodide의 새로운 버전은 6 개월 후에 출시됩니다. Pyodide의이 새로운 버전이 게시되면 지정된 호환성 날짜 이후에만 활성화되는 호환성 플래그 뒤에 그것을 gating함으로써 Workers에 추가됩니다. 이것은 우리가 JavaScript를 위해 JavaScriptXQXQXQXQXQXQXQXQXQ를 위해 만든 투입을 끊는 변화의 위험 없이 지속적으로 업데이트, 제공합니다.
+
+각 Python 릴리스에는[5 (5) 년 지원 창](https://devguide.python.org/versions/). 이 지원 창이 Python의 주어진 버전을 위해 통과되면, 안전 헝겊 조각은 더 이상 적용되지 않으며, 이 버전은 재적으로 안전하지 않습니다. 이 위험을 완화하기 위해, 여전히 안정성과 장기적 지원의 우리의 약속으로 실현하기 위해 노력하고, 5 년 후에 어떤 PythonXQ 지원 창의 외부 인 Python 릴리스에 여전히 노동자는 다음 가장 오래된 Python 릴리스로 자동으로 이동됩니다. Python는 성숙한 안정되어 있는 언어입니다, 그래서 우리는 대부분의 경우에, 당신의 PythonXQ 노동자는 문제점 없이 계속 실행할 것입니다. 그러나 우리는 당신의 노동자의 호환성 날짜를 정기적으로 업데이트하는 것이 좋습니다, 지원 창 내에서 머물.

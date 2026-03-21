@@ -1,0 +1,1224 @@
+---
+title: 작업자 배치
+pcx_content_type: tutorial
+products:
+  - workers
+reviewed: 2024-09-13T00:00:00.000Z
+difficulty: Beginner
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+  - Go
+  - Java
+  - .NET
+  - YAML
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: 작업자 배치
+description: >-
+  이 튜토리얼에서 Cloudflare Workers 및 Pulumi 인프라 코드 (IaC)를 사용하여 Hello World 애플리케이션을
+  배포하는 단계별 지침을 따르십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pulumi/tutorial/hello-world/'
+translation_source_md: 'https://developers.cloudflare.com/pulumi/tutorial/hello-world/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+이 튜토리얼에서는 Cloudflare Workers 및 Pulumi 인프라를 사용하여 Hello World 애플리케이션을 배포하는 단계별 지침을 따르고 리소스 관리 수명주기와 자신을 익숙하게합니다. 특히, 당신은 모든 리소스를 청소하기 전에 응용 프로그램에 액세스하기 위해 노동자, 경로 및 DNS 레코드를 만들 것입니다.
+
+:::참조
+Pulumi Cloud 및 Cloudflare 모두 무료 계층 제공 자격을 갖춘 리소스를 제공 할 것입니다.
+주요 특징
+
+## 시작하기 전에
+
+당신은 있다:
+
+- Cloudflare 계정 및 API 토큰은이 튜토리얼에서 리소스를 편집 할 권한을 가지고 있습니다. 필요한 경우, 가입[Cloudflare 계정](https://www.cloudflare.com/sign-up)계속하기 토큰은 다음과 같습니다:
+  - `Account-Workers Scripts-Edit`(주)
+  - `Zone-Workers Route-Edit`(주)
+  - `Zone-DNS-Edit`(주)
+- Pulumi Cloud 계정. 로그인할 수 있습니다.[항상 자유로운 개인적인 층](https://app.pulumi.com/signup).
+- 더 보기[Pulumi 클립](/pulumi/installing/)당신의 기계에 설치됩니다.
+- ·[Pulumi 지원되는 프로그램 언어](https://github.com/pulumi/pulumi?tab=readme-ov-file#languages)구성. (TypeScript, JavaScript, Python, Go, .NET, Java 또는 YAML 사용)
+- Cloudflare 관리 도메인. 더 보기[사이트 튜토리얼 추가](/pulumi/tutorial/add-site/)Cloudflare에서 기존 도메인을 가져 오기.
+
+## 1. 당신의 프로젝트를 초기화
+
+Pulumi 프로젝트는 생성하려는 인프라를 설명하는 전용 폴더의 파일 모음입니다. Pulumi 프로젝트 폴더는 필수로 식별됩니다.`Pulumi.yaml`파일. Pulumi CLI를 사용하여 새로운 프로젝트를 만들고 구성합니다.
+
+### a. 디렉토리 만들기
+
+이 튜토리얼의 새로운 빈 디렉토리를 사용합니다.
+
+```sh
+mkdir serverless-cloudflare
+cd serverless-cloudflare
+```
+
+### b. Pulumi Cloud에 로그인
+
+[Pulumi 클라우드](https://www.pulumi.com/product/pulumi-cloud/)보안 및 확장 가능한 플랫폼을 제공하는 호스팅 서비스입니다. Pulumi 백엔드 구성을 저장할 수 있습니다.
+
+프롬프트에서 브라우저를 통해 Pulumi Cloud 계정으로 로그인하십시오. 대안으로, 당신은 제공 할 수 있습니다[Pulumi Cloud 액세스 토큰](https://www.pulumi.com/docs/pulumi-cloud/access-management/access-tokens/).
+
+```sh
+pulumi login
+```
+
+### c. 새 프로그램을 만들기
+
+Pulumi 프로그램이 작성된 코드입니다.[지원되는 프로그래밍 언어](https://github.com/pulumi/pulumi?tab=readme-ov-file#languages)인프라 리소스를 정의합니다.
+
+프로그램을 만들려면, 선택의 언어를 선택하고 실행`pulumi`명령:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```sh
+    pulumi new javascript --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```sh
+    pulumi new typescript --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```sh
+    pulumi new python --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    ```sh
+    pulumi new go --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    ```sh
+    pulumi new java --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sh
+    pulumi new csharp --name serverless-cloudflare --yes
+    #프로젝트가 초기화되는 동안 몇 초를 기다립니다.
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    ```sh
+    pulumi new yaml --name serverless-cloudflare --yes
+    ```
+  </TabItem>
+</Tabs>
+
+### d. 스택 만들기
+
+펄프[사이트맵](https://www.pulumi.com/docs/concepts/stack/)Pulumi 프로그램의 인스턴스입니다. 스택은 독립적으로 구성되며 다른 환경 (개발, 시효, 생산) 또는 기능 지점을 나타냅니다. 이 튜토리얼의 경우, 당신은 사용할 것이다`dev`스택.
+
+즉시 당신의`dev`스택, 실행:
+
+```sh
+pulumi up --yes
+#스택의 몇 초를 즉시 기다립니다.
+```
+
+이 시점에서 모든 리소스를 정의하지 않았으므로 빈 스택이 있습니다.
+
+### e. 앱 설정 저장
+
+이 단계에서 당신은 Pulumi에서 응용 프로그램 설정을 저장합니다.[ESC 환경](https://www.pulumi.com/docs/esc/environments/)구성과 비밀을 포함하는 YAML 파일. Pulumi 프로그램을 포함한 여러 가지 방법으로 액세스 할 수 있습니다. 모든 ESC 환경은 Pulumi Cloud 계정에 안전하게 의존하며 Pulumi CLI를 통해 완전히 관리 할 수 있습니다. 이 튜토리얼의 경우 다음 값을 저장합니다.
+
+- 당신의 Cloudflare[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+- 유효한 Cloudflare API[계정 관리](/fundamentals/api/get-started/create-token/).
+- 도메인. 예를 들어,`example.com`.
+
+```sh
+#새 ESC 환경을 이름 지정하기
+E=hello-world/dev-env
+
+#새로운 ESC 환경을 초기화
+pulumi config env init --env $E --yes
+```
+
+```sh output
+Creating environment hello-world/dev-env for stack dev...
+```
+
+```sh
+#Cloudflare 계정 ID로 abc123을 교체하십시오
+pulumi env set $E --plaintext pulumiConfig.accountId abc123
+
+#Cloudflare API 토큰으로 API TOKEN 교체
+pulumi env set $E --secret pulumiConfig.cloudflare:apiToken API_TOKEN
+
+#example.com을 도메인으로 바꾸기
+pulumi env set $E --plaintext pulumiConfig.domain example.com
+```
+
+### f. Cloudflare 패키지 설치
+
+Pulumi 프로그램에 Cloudflare 리소스를 정의하기 위해 Cloudflare 패키지를 설치해야합니다.
+
+다음 명령을 실행하여 Cloudflare 패키지를 설치하십시오.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```sh
+    npm install @pulumi/cloudflare
+    ```
+
+    ```sh output
+    added 1 package ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```sh
+    npm install @pulumi/cloudflare
+    ```
+
+    ```sh output
+    added 1 package ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```sh
+    echo "pulumi_cloudflare>=5.38,<6.0.0" >> requirements.txt
+    source venv/bin/activate
+    pip install -r requirements.txt
+    ```
+
+    ```sh output
+    ...Collecting pulumi-cloudflare...
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    ```sh
+    go get github.com/pulumi/pulumi-cloudflare/sdk/v3/go/cloudflare
+    ```
+
+    ```sh output
+    go: downloading github.com/pulumi/pulumi-cloudflare ...
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    아래는 Apache Maven 지침입니다. Gradle과 같은 다른 Java 프로젝트 관리자는 공식을 참조하십시오.[Maven 저장소](https://central.sonatype.com/artifact/com.pulumi/cloudflare/overview)
+
+    1. 자주 묻는 질문`pom.xml`파일.
+    2. Pulumi Cloudflare 의존성 추가`<dependencies>`이름 \*
+
+    ```xml
+    <dependency>
+        <groupId>com.pulumi</groupId>
+        <artifactId>cloudflare</artifactId>
+        <version>5.38.0</version>
+    </dependency>
+    ```
+
+    3. 실행:
+
+    ```sh
+    mvn clean install
+    ```
+
+    ```sh output
+    ...[INFO] BUILD SUCCESS...
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```sh
+    dotnet add package Pulumi.Cloudflare
+    ```
+
+    ```sh output
+    ...
+    info : Adding PackageReference for package 'Pulumi.Cloudflare' into project
+    ...
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    YAML에 대한 다운로드에 의존하지 않습니다. 더 알아보기
+  </TabItem>
+</Tabs>
+
+## 2. 코드에 Cloudflare 리소스 정의
+
+Cloudflare 패키지를 설치하면 이제 정의 할 수 있습니다.[지원되는 Cloudflare 자원](https://www.pulumi.com/registry/packages/cloudflare/)당신의 Pulumi 프로그램에. 다음, Worker, Route 및 DNS 레코드를 정의합니다.
+
+### a. Workers 스크립트 추가
+
+더 보기[모델 번호: Workers Script 리소스](https://www.pulumi.com/registry/packages/cloudflare/api-docs/workersscript/)Cloudflare를 나타냅니다 Cloudflare 네트워크에 배포 할 수있는 작업자.
+
+다음으로 엔트리포인트 파일의 내용을 대체합니다:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```javascript
+    "use strict";
+    const pulumi = require("@pulumi/pulumi");
+    const cloudflare = require("@pulumi/cloudflare");
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    const content = `export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };`;
+
+    const worker = new cloudflare.WorkersScript("hello-world-worker", {
+    	accountId: accountId,
+    	name: "hello-world-worker",
+    	content: content,
+    	module: true, //ES6 모듈
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    import * as pulumi from "@pulumi/pulumi";
+    import * as cloudflare from "@pulumi/cloudflare";
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    const content = `export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };`;
+
+    const worker = new cloudflare.WorkersScript("hello-world-worker", {
+    	accountId: accountId,
+    	name: "hello-world-worker",
+    	content: content,
+    	module: true, //ES6 모듈
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```python
+    """Pulumi program """
+    import pulumi
+    import pulumi_cloudflare as cloudflare
+
+    CONFIG = pulumi.Config()
+    ACCOUNT_ID = CONFIG.get("accountId")
+    DOMAIN = CONFIG.require("domain")
+    CONTENT = """
+    export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };
+    """
+
+    worker = cloudflare.WorkersScript("hello-world-worker",
+        account_id=ACCOUNT_ID,
+        name="hello-world-worker",
+        content=CONTENT,
+        module=True  #ES6 모듈
+    )
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+    package main
+
+    import (
+    	"github.com/pulumi/pulumi-cloudflare/sdk/v5/go/cloudflare"
+    	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+    	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+    )
+
+    func main() {
+    	pulumi.Run(func(ctx *pulumi.Context) error {
+    		conf := config.New(ctx, "")
+    		accountID := conf.Get("accountId")
+    		domain := conf.Get("domain")
+    		content := `
+    		export default {
+    		  async fetch(request) {
+    		    const options = { headers: { 'content-type': 'text/plain' } };
+    		    return new Response("Hello World!", options);
+    		  },
+    		};
+    		`
+    		worker, err := cloudflare.NewWorkersScript(ctx, "hello-world-worker", &cloudflare.WorkersScriptArgs{
+    			AccountId: pulumi.String(accountID),
+    			Name:      pulumi.String("hello-world-worker"),
+    			Content:   pulumi.String(content),
+    			Module:    pulumi.Bool(true), // ES6 module
+    		})
+    		if err != nil {
+    			return err
+    		}
+
+    		return nil
+    	})
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+    package myproject;
+
+    import com.pulumi.Pulumi;
+    import com.pulumi.cloudflare.WorkersScript;
+    import com.pulumi.cloudflare.WorkersScriptArgs;
+    import com.pulumi.core.Output;
+
+    public class App {
+        public static void main(String[] args) {
+            Pulumi.run(ctx -> {
+                var content = """
+                  export default {
+                    async fetch(request) {
+                      const options = { headers: { 'content-type': 'text/plain' } };
+                      return new Response("Hello World!", options);
+                    },
+                  };
+                """;
+
+                var accountId = ctx.config().require("accountId");
+                var domain = ctx.config().require("domain");
+                var worker = new WorkersScript("hello-world-worker", WorkersScriptArgs.builder()
+                    .accountId(accountId)
+                    .name("hello-world-worker")
+                    .content(content)
+                    .module(true)
+                    .build());
+
+                return;
+            });
+        }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    ```csharp
+    using Pulumi;
+    using Cloudflare = Pulumi.Cloudflare;
+
+    return await Deployment.RunAsync(() =>
+    {
+        var config = new Config();
+        var accountId = config.Require("accountId");
+        var domain = config.Require("domain");
+        var content = @"
+                export default {
+                    async fetch(request) {
+                        const options = { headers: { 'content-type': 'text/plain' } };
+                        return new Response(""Hello World!"", options);
+                    },
+                };
+            ";
+
+        var worker = new Cloudflare.WorkersScript("hello-world-worker", new()
+        {
+            AccountId = accountId,
+            Name = "hello-world-worker",
+            Content = content,
+            Module = true
+        });
+        return;
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    **파일 이름:`Pulumi.yaml`**
+
+    ```yaml
+    name: serverless-cloudflare
+    runtime: yaml
+    resources:
+      worker:
+        type: cloudflare:WorkersScript
+        properties:
+          accountId: "${accountId}"
+          name: "hello-world-worker"
+          content: |
+            export default {
+                async fetch(request) {
+                    const options = { headers: { 'content-type': 'text/plain' } };
+                    return new Response("Hello World!", options);
+                },
+            };
+          module: true
+    ```
+  </TabItem>
+</Tabs>
+
+### b. 노선 추가
+
+지금 추가[모델 번호: Workers 노선 정보](https://www.pulumi.com/registry/packages/cloudflare/api-docs/workersroute/)당신의 Pulumi 프로그램에 그래서 Workers 스크립트는 엔드포인트가 있고 활성화 될 수 있습니다. 제대로 루트를 구성하려면 도메인의 영역 ID를 볼 수 있습니다.
+
+다음 코드를 추가 snippet 당신의 Entrypoint 파일**후에**Worker 스크립트 리소스:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```javascript
+    const zone = cloudflare.getZone({
+    	accountId: accountId,
+    	name: domain,
+    });
+
+    const zoneId = zone.then((z) => z.zoneId);
+
+    const route = new cloudflare.WorkersRoute("hello-world-route", {
+    	zoneId: zoneId,
+    	pattern: "hello-world." + domain,
+    	scriptName: worker.name,
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    const zone = cloudflare.getZone({
+    	accountId: accountId,
+    	name: domain,
+    });
+
+    const zoneId = zone.then((z) => z.zoneId);
+
+    const route = new cloudflare.WorkersRoute("hello-world-route", {
+    	zoneId: zoneId,
+    	pattern: "hello-world." + domain,
+    	scriptName: worker.name,
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```python
+    zone = cloudflare.get_zone(account_id=ACCOUNT_ID, name=DOMAIN)
+    zone_id = zone.zone_id
+    route = cloudflare.WorkersRoute("hello-world-route",
+        zone_id=zone_id,
+        pattern="hello-world." + DOMAIN,
+        script_name=worker.name
+    )
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+    zone, err := cloudflare.LookupZone(ctx, &cloudflare.LookupZoneArgs{
+      AccountId: &accountID,
+      Name:      &domain,
+    }, nil)
+    if err != nil {
+      return err
+    }
+
+    route, err := cloudflare.NewWorkersRoute(ctx, "hello-world-route", &cloudflare.WorkersRouteArgs{
+      ZoneId:     pulumi.String(zone.Id),
+      Pattern:    pulumi.String("hello-world." + domain),
+      ScriptName: worker.Name,
+    })
+    if err != nil {
+      return err
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+    final var zone = CloudflareFunctions.getZone(GetZoneArgs.builder()
+      .accountId(accountId)
+      .name(domain)
+      .build());
+    var route = new WorkersRoute("hello-world-route", WorkersRouteArgs.builder()
+      .zoneId(zone.applyValue(getZoneResult -> getZoneResult.id()))
+      .pattern("hello-world." + domain)
+      .scriptName(worker.name())
+      .build());
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    ```csharp
+    var zone = Output.Create(Cloudflare.GetZone.InvokeAsync(new()
+    {
+        AccountId = accountId,
+        Name = domain,
+    }));
+    var route = new Cloudflare.WorkersRoute("hello-world-route", new()
+    {
+        ZoneId = zone.Apply(z => z.Id),
+        Pattern = "hello-world." + domain,
+        ScriptName = worker.Name,
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    **파일 이름:`Pulumi.yaml`**
+
+    아래`runtime`키, 다음 코드를 추가:
+
+    ```yaml
+    #새로운 최고 수준 단면도
+    variables:
+      zone:
+        fn::invoke:
+          function: cloudflare:getZone
+          arguments:
+            accountId: ${accountId}
+            name: ${domain}
+    ```
+
+    아래`worker`리소스, 다음 코드를 추가:
+
+    ```yaml
+    route:
+      type: cloudflare:WorkersRoute
+      properties:
+        zoneId: ${zone.id}
+        pattern: "hello-world.${domain}"
+        scriptName: ${worker.name}
+    ```
+  </TabItem>
+</Tabs>
+
+### c. DNS 레코드 추가
+
+이제 DNS 추가[기록 자료](https://www.pulumi.com/registry/packages/cloudflare/api-docs/record/)이전에 형성된 노선을 해결하기 위해. 다음 단계에서는 Route URL을 출력하여 쉽게 액세스 할 수 있습니다.
+
+다음 코드를 추가 snippet 당신의 Entrypoint 파일**후에**노선 자원:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```javascript
+    const record = new cloudflare.Record("hello-world-record", {
+    	name: route.pattern,
+    	type: "A",
+    	content: "192.0.2.1",
+    	zoneId: zoneId,
+    	proxied: true,
+    });
+
+    exports.url = pulumi.interpolate`https://${record.hostname}`;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    const record = new cloudflare.Record("hello-world-record", {
+    	name: route.pattern,
+    	type: "A",
+    	content: "192.0.2.1",
+    	zoneId: zoneId,
+    	proxied: true,
+    });
+
+    export const url = pulumi.interpolate`https://${record.hostname}`;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```python
+    record = cloudflare.Record("hello-world-record",
+        name=route.pattern,
+        type="A",
+        content="192.0.2.1",
+        zone_id=zone_id,
+        proxied=True
+    )
+
+    url = pulumi.Output.concat("https://", record.hostname)
+    pulumi.export('url', url)
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+    record, err := cloudflare.NewRecord(ctx, "hello-world-record", &cloudflare.RecordArgs{
+      Name:    route.Pattern,
+      Type:    pulumi.String("A"),
+      Content: pulumi.String("192.0.2.1"),
+      ZoneId:  pulumi.String(zone.Id),
+      Proxied: pulumi.Bool(true),
+    })
+    if err != nil {
+      return err
+    }
+
+    ctx.Export("url", pulumi.Sprintf("https://%s", record.Hostname))
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+    var record = new Record("hello-world-record", RecordArgs.builder()
+        .name(route.pattern())
+        .type("A")
+        .content("192.0.2.1")
+        .zoneId(zone.applyValue(getZoneResult -> getZoneResult.id()))
+        .proxied(true)
+        .build());
+
+    ctx.export("url", Output.format("https://%s", record.hostname()));
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    업데이트 된 '계정 '계정은 이제 값을 수출하기 때문에. 당신은 또한 포함`using System.Collections.Generic;`당신의 수입에.
+
+    ```csharp
+    var record = new Cloudflare.Record("hello-world-record", new()
+    {
+        Name = route.Pattern,
+        Type = "A",
+        Content = "192.0.2.1",
+        ZoneId = zone.Apply(z => z.Id),
+        Proxied = true
+    });
+
+    return new Dictionary<string, object?>
+    {
+        ["url"] = Output.Format($"https://{record.Hostname}")
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    새로운 최고 수준의 알림`outputs`이름 \*
+
+    ```yaml
+      record:
+        type: cloudflare:Record
+        properties:
+          name: ${route.pattern}
+          type: A
+          content: "192.0.2.1"
+          zoneId: ${zone.id}
+          proxied: true
+
+    outputs:
+      url: "https://${record.hostname}"
+    ```
+  </TabItem>
+</Tabs>
+
+:::참조
+
+당신은 사용할 수 있습니다`http`대신 도메인 설정에 따라.
+
+:::
+
+### d. (선택) 코드를 검증
+
+아래 모든 변경 사항을 확인:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    **파일 이름:`index.js`**
+
+    ```javascript
+    "use strict";
+    const pulumi = require("@pulumi/pulumi");
+    const cloudflare = require("@pulumi/cloudflare");
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    const content = `export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };`;
+
+    const worker = new cloudflare.WorkersScript("hello-world-worker", {
+    	accountId: accountId,
+    	name: "hello-world-worker",
+    	content: content,
+    	module: true, //ES6 모듈
+    });
+
+    const zone = cloudflare.getZone({
+    	accountId: accountId,
+    	name: domain,
+    });
+
+    const zoneId = zone.then((z) => z.zoneId);
+
+    const route = new cloudflare.WorkersRoute("hello-world-route", {
+    	zoneId: zoneId,
+    	pattern: "hello-world." + domain,
+    	scriptName: worker.name,
+    });
+
+    const record = new cloudflare.Record("hello-world-record", {
+    	name: route.pattern,
+    	type: "A",
+    	content: "192.0.2.1",
+    	zoneId: zoneId,
+    	proxied: true,
+    });
+
+    exports.url = pulumi.interpolate`https://${record.hostname}`;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    **파일 이름:`index.ts`**
+
+    ```typescript
+    import * as pulumi from "@pulumi/pulumi";
+    import * as cloudflare from "@pulumi/cloudflare";
+
+    const config = new pulumi.Config();
+    const accountId = config.require("accountId");
+    const domain = config.require("domain");
+
+    const content = `export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };`;
+
+    const worker = new cloudflare.WorkersScript("hello-world-worker", {
+    	accountId: accountId,
+    	name: "hello-world-worker",
+    	content: content,
+    	module: true, //ES6 모듈
+    });
+
+    const zone = cloudflare.getZone({
+    	accountId: accountId,
+    	name: domain,
+    });
+
+    const zoneId = zone.then((z) => z.zoneId);
+
+    const route = new cloudflare.WorkersRoute("hello-world-route", {
+    	zoneId: zoneId,
+    	pattern: "hello-world." + domain,
+    	scriptName: worker.name,
+    });
+
+    const record = new cloudflare.Record("hello-world-record", {
+    	name: route.pattern,
+    	type: "A",
+    	content: "192.0.2.1",
+    	zoneId: zoneId,
+    	proxied: true,
+    });
+
+    export const url = pulumi.interpolate`https://${record.hostname}`;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    **파일 이름:`__main__.py`**
+
+    ```python
+    """Pulumi program """
+    import pulumi
+    import pulumi_cloudflare as cloudflare
+
+    CONFIG = pulumi.Config()
+    ACCOUNT_ID = CONFIG.get("accountId")
+    DOMAIN = CONFIG.require("domain")
+    CONTENT = """
+    export default {
+      async fetch(request) {
+        const options = { headers: { 'content-type': 'text/plain' } };
+        return new Response("Hello World!", options);
+      },
+    };
+    """
+
+    worker = cloudflare.WorkersScript("hello-world-worker",
+        account_id=ACCOUNT_ID,
+        name="hello-world-worker",
+        content=CONTENT,
+        module=True  #ES6 모듈
+    )
+
+    zone = cloudflare.get_zone(account_id=ACCOUNT_ID, name=DOMAIN)
+    zone_id = zone.zone_id
+    route = cloudflare.WorkersRoute("hello-world-route",
+        zone_id=zone_id,
+        pattern="hello-world." + DOMAIN,
+        script_name=worker.name
+    )
+
+    record = cloudflare.Record("hello-world-record",
+        name=route.pattern,
+        type="A",
+        content="192.0.2.1",
+        zone_id=zone_id,
+        proxied=True
+    )
+
+    url = pulumi.Output.concat("https://", record.hostname)
+    pulumi.export('url', url)
+
+    ```
+  </TabItem>
+
+  <TabItem label="기타">
+    **파일 이름:`main.go`**
+
+    ```go
+    package main
+
+    import (
+    	"github.com/pulumi/pulumi-cloudflare/sdk/v5/go/cloudflare"
+    	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+    	"github.com/pulumi/pulumi/sdk/v3/go/pulumi/config"
+    )
+
+    func main() {
+    	pulumi.Run(func(ctx *pulumi.Context) error {
+    		conf := config.New(ctx, "")
+    		accountID := conf.Get("accountId")
+    		domain := conf.Get("domain")
+    		content := `
+    		export default {
+    		  async fetch(request) {
+    		    const options = { headers: { 'content-type': 'text/plain' } };
+    		    return new Response("Hello World!", options);
+    		  },
+    		};
+    		`
+    		worker, err := cloudflare.NewWorkersScript(ctx, "hello-world-worker", &cloudflare.WorkersScriptArgs{
+    			AccountId: pulumi.String(accountID),
+    			Name:      pulumi.String("hello-world-worker"),
+    			Content:   pulumi.String(content),
+    			Module:    pulumi.Bool(true), // ES6 module
+    		})
+    		if err != nil {
+    			return err
+    		}
+    		zone, err := cloudflare.LookupZone(ctx, &cloudflare.LookupZoneArgs{
+    			AccountId: &accountID,
+    			Name:      &domain,
+    		}, nil)
+    		if err != nil {
+    			return err
+    		}
+
+    		route, err := cloudflare.NewWorkersRoute(ctx, "hello-world-route", &cloudflare.WorkersRouteArgs{
+    			ZoneId:     pulumi.String(zone.Id),
+    			Pattern:    pulumi.String("hello-world." + domain),
+    			ScriptName: worker.Name,
+    		})
+    		if err != nil {
+    			return err
+    		}
+
+    		record, err := cloudflare.NewRecord(ctx, "hello-world-record", &cloudflare.RecordArgs{
+    			Name:    route.Pattern,
+    			Type:    pulumi.String("A"),
+    			Content: pulumi.String("192.0.2.1"),
+    			ZoneId:  pulumi.String(zone.Id),
+    			Proxied: pulumi.Bool(true),
+    		})
+    		if err != nil {
+    			return err
+    		}
+
+    		ctx.Export("url", pulumi.Sprintf("https://%s", record.Hostname))
+
+    		return nil
+    	})
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="다운로드">
+    **파일 이름:`src/main/java/myproject/App.java`**
+
+    ```java
+    package myproject;
+
+    import com.pulumi.Pulumi;
+    import com.pulumi.core.Output;
+    import com.pulumi.cloudflare.WorkersScript;
+    import com.pulumi.cloudflare.WorkersScriptArgs;
+    import com.pulumi.cloudflare.CloudflareFunctions;
+    import com.pulumi.cloudflare.inputs.GetZoneArgs;
+    import com.pulumi.cloudflare.WorkersRoute;
+    import com.pulumi.cloudflare.WorkersRouteArgs;
+    import com.pulumi.cloudflare.Record;
+    import com.pulumi.cloudflare.RecordArgs;
+
+    public class App {
+        public static void main(String[] args) {
+            Pulumi.run(ctx -> {
+                var content = """
+    				export default {
+    				  async fetch(request) {
+    				    const options = { headers: { 'content-type': 'text/plain' } };
+    				    return new Response("Hello World!", options);
+    				  },
+    				};
+    			""";
+
+                var accountId = ctx.config().require("accountId");
+                var domain = ctx.config().require("domain");
+
+                var worker = new WorkersScript("hello-world-worker", WorkersScriptArgs.builder()
+                    .accountId(accountId)
+                    .name("hello-world-worker")
+                    .content(content)
+                    .module(true)
+                    .build());
+                final var zone = CloudflareFunctions.getZone(GetZoneArgs.builder()
+                    .accountId(accountId)
+                    .name(domain)
+                    .build());
+                var route = new WorkersRoute("hello-world-route", WorkersRouteArgs.builder()
+                    .zoneId(zone.applyValue(getZoneResult -> getZoneResult.id()))
+                    .pattern("hello-world." + domain)
+                    .scriptName(worker.name())
+                    .build());
+                var record = new Record("hello-world-record", RecordArgs.builder()
+                    .name(route.pattern())
+                    .type("A")
+                    .content("192.0.2.1")
+                    .zoneId(zone.applyValue(getZoneResult -> getZoneResult.id()))
+                    .proxied(true)
+                    .build());
+
+                ctx.export("url", Output.format("https://%s", record.hostname()));
+                return;
+            });
+        }
+    }
+
+    ```
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    **파일 이름:`Program.cs`**
+
+    ```csharp
+    using System.Collections.Generic;
+    using Pulumi;
+    using Cloudflare = Pulumi.Cloudflare;
+
+    return await Deployment.RunAsync(() =>
+    {
+        var config = new Config();
+        var accountId = config.Require("accountId");
+        var domain = config.Require("domain");
+        var content = @"
+                export default {
+                    async fetch(request) {
+                        const options = { headers: { 'content-type': 'text/plain' } };
+                        return new Response(""Hello World!"", options);
+                    },
+                };
+            ";
+
+        var worker = new Cloudflare.WorkersScript("hello-world-worker", new()
+        {
+            AccountId = accountId,
+            Name = "hello-world-worker",
+            Content = content,
+            Module = true
+        });
+        var zone = Output.Create(Cloudflare.GetZone.InvokeAsync(new()
+        {
+            AccountId = accountId,
+            Name = domain,
+        }));
+        var route = new Cloudflare.WorkersRoute("hello-world-route", new()
+        {
+            ZoneId = zone.Apply(z => z.Id),
+            Pattern = "hello-world." + domain,
+            ScriptName = worker.Name,
+        });
+
+        var record = new Cloudflare.Record("hello-world-record", new()
+        {
+            Name = route.Pattern,
+            Type = "A",
+            Content = "192.0.2.1",
+            ZoneId = zone.Apply(z => z.Id),
+            Proxied = true
+        });
+
+        return new Dictionary<string, object?>
+        {
+            ["url"] = Output.Format($"https://{record.Hostname}")
+        };
+    });
+
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호:">
+    **파일 이름:`Pulumi.yaml`**
+
+    ```yaml
+    name: serverless-cloudflare
+    runtime: yaml
+    variables:
+      zone:
+        fn::invoke:
+          function: cloudflare:getZone
+          arguments:
+            accountId: ${accountId}
+            name: ${domain}
+
+    resources:
+      worker:
+        type: cloudflare:WorkersScript
+        properties:
+          accountId: "${accountId}"
+          name: "hello-world-worker"
+          content: |
+            export default {
+                async fetch(request) {
+                    const options = { headers: { 'content-type': 'text/plain' } };
+                    return new Response("Hello World!", options);
+                },
+            };
+          module: true
+      route:
+        type: cloudflare:WorkersRoute
+        properties:
+          zoneId: ${zone.id}
+          pattern: "hello-world.${domain}"
+          scriptName: ${worker.name}
+      record:
+        type: cloudflare:Record
+        properties:
+          name: ${route.pattern}
+          type: A
+          content: "192.0.2.1"
+          zoneId: ${zone.id}
+          proxied: true
+
+    outputs:
+      url: "https://${record.hostname}"
+    ```
+  </TabItem>
+</Tabs>
+
+## 3. 앱 배포
+
+이제 모든 Cloudflare 리소스를 정의 한 것은 Pulumi CLI를 사용하여 Cloudflare 계정에 Hello World 애플리케이션을 배포 할 수 있습니다.
+
+변경을 배포하려면:
+
+```sh
+pulumi up --yes
+```
+
+```sh output
+wait for the dev stack to become ready
+```
+
+## 4. 노동자를 시험하십시오
+
+You incrementally 추가 Cloudflare 리소스를 실행하고 Hello World 응용 프로그램에 액세스합니다. 당신은 컬해서 당신의 신청을 시험할 수 있습니다`url`펄프에서 산출.
+
+```sh
+curl $(pulumi stack output url)
+```
+
+```sh output
+Hello, World!
+```
+
+## 5. 청소
+
+이 마지막 단계에서는 튜토리얼에서 사용되는 리소스 및 스택을 정리합니다.
+
+### a. Cloudflare 리소스 삭제
+
+```sh
+pulumi destroy
+```
+
+### b. Pulumi 스택 제거
+
+```sh
+pulumi stack rm dev
+```
+
+## 다음 단계
+
+자주 묻는 질문[Cloudflare 패키지 문서](https://www.pulumi.com/docs/reference/pkg/cloudflare/)Pulumi 및 Cloudflare로 정의 할 수있는 다른 리소스를 탐험하십시오.

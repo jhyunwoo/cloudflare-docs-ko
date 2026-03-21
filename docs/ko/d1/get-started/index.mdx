@@ -1,0 +1,646 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+reviewed: 2025-09-02T00:00:00.000Z
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/d1/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Steps, FileTree, Tabs, TabItem, TypeScriptExample, WranglerConfig, DashButton } from "~/components";
+
+이 가이드는 당신을 통해 지시합니다:
+
+- D1, Cloudflare의 기본 Serverless SQL 데이터베이스를 사용하여 첫 번째 데이터베이스를 만듭니다.
+- schema를 만들고 명령 줄을 통해 데이터베이스를 쿼리합니다.
+- 연결하기[Cloudflare 작업자](/workers/)D1 데이터베이스에 바인딩을 사용하여 D1 데이터베이스 프로그래밍.
+
+CLI를 통해 이러한 작업을 수행하거나 Cloudflare 대시보드XQ를 통해 수행 할 수 있습니다.
+
+:::참조
+이미 기존 노동자와 기존 D1 데이터베이스를 가지고 있다면, 이 튜토리얼을 따르십시오.[3. 당신의 D1 데이타베이스에 당신의 노동자를 바짝 죄십시오](/d1/get-started/#3-bind-your-worker-to-your-d1-database).
+:::
+
+## 빠른 시작
+
+단계와 시작하기XQ를 빨리 건너뛰고 싶다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/d1-get-started/d1/d1-get-started)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0431XQQ WorkersXQ에 응용 프로그램을 배포합니다. Cloudflare WorkersXQ에 익숙한 경우 이 옵션을 사용하고 단계별 지도를 건너 뛰기를 바랍니다.
+
+Cloudflare Workers에 새로운 경우에 당신은 수동으로 단계를 따를 수 있습니다.
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. 노동자 만들기
+
+데이터베이스를 쿼리하는 수단으로 새로운 노동자를 만듭니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    <Steps>
+      1. 새 프로젝트 만들기`d1-tutorial`으로 실행:
+
+         <PackageManagers type="create" pkg="cloudflare@latest" args={"d1-tutorial"} />
+
+         <Render
+           file="c3-post-run-steps"
+           product="workers"
+           params={{
+            category: "hello-world",
+            type: "Worker only",
+            lang: "TypeScript",
+            }}
+         />
+
+         이것은 새로운`d1-tutorial`아래에 설명된 대로 디렉토리.
+
+         <FileTree>
+           - d1 - 튜토리얼
+             - 노드 모듈/
+             - 시험/
+             - 사이트맵
+               - **사이트맵**
+             - 패키지-lock.json
+             - 패키지.json
+             - 테스트config.json
+             - 다운로드
+             - 작업자 구성.d.ts
+             - **다운로드**
+         </FileTree>
+
+         당신의 새로운`d1-tutorial`디렉토리 포함:
+
+         - ·`"Hello World"` [작업자](/workers/get-started/guide/#3-write-code)내 계정`index.ts`.
+         - ·[Wrangler 구성 파일](/workers/wrangler/configuration/). 이 파일은 어떻게`d1-tutorial`작업자는 D1 데이터베이스에 액세스합니다.
+    </Steps>
+
+    :::참조
+
+    Cloudflare Workers 또는 연속 통합 (CI) 환경에서 프로젝트를 초기화하는 경우, 새로운 프로젝트가 비동기적으로 설정하여`CI=true`이름 \*[환경변수](/workers/configuration/environment-variables/)현재 위치`create cloudflare@latest`.
+
+    예를 들면:`CI=true npm create cloudflare@latest d1-tutorial --type=simple --git --ts --deploy=false`기본 "Hello World" 프로젝트를 만들 준비가되었습니다.
+
+    :::
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 제품정보**회사연혁**.
+      3. 제품정보**Hello World로 시작하세요!** > **시작하기**.
+      4. 당신의 노동자를 지명하십시오. 이 튜토리얼의 경우, 당신의 노동자 이름`d1-tutorial`.
+      5. 제품정보**계정 만들기**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 2. 데이터베이스 만들기
+
+D1 데이터베이스는 다른 많은 SQL 데이터베이스와 마찬가지로 개념적입니다. 데이터베이스는 하나 이상의 테이블을 포함 할 수 있으며, 그 테이블을 쿼리 할 수있는 능력, 옵션 인덱스. D1는 익숙한 사용[SQL 쿼리 언어](https://www.sqlite.org/lang.html)(SQLite에 의해 사용).
+
+먼저 D1 데이터베이스를 만들려면:
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    <Steps>
+      1. Workers 프로젝트에서 만든 디렉토리로 변경:
+
+         ```sh
+         cd d1-tutorial
+         ```
+
+      2. 다음을 실행`wrangler@latest d1`명령 및 데이터베이스 이름을 부여합니다. 이 튜토리얼에서 데이터베이스는`prod-d1-tutorial`:
+
+         :::참조
+         더 보기[Wrangler 명령행 인터페이스](/workers/wrangler/)Cloudflare는 Workers 신청과 당신의 맨끝에 있는 D1 데이타베이스를 관리하고 배치하는 공구입니다. 사용할 때 설치되었습니다.`npm create cloudflare@latest`새로운 프로젝트를 초기화합니다.
+
+         Wrangler는 프로젝트를 로컬로 설치하지만, 명령을 사용하여 프로젝트를 외부로 사용할 수 있습니다.`npx wrangler`.
+         :::
+
+         ```sh
+         npx wrangler@latest d1 create prod-d1-tutorial
+         ```
+
+         ```txt output
+         ✅ Successfully created DB 'prod-d1-tutorial' in region WEUR
+         Created your new D1 database.
+
+         {
+         	"d1_databases": [
+         		{
+         			"binding": "prod_d1_tutorial",
+         			"database_name": "prod-d1-tutorial",
+         			"database_id": "<unique-ID-for-your-database>"
+         		}
+         	]
+         }
+         ```
+
+      3. 신속한 경우:`Would you like Wrangler to add it on your behalf?`, 선택`Yes`. 이것은 자동으로 Wrangler 구성 파일에 바인딩을 추가합니다.
+    </Steps>
+
+    이것은 새로운 D1 데이터베이스를 만들고 출력합니다.[관련 제품](/workers/runtime-apis/bindings/)다음 단계에서 필요한 구성.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**D1 SQL 데이터베이스**사이트 맵
+
+         <DashButton url="/?to=/:account/workers/d1" />
+      2. 제품정보**데이터베이스**.
+      3. 데이터베이스 이름. 이 튜토리얼의 경우 D1 데이터베이스 이름`prod-d1-tutorial`.
+      4. (선택) 위치 hint를 제공합니다. Location hint는 데이터베이스에 원하는 지리적 위치를 표시 할 수있는 옵션 매개 변수입니다. 더 알아보기[위치 hint 제공](/d1/configuration/data-location/#provide-a-location-hint)더 많은 정보.
+      5. 제품정보**이름 \***.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+:::참조
+
+참고 자료를 위해, 좋은 데이타베이스 이름:
+
+- ASCII 문자의 조합을 사용하여 32 문자보다 짧은, 공백 대신 dashes (-)를 사용합니다.
+- 사용 사례 및 환경의 설명입니다. 예를 들어, "staging-db-web" 또는 "production-db-backend".
+- 데이터베이스 만 설명하고 코드에서 직접 참고 자료d하지 않습니다.
+
+:::
+
+## 3. 당신의 D1 데이타베이스에 당신의 노동자를 바짝 죄십시오
+
+D1 데이터베이스에 연결하기 위해 작업자에게 바인딩을 작성해야 합니다.[회사 소개](/workers/runtime-apis/bindings/)Workers는 D1, Cloudflare 개발자 플랫폼과 같은 리소스에 액세스 할 수 있습니다.
+
+D1 데이터베이스를 작업자에게 바인딩하려면:
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    Wrangler 설정 파일에 바인딩을 자동으로 추가할 수 있습니다.`wrangler d1 create`명령 (단계 3의[2. 데이터베이스 만들기](/d1/get-started/#2-create-a-database)).
+
+    그러나 수동으로 바인딩을 추가하려면 아래 단계를 따르십시오.
+
+    <Steps>
+      1. 2단계에서 획득한 라인 복사[2. 데이터베이스 만들기](/d1/get-started/#2-create-a-database)당신의 맨끝에서.
+      2. Wrangler 파일의 끝에 추가하십시오.
+
+         <WranglerConfig>
+           ```jsonc
+           {
+             "d1_databases": [
+               {
+                 "binding": "prod_d1_tutorial", //env.DB에 있는 당신의 노동자에서 유효한
+                 "database_name": "prod-d1-tutorial",
+                 "database_id": "<unique-ID-for-your-database>"
+               }
+             ]
+           }
+           ```
+         </WranglerConfig>
+
+         특정한:
+
+         - value (string) 설정`binding`이름 \***바인딩 이름**, 그리고 당신의 노동자에 있는 참고 자료 이 데이타베이스에 사용됩니다. 이 튜토리얼에서 바인딩 이름을`prod_d1_tutorial`.
+         - 바인딩 이름은이어야 합니다[유효한 JavaScript 가변 이름](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Grammar_and_types#variables). 예를 들면,`binding = "MY_DB"`또는`binding = "productionDB"`둘 다 바인딩을 위한 유효한 이름일 것입니다.
+         - 당신의 의무는 당신의 노동자에서 유효합니다`env.<BINDING_NAME>`D1[모델 번호: Workers 바인딩 API](/d1/worker-api/)이 바인딩에 노출됩니다.
+    </Steps>
+
+    :::참조
+    실행할 때`wrangler d1 create`명령, 클라이언트 API 패키지 (D1 API 및 데이터베이스 클래스 구현)는 자동으로 설치됩니다. D1 Workers Binding API, 참조[Workers 바인딩 API](/d1/worker-api/).
+    :::
+
+    D1 데이터베이스도 결합할 수 있습니다.[Pages 기능](/pages/functions/). 자세한 내용은 참조[D1를 위한 의무 기능](/pages/functions/bindings/#d1-databases).
+  </TabItem>
+
+  <TabItem label="대시보드">
+    당신이 만든 노동자에 추가하여 바인딩을 만듭니다.
+
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 선택하기`d1-tutorial`당신이 만든 노동자[단계 1](/d1/get-started/#1-create-a-worker).
+      3. 오시는 길**회사 소개**탭.
+      4. 제품정보**바인딩**.
+      5. 제품정보**D1 데이터베이스** > **바인딩**.
+      6. 이름 당신의 바인딩에서**변수 이름**, 다음을 선택합니다`prod-d1-tutorial`D1 데이터베이스에서 생성[단계 2](/d1/get-started/#2-create-a-database)드롭다운 메뉴에서. 이 튜토리얼을 위해, 당신의 바인딩을 명명`prod_d1_tutorial`.
+      7. 제품정보**바인딩**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 4. D1 데이터베이스에 대한 쿼리를 실행
+
+### D1 데이터베이스를
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    자주 묻는 질문[Wrangler 구성 파일](/workers/wrangler/configuration/), 데이터베이스를 설정. 이름 \*`schema.sql`아래 SQL 구문을 사용하여 데이터베이스를 초기화합니다.
+
+    <Steps>
+      1. 다음 코드를 복사하고 저장합니다.`schema.sql`파일에`d1-tutorial`단계 1:
+
+         ```sql
+         DROP TABLE IF EXISTS Customers;
+         CREATE TABLE IF NOT EXISTS Customers (CustomerId INTEGER PRIMARY KEY, CompanyName TEXT, ContactName TEXT);
+         INSERT INTO Customers (CustomerID, CompanyName, ContactName) VALUES (1, 'Alfreds Futterkiste', 'Maria Anders'), (4, 'Around the Horn', 'Thomas Hardy'), (11, 'Bs Beverages', 'Victoria Ashworth'), (13, 'Bs Beverages', 'Random Name');
+         ```
+
+      2. 데이터베이스를 초기화하고 로컬로 테스트합니다. 실행하여 새로운 D1 데이터베이스를 부팅 :
+
+         ```sh
+         npx wrangler d1 execute prod-d1-tutorial --local --file=./schema.sql
+         ```
+
+         ```txt output
+         ⛅️ wrangler 4.13.2
+         -------------------
+
+         🌀 Executing on local database prod-d1-tutorial (<DATABASE_ID>) from .wrangler/state/v3/d1:
+         🌀 To execute on your remote database, add a --remote flag to your wrangler command.
+         🚣 3 commands executed successfully.
+         ```
+
+         :::참조
+         명령을`npx wrangler d1 execute`데이터베이스를 로컬로 초기화, 원격 데이터베이스에 없습니다.
+         주요 특징
+
+      3. 데이터를 실행하여 데이터베이스에 있음을 검증합니다.
+
+         ```sh
+         npx wrangler d1 execute prod-d1-tutorial --local --command="SELECT * FROM Customers"
+         ```
+
+         ```txt output
+          🌀 Executing on local database jun-d1-db-gs-2025 (cf91ec5c-fa77-4d49-ad8e-e22921b996b2) from .wrangler/state/v3/d1:
+          🌀 To execute on your remote database, add a --remote flag to your wrangler command.
+          🚣 1 command executed successfully.
+          ┌────────────┬─────────────────────┬───────────────────┐
+          │ CustomerId │ CompanyName         │ ContactName       │
+          ├────────────┼─────────────────────┼───────────────────┤
+          │ 1          │ Alfreds Futterkiste │ Maria Anders      │
+          ├────────────┼─────────────────────┼───────────────────┤
+          │ 4          │ Around the Horn     │ Thomas Hardy      │
+          ├────────────┼─────────────────────┼───────────────────┤
+          │ 11         │ Bs Beverages        │ Victoria Ashworth │
+          ├────────────┼─────────────────────┼───────────────────┤
+          │ 13         │ Bs Beverages        │ Random Name       │
+          └────────────┴─────────────────────┴───────────────────┘
+         ```
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    Dashboard를 사용하여 테이블을 만들고 데이터를 붙여 넣습니다.
+
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**D1 SQL 데이터베이스**사이트 맵
+         <DashButton url="/?to=/:account/workers/d1" />
+
+      2. 선택하기`prod-d1-tutorial`당신이 만든 데이터베이스[단계 2](/d1/get-started/#2-create-a-database).
+
+      3. 제품정보**회사 소개**.
+
+      4. 뒤에 오는 SQL snippet를 붙여넣으십시오.
+
+         ```sql
+         DROP TABLE IF EXISTS Customers;
+         CREATE TABLE IF NOT EXISTS Customers (CustomerId INTEGER PRIMARY KEY, CompanyName TEXT, ContactName TEXT);
+         INSERT INTO Customers (CustomerID, CompanyName, ContactName) VALUES (1, 'Alfreds Futterkiste', 'Maria Anders'), (4, 'Around the Horn', 'Thomas Hardy'), (11, 'Bs Beverages', 'Victoria Ashworth'), (13, 'Bs Beverages', 'Random Name');
+         ```
+
+      5. 제품정보**계정 관리**. 이 테이블을 만듭니다`Customers`내 계정`prod-d1-tutorial`데이터베이스.
+
+      6. 제품정보**사이트맵**, 다음을 선택합니다`Customers`테이블의 내용을 볼 수 있습니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+### 직장 내의 쿼리 작성
+
+데이터베이스를 설정 한 후 작업자 내에서 SQL 쿼리를 실행하십시오.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    <Steps>
+      1. 내 계정`d1-tutorial`노동자와 열려있는`index.ts`파일. 더 보기`index.ts`파일은 D1와 작업자의 상호 작용을 구성하는 곳입니다.
+      2. 자주 묻는 질문`index.ts`.
+      3. 다음 코드를 붙여넣기 snippet 당신의`index.ts`파일 :
+
+         <Tabs syncKey="workersExamples">
+           <TypeScriptExample filename="index.ts" omitTabs={true}>
+             ```typescript
+             export interface Env {
+             	//Wrangler config 파일의 이름을 'binding'의 값으로 설정하면
+             	//정의된 변수 이름과 "DB"를 대체합니다.
+             	prod_d1_tutorial: D1Database;
+             }
+
+             export default {
+             	async fetch(request, env): Promise<Response> {
+             		const { pathname } = new URL(request.url);
+
+             		if (pathname === "/api/beverages") {
+             			//바인딩 이름으로 `DB`를 사용하지 않았다면 여기에서 변경하십시오.
+             			const { results } = await env.prod_d1_tutorial.prepare(
+             				"SELECT * FROM Customers WHERE CompanyName = ?",
+             			)
+             				.bind("Bs Beverages")
+             				.run();
+             			return Response.json(results);
+             		}
+
+             		return new Response(
+             			"Call /api/beverages to see everyone who works at Bs Beverages",
+             		);
+             	},
+             } satisfies ExportedHandler<Env>;
+             ```
+           </TypeScriptExample>
+
+           <TabItem label="Python" icon="seti:python">
+             ```python title="entry.py"
+             from workers import Response, WorkerEntrypoint
+             from urllib.parse import urlparse
+
+             class Default(WorkerEntrypoint):
+                 async def fetch(self, request):
+                     pathname = urlparse(request.url).path
+                     if pathname == "/api/beverages":
+                         query = (
+                             await self.env.prod_d1_tutorial.prepare(
+                                 "SELECT * FROM Customers WHERE CompanyName = ?",
+                             )
+                             .bind("Bs Beverages")
+                             .run()
+                         )
+                         return Response.json(query.results)
+                     return Response(
+                         "Call /api/beverages to see everyone who works at Bs Beverages"
+                     )
+             ```
+           </TabItem>
+         </Tabs>
+
+         위의 코드에서:
+
+         1. D1 데이터베이스에 바인딩을 정의합니다. 이 바인딩은 일치합니다`binding`설정 값[Wrangler 구성 파일](/workers/wrangler/configuration/)이름 \*`d1_databases`.
+         2. Query를 사용하여 데이터베이스`env.prod_d1_tutorial.prepare`관련 기사[자주 묻는 질문](/d1/worker-api/d1-database/#prepare)위시리스트`?`자주 묻는 질문
+         3. 이름 \*`bind()`안전하게 그 위너에게 가치를 부여합니다. 실제 응용 프로그램에서 사용자가 통과 할 수 있습니다.`CompanyName`그들은 결과 목록을 원한다. 사용 방법`bind()`arbitrary SQL ( "SQL injection"으로 알려진) 실행에서 사용자를 방지하고 데이터베이스를 삭제하거나 수정합니다.
+         4. 자주 묻는 질문[`run()`](/d1/worker-api/prepared-statements/#run)모든 행을 반환 (또는 아무도, 쿼리가 아무도 반환).
+         5. 쿼리 결과를 반환, 어쨌든, JSON 형식으로`Response.json(results)`.
+    </Steps>
+
+    Worker를 구성한 후, 로컬로 프로젝트를 테스트할 수 있습니다.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    작업자를 사용하여 D1 데이터베이스를 쿼리할 수 있습니다.
+
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+         <DashButton url="/?to=/:account/workers-and-pages" />
+
+      2. 선택하기`d1-tutorial`당신이 만든 노동자.
+
+      3. 선택하기**비밀번호**아이콘 (**\</>**).
+
+      4. 자주 묻는 질문`worker.js`파일, 다음 코드를 붙여 넣기:
+
+         ```js
+         export default {
+         	async fetch(request, env) {
+         		const { pathname } = new URL(request.url);
+
+         		if (pathname === "/api/beverages") {
+         			//바인딩 이름으로 `DB`를 사용하지 않았다면 여기에서 변경하십시오.
+         			const { results } = await env.prod_d1_tutorial.prepare(
+         				"SELECT * FROM Customers WHERE CompanyName = ?"
+         			)
+         				.bind("Bs Beverages")
+         				.run();
+         			return new Response(JSON.stringify(results), {
+         				headers: { 'Content-Type': 'application/json' }
+         			});
+         		}
+
+         		return new Response(
+         			"Call /api/beverages to see everyone who works at Bs Beverages"
+         		);
+         	},
+         };
+         ```
+
+      5. 제품정보**제품 정보**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 5. 앱 배포
+
+Cloudflare의 글로벌 네트워크에 응용 프로그램을 배포합니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    Wrangler를 사용하여 생산에 노동자를 배치하려면 먼저 반복해야합니다.[Database 구성](/d1/get-started/#populate-your-d1-database)교체 후 단계`--local`플래그와`--remote`읽기 위하여 당신의 노동자 자료를 주는 깃발. 이 데이터베이스 테이블을 생성하고 데이터베이스의 생산 버전으로 데이터를 가져옵니다.
+
+    <Steps>
+      1. 테이블을 만들고 원격 데이터베이스에 항목을 추가`schema.sql`단계 4.에서 생성 된 파일 이름 \*`y`당신의 결정을 확인.
+
+         ```sh
+         npx wrangler d1 execute prod-d1-tutorial --remote --file=./schema.sql
+         ```
+
+         ```txt output
+         🌀 Executing on remote database prod-d1-tutorial (<DATABASE_ID>):
+         🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+         Note: if the execution fails to complete, your DB will return to its original state and you can safely retry.
+         ├ 🌀 Uploading <DATABASE_ID>.a7f10c4651cc3a26.sql
+         │ 🌀 Uploading complete.
+         │
+         🌀 Starting import...
+         🌀 Processed 3 queries.
+         🚣 Executed 3 queries in 0.00 seconds (5 rows read, 6 rows written)
+         Database is currently at bookmark 00000000-0000000a-00004f6d-b85c16a3dbcf077cb8f258b4d4eb965e.
+         ┌────────────────────────┬───────────┬──────────────┬────────────────────┐
+         │ Total queries executed │ Rows read │ Rows written │ Database size (MB) │
+         ├────────────────────────┼───────────┼──────────────┼────────────────────┤
+         │ 3                      │ 5         │ 6            │ 0.02               │
+         └────────────────────────┴───────────┴──────────────┴────────────────────┘
+         ```
+
+      2. 데이터를 실행하여 생산에 유효합니다.
+
+         ```sh
+         npx wrangler d1 execute prod-d1-tutorial --remote --command="SELECT * FROM Customers"
+         ```
+
+         ```txt output
+
+         ⛅️ wrangler 4.33.1
+         ───────────────────
+         🌀 Executing on remote database jun-d1-db-gs-2025 (cf91ec5c-fa77-4d49-ad8e-e22921b996b2):
+         🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+         🚣 Executed 1 command in 0.1797ms
+         ┌────────────┬─────────────────────┬───────────────────┐
+         │ CustomerId │ CompanyName         │ ContactName       │
+         ├────────────┼─────────────────────┼───────────────────┤
+         │ 1          │ Alfreds Futterkiste │ Maria Anders      │
+         ├────────────┼─────────────────────┼───────────────────┤
+         │ 4          │ Around the Horn     │ Thomas Hardy      │
+         ├────────────┼─────────────────────┼───────────────────┤
+         │ 11         │ Bs Beverages        │ Victoria Ashworth │
+         ├────────────┼─────────────────────┼───────────────────┤
+         │ 13         │ Bs Beverages        │ Random Name       │
+         └────────────┴─────────────────────┴───────────────────┘
+         ```
+
+      3. 인터넷에서 프로젝트에 접근할 수 있도록 작업자를 배포합니다. 실행:
+
+         ```sh
+         npx wrangler deploy
+         ```
+
+         ```txt output
+         ⛅️ wrangler 4.33.1
+         ────────────────────
+         Total Upload: 0.52 KiB / gzip: 0.33 KiB
+         Your Worker has access to the following bindings:
+         Binding                                        Resource
+         env.prod_d1_tutorial (prod-d1-tutorial)        D1 Database
+
+         Uploaded prod-d1-tutorial (4.17 sec)
+         Deployed prod-d1-tutorial triggers (3.49 sec)
+         https://prod-d1-tutorial.pcx-team.workers.dev
+         Current Version ID: 42c82f1c-ff2b-4dce-9ea2-265adcccd0d5
+         ```
+
+         새로 생성 된 프로젝트에 대한 URL을 방문하여 라이브 데이터베이스를 쿼리 할 수 있습니다.
+
+         예를 들어, 새로운 노동자의 URL이 있다면`d1-tutorial.<YOUR_SUBDOMAIN>.workers.dev`, 접속`https://d1-tutorial.<YOUR_SUBDOMAIN>.workers.dev/api/beverages`귀하의 라이브 데이터베이스를 직접 쿼리하는 작업자에게 요청을 보냅니다.
+
+      4. 데이터베이스를 성공적으로 실행합니다. 더 보기`/api/beverages`제공된 Wrangler URL에. 예를 들어,`https://d1-tutorial.<YOUR_SUBDOMAIN>.workers.dev/api/beverages`.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+         <DashButton url="/?to=/:account/workers-and-pages" />
+      2. 자주 묻는 질문`d1-tutorial`작업자.
+      3. 제품정보**계정 만들기**.
+      4. 에 의해**버전 역사**테이블, 선택**배포 버전**.
+      5. 에 의해**배포 버전**페이지, 선택**계정 만들기**.
+    </Steps>
+
+    이 작업자의 최신 버전을 생산합니다.
+  </TabItem>
+</Tabs>
+
+## 6. (선택) Wrangler로 국부적으로 개발
+
+D1XQ를 WranglerQXQ로 사용하는 경우 로컬 데이터베이스를 테스트할 수 있습니다. 프로젝트 디렉토리에서:
+
+<Steps>
+  1. 지원하다`wrangler dev`:
+
+     ```sh
+     npx wrangler dev
+     ```
+
+     당신이 실행할 때`wrangler dev`, Wrangler는 URL을 제공합니다 (최대 가능성`localhost:8787`) 당신의 노동자를 검토하는.
+
+  2. URL로 이동.
+
+     페이지 표시`Call /api/beverages to see everyone who works at Bs Beverages`.
+
+  3. 데이터베이스를 성공적으로 실행합니다. 더 보기`/api/beverages`제공된 Wrangler URL에. 예를 들어,`localhost:8787/api/beverages`.
+</Steps>
+
+성공하면 브라우저가 데이터를 표시합니다.
+
+:::참조
+Wrangler를 사용하는 경우 로컬로 개발할 수 있습니다. QXQX0519XQQ 대시보드를 통해 로컬로 개발할 수 없습니다.
+주요 특징
+
+## 7. (선택 사항) 데이터베이스 삭제
+
+데이터베이스를 삭제하려면:
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    실행:
+
+    ```sh
+    npx wrangler d1 delete prod-d1-tutorial
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**D1 SQL 데이터베이스**사이트 맵
+         <DashButton url="/?to=/:account/workers/d1" />
+
+      2. 자주 묻는 질문`prod-d1-tutorial`D1 데이터베이스.
+
+      3. 제품정보**계정 설정**.
+
+      4. 제품정보**이름 \***.
+
+      5. 데이터베이스의 이름을 입력 (`prod-d1-tutorial`) 삭제를 확인합니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+:::카트로션
+D1 데이터베이스를 삭제하는 것은 전에 기능에서 응용 프로그램을 중지합니다.
+주요 특징
+
+노동자를 삭제하려면:
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="제품정보">
+    실행:
+
+    ```sh
+    npx wrangler delete d1-tutorial
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서, 가십시오**Workers & Pages**사이트 맵
+         <DashButton url="/?to=/:account/workers-and-pages" />
+
+      2. 자주 묻는 질문`d1-tutorial`작업자.
+
+      3. 제품정보**계정 설정**.
+
+      4. 페이지의 하단에 스크롤, 다음을 선택합니다**이름 \***.
+
+      5. 노동자의 이름을 입력 (`d1-tutorial`) 삭제를 확인합니다.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 제품정보
+
+이 튜토리얼에서:
+
+- D1 데이터베이스 생성
+- 데이터베이스에 액세스 할 작업자 만들기
+- 글로벌 프로젝트 배포
+
+## 다음 단계
+
+어떤 기능 요청이나 버그가 있으면 Cloudflare 팀과 직접 피드백을 공유하십시오.[모델 번호: Cloudflare Discord의 개발자 커뮤니티](https://discord.cloudflare.com).
+
+- 지원하다[Wrangler 명령은 D1](/workers/wrangler/commands/#d1).
+- 자주 묻는 질문[모델 번호: D1 Worker 바인딩 APIs](/d1/worker-api/)당신의 노동자 안에, 그리고 그들에서 시험하십시오[API 놀이터](/d1/worker-api/#api-playground).
+- 여행 정보[D1](/d1/reference/community-projects/).

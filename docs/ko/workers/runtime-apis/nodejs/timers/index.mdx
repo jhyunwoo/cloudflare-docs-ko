@@ -1,0 +1,61 @@
+---
+pcx_content_type: configuration
+title: 계정 정보
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/timers/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/timers/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TypeScriptExample } from "~/components";
+
+<Render file="nodejs-compat-howto" product="workers" />
+
+제품 정보[`node:timers`](https://nodejs.org/api/timers.html)API는 나중에 실행될 함수를 스케줄합니다.
+
+이 포함[`setTimeout`](https://nodejs.org/api/timers.html#settimeoutcallback-delay-args)지연 후 기능을 호출하기 위해,
+[`setInterval`](https://nodejs.org/api/timers.html#clearintervaltimeout)반복적으로 기능을 호출하기 위해,
+·[`setImmediate`](https://nodejs.org/api/timers.html#setimmediatecallback-args)이벤트 루프의 다음 반복에서 함수를 호출합니다.
+
+<TypeScriptExample filename="index.ts">
+  ```ts
+  import timers from "node:timers";
+
+  export default {
+    async fetch(): Promise<Response> {
+      console.log("first");
+      const { promise: promise1, resolve: resolve1 } = Promise.withResolvers<void>();
+      const { promise: promise2, resolve: resolve2 } = Promise.withResolvers<void>();
+      timers.setTimeout(() => {
+        console.log("last");
+        resolve1();
+      }, 10);
+
+      timers.setTimeout(() => {
+        console.log("next");
+        resolve2();
+      });
+
+      await Promise.all([promise1, promise2]);
+
+      return new Response("ok");
+    }
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+:::참조
+이름 \*[timers에 대한 보안 기반 제한](/workers/reference/security-model/#step-1-disallow-timers-and-multi-threading)Workers에서,
+타이머는 마지막 I/O의 시간을 반환하는 것이 제한됩니다. setTimeout, setInterval 및 setImmediate가 기능 실행을 무시하는 것을 의미합니다.
+다른 이벤트가 실행되면 지정된 풀 타임을 지연하지 않습니다.
+주요 특징
+
+:::참조
+글로벌 수준에서 호출 할 때 (에[`globalThis`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/globalThis)),
+같은 기능`clearTimeout`·`setTimeout`Node.js-specific 기능 보다는 오히려 웹 기준을 존중할 것입니다. 완전한 Node.js를 위해
+호환성, 당신은에서 기능을 호출해야합니다`node:timers`모듈.
+주요 특징
+
+전체장편`node:timers`API는 문서화[Node.js 문서`node:timers`](https://nodejs.org/api/timers.html).

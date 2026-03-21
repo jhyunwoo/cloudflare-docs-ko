@@ -1,0 +1,43 @@
+---
+title: 보조 설정을 전체 설정으로 전환
+pcx_content_type: tutorial
+sidebar:
+  order: 7
+  label: 보조에서 전체로
+description: >-
+  처음에 인바운드 영역 전송(Cloudflare를 보조로 사용)으로 설정했다면 나중에 영역을 전체 설정으로 전환할 수 있습니다.
+---
+
+import { Render } from "~/components";
+
+처음에 [인바운드 영역 전송(Cloudflare를 보조로 사용)](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/setup/)으로 설정했다면, 나중에 [기본 설정](/dns/zone-setups/full-setup/) (전체 설정이라고도 함)으로 전환할 수 있습니다.
+
+<Render file="conversion-subdomain-setup-callout" product="dns" />
+
+이 전환을 수행하려면 아래 단계를 따르세요.
+
+## 1. 영역 전송 중지
+
+<Render file="secondary-conversion-unlink" product="dns" />
+
+## 2. 전환 준비
+
+1. [DNSSEC 설정](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/dnssec-for-secondary/)을 계획합니다. 이전에 [Pre-signed DNSSEC](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/dnssec-for-secondary/#set-up-pre-signed-dnssec)를 사용했다면 전환 전에 DNSSEC를 비활성화하는 것을 고려하세요.
+2. DNS 레코드의 [프록시 상태](/dns/proxy-status/)가 일관되게 설정되어 있는지 확인합니다.
+   - [Secondary DNS override](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/proxy-traffic/)를 사용 중이라면 각 레코드가 적절한 설정(**Proxied** 또는 **DNS only**)인지 확인합니다.
+   - [Secondary DNS override](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/proxy-traffic/)가 비활성화되어 있다면 모든 DNS 레코드가 **DNS only**인지 확인합니다.
+
+3. (선택 사항) 일관성을 위해 [Update DNS Settings](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/) 엔드포인트를 사용해 SOA 레코드 필드를 원하는 값으로 지정합니다. Cloudflare가 기본 설정(전체)에서 영역용 SOA 레코드를 자동 생성하면, 이 필드 재정의 값이 반영됩니다.
+
+## 3. 영역 전환
+
+1. [Edit Zone 엔드포인트](/api/resources/zones/methods/edit/)에서 `type`을 `full`로 설정해 영역 유형을 전환합니다. 기존 DNS 레코드는 영향을 받지 않습니다.
+2. [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지로 이동해 새 **Cloudflare Nameservers**를 확인합니다.
+3. 등록기관(또는 부모 영역)에서 [네임서버를 업데이트](/dns/nameservers/update-nameservers/)합니다. `secondary.cloudflare.com`으로 끝나는 네임서버를 `ns.cloudflare.com`으로 끝나는 네임서버로 교체합니다.
+
+   :::note
+   Cloudflare가 유일한 기본 DNS 공급자가 될 경우 다른 네임서버도 함께 제거하세요.
+   :::
+
+4. 이전 SOA 레코드를 삭제하여 Cloudflare가 새 SOA 레코드를 생성하도록 합니다.
+5. (선택 사항) 이전에는 Cloudflare가 레코드에 서명하지 않았고 이제 DNSSEC를 사용하려면 [Enable DNSSEC](/dns/dnssec/#enable-dnssec) 절차를 따르세요.

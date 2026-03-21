@@ -1,0 +1,198 @@
+---
+title: Sandbox 수명주기
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/concepts/sandboxes/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/concepts/sandboxes/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Sandbox는 코드가 실행되는 고립 된 실행 환경입니다. 각 sandbox:
+
+- 고유 식별자 (sandbox ID)
+- 고립 된 파일 시스템을 포함합니다.
+- 전용 Linux 컨테이너에서 실행
+- 컨테이너가 활성화되는 동안 상태를 유지
+- Cloudflare 튼튼한 목표로 Exists
+
+## Lifecycle 국가
+
+### - 연혁
+
+sandbox는 reference 그것의 ID를 첫번째로 창조됩니다:
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, "user-123");
+await sandbox.exec('echo "Hello"'); //첫 번째 요청은 sandbox를 만듭니다.
+```
+
+### 지원하다
+
+sandbox 컨테이너는 실행 및 처리 요청입니다. 모든 국가는 사용할 수 있습니다 : 파일, 실행 프로세스, 쉘 세션, 환경 변수.
+
+### 아이들
+
+inactivity의 기간 후에 (10 분 기본적으로, configurable를 통해[`sleepAfter`](/sandbox/configuration/sandbox-options/)), 콘테이너는 자유로운 자원에 멈춥니다. 다음 요청이 도착하면 신선한 용기가 시작됩니다. 모든 이전 상태는 손실되고 환경은 초기 상태로 재설정됩니다.
+
+**이름 \***: 용기[`keepAlive: true`](/sandbox/configuration/sandbox-options/#keepalive)idle 상태를 입력하지 마십시오. 그들은 자동으로 30 초마다 심장 박동을 보냅니다.
+
+### 관련 기사
+
+샌드박스는 명시적으로 파괴되거나 자동으로 정리됩니다:
+
+```typescript
+await sandbox.destroy();
+//모든 파일, 프로세스 및 상태는 영구적으로 삭제
+```
+
+## 콘테이너 일생 및 국가
+
+Sandbox 상태는 컨테이너가 활성화되는 동안만 존재합니다. 신뢰할 수있는 응용 프로그램을 구축하는 것이 중요합니다.
+
+**컨테이너가 활성화되는 동안**(일반적으로 활동 시간까지):
+
+- 관련 파일`/workspace`, `/tmp`, `/home`자주 묻는 질문
+- 배경 프로세스 계속 실행
+- Shell 세션은 작업 디렉토리 및 환경을 유지
+- Code 해석기 contexts는 변수를 유지하고 imports
+
+**컨테이너가 멈추면**(실행 또는 명시된 파괴에 따라):
+
+- 모든 파일은 삭제됩니다.
+- 모든 공정 종료
+- 모든 포탄 국가 리셋
+- 모든 코드 해석기 컨텍스트는 명확하게
+
+다음 요청은 깨끗한 환경에 신선한 용기를 만듭니다.
+
+## Naming 전략
+
+### 사용자 sandboxes
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, `user-${userId}`);
+```
+
+샌드박스를 사용하는 동안 사용자의 작업 persists. 상호 작용하는 환경, 운동장 및 사용자가 지속적으로 일하는 노트북을 위해 좋은.
+
+### 공급 업체
+
+```typescript
+const sessionId = `session-${Date.now()}-${Math.random()}`;
+const sandbox = getSandbox(env.Sandbox, sessionId);
+//다음 :
+await sandbox.destroy();
+```
+
+신선한 환경 각 시간. 한 번 실행, CI/CD 및 격리된 테스트를 위해 좋은.
+
+### Per-task 모래 상자
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, `build-${repoName}-${commit}`);
+```
+
+clear task-to-sandbox mapping와 Idempotent 작업. 빌드, 파이프라인 및 배경 작업을 위해 좋은.
+
+## 연락처
+
+sandbox의 첫 번째 요청은 지리적 위치를 결정합니다. 동일한 위치로의 요청 경로.
+
+**글로벌 앱**:
+
+- 선택권 1: 지역 suffix를 가진 사용자 당 다수 sandboxes (`user-123-us`, `user-123-eu`)
+- 선택권 2: 사용자 당 단 하나 sandbox (간단한, 그러나 몇몇 사용자는 더 높은 latency를 보십시오)
+
+## Lifecycle 관리
+
+### 파괴 할 때
+
+```typescript
+try {
+	const sandbox = getSandbox(env.Sandbox, sessionId);
+	await sandbox.exec("npm run build");
+} finally {
+	await sandbox.destroy(); //청소 임시 sandboxes
+}
+```
+
+**Destroy 언제**: 세션 종료, 작업 완료, 자원 더 이상 필요
+
+**파괴하지 마십시오**: 개인 환경, 장기 서비스
+
+### keepAlive 컨테이너 관리
+
+용기와[`keepAlive: true`](/sandbox/configuration/sandbox-options/#keepalive)자동으로 타임아웃하지 않기 때문에 명시된 관리가 필요합니다:
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, 'persistent-task', {
+  keepAlive: true
+});
+
+//나중에, 긴 실행 작업으로 수행 할 때
+await sandbox.setKeepAlive(false); //정상적인 timeout 행동을 허용하십시오
+//또는 명시적으로 파괴:
+await sandbox.destroy();
+```
+
+### 컨테이너 재시작
+
+inactivity 또는 실패 후에 콘테이너 재시작. 상태 손실을 처리하는 당신의 신청을 디자인하십시오:
+
+```typescript
+//필요한 파일을 사용하기 전에 체크
+const files = await sandbox.listFiles("/workspace");
+if (!files.includes("data.json")) {
+	//Reinitialize: 컨테이너 재시작 및 이전 상태 손실
+	await sandbox.writeFile("/workspace/data.json", initialData);
+}
+
+await sandbox.exec("python process.py");
+```
+
+## 버전 호환성
+
+SDK는 npm 패키지 버전이 Docker 컨테이너 이미지 버전과 일치한다는 것을 자동으로 확인합니다.**버전 mismatches는 기능 발생하거나 예기치 않게 행동 할 수 있습니다.**
+
+**자주 묻는 질문**:
+
+- sandbox 시작에, SDK는 컨테이너의 버전을 쿼리
+- 버전이 일치하지 않으면 경고가 기록됩니다.
+- 일부 기능이 제대로 작동하지 않을 수 있습니다.
+
+**경고를 볼 때**:
+
+- npm 패키지 업데이트 (`npm install @cloudflare/sandbox@latest`) 그러나 업데이트를 잊어`FROM`Dockerfile의 라인
+
+**수정 방법**::
+Dockerfile을 npm 패키지 버전과 일치하도록 업데이트하십시오. 예를 들어, 사용시`@cloudflare/sandbox@0.7.0`:
+
+```dockerfile
+# Default image (JavaScript/TypeScript)
+FROM docker.io/cloudflare/sandbox:0.7.0
+
+# Or Python image if you need Python support
+FROM docker.io/cloudflare/sandbox:0.7.0-python
+```
+
+이름 \*[도커파일 reference](/sandbox/configuration/dockerfile/)이미지 변형에 대한 자세한 내용은 기본 이미지를 확장합니다.
+
+## 좋은 관행
+
+- **이름 일관되게**- 명확한 사용, 예측 가능한 naming 계획
+- **청소 임시 sandboxes**- 항상 수행 할 때 파괴
+- **재사용된 샌드박스**- 사용자 당 하나는 수시로 충분합니다
+- **일괄 작업**- 결합 명령:`npm install && npm test && npm build`
+- **ephemeral 국가 설계**- 모든 국가를 잃는 inactivity 후에 콘테이너 재시작
+
+## 관련 자료
+
+- [회사연혁](/sandbox/concepts/architecture/)- 모래 상자가 시스템에 적합
+- [컨테이너 런타임](/sandbox/concepts/containers/)- 샌드박스 내부의 동작
+- [세션 관리](/sandbox/concepts/sessions/)- 고급 상태 고립
+- [라이프사이클 API](/sandbox/api/lifecycle/)- 모래 상자 생성 및 관리
+- [세션 API](/sandbox/api/sessions/)- 실행 세션 생성 및 관리

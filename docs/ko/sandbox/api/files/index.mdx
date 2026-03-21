@@ -1,0 +1,230 @@
+---
+title: 파일 형식
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/files/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/files/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+모래 상자 파일 시스템에서 파일을 읽고, 쓰기 및 관리합니다. 모든 경로는 절대 (예 :,`/workspace/app.js`).
+
+## 제품 설명
+
+### `writeFile()`
+
+파일에 내용을 씁니다.
+
+```ts
+await sandbox.writeFile(path: string, content: string, options?: WriteFileOptions): Promise<void>
+```
+
+**매개 변수**:
+
+- `path`- 파일에 절대 경로
+- `content`- 작성 내용
+- `options`(선택):
+  - `encoding`- 파일 인코딩 (`"utf-8"`또는`"base64"`, 기본:`"utf-8"`)
+
+<TypeScriptExample>
+  ```
+  await sandbox.writeFile('/workspace/app.js', `console.log('Hello!');`);
+
+  // Binary data
+  await sandbox.writeFile('/tmp/image.png', base64Data, { encoding: 'base64' });
+  ```
+</TypeScriptExample>
+
+:::note\[Base64 검증]
+사용 방법`encoding: 'base64'`, 콘텐츠는 유효한 base64 문자 (A-Z, a-z, 0-9, +, /, =)만 포함해야합니다. 잘못된 base64 콘텐츠는 유효성 오류를 반환합니다.
+주요 특징
+
+### `readFile()`
+
+sandbox에서 파일을 읽으십시오.
+
+```ts
+const file = await sandbox.readFile(path: string, options?: ReadFileOptions): Promise<FileInfo>
+```
+
+**매개 변수**:
+
+- `path`- 파일에 절대 경로
+- `options`(선택):
+  - `encoding`- 파일 인코딩 (`"utf-8"`또는`"base64"`, 과태: MIME 유형에서 자동 검출하는)
+
+**기타 제품**: `Promise<FileInfo>`이름 \*`content`·`encoding`
+
+<TypeScriptExample>
+  ```
+  const file = await sandbox.readFile('/workspace/package.json');
+  const pkg = JSON.parse(file.content);
+
+  // Binary data (auto-detected or forced)
+  const image = await sandbox.readFile('/tmp/image.png', { encoding: 'base64' });
+
+  // Force encoding (override MIME detection)
+  const textAsBase64 = await sandbox.readFile('/workspace/data.txt', { encoding: 'base64' });
+  ```
+</TypeScriptExample>
+
+:::노트\[코딩 동작]
+시간 :`encoding`지정된, 그것은 MIME 기반 자동 탐지를 overrides. 없음`encoding`, SDK는 파일의 MIME 유형에서 적절한 인코딩을 감지합니다.
+주요 특징
+
+### `exists()`
+
+파일 또는 디렉토리가 존재하는 경우 확인.
+
+```ts
+const result = await sandbox.exists(path: string): Promise<FileExistsResult>
+```
+
+**매개 변수**:
+
+- `path`- 확인하는 절대 경로
+
+**기타 제품**: `Promise<FileExistsResult>`이름 \*`exists`한국어
+
+<TypeScriptExample>
+  ```
+  const result = await sandbox.exists('/workspace/package.json');
+  if (result.exists) {
+    const file = await sandbox.readFile('/workspace/package.json');
+    // process file
+  }
+
+  // Check directory
+  const dirResult = await sandbox.exists('/workspace/src');
+  if (!dirResult.exists) {
+    await sandbox.mkdir('/workspace/src');
+  }
+  ```
+</TypeScriptExample>
+
+:::노트\[세션]
+모두 보기`sandbox.exists()`·`session.exists()`지원됩니다.
+주요 특징
+
+### `mkdir()`
+
+디렉토리를 만듭니다.
+
+```ts
+await sandbox.mkdir(path: string, options?: MkdirOptions): Promise<void>
+```
+
+**매개 변수**:
+
+- `path`- 디렉토리에 절대 경로
+- `options`(선택):
+  - `recursive`- 필요한 경우 부모 디렉토리 생성 (기본:`false`)
+
+<TypeScriptExample>
+  ```
+  await sandbox.mkdir('/workspace/src');
+
+  // Nested directories
+  await sandbox.mkdir('/workspace/src/components/ui', { recursive: true });
+  ```
+</TypeScriptExample>
+
+### `deleteFile()`
+
+파일 삭제
+
+```ts
+await sandbox.deleteFile(path: string): Promise<void>
+```
+
+**매개 변수**:
+
+- `path`- 파일에 절대 경로
+
+<TypeScriptExample>
+  ```
+  await sandbox.deleteFile('/workspace/temp.txt');
+  ```
+</TypeScriptExample>
+
+### `renameFile()`
+
+파일 이름
+
+```ts
+await sandbox.renameFile(oldPath: string, newPath: string): Promise<void>
+```
+
+**매개 변수**:
+
+- `oldPath`- 현재 파일 경로
+- `newPath`- 새 파일 경로
+
+<TypeScriptExample>
+  ```
+  await sandbox.renameFile('/workspace/draft.txt', '/workspace/final.txt');
+  ```
+</TypeScriptExample>
+
+### `moveFile()`
+
+다른 디렉토리에 파일을 이동합니다.
+
+```ts
+await sandbox.moveFile(sourcePath: string, destinationPath: string): Promise<void>
+```
+
+**매개 변수**:
+
+- `sourcePath`- 현재 파일 경로
+- `destinationPath`- 목적지 경로
+
+<TypeScriptExample>
+  ```
+  await sandbox.moveFile('/tmp/download.txt', '/workspace/data.txt');
+  ```
+</TypeScriptExample>
+
+### `gitCheckout()`
+
+git 저장소를 복제합니다.
+
+```ts
+await sandbox.gitCheckout(repoUrl: string, options?: GitCheckoutOptions): Promise<void>
+```
+
+**매개 변수**:
+
+- `repoUrl`- Git 저장소 URL
+- `options`(선택):
+  - `branch`- 체크 아웃 지점 (기본: 저장소 기본 지점)
+  - `targetDir`- clone에 디렉토리 (과태:`/workspace/{repoName}`)
+  - `depth`- 얕은 clones (예를 들어,`1`최신 커밋 만)
+
+<TypeScriptExample>
+  ```
+  await sandbox.gitCheckout('https://github.com/user/repo');
+
+  // Specific branch
+  await sandbox.gitCheckout('https://github.com/user/repo', {
+    branch: 'develop',
+    targetDir: '/workspace/my-project'
+  });
+
+  // Shallow clone (faster for large repositories)
+  await sandbox.gitCheckout('https://github.com/facebook/react', {
+    depth: 1
+  });
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+- [파일 관리](/sandbox/guides/manage-files/)- 제일 관행을 가진 상세한 가이드
+- [명령 API](/sandbox/api/commands/)- 명령 실행

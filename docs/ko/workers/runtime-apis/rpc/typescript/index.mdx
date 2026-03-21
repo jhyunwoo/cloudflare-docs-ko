@@ -1,0 +1,56 @@
+---
+pcx_content_type: configuration
+title: '모델 번호: TypeScript'
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: Workers RPC - TypeScript
+description: TypeScript 유형의 작업자 또는 튼튼한 개체의 RPC 방법은 생성되고 클라이언트에 노출
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/typescript/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/rpc/typescript/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+(주)[`wrangler types`](/workers/languages/typescript/#generate-types)runtime 타입 생성`Service`·`DurableObjectNamespace`유형, 각의 단일 유형 매개 변수를 허용[`WorkerEntrypoint`](/workers/runtime-apis/bindings/service-bindings/rpc)또는[`DurableObject`](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/#call-rpc-methods)유형.
+
+더 높은 주문 유형을 사용하여, 우리는 자동적으로 클라이언트 측 stub 유형을 생성합니다 (예를들면, async이기 위하여 모든 방법을 강제합니다).
+
+[`wrangler types`](/workers/languages/typescript/#generate-types)또한 유형을 생성합니다.`env`객체. 생성 된 유형이 유형 매개 변수를 포함하므로 Worker 또는 튼튼한 Object의 구성 파일에 경로에 전달할 수 있습니다.`Service`·`DurableObjectNamespace`유형.
+
+예를 들어, 클라이언트 노동자가 노동자에 바인딩했다면`../sum-worker/`그리고 튼튼한 목표에`../counter/`, 당신은 클라이언트 노동자의 유형을 생성해야 합니다`env`으로 실행:
+
+<PackageManagers
+  type="exec"
+  pkg="wrangler"
+  args={
+  	"types -c ./client/wrangler.jsonc -c ../sum-worker/wrangler.jsonc -c ../counter/wrangler.jsonc"
+  }
+/>
+
+이것은 생성할 것입니다`worker-configuration.d.ts`다음을 포함하는 파일:
+
+```ts title="worker-configuration.d.ts"
+interface Env {
+	SUM_SERVICE: Service<import("../sum-worker/src/index").SumService>;
+	COUNTER_OBJECT: DurableObjectNamespace<
+		import("../counter/src/index").Counter
+	>;
+}
+```
+
+지금 RPC 방법을 위한 유형은 좋아합니다`env.SUM_SERVICE.sum`방법은 클라이언트 노동자에 노출됩니다.
+
+```ts title="src/index.ts"
+export default {
+	async fetch(req, env, ctx): Promise<Response> {
+		const result = await env.SUM_SERVICE.sum(1, 2);
+		return new Response(result.toString());
+	},
+} satisfies ExportedHandler<Env>;
+```

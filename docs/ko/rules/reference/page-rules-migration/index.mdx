@@ -1,0 +1,1414 @@
+---
+title: 페이지 규칙 마이그레이션 가이드
+pcx_content_type: how-to
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/reference/page-rules-migration/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/reference/page-rules-migration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, Example, Steps } from "~/components";
+
+Cloudflare는 지속적으로 당신의 윤곽을 관리하기를 위한 강력한 확장 가능한 공구를 전달하기 위하여 그것의 플랫폼을 개량합니다. 이 개선의 전체 이점을 돕기 위해, 우리는 사용하는 것을 추천합니다[현대 규칙 특징](/rules/)새로운 구현. 이 제품은 더 큰 유연성, 확장성 및 사용 편의성을 제공하면서 페이지 규칙의 제한을 해결합니다.
+
+빠른 시작을 위해 Cloudflare 대시보드에서 사용할 수있는 한 클릭 템플릿을 살펴보십시오.**이름 \*** > **제품정보**. 이 템플릿은 리디렉션, 리디렉션 및 헤더 수정과 같은 일반적인 구성을 단순화하여 설정이 빠르고 쉽게 만듭니다.
+
+## 페이지 규칙 마이그레이션
+
+전환을 원활히 만들기 위해 Cloudflare는 기존 페이지 규칙의 마이그레이션을 자동으로 처리합니다. 이 과정은 늦은 2025 또는 그 이상으로 계획되어 귀하의 부분에 필요한 작업이 없습니다. 변경 전에 미리 알림을 받게 됩니다.
+
+현대 규칙의 혜택을 탐험하려는 경우, 오늘 그들을 채택 시작할 수 있습니다. 이렇게 할 수 있도록:
+
+- 현대 기능과 기능을 빨리 활용하십시오.
+- 당신의 진화 요구에 맞게 규칙을 사용자 정의하고 정제합니다.
+
+이 과정을 지원하려면 페이지 규칙 설정과 현대 규칙 제품 사이의 포괄적 인 매핑을 제공합니다.
+
+## 왜 전환?
+
+모델 번호: Cloudflare 페이지 규칙에는 URL 패턴을 기반으로 트리거와 같은 몇 가지 기본 제한이 있으며 성능상의 이유로 지역 당 125 규칙으로 제한됩니다. 이 규칙은 여러 페이지 규칙이 동일한 수신 요청에 적용 할 때 디버그에 복잡합니다.
+
+2022년에, 우리는 우리의 블로그 포스트에서 발표했습니다[페이지 규칙의 미래](https://blog.cloudflare.com/future-of-page-rules)그 페이지 규칙은 전용 제품의 스위트와 교체 될 것입니다, 각은 최상의-of-breed 및 우리의 사용자의 손에 더 많은 힘을 넣어 내장. 새로운 규칙 제품 —[구성 규칙](/rules/configuration-rules/), [압축 규칙](/rules/compression-rules/), [회사 소개](/rules/origin-rules/), [회사 소개](/rules/url-forwarding/)·[Transform 규칙](/rules/transform/)- 이제 일반적으로 사용할 수 있습니다 (GA) 이미 Cloudflare 고객의 수천에 의해 채택되었습니다.
+
+현대 규칙 특징에 있는 개량은 다음을 포함합니다:
+
+- **새로운 엔진**: 새로운 규칙은 다음과 같습니다.[Ruleset 엔진](/ruleset-engine/)많은 HTTP 요청 및 응답 필드를 지원하는 강력한 언어로 다양한 구성을 제공합니다.
+- **향상된 확장성**: 개선된 확장성 덕분에 CloudflareXQ 계획은 이제 quotas를 증가시켰습니다.
+- **Easier 문제 해결**: 규칙 실행은 더 예측할 수 있으므로 각 규칙이 독립적으로 작동하므로 문제 해결을 단순화합니다. 또한,[Cloudflare 추적](/rules/trace-request/)규칙 상호 작용을 이해하는 데 도움이됩니다.
+- **향상된 일관성**: 새로운 규칙은 또한 일관성을 보장하고, 일반적인 필드와 기능으로 제품을 공유하고, 원활한 경험과 예측 가능한 Terraform 구성을 제공합니다.
+
+## 키 차이
+
+규칙의 평가 및 실행 명령은 페이지 규칙과 다릅니다.
+
+- **규칙 일치 논리**: 페이지 규칙은 첫 번째 일치하는 규칙 (첫 번째 경기 승리)을 적용합니다. 대조적으로, 현대 규칙은 쌓을 수 있고, 다수 어울리는 규칙은 동일한 요구에 결합하고 적용합니다 (마지막 경기 승리). 예를 들어, 여러 캐시 규칙이 동일한 URL과 일치한다면, 이러한 규칙의 기능은 모두 순서대로 적용됩니다.
+- **작업 분리**: 페이지 규칙은 페이지 규칙 자체 내에서 고객에 의해 선택된 순서에 적용되는 다른 제품에 대한 여러 작업을 포함 할 수 있습니다. 현대 규칙은 평가됩니다[고정 순서로](/rules/origin-rules/#execution-order), 고객과 제품 내에서 규칙 순서를 정의[단계별](/ruleset-engine/reference/phases-list/).
+- **이름 \***: 현대 규칙은 페이지 규칙에 대한 우선권을 부여합니다. 예를 들어, 동일한 경로의 캐싱 설정을 정의하면 캐시 규칙은 페이지 규칙을 무시합니다.
+- **충돌 행위**: 캐시 규칙에서, 선택**캐시에 대한 Eligible**자동 활성화**캐시 모든 것**기본적으로. 페이지 규칙의 정확한 동작을 유지하려면, 당신은해야합니다[설정 조정](/cache/how-to/cache-rules/page-rules-migration/).
+- **Workers**: WorkersXQ에 의해 처리 된 요청은 페이지 규칙 작업을 억제하지만 현대 규칙 기능에서 동작을 억제하지 않습니다.
+
+## 페이지를 변환 규칙 URL 필터 표현
+
+현대 규칙은 URL 패턴 대신 필터 표현을 사용합니다. 규칙 언어에 내장 된이 표현은 레버리지로 더 큰 정밀도를 허용합니다.[주요연혁](/ruleset-engine/rules-language/fields/), [제품정보](/ruleset-engine/rules-language/functions/)·[채용 정보](/ruleset-engine/rules-language/operators/).
+
+다음 예제는 사용의 설명[`http.request.full_uri`](/ruleset-engine/rules-language/fields/reference/http.request.full_uri/)분야 및`wildcard`채용 정보[wildcard 일치](/ruleset-engine/rules-language/operators/#wildcard-matching):
+
+<Example>
+  ·**페이지 규칙 URL**다음 것:
+
+  `example.com/*/downloads/*.txt`
+
+  계정 만들기**필터 표현**같은:
+
+  `http.request.full_uri wildcard "http*://example.com/*/downloads/*.txt*"`
+</Example>
+
+[단일 Redirects](/rules/url-forwarding/single-redirects/create-dashboard/)·[URL Rewrite 규칙](/rules/transform/url-rewrite/create-dashboard/)또한 simplified 보기를 제공합니다**Wildcard 패턴**URL 패턴을 지정할 수 있습니다 (`http*://example.com/*/downloads/*.txt*`) 풀 필터 표현을 지정하지 않고 (`http.request.full_uri wildcard "http*://example.com/*/downloads/*.txt*"`).
+
+### 중요한 고려사항
+
+- **프로토콜 계획**: Page Rules URL 매칭은 URI 방식(예를 들어,`http://`또는`https://`) 규칙에 명시되지 않는 한. 필터 표현`http.request.full_uri`필드, 그러나, 프로토콜 계획을 포함하여 전체 URI를 일치해야합니다. 필터 표현 방식-agnostic을 만들기 위해 사용`http*://`모두를위한 와일드 카드`http://`·`https://`.
+- **Query 문자열**: 페이지 규칙은 규칙 URL의 일부가 아닌 쿼리 문자열을 무시합니다. 필터 표현은 쿼리 문자열을 자동으로 포함, 일부로`http.request.full_uri`이름 \* 쿼리 문자열이 일치하지 않도록하려면, append`*`당신의 필터 표현의 끝에 wildcard, 같은`.txt*`.
+
+## 특징 대응 테이블
+
+기존 페이지 규칙을 현대 규칙 제품에 지도하는 데 도움이하려면,이 테이블은 페이지 규칙 설정이 현대 규칙으로 번역하고 일반적인 구성에 대해 예를 제공합니다.
+
+또한, 공통 구성을 간소화하기 위해 Cloudflare 대시보드는 이제 수십 개의 클릭 템플릿을 포함하고 있습니다.**이름 \*** > **제품정보**. 이 템플릿을 사용하면 리디렉션, 리디렉션 및 헤더 수정과 같은 일반적으로 사용되는 기능을 배포 할 수 있습니다. 즉시 사전 채워진 필터 표현 및 행동과 함께. 더 빠른 설정에 대한 대시보드의 템플릿을 살펴보십시오.
+
+| 페이지 규칙 설정            | 새로운 구현 용도 ...              | Migration/Replacement 지침                                                |
+| -------------------- | -------------------------- | ----------------------------------------------------------------------- |
+| 항상 HTTPS 사용          | 간접 규칙 (단일 간접)              | [항상 HTTPS 사용](#migrate-always-use-https)                                |
+| 브라우저 캐시 TTL          | 캐시 규칙                      | [브라우저 캐시 TTL](#migrate-browser-cache-ttl)                               |
+| 브라우저 Integrity Check | 구성 규칙                      | [Migrate Browser Integrity 확인](#migrate-browser-integrity-check)        |
+| Bypass 캐시 에 Cookie   | 캐시 규칙                      | [쿠키에 대한 추가 정보](#migrate-bypass-cache-on-cookie)                         |
+| Cache 장치 유형          | 캐시 규칙                      | [장치 유형에 의하여 Migrate 캐시](#migrate-cache-by-device-type)                  |
+| 캐시 발언 장갑             | 캐시 규칙                      | [Migrate 캐시 인식 장갑](#migrate-cache-deception-armor)                      |
+| 캐시 레벨                | 캐시 규칙                      | [Migrate 캐시 레벨](#migrate-cache-level-cache-everything)                  |
+| 쿠키 정책                | 캐시 규칙                      | [쿠키에 대한 추가 정보](#migrate-cache-on-cookie)                                |
+| 상태 코드로 캐시 TTL        | 캐시 규칙                      | [상태 코드로 Cache TTL 마이그레이션](#migrate-cache-ttl-by-status-code)            |
+| 주문 캐시 키              | 캐시 규칙                      | [사용자 정의 캐시 키](#migrate-custom-cache-key)                                |
+| 앱 사용                 | 구성 규칙                      | [Migrate Disable 앱](#migrate-disable-apps)                              |
+| 사용 방법                | N / A (사전)                 | [Disable 성능 교체](#replace-disable-performance)                           |
+| 사용 방법                | N / A (사전)                 | 사이트맵                                                                    |
+| Disable 보안           | N / A (사전)                 | [Disable 보안을 대체](#replace-disable-security)                             |
+| 사용 약관                | 구성 규칙                      | [Migrate Disable 자라기](#migrate-disable-zaraz)                           |
+| 가장자리 캐시 TTL          | 캐시 규칙                      | [Migrate 가장자리 캐시 TTL](#migrate-edge-cache-ttl)                          |
+| 이메일 Obfuscation      | 구성 규칙                      | [이메일 의무](#migrate-email-obfuscation)                                    |
+| 전송 URL               | 간접 규칙 (단일 간접)              | [전송 URL](#migrate-forwarding-url)                                       |
+| 호스트 헤더 오버라이드         | 회사 소개                      | [Migrate 호스트 헤더 오버라이드](#migrate-host-header-override)                   |
+| IP 위치 우두머리           | 변형 규칙 (Managed Transforms) | [IP Geolocation 헤더](#migrate-ip-geolocation-header)                     |
+| Opportunistic 암호화    | 구성 규칙                      | [Opportunistic 암호화](#migrate-opportunistic-encryption)                  |
+| 근원 Cache 통제          | 캐시 규칙                      | [Migrate 근원 캐시 통제](#migrate-origin-cache-control)                       |
+| 근원 과실 페이지 Pass-thru  | 캐시 규칙                      | [Migrate Origin 오류 페이지 Pass-thru](#migrate-origin-error-page-pass-thru) |
+| 담당자: Ms.             | 구성 규칙                      | [Migrate 폴란드어](#migrate-polish)                                         |
+| Query 문자열 정렬         | 캐시 규칙                      | [Migrate Query 문자열 정렬](#migrate-query-string-sort)                      |
+| 해결 Override          | 회사 소개                      | [Migrate Resolve 오버라이드](#migrate-resolve-override)                      |
+| 강한 ETags를 존중         | 캐시 규칙                      | [Migrate 존중 강한 ETags](#migrate-respect-strong-etags)                    |
+| 응답 버퍼링               | N / A (사전)                 | 사이트맵                                                                    |
+| Rocket 로더            | 구성 규칙                      | [Migrate 로켓 로더](#migrate-rocket-loader)                                 |
+| 보안 수준                | 구성 규칙                      | [보안 수준](#migrate-security-level)                                        |
+| True Client IP 헤더    | 변형 규칙 (Managed Transforms) | [진실한 클라이언트 IP 우두머리](#migrate-true-client-ip-header)                     |
+| 사이트맵                 | 구성 규칙                      | [SSL 마이그레이션](#migrate-ssl)                                              |
+| 웹 애플리케이션 방화벽         | N / A (사전)                 | 사이트맵                                                                    |
+
+### 항상 HTTPS 사용
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    HTTP에서 HTTPS로 자동 리디렉션을 수행하기 위해 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵** `*example.com/*`
+    - **설치하기**: *항상 HTTPS 사용*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [단일 리디렉션 만들기](/rules/url-forwarding/single-redirects/create-dashboard/)항상 HTTP 요청을 HTTPS로 리디렉션합니다. 선택할 수 있습니다.**HTTP에서 HTTPS로 이동**규칙 템플릿 또는 다음 규칙 구성을 입력:
+
+         - **자주 묻는 질문**: 와일드카드 패턴
+           - **URL 요청**: `http://*`
+         - **다음 것**:
+           - **대상 URL**: `https://${1}`
+           - **상태 코드**: *301*
+           - **자주 묻는 질문**: 지원
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 리디렉션의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                       | 단일 리디렉션에 마이그레이션                                                                                                                                   |
+    | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Always Use HTTPS' 설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-always-use-https.png) | ![Single redirect matching the 'Always Use HTTPS' 설정의 예 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-always-use-https-new.png) |
+  </TabItem>
+</Tabs>
+
+### 자동화된 HTTPS Rewrites
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 자동 HTTPS 리깅에 페이지 규칙을 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *자동 HTTPS 리깅*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)항상 HTTP 링크를 HTTPS로 다시 작성`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 자동 HTTPS 이름 \*
+           - **제품정보**: 에
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                     | 구성 규칙에 마이그레이션                                                                                                                                             |
+    | ----------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Automatic HTTPS로 페이지 규칙 Rewrites 설정](~/assets/images/rules/reference/page-rules-migration/pr-automatic-https-rewrites.png) | ![example Page Rule의 'Automatic HTTPS Rewrites' 설정과 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-automatic-https-rewrites-new.png) |
+  </TabItem>
+</Tabs>
+
+### 브라우저 캐시 TTL
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    브라우저 캐시 TTL을 1 일 동안 모든 하위 도메인에 조정하는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *브라우저 캐시 TTL*
+    - **브라우저 캐시 TTL 입력**: *당일*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)브라우저에서 캐싱 리소스를 위해 브라우저 캐시 TTL을 브라우저에서 1 일 동안 설정 한 호스트 이름에 대한 조정`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **브라우저 TTL**: Override 기원과 사용 이 TTL
+           - **입력 시간 라이브 (TTL)**: *1 일*
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                          | 캐시 규칙에 실수                                                                                                                              |
+    | ------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Browser Cache TTL' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-browser-cache-ttl.png) | ![예를 들어 페이지 규칙의 'Browser Cache TTL' 설정과 일치하는 캐시 규칙](~/assets/images/rules/reference/page-rules-migration/pr-browser-cache-ttl-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate Browser Integrity 확인
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    브라우저 Integrity에서 설정한 페이지 규칙을 구성하여 모든 하위 도메인을 확인합니다.`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *브라우저 Integrity Check*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)브라우저 Integrity를 켜려면 봇에 대한 보호 및 모든 호스트 이름에 대한 위협`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 브라우저 Integrity Check
+           - **제품정보**: 에
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                      | 구성 규칙에 마이그레이션                                                                                                                                           |
+    | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Browser Integrity Check' 설정이있는 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-browser-integrity-check.png) | ![example Page Rule의 'Browser Integrity Check' 설정과 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-browser-integrity-check-new.png) |
+  </TabItem>
+</Tabs>
+
+### 쿠키에 대한 추가 정보
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 쿠키에 Bypass 캐시를 켜는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Bypass 캐시 에 Cookie*
+    - **이름 \***: `test_cookie`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)비밀번호 찾기`test_cookie`모든 호스트명`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com" AND Cookie contains "test-cookie"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com" and http.cookie contains "test-cookie")`
+         - **다음 것**:
+           - **캐시 자격**: 우회 캐시
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                           | 캐시 규칙에 실수                                                                                                                                 |
+    | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['쿠키' 설정에서 Cache를 우회하는 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-bypass-cache-on-cookie.png) | ![Cache 규칙은 예를 들어 페이지 규칙의 쿠키 설정에서 "Bypass Cache"](~/assets/images/rules/reference/page-rules-migration/pr-bypass-cache-on-cookie-new.png) |
+  </TabItem>
+</Tabs>
+
+### 장치 유형에 의하여 Migrate 캐시
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 Cache By Device Type에서 페이지 규칙을 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Cache 장치 유형*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)사용자 에이전트 또는 장치 유형에 따라 컨텐츠를 캐시합니다.`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 캐시 키
+             - **장치 유형에 의한 캐시**: 에
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                      | 캐시 규칙에 실수                                                                                                                                  |
+    | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+    | !['Cache By Device Type' 설정](~/assets/images/rules/reference/page-rules-migration/pr-cache-by-device-type.png) | ![Cache 규칙은 'Cache By Device Type'의 설정 예 페이지 규칙과 일치](~/assets/images/rules/reference/page-rules-migration/pr-cache-by-device-type-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 캐시 인식 장갑
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    Cache Deception Armor에서 설정한 페이지 규칙을 구성했습니다.`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: 캐시 발언 장갑
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)캐시 deception 공격에 대한 보호에 대한 어떤 hostname 포함`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 캐시 키
+             - **캐시 deception armor**: 에
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                  | 캐시 규칙에 실수                                                                                                                                   |
+    | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Cache Deception Armor' 설정이있는 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-cache-deception-armor.png) | ![Cache 규칙은 예를 들어 페이지 규칙의 'Cache Deception Armor'설정](~/assets/images/rules/reference/page-rules-migration/pr-cache-deception-armor-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 캐시 레벨 (모든 캐시)
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 모든 자산의 캐싱에 페이지 규칙을 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *캐시 레벨*
+    - **캐시 레벨 선택**: *캐시 모든 것*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)모든 hostname에 대한 캐시 레벨을 조정`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                             | 캐시 규칙에 실수                                                                                                                                           |
+    | ------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Cache Level' 을 'Cache Everything'로 설정한 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-cache-level-everything.png) | ![Cache 규칙은 'Cache Level: Cache Everything'을 설정하는 예 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-cache-level-everything-new.png) |
+  </TabItem>
+</Tabs>
+
+### 쿠키에 대한 추가 정보
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    쿠키에 대한 추가 정보`test-cookie`모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *쿠키 정책*
+    - **이름 \***: `test-cookie`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)쿠키를 포함한 캐시 응답`test_cookie`모든 호스트명`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com" AND Cookie contains "test-cookie"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com" and http.cookie contains "test-cookie")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                            | 캐시 규칙에 실수                                                                                                                    |
+    | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+    | ![예제 페이지 규칙과 쿠키 설정에 캐시](~/assets/images/rules/reference/page-rules-migration/pr-cache-on-cookie.png) | ![Cache 규칙은 예를 들어 페이지 규칙의 쿠키 설정에 대한 캐시를 일치](~/assets/images/rules/reference/page-rules-migration/pr-cache-on-cookie-new.png) |
+  </TabItem>
+</Tabs>
+
+### 상태 코드로 Cache TTL 마이그레이션
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면 상태 코드와 모든 응답의 캐싱을 설정`200`·`599`1 일 동안 모든 하위 도메인에 대해`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *상태 코드로 캐시 TTL*
+    - **상태 코드 또는 입력 범위**: `200-599`
+    - **옵션 선택**: *당일*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)상태 코드와 캐시 응답에`200`·`599`1 일 동안 모든 호스트 이름 포함`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+           - **다음 것**:
+             - **캐시 자격**: 캐시에 대한 Eligible
+             - **설치하기**: 가장자리 TTL
+               - 캐시 제어 헤더를 사용할 경우, 기본 Cloudflare 캐싱 동작을 사용하지 않으면
+               - **상태 코드 TTL**:
+                 - **관련 상품**: *주요 특징*
+                 - **이름 \***: *200*
+                 - **으로**: *599*
+                 - **이름 \***: *1 일*
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                              | 캐시 규칙에 실수                                                                                                                                        |
+    | ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+    | !['Cache TTL by status code' 설정](~/assets/images/rules/reference/page-rules-migration/pr-cache-ttl-by-status-code.png) | ![Cache 규칙 일치 'Cache TTL by status code' 설정의 예 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-cache-ttl-by-status-code-new.png) |
+  </TabItem>
+</Tabs>
+
+### 사용자 정의 캐시 키
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 쿼리 문자열 매개 변수에 대한 사용자 정의 캐시 키 설정 페이지 규칙을 구성, 모든 하위 도메인의`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *주문 캐시 키*
+      - **Query 문자열**: 모든 쿼리 문자열 매개 변수
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)모든 쿼리 문자열 매개 변수에 대 한 사용자 지정 캐시 키 설정, 어떤 hostname 포함`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 캐시 키
+             - **Query 문자열**: 모든 쿼리 문자열 매개 변수
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                        | 캐시 규칙에 실수                                                                                                                           |
+    | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Custom Cache Key' 설정과 예 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-custom-cache-key.png) | ![예를 들어 페이지 규칙의 'Custom Cache Key'설정과 일치하는 캐시 규칙](~/assets/images/rules/reference/page-rules-migration/pr-custom-cache-key-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate Disable 앱
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    Cloudflare Apps (deprecated)를 모든 하위 도메인으로 전환하는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *앱 사용*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)Cloudflare Apps (deprecated)를 사용하지 않는 모든 호스트 이름에 대한 비활성화`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: Disable 앱
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                               | 구성 규칙에 마이그레이션                                                                                                                     |
+    | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Disable Apps' 설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-apps.png) | ![example Page Rule의 'Disable Apps' 설정과 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-apps-new.png) |
+  </TabItem>
+</Tabs>
+
+### Disable 성능 교체
+
+:::카트로션
+더 보기**사용 방법**설정은 deprecated입니다. 이 설정의 모든 페이지 규칙은 마이그레이션되지 않습니다.
+주요 특징
+
+이 페이지 규칙 설정은 폴란드어와 로켓 로더를 해제. 관련 CloudflareXQXQ에서 설정 규칙을 사용하여 하나씩 설정할 수 있습니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 구성**사용 방법**(deprecated) 모든 하위 도메인에 대한`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *사용 방법*
+
+    **교체 방법**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)폴란드어 및 Rocket Loader를 사용하지 않는 모든 hostname에 대한`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **담당자: Ms.**: *이름 \**
+           - **Rocket 로더**: 할인
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                             | 구성 규칙에 마이그레이션                                                                                                                              |
+    | --------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+    | !['Disable Performance' 설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-performance.png) | ![구성 규칙 부분적으로 일치하는 'Disable Performance' 설정 예 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-performance-new.png) |
+  </TabItem>
+</Tabs>
+
+### Disable 보안을 대체
+
+:::카트로션
+더 보기**Disable 보안**설정은 deprecated입니다. 이 설정의 모든 페이지 규칙은 마이그레이션되지 않습니다.
+주요 특징
+
+이 페이지 규칙 설정은 이메일 Obfuscation, Rate Limiting (이전 버전), Scrape Shield, URL (Zone) Lockdown 및 WAF 관리 규칙 (이전 버전)을 차단합니다. CloudflareXQXQXQXQ는 구성 규칙 및 WAFXQ 사용자 정의 규칙을 사용하여 하나씩 하나씩 켤 수 있습니다.
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 구성**Disable 보안**(deprecated) 모든 하위 도메인에 대한`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Disable 보안*
+
+    이 설정은 Cloudflare 보안 기능의 하위 세트를 해제 : 이메일 의무, 제한 (이전 버전), 스크랩 방패, URL (Zone) 잠금 및 WAF 관리 규칙 (이전 버전).
+
+    **교체 방법**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)한 개 이상의 보안 기능을 켜기 :
+         - [이메일 Obfuscation](/waf/tools/scrape-shield/email-address-obfuscation/)
+         - [Hotlink 보호](/waf/tools/scrape-shield/hotlink-protection/)
+
+      2. 필요한 경우,[WAF 예외 생성](/waf/managed-rules/waf-exceptions/define-dashboard/)WAFXQ의 하나 이상의 규칙을 건너 허용 목록에 IP 주소에서 오는 요청에 대한 규칙을 관리합니다.
+
+      3. 기존 페이지 규칙을 해제하고 생성 된 규칙의 동작을 검증합니다.
+
+      4. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+
+    :::카트로션
+    아직 사용중인 경우[WAF 관리 규칙 (이전 버전)](/waf/reference/legacy/old-waf-managed-rules/)또는[비율 제한 (이전 버전)](/waf/reference/legacy/old-rate-limiting/), 이 제품의 새로운 버전으로 업그레이드 고려. 현대 규칙 기능을 사용하여이 오래된 제품을 끄는 것은 불가능합니다.
+    주요 특징
+  </TabItem>
+</Tabs>
+
+### Migrate Disable 자라기
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면[스낵 바](/zaraz/)모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *사용 약관*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)모든 호스트 이름에 Zaraz를 끄는`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: Zaraz 비활성화
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                  | 구성 규칙에 마이그레이션                                                                                                                       |
+    | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Disable Zaraz' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-zaraz.png) | ![example Page Rule의 'Disable Zaraz' 설정과 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-disable-zaraz-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 가장자리 캐시 TTL
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 Edge Cache TTL을 조정하는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *가장자리 캐시 TTL*
+    - **입력 가장자리 캐시 TTL**: *당일*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)CloudflareXQ 가장자리에 캐싱 자원을 위한 가장자리 캐시 TTL를 1 일, 포함하는 어떤 hostname든지를 위해 조정하십시오`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 가장자리 TTL
+             - 캐시 제어 헤더를 무시하고이 TTL을 사용
+             - **입력 시간 라이브 (TTL)**: *1 일*
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                    | 캐시 규칙에 실수                                                                                                                        |
+    | ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Edge Cache TTL' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-edge-cache-ttl.png) | ![예를 들어 페이지 규칙의 'Edge Cache TTL' 설정과 일치하는 캐시 규칙](~/assets/images/rules/reference/page-rules-migration/pr-edge-cache-ttl-new.png) |
+  </TabItem>
+</Tabs>
+
+### 이메일 의무
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면[이메일 Obfuscation](/waf/tools/scrape-shield/email-address-obfuscation/)모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *이메일 Obfuscation*
+    - **제품정보**: 할인
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)모든 호스트 이름에 대한 이메일 의무를 설정`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 이메일 의무
+             - **제품정보**: 할인
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                          | 구성 규칙에 마이그레이션                                                                                                                      |
+    | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Email Obfuscation' 설정이있는 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-email-obfuscation.png) | !['Email Obfuscation>과 일치하는 구성 규칙 예 페이지 규칙의 설정](~/assets/images/rules/reference/page-rules-migration/pr-email-obfuscation-new.png) |
+  </TabItem>
+</Tabs>
+
+### 전송 URL
+
+**예제 #1: 리디렉션`www`비밀번호**
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    당신은 영구적으로 리디렉션 페이지 규칙을 구성`www.example.com`으로`example.com`모든 URI 경로:
+
+    - **사이트 맵**: `www.example.com/*`
+    - **설치하기**: *전송 URL*
+    - **상태 코드 선택**: *301 - 영구 Redirect*
+    - **대상 URL**: `https://example.com/$1`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [단일 리디렉션 만들기](/rules/url-forwarding/single-redirects/create-dashboard/)영구적으로 리디렉션 요청`https://www.example.com`으로`https://example.com`. 선택할 수 있습니다**WWW에서 루트로 이동**규칙 템플릿 또는 다음 규칙 구성을 입력:
+
+         - **자주 묻는 질문**: 와일드카드 패턴
+           - **URL 요청**: `https://www.example.com/*`
+         - **다음 것**:
+           - **대상 URL**: `https://example.com/${1}`
+           - **상태 코드**: *301*
+           - **자주 묻는 질문**: 지원
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 리디렉션의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+
+    <Render
+      file="page-rules-migration-wildcard-notice"
+      product="rules"
+      params={{
+  	requestUrl: "http*://www.example.com/*",
+  	targetUrl: "https://example.com/${2}",
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                            | 단일 리디렉션에 마이그레이션                                                                                                                                  |
+    | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+    | ![예제 페이지 규칙 #1 with 'Forwarding URL' 설정](~/assets/images/rules/reference/page-rules-migration/pr-forwarding-url.png) | ![Single redirect matching the 'Forwarding URL' 설정의 예 페이지 규칙 #1](~/assets/images/rules/reference/page-rules-migration/pr-forwarding-url-new.png) |
+  </TabItem>
+</Tabs>
+
+**예 #2: 새로운 경로 아래 모든 페이지를 다시**
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    당신은 영구적으로 리디렉션 페이지 규칙을 구성`example.com/old-path`으로`example.com/new-path`:
+
+    - **사이트 맵**: `example.com/old-path/*`
+    - **설치하기**: *전송 URL*
+    - **상태 코드 선택**: *301 - 영구 Redirect*
+    - **대상 URL**: `https://example.com/new-path/$1`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [단일 리디렉션 만들기](/rules/url-forwarding/single-redirects/create-dashboard/)영구적으로 리디렉션 요청`example.com/old-path`으로`example.com/new-path`:
+
+         - **자주 묻는 질문**: 와일드카드 패턴
+           - **URL 요청**: `https://example.com/old-path/*`
+         - **다음 것**:
+           - **대상 URL**: `https://example.com/new-path/${1}`
+           - **상태 코드**: *301*
+           - **자주 묻는 질문**: 지원
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 리디렉션의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+
+    <Render
+      file="page-rules-migration-wildcard-notice"
+      product="rules"
+      params={{
+  	requestUrl: "http*://example.com/old-path/*",
+  	targetUrl: "https://example.com/new-path/${2}",
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                              | 단일 리디렉션에 마이그레이션                                                                                                                                    |
+    | ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | ![예제 페이지 규칙 #2 with 'Forwarding URL' 설정](~/assets/images/rules/reference/page-rules-migration/pr-forwarding-url-2.png) | ![Single redirect matching the 'Forwarding URL' 설정의 예 페이지 규칙 #2](~/assets/images/rules/reference/page-rules-migration/pr-forwarding-url-2-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 호스트 헤더 오버라이드
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 구성`Host`HTTP 헤더`example.saas-provider.com`, 모든 요청에 대한 모든 하위 도메인에 주소`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *호스트 헤더 오버라이드*
+    - **이름 \***: `example.saas-provider.com`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [원래 규칙 만들기](/rules/origin-rules/create-dashboard/)변화하는`Host`맨 위로`example.saas-provider.com`모든 호스트명`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **세트 근원 모수**:
+             - **호스트 헤더** > **자주 묻는 질문**: `example.saas-provider.com`
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 기원 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                | 근원 규칙에 Migrate                                                                                                                            |
+    | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Host Header Override' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-host-header-override.png) | !['Host Header Override'와 일치하는 Origin 규칙 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-host-header-override-new.png) |
+  </TabItem>
+</Tabs>
+
+### IP Geolocation 헤더
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 구성`CF-IPCountry`HTTP 헤더, 모든 요청은 어떤 하위 도메인에 주소`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *IP 위치 우두머리*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [계속하기**자주 묻는 질문**관리 Transform](/rules/transform/managed-transforms/configure/)— Transform Rules 기능 — 추가하기`CF-IPCountry`모든 요청에 다른 위치 헤더.
+      2. 기존 페이지 규칙을 해제하고 관리 된 변환의 동작을 검증합니다.
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                  | 관리 된 Transform에 마이그레이션                                                                                                                      |
+    | -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['IP Geolocation Header' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-ip-geolocation-header.png) | !['IP Geolocation Header'와 일치하는 '방문 위치 헤더'를 추가하십시오.](~/assets/images/rules/reference/page-rules-migration/pr-ip-geolocation-header-new.png) |
+  </TabItem>
+</Tabs>
+
+### Opportunistic 암호화
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 Opportunistic Encryption을 끄는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Opportunistic 암호화*
+    - **제품정보**: 할인
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)Opportunistic Encryption을 끄는 것은 모든 호스트 이름에 대한`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: Opportunistic 암호화
+             - **제품정보**: 할인
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                       | 구성 규칙에 마이그레이션                                                                                                                             |
+    | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Opportunistic Encryption' 설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-opportunistic-encryption.png) | !['Opportunistic Encryption > Off'와 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-opportunistic-encryption-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 근원 캐시 통제
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면 Origin Cache Control을 모든 하위 도메인에 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: 근원 캐시 통제
+    - **제품정보**: 할인
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)어떤 hostname에 대한 edge cache 동작을 결정합니다.`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 근원 캐시 통제
+             - **Enable 근원 캐시 통제**: 할인
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                | 캐시 규칙에 실수                                                                                                                                    |
+    | ------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Origin Cache Control' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-origin-cache-control.png) | ![예를 들어 페이지 규칙의 'Origin Cache Control' 설정과 일치하는 캐시 규칙](~/assets/images/rules/reference/page-rules-migration/pr-origin-cache-control-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate Origin 오류 페이지 Pass-thru
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하여 Origin Error Page Pass-thru 에 모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *근원 과실 페이지 Pass-thru*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)어떤 hostname에 대한 edge cache 동작을 결정합니다.`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 근원 과실 페이지 pass-thru
+             - **사용 근원 과실 페이지 pass-thru**: 에
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                    | 캐시 규칙에 실수                                                                                                                                             |
+    | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Origin Error Page Pass-thru' 설정](~/assets/images/rules/reference/page-rules-migration/pr-origin-error-page-pass-thru.png) | !['Origin Error Page Pass-thru와 일치하는 캐시 규칙 > 페이지 규칙의 설정](~/assets/images/rules/reference/page-rules-migration/pr-origin-error-page-pass-thru-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 폴란드어
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면[담당자: Ms.](/images/polish/)모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: 폴란드어
+    - **제품정보**: 할인
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)모든 hostname에 폴란드어를 끄는`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 폴란드어
+             - **선택 값**: *이름 \**
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                    | 구성 규칙에 마이그레이션                                                                                                   |
+    | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+    | !['Polish' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-polish.png) | !['Polish > Off'와 일치하는 구성 규칙 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-polish-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate Query 문자열 정렬
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 Query String Sort에 페이지 규칙을 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Query 문자열 정렬*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)캐싱 목적으로 쿼리 문자열 매개 변수를 정렬, 어떤 hostname 포함`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 캐시 키
+             - **정렬 쿼리 문자열**: 에
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                       | 캐시 규칙에 실수                                                                                                                         |
+    | ------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+    | ![example Page Rule with 'Query String Sort' 설정](~/assets/images/rules/reference/page-rules-migration/pr-query-string-sort.png) | !['Query String Sort >와 일치하는 캐시 규칙 페이지 규칙의 설정](~/assets/images/rules/reference/page-rules-migration/pr-query-string-sort-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate Resolve 오버라이드
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 설정하면 기원을 변경합니다.`example.saas-provider.com`, 모든 요청에 대한 모든 하위 도메인에 주소`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *해결 Override*
+    - **이름 \***: `example.saas-provider.com`
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [원래 규칙 만들기](/rules/origin-rules/create-dashboard/)근원을 overriding`example.saas-provider.com`모든 호스트명`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **DNS 기록** > **관련 기사**: `example.saas-provider.com`
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 기원 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                        | 근원 규칙에 Migrate                                                                                                                    |
+    | ---------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Resolve Override' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-resolve-override.png) | !['Resolve Override'와 일치하는 Origin 규칙 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-resolve-override-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 존중 강한 ETags
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 byte-for-byte equivalency checks에 페이지 규칙을 설정`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *강한 ETags를 존중*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [캐시 규칙 만들기](/cache/how-to/cache-rules/create-dashboard/)어떤 hostname에 대한 강한 ETags를 존중`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **다음 것**:
+           - **캐시 자격**: 캐시에 대한 Eligible
+           - **설치하기**: 강한 ETags를 존중
+             - **강력한 ETag 헤더 사용**: 에
+
+         <Render file="page-rules-cache-rules-difference" product="rules" />
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 캐시 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                    | 캐시 규칙에 실수                                                                                                                    |
+    | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+    | ![예제 페이지 규칙과 '강력 ETags'설정](~/assets/images/rules/reference/page-rules-migration/pr-respect-strong-etags.png) | !["강력한 ETags를 존중하는 캐시 규칙 > 페이지 규칙의 설정](~/assets/images/rules/reference/page-rules-migration/pr-respect-strong-etags-new.png) |
+  </TabItem>
+</Tabs>
+
+### Migrate 로켓 로더
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    모든 하위 도메인에 대한 Rocket Loader를 끄는 페이지 규칙을 구성`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *Rocket 로더*
+    - **제품정보**: 할인
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)모든 hostname에 Rocket Loader를 켭니다.`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 로켓 로더
+             - **제품정보**: 할인
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                  | 구성 규칙에 마이그레이션                                                                                                              |
+    | ---------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+    | !['Rocket Loader' 설정 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-rocket-loader.png) | ![Rocket Loader와 일치하는 구성 규칙 > 예 페이지 규칙의 설정](~/assets/images/rules/reference/page-rules-migration/pr-rocket-loader-new.png) |
+  </TabItem>
+</Tabs>
+
+### 보안 수준
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙 설정 보안 레벨을 구성*나는 공격 중*모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *보안 수준*
+    - **보안 수준 선택**: *나는 공격 중*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)보안 수준 설정*나는 공격 중*, 포함되는 어떤 hostname를 위해`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: 공격 중
+           - **제품정보**: 에
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                   | 구성 규칙에 마이그레이션                                                                                                                                |
+    | ----------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['Security Level' 설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-security-level.png) | !["Security Level > I'm Under Attack"과 일치하는 구성 규칙 예제 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-security-level-new.png) |
+  </TabItem>
+</Tabs>
+
+### 진실한 클라이언트 IP 우두머리
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    페이지 규칙을 구성`True-Client-IP`HTTP 헤더 모든 요청은 하위 도메인에 주소`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *True Client IP 헤더*
+    - **제품정보**: 에
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [계속하&#xAE30;**"True-Client-IP" 헤더 추가**관리 Transform](/rules/transform/managed-transforms/configure/)— Transform Rules 기능 — 추가하기`True-Client-IP`모든 요청에 헤더.
+      2. 기존 페이지 규칙을 해제하고 관리 된 변환의 동작을 검증합니다.
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                                                                  | 관리 된 Transform에 마이그레이션                                                                                                                                                                                           |
+    | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+    | !['True Client IP Header' 설정이있는 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-true-client-ip-header.png) | !['Add "True-Client-IP" header' Managed Transform matching the 'True Client IP Header' setting of the example Page Rules](~/assets/images/rules/reference/page-rules-migration/pr-true-client-ip-header-new.png) |
+  </TabItem>
+</Tabs>
+
+### SSL 마이그레이션
+
+<Tabs>
+  <TabItem label="대시보드">
+    **텍스트:**
+
+    SSL을 설정하는 페이지 규칙을 구성*사이트맵*모든 하위 도메인`example.com`그리고`example.com`도메인 자체 :
+
+    - **사이트 맵**: `*example.com/*`
+    - **설치하기**: *사이트맵*
+    - **SSL/TLS 암호화 모드 선택**: *사이트맵*
+
+    **어떻게 마이그레이션**:
+
+    <Steps>
+      1. [설정 규칙 만들기](/rules/configuration-rules/create-dashboard/)SSL을 설정*사이트맵*, 포함되는 어떤 hostname를 위해`example.com`:
+
+         - **수신 요청 일치**: 사용자 정의 필터 표현
+           - Expression Builder를 사용하여:<br />
+             `Hostname contains "example.com"`
+           - Expression 편집기 사용:<br />
+             `(http.host contains "example.com")`
+         - **그런 다음 설정은**:
+           - **설치하기**: SSL
+             - **SSL/TLS 암호화 모드 선택**: *사이트맵*
+
+      2. 기존 페이지 규칙을 해제하고 생성 된 구성 규칙의 동작을 검증합니다.
+
+      3. 테스트가 성공하면 기존 페이지 규칙을 삭제합니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="연락처">
+    | 페이지 규칙 구성                                                                            | 구성 규칙에 마이그레이션                                                                                             |
+    | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+    | !['SSL'설정으로 페이지 규칙](~/assets/images/rules/reference/page-rules-migration/pr-ssl.png) | ![예를 들어 페이지 규칙의 "SSL"설정과 일치하는 구성 규칙](~/assets/images/rules/reference/page-rules-migration/pr-ssl-new.png) |
+  </TabItem>
+</Tabs>
+
+## 마이그레이션되지 않는 설정
+
+다음 페이지 규칙 설정은 다른 유형의 규칙으로 마이그레이션되지 않습니다 :
+
+- **사용 방법**(이 설정은 거부)
+- **사용 방법**(이 설정은 더 이상 Railgun이 사용할 수 없기 때문에 deprecated입니다)
+- **Disable 보안**(이 설정은 거부)
+- **응답 버퍼링**(이 설정은 거부)
+- **웹 애플리케이션 방화벽**(이 설정은 이전에 WAF 관리 규칙의 이전 버전부터 deprecated입니다)
+
+다른 모든 페이지 규칙 설정은 2025 년 동안 마이그레이션됩니다.
+
+## 더 많은 리소스
+
+공유에 대한 피드백이 있으면, 참조[사회 실](https://community.cloudflare.com/t/important-page-rules-deprecation/656021).

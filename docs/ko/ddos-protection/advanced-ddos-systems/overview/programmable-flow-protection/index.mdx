@@ -1,0 +1,623 @@
+---
+title: 풀그릴 교류 보호 (Beta)
+pcx_content_type: concept
+sidebar:
+  order: 4
+  label: 풀그릴 교류 보호
+  badge:
+    text: Beta
+head:
+  - tag: title
+    content: Cloudflare 풀그릴 흐름 보호 (베타)
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ddos-protection/advanced-ddos-systems/overview/programmable-flow-protection/
+translation_source_md: >-
+  https://developers.cloudflare.com/ddos-protection/advanced-ddos-systems/overview/programmable-flow-protection/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Steps, Tabs, TabItem } from "~/components";
+
+프로그래밍 가능한 플로우 보호는 게임 프로토콜, 금융 서비스 프로토콜, VoIP, 텔레콤 및 스트리밍과 같은 사용자 정의 또는 표준화 레이어 7 UDP 기반 프로토콜에 DDoS 공격에 대한 보호 시스템입니다. topology의 관점에서 비대칭과 비대칭 구성을 모두 지원하지만 진입 트래픽을 검사합니다.
+
+풀그릴 교류 보호는 현재 닫히는 beta에서 이고 add-on로 유효합니다[매직 트레인](/magic-transit/) ([BYOIP의 특징](/byoip/)또는 Cloudflare-leased IPs) 서비스 만. 시스템을 활성화하고 싶다면 계정 팀에 연락하거나 이것을 채우십시오.[이름 \*](https://www.cloudflare.com/lp/programmableddosprotection/).
+
+## 어떻게 작동합니까?
+
+프로그래밍 가능한 플로우 보호 시스템은 'Cloudflare'의 글로벌 anycast 네트워크에 걸쳐 C에서 자신의 패킷 레이어 스테이트 풀 프로그램을 작성하고 실행할 수 있습니다 Berkeley Packet 필터 (eBPF) 사용자 공간에서 실행. 이름 \*[eBPF 프로그램](https://docs.kernel.org/bpf/)개발자가 performant custom networking logic을 쓸 수 있도록 하는 패킷 필터 시스템입니다.
+
+풀그릴 교류 보호는 당신의 UDP 근거한 신청의 의정서 (깊은 소포 검사)를 검열하고 당신의 프로그램에 근거를 둔 소포의 결과를 결정합니다. 사용자 정의 프로그램 논리를 사용하여, 당신은 적극적인 공격을 차단하면서 허가 된 사용자를 허용 할 수 있습니다.
+
+시스템은 상단에 내장`flowtrackd`플랫폼, Cloudflare의 상태 완화 플랫폼. 풀그릴 교류 보호 체계는 DDoS 진보된 보호 체계에 의존합니다[일반 설정](/ddos-protection/advanced-ddos-systems/overview/)관련 기사 그것은 존중[연락처](/ddos-protection/advanced-ddos-systems/overview/#prefixes)고급 보호 시스템을 통해 경로로 선정 된 것뿐만 아니라[관련 상품](/ddos-protection/advanced-ddos-systems/concepts/#allowlist). 진보된 DDoS 보호 체계는이어야 합니다[이름 \*](/ddos-protection/advanced-ddos-systems/overview/#enablement)풀그릴 교류 보호 체계를 위해 운영하기 위하여.
+
+베타에서, Cloudflare는 자신의 코드를 작성하는 사용자에 대한 지침을 지원한다. 인기 게임 프로토콜 및 VoIP 프로토콜을 위한 Out-of-the-box 코드 스니펫 (templates)은 나중에 제공 될 수 있습니다.
+
+***
+
+## 시작하기
+
+풀그릴 교류 보호가 당신의 계정에 활성화된 후에:
+
+<Steps>
+  1. C 프로그램을 작성하고[API를 통해 업로드](#upload-a-program).
+
+     이 프로그램은 시스템에 의해 검증되고 계정에 저장됩니다. API는 프로그램을 컴파일하고, 컴파일된 프로그램에서 메모리 체크를 시행하고 프로그램 종료를 확인합니다. 컴파일 또는 검증이 실패하면 API는 상세한 오류 메시지를 반환합니다.
+
+  2. 이름 \*[으로](#create-a-rule).
+
+     풀그릴 교류 보호를 위한 규칙은 뒤에 오는 분야를 포함해야 합니다:
+
+     - `Name`
+     - `Program ID`(API에 이미 존재하고 있음)`success`국가)
+     - `Scope`(하나의:`global`, `regional`, `datacenter`)
+     - `Mode`(하나의:`enabled`, `monitoring`, `disabled`)
+     - `Expression`
+
+     더 보기`Expression`필드는 규칙을 적용 할 수있는 트래픽을 지정합니다. 규칙의 표현이 설정되면`true`, 그 규칙은 계정의 모든 트래픽에 적용됩니다. 또는, 표현은 다음과 같은 필드를 지정할 수 있습니다:
+
+     - `ip.src`
+     - `ip.dst`
+     - `udp.srcport`
+     - `udp.dstport`
+
+     더 보기`Expression`풀그릴 교류 보호를 위한 분야는 유사합니다`Filter`고급 TCP 보호 분야, 제외`Expression`필드는 모든 모드에 적용됩니다.`Filter`필드는 각 모드에 지정됩니다.
+
+     :::참조
+     풀그릴 교류 보호를 위한 규칙은 파열 감도, 비율 감도, 또는 단면도 감도를 포함하지 않습니다.
+     주요 특징
+
+  3. 프로그램의 행동을 관찰하려면, 쿼리`programmableFlowProtectionNetworkAnalyticsAdaptiveGroups`GraphQL의 그룹.
+</Steps>
+
+다른 규칙을 만들 수 있습니다[규칙 설정](/ddos-protection/advanced-ddos-systems/concepts/#rule-settings) [사이트맵](/ddos-protection/advanced-ddos-systems/concepts/#scope)다양한 지역과 'Cloudflare'위치로 변경[지원하다](/ddos-protection/advanced-ddos-systems/concepts/#mode)(Mitigation or Monitoring) 트래픽 패턴 및 비즈니스 사용 사례를 수용 할 수 있습니다.
+
+:::caution\[Beta 기능 제한]
+
+- 배포의 현재 프로그램 제한은 계정 당 하나의 프로그램에 제한됩니다.
+- 시스템 지원[Data Localization 제품군](/data-localization/).
+- 현재 API를 통해 시스템을 제어 할 수 있습니다.
+- 베타 서비스에 대한 자세한 내용은 2.6 섹션을 참조[기업 약관](https://www.cloudflare.com/enterpriseterms/).
+  :::
+
+### 기본 프로그램을 작성
+
+아래 단계는 포트 66에 종료된 모든 User Datagram Protocol (UDP) 트래픽을 삭제하는 샘플 프로그램을 작성합니다.
+
+<Steps>
+  1. Linux primitive 헤더 파일 포함.
+
+     IP 및 UDP`headers`struct 정의는 프로그램의 입력 패킷을 파싱해야 합니다. 더 보기`inet`헤더 파일에는 네트워크와 호스트 주문 간의 데이터를 변환하는 헬퍼 기능이 포함되어 있습니다.
+
+     :::참조
+     Linux BPF 프로그램이 컴파일된 동일한 파일을 포함해야 합니다.
+     주요 특징
+
+     ```c
+     #include <linux/ip.h>
+     #include <linux/udp.h>
+     #include <arpa/inet.h>
+     ```
+
+  2. Cloudflare eBPF 헤더 파일 포함.
+
+     이 파일에는[helper 기능](#helper-functions)BPF 프로그램에 입력된 패킷 데이터를 파싱하기 위해, 풀그릴 Flow Protection API의 버전 데이터.
+
+     ```c
+     #include "cf_ebpf_defs.h"
+     #include "cf_ebpf_helper.h"
+     ```
+
+  3. use에 versioned helper 함수를 지정하는 정의 지시어를 추가한다.
+
+     Cloudflare는 풀그릴 Flow Protection API에 더 많은 기능을 추가하므로 API의 새로운 버전을 게시합니다. 버전은 뒤로 호환되도록 보장됩니다.
+
+     ```c
+     #define CF_EBPF_HELPER_V0
+     ```
+
+  4. 패킷 처리에 대한 입력 함수를 정의합니다.
+
+     아래에서 정확한 함수 서명이 있어야 합니다. Cloudflare\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`
+
+     반환 유형`uint64_t`Cloudflare가 패킷을 통과하거나 드롭할지 여부를 결정합니다. 기능 이름`cf_ebpf_main`입학원은 프로그램에 사용됩니다. 인수`void *state`데이터 Cloudflare는 BPF 프로그램에 입력합니다.
+
+     ```c
+     uint64_t cf_ebpf_main(void *state)
+     ```
+
+  5. 입력 인자를 usable structs로 저장합니다.
+
+     입력 데이터를 변환`cf_ebpf_generic_ctx`"Cloudflare"는 우리가 읽는 기억에 데이터 경계를 나타냅니다.
+
+     그런 다음 데이터 파싱에 대한 변수를 선언합니다.`cf_ebpf_parsed_headers`IPv4, IPv6 및 UDP 헤더를 포함합니다.`cf_ebpf_packet_data`'Cloudflare'가 수신 된 원래 IP 패킷의 사본을 보유 (최대 1,500 바이트), 패킷 길이 및 IP 헤더 길이.
+
+     ```c
+     struct cf_ebpf_generic_ctx *ctx = state;
+     struct cf_ebpf_parsed_headers headers;
+     struct cf_ebpf_packet_data *p;
+     ```
+
+  6. helper 함수를 호출하여 변수를 채웁니다.
+
+     helper 함수를 호출하여 변수를 작성해야 합니다.`parse_packet_data`Cloudflare는 단계 2에 포함 된 헤더 파일에서 제공됩니다.
+
+     더 보기`parse_packet_data`함수는 프로그램 verifier를 통과해야 하는 메모리 체크를 수행합니다. 더 보기`parse_packet_data`기능 반환`0`성공에. 성공하면, 입력 매개 변수가 올바르게 채워집니다. 더 보기`parse_packet_data`기능 반환`1`실패에. 이름 \*`parse_packet_data`실패, 이 프로그램은 반환해야`CF_EBPF_DROP`버터를 통과하기 위해 패킷을 드롭합니다.
+
+     ```c
+     if (parse_packet_data(ctx, &p, &headers) != 0) {
+         return CF_EBPF_DROP;
+     }
+     ```
+
+     성공적인 파싱 후 사용 가능한 값:
+
+     ```c
+     cf_ebpf_packet_data
+     /* Total length of the packet. */
+     size_t   total_packet_length;
+     /* Size of the IP header. Supports IPv4 (including options) and IPv6. */
+     size_t   ip_header_length;
+     /* Bytes of the packet, starting with the IP header. */
+     uint8_t  packet_buffer[1500];
+     };
+
+     struct cf_ebpf_parsed_headers {
+     /* Pointer to the parsed IPv4 header, if present (otherwise null). */
+     struct iphdr   *ipv4;
+     /* Pointer to the parsed IPv6 header, if present (otherwise null). */
+     struct ipv6hdr *ipv6;
+     /* Pointer to the parsed UDP header. */
+     struct udphdr  *udp;
+     /* Raw pointer to the last valid byte of the packet context data. */
+     uint8_t        *data_end;
+     };
+     ```
+
+  7. 사용자 정의 논리를 작성합니다.
+
+     이전 단계는 논리에 관계없이 작성하는 모든 프로그램에 대해 동일한 코드를 설치했습니다.
+
+     지금, 당신은 당신의 자신의 관례 논리를 쓸 수 있습니다.
+
+     :::참조
+     프로그래밍 가능한 유량 보호는 UDP 패킷을 BPF 프로그램에 제공합니다.
+     주요 특징
+
+     아래 예제에서, 프로그램은 IPv6 헤더가 존재하거나 UDP 대상 포트가 66 인 패킷을 삭제합니다.
+
+     ```c
+     struct ipv6hdr *ipv6_hdr;
+     struct udphdr *udp_hdr;
+     ipv6_hdr = (struct ipv6hdr *)headers.ipv6;
+     if (ipv6_hdr != NULL) {
+       return CF_EBPF_DROP;
+     }
+     udp_hdr = (struct udphdr *)headers.udp;
+     if (htons(udp_hdr->dest) == 66) {
+         return CF_EBPF_DROP;
+     }
+     ```
+
+  8. 프로그램 로직에 의해 떨어지지 않은 패킷을 전달`CF_EBPF_PASS`.
+
+     현재 지원된 반환 값은:
+
+     - `CF_EBPF_PASS = return value 0`
+     - `CF_EBPF_DROP = return value 1`
+
+     API에 프로그램을 업로드 할 때 실행되는 verifier는, 프로그램이 알려진 값 유형 만 반환하는 것을 시행합니다.
+
+     ```c
+     return CF_EBPF_PASS;
+     ```
+</Steps>
+
+### 복잡한 프로그램을 작성
+
+아래 예 프로그램은 알려진 사용자 정의 응용 헤더로 UDP 페이로드를 파싱하고 마지막 바이트가 유효하다는 것을 보장합니다.
+
+```c
+#include <linux/ip.h>
+#include <linux/udp.h>
+#include <arpa/inet.h>
+
+#include "cf_ebpf_defs.h"
+#include "cf_ebpf_helper.h"
+
+struct apphdr {
+    uint8_t       version;
+    uint16_t      length;   // Length of the variable-length token
+    unsigned char token[0]; // Variable-length token
+} __attribute__((packed));
+
+SEC(CF_EBPF_VERSION_1_0_0)
+
+uint64_t
+cf_ebpf_main(void *state)
+{
+    struct cf_ebpf_generic_ctx *ctx = state;
+    struct cf_ebpf_parsed_headers headers;
+    struct cf_ebpf_packet_data *p;
+
+    if (parse_packet_data(ctx, &p, &headers) != 0) {
+        return CF_EBPF_DROP;
+    }
+    struct ipv6hdr *ipv6_hdr;
+    struct udphdr *udp_hdr;
+    ipv6_hdr = (struct ipv6hdr *)headers.ipv6;
+    if (ipv6_hdr != NULL) {
+        return CF_EBPF_DROP;
+    }
+
+    udp_hdr = (struct udphdr *)headers.udp;
+    if (htons(udp_hdr->dest) == 66) {
+        return CF_EBPF_DROP;
+    }
+
+    struct apphdr *app = (struct apphdr *)(udp_hdr + 1);
+    if ((uint8_t *)(app + 1) > headers.data_end) {
+        return CF_EBPF_DROP;
+    }
+
+    // The verifier has a special limit that it will not allow offsets
+    // beyond 65535. We need this check (token_len > 64000) in order
+    // to satisfy that, even though it is not possible.
+    uint16_t token_len = app->length;
+    if (token_len > 64000) {
+        return CF_EBPF_DROP;
+    }
+
+    if ((uint8_t *)(app->token + token_len) > headers.data_end) {
+        return CF_EBPF_DROP;
+    }
+
+    uint8_t *last_byte = app->token + token_len - 1;
+    if (*last_byte != 0xCF) {
+        return CF_EBPF_DROP;
+    }
+    return CF_EBPF_PASS;
+}
+```
+
+이 프로그램은 UDP 헤더의 끝에 첫 바이트로 UDP 페이로드의 시작을 계산합니다. UDP 페이로드의 주소는 프로그램의 주어진 총 메모리보다 적어야합니다.
+
+올바른 오프셋을 가지고 있다면, 프로그램은 예상 응용 프로그램 헤더 형식으로 UDP 페이로드를 캐스팅. 이 프로그램은 다른 경계 체크를 수행 응용 헤더의 메모리에 verifier를 통과합니다. 그런 다음 토큰의 마지막 바이트는`0xCF`시험 상태에 따르기 위하여.
+
+***
+
+## Helper 기능
+
+helper 함수는 Cloudflare runtime에 의해 제공된 함수입니다.
+
+BPF Instruction Set Architecture (ISA)는 특정 시스템 통화만 지원합니다. 안전 목적으로, Cloudflare는 프로그램 개발자가 수정할 수 없는 알려진 라이브러리의 predetermined 목록과 BPF 객체 파일을 컴파일할 수 있습니다.
+
+:::참조
+Helper 함수는 제거되거나 변경될 수 있습니다. 새로운 도우미 기능은 앞으로도 소개될 수 있습니다.
+주요 특징
+
+아래 표는 현재 지원되는 헬퍼 기능 목록을 제공합니다:
+
+| 기능 이름               | 입력 모수                                                                          | 산출 모수      | 이름 \*                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------------------------------------ | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cf_ebpf_rand`      | 이름 \*                                                                          | `uint64_t` | 랜덤 불신뢰를 생성한다.                                                                                                                                                         |
+| `parse_packet_data` | `cf_ebpf_generic_ctx`<br />`cf_ebpf_packet_data`<br />`cf_ebpf_parsed_headers` | `int`      | 사용 입력`cf_ebpf_generic_ctx`·`cf_ebpf_packet_data`유효성 검사`cf_ebpf_parsed_headers`.<br />성공시`cf_ebpf_parsed_headers`유효한 IP와 UDP 우두머리를 포함할 것입니다.<br />기타 제품`0`성공 또는`1`실패에. |
+
+***
+
+## 프로그램 API 엔드포인트
+
+### 프로그램
+
+프로그램을 업로드하려면 다음 API 엔드포인트를 사용하십시오. Cloudflare API는 소스 코드를 수신합니다.`C`파일, BPF bytecode로 컴파일, 그리고 그것에 대한 verifier 실행.
+
+컴파일 또는 검증이 실패하면 API는 상세한 오류 메시지를 반환합니다.
+
+컴파일 및 검증이 성공하면 Cloudflare는 소스 코드와 객체 파일을 계정으로 저장하고 프로그램 ID를 반환합니다.
+
+자주 묻는 질문`@`소스 코드 파일에 경로 지정하기 전에. 더 보기`Authorization`헤더는 타입의 Cloudflare API 토큰을 생성하여 팝업됩니다.`Account.DDoS Protection`.
+
+```bash wrap title="Request"
+curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+--header "Content-Type: text/x-csrc" \
+--data-binary "@<PATH_TO_SOURCE_CODE_FILE>"
+```
+
+<Tabs>
+  <TabItem label="성공적인 응답">
+    ```json wrap output
+    {
+    	"result": {
+    		"id": "ae6bdb2c-d269-4e4b-8e33-2d12d92c8930",
+    		"account_id": 8835764,
+    		"created_on": "2025-11-10T15:53:08.680909289Z",
+    		"modified_on": "2025-11-10T15:53:08.680909339Z",
+    		"state": "success"
+    	},
+    	"success": true,
+    	"errors": [],
+    	"messages": []
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="예제 unsuccessful 응답">
+    ```json wrap output
+    {
+    	"result": {
+    		"id": "932e102f-7b3f-45ca-83f5-5ac36a5cd8eb",
+    		"account_id": 8835764,
+    		"created_on": "2025-11-10T15:55:26.465227278Z",
+    		"modified_on": "2025-11-10T15:55:26.465227328Z",
+    		"err_msg": "eBPF verification failed: 61: Upper bound must be at most packet_size (valid_access(r3.offset, width=1) for read)\n\n (error: exit status 1)",
+    		"state": "failed_verifier"
+    	},
+    	"success": true,
+    	"errors": [],
+    	"messages": []
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+### 프로그램 업데이트
+
+개발 과정에서, 당신은 새로운 리소스로 새로운 프로그램을 만들기 위해 반복적으로 새로운 프로그램을 생성하는 대신 동일한 프로그램 ID에 의해 지원되는 동일한 프로그램을 업데이트하는 데 유용합니다.
+
+예를 들어 위의 프로그램 (ID)`932e102f-7b3f-45ca-83f5-5ac36a5cd8eb`) verifier를 통과 실패, 그래서 당신은 그것을 더 편집하고 같은 프로그램 ID를 사용하여 시도 할 수 있습니다`PATCH`컴파일 또는 확인을 실패한 파일로 프로그램 설정을 변경하는 행위.
+
+```bash wrap title="Request"
+curl --request PATCH \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs/$PROGRAM_ID \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+--header "Content-Type: text/x-csrc" \
+--data-binary "@<PATH_TO_SOURCE_CODE_FILE>"
+```
+
+### 모든 프로그램 보기
+
+모든 업로드 프로그램 및 프로그램 ID 및 성공 상태를 보려면 다음을 사용하십시오.`GET`끝점. 프로그램은 기본적으로 자원 ID에 의해 알파벳순으로 주문됩니다. 반환된 리소스의 순서를 변경하려면 지원된 pagination 쿼리 매개 변수를 사용하십시오.
+
+```bash wrap title="Request"
+curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+### 프로그램
+
+ID로 저장된 프로그램을 삭제하려면 다음을 사용하십시오.`DELETE`끝점. 활성 규칙이 참고 자료이 프로그램에 존재한다면, API는 프로그램을 삭제하는 것을 거부합니다. 추천 규칙은 프로그램을 삭제하기 전에 삭제해야합니다.
+
+```bash wrap title="Request"
+curl --request DELETE \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs/$PROGRAM_ID \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+계정의 모든 저장 프로그램을 삭제하려면 다음을 사용하십시오.`DELETE`끝점. 어떤 활성 규칙이 존재하는 경우 참고 자료 어떤 프로그램, API는 프로그램을 삭제하지 않습니다. 추천 규칙은 프로그램을 삭제하기 전에 삭제해야합니다.
+
+```bash wrap title="Request"
+curl --request DELETE \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+***
+
+## 규칙 API 엔드포인트
+
+### 규칙 만들기
+
+<Render file="advanced-ddos/create-pfp-rule" product="ddos-protection" />
+
+### 모든 규칙
+
+규칙과 관련된 규칙 ID를 보려면 다음을 사용하십시오.`GET`끝점.
+
+```bash wrap title="Request"
+curl https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/rules \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+### 규칙 업데이트
+
+기존 규칙을 업데이트하려면 다음을 사용하십시오.`PATCH`끝점.
+
+기존 규칙의 모드, 범위 및 표현을 수정할 수 있습니다. 아래 예제는 기존 규칙을 수정하여 실행합니다.`disabled`모드.
+
+```bash wrap title="Request"
+curl --request PATCH \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/rules/$RULE_ID \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+--header "Content-Type: application/json" \
+--data '{
+  "mode": "disabled"
+}'
+```
+
+### 규칙을 삭제
+
+기존 규칙을 삭제하려면 다음을 사용하십시오.`DELETE`끝점.
+
+참고 자료d 프로그램을 삭제하지는 않지만 프로그램을 실행하기 위해 지시어를 삭제합니다.
+
+```bash wrap title="Request"
+curl --request DELETE \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/rules/$RULE_ID \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+계정의 모든 규칙을 삭제하려면 다음을 사용하십시오.`DELETE`끝점.
+
+참고 자료d 프로그램을 삭제하지는 않지만, 참고 자료d 프로그램을 실행하려면 지시어를 삭제합니다.
+
+```bash wrap title="Request"
+curl --request DELETE \
+https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/rules \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+```
+
+***
+
+## 디버그 패킷 캡쳐 (PCAP)
+
+이 API 엔드포인트는 intaking에 의해 프로그램을 디버그합니다:
+
+- 입력 PCAP 파일에 대한 로컬 경로는 바이너리 형식으로 요청된 데이터로 제공됩니다. 입력 PCAP 파일은 최대 크기 제한이 5MB이며 너무 큰 경우 거부됩니다.
+- 쿼리 매개 변수로 제공되는 IP 오프셋 값. IP 헤더가 입력 PCAP 파일의 각 패킷에 의해 오프셋되는 바이트 수입니다.\
+  예를 들어, PCAP 파일이 Ethernet 패킷을 캡처하면 IP 오프셋 값은 14 일 것입니다. 이 엔드포인트는 PCAP의 모든 패킷이 동일한 IP 오프셋값을 가지고 있으며, 그렇지 않으면 파싱 패킷을 부정적으로 가정합니다.
+- 요청 경로에서 제공하는 프로그램 ID.
+
+이 엔드포인트는 입력 PCAP에 대한 참고 자료d BPF 프로그램을 실행하고 새로운 annotated PCAP 파일을 출력합니다. 출력 PCAP 파일은 입력 PCAP 파일로 정확한 동일한 패킷을 포함하고, 또한 프로그램 verdict annotated를 포함합니다**Packet 댓글**각 패킷의 영역.
+
+```bash wrap title="Request"
+curl 'https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/magic/programmable_flow_protection/configs/programs/$PROGRAM_ID/pcap?ip_offset=<IP_OFFSET_VALUE>' \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+--header "Content-Type: application/vnd.tcpdump.pcap" \
+--data-binary "@<PATH_TO_INPUT_PCAP_FILE>" \
+--output output.pcap
+```
+
+패킷의 주석이 포함될 수 있습니다:
+
+- 프로그램 반환 값:`<value>`.\
+  `CF_EBPF_PASS`관련 제품`0`·`CF_EBPF_DROP`관련 제품`1`.
+- UDP가 아닙니다.
+
+***
+
+## 안전한 프로그램 및 규칙 배포 모범 사례
+
+기존의 생산 트래픽에 영향을 미치지 않고 안전하게 배포 및 테스트 프로그램을 구축하고 싶습니다. 초기 배포 접근은 글로벌 범위의 규칙을 설정할 수 있습니다.`disabled`그리고 colo 또는 지역 수준 범위 규칙을 설정`monitoring`필터 표현은 IP 트래픽의 일부 하위 설정에서만 동작합니다.
+
+각 Cloudflare 지역 또는 colo는 가장 granular 규칙을 적용합니다. 위에서 설명한 시나리오에서, colos 또는 영역에서 지정`monitoring`규칙은 개발자 프로그램을 실행합니다.`monitoring`모드, 다른 모든 Cloudflare 위치는 모든 프로그램에 실행되지 않습니다. 더 보기`monitoring`규칙은 필터 표현과 일치하는 트래픽에서만 실행됩니다.
+
+그런 다음 Network Analytics와 올바른 행동을 확인한 후 업데이트 및 확장 할 수 있습니다.`monitoring`규칙의 범위와 필터 표현. 결국, 당신은 삭제할 수 있습니다`disabled`·`monitoring`규칙 및 글로벌 적용`enabled`이름 \*
+
+사용 방법`Expression`IP 또는 접두사의 하위 설정에 대한 프로그램을 제한하는 필드`Mode`실제로 방울 패킷이 롤아웃에 프로그램의 안전과 granularity를 보장합니다.
+
+***
+
+## 네트워크 Analytics
+
+풀그릴 교류 보호를 통해서 흐르는 교통은 안으로 찾아낼 수 있습니다[네트워크 Analytics](/analytics/network-analytics/)‘대시보드’
+
+Cloudflare를 사용할 수 있습니다.[그래프QL](/analytics/graphql-api/)API to granularly 쿼리 트래픽 데이터 in`programmableFlowProtectionNetworkAnalyticsAdaptiveGroups`그룹.
+
+예를 들어, 아래 컬 명령은 한 번에 풀그릴 Flow Protection을 통해 갔다는 비트 및 패킷의 총 합계를 보여주는 쿼리를 실행합니다.
+
+`$CLOUDFLARE_API_TOKEN`·`<ACCOUNT_TAG>`사용자의 계정으로 correlate로 변경해야합니다.
+
+Cloudflare를 사용하는 것이 좋습니다[고객 지원](/analytics/graphql-api/getting-started/explore-graphql-schema/)GraphQL과 같은 모든 치수 및 필드를 검색 할 수 있습니다.`programmableFlowProtectionNetworkAnalyticsAdaptiveGroups`.
+
+```bash wrap title="Request"
+echo '{ "query":
+  "query PFPActivity {
+    viewer {
+      accounts(filter: { accountTag: \"<ACCOUNT_TAG>\" }) {
+        programmableFlowProtectionNetworkAnalyticsAdaptiveGroups(
+          filter: {
+            datetime_geq: \"2025-12-03T11:00:00Z\"
+            datetime_leq: \"2025-12-04T11:10:00Z\"
+          }
+          limit: 10
+        ) {
+          sum {
+            bits
+            packets
+          }
+        }
+      }
+    }
+  }"
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+--header "Content-Type: application/json" \
+--data @-
+```
+
+```json wrap output title="Example response"
+{
+	"data": {
+		"viewer": {
+			"accounts": [
+				{
+					"programmableFlowProtectionNetworkAnalyticsAdaptiveGroups": [
+						{
+							"sum": {
+								"bits": 16680384000,
+								"packets": 23020000
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+***
+
+## 지원된 BPF 도움자 기능 및 구조
+
+```c
+/*
+* cf_ebpf_generic_ctx is passed into the BPF program
+*/
+struct cf_ebpf_generic_ctx
+{
+   /* Pointer to the beginning of the context data. */
+   uint64_t data;
+   /* Pointer to the end of the context data. */
+   uint64_t data_end;
+   /* Space for the program to store metadata. */
+   uint64_t meta_data;
+};
+
+/*
+* cf_ebpf_packet_data_v1 is passed into the BPF program
+*/
+struct cf_ebpf_packet_data {
+    /* Total length of the packet. */
+   size_t   total_packet_length;
+   /* Size of the IP header. Supports IPv4 (including options) and IPv6. */
+   size_t   ip_header_length;
+   /* Bytes of the packet, starting with the IP header. */
+   uint8_t  packet_buffer[1500];
+};
+
+/*
+* cf_ebpf_parsed_headers can be populated from cf_ebpf_generic_ctx and
+* cf_ebpf_packet_data in the BPF program
+*/
+struct cf_ebpf_parsed_headers {
+   /* Pointer to the parsed IPv4 header, if present (otherwise null). */
+   struct iphdr   *ipv4;
+   /* Pointer to the parsed IPv6 header, if present (otherwise null). */
+   struct ipv6hdr *ipv6;
+   /* Pointer to the parsed UDP header. */
+   struct udphdr  *udp;
+   /* Raw pointer to the last valid byte of the packet context data. */
+   uint8_t        *data_end;
+};
+
+
+/* Function to construct cf_ebpf_parsed_headers from cf_ebpf_generic_ctx and
+* cf_ebpf_packet_data_v1. Performs required memory checks to pass verifier.
+* Returns 0 on success and 1 on failure (e.g., packet too short, invalid length).
+* cf_ebpf_packet_data_v1 is filled with IP and UDP header data on success.
+*/
+static inline int parse_packet_data(
+   struct cf_ebpf_generic_ctx *ctx,
+   struct cf_ebpf_packet_data **out_p,
+   struct cf_ebpf_parsed_headers *out_headers
+)
+
+/* Function that returns random unsigned integer value */
+uint64_t cf_ebpf_rand()
+```

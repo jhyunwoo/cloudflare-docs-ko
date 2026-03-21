@@ -1,0 +1,131 @@
+---
+pcx_content_type: troubleshooting
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/200169526-Improving-web-security-for-content-management-systems-like-WordPress
+title: WordPress와 같은 콘텐츠 관리 시스템에 대한 웹 보안 향상
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/support/third-party-software/content-management-system-cms/improving-web-security-for-content-management-systems-like-wordpress/
+translation_source_md: >-
+  https://developers.cloudflare.com/support/third-party-software/content-management-system-cms/improving-web-security-for-content-management-systems-like-wordpress/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Content Management Systems는 콘텐츠를 생성, 업데이트 및 관리하기 쉽습니다. 그러나 서버 손상과 데이터 도난으로 이어질 수 있는 취약점을 소개합니다.
+
+이러한 공격을 방지하기 위해 사용할 수있는 많은 Cloudflare 기능이 있지만, 로깅이나 업로드 이미지와 같은 일반 관리 프로세스를 혼란시킬 수 있습니다. 적절한 구성으로 중요한 기능을 잃지 않고 공격으로부터 사이트를 보호 할 수 있습니다.
+
+***
+
+## 단계 1: 사이트 보안 향상
+
+이 단계에서는 예외가 적용될 때까지 관리자 기능에 대한 추가 중단을 일으킬 수 있는 영역의 보안 기능을 강화하고 있습니다. 그 이유는 예상 관리 중단으로 이러한 변화를 만드는 것이 좋습니다.
+
+다음은 개요XQ로 간주됩니다. 특정 제품 또는 기능에 대한 개발자 문서를 참조하십시오.
+
+### Cloudflare 관리되는 통치자
+
+더 보기[WAF 관리되는 통치자](/waf/managed-rules/)다양한 공격에 대한 즉각적인 보호를 제공하고 정기적으로 업데이트됩니다. 많은 규칙은 기본적으로 켜져 있지만 전혀 없습니다. 그것은 당신이 검색하는 것이 좋습니다 Cloudflare 관리 규칙을 설정하여 추가 규칙 태그에 대한 귀하의 콘텐츠 관리 시스템 활성화, 및 활성화:
+
+![Dashboard 스크린 샷 필터링 WordPress](~/assets/images/support/Wordpress-configure-deployment.png)
+
+### 무료 계획에서 관리되는 Rulesets
+
+이 관리 된 규칙을 사용자 정의하는 기능 동안 유료 계획,[무료 Cloudflare 관리된 Ruleset](https://blog.cloudflare.com/waf-for-everyone/#the-free-cloudflare-managed-ruleset)새로운 Cloudflare 영역에 자동으로 배치됩니다. 이 규칙은 트래픽 유형의 매우 넓은 범위에서 최소한으로 거짓 긍정적을 줄이기 위해 특별히 설계되었습니다. 오늘날의 규칙은 다음과 같은 규칙을 포함합니다.
+
+- Log4J 규칙은 URI 및 HTTP 헤더의 페이로드를 일치;
+- Shellshock 규칙;
+- 매우 일반적인 WordPress의 활용 규칙;
+
+또한 많은 측면을 구성할 수 있습니다.[OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/)aomaly 문턱, paranoia 수준 및 개별 규칙을 포함하여. 좋은 연습은 XSS와 SQL 주입과 관련된 규칙을 보장하는 것입니다.
+
+***
+
+## 2단계: 관리 기능 복원
+
+최소 권한의 원칙을 사용하여 관리자 패널에서 일부 테스트 작업을 차단하고 허용되는 것을 감사 할 수 있습니다. 이 정보를 사용하면 정확한 예외를 만들 수 있습니다. 행동이 당신의 기대에 일치하지 않는 경우, 확인해야:
+
+1. DNS 레코드는 proxied
+2. WAF와 방해 할 수있는 규칙이 없습니다 (보안을 설정하는 페이지 규칙과 동일)
+
+방화벽 이벤트에 기록 된 좋은 샘플을 가지고 충분한 요청을 생성 한 후 관리 된 규칙 섹션에서 찍은 작업을 관찰하십시오.
+
+![](~/assets/images/support/Screenshot_2022-12-23_at_16.40.29.png)
+
+다음, 이 정보를 사용하여 관리 조치를 방지하는 규칙 만 제외 Skip Rule을 만들 수 있습니다.
+
+![](~/assets/images/support/Screenshot_2022-12-22_at_13.49.18.png)
+
+### 수신 요청 일치 할 때 ...
+
+아래에 나열된 추가 보호 없이 이 규칙을 단단히 정의하는 것이 좋습니다. 정확한 내용이 사이트 별일 수 있지만 일부 가능한 필드는 다음과 같습니다.
+
+- IP 근원 주소
+- 사이트맵
+- 아사쿠사
+- 사용자 에이전트
+
+규칙을 적용하려면*한국어*CMS의 관리 부분에. 예를 들어 WordPress를 사용하면 ''과 같은 상태를 설정할 수 있습니다.*URI 경로 포함 /wp-admin/*'.
+
+이 필드의 모든 스푸핑 될 수 있습니다, 그래서 이것은 자신의 보안 측정이 아니다. 다른 도구와 기능을 사용할 수 있는 조건만 관리 기능을 복원하는 것이 목적입니다. (당신의 CMS 로그인에 강한 암호를 포함!).
+
+### Managed Ruleset의 특정 규칙을 건너
+
+다음으로 방화벽 로그에서 정보를 사용하려면 다음 규칙을 선택하여 건너뛰기[예외 추가](/waf/custom-rules/skip/). WordPress의 경우 다음을 선택했습니다.
+
+![](~/assets/images/support/Screenshot_2022-12-23_at_17.08.37.png)
+
+이 완료되면 로그인을 방지하는 모든 규칙에 대한 비슷한 규칙을 만들 것입니다. 내 사용 사례에서 "OWASP Core Ruleset 949110"을 건너뛰는 것이 필요했습니다.
+
+**참고 :**&#x43;MS-specific 규칙을 추가하기를 고려할 수도 있습니다. 어떤 문제가 발생하면 사이트의 non-CMS 섹션을 활성화 할 수 있습니다. 위의 단계를 따르고 Cloudflare Managed Ruleset 규칙을 건너 뛸 수 있습니다. 호스트명, URI, 쿠키를 기반으로 설정할 수 있습니다.**동일하지 않습니다, 일치하지 않습니다,**&#xB610;는**포함되지 않음**.
+
+실행 규칙보다 높은 우선 순위를 설정해야합니다.
+
+***
+
+## 3단계: 접근 제한
+
+이제 공격에 대한 귀하의 사이트에 공개적으로 접근 가능한 부품을 보호하고 필요한 관리 기능을 복원 할 수있는 보안을 높였습니다. 약하거나 노출 된 로그인 자격의 경우 관리자 패널에 액세스 할 수있는 추가 제한이 있습니다.
+
+### 모델 번호: Zero Trust
+
+[모델 번호: Zero Trust](https://www.cloudflare.com/plans/zero-trust-services/)웹 응용 프로그램은 관리자 패널에 액세스 할 수있는 가장 좋은 방법입니다. 장치 대신에 사용자를 기반으로 액세스를 제한 할 수 있으며 매우 과립 제어 할 수 있습니다. Self-hosted 웹 응용 프로그램의 설정은 매우 쉽습니다, 자세한 내용은 참조[셀프 호스팅 응용](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)Zero Trust 개발자 문서의 섹션.
+
+웹 응용 프로그램을 구성 한 후, 사용자는 제한된 콘텐츠에 액세스 할 수있는 일부 방법으로 인증해야합니다. 기본 방법은 이메일 멀티 팩터 인증을 통해:
+
+![](~/assets/images/support/Screenshot_2022-12-22_at_14.39.21.png)
+
+### WAF 사용자 정의 규칙 mTLS
+
+로그인을 수행 할 수없는 인증 기구를 위해 설계되었지만, 장치 인증서를 기반으로 인증하는 멀티 팩터 인증 (당신이 알고있는 것)의 다른 방법으로 mTLS를 사용할 수 있습니다.
+
+다음을 수행:
+
+1. [클라이언트 인증서 만들기](/ssl/client-certificates/create-a-client-certificate/)그리고 당신의 장치에 증명서와 열쇠를 둘 다 저장하십시오.
+2. 컴퓨터의 키 저장소에 인증서를 가져옵니다. macOS Keychain로, 당신은 안으로 목록으로 만들어진 단계를 사용할 수 있습니다[브라우저에서 테스트](/cloudflare-one/access-controls/service-credentials/mutual-tls-authentication/#test-in-the-browser).
+3. [사용 가능한 mTLS](/ssl/client-certificates/enable-mtls/)올바른 호스트를 추가해서.
+4. 내 계정**사이트맵** > **고객 인증서**, 선택**mTLS 규칙 만들기**.
+5. 이름 \***수신 요청 일치**, thr에 대한 값을 입력**URI 경로**관리자 섹션에 규칙 범위를 좁은 필드, 그렇지 않으면 당신은 공공 콘텐츠에 액세스하여 방문자를 차단합니다.
+6. 규칙을 설정*제품정보*클라이언트 인증서가 확인되지 않은 경우 관리자 패널에 만든 어떤 요청.
+7. 제품정보**계정 만들기**. 이것은 유효한 클라이언트 증명서를 위한 관리자 단면도에 모든 요구를 검사하는 WAF 관례 규칙을 창조합니다.
+
+**참고 :**&#xC778;증서를 확인하는 데 문제가 있다면, 개인 창에서 페이지를 액세스하십시오. 작동하면 이전 성공적인 TLS 상태가 브라우저에서 캐시 될 수 있습니다.
+
+### 비율 제한
+
+제한 규칙의 비율은 공격자로부터 로그인 페이지를 보호하는 데 도움이 될 수 있습니다 계정 암호를 추측하려고[방어력](https://www.cloudflare.com/learning/bots/brute-force-attack/). 해당 속도 제한이 도달될 때, 표현과 일치하는 요청의 비율 제한을 정의할 수 있습니다.
+
+제한 규칙의 비율은 이제 사용할 수 없습니다, 모든 계획에. 더 많은 정보를 원하시면, 참조[개발자 문서](/waf/rate-limiting-rules/).
+
+***
+
+## 지원하다
+
+- [WAF 관리 규칙](/waf/managed-rules/)
+- [Cloudflare OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/)
+- [사용자 정의 규칙을 Skip action으로 구성](/waf/custom-rules/skip/)
+- [Zero Trust 서비스](https://www.cloudflare.com/plans/zero-trust-services/)
+- [고객 인증서](/ssl/client-certificates/)
+- [비율 제한 규칙](/waf/rate-limiting-rules/)

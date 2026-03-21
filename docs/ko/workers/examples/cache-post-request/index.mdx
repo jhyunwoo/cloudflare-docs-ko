@@ -1,0 +1,217 @@
+---
+summary: Cache POST requests using the Cache API.
+tags:
+  - Middleware
+  - Caching
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: Cache POST 요청
+sidebar:
+  order: 1001
+description: Cache API를 사용하여 POST 요청.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/cache-post-request/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/cache-post-request/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/cache-post-request)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env, ctx) {
+    		async function sha256(message) {
+    			//UTF-8로 인코딩
+    			const msgBuffer = await new TextEncoder().encode(message);
+    			//해시 메시지
+    			const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    			//바이트를 hex 문자열로 변환
+    			return [...new Uint8Array(hashBuffer)]
+    				.map((b) => b.toString(16).padStart(2, "0"))
+    				.join("");
+    		}
+    		try {
+    			if (request.method.toUpperCase() === "POST") {
+    				const body = await request.clone().text();
+    				//Hash the request body to use it as a 부분의 캐시 키
+    				const hash = await sha256(body);
+    				const cacheUrl = new URL(request.url);
+    				//몸의 해시를 우선해서 캐시에 URL을 저장하십시오
+    				cacheUrl.pathname = "/posts" + cacheUrl.pathname + hash;
+    				//캐시 할 수있는 GET 변환
+    				const cacheKey = new Request(cacheUrl.toString(), {
+    					headers: request.headers,
+    					method: "GET",
+    				});
+
+    				const cache = caches.default;
+    				//캐시 키 찾기
+    				let response = await cache.match(cacheKey);
+    				//그렇지 않으면, 근원에서 POST 요구에 fetch 응답
+    				if (!response) {
+    					response = await fetch(request);
+    					ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    				}
+    				return response;
+    			}
+    			return fetch(request);
+    		} catch (e) {
+    			return new Response("Error thrown " + e.message);
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		async function sha256(message) {
+    			//UTF-8로 인코딩
+    			const msgBuffer = await new TextEncoder().encode(message);
+    			//해시 메시지
+    			const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
+    			//바이트를 hex 문자열로 변환
+    			return [...new Uint8Array(hashBuffer)]
+    				.map((b) => b.toString(16).padStart(2, "0"))
+    				.join("");
+    		}
+    		try {
+    			if (request.method.toUpperCase() === "POST") {
+    				const body = await request.clone().text();
+    				//Hash the request body to use it as a 부분의 캐시 키
+    				const hash = await sha256(body);
+    				const cacheUrl = new URL(request.url);
+    				//몸의 해시를 우선해서 캐시에 URL을 저장하십시오
+    				cacheUrl.pathname = "/posts" + cacheUrl.pathname + hash;
+    				//캐시 할 수있는 GET 변환
+    				const cacheKey = new Request(cacheUrl.toString(), {
+    					headers: request.headers,
+    					method: "GET",
+    				});
+
+    				const cache = caches.default;
+    				//캐시 키 찾기
+    				let response = await cache.match(cacheKey);
+    				//그렇지 않으면, 근원에서 POST 요구에 fetch 응답
+    				if (!response) {
+    					response = await fetch(request);
+    					ctx.waitUntil(cache.put(cacheKey, response.clone()));
+    				}
+    				return response;
+    			}
+    			return fetch(request);
+    		} catch (e) {
+    			return new Response("Error thrown " + e.message);
+    		}
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    import hashlib
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import create_proxy
+    from js import fetch, URL, Headers, Request, caches
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request, _, ctx):
+            if 'POST' in request.method:
+                #Hash the request body to use it as a 부분의 캐시 키
+                body = await request.clone().text()
+                body_hash = hashlib.sha256(body.encode('UTF-8')).hexdigest()
+
+                #몸의 해시를 우선해서 캐시에 URL을 저장하십시오
+                cache_url = URL.new(request.url)
+                cache_url.pathname = "/posts" + cache_url.pathname + body_hash
+
+                #캐시 할 수있는 GET 변환
+                headers = Headers.new(dict(request.headers).items())
+                cache_key = Request.new(cache_url.toString(), method='GET', headers=headers)
+
+                #캐시 키 찾기
+                cache = caches.default
+                response = await cache.match(cache_key)
+
+                #그렇지 않으면, 근원에서 POST 요구에 fetch 응답
+                if response is None:
+                    response = await fetch(request)
+                    ctx.waitUntil(create_proxy(cache.put(cache_key, response.clone())))
+
+                return response
+
+            return fetch(request)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+    import { sha256 } from "hono/utils/crypto";
+
+    const app = new Hono();
+
+    //POST 요청을 캐싱하는 Middleware
+    app.post("*", async (c) => {
+    	try {
+    		//요청 몸 받기
+    		const body = await c.req.raw.clone().text();
+
+    		//Hash the request body to use it as part of the 캐시 키
+    		const hash = await sha256(body);
+
+    		//캐시 URL 생성
+    		const cacheUrl = new URL(c.req.url);
+
+    		//몸의 해시를 우선해서 캐시에 URL을 저장하십시오
+    		cacheUrl.pathname = "/posts" + cacheUrl.pathname + hash;
+
+    		//캐시 할 수있는 GET 변환
+    		const cacheKey = new Request(cacheUrl.toString(), {
+    			headers: c.req.raw.headers,
+    			method: "GET",
+    		});
+
+    		const cache = caches.default;
+
+    		//캐시 키 찾기
+    		let response = await cache.match(cacheKey);
+
+    		//캐시가없는 경우, POST 요청에 대한 fetch 응답
+    		if (!response) {
+    			response = await fetch(c.req.raw);
+    			c.executionCtx.waitUntil(cache.put(cacheKey, response.clone()));
+    		}
+
+    		return response;
+    	} catch (e) {
+    		return c.text("Error thrown " + e.message, 500);
+    	}
+    });
+
+    //다른 모든 HTTP 방법을 처리
+    app.all("*", (c) => {
+    	return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

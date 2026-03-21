@@ -1,0 +1,85 @@
+---
+pcx_content_type: concept
+title: Google 채팅
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/google-chat/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/google-chat/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+Google Chat Pages 플러그인은 메시지에 응답 할 수있는 Google 채팅 봇을 만듭니다. 또한 사용자 입력이 필요없는 Google Chat (예를 들면, 메시지 생성)과 상호 작용하는 API가 포함되어 있습니다. 이 API는 경고와 같은 상황에 유용합니다.
+
+## 설치하기
+
+<PackageManagers pkg="@cloudflare/pages-plugin-google-chat" />
+
+## 제품 정보
+
+```typescript
+import googleChatPlugin from "@cloudflare/pages-plugin-google-chat";
+
+export const onRequest: PagesFunction = googleChatPlugin(async (message) => {
+	if (message.text.includes("ping")) {
+		return { text: "pong" };
+	}
+
+	return { text: "Sorry, I could not understand your message." };
+});
+```
+
+플러그인은 함수를 가지고, 차례로 들어오는 메시지가 걸립니다, 그리고 반환`Promise`응답 메시지 (또는`void`어떤 응답이 되지 않아).
+
+플러그인은 봇을 만들 때 Google Cloud Console에서 설정해야 하는 URL인 단일 경로만 노출합니다.
+
+![Google Cloud Console의 Google Chat API에 대한 연결 설정은 'App URL'을 선택하고 'https://example.com/google-chat'를 'App URL' 텍스트 입력으로 입력했습니다.](~/assets/images/pages/platform/functions/google-chat.png)
+
+### 사이트맵
+
+Google Chat API는 직접 호출 할 수 있습니다.`GoogleChatAPI`종류:
+
+```typescript
+import { GoogleChatAPI } from "@cloudflare/pages-plugin-google-chat/api";
+
+export const onRequest: PagesFunction = () => {
+	//서비스 계정의 자격 증명을 사용하여 GoogleChatAPI를 초기화
+	const googleChat = new GoogleChatAPI({
+		credentials: {
+			client_email: "SERVICE_ACCOUNT_EMAIL_ADDRESS",
+			private_key: "SERVICE_ACCOUNT_PRIVATE_KEY",
+		},
+	});
+
+	//자주 묻는 질문
+	//https://developers.google.com/chat/api/reference/rest/v1/spaces.messages/create
+	const message = await googleChat.createMessage(
+		{ parent: "spaces/AAAAAAAAAAA" },
+		undefined,
+		{
+			text: "I'm an alert!",
+		},
+	);
+
+	return new Response("Alert sent.");
+};
+```
+
+KV의 서비스 계정의 자격 증명을 저장하는 것이 좋습니다.
+
+다음 기능은 다음과 같습니다.`GoogleChatAPI`예. 각각은 3개의 인수로 움직입니다: 경로 매개변수의 객체, 쿼리 매개 변수의 객체, 요청체의 객체; 에 설명된 것과 같이[Google Chat API 문서](https://developers.google.com/chat/api/reference/rest).
+
+- [`downloadMedia`](https://developers.google.com/chat/api/reference/rest/v1/media/download)
+- [`getSpace`](https://developers.google.com/chat/api/reference/rest/v1/spaces/get)
+- [`listSpaces`](https://developers.google.com/chat/api/reference/rest/v1/spaces/list)
+- [`getMember`](https://developers.google.com/chat/api/reference/rest/v1/spaces.members/get)
+- [`listMembers`](https://developers.google.com/chat/api/reference/rest/v1/spaces.members/list)
+- [`createMessage`](https://developers.google.com/chat/api/reference/rest/v1/spaces.messages/create)
+- [`deleteMessage`](https://developers.google.com/chat/api/reference/rest/v1/spaces.messages/delete)
+- [`getMessage`](https://developers.google.com/chat/api/reference/rest/v1/spaces.messages/get)
+- [`updateMessage`](https://developers.google.com/chat/api/reference/rest/v1/spaces.messages/update)
+- [`getAttachment`](https://developers.google.com/chat/api/reference/rest/v1/spaces.messages.attachments/get)

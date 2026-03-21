@@ -1,0 +1,169 @@
+---
+pcx_content_type: concept
+title: 지원되는 SQL 쿼리
+sidebar:
+  order: 3
+---
+
+import { Details } from "~/components"
+
+이 페이지에서는 일반적인 집계 함수, 표현식, 쿼리 절을 포함하여 Log Explorer가 지원하는 SQL 기능을 설명합니다.
+
+아래 다이어그램은 Log Explorer에서 지원하는 유효한 쿼리의 일반적인 형태를 보여줍니다. `SELECT`, `WHERE`, `GROUP BY`, `ORDER BY` 같은 표준 SQL 절이 어떻게 조합되어 지원되는 쿼리를 구성하는지 나타냅니다.
+
+![지원되는 SQL 문법](~/assets/images/log-explorer/supported-sql-grammar-graph.png)
+
+쿼리 예시는 다음과 같습니다.
+
+- `SELECT * FROM table WHERE (a = 1 OR b = "hello") AND c < 25.89`
+- `SELECT a, b, c FROM table WHERE d >= "GB" LIMIT 10`
+
+:::note
+- `LIMIT` 절을 생략하면 기본값 `10,000`이 적용됩니다.
+- `WHERE` 절은 최대 25개의 predicate를 지원하며, 괄호를 사용해 그룹화할 수 있습니다.
+:::
+
+### SQL 절 상세
+
+다음 SQL 절은 Log Explorer 쿼리의 구조와 로직을 정의합니다.
+
+- `SELECT` - `SELECT` 절은 데이터베이스 테이블에서 가져오려는 열을 지정합니다. 개별 열 이름, 표현식, 또는 모든 열을 선택하기 위한 와일드카드 문자를 포함할 수 있습니다.
+- `FROM` - `FROM` 절은 데이터를 가져올 테이블을 지정합니다. `SELECT` 문에 대한 데이터 소스를 나타냅니다.
+- `WHERE` - `WHERE` 절은 지정된 조건에 따라 쿼리가 반환하는 행을 필터링합니다. 결과 집합에 행이 포함되기 위해 충족해야 하는 조건을 지정할 수 있습니다.
+- `SELECT DISTINCT` - 결과 집합에서 중복 행을 제거합니다.
+- `GROUP BY` - 집계를 위해 행을 그룹화합니다. `GROUP BY` 절은 같은 값을 가진 행을 요약 행으로 묶는 데 사용됩니다.
+- `ORDER BY` - 결과 집합을 정렬합니다. `ORDER BY` 절은 하나 이상의 열을 기준으로 결과 집합을 오름차순 또는 내림차순으로 정렬하는 데 사용됩니다.
+- `LIMIT` - 반환되는 행 수를 제한합니다. `LIMIT` 절은 쿼리가 반환하는 행 수를 제한하는 데 사용됩니다. 일반적으로 `ORDER BY` 절과 함께 사용하여 상위 `N`개 행을 가져오거나 페이지네이션을 구현합니다.
+- `OFFSET` - 결과를 반환하기 전에 지정된 수의 행을 건너뜁니다.
+
+다음 섹션에서는 다이어그램에 표시된 나머지 구성 요소, 예를 들어 집계 함수, 문자열 및 숫자 표현식, 지원되는 연산자 등을 더 자세히 설명합니다.
+
+## 함수
+
+Log Explorer는 데이터를 변환, 평가 또는 요약하기 위한 다양한 SQL 함수를 지원합니다. 여기에는 스칼라 함수와 집계 함수가 포함됩니다.
+
+### 스칼라 함수
+
+이 함수들은 값(주로 문자열)을 조작하거나 평가하는 데 도움이 됩니다.
+
+- `ARRAY_CONTAINS(array, element)` - 배열에 해당 요소가 포함되어 있는지 확인합니다.
+
+  <Details header="예시">
+  `ARRAY_CONTAINS(['US', 'CA'], ClientCountry)`
+
+  `ClientCountry`가 `US` 또는 `CA`인 행을 반환합니다.
+  </Details>
+
+- `SUBSTRING(string, from_number, for_number)` - 문자열의 일부를 추출합니다.
+
+  <Details header="예시">
+  `SUBSTRING(ClientRequestPath, 0, 5)`
+
+  `ClientRequestPath`에서 처음 `5`개의 문자를 추출합니다.
+  </Details>
+
+- `LOWER(string)` - 소문자로 변환합니다.
+
+  <Details header="예시">
+  `LOWER(ClientRequestUserAgent)`
+
+  사용자 에이전트 문자열을 소문자로 변환합니다.
+  </Details>
+
+- `UPPER(string)` - 대문자로 변환합니다.
+
+  <Details header="예시">
+  `UPPER(ClientCountry)`
+
+  국가 코드를 대문자로 변환합니다.
+  </Details>
+
+### 집계 함수
+
+행 집합에 대해 계산을 수행하는 데 사용됩니다.
+
+- `SUM(expression)` - 값의 총합입니다.
+
+  <Details header="예시">
+  `SUM(ClientRequestBytes)`
+
+  클라이언트가 요청한 총 바이트 수를 합산합니다.
+  </Details>
+
+- `MIN(expression)` - 최솟값입니다.
+
+  <Details header="예시">
+  `MIN(OriginResponseDurationMs)`
+
+  오리진 서버의 가장 짧은 응답 시간을 찾습니다.
+  </Details>
+
+- `MAX(expression)` - 최댓값입니다.
+
+  <Details header="예시">
+  `MAX(OriginResponseDurationMs)`
+
+  가장 긴 응답 시간을 찾습니다.
+  </Details>
+
+- `COUNT(expression)` - 행 수입니다(모든 행 또는 null이 아닌 값일 수 있음).
+
+  <Details header="예시">
+  `COUNT(ClientRequestUserAgent)`
+
+  사용자 에이전트 값이 있는 행의 수를 계산합니다.
+  </Details>
+
+- `COUNT(DISTINCT expression)` - null이 아닌 고유 값의 수입니다.
+
+  <Details header="예시">
+  `COUNT(DISTINCT ClientIP)`
+
+  요청을 보낸 고유 클라이언트 IP 수를 계산합니다.
+  </Details>
+
+- `AVG(expression)` - 숫자 값의 평균입니다.
+
+  <Details header="예시">
+  `AVG(OriginResponseDurationMs)`
+
+  오리진 응답 시간의 평균값을 밀리초 단위로 계산합니다.
+  </Details>
+
+아래 다이어그램은 스칼라 함수와 집계 함수를 포함한 SQL 표현식의 문법을 보여줍니다.
+
+![스칼라 및 집계 함수](~/assets/images/log-explorer/scalar-aggregate-functions.png)
+
+## 표현식
+
+쿼리에서 사용되는 조건 또는 로직입니다.
+
+- `CASE WHEN` - 조건부 로직(if-else와 유사).
+- `AS` - 열 또는 테이블의 별칭.
+- `LIKE` - 패턴 매칭.
+- `IN (list)` - 값이 목록에 포함되어 있는지 확인합니다.
+- `BETWEEN ... AND ...` - 값이 범위 내에 있는지 확인합니다.
+- `Unary operator` - 하나의 피연산자에 작동합니다(예: `-5`).
+- `Binary operator` - 두 개의 피연산자에 작동합니다(예: `5 + 3`).
+- `Nested Expressions` - `( x > y )` 또는 `( 1 )`처럼 괄호로 감싼 표현식입니다.
+- `Compound identifier` - 여러 부분으로 된 이름입니다(예: `schema.table.column`).
+- `Array` - 값의 모음입니다(SQL 방언마다 지원 방식이 다름).
+- `Literals` - 문자열, 숫자, 배열과 같은 값을 나타냅니다.
+
+아래 다이어그램은 SQL 표현식의 문법을 보여주며, 열, 리터럴, 함수, 연산자, 별칭을 포함해 표현식이 취할 수 있는 다양한 형태를 자세히 설명합니다.
+
+![SQL 표현식](~/assets/images/log-explorer/expressions.png)
+
+아래 다이어그램은 하나의 피연산자에 작동하는 단항 연산자의 문법을 정의합니다(예: 부정 또는 논리 `NOT`).
+
+![단항 연산자 문법](~/assets/images/log-explorer/not.png)
+
+## 이항 연산자
+
+산술, 비교, 논리 연산에 사용됩니다.
+
+- 산술: `+`, `-`, `*`, `/`, `%` (modulo)
+- 비교: `>`, `<`, `>=`, `<=`, `=`, `!=` (또는 `<>`)`
+- 논리: `AND`, `OR`, `XOR`
+- 비트 연산: `&`, `|`, `^`, `>>`, `<<`
+- 문자열 연결: `||`

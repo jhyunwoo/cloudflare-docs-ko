@@ -1,0 +1,185 @@
+---
+title: 인증현황
+pcx_content_type: concept
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/privacy-proxy/concepts/authentication/'
+translation_source_md: >-
+  https://developers.cloudflare.com/privacy-proxy/concepts/authentication/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Privacy Proxy는 프록시 트래픽 이전에 인증해야 합니다. 이 페이지는 지원된 인증 방법을 설명하고 사용할 때 설명합니다.
+
+## 인증 방법
+
+개인 정보 보호 프록시는 세 가지 인증 방법을 지원합니다:
+
+| 제품 설명         | 사용 사례      | 개인 수준 |
+| ------------- | ---------- | ----- |
+| 사전 공유 키 (PSK) | 개념 증명, 테스트 | 이름 \* |
+| 개인정보처리방침      | 서버로 Client | 사이트맵  |
+| 사이트맵          | 서버로 서버     | 더 높은  |
+
+***
+
+## 사전 공유 키 (PSK)
+
+Pre-shared 키는 개발 및 교정 테스트 중에 인증하는 간단한 방법을 제공합니다. Cloudflare는 클라이언트가 각 요구에 포함되는 비밀 열쇠를 제공합니다.
+
+### 어떻게 작동합니까?
+
+PSK를 포함`Proxy-Authorization`머리:
+
+```http
+CONNECT example.com:443 HTTP/2
+Host: example.com
+Proxy-Authorization: Preshared <YOUR_PSK>
+```
+
+프록시는 열쇠를 검증하고 일치하면 연결을 허용합니다.
+
+### 제한 사항
+
+PSK 인증은 생산에 적합하지 않는 제한이 있습니다.
+
+- **공유 비밀**: 모든 클라이언트는 동일한 키를 사용하므로 개별 사용자에 액세스 할 수 없습니다.
+- **사용자당 제한 없음**: 사용자가 quotas 또는 제한을 시행할 수 없습니다.
+- **연결성**: 프록시는 PSK를 사용하여 모든 요청을 연결할 수 있으며, 이는 사용자의 개인 정보를 감소시킵니다.
+
+테스트에만 PSK를 사용합니다. 생산 배치에 대 한, 사용[개인정보처리방침](#privacy-pass-tokens).
+
+***
+
+## 개인정보처리방침
+
+[비밀번호](https://datatracker.ietf.org/wg/privacypass/about/)클라이언트가 ID를 공개하지 않고 인증 할 수있는 프로토콜입니다. 토큰은 암호화되지 않고 프록시를 의미하는 것은 동일한 사용자로부터 다른 요청을 correlate 할 수 없습니다.
+
+### 어떻게 작동합니까?
+
+개인정보 수집 및 사용에 동의합니다.
+
+- **더 보기**: Client는 합법적인 사용자(예를 들어, 유효한 계정이 있음)이며, Issuer에 토큰 요청을 전달합니다.
+- **계정 관리**: 클라이언트가 요청한 학습 없이 블라인드 토큰을 서명합니다.
+- **Origin (개인 프록시)**: 권한 증명으로 토큰을 허용한다.
+
+### 토큰 발행
+
+```
+┌──────────┐    1. Attestation request   ┌──────────┐
+│          │ ──────────────────────────▶ │          │
+│  Client  │                             │ Attester │
+│          │ ◀────────────────────────── │          │
+└──────────┘    2. Attestation OK        └──────────┘
+     │
+     │ 3. Blinded token request
+     ▼
+┌──────────┐    4. Forward request       ┌──────────┐
+│          │ ──────────────────────────▶ │          │
+│ Attester │                             │  Issuer  │
+│          │ ◀────────────────────────── │          │
+└──────────┘    5. Signed blinded token  └──────────┘
+     │
+     │ 6. Return to Client
+     ▼
+┌──────────┐
+│  Client  │  (unblinds and stores token)
+└──────────┘
+```
+
+클라이언트는 Attester를 통해 토큰 요청을 전송하여 unlinkability를 유지합니다. 이것은 특정한 attestation 사건 또는 클라이언트 identities를 가진 토큰 요구를 correlate 할 수 없습니다.
+
+### 토큰 면제
+
+```
+┌──────────┐    1. Present token         ┌──────────┐
+│          │ ──────────────────────────▶ │          │
+│  Client  │                             │  Privacy │
+│          │ ◀────────────────────────── │  Proxy   │
+└──────────┘    2. Connection OK         └──────────┘
+```
+
+Privacy Proxy는 Issuer의 공개키를 사용하여 토큰을 검증합니다. 프록시는 토큰이 유효하다는 것을 배웁니다.
+
+토큰 발행 과정:
+
+1. 클라이언트는 attester (예를 들면, 계정으로 로그인)에 대한 정체성을 증명합니다.
+2. attester는 클라이언트가 유효합니다.
+3. 클라이언트는 블라인드 토큰을 생성하고 발행자에게 보냅니다.
+4. 발행자는 블라인드 토큰을 표시하고 그들을 반환합니다.
+5. 클라이언트는 토큰을 제거하고 저장합니다.
+
+요청시:
+
+1. 클라이언트는 토큰을 포함합니다`Proxy-Authorization`헤더.
+2. 프록시는 발행자의 공개 키와 토큰 서명을 확인합니다.
+3. 프록시는 토큰이 유효하다면 연결을 허용합니다.
+
+토큰은 발행 중 블라인드이므로, 발행자는 토큰을 특정 발급 요청으로 연결할 수 없습니다. 프록시는 토큰이 유효하지 않다는 것을 볼 수 있습니다.
+
+### 토큰 형식
+
+개인정보처리방침`Proxy-Authorization`헤더 사용`PrivateToken`계획:
+
+```http
+CONNECT example.com:443 HTTP/2
+Host: example.com
+Proxy-Authorization: PrivateToken token=<base64-encoded-token>
+```
+
+### 개인정보처리방침
+
+개인정보처리방침
+
+1. 패스워드 Cloudflare는 토큰 발행인을 운영할 수 있으며, 타사 발행인과 통합할 수 있습니다.
+2. 클라이언트가 토큰을 받기 전에 ID를 증명하는 방법을 정의하는 attestation를 구성하십시오.
+3. Distribute 발행인 윤곽. 클라이언트는 토큰을 요청하기 위해 발행자의 공개 키와 엔드포인트가 필요합니다.
+
+[제품 정보](https://www.cloudflare.com/lp/privacy-edge/)설정에 대한 개인 정보 보호 패스를 구성합니다.
+
+***
+
+## 상호 TLS (mTLS)
+
+[Mutual TLS (mTLS) 인증](https://www.cloudflare.com/learning/access-management/what-is-mutual-tls/)트래픽은 두 방향으로 안전하고 신뢰할 수 있습니다. 클라이언트는 프록시에 인증서를 선물하고, 프록시는 연결을 허용하기 전에 그것을 검증합니다.
+
+### 어떻게 작동합니까?
+
+클라이언트는 TLS Handhake 도중 TLS 클라이언트 증명서를 포함합니다. 프록시는 구성 된 인증서 권한 (CA)에 대한 인증서를 검증하고 인증서가 신뢰할 경우 연결을 허용합니다.
+
+### 제한 사항
+
+각 클라이언트 또는 서비스에 대한 인증서를 제공 및 관리해야합니다. mTLS는 개별 사용자를 인증하지 않는 서버로 서버 통신을 위해 설계되었습니다. 프록시는 개인 정보 보호 패스에 비해 프라이버시를 줄이는 인증서로 클라이언트를 식별할 수 있습니다.
+
+mTLS for server-to-server의 통합을 모두 신뢰할 수 있는 서비스입니다.
+
+***
+
+## double-hop 배포에서 인증
+
+내 계정[Double-hop 배포](/privacy-proxy/concepts/deployment-models/#double-hop), 입증은 2단계에서 발생합니다:
+
+### 사용자 프록시 A
+
+Proxy A (운영중인) 사용자를 인증합니다. 일반적인 방법은 다음과 같습니다 :
+
+- 계정 자격 증명 (username/password, SSO)
+- 개인 정보 보호 패스 토큰은 인프라에 의해 발행됩니다.
+- 클라이언트 인증서 (mTLS)
+
+### 프록시 B
+
+프록시 B는 TLS를 사용하여 프록시 A를 인증합니다. 당신의 윤곽에 따라서, 이것은 사용할 수 있습니다:
+
+- 표준 TLS 인증서
+- Raw Public Key (RPK) 감소 된 인증서 오버 헤드에 대한 TLS 확장
+
+***
+
+## 관련 자료
+
+- [개인정보처리방침](https://datatracker.ietf.org/wg/privacypass/about/)- IETF 작업 그룹은 개인 정보 전달 프로토콜을 개발합니다.
+- [Privacy Pass 프로토콜의 최신 버전 지원](https://blog.cloudflare.com/supporting-the-latest-version-of-the-privacy-pass-protocol/)- Cloudflare 블로그 게시물 프라이버시 패스 구현.

@@ -1,0 +1,111 @@
+---
+pcx_content_type: concept
+title: DNSSEC 옵션
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: Secondary DNS용 DNSSEC
+---
+
+import {
+	Render,
+	TabItem,
+	Tabs,
+	GlossaryTooltip,
+	APIRequest,
+	DashButton,
+} from "~/components";
+
+[DNS Security Extensions (DNSSEC)](https://www.cloudflare.com/learning/dns/dns-security/)는 DNS 레코드에 암호학적 서명을 추가하여 보안을 강화합니다. 여러 제공자를 사용하면서 Cloudflare를 secondary로 사용하는 경우, Cloudflare가 제공하는 레코드에 DNSSEC를 활성화하는 몇 가지 방법이 있습니다.
+
+- **[Multi-signer DNSSEC](/dns/dnssec/multi-signer-dnssec/setup/)**: Cloudflare와 primary DNS 제공자가 서로의 서명 키를 알고 있으며, [RFC 8901](https://www.rfc-editor.org/rfc/rfc8901.html)에 따라 각자가 DNS 레코드를 실시간 서명합니다.
+- **[Live signing](#live-signing-dnssec-설정하기)**: 도메인이 primary 제공자의 네임서버로 위임되지 않고 Cloudflare secondary 네임서버만 authoritative하게 DNS 쿼리에 응답하는 경우(hidden primary setup), 이 옵션을 사용해 Cloudflare가 DNS 레코드를 실시간 서명하도록 할 수 있습니다.
+- **[Pre-signed](#pre-signed-dnssec-설정하기)**: primary DNS 제공자가 레코드에 서명하고 그 서명을 전송합니다. 그러면 Cloudflare는 서명을 직접 하지 않고 해당 레코드와 서명을 그대로 제공합니다. 기본적으로 Cloudflare는 [NSEC 레코드](https://www.cloudflare.com/dns/dnssec/how-dnssec-works/)를 사용하며 NSEC3는 사용하지 않습니다. 필요한 경우 [NSEC3 지원](/dns/dnssec/enable-nsec3/)을 참고하세요. 또한 Pre-signed DNSSEC는 [Secondary DNS Override](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/proxy-traffic/)와 [Load Balancing](/load-balancing/)을 지원하지 않습니다.
+
+---
+
+## Multi-signer DNSSEC 설정하기
+
+[Multi-signer DNSSEC 설정](/dns/dnssec/multi-signer-dnssec/setup/)을 참고하고, Cloudflare as Secondary에 대한 참고 사항을 고려하여 안내를 따르세요.
+
+---
+
+## Live signing DNSSEC 설정하기
+
+Cloudflare secondary 네임서버만 authoritative하게 DNS 쿼리에 응답하는 경우(hidden primary setup)에는 live signing DNSSEC를 활성화하여 Cloudflare가 zone 레코드에 서명하도록 할 수 있습니다.
+
+이 구성에서는 primary DNS 제공자에서 DNSSEC를 활성화할 필요가 없습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **DNSSEC with Secondary DNS** 아래에서 **Live signing**을 선택합니다. 그러면 등록기관에 **DS** 레코드를 만들기 위해 필요한 여러 값을 확인할 수 있습니다.
+
+3. <Render file="dnssec-registrar-steps" product="dns" />
+
+</TabItem> <TabItem label="API">
+
+1. [Edit DNSSEC Status endpoint](/api/resources/dns/subresources/dnssec/methods/edit/)를 사용하여 zone의 `status`를 `active`로 설정합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+		status: "active",
+	}}
+/>
+
+2. [DNSSEC Details endpoint](/api/resources/dns/subresources/dnssec/methods/get/)를 사용해 등록기관에서 **DS** 레코드를 만들기 위한 필요한 값을 가져옵니다.
+
+3. <Render file="dnssec-registrar-steps" product="dns" />
+
+</TabItem> </Tabs>
+
+---
+
+## Pre-signed DNSSEC 설정하기
+
+### 사전 요구 사항
+
+- Cloudflare의 secondary zone이 이미 존재하고, primary DNS 제공자로부터 zone transfer가 정상적으로 동작하고 있습니다.
+- primary DNS 제공자가 NSEC를 사용하는지 NSEC3를 사용하는지 고려했으며, 필요하다면 [NSEC3 지원](/dns/dnssec/enable-nsec3/)을 활성화했습니다.
+- primary DNS 제공자가 RRSIG, DNSKEY, NSEC와 같은 DNSSEC 관련 레코드를 전송합니다.
+
+### 단계
+
+1. primary DNS 제공자에서 DNSSEC를 활성화합니다.
+2. 대시보드 또는 API를 사용해 Cloudflare에서 zone의 DNSSEC를 활성화합니다.
+
+:::caution
+Pre-signed DNSSEC는 [Secondary DNS Override](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/proxy-traffic/)와 [Load Balancing](/load-balancing/)을 지원하지 않습니다. Pre-signed DNSSEC를 활성화하면 Cloudflare는 모든 DNS 레코드를 <GlossaryTooltip term="proxy status">DNS-only</GlossaryTooltip>로 처리합니다.
+:::
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+1. Cloudflare 대시보드에서 **DNS Settings** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/dns/settings" />
+
+2. **DNSSEC with Secondary DNS** 아래에서 **Pre-signed**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+[Edit DNSSEC Status endpoint](/api/resources/dns/subresources/dnssec/methods/edit/)를 사용하고 `dnssec_presigned` 값을 `true`로 설정합니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+		dnssec_presigned: true,
+	}}
+/>
+
+</TabItem> </Tabs>
+
+3. 등록기관에 Cloudflare 네임서버가 추가되어 있는지 확인합니다. Cloudflare 네임서버는 대시보드의 [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지에서 확인할 수 있습니다.
+
+4. 등록기관에 DS 레코드가 추가되어 있는지도 확인합니다. DS 레코드는 zone의 서명자인 primary DNS 제공자에게서 가져오며, DNS resolver에게 해당 zone에 DNSSEC가 활성화되어 있음을 알려줍니다.

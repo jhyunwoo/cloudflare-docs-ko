@@ -1,0 +1,80 @@
+---
+title: Public DNS
+pcx_content_type: get-started
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: Public DNS 설정 - Keyless SSL
+---
+
+import { Render, TabItem, Tabs, DashButton } from "~/components";
+
+[Cloudflare Tunnel 설정](/ssl/keyless-ssl/configuration/cloudflare-tunnel/)을 사용할 수 없다면, 키 서버용 공개 DNS 레코드를 생성할 수도 있습니다.
+
+이 설정 방식은 이상적이지 않습니다. DNS 레코드를 [프록시](/dns/proxy-status/)할 수 없기 때문에 결과적으로 키 서버의 원본 IP 주소가 노출되기 때문입니다.
+
+---
+
+<Render file="keyless-prereqs" product="ssl" />
+
+---
+
+## 1. 공개 DNS 레코드 생성
+
+1. 터미널을 열고 `openssl rand -hex 24`를 실행하여 `11aa40b4a5db06d4889e48e2f738950ddfa50b7349d09b5f.example.com`과 같은 길고 무작위인 호스트명을 생성합니다.
+2. DNS 제공업체의 인터페이스에서 이 레코드를 키리스 SSL 서버의 IP 주소를 가리키는 **A** 또는 **AAAA** 레코드로 추가합니다.
+3. Keyless SSL 서버 초기화 시 이 호스트명을 서버 호스트명으로 사용합니다.
+
+:::caution
+
+보안 조치로서 키 서버의 호스트명은 숨겨야 합니다.
+
+:::
+
+---
+
+## 2. Keyless SSL 인증서 업로드
+
+<Render file="keyless-upload-preamble" product="ssl" />
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 Keyless 인증서를 생성하려면 다음을 수행합니다.
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Upload Keyless SSL Certificate**를 선택합니다.
+3. 인증서와 기타 세부 정보를 업로드 모달에 입력한 뒤 **Add**를 선택합니다.
+
+| 레이블 | 설명 | 예시 값 |
+| ------ | ---- | ------- |
+| Key server label | 키 서버를 식별할 수 있는 고유 식별자입니다. | “test-keyless”, “production-keyless-1” |
+| Key server hostname | 이 인증서의 키를 보관하는 키 서버의 호스트명입니다(예: 앞에서 생성한 무작위 호스트명). | 11aa40b4a5db06d4889e48e2f738950ddfa50b7349d09b5f.example.com |
+| Key server port | 키 서버에서 값을 변경하지 않았다면 2407로 설정합니다. | 2407 |
+| SSL Certificate | 개인 키를 보유한 유효한 X509v3 SSL 인증서(PEM 형식)입니다. | (PEM bytes) |
+| Bundle method | 거의 항상 **Compatible**을 사용해야 합니다. 자세한 내용은 [Uploading Custom Certificates](/ssl/edge-certificates/custom-certificates/uploading/)를 참고하세요. | Compatible |
+
+</TabItem> <TabItem label="API">
+
+API로 Keyless 인증서를 생성하려면 [`POST`](/api/resources/keyless_certificates/methods/create/) 요청을 보내세요.
+
+</TabItem> </Tabs>
+
+---
+
+## 3. 키 서버 설정 및 활성화
+
+<Render
+	file="keyless-key-server-setup"
+	product="ssl"
+	params={{ one: "11aa40b4a5db06d4889e48e2f.example.com" }}
+/>
+
+### Cloudflare로부터의 인바운드 연결 허용
+
+TLS 핸드셰이크 중 Cloudflare의 키리스 클라이언트는 인증서 업로드 시 지정한 키 서버 호스트명 또는 IP 주소로 연결을 시작합니다. 기본적으로 키리스 클라이언트는 목적지 TCP 포트 2407을 사용하지만, 인증서 업로드 시 또는 이후 인증서 세부 정보를 수정하여 변경할 수 있습니다.
+
+키 서버가 Cloudflare에서 오는 연결만 수락하도록 허용하는 WAF 사용자 정의 규칙을 생성하세요. Cloudflare의 IPv4 및 IPv6 주소는 [IP details API endpoint](/api/resources/ips/methods/list/)를 통해 확인할 수 있습니다.

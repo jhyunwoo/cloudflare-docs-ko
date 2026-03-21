@@ -1,0 +1,171 @@
+---
+pcx_content_type: how-to
+title: 사용자 정의 글꼴
+description: 스크린 샷 및 PDF에서 사용을위한 Browser Rendering에 사용자 정의 글꼴을 추가하는 방법을 알아보십시오.
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/features/custom-fonts/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/features/custom-fonts/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem } from "~/components";
+
+Browser Rendering은 관리되는 Chromium 환경을 사용하여[사전 설치된 글꼴의 표준 세트](/browser-rendering/reference/supported-fonts/). 스크린 샷 또는 PDF를 생성할 때, 텍스트는 이 환경에서 사용할 수있는 글꼴을 사용하여 렌더링됩니다. 페이지가 사전 설치되지 않은 글꼴을 지정하면 크롬은 자동으로 유사한 지원 글꼴로 돌아갑니다.
+
+사전 설치되지 않은 특정 글꼴이 필요하면 렌더링 시간에 페이지를 주입 할 수 있습니다. 외부 URL에서 글꼴을로드하거나 Base64 문자열로 직접 삽입 할 수 있습니다.
+
+사용자 정의 글꼴을 추가하는 방법 브라우저 렌더링을 사용하는 방법에 따라 달라집니다:
+
+- 자주 묻는 질문[모델 번호: Workers 회사 소개](/browser-rendering/workers-bindings/)이름 \*[제품정보](/browser-rendering/puppeteer/)또는[공유하기](/browser-rendering/playwright/), 참조[Workers 회사 소개](#workers-bindings)이름 \*
+- 사용중인 경우[REST API를](/browser-rendering/rest-api/), 참조[REST API를](#rest-api)이름 \*
+
+## Workers 회사 소개
+
+제품 정보`addStyleTag`관련 기사`@font-face`스크린 샷 또는 PDF 캡처하기 전에 페이지에 규칙. CDN URL에서 글꼴 파일을로드하거나 Base64 인코딩 문자열로 지정할 수 있습니다.
+
+### CDN URL에서
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    예제와[제품정보](/browser-rendering/puppeteer/)그리고 CDN 근원:
+
+    ```js
+    const browser = await puppeteer.launch(env.MYBROWSER);
+    const page = await browser.newPage();
+    await page.addStyleTag({
+      content: `
+        @font-face {
+          font-family: 'CustomFont';
+          src: url('https://your-cdn.com/fonts/MyFont.woff2') format('woff2');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        body {
+          font-family: 'CustomFont', sans-serif;
+        }
+      `
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    예제와[제품정보](/browser-rendering/puppeteer/)그리고 CDN 근원:
+
+    ```ts
+    const browser = await puppeteer.launch(env.MYBROWSER);
+    const page = await browser.newPage();
+    await page.addStyleTag({
+      content: `
+        @font-face {
+          font-family: 'CustomFont';
+          src: url('https://your-cdn.com/fonts/MyFont.woff2') format('woff2');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        body {
+          font-family: 'CustomFont', sans-serif;
+        }
+      `
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+### Base64 인코딩
+
+다음 예제 사용[공유하기](/browser-rendering/playwright/), 하지만이 방법은 같은 방법을 작동[제품정보](/browser-rendering/puppeteer/).
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    Base64 인코딩된 데이터 소스와 예:
+
+    ```js
+    const browser = await playwright.launch(env.MYBROWSER);
+    const page = await browser.newPage();
+    await page.addStyleTag({
+      content: `
+        @font-face {
+          font-family: 'CustomFont';
+          src: url('data:font/woff2;base64,<BASE64_STRING>') format('woff2');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        body {
+          font-family: 'CustomFont', sans-serif;
+        }
+      `
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    Base64 인코딩된 데이터 소스와 예:
+
+    ```ts
+    const browser = await playwright.launch(env.MYBROWSER);
+    const page = await browser.newPage();
+    await page.addStyleTag({
+      content: `
+        @font-face {
+          font-family: 'CustomFont';
+          src: url('data:font/woff2;base64,<BASE64_STRING>') format('woff2');
+          font-weight: normal;
+          font-style: normal;
+        }
+
+        body {
+          font-family: 'CustomFont', sans-serif;
+        }
+      `
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+## REST API를
+
+사용시[REST API를](/browser-rendering/rest-api/), 당신은을 포함하여 주문 글꼴을 적재할 수 있습니다`addStyleTag`당신의 요구 몸에 있는 모수. 이 작품 모두[스크린 샷](/browser-rendering/rest-api/screenshot-endpoint/)·[PDF 파일](/browser-rendering/rest-api/pdf-endpoint/)끝점.
+
+### CDN URL에서
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/",
+    "addStyleTag": [
+      {
+        "content": "@font-face { font-family: '\''CustomFont'\''; src: url('\''https://your-cdn.com/fonts/MyFont.woff2'\'') format('\''woff2'\''); font-weight: normal; font-style: normal; } body { font-family: '\''CustomFont'\'', sans-serif; }"
+      }
+    ]
+  }' \
+  --output "screenshot.png"
+```
+
+### Base64 인코딩
+
+```bash
+curl -X POST 'https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/screenshot' \
+  -H 'Authorization: Bearer <apiToken>' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "url": "https://example.com/",
+    "addStyleTag": [
+      {
+        "content": "@font-face { font-family: '\''CustomFont'\''; src: url('\''data:font/woff2;base64,<BASE64_STRING>'\'') format('\''woff2'\''); font-weight: normal; font-style: normal; } body { font-family: '\''CustomFont'\'', sans-serif; }"
+      }
+    ]
+  }' \
+  --output "screenshot.png"
+```
+
+자주 묻는 질문`addStyleTag`REST API로, 참조[CSS를 사용자 정의하고 사용자 정의 JavaScript](/browser-rendering/rest-api/screenshot-endpoint/#customize-css-and-embed-custom-javascript).

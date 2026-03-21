@@ -1,0 +1,113 @@
+---
+pcx_content_type: how-to
+title: 직장에서 시작
+canonical: /workers/static-assets/
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/configuration/sites/start-from-worker/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/sites/start-from-worker/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, WranglerConfig } from "~/components";
+
+<Render file="workers_sites" product="workers" />
+
+모델 번호: Workers 사이트가 필요합니다.[모델 번호: Wrangler](https://github.com/cloudflare/workers-sdk/tree/main/packages/wrangler)— 사용하기[최신 버전](/workers/wrangler/install-and-update/#update-wrangler).
+
+사전 제작 작업자가 있다면 Workers Sites를 사용하여 작업자에게 정적 자산을 제공 할 수 있습니다.
+
+## 시작하기
+
+1. 프로젝트의 루트에 자산을 포함 할 디렉토리를 작성 (예를 들어,`./public`)
+
+2. Wrangler 파일에 구성을 추가하여 포인트를 지정합니다.
+
+   <WranglerConfig>
+     ```jsonc
+     {
+       "site": {
+         "bucket": "./public" //정적 자산으로 디렉토리를 추가하십시오!
+       }
+     }
+     ```
+   </WranglerConfig>
+
+3. 설치하기`@cloudflare/kv-asset-handler`당신의 프로젝트에 있는 포장:
+
+   ```sh
+   npm i -D @cloudflare/kv-asset-handler
+   ```
+
+4. 구매하기`getAssetFromKV()`당신의 노동자 입장 점으로 기능하고 정체되는 자산에 반응하기 위하여 그것을 이용합니다.
+
+<Tabs>
+  <TabItem label="모듈 Worker" icon="seti:javascript">
+    ```js
+    import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+    import manifestJSON from "__STATIC_CONTENT_MANIFEST";
+    const assetManifest = JSON.parse(manifestJSON);
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		try {
+    			//자산을 제공하거나 원래 Worker 코드를 실행 여부를 결정하는 논리를 추가하십시오.
+    			return await getAssetFromKV(
+    				{
+    					request,
+    					waitUntil: ctx.waitUntil.bind(ctx),
+    				},
+    				{
+    					ASSET_NAMESPACE: env.__STATIC_CONTENT,
+    					ASSET_MANIFEST: assetManifest,
+    				},
+    			);
+    		} catch (e) {
+    			let pathname = new URL(request.url).pathname;
+    			return new Response(`"${pathname}" not found`, {
+    				status: 404,
+    				statusText: "not found",
+    			});
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="서비스 노동자" icon="seti:javascript">
+    ```js
+    import { getAssetFromKV } from "@cloudflare/kv-asset-handler";
+
+    addEventListener("fetch", (event) => {
+    	event.respondWith(handleEvent(event));
+    });
+
+    async function handleEvent(event) {
+    	try {
+    		//자산을 제공하거나 원래 Worker 코드를 실행 여부를 결정하는 논리를 추가하십시오.
+    		return await getAssetFromKV(event);
+    	} catch (e) {
+    		let pathname = new URL(event.request.url).pathname;
+    		return new Response(`"${pathname}" not found`, {
+    			status: 404,
+    			statusText: "not found",
+    		});
+    	}
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+configurable 옵션에 대한 자세한 내용은`getAssetFromKV()`이름 \*[kv-asset-handler 문서](https://github.com/cloudflare/workers-sdk/tree/main/packages/kv-asset-handler).
+
+5. 지원하다`wrangler deploy`또는`npx wrangler deploy`당신은 당신의 노동자 프로젝트에 일반적으로 있을 것입니다.
+   Wrangler는 구성 된 디렉토리에서 발견 된 자산을 자동으로 업로드합니다.
+
+   ```sh
+   npx wrangler deploy
+   ```

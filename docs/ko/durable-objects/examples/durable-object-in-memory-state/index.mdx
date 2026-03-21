@@ -1,0 +1,154 @@
+---
+summary: >-
+  Create a Durable Object that stores the last location it was accessed from
+  in-memory.
+pcx_content_type: example
+title: 튼튼한 목표 in-memory 국가
+sidebar:
+  order: 3
+description: 마지막 위치를 저장하는 튼튼한 개체를 만들기 그것은 in-memory에서 접근했습니다.
+reviewed: 2023-08-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/examples/durable-object-in-memory-state/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/examples/durable-object-in-memory-state/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components";
+
+이 예제는 Durable Objects가 stateful이며, in-memory state는 요청 사이에 유지될 수 있습니다. Inactivity의 간단한 기간 후에, 튼튼한 목표는 evicted이고, 모든 in-memory 국가는 손실될 것입니다. 다음 요청은 객체를 재구성하지만 이전 요청의 도시를 보여주는 대신 객체가 재시작 된 것을 나타내는 메시지를 표시합니다. eviction을 생존하기 위해 애플리케이션 상태를 필요로 하는 경우, 저장 상태를 사용하여 작성[저장 API](/durable-objects/api/sqlite-storage-api/), 또는 다른 자료를 저장해서.
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //작업자
+    export default {
+    	async fetch(request, env) {
+    		return await handleRequest(request, env);
+    	},
+    };
+
+    async function handleRequest(request, env) {
+    	let stub = env.LOCATION.getByName("A");
+    	//리모트 튼튼한 목표에 요구에 전달하십시오.
+    	let resp = await stub.fetch(request);
+    	//고객에 대한 응답을 반환합니다.
+    	return new Response(await resp.text());
+    }
+
+    //튼튼한 목표
+    export class Location extends DurableObject {
+    	constructor(state, env) {
+    		super(state, env);
+    		//건설에, 당신은 제공 할 위치를 가지고 있지 않습니다.
+    		//이 값은 사람들이 튼튼한 개체에 액세스 할 때 업데이트됩니다.
+    		//튼튼한 개체가 메모리에서 evicted 때, 이것은 재설정됩니다.
+    		this.location = null;
+    	}
+
+    	//클라이언트에서 HTTP 요청을 처리하십시오.
+    	async fetch(request) {
+    		let response = null;
+
+    		if (this.location == null) {
+    			response = new String(`
+    This is the first request, you called the constructor, so this.location was null.
+    You will set this.location to be your city: (${request.cf.city}). Try reloading the page.`);
+    		} else {
+    			response = new String(`
+    The Durable Object was already loaded and running because it recently handled a request.
+
+    Previous Location: ${this.location}
+    New Location: ${request.cf.city}`);
+    		}
+
+    		//새로운 도시가 될 새로운 위치를 설정.
+    		this.location = request.cf.city;
+    		console.log(response);
+    		return new Response(response);
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import DurableObject, Response, WorkerEntrypoint
+
+    #작업자
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		return await handle_request(request, self.env)
+
+    async def handle_request(request, env):
+    	stub = env.LOCATION.getByName("A")
+    	#리모트 튼튼한 목표에 요구에 전달하십시오.
+    	resp = await stub.fetch(request)
+    	#고객에 대한 응답을 반환합니다.
+    	return Response(await resp.text())
+
+    #튼튼한 목표
+    class Location(DurableObject):
+    	def __init__(self, ctx, env):
+    		super().__init__(ctx, env)
+    		#건설에, 당신은 제공 할 위치를 가지고 있지 않습니다.
+    		#이 값은 사람들이 튼튼한 개체에 액세스 할 때 업데이트됩니다.
+    		#튼튼한 개체가 메모리에서 evicted 때, 이것은 재설정됩니다.
+    		self.location = None
+
+    	#클라이언트에서 HTTP 요청을 처리하십시오.
+    	async def fetch(self, request):
+    		response = None
+
+    		if self.location is None:
+    			response = f"""
+    This is the first request, you called the constructor, so this.location was null.
+    You will set this.location to be your city: ({request.js_object.cf.city}). Try reloading the page."""
+    		else:
+    			response = f"""
+    The Durable Object was already loaded and running because it recently handled a request.
+
+    Previous Location: {self.location}
+    New Location: {request.js_object.cf.city}"""
+
+    		#새로운 도시가 될 새로운 위치를 설정.
+    		self.location = request.js_object.cf.city
+    		print(response)
+    		return Response(response)
+    ```
+  </TabItem>
+</Tabs>
+
+마지막으로, Wrangler 파일을 구성하여 튼튼한 개체를 포함[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/)이전에 선택한 네임스페이스 및 클래스 이름을 기반으로 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "durable-object-in-memory-state",
+  	"main": "src/index.ts",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "LOCATION",
+  				"class_name": "Location"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"Location"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>

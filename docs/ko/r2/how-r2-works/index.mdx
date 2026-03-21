@@ -1,0 +1,86 @@
+---
+title: R2는 어떻게 작동합니까?
+pcx_content_type: concept
+sidebar:
+  order: 2
+description: R2가 어떻게 작동하나요?
+head:
+  - tag: title
+    content: R2는 어떻게 작동합니까?
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/how-r2-works/'
+translation_source_md: 'https://developers.cloudflare.com/r2/how-r2-works/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, LinkCard } from "~/components";
+
+Cloudflare R2는 Cloudflare의 세계적인 네트워크에 건축된 진입 요금 없이 S3-compatible 목표 저장 서비스입니다. 그것은[연락처](/r2/reference/consistency/)높은 디자인[데이터 내구성](/r2/reference/durability/).
+
+R2는 egress 수수료 없이 인터넷에 접근할 필요가 있는 unstructured 자료 저장하고 봉사를 위해 이상적 입니다. 웹 자산, 교육 AI 모델 및 사용자 생성 콘텐츠 관리와 같은 워크로드에 적합합니다.
+
+## 회사연혁
+
+R2의 건축은 다수 성분으로 구성됩니다:
+
+- **R2 게이트웨이:**&#xC778;증 및 라우팅 논리를 처리하는 모든 API 요청에 대한 항목 포인트. 이 서비스는 Cloudflare의 글로벌 네트워크를 통해 배포됩니다.[CloudflareWorkers](/workers/).
+
+- **Metadata 서비스:**&#xC5D0; 내장 된 분산 층[Durable Objects](/durable-objects/)저장 시스템에서 객체의 강한 일관성을 보장하기 위해 객체 메타데이터(예: 객체 키, 체크섬)를 저장하고 관리하기 위해 사용됩니다. 내장된 캐시 레이어가 메타데이터에 접근할 수 있습니다.
+
+- **계층화된 읽기 캐시:**&#xBD84;산 스토리지 인프라의 앞에 앉아있는 캐싱 레이어는 객체를 사용하여 읽기를 가속화합니다.[Cloudflare 계층화된 캐시](/cache/how-to/tiered-cache/)고객에게 더 가까운 데이터를 제공합니다.
+
+- **분산된 저장 인프라:**&#xC554;호화된 객체 데이터를 영구적으로 저장하는 인프라.
+
+![모델 번호: R2 회사연혁](public/images/r2/r2-architecture.png)
+
+R2는 다수 클라이언트 공용영역을 포함하여 지원합니다[CloudflareWorkers 회사 소개](/r2/api/workers/workers-api-usage/), [S3- 호환 API](/r2/api/s3/api/), 그리고[REST API를](/api/resources/r2/)이는 Cloudflare 대시보드와 Wrangler CLI를 강화합니다. 모든 요청은 객체 데이터를 검색하기 위해 Metadata Service 및 Distributed Storage Infrastructure와 좌표하는 R2 게이트웨이를 통해 경로화됩니다.
+
+## R2에 자료 쓰기
+
+쓰기 요청(예: 객체 업로드)가 R2로 만들 때, 다음 순서가 발생합니다:
+
+1. **주문 처리:**&#xC694;청은 R2 게이트웨이에 의해 수신되며, 이는 인증된 사용자에 가깝습니다.
+
+2. **암호화 및 라우팅:**&#x47;ateway는 Metadata Service에 도달하여 검색합니다.[암호화 키](/r2/reference/data-security/)저장 클러스터가 암호화 된 데이터를 작성하는 것을 결정합니다.[이름 \*](/r2/reference/data-location/)물통을 위한 세트.
+
+3. **저장에 쓰기:**&#xC554;호화된 데이터는 분산 스토리지 인프라에서 작성 및 저장되며 지역 내 복제 (예 : ENAM)[제품정보](/r2/reference/durability/).
+
+4. **Metadata 커밋:**&#xB9C8;지막으로 Metadata Service는 객체의 메타데이터를 커밋하고, 그 후속 읽기에서 볼 수 있습니다. 이 커밋 후에만`HTTP 200`클라이언트에게 보내는 성공 응답, unacknowledged 쓰기 방지.
+
+![R2에 자료 쓰기](public/images/r2/write-data-to-r2.png)
+
+## R2에서 자료를 읽으십시오
+
+읽을 때 요청 (예를 들어 객체를 태칭)은 R2, 다음 순서가 발생합니다 :
+
+1. **주문 처리:**&#xC694;청은 R2 게이트웨이에 의해 수신되며, 이는 인증된 사용자에 가깝습니다.
+
+2. **Metadata 조회:**&#x47;ateway는 객체 메타데이터를 위한 Metadata Service를 요청합니다.
+
+3. **개체를 읽기 :**&#x47;ateway는 검색을 시도합니다.[비밀번호](/r2/reference/data-security/)tiered read cache의 객체. 사용할 수없는 경우, 객체 데이터를 보유하는 지역 내 분산 저장 데이터 센터 중 하나에서 객체를 검색합니다.
+
+4. **고객에게 봉사:**&#xAC1D;체는 해독되고 사용자에게 제공됩니다.
+
+![R2에 자료를 읽으십시오](public/images/r2/read-data-to-r2.png)
+
+## - 연혁
+
+작업의 성능은 버킷의 지리적 위치, 요청 원산지 및 액세스 패턴과 같은 요인에 의해 영향을받을 수 있습니다.
+
+Cross-region 요청에 대한 업로드 성능을 최적화하려면, 활성화[지역 업로드](/r2/buckets/local-uploads/)당신의 물통에.
+
+읽기 성능 최적화, 활성화[모델 번호: Cloudflare 캐시](/cache/)사용시[사용자 정의 도메인](/r2/buckets/public-buckets/#custom-domains). 캐싱이 활성화되면, 요청은 R2 게이트웨이를 우회하고 CloudflareXQ의 가장자리 캐시에서 직접 제공 할 수 있습니다. 캐시 된 데이터는 최신 버전을 즉시 반영 할 수 없습니다.
+
+![QXQXQXQXQXQXQXQXQCache에 데이터를 읽으십시오](public/images/r2/read-data-to-r2-with-cloudflare-cache.png)
+
+## 더 알아보기
+
+<LinkCard title="관련 제품" href="/r2/reference/consistency/" description="R2의 일관성 모델에 대해 알아보세요." />
+
+<LinkCard title="내구성" href="/r2/reference/durability/" description="R2의 내구성 보증에 대해 자세히 알아보십시오." />
+
+<LinkCard title="데이터 위치" href="/r2/reference/data-location/#jurisdictional-restrictions" description="R2는 데이터가 저장되고 관할권 제한에 대한 세부 정보를 결정하는 방법을 알아보십시오." />
+
+<LinkCard title="데이터 보안" href="/r2/reference/data-security/" description="R2의 데이터 보안 특성에 대해 알아보세요." />

@@ -1,0 +1,197 @@
+---
+pcx_content_type: reference
+title: HTTP 요청
+sidebar:
+  order: 1
+
+---
+
+[NetFlows](/radar/investigate/netflows/)에서는 Cloudflare edge router에 도달하는 바이트와 패킷을 살펴볼 수 있지만, HTTP requests에서는 [OSI model](https://en.wikipedia.org/wiki/OSI_model) 기준으로 한 계층 위의 데이터를 다룹니다. HTTP requests는 Cloudflare [CDN](https://www.cloudflare.com/en-gb/learning/cdn/what-is-a-cdn/)을 통해 서비스되는 웹사이트에 도달하는 최종 사용자발 전체 HTTP 요청을 분석합니다.
+
+:::note
+
+HTTP 트래픽에는 최종 사용자로부터 들어오는 HTTP와 HTTPS 트래픽이 모두 포함됩니다.
+:::
+
+Radar의 [Adoption and Usage](https://radar.cloudflare.com/adoption-and-usage) 섹션에 있는 대부분의 차트는 이 데이터 소스를 기반으로 합니다.
+
+이 엔드포인트들은 크게 다음과 같이 나뉩니다.
+
+* `timeseries`: 여러 지표 그룹의 시계열 데이터. 예를 들어 IP version을 보면 IPv4 시계열과 IPv6 시계열이 함께 표시됩니다.
+* `summary`: 지정된 시간 범위에 대한 지표 그룹 요약. 예를 들어 해당 기간 전체 HTTP 트래픽 중 IPv4 트래픽 비율을 보여줍니다.
+* `top`: 특정 지표의 채택 수준을 기준으로 순위가 매겨진 상위 위치 또는 [Autonomous Systems](https://www.cloudflare.com/en-gb/learning/network-layer/what-is-an-autonomous-system/) (AS) 목록. 예를 들어 전체 트래픽 중 모바일 트래픽 비율이 높은 상위 위치를 볼 수 있습니다.
+
+## 엔드포인트 목록
+
+### 시계열
+
+#### 예시: device type별 시간당 세부 분포
+
+이 예시에서는 전역 기준 device type별 트래픽을 [bot traffic](/radar/concepts/bot-classes/) 포함/제외로 나누어 요청합니다. `human` 시리즈의 파라미터는 `name=human&botClass=LIKELY_HUMAN&dateRange=1d`이고, `bot` 시리즈의 파라미터는 `name=bot&botClass=LIKELY_AUTOMATED&dateRange=1d`입니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/timeseries/device_type?name=human&botClass=LIKELY_HUMAN&dateRange=1d&name=bot&botClass=LIKELY_AUTOMATED&dateRange=1d&format=json&aggInterval=1h" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+다음은 축약된 응답입니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "human": {
+      "timestamps": ["2022-11-03T13:00:00Z", "2022-11-03T14:00:00Z", ".."],
+      "mobile": ["52.5532", "52.146628", ".."],
+      "desktop": ["47.394791", "47.800731", ".."],
+      "other": ["0.052009", "0.052642", ".."]
+    },
+    "bot": {
+      "timestamps": ["2022-11-03T13:00:00Z", "2022-11-03T14:00:00Z", ".."],
+      "desktop": ["83.833892", "84.017711", ".."],
+      "mobile": ["16.156748", "15.969936", ".."],
+      "other": ["0.00936", "0.012353", ".."]
+    },
+    "meta": {
+      "dateRange": {
+        "startTime": "2022-11-03T13:00:00Z",
+        "endTime": "2022-11-04T13:00:00Z"
+      },
+      "normalization": "PERCENTAGE"
+    }
+  }
+}
+```
+
+사람이 생성한 트래픽을 볼 때는 모바일 기기의 비중이 bot이 생성한 트래픽보다 훨씬 높게 나타나는 경향이 있습니다.
+
+:::note
+
+device 분류는 [User-agent](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/User-Agent) 헤더를 기준으로 합니다. 결국 이 분류는 bot이 사용하는 user agent에 따라 달라집니다.
+:::
+
+자세한 내용은 [device types time series 가져오기](/api/resources/radar/subresources/http/subresources/timeseries_groups/methods/device_type/)를 참고하세요.
+
+### 요약
+
+#### 예시: device type 및 human/bot 트래픽별 전체 분포
+
+앞선 예시처럼 시간대별 세부 분포가 아니라, 동일한 정보를 전체 기간 요약으로도 확인할 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/summary/device_type?name=human&botClass=LIKELY_HUMAN&dateRange=1d&name=bot&botClass=LIKELY_AUTOMATED&dateRange=1d&format=json&aggInterval=1h" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+다음은 축약된 응답입니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"human": {
+			"mobile": "54.967243",
+			"desktop": "44.974006",
+			"other": "0.058751"
+		},
+		"bot": {
+			"desktop": "83.275452",
+			"mobile": "16.707455",
+			"other": "0.017093"
+		}
+  }
+}
+```
+
+자세한 내용은 이 엔드포인트의 [API reference](/api/resources/radar/subresources/http/subresources/summary/methods/device_type/)를 참고하세요.
+
+#### 예시: IP version 및 human/bot 트래픽별 분포
+
+다음 예시에서는 bot 포함/제외 전역 트래픽의 IP version별 분포를 살펴봅니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/summary/ip_version?name=human&botClass=LIKELY_HUMAN&dateRange=1d&name=bot&botClass=LIKELY_AUTOMATED&dateRange=1d&format=json&aggInterval=1h" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+그러면 다음 응답이 반환됩니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"human": {
+			"IPv4": "76.213647",
+			"IPv6": "23.786353"
+		},
+		"bot": {
+			"IPv4": "91.492032",
+			"IPv6": "8.507968"
+		}
+  }
+}
+```
+
+bot은 IPv4 주소를 더 많이 사용하는 경향이 있습니다.
+
+또한 자신이 이용하는 ISP의 IPv6 채택 수준이 어떤지도 흥미로운 지표가 될 수 있습니다. ISP의 autonomous system number(ASN)를 알고 있다면 `asn` 파라미터로 이 정보를 조회할 수 있습니다. 다른 파라미터는 [API reference](/api/resources/radar/subresources/http/subresources/summary/methods/ip_version/)를 참고하세요.
+
+ISP의 ASN을 모른다면 [Radar](https://radar.cloudflare.com/ip)에서 확인할 수 있습니다.
+
+### 상위
+
+#### 예시: IPv6 트래픽 기준 상위 위치
+
+다음 예시에서는 지난 28일 동안 [IPv6](https://en.wikipedia.org/wiki/IPv6) 채택률이 높았던 위치를 확인합니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/http/top/locations/ip_version/IPv6?name=ipv6&botClass=LIKELY_HUMAN&dateRange=28d&format=json&limit=5" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+		"ipv6": [
+			{
+				"clientCountryAlpha2": "IN",
+				"clientCountryName": "India",
+				"value": "50.612747"
+			},
+			{
+				"clientCountryAlpha2": "MY",
+				"clientCountryName": "Malaysia",
+				"value": "46.233654"
+			},
+			{
+				"clientCountryAlpha2": "UY",
+				"clientCountryName": "Uruguay",
+				"value": "39.796762"
+			},
+			{
+				"clientCountryAlpha2": "LK",
+				"clientCountryName": "Sri Lanka",
+				"value": "39.709355"
+			},
+			{
+				"clientCountryAlpha2": "VN",
+				"clientCountryName": "Vietnam",
+				"value": "39.1514"
+			}
+		]
+  }
+}
+```
+
+반환된 데이터에 따르면 인도가 IPv6 채택을 주도하고 있습니다.
+
+자세한 내용은 이 엔드포인트의 [API reference](/api/resources/radar/subresources/http/subresources/locations/subresources/ip_version/methods/get/)를 참고하세요.
+
+## 다음 단계
+
+완화된 HTTP 요청에 대해 더 알아보려면 [Application layer attacks](/radar/investigate/application-layer-attacks/)를 참고하세요.

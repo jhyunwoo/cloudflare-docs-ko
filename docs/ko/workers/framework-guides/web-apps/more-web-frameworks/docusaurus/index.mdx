@@ -1,0 +1,114 @@
+---
+pcx_content_type: how-to
+title: 카테고리
+tags:
+  - ssg
+description: Docusaurus 응용 프로그램을 만들고 Cloudflare WorkersXQ를 WorkersXQ 자산으로 배포합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/more-web-frameworks/docusaurus/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/more-web-frameworks/docusaurus/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Details,
+	Steps,
+	WranglerConfig,
+	TabItem,
+	Tabs,
+	Description,
+	InlineBadge,
+	Render,
+	PackageManagers,
+} from "~/components";
+
+**CLI에서 시작**: Workers에 Docusaurus 프로젝트를 비계하고 템플릿을 선택합니다.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args="my-docusaurus-app --framework=docusaurus" />
+
+**또는 그냥 배포**: Docusaurus를 가진 문서 사이트를 만들고 Cloudflare Workers, CI/CD와 함께 배포하고 당신을 위해 모든 설정을 미리보기합니다.
+
+[![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/deploy-to-workers\&repository=https://github.com/cloudflare/templates/tree/staging/astro-blog-starter-template)
+
+## Docusaurus는 무엇입니까?
+
+[카테고리](https://docusaurus.io/)문서 웹 사이트를 구축, 배포 및 유지하기위한 오픈 소스 프레임 워크입니다. React에 내장되어 문서에 초점을 맞춘 정적 웹 사이트를 만드는 직관적 인 방법을 제공합니다.
+
+Docusaurus는 사용하기 쉽고 사용자 정의 할 수 있도록 설계되었으며 문서 사이트를 신속하게 만들 수있는 개발자와 조직을위한 인기있는 선택입니다.
+
+## Workers의 새로운 Docusaurus 프로젝트 배포
+
+<Steps>
+  1. **Create-cloudflare CLI (C3)로 새로운 프로젝트를 만듭니다.**
+
+     <PackageManagers type="create" pkg="cloudflare@latest" args={"my-docusaurus-app --framework=docusaurus --platform=workers"} />
+
+     <Details header="장면 뒤에 무슨 일이 일어나는가?">
+       이 명령을 실행할 때, C3는 새로운 프로젝트 디렉토리를 생성, initiates[Docusaurus의 공식 설정 도구](https://docusaurus.io/docs/installation)Cloudflare를 위한 프로젝트를 구성합니다. Cloudflare에 즉시 응용 프로그램을 배포 할 수있는 옵션을 제공합니다.
+     </Details>
+
+  2. **현지 개발**
+
+     프로젝트를 작성한 후 프로젝트 디렉토리에서 다음 명령을 실행하여 로컬 개발 서버를 시작합니다.
+
+     <PackageManagers type="run" args={"dev"} />
+
+  3. **프로젝트 배포**
+
+     프로젝트에 배포할 수 있습니다.[\*.workers.dev 하위 도메인](/workers/configuration/routing/workers-dev/)또는[주문 영역](/workers/configuration/routing/custom-domains/), 당신의 국부적으로 기계 또는 어떤 CI/CD 체계에서, (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds/)).
+
+     다음 명령을 사용하여 프로젝트를 구축하고 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="run" args={"deploy"} />
+</Steps>
+
+## Workers의 기존 Docusaurus 프로젝트 배포
+
+### 정적 사이트가 있는 경우
+
+Docusaurus 프로젝트가 완전히 사전 렌더링되면 (일반적으로), 다음 단계를 따르십시오.
+
+<Steps>
+  1. **Wrangler 구성 파일을 추가하십시오.**
+
+     프로젝트 루트에서 다음 내용으로 Wrangler 구성 파일을 만듭니다.
+
+     <WranglerConfig>
+       ```json
+       	{
+       		"name": "my-docusaurus-app",
+       		// Update to today's date
+       		"compatibility_date": "$today",
+       		"assets": {
+       			"directory": "./build"
+       		}
+       	}
+       ```
+     </WranglerConfig>
+
+     <Details header="이 구성은 무엇입니까?">
+       이 구성의 핵심 부분은`assets`정적 자산을 찾기 위해 Wrangler를 말하는 필드. 이 경우, 우리는 Wrangler를 알려줍니다.`./build`디렉토리. 자산이 다른 디렉토리에 있다면, 업데이트`directory`가치 그러므로.
+       다른 사람들[자산 구성 옵션](/workers/static-assets/routing/).
+
+       또한 아무 것도 없다`main`이 구성의 필드 - 이것은 정적 자산을 제공하지만, 작업자 코드는 수요 렌더링 / SSR에 필요합니다.
+     </Details>
+
+  2. **프로젝트 구축 및 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="exec" pkg="docusaurus" args="build" />
+
+     <PackageManagers type="exec" pkg="wrangler@latest" args="deploy" />
+</Steps>
+
+## Docusaurus와 바인딩을 사용하십시오
+
+Bindings는 다른 Cloudflare 서비스에 당신의 Docusaurus 프로젝트를 연결하는 방법 입니다, 당신의 신청 내의 저장하고 검색 자료를 가능하게 합니다.
+
+<Render file="frameworks-bindings" product="workers" />

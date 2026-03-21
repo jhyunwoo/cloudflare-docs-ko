@@ -1,0 +1,70 @@
+---
+pcx_content_type: how-to
+title: Worker를 통해 업로드
+description: >-
+  WorkersXQ를 사용하여 QXQXQXQ에 이미지를 업로드하는 방법을 알아보세요. 이 가이드는 표준과 AI-generated 이미지를
+  효율적으로 업로드하는 코드 예제를 제공합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/images/upload-images/upload-file-worker/'
+translation_source_md: >-
+  https://developers.cloudflare.com/images/upload-images/upload-file-worker/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+Cloudflare 이미지로 이미지를 업로드 할 수 있습니다.
+
+아래 예제를 참조하거나 참조[Workers 문서](/workers/)더 많은 정보.
+
+<TypeScriptExample>
+  ```ts
+  const API_URL =
+  	"https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/images/v1";
+  const TOKEN = "<YOUR_TOKEN_HERE>";
+
+  const image = await fetch("https://example.com/image.png");
+  const bytes = await image.bytes();
+
+  const formData = new FormData();
+  formData.append("file", new File([bytes], "image.png"));
+
+  const response = await fetch(API_URL, {
+  	method: "POST",
+  	headers: {
+  		Authorization: `Bearer ${TOKEN}`,
+  	},
+  	body: formData,
+  });
+  ```
+</TypeScriptExample>
+
+## AI 생성 된 이미지에서 업로드
+
+이미지를 생성하고 Cloudflare 이미지에 저장하는 이미지를 업로드하는 AI Worker를 사용할 수 있습니다. Workers AI를 사용하여 이미지 생성에 대한 자세한 내용은 참조[SDXL-Lightning 모형](/workers-ai/models/stable-diffusion-xl-lightning).
+
+<TypeScriptExample>
+  ```ts
+  const API_URL =
+  	"https://api.cloudflare.com/client/v4/accounts/<ACCOUNT_ID>/images/v1";
+  const TOKEN = "YOUR_TOKEN_HERE";
+
+  const stream = await env.AI.run("@cf/bytedance/stable-diffusion-xl-lightning", {
+  	prompt: YOUR_PROMPT_HERE,
+  });
+  const bytes = await new Response(stream).bytes();
+
+  const formData = new FormData();
+  formData.append("file", new File([bytes], "image.jpg"));
+
+  const response = await fetch(API_URL, {
+  	method: "POST",
+  	headers: {
+  		Authorization: `Bearer ${TOKEN}`,
+  	},
+  	body: formData,
+  });
+  ```
+</TypeScriptExample>

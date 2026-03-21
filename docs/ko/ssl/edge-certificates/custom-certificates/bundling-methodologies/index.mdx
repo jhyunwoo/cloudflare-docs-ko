@@ -1,0 +1,43 @@
+---
+pcx_content_type: reference
+title: 번들 방식
+sidebar:
+  order: 4
+
+---
+
+import { Tabs, TabItem } from "~/components";
+
+SSL 인증서가 Cloudflare의 글로벌 네트워크에 배포되면, 사용자 에이전트가 공개적으로 신뢰되는 루트까지의 체인을 찾을 수 있도록 중간 인증서와 루트 인증서가 보강될 수 있습니다.
+
+인증서를 어떤 방식으로 번들링할지 지정하여 그 동작 방식을 제어할 수 있습니다.
+
+## 중간 인증서와 루트 인증서
+
+Cloudflare는 번들링에 사용되는 중간 인증서와 루트 인증서를 [GitHub 저장소](https://github.com/cloudflare/cfssl_trust)에서 관리합니다. 인증서가 만료되거나 인증 기관에 의해 제거되면 Cloudflare도 그에 맞춰 삭제하거나 추가합니다.
+
+[Analyze Certificate endpoint](/api/resources/ssl/subresources/analyze/methods/create/)를 사용할 때 `expires_on` 필드에 이들 인증서의 만료 값이 나타날 수 있습니다. 특히 지정한 방식이 [Compatible](#compatible)일 때 자주 보입니다. 그러나 이 만료 값은 사용자가 Cloudflare에 업로드한 리프 인증서가 아니라 Cloudflare가 처리하는 중간 인증서와 루트 인증서를 반영합니다.
+
+:::note
+`compatible` 또는 `modern`을 사용할 때는 업로드 시 제공한 intermediate들 중 일부만 선택될 수 있으므로, 모두가 최종 체인에 포함된다고 보장할 수 없습니다. 업로드한 체인이 그대로 사용되어야 한다면 `user-defined`를 선택하세요.
+:::
+
+## 방식
+
+### Compatible
+
+Compatible은 기본 방식이며, 일반적이고 널리 배포된 중간 인증서를 사용해 체인을 완성합니다. 이를 통해 가능한 한 많은 클라이언트와 호환되는 번들을 보장합니다.
+
+[API](/api/resources/custom_certificates/methods/create/) 사용 시 `bundle_method` 파라미터의 관련 값은 `ubiquitous`입니다.
+
+### Modern
+
+Modern은 더 새롭거나 더 적은 수의 중간 인증서를 사용하여 가능한 한 효율적인 체인을 만들기 위한 방식입니다.
+
+[API](/api/resources/custom_certificates/methods/create/) 사용 시 `bundle_method` 파라미터의 관련 값은 `optimal`입니다.
+
+### User-defined
+
+User-defined를 사용하면 사용자가 직접 인증서 체인을 붙여 넣고 그 번들을 클라이언트에게 제시할 수 있습니다. 자체 서명 인증서(권장되지 않음)를 사용하는 경우 반드시 이 모드를 사용해야 합니다.
+
+[API](/api/resources/custom_certificates/methods/create/) 사용 시 `bundle_method` 파라미터의 관련 값은 `force`입니다.

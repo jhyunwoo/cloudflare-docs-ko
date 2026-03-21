@@ -1,0 +1,141 @@
+---
+title: IP 활용도
+pcx_content_type: reference
+sidebar:
+  order: 7
+---
+
+import { Type, Render } from "~/components";
+
+[GraphQL API](/analytics/graphql-api/)를 사용해 집계 데이터를 가져오고 전용 IP 용량(이전 명칭 Aegis)을 모니터링할 수 있습니다.
+
+<Render file="concurrent-connections-explainer" product="smart-shield" />
+
+자세한 안내는 [GraphQL Analytics API 문서](/analytics/graphql-api/getting-started/)를 참고하거나, 빠르게 시작하려면 아래 [예시](#example)를 확인하세요.
+
+## GraphQL 스키마
+
+Dedicated CDN Egress IP 데이터에 대한 구체적인 스키마 이름은 `aegisIpUtilizationAdaptiveGroups`입니다.
+
+평균(`avg`) 또는 최대(`max`) 활용도 값(백분율)을 가져올 수 있으며, 다음 차원을 사용할 수 있습니다.
+
+- `datetimeFiveMinutes` <Type text="time" />
+    - 5분 단위로 잘린 타임스탬프입니다. 예: `2025-01-10T00:05:00Z`.
+
+- `popName` <Type text="string" />
+    - Cloudflare point of presence(PoP)입니다. 예: `sjc`.
+
+- `egressIp` <Type text="string" />
+    - 할당된 Dedicated CDN Egress IP입니다. 예: `192.0.2.1`.
+
+- `origin` <Type text="string" />
+    - origin IP와 포트입니다. 예: `203.0.113.150:443`.
+
+- `popUtilizationKey` <Type text="string" />
+    - Cloudflare point of presence(PoP), Dedicated CDN Egress IP, 그리고 origin IP와 포트입니다. 예: `sjc 192.0.2.1 203.0.113.150:443`.
+
+## 예시
+
+아래 쿼리를 참고해 point of presence별 평균 활용도와 최대 활용도를 가져오고, 결과를 필터링하는 방법을 알아보세요.
+
+하단 버튼을 선택하면 [Cloudflare GraphQL API Explorer](https://graphql.cloudflare.com/explorer)를 통해 이 쿼리를 account에 맞게 사용할 수도 있습니다. account ID와 timestamp를 제공하고, 필요에 따라 `popName`, `egressIp`, `origin`의 placeholder를 교체하세요.
+
+```graphql graphql-api-explorer "popName: "<CLOUDFLARE_POP>"" "egressIp: "<YOUR_EGRESS_IP>"" "origin: "<ORIGIN_IP_AND_PORT>""
+query AegisIpUtilizationQuery(
+  $accountTag: string
+  $datetimeStart: string
+  $datetimeEnd: string
+) {
+  viewer {
+    utilization: accounts(filter: { accountTag: $accountTag }) {
+      avgByPopUtilization: aegisIpUtilizationAdaptiveGroups(
+        limit: 100
+        filter: {
+          datetimeFiveMinutes_geq: $datetimeStart
+          datetimeFiveMinutes_leq: $datetimeEnd
+        }
+        orderBy: [datetimeFiveMinutes_ASC]
+      ) {
+        avg {
+          utilization
+        }
+        dimensions {
+          datetimeFiveMinutes
+          popUtilizationKey
+        }
+      }
+
+      maxByPopUtilization: aegisIpUtilizationAdaptiveGroups(
+        limit: 100
+        filter: {
+          datetimeFiveMinutes_geq: $datetimeStart
+          datetimeFiveMinutes_leq: $datetimeEnd
+        }
+        orderBy: [datetimeFiveMinutes_ASC]
+      ) {
+        max {
+          utilization
+        }
+        dimensions {
+          datetimeFiveMinutes
+          popUtilizationKey
+        }
+      }
+
+      filterPopUtilization: aegisIpUtilizationAdaptiveGroups(
+        limit: 100
+        filter: {
+          datetimeFiveMinutes_geq: $datetimeStart
+          datetimeFiveMinutes_leq: $datetimeEnd
+          popName: "<CLOUDFLARE_POP>"
+        }
+        orderBy: [datetimeFiveMinutes_ASC]
+      ) {
+        max {
+          utilization
+        }
+        dimensions {
+          datetimeFiveMinutes
+          popUtilizationKey
+        }
+      }
+
+      filterIPUtilization: aegisIpUtilizationAdaptiveGroups(
+        limit: 100
+        filter: {
+          datetimeFiveMinutes_geq: $datetimeStart
+          datetimeFiveMinutes_leq: $datetimeEnd
+          egressIp: "<YOUR_EGRESS_IP>"
+        }
+        orderBy: [datetimeFiveMinutes_ASC]
+      ) {
+        max {
+          utilization
+        }
+        dimensions {
+          datetimeFiveMinutes
+          popUtilizationKey
+        }
+      }
+
+      filterOriginUtilization: aegisIpUtilizationAdaptiveGroups(
+        limit: 100
+        filter: {
+          datetimeFiveMinutes_geq: $datetimeStart
+          datetimeFiveMinutes_leq: $datetimeEnd
+          origin: "<ORIGIN_IP_AND_PORT>"
+        }
+        orderBy: [datetimeFiveMinutes_ASC]
+      ) {
+        max {
+          utilization
+        }
+        dimensions {
+          datetimeFiveMinutes
+          popUtilizationKey
+        }
+      }
+    }
+  }
+}
+```

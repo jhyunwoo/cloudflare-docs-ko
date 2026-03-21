@@ -1,0 +1,104 @@
+---
+pcx_content_type: configuration
+title: 회사연혁
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/process/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/process/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+<Render file="nodejs-compat-howto" product="workers" />
+
+더 보기[`process`](https://nodejs.org/docs/latest/api/process.html)Node.js의 모듈은 현재 프로세스와 관련된 유용한 API를 제공합니다.
+
+처음 Workers만 지원`nextTick`, `env`, `exit`, `getBuiltinModule`, `platform`·`features`관련 제품
+그런 다음 업데이트 된[`enable_nodejs_process_v2`](/workers/configuration/compatibility-flags/#enable-process-v2-implementation)대부분의 Node.js 프로세스 기능을 포함하는 플래그.
+
+더 알아보기[Node.js 문서`process`](https://nodejs.org/docs/latest/api/process.html)더 많은 정보.
+
+Workers는 Node.js 프로세스가 서버 환경에 대한 지원에 적용할 때 특정 구현 세부 정보를 적용합니다.
+
+## `process.env`
+
+Node.js 구현`process.env`·`env`객체는 프로세스가 시작된 시간에 환경 변수의 복사본입니다. Workers 구현에서 기본적으로 프로세스 수준 환경이 없습니다.`env`빈 객체입니다. 여전히 설정하고 값을 얻을 수 있습니다.`env`, 그리고 그 모두에 대 한 전 세계적으로 지속 될 것 이다 WorkersXQ 같은 고립 및 맥락에서 실행 (예를 들어, 같은 Workers 항목 포인트).
+
+시간 :[Node.js 호환성](/workers/runtime-apis/nodejs/)사용 가능[`nodejs_compat_populate_process_env`](/workers/configuration/compatibility-flags/#enable-auto-populating-processenv)호환성 깃발은 놓입니다 ( 겸용성 날짜를 위해 기본적으로 2025-04-01),`process.env`모든 것[환경 변수](/workers/configuration/environment-variables/),
+[이름 \*](/workers/configuration/secrets/), 또는[버전 메타데이터](/workers/runtime-apis/bindings/version-metadata/)작업자에 구성 된 메타데이터.
+
+값 설정`process.env`문자열로 값을 coerce합니다.
+
+### 대안: 수입`env`이름 \*`cloudflare:workers`
+
+사용 방법`process.env`, 당신은 할 수 있습니다[제품정보`env`이름 \*`cloudflare:workers`](/workers/runtime-apis/bindings/#importing-env-as-a-global)환경변수 및 코드를 어디에서나 다른 모든 바인딩에 액세스할 수 있습니다.
+
+```js
+import * as process from "node:process";
+
+export default {
+	fetch(req, env) {
+		//process.env.FOO를 env.FOO 값으로 설정하면 process.env.FOO가 이미 설정되지 않습니다.
+		//env.FOO는 문자열입니다.
+		process.env.FOO ??= (() => {
+			if (typeof env.FOO === "string") {
+				return env.FOO;
+			}
+		})();
+	},
+};
+```
+
+그것은 강력하게 당신이 그것을 추천*없음*전체를 대체`process.env`객체와
+구름 많음`env`객체. 이렇게하면 어떤 환경 변수를 잃게됩니다.
+이전에 설정하고 다른 WorkersXQ에 대한 예상치 못한 행동을 일으킬 것입니다
+동일한 고립. 구체적으로, 그것은 inconsistency를 가진 원인이 될 것입니다`process.env`객체 when
+지정된 수입을 통해 액세스.
+
+```js
+import * as process from "node:process";
+import { env } from "node:process";
+
+process.env === env; //한국어 그들은 같은 객체입니다.
+process.env = {}; //객체를 대체하십시오! 이것을 하지 마십시오!
+process.env === env; //이름 * 그들은 더 이상 같은 객체가 없습니다.
+
+//이 시점에서 process.env의 변경은 env에 반영되지 않습니다.
+//그리고 반대 versa!
+```
+
+## `process.nextTick()`
+
+Workers 구현`process.nextTick()`표준 웹 플랫폼 API에 대한 래퍼입니다[`queueMicrotask()`](https://developer.mozilla.org/en-US/docs/Web/API/WindowOrWorkerGlobalScope/queueMicrotask).
+
+```js
+import { env, nextTick } from "node:process";
+
+env["FOO"] = "bar";
+console.log(env["FOO"]); //인쇄: 막대기
+
+nextTick(() => {
+	console.log("next tick");
+});
+```
+
+## 사이트맵
+
+[`process.stdout`](https://nodejs.org/docs/latest/api/process.html#processstdout), [`process.stderr`](https://nodejs.org/docs/latest/api/process.html#processstderr)·[`process.stdin`](https://nodejs.org/docs/latest/api/process.html#processstdin)스트림으로 지원됩니다.`stdin`빈 읽기 가능한 스트림으로 처리됩니다.
+`stdout`·`stderr`정상적인 로깅 출력으로만 출력되는 non-TTY writable 스트림입니다`stdout: `·`stderr: `연락처
+
+라인 버퍼는 새로운 라인 문자까지 stdout 또는 stderr를 저장하여 작동합니다.`\n`다음 microtask가 발생하거나, 로그가 출력에 플러시 될 때.
+
+이것은 검사기와 구조화된 로깅 산출과 겸용성을 지킵니다.
+
+## 현재 작업 디렉토리
+
+[`process.cwd()`](https://nodejs.org/docs/latest/api/process.html#processcwd)이름 \**현재 작업 디렉토리*, 모든 파일 시스템 운영의 기본 경로로 사용, 초기화`/bundle`.
+
+[`process.chdir()`](https://nodejs.org/docs/latest/api/process.html#processchdirdirectory)수정할 수 있습니다`cwd`그리고 사용할 때 FS 작업에 의해 존경`enable_nodejs_fs_module`.
+
+## 지원하다
+
+한국어[`process.hrtime`](https://nodejs.org/docs/latest/api/process.html#processhrtimetime)고해상도 타이머를 사용할 수 있습니다, 그것은 호환성 전용 inaccurate 타이머를 제공합니다.

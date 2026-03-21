@@ -1,0 +1,292 @@
+---
+title: 항구 항구
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/api/ports/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/api/ports/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+:::note\[제품은 사용자 정의 도메인을 요구합니다]
+미리보기 URL은 생산중인 Wildcard DNS 라우팅과 사용자 정의 도메인을 요구합니다. 이름 \*[생산 Deployment](/sandbox/guides/production-deployment/).
+:::
+
+공공 미리보기 URL을 통해 sandbox에서 실행되는 노출 서비스. 이름 \*[미리보기 URL 개념](/sandbox/concepts/preview-urls/)상세 정보
+
+## 모듈 기능
+
+### `proxyToSandbox()`
+
+올바른 샌드박스 컨테이너에 HTTP 및 WebSocket 요청을 수신합니다. 당신의 노동자의 위에 전화`fetch`핸들러, 어떤 응용 프로그램 논리 전에, 그래서 그것은 차단 및 전달 미리보기 URL 요청을 자동으로.
+
+```ts
+proxyToSandbox(request: Request, env: Env): Promise<Response | null>
+```
+
+**매개 변수**:
+
+- `request`- 다가오는`Request`객체에서`fetch`핸들러.
+- `env`- 한국어`Env`Sandbox 바인딩을 포함하는 개체.
+
+**기타 제품**: `Promise<Response | null>`- 한국어`Response`요청이 미리보기 URL을 일치하고 샌드박스에 경로를 갖거나`null`요청이 일치하지 않았고 애플리케이션 로직에 의해 처리해야합니다.
+
+함수는 노출 포트의 하위 도메인 패턴과 일치 여부를 결정하는 요청 hostname을 검사합니다 (예를 들어,`8080-sandbox-id-token.yourdomain.com`). 그것이 일치하면,`proxyToSandbox()`올바른 내구성 객체에 대한 요청을 프록시하고 sandbox 서비스는 그것을 처리합니다. HTTP 및 WebSocket 업그레이드 요청 모두 지원됩니다.
+
+<TypeScriptExample>
+  ```ts
+  import { proxyToSandbox, getSandbox } from "@cloudflare/sandbox";
+
+  export { Sandbox } from "@cloudflare/sandbox";
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      //항상 호출 proxyToSandbox 먼저 미리보기 URL 요청을 처리
+      const proxyResponse = await proxyToSandbox(request, env);
+      if (proxyResponse) return proxyResponse;
+
+      //신청 방법
+      const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+      //· ...
+      return new Response('Not found', { status: 404 });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+:::참조
+`proxyToSandbox`직접 수입된 단위 수준 기능입니다`@cloudflare/sandbox`— 그것은 방법에 대한 방법이 없습니다`Sandbox`예. 그것은 Sandbox 튼튼한 목표 바인딩을 요구합니다 (`env.Sandbox`) 올바른 컨테이너에 대한 요청 및 경로.
+주요 특징
+
+## 제품 설명
+
+### `exposePort()`
+
+포트를 노출하고 샌드박스에서 실행되는 서비스에 액세스하는 미리보기 URL을 가져옵니다.
+
+```ts
+const response = await sandbox.exposePort(port: number, options: ExposePortOptions): Promise<ExposePortResponse>
+```
+
+**매개 변수**:
+
+- `port`- 포트 번호 노출 (1024-65535)
+- `options`:
+  - `hostname`- 작업자의 도메인 이름 (예 :,`'example.com'`). wildcard subdomains와 미리보기 URL을 구성해야 합니다.`https://8080-sandbox-abc123token.example.com`. 할 수 없습니다`.workers.dev`도메인은 Wildcard DNS 패턴을 지원하지 않습니다.
+  - `name`- 항구 (선택)를 위한 친절한 이름
+  - `token`- 미리보기 URL에 대한 사용자 정의 토큰 (옵션). (a-z), 숫자 (0-9), hyphens (-) 및 underscores ( )를 포함하는 1-16 문자가 있어야합니다. 제공되지 않은 경우, 임의 16-character 토큰은 자동으로 생성됩니다.
+
+**기타 제품**: `Promise<ExposePortResponse>`이름 \*`port`, `url`(preview URL),`name`
+
+<TypeScriptExample>
+  ```ts
+  //요청에서 hostname 추출
+  const { hostname } = new URL(request.url);
+
+  //Auto-generated 토큰과 기본 사용
+  await sandbox.startProcess('python -m http.server 8000');
+  const exposed = await sandbox.exposePort(8000, { hostname });
+
+  console.log('Available at:', exposed.url);
+  //https://8000-sandbox-id-abc123random.yourdomain.com
+
+  //재시작을 통해 안정적인 URL을 위한 사용자 정의 토큰
+  const stable = await sandbox.exposePort(8080, {
+    hostname,
+    token: 'my_service_v1' //1-16 숯 : a-z, 0-9,  
+  });
+  console.log('Stable URL:', stable.url);
+  //모델 번호: https://8080-sandbox-id-my_service_v1.yourdomain.com
+
+  //배포를 통해 안정적인 URL에 대한 사용자 정의 토큰
+  await sandbox.startProcess('node api.js');
+  const api = await sandbox.exposePort(3000, {
+    hostname,
+    name: 'api',
+    token: 'prod-api-v1'  //URL은 재시작과 동일하게 유지
+  });
+
+  console.log('Stable API URL:', api.url);
+  //https://3000-sandbox-id-prod-api-v1.yourdomain.com
+
+  //사용자 정의 토큰을 가진 다수 서비스
+  await sandbox.startProcess('npm run dev');
+  const frontend = await sandbox.exposePort(5173, {
+    hostname,
+    name: 'frontend',
+    token: 'dev-ui'
+  });
+  ```
+</TypeScriptExample>
+
+:::노트\[로컬 개발]
+사용 방법`wrangler dev`, 당신은 추가해야합니다`EXPOSE`각 포트에 대한 Dockerfile 지시어. 이름 \*[Expose 서비스 안내](/sandbox/guides/expose-services/#local-development)상세 정보
+주요 특징
+
+## 안정적인 URL에 대한 사용자 정의 토큰
+
+Custom Token은 컨테이너 재시작 및 배포에 걸쳐 일관된 미리보기 URL을 지원합니다. 이것은 유용합니다:
+
+- **생산 환경**- 사용자 또는 팀과 안정적인 URL 공유
+- **개발 작업**- bookmarks 및 통합 유지
+- **CI/CD 파이프라인**- 테스트 또는 배포 스크립트의 일관된 URL을 참조
+
+**토큰 요구 사항:**
+
+- 길이 1-16자
+- (a-z), 숫자 (0-9), 하이픈 (-) 및 밑줄 ( )
+- sandbox 당 고유해야합니다 (다른 포트에서 토큰을 재사용 할 수 없습니다)
+
+<TypeScriptExample>
+  ```ts
+  //안정적인 URL을 가진 생산 API
+  const { url } = await sandbox.exposePort(8080, {
+    hostname: 'api.example.com',
+    token: 'v1-stable'  //항상 같은 URL
+  });
+
+  //오류: 토큰 충돌 방지
+  await sandbox.exposePort(8081, { hostname, token: 'v1-stable' });
+  //Throws: 토큰 'v1-stable'은 포트 8080에 의해 이미 사용됩니다.
+
+  //성공: 동일한 토큰 (idempotent)와 동일한 포트를 다시 내보내기
+  await sandbox.exposePort(8080, { hostname, token: 'v1-stable' });
+  //Works - 동일한 포트, 동일한 토큰
+  ```
+</TypeScriptExample>
+
+### `validatePortToken()`
+
+토큰이 특정 노출 포트에 접근할 수 있는 권한이 있는지 검증합니다. 사용자 정의 인증 또는 라우팅 논리에 유용합니다.
+
+```ts
+const isValid = await sandbox.validatePortToken(port: number, token: string): Promise<boolean>
+```
+
+**매개 변수**:
+
+- `port`- 포트 번호
+- `token`- 유효한 토큰
+
+**기타 제품**: `Promise<boolean>` - `true`토큰이 포트에 유효하다면,`false`이름 \*
+
+<TypeScriptExample>
+  ```ts
+  //당신의 노동자에 있는 주문 검증
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      const url = new URL(request.url);
+      
+      //사용자 정의 헤더 또는 쿼리 param에서 토큰 추출
+      const customToken = request.headers.get('x-access-token');
+      
+      if (customToken) {
+        const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+        const isValid = await sandbox.validatePortToken(8080, customToken);
+        
+        if (!isValid) {
+          return new Response('Invalid token', { status: 403 });
+        }
+      }
+      
+      //핸들 미리보기 URL routing
+      const proxyResponse = await proxyToSandbox(request, env);
+      if (proxyResponse) return proxyResponse;
+      
+      //신청 방법
+      return new Response('Not found', { status: 404 });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+### `unexposePort()`
+
+노출 포트를 제거하고 미리보기 URL을 닫습니다.
+
+```ts
+await sandbox.unexposePort(port: number): Promise<void>
+```
+
+**매개 변수**:
+
+- `port`- 저렴한 포트 번호
+
+<TypeScriptExample>
+  ```ts
+  await sandbox.unexposePort(8000);
+  ```
+</TypeScriptExample>
+
+### `getExposedPorts()`
+
+현재 노출된 포트에 대한 정보를 얻으십시오.
+
+```ts
+const response = await sandbox.getExposedPorts(): Promise<GetExposedPortsResponse>
+```
+
+**기타 제품**: `Promise<GetExposedPortsResponse>`이름 \*`ports`배열 (containing`port`, `url`, `name`)
+
+<TypeScriptExample>
+  ```
+  const { ports } = await sandbox.getExposedPorts();
+
+  for (const port of ports) {
+    console.log(`${port.name || port.port}: ${port.url}`);
+  }
+  ```
+</TypeScriptExample>
+
+### `wsConnect()`
+
+sandbox에서 실행되는 WebSocket 서버에 연결하십시오. 작업자가 샌드박스에서 서비스로 WebSocket 연결을 설정해야 할 때 이것을 사용하십시오.
+
+**일반적인 사용 사례:**
+
+- Route incoming WebSocket 사용자 정의 인증 또는 인증 요청
+- Sandbox 서비스에서 실시간 데이터를 얻을 수 있도록 Worker에서 연결
+
+공공 미리보기 URL을 통해 WebSocket 서비스를 exposing`exposePort()`이름 \*`proxyToSandbox()`대신. 이름 \*[WebSocket 연결 가이드](/sandbox/guides/websocket-connections/)예제.
+
+```ts
+const response = await sandbox.wsConnect(request: Request, port: number): Promise<Response>
+```
+
+**매개 변수**:
+
+- `request`- WebSocket 업그레이드 요청 수신
+- `port`- 포트 번호 (1024-65535, 3000 제외)
+
+**기타 제품**: `Promise<Response>`- WebSocket 응답 연결 설정
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  export { Sandbox } from "@cloudflare/sandbox";
+
+  export default {
+    async fetch(request: Request, env: Env): Promise<Response> {
+      if (request.headers.get('Upgrade')?.toLowerCase() === 'websocket') {
+        const sandbox = getSandbox(env.Sandbox, 'my-sandbox');
+        return await sandbox.wsConnect(request, 8080);
+      }
+
+      return new Response('WebSocket endpoint', { status: 200 });
+    }
+  };
+  ```
+</TypeScriptExample>
+
+## 관련 자료
+
+- [미리보기 URL 개념](/sandbox/concepts/preview-urls/)- URL이 동작하는 방법
+- [Expose 서비스 안내](/sandbox/guides/expose-services/)- 서비스 시작을 위한 풀 워크플로우, 포트 및 라우팅 요청
+- [WebSocket 연결 가이드](/sandbox/guides/websocket-connections/)- 미리보기 URL을 통해 WebSocket 라우팅
+- [명령 API](/sandbox/api/commands/)- 배경 프로세스 시작

@@ -1,0 +1,121 @@
+---
+pcx_content_type: how-to
+title: Zero Trust 조직 사이 스위치
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/switch-organizations/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/switch-organizations/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, TabItem, Tabs } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 형태](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | 모든 모드                                                                                 | 모든 계획                                                      |
+
+  | 시스템   | 적용분야 | 최소 WARP 버전   |
+  | ----- | ---- | ------------ |
+  | 윈도우   | ✅    | 2024.1.159.0 |
+  | 맥 OS  | ✅    | 2024.1.160.0 |
+  | 리눅스   | ✅    | 2024.2.62.0  |
+  | iOS 앱 | ✅    | 1.7          |
+  | 다운로드  | ✅    | 1.4          |
+  | 크롬 OS | ✅    | 1.4          |
+</Details>
+
+Cloudflare WARP에서, 사용자는 다수 Zero Trust 조직 (또는 다른 사람 사이에서 전환할 수 있습니다[MDM 모수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)) 관리자는 MDM 파일에 지정합니다. 일반적인 사용 사례:
+
+- IT 보안 직원은 테스트 및 생산 환경 사이에서 전환 할 수 있습니다.
+- 여러 고객 계정을 지원하는 Managed Service Provider를 허용하십시오.
+- 사용자가 기본 WARP 진입 IP와 전환을 허용[모델 번호: Cloudflare 중국 진입 IP](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/#override_warp_endpoint).
+
+## MDM 파일 형식
+
+여러 조직을 활성화하려면 관리자가 수정해야 합니다.[MDM 파일](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/)구성의 배열을 가지고. 각 구성은 다음과 같습니다.`display_name`WARP 클라이언트 GUI에서 사용자가 볼 수있는 매개 변수. 디스플레이 이름은 MDM 파일에 나타나는 것과 같은 순서에 목록으로 만들어지기 때문에, 우리는 파일의 상단에 가장 많이 사용되는 구성을 넣어 권장합니다. 사용자가 처음 WARP 클라이언트를 열 때, 그들은 목록에서 첫 번째 구성으로 로그인 할 것이다.
+
+MDM 파일은 최대 25개의 구성을 지원합니다. 다음 예제에는 세 가지 구성이 있습니다.
+
+### 사이트맵
+
+```xml title="mdm.xml"
+<dict>
+	<key>configs</key>
+	<array>
+		<dict>
+			<key>organization</key>
+			<string>mycompany</string>
+			<key>display_name</key>
+			<string>Production environment</string>
+		</dict>
+		<dict>
+			<key>organization</key>
+			<string>mycompany</string>
+			<key>override_api_endpoint</key>
+			<string>203.0.113.0</string>
+			<key>override_doh_endpoint</key>
+			<string>203.0.113.0</string>
+			<key>override_warp_endpoint</key>
+			<string>203.0.113.0:0</string>
+			<key>display_name</key>
+			<string>China employees</string>
+		</dict>
+		<dict>
+			<key>organization</key>
+			<string>test-org</string>
+			<key>display_name</key>
+			<string>Test environment</string>
+		</dict>
+	</array>
+</dict>
+```
+
+### 공지사항
+
+[다운로드](/cloudflare-one/static/mdm/multiple-orgs/com.cloudflare.warp.plist)이름 \*`.plist`파일.
+
+### 모바일 구성
+
+[다운로드](/cloudflare-one/static/mdm/multiple-orgs/CloudflareWARP.mobileconfig)이름 \*`.mobileconfig`파일.
+
+## WARP에 있는 스위치 조직
+
+다른 조직으로 전환하려면:
+
+<Tabs>
+  <TabItem label="Windows, macOS 및 Linux">
+    1. Cloudflare를 여십시오 당신의 장치에 1개의 클라이언트.
+    2. 오시는 길**홈 > 제품**·**제품 설명**dropdown은 관리자가 장치를 구성 한 조직을 보여줍니다.
+       <Details header="버전 2026.1 및 이전">
+         WARP 클라이언트에서 기어 아이콘을 선택하십시오 >**스위치 구성**.
+       </Details>
+  </TabItem>
+
+  <TabItem label="iOS 및 Android">
+    1. 기기에서 Cloudflare One Agent 앱을 엽니다.
+    2. 오시는 길**계정 설정** > **지원하다** > **스위치 구성**. 메뉴는 관리자가 장치를 구성 한 조직을 보여줍니다.
+  </TabItem>
+</Tabs>
+
+3. 연결하려는 구성을 선택합니다.
+4. 신속한 경우 새로운 조직에 필요한 인증 단계를 완료하십시오. 인증 정보를 저장하고 구성 사이에 다시 전환 할 수 있습니다.
+
+:::참조
+관리자만 할 수 있습니다.[추가 조직](#mdm-file-format)클라이언트 GUI에. GUI에 표시되지 않는 조직에 연결하려면 수동으로 로그 아웃[^1]오래된 조직 및[이름 \*](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/)새로운 조직에서.
+주요 특징
+
+[^1]: 로깅은 가능한 경우에만[조직을 떠나는 장치](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-device-to-leave-organization)기기에 사용할 수 있습니다.
+
+### 문제 해결
+
+조직을 전환하거나 처음 연결하면 다음을 염두에 두십시오.
+
+- 조직에 연결하는 첫 번째 시간이라면 Chrome과 같은 웹 브라우저가 제대로 인식하고 조직의 루트 인증서를 신뢰하기 위해 전체 재시작이 필요할 수 있습니다. Cloudflare는 처음 연결 후에 모든 브라우저 창을 닫습니다. 모든 후속 스위치는 재시작이 필요하지 않습니다.
+- macOS에서 새로운 조직의 특정 CA 인증서는 키 체인 액세스의 상태를 확인하여 올바르게 신뢰됩니다.
+- 전환 구성은 때때로 순간적으로 WARP 클라이언트를 차단할 수 있습니다. 이 발생하면 연결 복원하려면 간단히 WARP를 다시 활성화하십시오.

@@ -1,0 +1,59 @@
+---
+pcx_content_type: configuration
+title: 주문 비용
+sidebar:
+  order: 3
+head: []
+description: per-request 기초에 기본 또는 공개 모델 비용.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/configuration/custom-costs/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/configuration/custom-costs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+AI Gateway는 요청 수준에서 사용자 정의 비용을 설정할 수 있습니다. 이 기능을 사용하여 비용 메트릭을 정확하게 반영할 수 있으며, 기본 또는 공공 모델 비용을 초과합니다.
+
+:::주\[주]
+
+주문 비용은 해당 응답에서 토큰을 전달하는 요청에만 적용됩니다. 토큰 정보없이 요청은 계산되지 않습니다.
+
+:::
+
+## 주문 비용
+
+API 요청에 사용자 정의 비용을 추가하려면, 사용`cf-aig-custom-cost`헤더. 이 헤더는 두 입력에 대한 토큰 당 비용을 지정할 수 있습니다 (송신된 토큰) 및 출력 (받는 토큰).
+
+- **프로젝트**: 협상 된 입력 토큰 비용 (토큰당).
+- **한국어**: 협상 된 출력 토큰 비용 (토큰당).
+
+소수점의 수에 제한이 없습니다. 작은 값에 관계없이 정확한 비용 계산을 보장합니다.
+
+사용자 정의 비용은 하위 라인으로 로그에 표시되며 사용자 정의 가격이 적용됩니다.
+
+이 예에서는 백만 개의 입력 토큰당 $ 1의 협상 된 가격을 가지고 있으며 백만 개의 출력 토큰 당 $ 2가 포함되어 있습니다.`cf-aig-custom-cost`아래와 같이 헤더.
+
+```bash title="Request with custom cost"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header "Authorization: Bearer $TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-custom-cost: {"per_token_in":0.000001,"per_token_out":0.000002}' \
+  --data ' {
+        "model": "gpt-4o-mini",
+        "messages": [
+          {
+            "role": "user",
+            "content": "When is Cloudflare’s Birthday Week?"
+          }
+        ]
+      }'
+```
+
+:::참조
+
+응답이 캐시에서 제공되면 (cache hit), 비용은 항상`0`, 당신이 주문 비용을 지정하더라도. 요청이 모델 공급자에 도달 할 때만 사용자 정의 비용.
+주요 특징

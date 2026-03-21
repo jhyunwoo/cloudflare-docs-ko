@@ -1,0 +1,66 @@
+---
+title: 동적인 여정
+pcx_content_type: navigation
+order: 1
+sidebar:
+  order: 4
+  group:
+    badge: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/features/dynamic-routing/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/features/dynamic-routing/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { CardGrid, LinkTitleCard, YouTube } from "~/components";
+
+## 제품정보
+
+Dynamic routing을 통해 요청 라우팅 흐름을 만들 수 있습니다.**시각적인 공용영역**또는**JSON 기반 구성**. 대신 단일 모델을 하드 코딩, 동적 루팅으로 조건을 평가하는 작은 흐름을 구성하고, quotas를 시행하고, 가을을 가진 모델을 선택합니다. 응용 프로그램 코드를 터치하지 않고 iterate 할 수 있습니다. 새 루트 버전을 게시하면됩니다. 동적인 여정으로, 당신은 쉽게 진보된 사용 사례를 실행할 수 있습니다:
+
+- 다른 모형에 다른 세그먼트 (paid/not-paid 사용자) 지시
+- 각 user/project/team를 예산/정제 제한
+- A/B와 기온변화도
+
+개발자와 비기술적인 팀 구성원 모두에 접근할 수 있는 동안.
+
+![Dynamic Routing 개요](~/assets/images/ai-gateway/dynamic-routing.png)
+
+## 핵심 개념
+
+- **오시는 길**: 이름, versioned flow (예를 들면, dynamic/support)는 요청의 모델명 대신 사용할 수 있습니다.
+- **팟캐스트**
+  - **지원하다**: 노선의 입장점.
+  - **\* 필수**: 참고 자료 요청 체, 헤더 또는 메타데이터(예: user plan == "paid").
+  - **백분율**: 경로 요청은 여러 출력을 통해 probabilistically, A / B 테스트 및 gradual rollouts에 유용합니다.
+  - **모델 번호:**: 요청 매개 변수를 가진 공급자 / 모델 호출
+  - **비율 제한**: 요청에 따라 quotas (키당, 기간당) 및 스위치를 초과할 때 떨어뜨릴 수 있습니다.
+  - **예산 제한**: 비용 quotas (당신의 열쇠 당, 기간 당) 및 스위치를 초과할 때 전환합니다.
+  - **이름 \***: 흐름을 정의하고 최종 모델 응답을 반환합니다.
+- **메타데이터**: 요청에 첨부 된 Arbitrary 키 값 컨텍스트 (예 : userId, orgId, 계획). 앱에서 이것을 전달할 수 있으므로 규칙은 참고 자료이 될 수 있습니다.
+- **이름 \***: 각 변화는 새로운 초안을 만듭니다. 즉시 롤백과 함께 살도록 배포합니다.
+
+## 시작하기
+
+:::카트로션
+
+당신의 게이트웨이를 보장[인증 및 인증](/ai-gateway/configuration/authentication/)켜고, 당신은 당신의 상류 공급자 열쇠가로 저장했습니다[로드 중 ...](/ai-gateway/configuration/bring-your-own-keys/).
+
+:::
+
+1. 경로 만들기.
+   - 오시는 &#xAE38;**(관측 선택)** > **동 노선** > **오시는 길**, 그리고 그 이름을 (예를 들면,`support`).
+   - 기타**한국어**.
+2. 조건, 제한 및 기타 설정을 정의합니다.
+   - 사용 가능[메타데이터](/ai-gateway/observability/custom-metadata/)당신의 상태에.
+3. 모델 노드 구성.
+   - 예:
+     - Node A: 공급자 OpenAI, 모델`o4-mini-high`
+     - 노드 B : 공급자 OpenAI, 모델`gpt-4.1`
+4. 버전 저장.
+   - 이름 \***제품 정보**국가를 저장합니다. 당신은 항상 이전 버전으로 돌아갈 수 있습니다**이름 \***.
+   - 그것을 살 수있는 버전을 배포합니다.
+5. 코드를 호출합니다.
+   - 사용 방법[OpenAI 호환](/ai-gateway/usage/chat-completion/)endpoint, 그리고 예를 들어, 모델의 위치에 경로 이름을 사용,`dynamic/support`.

@@ -1,0 +1,166 @@
+---
+pcx_content_type: navigation
+title: 웹RTC
+sidebar:
+  badge:
+    text: Beta
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/webrtc-beta/'
+translation_source_md: 'https://developers.cloudflare.com/stream/webrtc-beta/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Badge, InlineBadge, DashButton } from "~/components";
+
+Sub-second latency 라이브 스트리밍 (WHIP 사용) 및 재생 (WHEP 사용) 무제한 동시 시청자.
+
+WebRTC는 실시간 재생이 필요할 때 이상적입니다.
+
+- 라이브 이벤트의 결과가 시간 감지 될 때 (라이브 스포츠, 금융 뉴스)
+- 시청자는 라이브 스트림과 상호 작용 (라이브 Q\&A, 경매 등)
+- 웹 브라우저 또는 네이티브 앱에서 자신의 비디오 콘텐츠를 쉽게 이동할 수 있도록 최종 사용자를 원할 때
+
+:::참조
+
+WebRTC 스트리밍은 현재 베타에서, 우리는 당신이 생각하는 것을 듣고 싶습니다. Cloudflare Discord 서버 가입[이 초대](https://discord.com/invite/cloudflaredev/)그리고 우리의[Discord 채널](https://discord.com/channels/595317990191398933/893253103695065128)WebRTC와 함께 구축하는 것을 알려주세요!
+
+:::
+
+## Step 1: 실시간 입력 생성
+
+두 가지 옵션 중 하나를 사용하여 라이브 입력 생성 :
+
+- 사용 방법**실시간 입력**Cloudflare QXdashboard의 페이지.
+
+  <DashButton url="/?to=/:account/stream/inputs" />
+
+- POST 요청을[`/live_inputs`API 엔드포인트](/api/resources/stream/subresources/live_inputs/methods/create/)
+
+```json title="API response from a POST request to /live_inputs" {5}
+{
+  "uid": "1a553f11a88915d093d45eda660d2f8c",
+ ...
+  "webRTC": {
+    "url": "https://customer-<CODE>.cloudflarestream.com/<SECRET>/webRTC/publish"
+  },
+  "webRTCPlayback": {
+    "url": "https://customer-<CODE>.cloudflarestream.com/<INPUT_UID>/webRTC/play"
+  },
+...
+}
+```
+
+## 2 단계 : WHIP를 사용하여 라이브 이동
+
+모든 라이브 입력에는 하나의 제작자가 스트림 할 수있는 독특한 URL이 있습니다. 이 URL은*한국어*제작자와 공유됩니다 -이 URL을 가진 사람은이 라이브 입력에 라이브 비디오를 스트리밍 할 수있는 능력이 있습니다.
+
+URL을 하나에서 복사:
+
+- 더 보기**실시간 입력**Cloudflare dashboard의 페이지.
+
+  <DashButton url="/?to=/:account/stream/inputs" />
+
+- 더 보기`webRTC`API 응답의 키 (위 참조).
+
+이 URL을 예 코드로 붙여 넣으십시오.
+
+```javascript title="Simplified example code" {4}
+//HTML 페이지에 <video> 요소 추가이 코드 실행:
+//<video id="input-video" autoplay 점멸된></video>
+
+import WHIPClient from "./WHIPClient.js";
+
+const url = "<WEBRTC_URL_FROM_YOUR_LIVE_INPUT>"; //라이브 입력에서 webRTC URL 추가
+const videoElement = document.getElementById("input-video");
+const client = new WHIPClient(url, videoElement);
+```
+
+제작자가 카메라와 마이크에 권한을 부여하면 라이브 비디오 및 오디오가 자동으로 WebRTC를 사용하여 CloudflareXQ에 스트리밍됩니다.
+
+이 URL을 클라이언트와 함께 사용할 수 있습니다.[WebRTC-HTTP 섭취 프로토콜 (WHIP)](https://www.ietf.org/archive/id/draft-ietf-wish-whip-16.html). 보기[WHIP 클라이언트 지원](#supported-whip-and-whep-clients)클라이언트의 명부를 위해 우리는 Cloudflare 시내와 시험하고 확인한 겸용성을 가지고 있습니다.
+
+## 3 단계 : WHEP를 사용하여 라이브 비디오를 재생
+
+URL을 하나에서 복사:
+
+- 더 보기**실시간 입력**Cloudflare QXdashboard의 페이지.
+
+  <DashButton url="/?to=/:account/stream/inputs" />
+
+- 더 보기`webRTCPlayback`API 응답의 키 (위 참조)
+
+동시 뷰어의 수에 제한이 없습니다.
+
+이 URL을 예 코드로 붙여 넣으십시오.
+
+```javascript title="Simplified example code" {4}
+//HTML 페이지에 <video> 요소 추가이 코드 실행:
+//<video id="output-video" autoplay 점멸된></video>
+
+import WHEPClient from "./WHEPClient.js";
+
+const url = "<WEBRTC_URL_FROM_YOUR_LIVE_INPUT>"; //라이브 입력에서 webRTCPlayback URL 추가
+const videoElement = document.getElementById("output-video");
+const client = new WHEPClient(url, videoElement);
+```
+
+제작자가 적극적으로 스트리밍되고 있기 때문에 시청자는 브라우저에서 방송을 볼 수 있어야하며, 대기 시간의 1 초 미만.
+
+이 URL을 클라이언트와 함께 사용할 수 있습니다.[WebRTC-HTTP egress 프로토콜 (WHEP)](https://www.ietf.org/archive/id/draft-murillo-whep-01.html). 보기[지원되는 WHEP 클라이언트](#supported-whip-and-whep-clients)클라이언트의 명부를 위해 우리는 Cloudflare 시내와 시험하고 확인한 겸용성을 가지고 있습니다.
+
+## 기본 앱에서 WebRTC 사용
+
+네이티브 앱을 구축하는 경우 위의 예 코드는 실행할 수 있습니다.[WkWebView (이오스)](https://developer.apple.com/documentation/webkit/wkwebview), [웹뷰 (Android)](https://developer.android.com/reference/android/webkit/WebView)또는 사용[반응-native-webrtc](https://github.com/react-native-webrtc/react-native-webrtc/blob/master/Documentation/BasicUsage.md). 웹뷰없이 WebRTC를 사용해야하는 경우 Google의 Java 및 Objective-C native를 사용할 수 있습니다.[WebRTC API 구현](https://webrtc.googlesource.com/src/+/refs/heads/main/sdk).
+
+## 웹RTC 디버깅
+
+- **크롬**: Navigate로`chrome://webrtc-internals`상세한 로그와 그래프를 볼 수 있습니다.
+- **파이어 폭스**: Navigate로`about:webrtc`Chrome과 비슷한 WebRTC 세션에 대한 정보를 볼 수 있습니다.
+- **스낵 바**: 검사기에서 WebRTC 로그를 활성화하려면 설정 탭 (cogwheel 아이콘)을 열고 드롭다운 메뉴에서 WebRTC 로깅을 설정하십시오.
+
+## WHIP 및 WHEP 클라이언트 지원
+
+예를 들어 WHIP 클라이언트와 예 WHEP 클라이언트는 위의 예에서 사용, 우리는 테스트하고 Cloudflare 스트림과 호환되는 확인했다 :
+
+### 사이트맵
+
+- [OBS (Open Broadcaster 소프트웨어)](https://obsproject.com)
+- [@eyevinn/whip-웹 클라이언트](https://www.npmjs.com/package/@eyevinn/whip-web-client)(TypeScript)
+- [휘 스팅](https://github.com/ggarber/whip-go)(고)
+- [gst-플러그인-rs](https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs)(Gstreamer 플러그인, Rust에서 작성)
+- [Larix 방송사](https://softvelum.com/larix/)(Pion 기반 WebRTC와 iOS 및 Android 용 무료 앱, SDK 사용 가능)
+
+### 사이트맵
+
+- [@eyevinn/webrtc-플레이어](https://www.npmjs.com/package/@eyevinn/webrtc-player)(TypeScript)
+- [@eyevinn/wrtc-egress에 대하여](https://www.npmjs.com/package/@eyevinn/wrtc-egress)(TypeScript)
+- [gst-플러그인-rs](https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs)(Gstreamer 플러그인, Rust에서 작성)
+
+더 많은 WHIP 및 WHEP 클라이언트는 간행됩니다, 우리는 그들을 지원하고 둘 다 의정서에 완전하게 호환되는 것을 약속합니다.
+
+## 지원된 코덱
+
+- [사이트맵](https://developers.google.com/media/vp9)(최고 품질의 권장)
+- [사이트맵](https://en.wikipedia.org/wiki/VP8)
+- [사이트맵](https://en.wikipedia.org/wiki/Advanced_Video_Coding)(통합베이스 라인 프로파일 레벨 3.1, 라고`42e01f`SDP 제안에서`profile-level-id`모수.)
+
+## WHIP 및 WHEP 사양 준수
+
+Cloudflare Stream은 모든 측면을 완벽하게 지원합니다.[사이트맵](https://www.ietf.org/archive/id/draft-ietf-wish-whip-16.html)·[사이트맵](https://www.ietf.org/archive/id/draft-murillo-whep-01.html)명세, 포함:
+
+- [트릭 얼음](https://datatracker.ietf.org/doc/rfc8838/)
+- [서버 및 클라이언트 제공 모드](https://www.ietf.org/archive/id/draft-murillo-whep-01.html#section-3)WHEP를 위해
+
+WHIP와 WHEP의 특정 버전을 찾을 수 있습니다`protocol-version`WHIP 및 WHEP API 응답에 있는 우두머리. 이 헤더 references의 값은 각 프로토콜의 IETF 초안 슬러그입니다. 현재 스트림 사용`draft-ietf-wish-whip-06`(마지막 WHIP 초안 개정) 및`draft-murillo-whep-01`(최대 현재 WHEP 초안).
+
+## 베타에서 제한
+
+- [관련 기사](/stream/stream-live/watch-live-stream/#live-stream-recording-playback)아직 지원되지 않음 (곧 도착)
+- [팟캐스트](/stream/stream-live/simulcasting)(재류)는 아직 지원되지 않습니다 (곧 도착)
+- [라이브 뷰어 카운트](/stream/getting-analytics/live-viewer-count/)아직 지원되지 않음 (곧 도착)
+- [회사 소개](/stream/getting-analytics/fetching-bulk-analytics/)아직 지원되지 않음 (곧 도착)
+- WHIP 및 WHEP는 함께 사용되어야 합니다 — 우리는 아직 RTMP/SRT를 사용하여 스트리밍을 지원하지 않으며 WHEP를 사용하여 재생하거나, HLS 또는 DASH를 사용하여 재생합니다. (곧)
+- 일반적으로 사용할 경우 WebRTC 스트리밍은 Cloudflare Stream의 나머지와 같은 가격의 비디오 전달의 분 저장 및 분을 기반으로합니다.

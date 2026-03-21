@@ -1,0 +1,594 @@
+---
+title: 엔드 데이터 파이프라인 구축
+summary: >-
+  Learn how to create an end-to-end data pipeline using Cloudflare Pipelines, R2
+  Data Catalog, and R2 SQL for real-time transaction analysis.
+pcx_content_type: tutorial
+products:
+  - pipelines
+  - r2
+  - r2-sql
+  - r2-data-catalog
+description: >-
+  이 튜토리얼은 Cloudflare 파이프 라인, R2 데이터 카탈로그 및 QXQX0110XQ SQL을 사용하여 전체 데이터 파이프라인을
+  구축하는 방법을 보여줍니다.
+reviewed: 2025-09-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2-sql/tutorials/end-to-end-pipeline/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2-sql/tutorials/end-to-end-pipeline/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	Steps,
+	Tabs,
+	TabItem,
+	DashButton,
+	LinkCard,
+} from "~/components";
+
+이 튜토리얼에서는 Cloudflare 파이프 라인, R2 데이터 카탈로그 및 QXQX0113XQ SQL을 사용하여 전체 데이터 파이프라인을 구축하는 방법을 배울 것입니다. 이것은 또한 PythonXQ 스크립트를 사용하여 R2 SQL 또는 Apache Iceberg 호환 쿼리 엔진에 의해 정복 할 수있는 파이프 라인에 금융 거래 데이터를 생성하고 보낼 수 있습니다.
+
+이 튜토리얼은 다음과 같은 방법을 보여줍니다.
+
+- 설치 R2 Apache Iceberg Table에서 거래 이벤트를 저장하는 데이터 카탈로그
+- Cloudflare 파이프 라인 설정
+- Pipeline을 보내려면 사기 패턴으로 거래 데이터를 생성하십시오.
+- R2 SQL을 사용하여 데이터를 관리
+
+## 자주 묻는 질문
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up).
+2. 설치하기[Node.js](https://nodejs.org/en/).
+3. 설치하기[Python 3.8 +](https://python.org)데이터 생성 스크립트에 대한.
+
+:::note\[Node.js 버전 관리자]
+Node 버전 관리자를 사용하여[볼트](https://volta.sh/)또는[사이트맵](https://github.com/nvm-sh/nvm)허가 문제를 방지하고 Node.js 버전을 변경하십시오.
+
+Wrangler는 16.17.0 이상의 노드 버전을 요구합니다.
+주요 특징
+
+## 1. 인증 설정
+
+Cloudflare 서비스와 상호 작용하는 API 토큰이 필요합니다.
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**API 토큰**사이트 맵
+
+     <DashButton url="/?to=/:account/api-tokens" />
+
+  2. 제품정보**토큰 만들기**.
+
+  3. 제품정보**시작하기**Create Custom Token에 대해
+
+  4. API 토큰의 이름을 입력합니다.
+
+  5. 이름 \***제출**, 선택:
+     - **모델 번호: Workers 파이프 라인**읽기, 전송 및 편집 권한
+     - **Workers R2 데이터 카탈로그**자주 묻는 질문
+     - **Workers R2 SQL**자주 묻는 질문
+     - **Workers R2 제품 정보**자주 묻는 질문
+
+  6. 선택적으로, 이 토큰에 TTL을 추가합니다.
+
+  7. 제품정보**자주 묻는 질문**.
+
+  8. 이름 \***토큰 만들기**
+
+  9. 이름 \***토큰 값**.
+</Steps>
+
+새로운 토큰을 환경 변수로 내보내기:
+
+```bash
+export WRANGLER_R2_SQL_AUTH_TOKEN= #토큰을 여기에 붙여넣기
+```
+
+Wrangler를 사용하여 처음 사용하는 경우 로그인하십시오.
+
+```bash
+npx wrangler login
+```
+
+## 2. R2 물통을 만들고 QXQX0134XQQ 자료 카탈로그를 가능하게 하십시오
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    R2 물통을 창조하십시오:
+
+    ```bash
+    npx wrangler r2 bucket create fraud-pipeline
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+
+      2. 제품정보**버킷 만들기**.
+
+      3. 물통 이름을 입력하십시오:`fraud-pipeline`
+
+      4. 제품정보**버킷 만들기**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+R2 물통에 카탈로그를 가능하게 하십시오:
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    ```bash
+    npx wrangler r2 bucket catalog enable fraud-pipeline
+    ```
+
+    이 명령을 실행할 때 "Warehouse"와 "Catalog URI"의 메모를 수행하십시오. 당신은 나중에 필요합니다.
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+
+      2. 물통을 선택하십시오:`fraud-pipeline`.
+
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 그리고 선택**이름 \***.
+
+      4. 일단 활성화되면, 참고**카탈로그 URI**·**창고 이름**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+:::참조
+제출하기`warehouse`(ACCOUNTID BUCKETNAME)에 붙여넣기`export`아래. 우리는 나중에 튜토리얼에서 사용할 것입니다.
+주요 특징
+
+```bash
+export WAREHOUSE= #여기에 창고를 붙여
+```
+
+### (선택) 당신의 QXQX0146XQQ 자료 카탈로그에 소형 사용
+
+R2 데이터 카탈로그는 자동으로 컴팩트 테이블을 할 수 있습니다. 생산 이벤트 스트리밍 사용 사례에서, 그것은 많은 작은 파일로 끝나는 것이 일반적이므로 컴팩트를 활성화하는 것이 좋습니다. 튜토리얼은 샘플 사용 사례를 보여줍니다. 이 단계는 선택 사항입니다.
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    ```bash
+    npx wrangler r2 bucket catalog compaction enable fraud-pipeline --token $WRANGLER_R2_SQL_AUTH_TOKEN
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 갑니다**R2 객체 저장**사이트 맵
+
+         <DashButton url="/?to=/:account/r2/overview" />
+
+      2. 물통을 선택하십시오:`fraud-pipeline`.
+
+      3. 전환하기**계정 설정**탭, 아래로 스크롤**R2 데이터 카탈로그**, 아이콘 편집 클릭, 선택**이름 \***.
+
+      4. 대상 파일 크기를 선택하거나 기본값을 남길 수 있습니다. 자주 묻는 질문
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 3. 파이프라인 인프라 설정
+
+### 3.1. Pipeline 스트림 생성
+
+<Tabs syncKey="CLIvDash">
+  <TabItem label="Wrangler 클립">
+    첫째, schema 파일을 호출`raw_transactions_schema.json`다음으로`json`스키마:
+
+    ```json
+    {
+    	"fields": [
+    		{ "name": "transaction_id", "type": "string", "required": true },
+    		{ "name": "user_id", "type": "int64", "required": true },
+    		{ "name": "amount", "type": "float64", "required": false },
+    		{ "name": "transaction_timestamp", "type": "string", "required": false },
+    		{ "name": "location", "type": "string", "required": false },
+    		{ "name": "merchant_category", "type": "string", "required": false },
+    		{ "name": "is_fraud", "type": "bool", "required": false }
+    	]
+    }
+    ```
+
+    들어오는 사기 탐지 사건을 받기 위한 스트림을 창조하십시오:
+
+    ```bash
+    npx wrangler pipelines streams create raw_events_stream \
+      --schema-file raw_transactions_schema.json \
+      --http-enabled true \
+      --http-auth false
+    ```
+
+    :::참조
+    이름 \***HTTP Ingest 엔드포인트 URL**출력에서. 이것은 당신이 당신의 파이프라인에 자료를 보낼 것을 사용하는 endpoint입니다.
+    주요 특징
+
+    ```bash
+    #출력에서 http ingest endpoint (아래 예제 참조)
+    export STREAM_ENDPOINT= #출력에서 http ingest endpoint (아래 예제 참조)
+    ```
+
+    출력은 다음과 같습니다 :
+
+    ```sh
+    🌀 Creating stream 'raw_events_stream'...
+    ✨ Successfully created stream 'raw_events_stream' with id 'stream_id'.
+
+    Creation Summary:
+    General:
+      Name:  raw_events_stream
+
+    HTTP Ingest:
+      Enabled:         Yes
+      Authentication:  Yes
+      Endpoint:        https://stream_id.ingest.cloudflare.com
+      CORS Origins:    None
+
+    Input Schema:
+    ┌───────────────────────┬────────┬────────────┬──────────┐
+    │ Field Name            │ Type   │ Unit/Items │ Required │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ transaction_id        │ string │            │ Yes      │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ user_id               │ int64  │            │ Yes      │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ amount                │float64 │            │ No       │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ transaction_timestamp │ string │            │ No       │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ location              │ string │            │ No       │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ merchant_category     │ string │            │ No       │
+    ├───────────────────────┼────────┼────────────┼──────────┤
+    │ is_fraud              │ bool   │            │ No       │
+    └───────────────────────┴────────┴────────────┴──────────┘
+    ```
+
+    ### 3.2. 데이터 싱크 생성
+
+    Apache Iceberg 테이블으로 R2 Bucket에 데이터를 쓰는 싱크를 만듭니다.
+
+    ```bash
+    npx wrangler pipelines sinks create raw_events_sink \
+      --type "r2-data-catalog" \
+      --bucket "fraud-pipeline" \
+      --roll-interval 30 \
+      --namespace "fraud_detection" \
+      --table "transactions" \
+      --catalog-token $WRANGLER_R2_SQL_AUTH_TOKEN
+    ```
+
+    :::참조
+    이 생성`sink`Iceberg 테이블에 쓸 구성`fraud_detection.transactions`R2 데이터 카탈로그에서 30 초마다. Pipelines 자동으로 추가`__ingest_ts`테이블을 분할하는 데 사용되는 열`DAY`.
+    :::
+
+    ### 3.3. 파이프라인 만들기
+
+    SQL을 사용하여 싱크로 스트림을 연결:
+
+    ```bash
+    npx wrangler pipelines create raw_events_pipeline \
+      --sql "INSERT INTO raw_events_sink SELECT * FROM raw_events_stream"
+    ```
+  </TabItem>
+
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare dashboard에서, 갑니다**파이프 라인** > **파이프 라인**.
+
+         <DashButton url="/?to=/:account/pipelines/overview" />
+
+      2. 제품정보**Pipeline 만들기**.
+
+      3. **스트림에 연결**:
+         - 파이프 이름:`raw_events`
+         - 데이터 전송을위한 HTTP 엔드포인트 활성화 : Enabled
+         - HTTP 인증: Disabled (과태)
+         - 제품정보**이름 \***
+
+      4. **입력 Schema를 정의**:
+         - 제품정보**JSON 편집기**
+
+         - 스키마에 복사 :
+
+           ```json
+           {
+           	"fields": [
+           		{ "name": "transaction_id", "type": "string", "required": true },
+           		{ "name": "user_id", "type": "int64", "required": true },
+           		{ "name": "amount", "type": "float64", "required": false },
+           		{
+           			"name": "transaction_timestamp",
+           			"type": "string",
+           			"required": false
+           		},
+           		{ "name": "location", "type": "string", "required": false },
+           		{ "name": "merchant_category", "type": "string", "required": false },
+           		{ "name": "is_fraud", "type": "bool", "required": false }
+           	]
+           }
+           ```
+
+         - 제품정보**이름 \***
+
+      5. **싱크의 정의**:
+         - R2 물통을 선택하십시오:`fraud-pipeline`
+         - 저장 유형:**R2 데이터 카탈로그**
+         - 이름 공간:`fraud_detection`
+         - 테이블 이름:`transactions`
+         - **고급 설정**: 변경**최대 시간 간격**으로`30 seconds`
+         - 제품정보**이름 \***
+
+      6. **회사 소개**:
+         - 사용 방법**자동으로 싱크에 대한 계정 API 토큰을 만듭니다.**
+         - 이름 \***카탈로그 토큰**단계 1
+         - 제품정보**이름 \***
+
+      7. **파이프 정의**:
+         - 기본 SQL 쿼리를 남겨:
+           ```sql
+           INSERT INTO raw_events_sink SELECT * FROM raw_events_stream;
+           ```
+         - 제품정보**Pipeline 만들기**
+
+      8. 파이프라인 생성 후에, 주**스트림 ID**다음 단계.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+## 4. 표본 사기 탐지 자료 생성
+
+Python 스크립트를 생성하여 사기 패턴으로 현실적인 거래 데이터를 생성합니다.
+
+```python title="fraud_data_generator.py"
+import requests
+import json
+import uuid
+import random
+import time
+import os
+from datetime import datetime, timezone, timedelta
+
+#구성 - 사전 단계에서 수출
+STREAM_ENDPOINT = os.environ["STREAM_ENDPOINT"]# From the stream you created
+API_TOKEN = os.environ["WRANGLER_R2_SQL_AUTH_TOKEN"] #같은 것을 생성하기 전에
+EVENTS_TO_SEND = 1000 #이것을 자유롭게 느끼십시오
+
+def generate_transaction():
+    """Generate some random transactions with occasional fraud"""
+
+    #사용자 ID
+    high_risk_users = [1001, 1002, 1003, 1004, 1005]
+    normal_users = list(range(1006, 2000))
+
+    user_id = random.choice(high_risk_users + normal_users)
+    is_high_risk_user = user_id in high_risk_users
+
+    #생성 금액
+    if random.random() < 0.05:
+        amount = round(random.uniform(5000, 50000), 2)
+    elif random.random() < 0.03:
+        amount = round(random.uniform(0.01, 1.00), 2)
+    else:
+        amount = round(random.uniform(10, 500), 2)
+
+    #회사연혁
+    normal_locations = ["NEW_YORK", "LOS_ANGELES", "CHICAGO", "MIAMI", "SEATTLE", "SAN FRANCISCO"]
+    high_risk_locations = ["UNKNOWN_LOCATION", "VPN_EXIT", "MARS", "BAT_CAVE"]
+
+    if is_high_risk_user and random.random() < 0.3:
+        location = random.choice(high_risk_locations)
+    else:
+        location = random.choice(normal_locations)
+
+    #회사 소개
+    normal_merchants = ["GROCERY", "GAS_STATION", "RESTAURANT", "RETAIL"]
+    high_risk_merchants = ["GAMBLING", "CRYPTO", "MONEY_TRANSFER", "GIFT_CARDS"]
+
+    if random.random() < 0.1:  #10% 높은 리스크 상인
+        merchant_category = random.choice(high_risk_merchants)
+    else:
+        merchant_category = random.choice(normal_merchants)
+
+    #특정 마진으로 사기 점수를 늘리기 위해 체크의 시리즈
+    fraud_score = 0
+    if amount > 2000: fraud_score += 0.4
+    if amount < 1: fraud_score += 0.3
+    if location in high_risk_locations: fraud_score += 0.5
+    if merchant_category in high_risk_merchants: fraud_score += 0.3
+    if is_high_risk_user: fraud_score += 0.2
+
+    #사기 점수 비교
+    is_fraud = random.random() < min(fraud_score * 0.3, 0.8)
+
+    #timestamps 생성 (일부 사기는 특별한 시간에 발생합니다)
+    base_time = datetime.now(timezone.utc)
+    if is_fraud and random.random() < 0.4:  #밤에 사기의 40 %
+        hour = random.randint(0, 5)  #늦은 밤 / 아침
+        transaction_time = base_time.replace(hour=hour)
+    else:
+        transaction_time = base_time - timedelta(
+            hours=random.randint(0, 168)  #지난 주
+        )
+
+    return {
+        "transaction_id": str(uuid.uuid4()),
+        "user_id": user_id,
+        "amount": amount,
+        "transaction_timestamp": transaction_time.isoformat(),
+        "location": location,
+        "merchant_category": merchant_category,
+        "is_fraud": True if is_fraud else False
+    }
+
+def send_batch_to_stream(events, batch_size=100):
+    """Send events to Cloudflare Stream in batches"""
+
+    headers = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
+    total_sent = 0
+    fraud_count = 0
+
+    for i in range(0, len(events), batch_size):
+        batch = events[i:i + batch_size]
+        fraud_in_batch = sum(1 for event in batch if event["is_fraud"] == True)
+
+        try:
+            response = requests.post(STREAM_ENDPOINT, headers=headers, json=batch)
+
+            if response.status_code in [200, 201]:
+                total_sent += len(batch)
+                fraud_count += fraud_in_batch
+                print(f"Sent batch of {len(batch)} events (Total: {total_sent})")
+            else:
+                print(f"Failed to send batch: {response.status_code} - {response.text}")
+
+        except Exception as e:
+            print(f"Error sending batch: {e}")
+
+        time.sleep(0.1)
+
+    return total_sent, fraud_count
+
+def main():
+    print("Generating fraud detection data...")
+
+    #회사연혁
+    events = []
+    for i in range(EVENTS_TO_SEND):
+        events.append(generate_transaction())
+        if (i + 1) % 100 == 0:
+            print(f"Generated {i + 1} events...")
+
+    fraud_events = sum(1 for event in events if event["is_fraud"] == True)
+    print(f"📊 Generated {len(events)} total events ({fraud_events} fraud, {fraud_events/len(events)*100:.1f}%)")
+
+    #전송하기
+    print("Sending data to Pipeline stream...")
+    sent, fraud_sent = send_batch_to_stream(events)
+
+    print(f"\nComplete!")
+    print(f"   Events sent: {sent:,}")
+    print(f"   Fraud events: {fraud_sent:,} ({fraud_sent/sent*100:.1f}%)")
+    print(f"   Data is now flowing through your pipeline!")
+
+if __name__ == "__main__":
+    main()
+```
+
+필요한 Python 의존성을 설치하고 스크립트를 실행하십시오.
+
+```bash
+pip install requests
+python fraud_data_generator.py
+```
+
+## 5. R2 SQL를 가진 자료를 조회하십시오
+
+이제 R2 SQL을 사용하여 사기 탐지 데이터를 분석할 수 있습니다. 다음은 몇 가지 예입니다.
+
+### 5.1. 최근 거래 보기
+
+```bash
+npx wrangler r2 sql query "$WAREHOUSE" "
+SELECT
+    transaction_id,
+    user_id,
+    amount,
+    location,
+    merchant_category,
+    is_fraud,
+    transaction_timestamp
+FROM fraud_detection.transactions
+WHERE __ingest_ts > '2025-09-24T01:00:00Z'
+AND is_fraud = true
+LIMIT 10"
+```
+
+### 5.2. 높은 가치 트랜잭션을 강조하기 위해 새로운 테이블에 원시 거래를 필터링
+
+QXQX0164XQ 데이터 카탈로그에서 새로운 Apache Iceberg 테이블에 필터링 된 데이터를 작성하는 새로운 싱크를 만듭니다.
+
+```bash
+npx wrangler pipelines sinks create fraud_filter_sink \
+  --type "r2-data-catalog" \
+  --bucket "fraud-pipeline" \
+  --roll-interval 30 \
+  --namespace "fraud_detection" \
+  --table "fraud_transactions" \
+  --catalog-token $WRANGLER_R2_SQL_AUTH_TOKEN
+```
+
+이제 원본에서 데이터를 처리하는 새로운 SQL 쿼리를 만들 것입니다.`raw_events_stream`스트림을 작성하고 flagged 트랜잭션을 작성합니다.`amount`1,000명
+
+```bash
+npx wrangler pipelines create fraud_events_pipeline \
+  --sql "INSERT INTO fraud_filter_sink SELECT * FROM raw_events_stream WHERE is_fraud=true and amount > 1000"
+```
+
+:::참조
+새로운 파이프 라인에 대한 몇 분을 완전히 초기화하고 데이터를 처리 시작합니다. 또한 30 초를 염두에두고`roll-interval`.
+:::
+
+테이블을 쿼리하고 결과를 확인:
+
+```bash
+npx wrangler r2 sql query "$WAREHOUSE" "
+SELECT
+    transaction_id,
+    user_id,
+    amount,
+    location,
+    merchant_category,
+    is_fraud,
+    transaction_timestamp
+FROM fraud_detection.fraud_transactions
+LIMIT 10"
+```
+
+또한 비염 사건이 밖으로 거르는 것을 확인합니다:
+
+```bash
+npx wrangler r2 sql query "$WAREHOUSE" "
+SELECT
+    transaction_id,
+    user_id,
+    amount,
+    location,
+    merchant_category,
+    is_fraud,
+    transaction_timestamp
+FROM fraud_detection.fraud_transactions
+WHERE is_fraud = false
+LIMIT 10"
+```
+
+당신은 뒤에 오는 산출을 보아야 합니다:
+
+```text
+Query executed successfully with no results
+```
+
+## 이름 \*
+
+Cloudflare의 데이터 플랫폼을 사용하여 최종 데이터 파이프라인을 성공적으로 구축했습니다. 이 튜토리얼을 통해, 당신은 배운다:
+
+1. **R2 데이터 카탈로그**: 효율적인 데이터 저장을 위한 Apache Iceberg 테이블 활용
+2. **설치 Cloudflare 파이프 라인**: 생성된 스트림, 싱크 및 데이터를 위한 파이프라인 ingestion
+3. **산출된 표본 자료**: 일부 기본 사기 패턴으로 거래 데이터를 생성
+4. **R2 SQL로 테이블을 쿼리**: R2 Data Catalog에 저장된 데이터 테이블 접근

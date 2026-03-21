@@ -1,0 +1,135 @@
+---
+pcx_content_type: configuration
+title: Queues를 구성하십시오
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: Cloudflare Queues - 구성
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/configuration/configure-queues/'
+translation_source_md: >-
+  https://developers.cloudflare.com/queues/configuration/configure-queues/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Type } from "~/components";
+
+Cloudflare Queues는 사용하여 형성될 수 있습니다[모델 번호: Wrangler](/workers/wrangler/install-and-update/), Cloudflare의 개발자 플랫폼에 대한 명령 줄 인터페이스, 포함[모델 번호: Workers](/workers/), [모델 번호: R2](/r2/), 다른 개발자 제품.
+
+각 생산자 및 소비자 노동자에는[Wrangler 구성 파일](/workers/wrangler/configuration/)환경 변수, 트리거 및 리소스를 쿼리합니다. Worker-to-resource Communication을 활성화하려면 설정해야 합니다.[관련 제품](/workers/runtime-apis/bindings/)당신의 노동자 프로젝트의 Wrangler 파일에서.
+
+아래 옵션을 사용하여 큐를 구성합니다.
+
+:::참조
+
+아래는 큐에 대한 옵션이며, Wrangler 문서를 전체 referenceXQ의 참조[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+:::
+
+## Queue 구성
+
+뒤에 오는 큐 수준 조정은 Wrangler를 사용하여 형성될 수 있습니다:
+
+```sh
+npx wrangler queues update <QUEUE-NAME> --delivery-delay-secs 60 --message-retention-period-secs 3000
+```
+
+- `--delivery-delay-secs` <Type text="number" /> <Type text="optional" />
+  - 게시 된 메시지가 지연되기 전에 소비자에게 전달되기 전에.
+  - 0 및 86400 (24 시간) 사이에 있어야합니다.
+  - 기본값 0.
+
+- `--message-retention-period-secs`  <Type text="number" /> <Type text="optional" />
+  - 긴 메시지가 Queue에 유지되는 방법.
+  - 기본 345600 (4 일).
+  - 60 \~ 1209600 (14 일)
+
+## Producer Worker 구성
+
+A 생산자는[Cloudflare 작업자](/workers/)그것은 하나 이상의 큐에 쓰기. 프로듀서는 HTTP를 통해 메시지를 받아들일 수 있으며, 요청을 처리할 때 비동기적으로 메시지를 작성할 수 있습니다.[튼튼한 목표](/durable-objects/). 어떤 노동자든지 큐에 쓸 수 있습니다.
+
+큐에 생성하려면 Wrangler 파일에 바인딩을 설정합니다. 이 옵션은 노동자가 큐에 메시지를 보낼 때 사용되어야한다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"producers": [
+  			{
+  				"queue": "my-queue",
+  				"binding": "MY_QUEUE"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+- <code>이름 \*</code> <Type text="string" />
+
+  - 큐의 이름.
+
+- <code>관련 제품</code> <Type text="string" />
+
+  - 바인딩의 이름은 JavaScript 변수입니다.
+
+## 소비자 작업자 구성
+
+하나 이상의 큐에서 메시지를 소비하려면 Wrangler 파일에 바인딩을 설정합니다. 이 옵션은 노동자가 큐에서 메시지를받을 때 사용되어야한다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "my-queue",
+  				"max_batch_size": 10,
+  				"max_batch_timeout": 30,
+  				"max_retries": 10,
+  				"dead_letter_queue": "my-queue-dlq"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+더 알아보기[제한 사항](/queues/platform/limits)각 옵션의 최대 값을 검토합니다.
+
+- <code>이름 \*</code> <Type text="string" />
+
+  - 큐의 이름.
+
+- <code>최대 batch size</code> <Type text="number" /> <Type text="optional" />
+
+  - 각 배치에 허용된 메시지의 최대 수.
+  - 기본 설정`10`메시지.
+
+- <code>max batch timeout의 경우</code> <Type text="number" /> <Type text="optional" />
+
+  - 일괄 처리가 풀 때까지 기다리는 최대 수 초.
+  - 기본 설정`5`초.
+
+- <code>최대 retries</code> <Type text="number" /> <Type text="optional" />
+
+  - 메시지에 대한 저장소의 최대 수는 실패 또는[`retryAll()`](/queues/configuration/javascript-apis/#messagebatch)뚱 베어
+  - 기본 설정`3`이름 \*
+
+- <code>파일 형식</code> <Type text="string" /> <Type text="optional" />
+
+  - 다른 큐의 이름은 메시지를 보낼 때 그것은 적어도 처리 실패`max_retries`시간.
+  - 이름 \*`dead_letter_queue`정의되지 않습니다, 반복적으로 실패 처리 메시지는 결국 discarded.
+  - 지정된 이름에는 수표가 없으면 자동으로 생성됩니다.
+
+- <code>max concurrency의 경우</code> <Type text="number" /> <Type text="optional" />
+
+  - 동시 소비자의 최대 수는 한 번에 실행할 수 있습니다. 이 언셋을 떠나는 것은 직업의 수가 늘릴 것입니다.[현재 지원된 최대](/queues/platform/limits/).
+  - 더 알아보기[소비자 concurrency](/queues/configuration/consumer-concurrency/)소비자가 어떻게 autoscale에 대한 자세한 내용은 특히 메시지가 검색 될 때.
+
+## 풀 기반
+
+큐는 큐에서 끌어 HTTP 기반 소비자를 가질 수 있습니다. 이 소비자는 인터넷을 통해 통신 할 수있는 HTTP-speaking 서비스가 될 수 있습니다. 이름 \*[고객 지원](/queues/configuration/pull-consumers/)풀 기반 소비자를 구성하는 방법을 배우기 위해.

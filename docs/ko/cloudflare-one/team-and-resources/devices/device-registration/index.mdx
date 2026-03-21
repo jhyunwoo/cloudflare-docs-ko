@@ -1,0 +1,217 @@
+---
+pcx_content_type: reference
+title: 장치 등록
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/device-registration/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/device-registration/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, APIRequest } from "~/components";
+
+장치 등록은 개별 세션을 나타냅니다.[WARP 클라이언트](/cloudflare-one/team-and-resources/devices/warp/)물리적 장치에서 사용자 (또는 서비스 토큰) 및 장치에 연결[Zero Trust 조직](/cloudflare-one/setup/#create-a-zero-trust-organization). WARP 클라이언트가 첫번째 정정될 때 장치 등록은 창조됩니다. 각 장치 등록에는 고유의 공공 키, 장치 프로필 및 가상 IP 주소 (하나 IPv4 및 하나 IPv6)가 포함 된 구성이 있습니다.
+
+단일 물리적 장치가 있을 수 있습니다.[다수 장치 등록](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/windows-multiuser/), 예를 들어, 여러 사용자가 단일 노트북을 공유하고 각각 자신의 자격 증명을 가진 WARP 클라이언트를 등록합니다.
+
+## 주요 개념
+
+| 회사 소개                                                                            | 이름 \*                                                                                                                                                               |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [사용자 이름](/cloudflare-one/team-and-resources/users/seat-management/#manage-users) | ID 공급자 (IdP) - Zero Trust 조직에 새로운 장치를 연결할 수 있는 인간 정체성.                                                                                                              |
+| [【특전】](/cloudflare-one/team-and-resources/users/seat-management/)                | Zero Trust 조직 내의 독보적인 사용자[인증 이벤트](/cloudflare-one/team-and-resources/users/seat-management/#authentication-events). 서비스 토큰은 좌석을 사용하지 않습니다.                          |
+| [서비스 토큰](/cloudflare-one/access-controls/service-credentials/service-tokens/)    | Cloudflare에 대해 인증하기 위해 자동화된 시스템(Non-human identity)에서 사용하는 토큰 1개의 정책.                                                                                               |
+| 장치 등록                                                                            | WARP 클라이언트의 개별 세션은 고유의 공공 키, 장치 프로파일, 및[가상 IP 주소](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-ips/)(1개의 IPv4 및 1개의 IPv6).                 |
+| [회사연혁](/cloudflare-one/access-controls/access-settings/session-management/)      | JSON Web Tokens (JWTs)는 액세스가 액세스 정책에 대한 사용자 정체성을 검증하고 사용자가 재 승인없이 액세스 응용 프로그램에 액세스 할 수있는 방법을 결정 할 때 생성됩니다. 이러한 세션 기반 토큰과는 달리, 장치 등록은 만료되지 않으며 영구적으로 삭제 될 때까지 존재합니다. |
+
+## 회사연혁
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    많은 장치 등록이 장치와 관련되었는지 검토하려면:
+
+    1. 로그인[사이트맵 한국어](https://one.dash.cloudflare.com/)·**팀 & 자원** > **제품정보**.
+    2. 장치 선택 및 선택**자주 묻는 질문**.
+    3. 기타 제품**이름 \***&#xC774; 기기에 등록한 사용자를 검토합니다.
+
+    장치 등록 상태를 검토하려면:
+
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보**.
+    2. 장치 선택 및 선택**자주 묻는 질문**.
+    3. 기타 제품**이름 \***&#xAE30;기와 관련된 사용자를 찾습니다.
+    4. 상태 검토 (예 :`Active`또는`Revoked`) 장치 등록의 밑에**주요연혁**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    Active 및 revoked 등록을 포함한 모든 장치 등록 목록을 얻으려면:
+
+    <APIRequest
+      path="/accounts/{account_id}/devices/registrations"
+      method="GET"
+      parameters={{
+	status: "all",
+	per_page: "50"
+}}
+    />
+
+    ```json output {12}
+    {
+    		"created_at": "2026-01-26T19:27:49.770372Z",
+    		"device": {
+    			"client_version": "2025.10.186",
+    			"id": "11ffb86f-3f0c-4306-b4a2-e62f872b166a",
+    			"name": "My Device"
+    		},
+    		"id": "11ffb86f-3f0c-4306-b4a2-e62f872b166a",
+    		"key": "<U+QTP50RsWfeLGHF4tlGDnmGeuwtsz46KCHr5OyhWq00Rsdfl45mgnQAuEJ6CO0YrkyTl9FUf5iB0bwYR3g4EEFEHhtu6jFaqfMrBMBSz6itv9HQXkaR9OieKQ==",
+    		"key_type": "secp256r1",
+    		"last_seen_at": "2026-01-29T00:57:57.925979Z",
+    		"revoked_at": "2026-01-29T00:58:16.704026Z",
+    		"tunnel_type": "masque",
+    		"updated_at": "2026-01-29T00:58:16.704026Z",
+    		"user": {
+    			"email": "user@example.com",
+    			"id": "f174e90a-fafe-4643-bbbc-4a0ed4fc8415",
+    			"name": ""
+    		}
+    	},
+
+    ```
+
+    ·`revoked_at`timestamp는 장치 등록이 있음을 나타냅니다.[수정된 상태](#registration-status). 만약`revoked_at`null이거나 존재하지 않는 경우 등록 상태가 활성화됩니다.
+  </TabItem>
+</Tabs>
+
+삭제 된 장치 등록은 계정에서 영구적으로 제거되며 장치 목록에서 더 이상 나타나지 않습니다. Deletion은 영구적이며 장치 재등록을 요구합니다.
+
+:::caution\[장치 등록은 자동으로 재등록]
+
+장치 등록을 취소하거나 수정하지 않고 영구하지 않습니다[사용자 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-user-access)·[서비스 토큰 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-service-token-access).
+
+사용자 또는 서비스 토큰이 성공적으로 재사용할 수 있는 경우, 새로운 장치 등록은 삭제 또는 재발행을 통해 자동으로 생성됩니다.
+
+:::
+
+### 등록 상태
+
+등록은 다음과 같은 상태를 가질 수 있습니다:
+
+| 주요연혁      | 이름 \*                                                     |
+| --------- | --------------------------------------------------------- |
+| **지원하다**  | WARP를 통해 등록하고 연결할 수 있습니다. 예상된 운영 상태입니다.                   |
+| **관련 기사** | 등록의 공개 키는 유효하지 않습니다. Revocation는 지정된 가상 IP 주소를 공개하지 않습니다. |
+
+## 장치 등록 삭제
+
+장치에는 다수 장치 등록이 있을 수 있습니다. 다른 등록에 영향을 미치지 않습니다.
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    장치 등록을 삭제하려면:
+
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보**.
+    2. 장치 선택 >**자주 묻는 질문**.
+    3. 오시는 길**이름 \***&#xC0AD;제하려는 장치 등록 옆에 체크 박스를 표시하십시오.
+    4. 제품정&#xBCF4;**- 연혁** > *자주 묻는 질문*.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    단일 장치 등록을 삭제하려면[사이트맵](/api/resources/zero_trust/subresources/devices/subresources/registrations/methods/delete/):
+
+    <APIRequest path="/accounts/{account_id}/devices/registrations/{registration_id}" method="DELETE" />
+
+    대량 삭제 다수 장치 등록에:
+
+    ```curl
+    curl "https://api.cloudflare.com/client/v4/accounts/{account_id}/device/registrations/registrations?id=reg_id_1&id=reg_id_2&id=reg_id_3" \
+    	--request DELETE\
+    	--header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"
+    ```
+  </TabItem>
+</Tabs>
+
+장치 등록은 이제 영구적으로 삭제되고 가상 IP 주소는 재 할당을 위해 사용할 수있는 풀로 다시 출시됩니다.
+
+:::caution\[자동 장치 재등록]
+
+장치 등록을 삭제하면 WARP 클라이언트가 설치되고 다시 입력 할 수 있습니다. 새로운 장치 등록은 사용자 또는 서비스 토큰을 위해 생성됩니다. 장기를 위해, 접근의 영원한 denial, 당신은 해야 합니다[장치 등록 정책 또는 IdP에서 사용자를 제거](/cloudflare-one/team-and-resources/devices/device-registration/#remove-user-access)또는[서비스 토큰 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-service-token-access).
+
+:::
+
+## 장치 등록
+
+Cloudflare의 네트워크에 연결하여 특정 장치 등록을 허용하는 장치 등록을 무효화 장치 등록은 등록에 할당된 가상 IP를 공개하지 않습니다. 가상 IP는 무한한 자원이기 때문에, Cloudflare는 강하게 그것을 고치기 보다는 오히려 등록을 삭제하는 것을 조언합니다.
+
+:::카트로션\[자동화]
+
+장치 등록이 취소된 경우, 새로운 장치 등록이 사용자를 위해 생성됩니다. 장기를 위해, 접근의 영원한 denial, 당신은 해야 합니다[장치 등록 정책 또는 IdP에서 사용자를 제거](/cloudflare-one/team-and-resources/devices/device-registration/#remove-user-access)·[서비스 토큰 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-service-token-access).
+
+:::
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보**.
+2. 장치 선택 및 선택**자주 묻는 질문**.
+3. 접속을 취소하려면, 선택**Revoke 액세스**. 이 기기에 관련된 모든 등록에 대한 액세스를 수정합니다.
+4. 접근을 취소하려면 아래로 스크롤**이름 \***&#xC139;션을 선택하고 체크 박스를 사용하여 하나 이상의 사용자를 선택하십시오. 제품정보**관련 기사** > **액세스**.
+
+## 장치 삭제
+
+장치를 삭제하면 Cloudflare Zero Trust 계정에서 물리적 장치를 제거합니다. 이 작업은 모든 관련 장치 등록을 자동으로 삭제합니다.
+
+활성 등록 (모든 등록이 삭제되었기 때문에)가 Cloudflare One의 기본으로 숨겨져 있습니다 >**팀 & 자원** > **제품정보**테이블. 필터를 조정할 필요가 있습니다. 0 장치 등록 장치.
+
+:::caution\[자동 장치 재조합]
+
+장치 레코드를 삭제하면 WARP 클라이언트가 설치되고 사용자 또는 서비스 토큰은 다시 입력 할 수 있으며 장치 레코드는 새로운 장치 등록으로 대시보드에서 자동으로 생성됩니다. 영원한 deletion를 위해, 당신은 해야 합니다[서비스 토큰 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-service-token-access).
+
+:::
+
+장치를 삭제하려면:
+
+1. Cloudflare에서 1개의 >**팀 & 자원** > **제품정보**.
+2. 장치 선택 및 선택**자주 묻는 질문**.
+3. 제품정보**이름 \***.
+
+## 장치 관리
+
+좌석 관리(유료) 및 출입 관리는 별도의 프로세스입니다. 장치 등록을 삭제하지 않는 좌석 사용 또는 내부 회사 자원에 액세스.
+
+### 사용자 접근
+
+등록을 취소하거나 수정할 경우 사용자가 재입력할 수 있는 경우 영구하지 않습니다. re-authenticating에서 사용자를 방지하고 새로운 장치 등록을 생성하려면 제거해야합니다.[장치 등록 정책](/cloudflare-one/team-and-resources/devices/warp/deployment/device-enrollment/)또는 ID 공급자 (IdP)에서.
+
+- 장치 등록 정책이 넓은 도메인(예를 들어,`@company.com`), IdP에서 사용자를 제거합니다. 이것은 접근을 통해 인증된 사용자를 방지하고, 효과적으로 등록 장치에서 차단.
+- 장치 등록 정책 목록 특정 사용자 이메일 (예를 들면,`sally@company.com`), 당신은 당신의 장치 등록 정책에서 특정 이메일을 제거해야합니다. 또한, 사용자가 정책에 대한 명시적 제외 규칙을 추가 할 수 있습니다.
+
+사용자가 접근을 제거한 후, 기기를 완전히 분리하기 위해[서비스 토큰 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-service-token-access), 어떤 존재. 기존 등록 장치가 Cloudflare에 연결되면 특정 장치 등록이 수동으로 삭제됩니다.
+
+### 서비스 토큰 접근
+
+서비스 토큰의 장치 등록을 삭제하면 서비스 토큰의 새로운 장치 등록은 사용자 상호 작용없이 자동으로 생성됩니다. 장치 등록이 영구적일 경우 서비스 토큰을 제거하기 위해 장치 등록 정책을 업데이트해야합니다.
+
+re-authenticating에서 서비스 토큰을 차단하려면 다음을해야합니다.
+
+1. 토큰과 관련된 등록 정책을 삭제하거나 더 이상 등록 정책을 수정하십시오. 토큰 (특정 포함 규칙 제거).
+2. (선택)[서비스 토큰 삭제](/cloudflare-one/access-controls/service-credentials/service-tokens/).
+   <br />이 서비스 토큰을 사용하여 새로운 등록을 만들 수 없습니다.
+   <br />장치 등록 정책에 첨부된 동안 서비스 토큰을 삭제할 수 없습니다.
+3. 서비스 토큰 삭제[장치 등록](/cloudflare-one/team-and-resources/devices/device-registration/#delete-a-device-registration).
+4. (선택) 장치 완전히 decommission에,[사용자 접근](/cloudflare-one/team-and-resources/devices/device-registration/#remove-user-access), 어떤 존재. 기존 등록 장치가 Cloudflare에 연결되면 특정 장치 등록이 수동으로 삭제됩니다.
+
+:::caution\[현재 등록]
+
+단일 서비스 토큰이 여러 기기를 등록하는 데 사용되었던 경우, 등록 정책에서 토큰을 제거하면 모든 장치가 재등록합니다. 기존 등록 장치가 Cloudflare에 연결되면 특정 장치 등록이 수동으로 삭제됩니다.
+
+:::
+
+### 좌석 관리(유료)
+
+장치 또는 장치 등록을 삭제하지 않습니다.[좌석 사용](/cloudflare-one/team-and-resources/users/seat-management/). 좌석은 사용자 정체성, 개별 장치에 연결됩니다.
+
+좌석 구성에서 사용자를 중지하려면 Zero Trust 조직에서 사용자를 제거해야합니다.
+
+<Render file="users/remove-user-from-seat" product="cloudflare-one" />

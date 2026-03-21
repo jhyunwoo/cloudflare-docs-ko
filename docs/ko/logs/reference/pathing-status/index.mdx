@@ -1,0 +1,227 @@
+---
+pcx_content_type: reference
+title: Pathing 상태
+sidebar:
+  order: 123
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/reference/pathing-status/'
+translation_source_md: 'https://developers.cloudflare.com/logs/reference/pathing-status/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip } from "~/components";
+
+## 오시는 길
+
+Cloudflare는 뒤에 문제점**Edge Pathing 상태**:
+
+- **연락처**(경로 근원): routing 결정을 한 단계.
+- **연락처**(경로 작동): 특정 행동 또는 작업 촬영.
+- **연락처**(경로 상태): 추가 정보 보완**연락처**.
+
+### 연락처
+
+**연락처**오류가 발생하거나 요청이 캐시 서버에 전달되기 전에 요청을 처리하는 시스템을 나타냅니다. 일반적으로, 이것은 매크로/reputation 명부일 것입니다. 가능한 경로 소스 포함:
+
+- `err`
+- `sslv`(SSL 검증 검사기)
+- `bic`(browser 무결성 검사)
+- `hot`(핫링크 보호)
+- `macro`(명세 목록)
+- `skip`(Always Online 또는 CDnjs 리소스)
+- `user`(사용자 방화벽 규칙)
+
+예를 들면:
+
+```bash
+jq -r .EdgePathingSrc logs.json | sort -n | uniq -c | sort -n | tail
+```
+
+```bash output
+1 err
+5 user
+93 macro
+```
+
+### 연락처
+
+**연락처**요청이 처리 된 방법을 나타냅니다.`wl`모든 체크를 통과하고 Origin 서버에 갔다 요청입니다. 다른 가능한 값은:
+
+- `errHost`(host header mismatch, DNS 오류 등)
+- `ban`(IP 주소, 범위, 등에 의해 차단되는)
+
+예를 들면:
+
+```bash
+jq -r .EdgePathingOp logs.json | sort -n | uniq -c | sort -n | tail
+```
+
+```bash output
+1 errHost
+97 wl
+```
+
+### 연락처
+
+**연락처**값**연락처**반환. 경로 소스로`macro`, `user`, 또는`err`, 경로 상태는 IP 주소가 발견 된 목록을 나타냅니다.`nr`가장 일반적인 값이며 요청이 보안 검사에 의해 떨어졌다는 것을 의미합니다. 몇몇 값은 사용자의 종류를 나타냅니다; 예를 들면,`se`검색 엔진을 의미합니다.
+
+예를 들면:
+
+```bash
+jq -r .EdgePathingStatus logs.json | sort -n | uniq -c | sort -n | tail
+```
+
+```bash output
+1 dnsErr
+5 ip
+92 nr
+```
+
+## Threat Analytics에 지도를 경로를 경로를 갖는 방법?
+
+경로의 특정 조합은 Cloudflare에서 상표를 붙였습니다**위협 분석**특징 (에서)**회사 소개**Cloudflare 대시보드에 있는 앱). 매핑은 다음과 같습니다 :
+
+| 오시는 길             | 이름 \*          |
+| ----------------- | -------------- |
+| `bic.ban.unknown` | 나쁜 브라우저        |
+| `hot.ban.unknown` | 블록 핫 링크        |
+| `hot.ban.ip`      |                |
+| `macro.ban.ip`    | 나쁜 IP          |
+| `user.ban.ctry`   | 국가 블록          |
+| `user.ban.ip`     | IP 구획 (사용자)    |
+| `user.ban.ipr16`  | IP 범위 구획 (/16) |
+| `user.ban.ipr24`  | IP 범위 구획 (/24) |
+
+## 응답 필드를 이해
+
+응답 상태는 요청에 있는 3개의 장소에서 나타납니다:
+
+- **연락처**
+- **캐시 응답**
+- **회사연혁**
+
+로그인에서, 가장자리는 처음 방문자의 요청을 수락하는 것입니다. 캐시는 요청을 수락하고 소스에 전달하거나 캐시에서 응답합니다. 요청할 수 있습니다.**연락처**또는 그 요청**연락처**·**캐시 응답**,하지만 없음**회사연혁**.
+
+요청이 종료되는지 볼 수 있는 방법입니다. 자주 묻는 질문**연락처**보안 검사 또는 처리 오류가 발생할 수 있습니다. 자주 묻는 질문**연락처**·**캐시 응답**캐시에서 제공되었거나 Origin 서버에 대한 오류를 보았습니다. 견적 요청**회사연혁**원본 서버와 오류에 대한 모든 방법을 갔다.
+
+예를 들어, 다음 쿼리는 Cloudflare 가장자리에 종결 된 모든 요청에 대한 상태 코드 및 경로 정보를 보여줍니다 :
+
+```bash
+jq -r 'select(.OriginResponseStatus == null) | select(.CacheResponseStatus == null) |"\(.EdgeResponseStatus) / \(.EdgePathingSrc) / \(.EdgePathingStatus) / \(.EdgePathingOp)"' logs.json | sort -n | uniq -c | sort -n
+```
+
+```bash output
+1 403 / macro / nr / wl
+1 409 / err / dnsErr / errHost
+```
+
+저장된 정보는 다음과 같은 범주에 따라 끊어집니다.
+
+## 계정 관리
+
+Cloudflare 네트워크에서 수행되는 유효성 검사를 통과하지 않은 요청이 발생합니다. 사례는 다음과 같습니다:
+
+- 언제 Cloudflare 도메인 또는 영역을 볼 수 없습니다.
+- 원래 서버의 IP를 사용하지 않는 시도.
+- 도메인 소유권은 삼촌입니다 (예를 들어, 도메인은 Cloudflare).
+
+| 연락처                | 이름 \*                                  | 연락처        | 상태 코드 |
+| ------------------ | -------------------------------------- | ---------- | ----- |
+| `cyclic`           | Cloudflare 루프.                         | `err_host` | `403` |
+| `dns_err`          | 해결 할 수 없습니다.                           | `err_host` | `409` |
+| `reserved_ip`      | IP를 로컬 또는 비활성화하는 DNS 포인트.              | `err_host` | `403` |
+| `reserved_ip6`     | 로컬 또는 IPv6 주소로 DNS 포인트.                | `err_host` | `403` |
+| `bad_host`         | 나쁜 또는 호스트 헤더가 없습니다.                    | `err_host` | `403` |
+| `no_existing_host` | 소유권 조회 실패: 호스트는 Cloudflare에 가능성이 없습니다. | `err_host` | `409` |
+
+## 사용자 기반 작업
+
+이러한 행동은 특정 IP(또는 IP 범위)의 구성에 따라 사용자가 트리거됩니다.
+
+| 연락처                                                                                                                        | 이름 \*                                                     | 연락처   | 연락처    | 상태 코드 |
+| -------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | ----- | ------ | ----- |
+| `Asnum`<br /> `ip`<br /> `ipr24`<br /> `ipr16`<br /> `ip6`<br /> `ip6r64`<br /> `ip6r48`<br /> `ip6r32`<br /> `ctry`<br /> | 요청이 차단되었습니다.                                              | `ban` | `user` | `403` |
+| `Asnum`<br /> `ip`<br /> `ipr24`<br /> `ipr16`<br /> `ip6`<br /> `ip6r64`<br /> `ip6r48`<br /> `ip6r32`<br /> `ctry`<br /> | <ul><li>요청이 허용되었습니다.</li><li>WAF는 실행하지 않을 것입니다.</li></ul> | `wl`  | `user` | ₢ 킹   |
+
+## 방화벽 규칙
+
+Cloudflare 방화벽 규칙 (deprecated)은 고객 정의 규칙과 일치하여 행동을 유발합니다.
+
+| 연락처                     | 이름 \*        | 연락처   |
+| ----------------------- | ------------ | ----- |
+| `filter_based_firewall` | 요청이 차단되었습니다. | `ban` |
+| `filter_based_firewall` | 요청이 허용되었습니다. | `wl`  |
+
+## 지역 Lockdown
+
+**지역 Lockdown**방문자의 IP가 허용되지 않는 특정 URI에 방문자를 차단.
+
+| 연락처  | 이름 \*    | 연락처   | 연락처    |
+| ---- | -------- | ----- | ------ |
+| `zl` | 적용된 자물쇠. | `ban` | `user` |
+
+## 방화벽 User-Agent 블록
+
+Challenge (Interactive or Non-Interactive) 또는 사용자가 특정 문자열과 일치하는 브라우저를 사용하는 차단 방문자.
+
+| 연락처  | 이름 \*           | 연락처   | 연락처    |
+| ---- | --------------- | ----- | ------ |
+| `ua` | 차단된 User-Agent. | `ban` | `user` |
+
+## 브라우저 Integrity Check
+
+요청의 소스가 illegitimate 또는 요청 자체가 악의인지 여부를 인식합니다.
+
+| 연락처                                        | 이름 \*  | 연락처   | 연락처   |
+| ------------------------------------------ | ------ | ----- | ----- |
+| <span style="font-weight: 400;">한국어</span> | 블록 요청. | `ban` | `bic` |
+
+## 핫 링크
+
+다른 사이트에서 핫 링크 방지.
+
+| 연락처                                        | 이름 \*  | 연락처   | 연락처   |
+| ------------------------------------------ | ------ | ----- | ----- |
+| <span style="font-weight: 400;">한국어</span> | 블록 요청. | `ban` | `hot` |
+
+## L7-to-L7 DDoS 완화
+
+L7 완화를 통해 DDoS 공격을 해제하십시오.
+
+| 연락처                                             | 이름 \*  | 연락처   | 연락처       |
+| ----------------------------------------------- | ------ | ----- | --------- |
+| <span style="font-weight: 400;">`l7ddos`</span> | 블록 요청. | `ban` | `protect` |
+
+## IP 평판 (MACRO)
+
+매크로 단계는 많은 다른 경로로 구성되어 있습니다. 그들은 방문자 IP의 명성에 의해 분류됩니다.
+
+| 연락처       | 이름 \*                                                          | 연락처  | 연락처     |
+| --------- | -------------------------------------------------------------- | ---- | ------- |
+| `nr`      | IP에 대한 평판 데이터가 없습니다.                                           | `wl` | `macro` |
+| `wl`      | IP는 명시적으로 허용됩니다.                                               | `wl` | `macro` |
+| `scan`    | IP는 보안 스캐너로 명시적으로 허용하고 분류됩니다.                                  | `wl` | `macro` |
+| `mon`     | IP는 감시 서비스로 명시적으로 허용하고 분류됩니다.                                  | `wl` | `macro` |
+| `bak`     | IP는 명시적으로 허용하고 백업 서비스로 분류됩니다.                                  | `wl` | `macro` |
+| `mob`     | IP는 명시적으로 허용하고 모바일 프록시 서비스로 분류됩니다.                             | `wl` | `macro` |
+| `se`      | IP는 검색 엔진 크롤러에 속한 것으로 명시적으로 허용되며 작업이 수행되지 않습니다.                | `wl` | `macro` |
+| `grey`    | IP는 greylisted (나쁘게 관찰 됨)이지만, 요청은 favicon 또는 보안이 켜져 있고, 허용됩니다. | `wl` | `macro` |
+| `bad_ok`  | IP의 명성 점수는 나쁘지만 요청은 favicon 또는 보안이 꺼져 있고 그와 같이 허용됩니다.          | `wl` | `macro` |
+| `unknown` | 더 보기`pathing_status`알 수없는 요청은 정상으로 처리됩니다.                      | `wl` | `macro` |
+
+## 비율 제한
+
+| 연락처          | 이름 \*            | 연락처        | 연락처    |
+| ------------ | ---------------- | ---------- | ------ |
+| `rate_limit` | Dropped 요청.      | `ban`      | `user` |
+| `rate_limit` | IP는 명시적으로 허용됩니다. | `simulate` | `user` |
+
+## 특수 사례
+
+| 연락처        | 이름 \*                                | 연락처  | 연락처      |
+| ---------- | ------------------------------------ | ---- | -------- |
+| `ao_crawl` | AO (Always Online) 크롤러 요청.           | `wl` | `skip`   |
+| `cdnjs`    | cdnjs 자원에 요청.                        | `wl` | `skip`   |
+|            | Cloudflare의 특별한 우두머리에 의해 강제되는 특정 도전. |      | `forced` |

@@ -1,0 +1,284 @@
+---
+pcx_content_type: example
+title: GraphQL로 Email Routing 이벤트 조회하기
+
+---
+
+이 예제에서는 GraphQL Analytics API를 사용해 지정한 기간의 Email Routing 이벤트를 조회합니다.
+
+## Activity Logs API 호출
+
+다음 API 호출은 1일 동안의 Email Routing activity logs를 요청하고, 요청한 필드를 출력합니다. `<CLOUDFLARE_ZONE_TAG>`와 `<API_TOKEN>`[^1]을 zone tag와 API 자격 증명으로 바꾸고, 필요에 따라 `datetime_geq` 및 `datetime_leq` 값을 조정하세요.
+
+```bash
+echo '{ "query":
+  "query EmailRoutingActivity($zoneTag: string, $filter: EmailRoutingAdaptiveFilter_InputObject) {
+    viewer {
+      zones(filter: { zoneTag: $zoneTag }) {
+        emailRoutingAdaptive(
+          filter: $filter
+          limit: 3
+          orderBy: [datetime_DESC]
+        ) {
+          datetime
+          id: sessionId
+          messageId
+          from
+          to
+          subject
+          status
+          action
+          spf
+          dkim
+          dmarc
+          arc
+          errorDetail
+          isNDR
+          isSpam
+          spamThreshold
+          spamScore
+        }
+      }
+    }
+  }",
+  "variables": {
+    "zoneTag": "<CLOUDFLARE_ZONE_TAG>",
+    "filter": {
+      "datetime_geq": "2026-01-18T11:00:00Z",
+      "datetime_leq": "2026-01-19T11:00:00Z"
+    }
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+```
+
+반환 결과는 JSON(요청한 형식)입니다.
+
+```json
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "emailRoutingAdaptive": [
+            {
+              "action": "forward",
+              "arc": "none",
+              "datetime": "2026-01-19T10:51:25Z",
+              "dkim": "pass",
+              "dmarc": "pass",
+              "errorDetail": "",
+              "from": "John <john@email.example.com>",
+              "id": "AfWyaZ7V1TAH",
+              "isNDR": 0,
+              "isSpam": 0,
+              "messageId": "<9e6574f1-97f8-4060-ad62-c54b6408ac3f@local>",
+              "spamScore": 0,
+              "spamThreshold": 5,
+              "spf": "pass",
+              "status": "delivered",
+              "subject": "How are you doing?",
+              "to": "me@example.com"
+            },
+            {
+              "action": "forward",
+              "arc": "none",
+              "datetime": "2026-01-19T10:30:00Z",
+              "dkim": "pass",
+              "dmarc": "pass",
+              "errorDetail": "",
+              "from": "eBay <ebay@ebay.co.uk>",
+              "id": "aYPegrIfLWia",
+              "isNDR": 0,
+              "isSpam": 0,
+              "messageId": "<1A513C40-F2CD808A928-029BBE999993-0000000000FA8855@starship>",
+              "spamScore": 0,
+              "spamThreshold": 5,
+              "spf": "pass",
+              "status": "delivered",
+              "subject": "New offers",
+              "to": "me@example.com"
+            },
+            {
+              "action": "forward",
+              "arc": "none",
+              "datetime": "2026-01-19T10:29:59Z",
+              "dkim": "pass",
+              "dmarc": "pass",
+              "errorDetail": "",
+              "from": "Notification <notifications@example.com>",
+              "id": "nWIl9gs95mY3",
+              "isNDR": 0,
+              "isSpam": 0,
+              "messageId": "<0AB8F1C3-3015EDF2980-019BBE9B58F2-0000000000FA7C4D@local>",
+              "spamScore": 0,
+              "spamThreshold": 5,
+              "spf": "pass",
+              "status": "delivered",
+              "subject": "You're over quota",
+              "to": "me@example.com"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+## Analytics API 호출
+
+다음 API 호출은 이벤트 수를 시간별로 그룹화해 계산합니다.
+
+```bash
+echo '{ "query":
+  "query EmailRoutingActivity($zoneTag: string, $filter: EmailRoutingAdaptiveFilter_InputObject) {
+     viewer {
+       zones(filter: { zoneTag: $zoneTag }) {
+         emailRoutingAdaptiveGroups(
+           limit: 10000
+           filter: $filter
+           orderBy: [datetimeHour_ASC]
+         ) { count
+               dimensions {
+                 datetimeHour
+               }
+             }
+           }
+     }
+  }",
+  "variables": {
+    "zoneTag": "<CLOUDFLARE_ZONE_TAG>",
+    "filter": {
+      "datetimeHour_geq": "2026-01-18T11:00:00Z",
+      "datetimeHour_leq": "2026-01-19T11:00:00Z"
+    }
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+```
+
+반환 결과는 JSON(요청한 형식)입니다.
+
+```json
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "emailRoutingAdaptiveGroups": [
+            {
+              "count": 2,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T11:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T12:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T13:00:00Z"
+              }
+            },
+            {
+              "count": 2,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T14:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T15:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T16:00:00Z"
+              }
+            },
+            {
+              "count": 2,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T17:00:00Z"
+              }
+            },
+            {
+              "count": 3,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T18:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-18T22:00:00Z"
+              }
+            },
+            {
+              "count": 2,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T01:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T02:00:00Z"
+              }
+            },
+            {
+              "count": 4,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T05:00:00Z"
+              }
+            },
+            {
+              "count": 1,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T08:00:00Z"
+              }
+            },
+            {
+              "count": 5,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T09:00:00Z"
+              }
+            },
+            {
+              "count": 6,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T10:00:00Z"
+              }
+            },
+            {
+              "count": 2,
+              "dimensions": {
+                "datetimeHour": "2026-01-19T11:00:00Z"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

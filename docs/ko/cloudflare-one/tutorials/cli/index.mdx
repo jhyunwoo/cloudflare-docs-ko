@@ -1,0 +1,114 @@
+---
+reviewed: 2021-03-23T00:00:00.000Z
+category: Zero Trust
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: Cloudflare를 통해 연결 CLI를 사용하여 액세스
+description: >-
+  Cloudflare의 Cloudflared 명령 줄 도구는 Cloudflare 액세스에 의해 보호되는 엔드 포인트와 상호 작용할 수
+  있습니다.
+tags:
+  - CLI
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/tutorials/cli/'
+translation_source_md: 'https://developers.cloudflare.com/cloudflare-one/tutorials/cli/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare의`cloudflared`명령줄 도구는 Cloudflare Access에 의해 보호된 엔드포인트와 상호 작용할 수 있습니다. 사용 가능`cloudflared`보호 응용 프로그램의 API와 상호 작용합니다.
+
+이 지침은 API에 대해 실행하는 서비스를 구성하지 않습니다. 이 예제의 토큰은 사용자 정체성에 맞게 지정되며, 명령줄 도구를 통해 API와 상호 작용하는 최종 사용자만을 대상으로 합니다.
+
+**이 walkthrough는 방법을 포함합니다:**
+
+- Cloudflare Access에 의해 보안된 리소스에 연결하기
+
+**완료 시간:**
+
+30 분
+
+***
+
+## 명령줄에서 세션을 인증
+
+당신은[설치하기`cloudflared`](/cloudflare-one/networks/connectors/cloudflare-tunnel/downloads/)Cloudflare Access를 검색하는 데 사용할 수 있습니다.[앱 토큰](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/). 이 walkthrough는 도메인을 사용`example.com`보호된 API를 위한 stand-in로.
+
+1. 토큰을 생성하려면 다음 명령을 실행하십시오.
+
+   ```sh
+   cloudflared access login https://example.com
+   ```
+
+   이 명령으로,`cloudflared`웹 응용 프로그램에 액세스 할 때 같은 액세스 로그인 페이지를 포함하는 브라우저 창을 시작합니다.
+
+2. ID 공급자를 선택하고 로그인하십시오.
+
+브라우저 창이 실행되지 않는 경우, 명령줄에 자동으로 인쇄된 고유 URL을 사용할 수 있습니다.
+
+1. 성공적으로 인증되면 브라우저가 토큰을 반환합니다.`cloudflared`암호화 전송 및 저장.
+
+토큰은 유효합니다[세션 기간](/cloudflare-one/access-controls/access-settings/session-management/)액세스 관리자에 의해 구성.
+
+## API 접근
+
+토큰을 검색하면 보호 된 API에 액세스 할 수 있습니다. 더 보기`cloudflared`command-line 도구에는 데이터를 전송하는 래퍼가 포함되어 있습니다.`curl`URL 구문을 사용하는 , (더 많은 경우, 참조[컬럼](https://github.com/curl/curl)GitHub 프로젝트 wrapper는 토큰을 토큰으로 주사합니다.`curl`라는 쿼리 인수로 요청*계정 관리*. 다음으로 래퍼를 호출 할 수 있습니다:
+
+```sh
+cloudflared access curl http://example.com
+```
+
+또한 사용할 수`put`명령과`cloudflared`유닉스 도구에 대한 요청에서 토큰을 포함.
+
+다른 사용 가능한 명령을 읽어보십시오.
+
+## 가능한 명령
+
+### 이름 \*
+
+더 보기`login`명령은 액세스 뒤에 응용 프로그램에 대한 로그인 흐름을 시작합니다.
+
+```sh
+cloudflared access login http://example.com
+```
+
+### 컬럼
+
+더 보기`curl`클라이언트 래퍼를 호출하고 요청에서 토큰을 자동으로 포함합니다.
+
+```sh
+cloudflared access curl http://example.com
+```
+
+### 계정 관리
+
+더 보기`token`명령은 다른 명령줄 도구에서 사용할 수 있는 특정 애플리케이션에 따라 토큰을 검색합니다.
+
+```sh
+cloudflared access token -app=http://example.com
+```
+
+## 토큰을 환경 변수로 사용
+
+토큰을 보호할 수 있습니다. 보안 응용 프로그램에 액세스하는 스크립트의 편의를 위해 환경 변수와 concision을 저장할 수 있습니다.
+
+다음과 같이 환경 변수로 토큰을 설정:
+
+1. 다음 명령을 실행하여 토큰을 쉘 환경에 수출하십시오.
+
+   ```sh
+   export TOKEN=$(cloudflared access token -app=http://example.com)
+   ```
+
+2. 토큰은 다음과 같이 저장되었습니다.
+
+   ```sh
+   echo $TOKEN
+   ```
+
+토큰을 환경으로 내보내면 Cloudflare Access 요청 헤더를 사용하여 보호된 엔드포인트에 액세스할 수 있습니다.
+
+```sh
+curl -H "cf-access-token: $TOKEN" https://example.com/rest/api/2/item/foo-123
+```

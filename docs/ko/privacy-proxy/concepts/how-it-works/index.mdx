@@ -1,0 +1,72 @@
+---
+title: 개인 정보 보호 프록시
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/privacy-proxy/concepts/how-it-works/'
+translation_source_md: 'https://developers.cloudflare.com/privacy-proxy/concepts/how-it-works/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Privacy Proxy는 MASQUE 프로토콜 제품군을 사용하여 클라이언트와 대상 서버 간의 암호화 된 터널을 만듭니다. 이 페이지는 프로토콜 메커니즘과 개인 정보 보호가 보존되는 방법을 설명합니다.
+
+## 교통 흐름
+
+```
+┌──────────┐      1. Connect + Auth      ┌──────────┐      4. Connect        ┌─────────────┐
+│          │ ──────────────────────────▶ │          │ ────────────────────▶  │             │
+│  Client  │      2. CONNECT request     │  Privacy │      (Egress IP)       │ Destination │
+│          │ ──────────────────────────▶ │  Proxy   │                        │   Server    │
+│          │                             │          │ ◀────────────────────  │             │
+│          │      3. 200 OK              │          │      5. Connected      │             │
+│          │ ◀────────────────────────── │          │                        │             │
+│          │                             │          │                        │             │
+│          │  ◀───── 6. Encrypted data tunnel ─────▶  ◀─────────────────────▶│             │
+└──────────┘                             └──────────┘                        └─────────────┘
+
+           │◀──── Client IP hidden ────▶│◀──── Cloudflare Egress IP visible ──────────▶│
+```
+
+1. 클라이언트는 HTTP / 2 또는 HTTP / 3 연결을 개인 프록시에 설치하고 credentials (PSK 또는 Privacy Pass Token)를 제시합니다.`Proxy-Authorization`헤더.
+2. 클라이언트는 목적지 hostname 및 포트를 지정하는 CONNECT 요청을 보냅니다.
+3. 프록시는 응답`200 OK`터널을 확인하기 위해 준비되었습니다.
+4. 프록시는 클라이언트의 Geolocation을 기반으로 선택한 egress IP 주소를 사용하여 목적지에 연결됩니다.
+5. 클라이언트는 터널을 통해 암호화 된 데이터를 보냅니다. 프록시는 검사없이 바이트를 전달합니다.
+
+이 과정을 통해 프록시는 목적지를 학습하지만 내용이 아닙니다. 대상은 egress IP 주소를 배우지만 클라이언트의 실제 IP가 아닙니다.
+
+## MASQUE 프로토콜
+
+[이름 \*](https://datatracker.ietf.org/wg/masque/about/)(Multiplexed Application Substrate over QUIC Encryption)은 HTTP를 통해 프록시 트래픽의 방법을 정의합니다. 개인 정보 보호 프록시는 두 개의 MASQUE 방법을 지원합니다:
+
+| 제품 설명   | 관련 상품  | 사용 사례                   |
+| ------- | ------ | ----------------------- |
+| HTTP 연결 | TCP 포트 | 전통 HTTPS 교통             |
+| 네트워크    | 사이트맵   | QUIC 기반 트래픽, 실시간 애플리케이션 |
+
+두 방법은 콘텐츠를 검사하지 않고 프록시 트래픽을 전달하는 암호화 된 터널을 만듭니다. 프록시는 특정 요청, 경로 또는 데이터 교환이 아닌 대상 호스트 이름과 포트 만 표시됩니다.
+
+개인 정보 보호 프록시는 HTTP / 2 (TLS over TCP) 및 HTTP / 3 (QUIC)에 연결하여 클라이언트 기능을 기반으로 적절한 프로토콜을 선택합니다.
+
+이 프로토콜이 어떻게 작동하는지에 대한 기술 깊은 다이빙을 위해, 우리의 참조[블로그 게시물](https://blog.cloudflare.com/a-primer-on-proxies/).
+
+## 공급 업체
+
+Privacy Proxy는 사용자 정체성 및 사용자 활동 간의 개인 정보 보호 경계를 만듭니다.
+
+| - 연혁               | 누가 그것을 알고                                                |
+| ------------------ | -------------------------------------------------------- |
+| 사용자 ID (IP 주소, 계정) | Authentication service, first-hop proxy (double-hop 사용시) |
+| 대상 서버              | 개인정보 프록시, 대상 서버                                          |
+| 자주 묻는 질문           | 클라이언트, 대상 서버만                                            |
+
+프록시는 사용자가 서비스를 사용할 수 있는 권한을 확인하지만, 인증은 프록시에서 별도로 발생합니다. proxy는 특정 사용자에게 개별 요청을 연결하지 않고 트래픽을 전달합니다.
+
+## 관련 자료
+
+- [Proxies의 Primer](https://blog.cloudflare.com/a-primer-on-proxies/)- HTTP CONNECT 및 MASQUE 프로토콜에 대한 기술 딥 다이빙.
+- [MASQUE 작업 그룹](https://datatracker.ietf.org/wg/masque/about/)- IETF 작업 그룹 개발 프록시 프로토콜 표준.
+- [RFC 9298년](https://datatracker.ietf.org/doc/html/rfc9298)- HTTP에서 UDP 프록시에 대한 CONNECT-UDP 사양.

@@ -1,0 +1,187 @@
+---
+pcx_content_type: configuration
+title: 환경 변수
+head: []
+description: 텍스트 문자열 또는 JSON 값을 작업자에게 첨부하기 위해 바인딩 유형인 환경 변수를 추가할 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/configuration/environment-variables/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/environment-variables/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, TypeScriptExample, WranglerConfig, DashButton } from "~/components";
+
+## 이름 \*
+
+텍스트 문자열 또는 JSON 값을 작업자에게 첨부하기 위해 바인딩 유형인 환경 변수를 추가할 수 있습니다. 환경 변수는[`env`이름 \*](/workers/runtime-apis/handlers/fetch/#parameters)당신의 노동자에 전달[`fetch`이벤트 핸들러](/workers/runtime-apis/handlers/fetch/).
+
+텍스트 문자열과 JSON 값은 암호화되지 않으며 애플리케이션 구성을 저장하는 데 유용합니다.
+
+## Wrangler를 통해 환경 변수 추가
+
+Wrangler를 사용하여 env 변수를 추가하려면 텍스트와 JSON을 정의합니다.`[vars]`Wrangler 파일에 있는 윤곽. 다음 예제에서,`API_HOST`·`API_ACCOUNT_ID`텍스트 값과`SERVICE_X_DATA`JSON 값입니다.
+
+<Render file="envvar-example" product="workers" />
+
+다음 예제를 참조하십시오.`API_HOST`작업자 코드의 환경 변수:
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env, ctx) {
+    		return new Response(`API host: ${env.API_HOST}`);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export interface Env {
+    	API_HOST: string;
+    }
+
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		return new Response(`API host: ${env.API_HOST}`);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+### 제품정보`env`글로벌 액세스
+
+또한 가져올 수 있습니다`env`이름 \*[`cloudflare:workers`](/workers/runtime-apis/bindings/#importing-env-as-a-global)요청 핸들러의 외부를 포함한 코드에서 환경 변수에 액세스하려면:
+
+<TypeScriptExample>
+  ```ts
+  import { env } from "cloudflare:workers";
+
+  //최고 수준의 접근 환경 변수
+  const apiHost = env.API_HOST;
+
+  export default {
+  	async fetch(request: Request): Promise<Response> {
+  		return new Response(`API host: ${apiHost}`);
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+이 접근은 당신이 필요로 할 때 유용합니다:
+
+- 작업자의 최상위에서 구성 또는 API 클라이언트를 초기화합니다.
+- 접근 환경변수는 통과하지 않고 깊게 배열된 기능에서`env`각 함수 호출을 통해.
+
+더 자세한 내용은 참조[관련 상품`env`글로벌](/workers/runtime-apis/bindings/#importing-env-as-a-global).
+
+### Wrangler의 다른 환경 구성
+
+[Wrangler의 환경](/workers/wrangler/environments)같은 노동자에 대한 다른 구성을 지정할 수 있습니다.`vars`각 환경에서.
+이름 \*`vars`한국어[비 inheritable 열쇠](/workers/wrangler/configuration/#non-inheritable-keys), 그들은 환경에 의해 상속되고 각 환경에 지정되어야 합니다.
+
+아래 예제는 두 가지 환경을 설정,`staging`·`production`, 다른 값을 위한`API_HOST`.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker-dev",
+  	//최고 수준의 환경
+  	"vars": {
+  		"API_HOST": "api.example.com"
+  	},
+  	"env": {
+  		"staging": {
+  			"vars": {
+  				"API_HOST": "staging.example.com"
+  			}
+  		},
+  		"production": {
+  			"vars": {
+  				"API_HOST": "production.example.com"
+  			}
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+특정 환경에서 Wrangler 명령을 실행하려면, 당신은 안으로 통과할 수 있습니다`--env`또는`-e`플래그. 예를 들어, 호출 환경에 Worker를 개발할 수 있습니다.`staging`이름 \*`npx wrangler dev --env staging`, 그리고 그것과 배치`npx wrangler deploy --env staging`.
+
+자세히 알아보기[Wrangler의 환경](/workers/wrangler/environments).
+
+## dashboard를 통해 환경 변수 추가
+
+dashboard를 통해 환경 변수를 추가하려면:
+
+1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+
+2. 내 계정**제품정보**, 당신의 노동자를 선정하십시오.
+
+3. 제품정보**계정 설정**.
+
+4. 이름 \***변수 및 비밀**, 선택**더 보기**.
+
+5. 선택하기**제품정보**, 입력**변수 이름**, 그리고 그것의 입력**제품정보**. 이 변수는 작업자에게 사용할 수 있습니다.
+
+6. (선택) 여러 환경 변수를 추가하려면, 선택**추가 변수**.
+
+7. 제품정보**계정 만들기**당신의 변화를 구현합니다.
+
+:::caution\[Plaintext 문자열과 비밀]
+선택하기**계정 관리**환경 변수가 있는 경우 type[이름 \*](/workers/configuration/secrets/). 대안으로, 고려[Cloudflare 비밀 상점](/secrets-store/), 계정 수준 비밀.
+주요 특징
+
+<Render file="env_and_secrets" product="workers" />
+
+### 비밀번호
+
+<Render file="secrets-in-dev" product="workers" />
+
+## 환경 변수 및 Node.js 호환성
+
+사용 가능[`nodejs_compat`](/workers/runtime-apis/nodejs/)그리고[`nodejs_compat_populate_process_env`](/workers/configuration/compatibility-flags/#nodejs_compat_populate_process_env)호환성 플래그 (기본적으로 호환 날짜 2025-04-01 이후), 환경 변수는 글로벌을 통해 사용할 수`process.env`.
+
+더 보기`process.env`lazily 팝업 될 것입니다 첫 번째 시간`process`접속하다
+노동자에.
+
+텍스트 변수 값은 직접 노출됩니다.
+
+string 값에 대한 JSON 변수 값은 파싱 값으로 노출됩니다.
+
+string값을 평가하지 않는 JSON 변수 값은 raw로 노출됩니다.
+JSON 문자열.
+
+예를 들어, 3개의 환경변수, 2개의 텍스트 값과 작업자를 상상하고
+JSON 값:
+
+```
+[vars]
+FOO =  "abc"
+BAR =  "abc"
+BAZ = { "a": 123 }
+```
+
+환경 변수는 추가할 수 있습니다.`wrangler.{json|jsonc|toml}`파일 또는 Cloudflare를 통해
+dashboard UI입니다.
+
+가치의`process.env.FOO`·`process.env.BAR`각각은
+JavaScript 문자열`"abc"`.
+
+가치의`process.env.BAZ`JSON 인코딩된 문자열이 될 것입니다.`"{ \"a\": 123 }"`.
+
+:::참조
+secrets가 runtime 내에서 환경 변수의 형태이므로 주의하십시오.
+비밀도 통해 노출`process.env`.
+
+## 관련 자료
+
+- Migrating 환경 변수[ES 모듈 구문에 대한 서비스 노동자 형식](/workers/reference/migrate-to-module-workers/#environment-variables).

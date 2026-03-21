@@ -1,0 +1,227 @@
+---
+pcx_content_type: concept
+title: 직접 업로드
+sidebar:
+  order: 6
+head: []
+description: Workers API를 통해 자산을 업로드합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/static-assets/direct-upload/'
+translation_source_md: 'https://developers.cloudflare.com/workers/static-assets/direct-upload/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Description,
+	FileTree,
+	GitHubCode,
+	InlineBadge,
+	Render,
+	TabItem,
+	Tabs,
+	TypeScriptExample,
+} from "~/components";
+import { Icon } from "astro-icon/components";
+
+:::참조
+
+API를 통해 직접 업로드 자산은 프로그래밍 통합을 구축하지 않는 한 고급 접근입니다. 대부분의 사용자는 필요하지 않습니다. 대신, 우리는 사용자가 Worker를 배포하는 것을 권장합니다.[모델 번호: Wrangler](/workers/static-assets/get-started/#1-create-a-new-worker-project-using-the-cli).
+
+:::
+
+API는 사용자가 업로드하고 작업자의 일부로 정적 자산을 포함합니다. 이 정적 자산은 무료로 제공 될 수 있으며, 추가로, 사용자는 옵션으로 자산을 가져올 수 있습니다.[자산 바인딩](/workers/static-assets/binding/)더 진보된 신청에 힘. 이 가이드는 API에 직접 Worker에 자산을 부착하는 과정을 설명합니다.
+
+<Tabs syncKey="workers-vs-platforms" IconComponent={Icon}>
+  <TabItem icon="workers" label="모델 번호: Workers">
+    ```mermaid
+    sequenceDiagram
+        participant User
+        participant Workers API
+        User<<->>Workers API: Submit manifest<br/>POST /client/v4/accounts/:accountId/workers/scripts/:scriptName/assets-upload-session
+        User<<->>Workers API: Upload files<br/>POST /client/v4/accounts/:accountId/workers/assets/upload?base64=true
+        User<<->>Workers API: Upload script version<br/>PUT /client/v4/accounts/:accountId/workers/scripts/:scriptName
+    ```
+  </TabItem>
+
+  <TabItem icon="cloudflare-for-platforms" label="플랫폼을위한 Workers">
+    ```mermaid
+    sequenceDiagram
+        participant User
+        participant Workers API
+        User<<->>Workers API: Submit manifest<br/>POST /client/v4/accounts/:accountId/workers/dispatch/namespaces/:dispatchNamespace/scripts/:scriptName/assets-upload-session
+        User<<->>Workers API: Upload files<br/>POST /client/v4/accounts/:accountId/workers/assets/upload?base64=true
+        User<<->>Workers API: Upload script version<br/>PUT /client/v4/accounts/:accountId/workers/dispatch/namespaces/:dispatchNamespace/scripts/:scriptName
+    ```
+  </TabItem>
+</Tabs>
+
+자산 업로드 흐름은 세 가지 단계로 증류 될 수 있습니다:
+
+1. 본문내용 바로가기
+2. 자산의 업로드
+3. 작업자의 배포
+
+## 관련 기사
+
+자산은 우리가 우리의 노동자에서 사용하려는 파일의 추적을 유지하는 ledger입니다. 이 표는 각 작업자 버전과 관련된 자산을 추적하는 데 사용되며 새로운 업로드 이전에 변경되지 않은 파일을 업로드 할 필요가 없습니다.
+
+더 보기[연락처](/api/resources/workers/subresources/scripts/subresources/assets/subresources/upload/methods/create/)업로드하려는 각 파일을 설명합니다. 각 파일은 파일 경로와 이름을 나타내는 자체 키이며 파일에 대한 메타 데이터를 포함하는 객체입니다.
+
+`hash`파일의 32 hexadecimal 문자 해시를 나타냅니다.`size`파일의 크기 (바이트에서)입니다.
+
+<Tabs syncKey="workers-vs-platforms" IconComponent={Icon}>
+  <TabItem icon="workers" label="모델 번호: Workers">
+    ```bash
+    curl -X POST https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/scripts/{script_name}/assets-upload-session \
+    --header 'content-type: application/json' \
+    --header 'Authorization: Bearer <API_TOKEN>' \
+    --data '{
+      "manifest": {
+    		"/filea.html": {
+    			"hash": "08f1dfda4574284ab3c21666d1",
+    			"size": 12
+    		},
+    		"/fileb.html": {
+    			"hash": "4f1c1af44620d531446ceef93f",
+    			"size": 23
+    		},
+    		"/filec.html": {
+    			"hash": "54995e302614e0523757a04ec1",
+    			"size": 23
+    		}
+    	}
+    }'
+    ```
+  </TabItem>
+
+  <TabItem icon="cloudflare-for-platforms" label="플랫폼을위한 Workers">
+    ```bash
+    curl -X POST https://api.cloudflare.com/client/v4/accounts/{account_id}/workers/dispatch/namespaces/{dispatch_namespace}/scripts/{script_name}/assets-upload-session \
+    --header 'content-type: application/json' \
+    --header 'Authorization: Bearer <API_TOKEN>' \
+    --data '{
+      "manifest": {
+    		"/filea.html": {
+    			"hash": "08f1dfda4574284ab3c21666d1",
+    			"size": 12
+    		},
+    		"/fileb.html": {
+    			"hash": "4f1c1af44620d531446ceef93f",
+    			"size": 23
+    		},
+    		"/filec.html": {
+    			"hash": "54995e302614e0523757a04ec1",
+    			"size": 23
+    		}
+    	}
+    }'
+    ```
+  </TabItem>
+</Tabs>
+
+결과 응답은 파일 업로드 중 인증을 제공하는 JWT를 포함합니다. JWT는 1 시간 동안 유효합니다.
+
+JWT 이외에, 응답은 사용자가 파일을 최적의 배치 업로드하는 방법을 지시합니다. 이 지침은 인코딩됩니다.`buckets`이름 \* 각 배열에서`buckets`함께 업로드해야 할 파일 해시 목록이 포함되어 있습니다. 지정된 파일은 반환되지 않습니다.`buckets`필드 (그들은 이전 버전의 Worker에 업로드된 경우 재판매가 필요없습니다).
+
+```json
+{
+	"result": {
+		"jwt": "<UPLOAD_TOKEN>",
+		"buckets": [
+			["08f1dfda4574284ab3c21666d1", "4f1c1af44620d531446ceef93f"],
+			["54995e302614e0523757a04ec1"]
+		]
+	},
+	"success": true,
+	"errors": null,
+	"messages": null
+}
+```
+
+:::참조
+
+모든 자산이 이전에 업로드된 경우,`buckets`비어있고,`jwt`완료된 토큰을 포함합니다. 파일 업로드는 필요하지 않으며 직접 건너 뛸 수 있습니다.[새 스크립트 또는 버전 업로드](/workers/static-assets/direct-upload/#createdeploy-new-version).
+
+:::
+
+### 제한 사항
+
+- 제한은 계정 계획에 따라 다릅니다. 더 알아보기[계정 계획 제한](/workers/platform/limits/#account-plan-limits)정적 자산의 제한에 대한 자세한 내용은.
+
+## 정적 자산 업로드
+
+더 보기[파일 업로드 API](/api/resources/workers/subresources/assets/subresources/upload/methods/create/)파일이 업로드됨`multipart/form-data`. 각 파일의 내용은 base64 인코딩, 그리고`base64`URL의 쿼리 매개 변수는 설정해야합니다.`true`.
+
+이용 약관`Content-Type`각 파일 부분의 헤더는 결국 파일을 제공 할 때 첨부됩니다. 보내려면`Content-Type`header 에 당신의 배포,`application/null`업로드 시간에 보내질 수 있습니다.
+
+더 보기`Authorization`header는 aforementioned가 업로드 통화에서 JWT (업로드 토큰)를 사용하여 Bearer 토큰으로 제공해야합니다.
+
+표시된 모든 파일이 업로드되면, 201의 상태 코드가 반환됩니다.`jwt`현재 위치 이 JWT는 자산의 설정으로 노동자의 배포를 만들 수있는 최종 "completion" 토큰입니다. 이 완료 토큰은 1 시간 동안 유효합니다.
+
+## Create/Deploy 새로운 버전
+
+[스크립트](/api/resources/workers/subresources/scripts/methods/update/), [이름 \*](/api/resources/workers/subresources/scripts/subresources/versions/methods/create/)·[플랫폼 스크립트에 대한 Workers](/api/resources/workers_for_platforms/subresources/dispatch/subresources/namespaces/subresources/scripts/methods/update/)endpoints를 업로드하면 양식 데이터에 metadata 부분을 지정해야합니다. 여기에, 우리는 이전 (업로드 자산) 단계에서 완료 토큰을 제공 할 수 있습니다.
+
+```bash title="Example Worker Metadata Specifying Completion Token"
+{
+  "main_module": "main.js",
+  "assets": {
+    "jwt": "<completion_token>"
+  },
+  "compatibility_date": "2021-09-14"
+}
+```
+
+이미 자산을 가지고있는 노동자라면 기존 자산을 재사용하고 싶다면 완료 토큰을 다시 지정할 필요가 없습니다. 대신, 우리는 불린을 통과해서 좋습니다`keep_assets`옵션.
+
+```bash title="Example Worker Metadata Specifying keep_assets"
+{
+  "main_module": "main.js",
+  "keep_assets": true,
+  "compatibility_date": "2021-09-14"
+}
+```
+
+투자정보[routing 구성](/workers/wrangler/configuration/#assets)제공 할 수 있습니다`assets`물체 등`html_handling`·`not_found_handling`.
+
+```bash title="Example Worker Metadata Specifying Asset Configuration"
+{
+  "main_module": "main.js",
+  "assets": {
+    "jwt": "<completion_token>",
+    "config" {
+      "html_handling": "auto-trailing-slash"
+    }
+  },
+  "compatibility_date": "2021-09-14"
+}
+```
+
+선택적으로, 자산 바인딩은 당신이 당신의 노동자 부호 내의 fetch와 봉사 자산을 원하는 경우에 제공될 수 있습니다.
+
+```bash title="Example Worker Metadata Specifying Asset Binding"
+{
+  "main_module": "main.js",
+  "assets": {
+    ...
+  },
+  "bindings": [
+    ...
+    {
+      "name": "ASSETS",
+      "type": "assets"
+    }
+    ...
+  ]
+  "compatibility_date": "2021-09-14"
+}
+```
+
+## Programmatic 예제
+
+이 예제는[클라우드 플레어-typescript](https://github.com/cloudflare/cloudflare-typescript/blob/main/examples/workers/script-with-assets-upload.ts).
+
+<GitHubCode repo="cloudflare/cloudflare-typescript" file="examples/workers/script-with-assets-upload.ts" commit="cb55a45d615425f6aaf9ee8a237d2c5424bf30b7" lang="ts" useTypeScriptExample={true} />

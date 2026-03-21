@@ -1,0 +1,482 @@
+---
+reviewed: 2024-09-20T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: 프록시 노동자를 사용하여 D1에 액세스하는 API 구축
+products:
+  - workers
+tags:
+  - Hono
+  - TypeScript
+  - SQL
+description: >-
+  이 튜토리얼은 D1 데이터베이스에 대한 쿼리를 안전하게 실행 할 수있는 API를 만드는 방법을 보여줍니다. API는 접근 제한 및/또는 어떤
+  테이블이 정복될 수 있는 한계를 주문을 받아서 만들기 위하여 사용될 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/tutorials/build-an-api-to-access-d1/'
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/tutorials/build-an-api-to-access-d1/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Steps, Details, WranglerConfig } from "~/components";
+
+이 튜토리얼에서는 QXQX0855XQ 데이터베이스에 대해 쿼리를 안전하게 실행할 수 있는 API를 만드는 방법을 배울 수 있습니다.
+
+이것은 당신이 노동자 Pages 프로젝트의 외부 D1 데이타베이스에 접근하고 싶은 경우에 유용합니다, 어떤 테이블이 정복될 수 있는 접근 제한 및/또는 한계를 주문을 받아서 만드십시오.
+
+D1의 내장[REST API를](/api/resources/d1/subresources/database/methods/create/)글로벌로의 관리에 가장 적합[Cloudflare API 속도 제한](/fundamentals/api/reference/limits)적용분야
+
+노동자 프로젝트의 외부 D1 데이터베이스에 액세스하려면 노동자를 사용하여 API를 만들 필요가 있습니다. 귀하의 응용 프로그램은 D1 쿼리를 실행하기 위해이 API와 안전하게 상호 작용할 수 있습니다.
+
+:::참조
+
+D1는 모수화된 쿼리를 사용합니다. 이것은 SQL 주입을 방지합니다. API를 더 안전하게 만들기 위해 라이브러리를 사용하여 입력을 검증[사이트맵](https://zod.dev/).
+
+:::
+
+## 자주 묻는 질문
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+2. 설치하기[`Node.js`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
+3. 기존 D1 데이터베이스가 있습니다. 더 알아보기[D1에 대한 튜토리얼 시작](/d1/get-started/).
+
+<Details header="Node.js 버전 관리자">
+  Node 버전 관리자를 사용하여[볼트](https://volta.sh/)또는
+  [사이트맵](https://github.com/nvm-sh/nvm)권한 문제 및 변경 방지
+  Node.js 버전.[모델 번호: Wrangler](/workers/wrangler/install-and-update/), 토론
+  이 가이드에서 나중에 Node 버전이 필요합니다.`16.17.0`또는 나중에.
+</Details>
+
+## 1. 새 프로젝트 만들기
+
+새로운 Worker를 만들고 API를 배포합니다.
+
+<Steps>
+  1. 이름 찾기`d1-http`으로 실행:
+
+     <PackageManagers type="create" pkg="cloudflare@latest" args={"d1-http"} />
+
+     <Render
+       file="c3-post-run-steps"
+       product="workers"
+       params={{
+        category: "hello-world",
+        type: "Worker only",
+        lang: "TypeScript",
+        }}
+     />
+
+  2. 새로운 프로젝트 디렉토리로 변경하여 개발 시작:
+
+     ```sh frame="none"
+     cd d1-http
+     ```
+</Steps>
+
+## 2. Hono 설치
+
+이 튜토리얼에서, 당신은 사용할 것이다[호노](https://github.com/honojs/hono), Express.js-style 프레임 워크, API를 구축.
+
+<Steps>
+  1. 이 프로젝트에서 Hono를 사용하려면, 그것을 사용하여 설치`npm`:
+
+     <PackageManagers type="add" pkg="hono" frame="none" />
+</Steps>
+
+## 3. API KEY 추가
+
+API로 인증된 통화를 만들려면 API 키가 필요합니다. API 키가 안전하다는 것을 보장하기 위해, 추가하십시오[이름 \*](/workers/configuration/secrets).
+
+<Steps>
+  1. 현지 개발의 경우,`.dev.vars`파일의 루트 디렉토리의`d1-http`.
+  2. 다음과 같이 파일에서 API 키를 추가하십시오.
+
+     ```bash title=".dev.vars"
+     API_KEY="YOUR_API_KEY"
+     ```
+
+     기타 제품`YOUR_API_KEY`유효한 문자열 값으로. 다음 명령을 사용하여 이 값을 생성할 수 있습니다.
+
+     ```sh
+     openssl rand -base64 32
+     ```
+</Steps>
+
+:::참조
+이 단계에서 API 키의 이름을 정의했습니다.`API_KEY`.
+:::
+
+## 4. 신청 초기화
+
+응용 프로그램을 초기화하려면 필요한 패키지를 가져올 필요가 있으며 새로운 Hono 응용 프로그램을 초기화하고 다음 Midware를 구성해야합니다.
+
+- [곰 Auth](https://hono.dev/docs/middleware/builtin/bearer-auth): API에 인증 추가.
+- [로그인](https://hono.dev/docs/middleware/builtin/logger): 요청 및 응답의 흐름을 모니터링 할 수 있습니다.
+- [예쁜 JSON](https://hono.dev/docs/middleware/builtin/pretty-json): JSON 응답체의 "JSON 예쁜 인쇄"를 활성화합니다.
+
+<Steps>
+  1. 본문 바로가기`src/index.ts`아래 코드로 파일.
+
+     ```ts title="src/index.ts"
+     import { Hono } from "hono";
+     import { bearerAuth } from "hono/bearer-auth";
+     import { logger } from "hono/logger";
+     import { prettyJSON } from "hono/pretty-json";
+
+     type Bindings = {
+     	API_KEY: string;
+     };
+
+     const app = new Hono<{ Bindings: Bindings }>();
+
+     app.use("*", prettyJSON(), logger(), async (c, next) => {
+     	const auth = bearerAuth({ token: c.env.API_KEY });
+     	return auth(c, next);
+     });
+     ```
+</Steps>
+
+## 5. API 엔드포인트 추가
+
+<Steps>
+  1. 다음의 스니펫을 추가하십시오.`src/index.ts`.
+
+     ```ts title="src/index.ts"
+
+     //src/index.ts 파일의 끝에 이 코드를 붙여넣기
+
+     app.post("/api/all", async (c) => {
+     	return c.text("/api/all endpoint");
+     });
+
+     app.post("/api/exec", async (c) => {
+     	return c.text("/api/exec endpoint");
+     });
+
+     app.post("/api/batch", async (c) => {
+     	return c.text("/api/batch endpoint");
+     });
+
+     export default app;
+     ```
+
+     다음 엔드포인트를 추가합니다:
+
+     - 사이트맵`/api/all`
+     - 사이트맵`/api/exec`
+     - 사이트맵`/api/batch`
+
+  2. 다음 명령을 실행하여 개발 서버를 시작:
+
+     <PackageManagers type="run" args={"dev"} frame="none" />
+
+  3. API를 로컬로 테스트하려면 두 번째 터미널을 엽니다.
+
+  4. 두 번째 터미널에서 cURL 명령을 실행합니다. 기타 제품`YOUR_API_KEY`설정된 값으로`.dev.vars`파일.
+
+     ```sh frame="none"
+     curl -H "Authorization: Bearer YOUR_API_KEY" "http://localhost:8787/api/all" --data '{}'
+     ```
+
+     당신은 뒤에 오는 산출을 얻어야 합니다:
+
+     ```txt
+     /api/all endpoint
+     ```
+
+  5. 눌러서 로컬 서버를 중지`x`첫번째 맨끝에서.
+</Steps>
+
+Hono 응용 프로그램은 이제 설정. 다른 엔드포인트를 테스트하고 필요한 경우 더 많은 엔드포인트를 추가 할 수 있습니다. API는 아직 데이터베이스에서 정보를 반환하지 않습니다. 다음 단계에서 데이터베이스를 만들고 바인딩을 추가하고 데이터베이스와 상호 작용하는 엔드포인트를 업데이트합니다.
+
+## 6. 데이터베이스 만들기
+
+이미 D1 데이터베이스가없는 경우 새로운 데이터베이스를 만들 수 있습니다.`wrangler d1 create`.
+
+<Steps>
+  1. 터미널에서 실행:
+
+     ```sh frame="none"
+     npx wrangler d1 create d1-http-example
+     ```
+
+     Cloudflare 계정에 로그인 할 수 있습니다. 로그인하면 명령은 새로운 D1 데이터베이스를 만들 것입니다. 당신은 당신의 맨끝에 있는 유사한 산출을 보아야 합니다.
+
+     ```sh output
+     ✅ Successfully created DB 'd1-http-example' in region EEUR
+     Created your new D1 database.
+
+     [[d1_databases]]
+     binding = "DB" #env.DB에서 작업자에서 사용할 수 있습니다.
+     database_name = "d1-http-example"
+     database_id = "1234567890"
+     ```
+</Steps>
+
+표시된 주의사항`database_name`·`database_id`. 참고 자료 데이터베이스를 사용하여 이것을 사용할 것입니다.[관련 제품](/workers/runtime-apis/bindings/).
+
+## 7. 바인딩을 추가하십시오
+
+<Steps>
+  1. 내 계정`d1-http`폴더는 Wrangler 파일, Wrangler의 구성 파일을 엽니다.
+
+  2. 파일에 다음 바인딩을 추가합니다. 확인하기`database_name`그리고`database_id`견적 요청
+
+     <WranglerConfig>
+       ```jsonc
+       {
+         "d1_databases": [
+           {
+             "binding": "DB", //env.DB에서 작업자에서 사용할 수 있습니다.
+             "database_name": "d1-http-example",
+             "database_id": "1234567890"
+           }
+         ]
+       }
+       ```
+     </WranglerConfig>
+
+  3. 내 계정`src/index.ts`파일, 업데이트`Bindings`유형 추가`DB: D1Database`.
+
+     ```ts ins={2}
+     type Bindings = {
+     	DB: D1Database;
+     	API_KEY: string;
+     };
+     ```
+</Steps>
+
+이제 Hono 응용 프로그램에 데이터베이스에 액세스 할 수 있습니다.
+
+## 8. 테이블 만들기
+
+새로 만든 데이터베이스에서 테이블을 만들려면:
+
+<Steps>
+  1. 새 폴더 만들기`schemas`내 계정`d1-http`폴더.
+
+  2. 새 파일 만들기`schema.sql`, 다음 SQL 문 파일을 붙여 넣기.
+
+     ```sql title="schema.sql"
+     DROP TABLE IF EXISTS posts;
+     CREATE TABLE IF NOT EXISTS posts (
+     	id integer PRIMARY KEY AUTOINCREMENT,
+     	author text NOT NULL,
+     	title text NOT NULL,
+     	body text NOT NULL,
+     	post_slug text NOT NULL
+     );
+     INSERT INTO posts (author, title, body, post_slug) VALUES ('Harshil', 'D1 HTTP API', 'Learn to create an API to query your D1 database.','d1-http-api');
+     ```
+
+     코드 삭제 어떤 테이블 이름`posts`그것이 존재하면 새로운 테이블을 만듭니다.`posts`본문 바로가기`id`, `author`, `title`, `body`·`post_slug`. 그런 다음 INSERT 진술을 사용하여 테이블을 팝업합니다.
+
+  3. 터미널에서 다음 명령을 실행하여이 테이블을 만듭니다.
+
+     ```sh frame="none"
+     npx wrangler d1 execute d1-http-example --file=./schemas/schema.sql
+     ```
+</Steps>
+
+성공적인 실행에 새로운 테이블은 데이터베이스에 추가됩니다.
+
+:::참조
+
+테이블은 데이터베이스의 로컬 인스턴스에서 생성됩니다. 이 테이블을 생산 데이터베이스 설정에 추가하려면`"remote" : true`D1 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보.
+
+:::
+
+## 9. Query 데이터베이스
+
+응용 프로그램은 이제 D1 데이터베이스에 액세스 할 수 있습니다. 이 단계에서 데이터베이스를 쿼리하고 결과를 반환하는 API 엔드포인트를 업데이트합니다.
+
+<Steps>
+  1. 내 계정`src/index.ts`파일, 다음과 같이 코드를 업데이트합니다.
+
+     ```ts title="src/index.ts" ins={10-21,31-37,47-62} del={9,30,46}
+     //API 경로 업데이트
+
+     /** 이름
+     * `stmt.run()` 방법을 실행합니다.
+     * https://developers.cloudflare.com/d1/worker-api/prepared-statements/#run*/
+
+     app.post('/api/all', async (c) => {
+     		return c.text("/api/all endpoint");
+     	try {
+     		let { query, params } = await c.req.json();
+     		let stmt = c.env.DB.prepare(query);
+     		if (params) {
+     			stmt = stmt.bind(params);
+     		}
+
+     		const result = await stmt.run();
+     		return c.json(result);
+     	} catch (err) {
+     		return c.json({ error: `Failed to run query: ${err}` }, 500);
+     	}
+     });
+
+     /** 이름
+     * `db.exec()` 메소드를 실행합니다.
+     * https://developers.cloudflare.com/d1/worker-api/d1-database/#exec*/
+
+     app.post('/api/exec', async (c) => {
+     		return c.text("/api/exec endpoint");
+     	try {
+     		let { query } = await c.req.json();
+     		let result = await c.env.DB.exec(query);
+     		return c.json(result);
+     	} catch (err) {
+     		return c.json({ error: `Failed to run query: ${err}` }, 500);
+     	}
+     });
+
+     /** 이름
+     * `db.batch()` 방법을 실행합니다.
+     * https://developers.cloudflare.com/d1/worker-api/d1-database/#batch*/
+
+     app.post('/api/batch', async (c) => {
+     		return c.text("/api/batch endpoint");
+     	try {
+     		let { batch } = await c.req.json();
+     		let stmts = [];
+     		for (let query of batch) {
+     			let stmt = c.env.DB.prepare(query.query);
+     			if (query.params) {
+     				stmts.push(stmt.bind(query.params));
+     			} else {
+     				stmts.push(stmt);
+     			}
+     		}
+     		const results = await c.env.DB.batch(stmts);
+     		return c.json(results);
+     	} catch (err) {
+     		return c.json({ error: `Failed to run query: ${err}` }, 500);
+     	}
+     });
+     ...
+     ```
+</Steps>
+
+위의 코드에서, 엔드포인트는 수신을 업데이트`query`·`params`. 이 쿼리 및 매개 변수는 데이터베이스와 상호 작용하는 각 함수에 전달됩니다.
+
+- 쿼리가 성공하면 데이터베이스에서 결과를받습니다.
+- 오류가 있으면 오류 메시지가 반환됩니다.
+
+## 10. API 테스트
+
+이제 API는 데이터베이스를 쿼리 할 수 있으므로 로컬로 테스트 할 수 있습니다.
+
+<Steps>
+  1. 다음 명령을 실행하여 개발 서버를 시작:
+
+     <PackageManagers type="run" args={"dev"} frame="none" />
+
+  2. 새 터미널 창에서 다음의 cURL 명령을 실행합니다. 자주 묻는 질문`YOUR_API_KEY`정확한 값으로.
+
+     ```sh title="/api/all"
+     curl -H "Authorization: Bearer YOUR_API_KEY" "http://localhost:8787/api/all" --data '{"query": "SELECT title FROM posts WHERE id=?", "params":1}'
+     ```
+
+     ```sh title="/api/batch"
+     curl -H "Authorization: Bearer YOUR_API_KEY" "http://localhost:8787/api/batch" --data '{"batch": [ {"query": "SELECT title FROM posts WHERE id=?", "params":1},{"query": "SELECT id FROM posts"}]}'
+     ```
+
+     ```sh title="/api/exec"
+     curl -H "Authorization: Bearer YOUR_API_KEY" "localhost:8787/api/exec" --data '{"query": "INSERT INTO posts (author, title, body, post_slug) VALUES ('\''Harshil'\'', '\''D1 HTTP API'\'', '\''Learn to create an API to query your D1 database.'\'','\''d1-http-api'\'')" }'
+     ```
+</Steps>
+
+모든 것이 올바르게 구현되면 위의 명령은 성공적인 출력을 수행해야합니다.
+
+## 11. API 배포
+
+이제 모든 것은 예상대로 작동하며 마지막 단계는 Cloudflare 네트워크에 배포됩니다. Wrangler를 사용하여 API를 배포합니다.
+
+<Steps>
+  1. 로컬로 사용하는 대신 생산에서 API를 사용하려면 원격 (생산) 데이터베이스에 테이블을 추가해야합니다. 생산 데이터베이스에 테이블을 추가하려면 다음 명령을 실행하십시오.
+
+     ```sh frame="none"
+     npx wrangler d1 execute d1-http-example --file=./schemas/schema.sql --remote
+     ```
+
+     테이블을 볼 수 있어야[Cloudflare 대시보드 >**스토리지 및 데이터베이스** > **모델 번호: D1**.](https://dash.cloudflare.com/?to=/:account/workers/d1/)
+
+  2. Cloudflare 네트워크에 응용 프로그램을 배포하려면 다음 명령을 실행하십시오.
+
+     ```sh frame="none"
+     npx wrangler deploy
+     ```
+
+     ```sh output
+      ⛅️ wrangler 3.78.4 (update available 3.78.5)
+     -------------------------------------------------------
+
+     Total Upload: 53.00 KiB / gzip: 13.16 KiB
+     Your worker has access to the following bindings:
+     - D1 Databases:
+       - DB: d1-http-example (DATABASE_ID)
+     Uploaded d1-http (4.29 sec)
+     Deployed d1-http triggers (5.57 sec)
+       [DEPLOYED_APP_LINK]
+     Current Version ID: [BINDING_ID]
+     ```
+
+     성공적인 배포에, 당신은 터미널에서 배포 응용 프로그램의 링크를 얻을 것이다 (`DEPLOYED_APP_LINK`). 주의하십시오.
+
+  3. 생산에서 사용하기 위해 새로운 API 키 생성.
+
+     ```sh
+     openssl rand -base64 32
+     ```
+
+     ```sh output
+     [YOUR_API_KEY]
+     ```
+
+  4. 실행하기`wrangler secret put`배포 된 프로젝트에 API를 추가하려면 명령.
+
+     ```sh frame="none"
+     npx wrangler secret put API_KEY
+     ```
+
+     ```sh output
+     ✔ Enter a secret value:
+     ```
+
+     터미널은 비밀 값을 입력합니다.
+
+  5. API 키의 값을 입력하십시오 (`YOUR_API_KEY`). API 키가 이제 프로젝트에 추가됩니다. 이 값을 사용하여 배포된 API에 안전한 API 호출을 만들 수 있습니다.
+
+     ```sh
+     ✔ Enter a secret value: [YOUR_API_KEY]
+     ```
+
+     ```sh output
+     🌀 Creating the secret for the Worker "d1-http"
+     ✨ Success! Uploaded secret API_KEY
+     ```
+
+  6. 그것을 테스트하려면 올바른 다음 cURL 명령을 실행하십시오.`YOUR_API_KEY`·`DEPLOYED_APP_LINK`.
+
+     - 사용 방법`YOUR_API_KEY`당신은 secret API 열쇠로 생성했습니다.
+     - 당신은 또한 찾을 수 있습니다`DEPLOYED_APP_LINK`Cloudflare 대시보드에서 >**Workers & Pages** > **`d1-http`** > **계정 설정** > **도메인 및 경로**.
+
+     ```sh frame="none"
+     curl -H "Authorization: Bearer YOUR_API_KEY" "https://DEPLOYED_APP_LINK/api/exec" --data '{"query": "SELECT 1"}'
+     ```
+</Steps>
+
+## 제품정보
+
+이 튜토리얼에서:
+
+1. D1 데이터베이스와 상호 작용하는 API를 만들었습니다.
+2. 이 API를 WorkersXQ에 배포합니다. D1 데이터베이스에 대한 쿼리를 실행하려면 외부 애플리케이션에서이 API를 사용할 수 있습니다. 이 튜토리얼의 전체 코드를 찾을 수 있습니다[프로젝트](https://github.com/harshil1712/d1-http-example/tree/main).
+
+## 다음 단계
+
+Zod를 사용하는 유사한 구현을 확인할 수 있습니다.[GitHub 저장소](https://github.com/elithrar/http-api-d1-example). 당신이 당신의 D1 데이타베이스를 위한 OpenAPI 고분고분한 API를 건설하고 싶은 경우에, 당신은 사용해야 합니다[Cloudflare Workers OpenAPI 3.1 템플릿](https://github.com/cloudflare/workers-sdk/tree/main/templates/worker-openapi).

@@ -1,0 +1,93 @@
+---
+title: 터미널 연결
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/concepts/terminal/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/concepts/terminal/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+터미널 연결은 브라우저 기반 UI가 샌드박스 쉘과 직접 상호 작용합니다. discrete 명령어 대신`exec()`, 맨끝 연결은 bash 포탄에 지속, 양방향 수로를 엽니다 — SSH 또는 국부적으로 맨끝 에뮬레이터로 동일한 모형.
+
+## 터미널 연결 작업 방법
+
+터미널 연결 사용 WebSockets 브라우저 터미널 사이의 원시 바이트를 스트리밍 (like)[프로젝트](https://xtermjs.org/)) 모래 상자 콘테이너 안쪽에 실행하는 가짜 맨끝 (PTY) 과정.
+
+```txt
+Browser (xterm.js) <-- WebSocket --> Worker <-- proxy --> Container PTY (bash)
+```
+
+1. 브라우저는 Worker에 WebSocket 업그레이드 요청을 보냅니다.
+2. 당신의 노동자 호출`sandbox.terminal(request)`, 컨테이너로 업그레이드 프록시
+3. 컨테이너는 PTY에 붙어있는 bash 포탄을 붙입니다
+4. Raw bytes flow bidirectionally — keystrokes in, 터미널 출력
+
+이것은 기본적으로 다릅니다.`exec()`:
+
+- **`exec()`**&#xB2E8;일 명령을 실행하여 결과를 반환합니다.
+- **`terminal()`**&#xC0AC;용자 유형 명령이 상호 작용적으로 실행되는 persistent Shell을 엽니다.
+
+## 출력 버퍼링
+
+컨테이너 버퍼는 링 버퍼에서 출력합니다. 클라이언트가 연결하고 재연결할 때, 서버는 버퍼 출력을 재생합니다 그래서 터미널은 변경되지 않습니다. 이 수단:
+
+- 짧은 네트워크 중단은 사용자가 보이지 않는
+- Reconnected 터미널은 이전 출력을 re-running 명령 없이 표시합니다.
+- 완충기에는 조정 크기가 있습니다, 그래서 아주 오래된 산출은 잃을지도 모릅니다
+
+클라이언트 측 코드가 버퍼링을 처리 할 필요가 없습니다 - 컨테이너는 투명하게 관리합니다.
+
+## 자동 reconnection
+
+네트워크 중단은 브라우저 기반 애플리케이션에서 일반적입니다. 터미널 연결은 서버 측 버퍼링의 조합을 통해이 핸들링(위에 서명) 및 exponential backoff와 클라이언트 측 연결.
+
+더 보기`SandboxAddon`xterm.js가 자동으로 실행됩니다. 사용자 지정 클라이언트를 구축 하는 경우, 당신은 자신의 재연결 논리에 대 한 책임 – 서버 측 버퍼 작업에 상관없이 클라이언트 연결. 더 알아보기[웹소켓 프로토콜 reference](/sandbox/api/terminal/#websocket-protocol)연결 수명주기에 대한 자세한 내용은.
+
+## 세션 고립
+
+각 각[이름 \*](/sandbox/concepts/sessions/)독립적인 포탄 국가를 가진 그것의 자신의 맨끝이 있을 수 있습니다:
+
+```typescript
+const devSession = await sandbox.createSession({
+	id: "dev",
+	cwd: "/workspace/frontend",
+	env: { NODE_ENV: "development" },
+});
+
+const testSession = await sandbox.createSession({
+	id: "test",
+	cwd: "/workspace",
+	env: { NODE_ENV: "test" },
+});
+
+//각 세션의 터미널에는 자체 작업 디렉토리가 있습니다.
+//환경 변수 및 명령 기록
+```
+
+다중 브라우저 클라이언트는 동일한 세션의 터미널에 동시에 연결할 수 있습니다 - 그들은 모두 동일한 쉘 출력을보고 모든 입력을 보낼 수 있습니다. 협력 터미널 사용 사례를 활성화합니다.
+
+## WebSocket 프로토콜
+
+터미널 연결은 터미널 I/O (공연용) 및 JSON 텍스트 프레임을 위한 바이너리 WebSocket 프레임을 사용하여 제어 및 상태 메시지 (구조용). 이 데이터 경로가 빠르게 유지하면서도 터미널 재조합과 같은 작업을 위해 구조화 된 통신을 허용.
+
+연결 수명주기 및 메시지 형식을 포함한 전체 프로토콜 사양을 위해, 참조[끝 API reference](/sandbox/api/terminal/#websocket-protocol).
+
+## 터미널 대 명령을 사용할 때
+
+| 사용 사례                        | 계정 관리                                    |
+| ---------------------------- | ---------------------------------------- |
+| 명령을 실행하고 결과를 얻을              | `exec()`또는`execStream()`                 |
+| 최종 사용자를 위한 Interactive shell | `terminal()`                             |
+| 실시간 출력을 가진 긴 실행 과정           | `startProcess()` + `streamProcessLogs()` |
+| Collaborative 터미널 공유         | `terminal()`공유 세션                        |
+
+## 관련 자료
+
+- [끝 API reference](/sandbox/api/terminal/)— 방법 서명 및 유형
+- [브라우저 터미널](/sandbox/guides/browser-terminals/)- Step-by-step 설정 가이드
+- [세션 관리](/sandbox/concepts/sessions/)— 세션 작업 방법
+- [회사연혁](/sandbox/concepts/architecture/)— 전체 SDK 디자인

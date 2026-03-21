@@ -1,0 +1,120 @@
+---
+pcx_content_type: reference
+title: 사용자 정의 경로의 Serve 이미지
+sidebar:
+  order: 8
+head:
+  - tag: title
+    content: 사용자 정의 경로의 Serve 이미지
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/transform-images/serve-images-custom-paths/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/transform-images/serve-images-custom-paths/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+이미지를 통해 변환하는 모든 이미지의 URL을 다시 작성하는 Transform 규칙을 사용할 수 있습니다.
+
+이 페이지는 다음과 같은 시나리오의 예입니다:
+
+- 사용자 정의 경로의 Serve 이미지
+- 이미지의 변화와 호환되는 기존 URL을 수정
+- 이미지와 영역에서 요청된 모든 이미지를 변환
+
+규칙을 만들려면:
+
+1. Cloudflare 대시보드에서, 가십시오**규칙 개요**사이트 맵
+
+   <DashButton url="/?to=/:account/:zone/rules/overview" />
+
+2. 제품정보**규칙 만들기**이름 \***URL Rewrite 규칙**.
+
+## 시작하기 전에
+
+모든 규칙은 전후 및 변환 요청 후 실행됩니다.
+
+요청 경로가 서버에 저장되는 경로에 일치하면, 이것은 원래의 이미지를 반복하기 위해 요청을 가져올 수 있습니다.
+
+Origin 서버에 요청을 지시하려면 문자열을 확인할 수 있습니다.`image-resizing`내 계정`Via`머리:
+
+`...and (not (any(http.request.headers["via"][*] contains "image-resizing")))`
+
+## 사용자 정의 경로의 Serve 이미지
+
+기본적으로 Images를 통해 이미지를 변환하는 요청은`/cdn-cgi/image/`경로.
+URL을 다시 작성하려면 Transform 규칙을 사용할 수 있습니다.
+
+### 기본 버전
+
+무료 및 Pro 계획은 정규 표현식을 필요로하지 않는 문자열 일치하는 규칙 ( 와일드 카드 작업 포함)을 지원합니다.
+
+이 예제에서 요청을 다시 쓰기`example.com/images`으로`example.com/cdn-cgi/image/`:
+
+```txt title="Text in Expression Editor"
+(starts_with(http.request.uri.path, "/images")) and (not (any(http.request.headers["via"][*] contains "image-resizing")))
+```
+
+```txt title="Text in Path > Rewrite to > Dynamic"
+concat("/cdn-cgi/image", substring(http.request.uri.path, 7))
+```
+
+### 고급 버전
+
+:::참조
+이 기능은 Transform 규칙에서 regex를 활성화하는 비즈니스 또는 기업 계획이 필요합니다. 더 알아보기[Cloudflare Transform 규칙 가용성](/rules/transform/#availability)더 많은 정보.
+주요 특징
+
+정규 표현식을 지원하는 Transform Rules의 고급 버전이 있습니다.
+
+이 예제에서 요청을 다시 쓰기`example.com/images`으로`example.com/cdn-cgi/image/`:
+
+```txt title="Text in Expression Editor"
+(http.request.uri.path matches "^/images/.*$") and (not (any(http.request.headers["via"][*] contains "image-resizing")))
+```
+
+```txt title="Text in Path > Rewrite to > Dynamic"
+regex_replace(http.request.uri.path, "^/images/", "/cdn-cgi/image/")
+```
+
+## 이미지의 변화와 호환되는 기존 URL을 수정
+
+:::참조
+이 기능은 Transform 규칙에서 regex를 활성화하는 비즈니스 또는 기업 계획이 필요합니다. 더 알아보기[Cloudflare Transform 규칙 가용성](/rules/transform/#availability)더 많은 정보.
+주요 특징
+
+이 예제는 이미지와 호환되는 URL 매개 변수를 다시 작성할 수 있습니다.
+
+```txt
+(http.request.uri matches "^/(.*)\\?width=([0-9]+)&height=([0-9]+)$")
+```
+
+```txt title="Text in Path > Rewrite to > Dynamic"
+regex_replace(
+  http.request.uri,
+  "^/(.*)\\?width=([0-9]+)&height=([0-9]+)$",
+  "/cdn-cgi/image/width=${2},height=${3}/${1}"
+)
+```
+
+자주 묻는 질문**글쓰기** > **자주 묻는 질문** > *제품 정보*빈 필드.
+
+## 이미지를 통해 영역에 요청된 모든 이미지를 전달합니다.
+
+:::참조
+이 기능은 Transform 규칙에서 정규 표현식을 가능하게 하는 사업 또는 기업 계획이 필요합니다. 더 알아보기[Cloudflare Transform 규칙 가용성](/rules/transform/#availability)더 많은 정보.
+주요 특징
+
+이 예제는 영역에서 요청한 모든 이미지를 변환합니다.`format=auto`옵션 :
+
+```txt
+(http.request.uri.path.extension matches "(jpg)|(jpeg)|(png)|(gif)") and (not (any(http.request.headers["via"][*] contains "image-resizing")))
+```
+
+```txt title="Text in Path > Rewrite to > Dynamic"
+regex_replace(http.request.uri.path, "/(.*)", "/cdn-cgi/image/format=auto/${1}")
+```

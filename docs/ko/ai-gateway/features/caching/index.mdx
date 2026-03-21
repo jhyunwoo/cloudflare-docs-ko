@@ -1,0 +1,159 @@
+---
+pcx_content_type: configuration
+title: 뚱 베어
+sidebar:
+  order: 2
+head: []
+description: 오버라이드 캐싱 설정은 per-request 기초입니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/features/caching/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/features/caching/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+AI Gateway는 AI 모델 제공 업체에서 응답을 캐시 할 수 있으며 Cloudflare의 캐시에서 동일한 요청을 제공합니다.
+
+## Caching 사용의 이점
+
+- **감소된 대기권:**&#xC751;답은 반복된 요청을 위한 원래 AI 공급자에게 왕복을 피해서 사용자에게 빠른 응답.
+- **비용 절감:**&#x41;I 공급자로 만든 유료 요청의 수를 최소화, 특히 자주 액세스 또는 비 동적 콘텐츠.
+- **증가된 처리량:**&#xB2F9;신의 AI 공급자에게서 offload 반복적인 요구는, 더 효율적으로 유일한 요구를 취급할 것을 허용하.
+
+:::참조
+
+현재 캐싱은 텍스트 및 이미지 응답에만 지원되며 동일한 요청에만 적용됩니다.
+
+이 구성의 이점은 제한된 신속한 선택권을 가진 케이스를 이용합니다. 예를 들어, "How can I help you?"라고 묻은 지원 봇은 사용자가 현재 캐싱 구성과 잘 작동되는 제한된 세트에서 대답을 선택합니다.
+우리는 미래의 캐싱에 대한 semantic 검색을 추가하여 캐시 히트율을 향상시킵니다.
+주요 특징
+
+## 기본 설정
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    대시보드XQ의 기본 캐싱 구성을 설정하려면:
+
+    1. 로그인[Cloudflare 대시보드](https://dash.cloudflare.com/)계정 선택
+    2. 제품정보**사이트맵** > **AI 게이트웨이**.
+    3. 제품정보**계정 설정**.
+    4. 이름 \***캐시 응답**.
+    5. 당신이 선호하는 값에 기본 캐싱을 변경합니다.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    API를 사용하여 기본 캐싱 구성을 설정하려면:
+
+    1. [API 토큰 만들기](/fundamentals/api/get-started/create-token/)다음과 같은 권한을 가진:
+
+    - `AI Gateway - Read`
+    - `AI Gateway - Edit`
+
+    2. 내 계정[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+    3. API 토큰 및 계정 ID를 사용하여 전송[`POST`이름 \*](/api/resources/ai_gateway/methods/create/)새로운 게이트웨이를 만들고 가치를 더합니다.`cache_ttl`.
+  </TabItem>
+</Tabs>
+
+이 캐싱 행동은 캐싱을 지원하는 모든 요청에 균일하게 적용됩니다. 특정 요청에 대한 캐시 설정을 수정할 필요가 있다면, 이 설정을 per-request 기초로 배제할 수 있습니다.
+
+응답이 캐시에서 나지 않는지 확인하려면**cf-aig-cache 통계**지정 가능`HIT`또는`MISS`.
+
+## Per-request 캐싱
+
+게이트웨이의 기본 캐시 설정은 좋은 기본 설정이지만, 더 많은 과립 제어가 필요할 수 있습니다. 이러한 상황에서는 데이터 신선도, 다양한 수명, 또는 동적 또는 개인화 된 응답으로 콘텐츠를 포함 할 수 있습니다.
+
+이러한 요구를 충족시키기 위해 AI Gateway는 특정 HTTP 헤더를 사용하여 per-request 기반에 기본 캐시 동작을 무시할 수 있습니다. 이것은 개별 API 호출에 대한 캐싱을 최적화하는 정밀도를 제공합니다.
+
+다음 헤더를 사용하면이 per-request 캐시 동작을 정의 할 수 있습니다.
+
+:::참조
+
+뒤에 오는 우두머리는 새로운 이름에 새롭게 했습니다, 오래된 우두머리가 아직도 기능 이더라도. 미래 호환성을 보장하기 위해 새로운 헤더에 업데이트하는 것이 좋습니다.
+
+`cf-cache-ttl`현재 위치`cf-aig-cache-ttl`
+
+`cf-skip-cache`현재 위치`cf-aig-skip-cache`
+
+:::
+
+### 캐시를 건너 (cf-aig-skip-cache)
+
+Skip cache는 캐시를 우회하고 캐시된 복사본을 사용하지 않고 원래 공급자로부터 직접 요청을 태칭합니다.
+
+헤더를 사용할 수 있습니다.**cf-aig-skip 캐시**요청의 캐시 된 버전을 우회합니다.
+
+예를 들어, OpenAI에 요청을 제출할 때 다음 방식으로 헤더를 포함합니다:
+
+```bash title="Request skipping the cache"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header "Authorization: Bearer $TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-skip-cache: true' \
+  --data ' {
+   		 "model": "gpt-4o-mini",
+   		 "messages": [
+   			 {
+   				 "role": "user",
+   				 "content": "how to build a wooden spoon in 3 short steps? give as short as answer as possible"
+   			 }
+   		 ]
+   	 }
+'
+```
+
+### 캐시 TTL (cf-aig-cache-ttl)
+
+Cache TTL 또는 Time To Live는 만료되기 전에 캐시 된 요청이 유효하며 원본 소스에서 새로 고침됩니다. 사용 가능**cf-aig-cache-ttl의**몇 초에 원하는 캐싱 지속 시간을 설정합니다. 최소 TTL은 60 초이며 최대 TTL은 한 달입니다.
+
+예를 들어, 1 시간의 TTL을 설정하면 요청이 1 시간 동안 캐시에 보관된다는 것을 의미합니다. 그 시간 안에 동일한 요청은 원래 API 대신 캐시에서 제공됩니다. 시간이 지나면 캐시가 만료되고 요청은 신선한 응답을 위해 원래 API로 이동하며 그 응답은 다음 시간 동안 캐시를 다시 시작합니다.
+
+예를 들어, OpenAI에 요청을 제출할 때 다음 방식으로 헤더를 포함합니다:
+
+```bash title="Request to be cached for an hour"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header "Authorization: Bearer $TOKEN" \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-cache-ttl: 3600' \
+  --data ' {
+   		 "model": "gpt-4o-mini",
+   		 "messages": [
+   			 {
+   				 "role": "user",
+   				 "content": "how to build a wooden spoon in 3 short steps? give as short as answer as possible"
+   			 }
+   		 ]
+   	 }
+'
+```
+
+### 사용자 정의 캐시 키 (cf-aig-cache-key)
+
+사용자 정의 캐시 키는 기본 캐시 키를 정밀하게 설정할 수 있도록 해줍니다. 기본 캐시 키를 무시하려면 헤더를 사용할 수 있습니다.**cf-aig-cache 키**.
+
+당신이 사용할 때**cf-aig-cache 키**처음에 대한 헤더, 당신은 공급자의 응답을 받게됩니다. 동일한 헤더와 동일한 요청은 캐시된 응답을 반환합니다. 만약에**cf-aig-cache-ttl의**헤더는 사용되며, 응답은 지정된 캐시 시간에 따라 캐시됩니다. 그렇지 않으면 응답은 대시보드의 캐시 설정에 따라 캐시됩니다. 캐싱이 게이트웨이를 활성화하지 않으면 응답은 기본적으로 5 분 동안 캐시됩니다.
+
+예를 들어, OpenAI에 요청을 제출할 때 다음 방식으로 헤더를 포함합니다:
+
+```bash title="Request with custom cache key"
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header 'Authorization: Bearer {openai_token}' \
+  --header 'Content-Type: application/json' \
+  --header 'cf-aig-cache-key: responseA' \
+  --data ' {
+   		 "model": "gpt-4o-mini",
+   		 "messages": [
+   			 {
+   				 "role": "user",
+   				 "content": "how to build a wooden spoon in 3 short steps? give as short as answer as possible"
+   			 }
+   		 ]
+   	 }
+'
+```
+
+:::caution\[AI 게이트웨이 캐싱 행동]
+AI Gateway의 캐시는 휘발성입니다. 두 개의 동일한 요청이 동시에 전송되면, 첫 번째 요청은 원래 소스에서 데이터를 검색 할 수있는 두 번째 요청에 대한 시간에 캐시 할 수 없습니다.
+주요 특징

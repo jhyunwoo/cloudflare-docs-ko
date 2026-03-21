@@ -1,0 +1,118 @@
+---
+pcx_content_type: overview
+title: SaaS를 위한 WAF
+sidebar:
+  order: 1
+  label: 설치하기
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, APIRequest, } from "~/components";
+
+[웹 응용 프로그램 방화벽 (WAF)](/waf/)Cloudflare를 통해 추가 보안 조치를 만들 수 있습니다. SaaS 공급자로서, 사용자 정의 규칙, 제한 규칙 및 사용자 정의 호스트 이름에 대한 관리 규칙을 연결할 수 있습니다. 이것은 악의적인 교통에서 도메인을 안전하게 지키는 더 많은 통제를 제공합니다.
+
+SaaS 공급자로, 다른 사용자 정의 호스트 이름에 다른 보안 조치를 적용 할 수 있습니다. SaaS를 위한 WAF로, 당신은 주문을 받아서 만들어진 hostname의 다른 세트에 적용할 수 있는 다수 WAF 윤곽을 창조할 수 있습니다. 이 추가 유연성과 보안은 최종 고객의 도메인에 걸쳐 최적의 보호를 제공합니다.
+
+***
+
+## 자주 묻는 질문
+
+SaaS를 위해 WAFXQ를 사용할 수 있기 전에 사용자 지정 호스트 이름을 만들 필요가 있습니다. 이름 \*[SaaS를 위한 Cloudflare로 시작](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)이미 그렇게하지 않았다면.
+
+API를 통해 사용자 정의 호스트 이름을 만들 수도 있습니다.
+
+<APIRequest
+  path="/zones/{zone_id}/custom_hostnames"
+  method="POST"
+  json={{
+  	hostname: "<CUSTOM_HOSTNAME>",
+  	ssl: {
+  		wildcard: false,
+  	},
+  }}
+/>
+
+## 1. 사용자 정의 metadata를 사용자 정의 hostname
+
+WAF를 사용자 정의 호스트 이름에 적용하려면 고객의 도메인과 WAFXQXQ 구성을 사용하여 해당 사이트에 첨부해야 합니다. Cloudflare의 제품,[메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)API를 통해 이것을 할 수 있습니다.
+
+1. [지역 ID 찾기](/fundamentals/account/find-account-and-zone-ids/)Cloudflare 대시보드에서 유효한.
+
+2. 인증 키 찾기[**API 토큰**](https://dash.cloudflare.com/?to=/:account/profile/api-tokens)페이지, 아래**글로벌 API 키**.
+
+3. 사용자 정의 호스트 이름 ID를 찾습니다.`GET`API 호출:
+
+<APIRequest path="/zones/{zone_id}/custom_hostnames" method="GET" />
+
+4. 계획하기[메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/). 그것은 완전히 customizable입니다. 아래 예제에서 태그를 선택했습니다.`"security_level"`세 가지 값 (낮, 중간, 높은)을 할당 할 것으로 예상됩니다.
+
+:::참조
+낮은, 중간, 높은 규칙의 1개의 인스턴스는 제한될 수 있었습니다. 세 가지 다른 임계값을 지정할 수 있습니다. - 100개의 요청/분, 중간 - 85개의 요청/분, 높은 - 50개의 요청/분, 예를 들면. 또 다른 가능성은 WAF 사용자 정의 규칙은 낮은 도전 요청과 높은 블록 그들.
+주요 특징
+
+5. Cloudflare 이메일 및 ID를 사용하여 아래 형식의 API 통화를 만드십시오.
+
+<APIRequest
+  path="/zones/{zone_id}/custom_hostnames/{custom_hostname_id}"
+  method="PATCH"
+  json={{
+  	custom_metadata: {
+  		customer_id: "12345",
+  		security_level: "low",
+  	},
+  }}
+/>
+
+사용자 정의 메타 데이터를 사용자 정의 호스트 이름에 할당하므로 ID와 관련된 보안 태그가 있습니다.
+
+## 2. 꼬리표에 근거를 둔 방아쇠 안전 제품
+
+1. WAF가 실행되는 Ruleset Engine의 맞춤 메타데이터 필드를 찾습니다. 이것은 제품과 같은 다른 윤곽을 방아쇠에 사용될 수 있습니다[WAF 사용자 정의 규칙](/waf/custom-rules/), [비율 제한 규칙](/waf/rate-limiting-rules/)·[Transform 규칙](/rules/transform/).
+
+2. 당신의 규칙을[대시보드를 통해](/waf/custom-rules/create-dashboard/)또는 API를 통해. 예율 제한 규칙, 대응`"security_level"`낮은 API 호출로 아래 표시됩니다.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  json={{
+  	"rules": [
+  		{
+  			"action": "block",
+  			"ratelimit": {
+  				"characteristics": [
+  					"cf.colo.id",
+  					"ip.src"
+  				],
+  				"period": 10,
+  				"requests_per_period": 2,
+  				"mitigation_timeout": 60
+  			},
+  			"expression": "lookup_json_string(cf.hostname.metadata, \"security_level\") eq \"low\" and http.request.uri contains \"login\""
+  		}
+  	]
+  }}
+  parameters={{
+  	ruleset_phase: "http_ratelimit"
+  }}
+/>
+
+대시보드를 통해 규칙을 구축하려면:
+
+1. Cloudflare 대시보드에서, 가십시오**WAF**사이트 맵
+
+   <DashButton url="/?to=/:account/application-security/waf" />
+
+2. 대시보드에 대한 지침을 따라 사용자 정의 규칙, 제한 규칙, 또는 보안 목표에 따라 관리 규칙을 따르십시오.
+
+3. 규칙이 활성화되면 해당 탭에서 볼 수 있습니다 (주문 규칙, 제한, 또는 관리 규칙).
+
+   :::카트로션
+   이 API 호출은 영역의 기존 속도 제한 규칙을 대체합니다.
+   주요 특징

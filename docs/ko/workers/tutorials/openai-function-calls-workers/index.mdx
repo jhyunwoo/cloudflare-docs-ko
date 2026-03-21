@@ -1,0 +1,259 @@
+---
+reviewed: 2023-06-14T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: JavaScript 및 Cloudflare QXWorkers
+tags:
+  - AI
+  - JavaScript
+description: OpenAI의 최신 Chat Completions API 모델에서 사용할 수 있는 OpenAI의 함수 호출 기능을 활용한 프로젝트 구축
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/tutorials/openai-function-calls-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/tutorials/openai-function-calls-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+이 튜토리얼에서는 레버리지를 구축할 계획입니다.[OpenAI의 함수 호출](https://platform.openai.com/docs/guides/function-calling)OpenAI의 최신 Chat Completions API 모델에서 사용할 수 있습니다.
+
+기능 호출 기능은 AI 모델을 지능적으로 입력에 따라 함수를 호출 할 때 결정할 수 있으며, JSON 형식으로 응답하여 함수의 서명과 일치합니다. 이 웹 사이트는 귀하가 웹 사이트를 탐색하는 동안 귀하의 경험을 향상시키기 위해 쿠키를 사용합니다. 이 쿠키들 중에서 필요에 따라 분류 된 쿠키는 웹 사이트의 기본적인 기능을 수행하는 데 필수적이므로 브라우저에 저장됩니다.
+
+## 당신이 배울 것
+
+- OpenAI의 기능을 호출하는 방법.
+- Cloudflare Worker에서 OpenAI의 API를 통합합니다.
+- Cheerio를 사용하여 웹 사이트 콘텐츠를 채우고 처리하십시오.
+- JavaScript에서 API 응답 및 함수 호출 처리.
+- Wrangler로 비밀로 API 키를 저장합니다.
+
+***
+
+<Render file="tutorials-before-you-start" product="workers" />
+
+## 1. 새로운 Worker 프로젝트 만들기
+
+명령줄에서 Worker 프로젝트를 만듭니다:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"openai-function-calling-workers"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "JavaScript",
+  }}
+/>
+
+당신의 새로운 것`openai-function-calling-workers`노동자 프로젝트:
+
+```sh
+cd openai-function-calling-workers
+```
+
+새로운 기능`openai-function-calling-workers`디렉토리, 찾기`src/index.js`파일. 당신은 튜토리얼의 대부분이 파일을 구성합니다.
+
+OpenAI 계정과 API 키가 필요합니다. 하나가 없다면,[새로운 OpenAI 계정 만들기](https://platform.openai.com/signup)·[API 키 생성](https://platform.openai.com/account/api-keys)이 튜토리얼을 계속합니다. API 키 어딘가를 안전하게 저장하려면 나중에 사용할 수 있습니다.
+
+## 2. OpenAI에 요청하기
+
+생성 된 작업자 프로젝트로, OpenAI에 첫 번째 요청을 만듭니다. OpenAI API와 상호 작용하기 위해 OpenAI 노드 라이브러리를 사용합니다. 이 프로젝트에서는 웹 사이트의 HTML 콘텐츠를 처리하기 위해 Cheerio 라이브러리를 사용합니다.
+
+<PackageManagers pkg="openai cheerio" />
+
+지금, 당신의 노동자의 구조를 정의`index.js`:
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		//OpenAI API 초기화
+		//핸들 수신 요청
+		return new Response("Hello World!");
+	},
+};
+```
+
+상세 정보`export default`, 수입을 추가`openai`·`cheerio`:
+
+```js
+import OpenAI from "openai";
+import * as cheerio from "cheerio";
+```
+
+내 계정`fetch`기능, 즉시`OpenAI`클라이언트:
+
+```js
+async fetch(request, env, ctx) {
+  const openai = new OpenAI({
+    apiKey: env.OPENAI_API_KEY,
+  });
+
+  //핸들 수신 요청
+  return new Response('Hello World!');
+},
+```
+
+제품 정보[`wrangler secret put`](/workers/wrangler/commands/#secret-put)설정하기`OPENAI_API_KEY`. 이[비밀의](/workers/configuration/secrets/)값은 OpenAI dashboard에서 생성한 API 키입니다:
+
+```sh
+npx wrangler secret put <OPENAI_API_KEY>
+```
+
+로컬 개발을 위해 새로운 파일을 만듭니다.`.dev.vars`작업자 프로젝트에서이 라인을 추가합니다. 자주 묻는 질문`OPENAI_API_KEY`당신의 자신의 OpenAI API 열쇠로:
+
+```txt
+OPENAI_API_KEY = "<YOUR_OPENAI_API_KEY>"
+```
+
+지금, OpenAI에 요청을[채팅 완료 API](https://platform.openai.com/docs/guides/gpt/chat-completions-api):
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		const openai = new OpenAI({
+			apiKey: env.OPENAI_API_KEY,
+		});
+
+		const url = new URL(request.url);
+		const message = url.searchParams.get("message");
+
+		const messages = [
+			{
+				role: "user",
+				content: message ? message : "What's in the news today?",
+			},
+		];
+
+		const tools = [
+			{
+				type: "function",
+				function: {
+					name: "read_website_content",
+					description: "Read the content on a given website",
+					parameters: {
+						type: "object",
+						properties: {
+							url: {
+								type: "string",
+								description: "The URL to the website to read",
+							},
+						},
+						required: ["url"],
+					},
+				},
+			},
+		];
+
+		const chatCompletion = await openai.chat.completions.create({
+			model: "gpt-4o-mini",
+			messages: messages,
+			tools: tools,
+			tool_choice: "auto",
+		});
+
+		const assistantMessage = chatCompletion.choices[0].message;
+		console.log(assistantMessage);
+
+		//나중에 조수의 응답을 계속 처리 할 것입니다.
+		return new Response(assistantMessage.content);
+	},
+};
+```
+
+OpenAI로 전달되는 인수를 검토:
+
+- **모델 번호:**: OpenAI를 원하는 모델입니다. 이 경우, 당신은 사용`gpt-4o-mini`.
+- **이름 \***: 대화의 일부인 모든 메시지가 포함된 배열입니다. 처음에는 사용자가 메시지를 제공하고 나중에 모델에서 응답을 추가합니다. 사용자 메시지의 내용은`message`요청 URL 또는 기본 "오늘 뉴스에서 무엇입니까?"에서 쿼리 매개 변수.
+- **회사 소개**: AI 모델에 사용할 수있는 작업을 포함하는 배열. 이 예제에서는 하나의 도구가 있습니다.`read_website_content`, 주어진 웹사이트에 내용을 읽는.
+  - **이름 \***: 기능의 이름. 이 경우, 그것은`read_website_content`.
+  - **이름 \***: 모델이 기능의 목적을 알고있는 짧은 설명. 이것은 선택하지만 모델을 알고 도구를 선택할 때.
+  - **이름 \***: 함수를 설명하는 JSON Schema 객체. 이 경우 필요한 속성을 가진 객체를 포함하는 응답을 요청합니다.`url`.
+- **도구 choice**: 이 인수는 기술적으로 선택적입니다.`auto`기본값입니다. 이 인수는 함수 호출 또는 정상적인 메시지 응답이 OpenAI에 의해 반환 될 수 있음을 나타냅니다.
+
+## 3. 당신의 건물`read_website_content()`제품 설명
+
+이제 정의해야 할 것`read_website_content`안으로 referenced인 기능`tools`배열. 더 보기`read_website_content`함수는 주어진 URL의 내용과 텍스트를 추출`<p>`태그 사용`cheerio`도서관:
+
+위의 코드를 추가`export default`당신의 의견`index.js`파일 :
+
+```js
+async function read_website_content(url) {
+	console.log("reading website content");
+
+	const response = await fetch(url);
+	const body = await response.text();
+	let cheerioBody = cheerio.load(body);
+	const resp = {
+		website_body: cheerioBody("p").text(),
+		url: url,
+	};
+	return JSON.stringify(resp);
+}
+```
+
+이 기능에서, 당신은 OpenAI에서 수신 한 URL을 가지고 JavaScript의[`Fetch API`](https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch)웹 사이트의 내용을 잡아 단락 텍스트를 추출합니다. 이제이 기능을 호출 할 때 결정해야합니다.
+
+## 4. Assistant의 메시지 처리
+
+다음, OpenAI API에서 응답을 처리해야 합니다. 함수 호출이 존재하는 경우, 작업자의 대응 함수를 실행해야 합니다. 조수는 여러 함수 호출을 요청할 수 있습니다.
+
+fetch 메서드를 수정합니다.`export default`다음과 같이 구획:
+
+```js
+//... 이전 코드 ...
+
+if (assistantMessage.tool_calls) {
+	for (const toolCall of assistantMessage.tool_calls) {
+		if (toolCall.function.name === "read_website_content") {
+			const url = JSON.parse(toolCall.function.arguments).url;
+			const websiteContent = await read_website_content(url);
+			messages.push({
+				role: "tool",
+				tool_call_id: toolCall.id,
+				name: toolCall.function.name,
+				content: websiteContent,
+			});
+		}
+	}
+
+	const secondChatCompletion = await openai.chat.completions.create({
+		model: "gpt-4o-mini",
+		messages: messages,
+	});
+
+	return new Response(secondChatCompletion.choices[0].message.content);
+} else {
+	//이것은 기존의 반환 문입니다.
+	return new Response(assistantMessage.content);
+}
+```
+
+조수 메시지가 어떤 기능 호출을 포함했는지 확인`tool_calls`호텔 위치 AI 모델은 기본적으로 여러 기능을 호출 할 수 있기 때문에 잠재적 인 기능 통화를 통해 반복해야합니다.`messages`배열. 각 각`read_website_content`전화가 호출됩니다.`read_website_content`이전에 정의된 함수는 OpenAI가 인수로 생성한 URL을 전달합니다. \`
+
+더 보기`secondChatCompletion`각 함수 호출에서 검색한 데이터에 의해 알려지는 응답을 제공해야 합니다. 지금, 마지막 단계는 당신의 노동자를 배치하는 것입니다.
+
+실행하여 코드를 테스트`npx wrangler dev`브라우저에서 제공된 URL을 엽니다. 이것은 이제 웹 데이터를 검색 한 실시간 정보를 사용하여 OpenAI의 응답을 보여줍니다.
+
+## 5. 작업자 응용 프로그램을 배포
+
+응용 프로그램을 배포하려면, 실행`npx wrangler deploy`Worker 응용 프로그램을 배포하려면 명령:
+
+```sh
+npx wrangler deploy
+```
+
+당신은 지금 당신의 노동자를 미리 볼 수 있습니다`<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev`. 이 URL로 이동하면 OpenAI의 응답을 표시합니다. 선택적으로, 추가`message`URL 매개 변수는 사용자 정의 메시지를 작성: 예를 들어,`https://<YOUR_WORKER>.<YOUR_SUBDOMAIN>.workers.dev/?message=What is the weather in NYC today?`.
+
+## 6. 다음 단계
+
+견적 요청[GitHub에서 이 튜토리얼에 대한 완료 코드](https://github.com/LoganGrasby/Cloudflare-OpenAI-Functions-Demo/blob/main/src/worker.js).
+
+Workers 및 AI와 함께 계속 작업하려면, 참조[LangChain 및 QXQX0659XQQ Workers를 함께 사용하는 가이드](https://blog.cloudflare.com/langchain-and-cloudflare/)또는[CloudflareQWorkers](https://blog.cloudflare.com/magic-in-minutes-how-to-build-a-chatgpt-plugin-with-cloudflare-workers/).
+
+질문이 있으시면 지원이 필요하거나 프로젝트를 공유하거나 Cloudflare 개발자 커뮤니티에 가입하십시오.[공지사항](https://discord.cloudflare.com)동료 개발자와 Cloudflare 팀과 연결할 수 있습니다.

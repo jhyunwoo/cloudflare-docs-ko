@@ -1,0 +1,680 @@
+---
+reviewed: 2024-09-24T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: Durable Objects
+tags:
+  - TypeScript
+  - SQL
+description: 이 튜토리얼은 Durable Objects를 사용하여 좌석 예약 응용 프로그램을 구축하는 방법을 보여줍니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/tutorials/build-a-seat-booking-app/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/tutorials/build-a-seat-booking-app/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Details, WranglerConfig } from "~/components";
+
+이 튜토리얼에서는 Durable Objects를 사용하여 좌석 예약 앱을 구축하는 방법을 배울 수 있습니다. 이 응용 프로그램은 사용자가 비행에 대한 좌석을 예약 할 수 있습니다. 앱은 TypeScript로 작성되며 새로운 기능을 사용할 수 있습니다.[SQLite 저장 backend 에 튼튼한 개체](/durable-objects/best-practices/access-durable-objects-storage/#sqlite-storage-backend)데이터를 저장합니다.
+
+Durable Objects를 사용하여 여러 클라이언트에 대한 조정 및 상태 관리를 처리 할 수있는 재사용 가능한 코드를 작성할 수 있습니다. 또한 Durable Objects의 SQLite에 데이터를 작성하고 로컬 디스크를 사용하므로 모든 쿼리는 훌륭한 성능으로 실행됩니다. Durable Objects에서 SQLite 저장소에 대해 자세히 알아볼 수 있습니다.[Durable Objects 블로그 게시물에 SQLite](https://blog.cloudflare.com/sqlite-in-durable-objects).
+
+:::note\[Durable Objects에서 SQLite]
+
+Durable Objects의 SQLite는 현재 베타에 있습니다. Durable Objects에서 SQLite의 제한에 대해 자세히 알아볼 수 있습니다.[Durable Objects 문서의 SQLite](/durable-objects/best-practices/access-durable-objects-storage/#sqlite-storage-backend).
+
+:::
+
+신청은 다음과 같이 작용할 것입니다:
+
+- 사용자는 쿼리 매개 변수로 전달된 비행 번호로 응용 프로그램을 탐색합니다.
+- 이 응용 프로그램은 비행 번호를위한 새로운 튼튼한 개체를 만들 것입니다, 이미 존재하지 않는 경우.
+- 튼튼한 개체가 이미 존재하는 경우, 응용 프로그램은 SQLite 데이터베이스에서 좌석 정보를 검색합니다.
+- 튼튼한 개체가 존재하지 않는 경우, 응용 프로그램은 새로운 튼튼한 개체를 만들고 좌석 정보와 SQLite 데이터베이스를 초기화합니다. 이 튜토리얼의 목적을 위해 좌석 정보는 응용 프로그램에 하드 코딩됩니다.
+- 사용자가 좌석을 선택하면 응용 프로그램은 이름을 요청합니다. 이 응용 프로그램은 좌석을 예약하고 SQLite 데이터베이스의 이름을 저장합니다.
+- 이 응용 프로그램은 모든 고객에게 좌석의 변경 사항을 방송합니다.
+
+시작하기를하자!
+
+## 자주 묻는 질문
+
+1. 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+2. 설치하기[`Node.js`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
+
+<Details header="Node.js 버전 관리자">
+  Node 버전 관리자를 사용하여[볼트](https://volta.sh/)또는
+  [사이트맵](https://github.com/nvm-sh/nvm)권한 문제 및 변경 방지
+  Node.js 버전.[사이트맵](/workers/wrangler/install-and-update/), 토론
+  이 가이드에서 나중에 Node 버전이 필요합니다.`16.17.0`또는 나중에.
+</Details>
+
+## 1. 새 프로젝트 만들기
+
+새로운 Worker 프로젝트를 만들고 앱을 배포합니다.
+
+1. 이름 찾기`seat-booking`으로 실행:
+
+   <PackageManagers type="create" pkg="cloudflare@latest" args={"seat-booking"} />
+
+   <Render
+     file="c3-post-run-steps"
+     product="workers"
+     params={{
+     	category: "hello-world",
+     	type: "Worker + Durable Objects",
+     	lang: "TypeScript",
+     }}
+   />
+
+2. 새로운 프로젝트 디렉토리로 변경하여 개발 시작:
+
+```sh frame="none"
+cd seat-booking
+```
+
+## 2. 프론트엔드 만들기
+
+응용 프로그램의 프런트는 사용자가 좌석을 선택하고 이름을 입력 할 수있는 간단한 HTML 페이지입니다. 응용 프로그램 사용[Workers 정적 자산](/workers/static-assets/binding/)감사합니다.
+
+1. 새 디렉토리 만들기`public`프로젝트 루트에서.
+
+2. 새 파일 만들기`index.html`내 계정`public`디렉토리.
+
+3. 다음 HTML 코드를 추가`index.html`파일 :
+
+<Details header="사이트 맵">
+  ```html title="public/index.html"
+  <!doctype html>
+  <html lang="en">
+  	<head>
+  		<meta charset="UTF-8" />
+  		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  		<title>Flight Seat Booking</title>
+  		<style>
+  			body {
+  				font-family: Arial, sans-serif;
+  				display: flex;
+  				justify-content: center;
+  				align-items: center;
+  				height: 100vh;
+  				margin: 0;
+  				background-color: #f0f0f0;
+  			}
+  			.booking-container {
+  				background-color: white;
+  				padding: 20px;
+  				border-radius: 8px;
+  				box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  			}
+  			.seat-grid {
+  				display: grid;
+  				grid-template-columns: repeat(7, 1fr);
+  				gap: 10px;
+  				margin-top: 20px;
+  			}
+  			.aisle {
+  				grid-column: 4;
+  			}
+  			.seat {
+  				width: 40px;
+  				height: 40px;
+  				display: flex;
+  				justify-content: center;
+  				align-items: center;
+  				border: 1px solid #ccc;
+  				cursor: pointer;
+  			}
+  			.seat.available {
+  				background-color: #5dbf61ba;
+  				color: white;
+  			}
+  			.seat.unavailable {
+  				background-color: #f4433673;
+  				color: white;
+  				cursor: not-allowed;
+  			}
+  			.airplane {
+  				display: flex;
+  				flex-direction: column;
+  				align-items: center;
+  				background-color: #f0f0f0;
+  				padding: 20px;
+  				border-radius: 20px;
+  			}
+  		</style>
+  	</head>
+  	<body>
+  		<div class="booking-container">
+  			<h2 id="title"></h2>
+  			<div class="airplane">
+  				<div id="seatGrid" class="seat-grid"></div>
+  			</div>
+  		</div>
+
+      	<script>
+      		const seatGrid = document.getElementById("seatGrid");
+      		const title = document.getElementById("title");
+
+      		const flightId = window.location.search.split("=")[1];
+
+          const hostname = window.location.hostname;
+
+      		if (flightId === undefined) {
+      			title.textContent = "No Flight ID provided";
+      			seatGrid.innerHTML = "<p>Add `flightId` to the query string</p>";
+      		} else {
+      			handleBooking();
+      		}
+
+      		function handleBooking() {
+      			let ws;
+      			if (hostname === 'localhost') {
+              const port = window.location.port;
+      				ws = new WebSocket(`ws://${hostname}:${port}/ws?flightId=${flightId}`);
+      			} else {
+      				ws = new WebSocket(`wss://${hostname}/ws?flightId=${flightId}`);
+      			}
+
+      			title.textContent = `Book seat for flight ${flightId}`;
+
+      			ws.onopen = () => {
+      				console.log("Connected to WebSocket server");
+      			};
+
+      			function createSeatGrid(seats) {
+      				seatGrid.innerHTML = "";
+      				for (let row = 1; row <= 10; row++) {
+      					for (let col = 0; col < 6; col++) {
+      						if (col === 3) {
+      							const aisle = document.createElement("div");
+      							aisle.className = "aisle";
+      							seatGrid.appendChild(aisle);
+      						}
+
+      						const seatNumber = `${row}${String.fromCharCode(65 + col)}`;
+      						const seat = seats.find((s) => s.seatNumber === seatNumber);
+      						const seatElement = document.createElement("div");
+      						seatElement.className = `seat ${seat && seat.occupant ? "unavailable" : "available"}`;
+      						seatElement.textContent = seatNumber;
+      						seatElement.onclick = () => bookSeat(seatNumber);
+      						seatGrid.appendChild(seatElement);
+      					}
+      				}
+      			}
+
+      			async function fetchSeats() {
+      				const response = await fetch(`/seats?flightId=${flightId}`);
+      				const seats = await response.json();
+      				createSeatGrid(seats);
+      			}
+
+      			async function bookSeat(seatNumber) {
+      				const name = prompt("Please enter your name:");
+      				if (!name) {
+      					return; // User canceled the prompt
+      				}
+
+      				const response = await fetch(`book-seat?flightId=${flightId}`, {
+      					method: "POST",
+      					headers: { "Content-Type": "application/json" },
+      					body: JSON.stringify({ seatNumber, name }),
+      				});
+      				const result = await response.text();
+      				fetchSeats();
+      			}
+
+      			ws.onmessage = (event) => {
+      				try {
+      					const seats = JSON.parse(event.data);
+      					createSeatGrid(seats);
+      				} catch (error) {
+      					console.error("Error parsing WebSocket message:", error);
+      				}
+      			};
+
+      			ws.onerror = (error) => {
+      				console.error("WebSocket error:", error);
+      			};
+
+      			ws.onclose = (event) => {
+      				console.log("WebSocket connection closed:", event);
+      			};
+
+      			fetchSeats();
+      		}
+      	</script>
+      </body>
+
+  </html>
+  ```
+</Details>
+
+- frontend는 HTTP를 만든다.`GET`요청하기`/seats`항공편의 이용 가능한 좌석을 검색하는 엔드포인트.
+- WebSocket 연결을 사용하여 사용 가능한 좌석에 대한 업데이트를 수신합니다.
+- 사용자가 좌석에 클릭 할 때,`bookSeat()`함수는 사용자가 자신의 이름을 입력하고 그 이름을 입력하고 그 다음`POST`요청하기`/book-seat`끝점.
+
+4. 바인딩을 업데이트[Wrangler 구성 파일](/workers/wrangler/configuration/)설정하기`assets`관련 기사`public`디렉토리.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"assets": {
+  		"directory": "public"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+5. 다음 명령을 사용하여 개발 서버를 시작하면 frontend가 제공됩니다.`http://localhost:8787`. 그러나 백엔드가 아직 구현되지 않았기 때문에 작동하지 않습니다.
+
+```bash frame=none
+npm run dev
+```
+
+:::note\[Workers 정적 자산]
+
+[Workers 정적 자산](/workers/static-assets/binding/)현재 베타입니다. 당신은 또한 Cloudflare Pages를 사용하여 frontend를 봉사할 수 있습니다. 그러나, 당신은 백엔드에 대한 별도의 노동자가 필요합니다.
+
+:::
+
+## 3. 각 항공편에 대한 테이블 만들기
+
+이미 Durable Objects 클래스에 대한 바인딩이 있습니다.[Wrangler 구성 파일](/workers/wrangler/configuration/). Durable Objects 클래스의 이름을 업데이트하면`src/index.ts`, 또한 바인딩을 새롭게 하기 위하여 확인하십시오[Wrangler 구성 파일](/workers/wrangler/configuration/).
+
+1. Durable Objects에서 SQLite 저장을 사용하는 바인딩을 업데이트하십시오. 내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/), 교체`new_classes=["Flight"]`이름 \*`new_sqlite_classes=["Flight"]`, `name = "FLIGHT"`이름 \*`name = "FLIGHT"`·`class_name = "MyDurableObject"`이름 \*`class_name = "Flight"`. 너의[Wrangler 구성 파일](/workers/wrangler/configuration/)이것과 유사하게:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "FLIGHT",
+  				"class_name": "Flight"
+  			}
+  		]
+  	},
+  	//튼튼한 목표 마이그레이션.
+  	//모델 번호: https://developers.cloudflare.com/workers/wrangler/configuration/#migrations
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"Flight"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+응용 프로그램은 이제 Durable Objects에서 SQLite 저장소를 사용할 수 있습니다.
+
+2. 추가하기`initializeSeats()`기능에`Flight`수업. 이 기능은 튼튼한 목표가 초기화될 때 호출될 것입니다. 테이블이 존재하지 않는 경우, 그것을 만들 것입니다. 테이블에 좌석 정보를 삽입합니다.
+
+이 튜토리얼의 기능은 모든 항공편의 동일한 좌석 계획을 만듭니다. 그러나, 생산에서, 당신은 비행 유형에 근거를 둔 좌석을 삽입하는 이 기능을 업데이트하고 싶습니다.
+
+수정하기`Flight`다음 코드 클래스:
+
+```ts title="src/index.ts"
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+	sql = this.ctx.storage.sql;
+
+	constructor(ctx: DurableObjectState, env: Env) {
+		super(ctx, env);
+		this.initializeSeats();
+	}
+
+	private initializeSeats() {
+		const cursor = this.sql.exec(`PRAGMA table_list`);
+
+		//테이블이 존재하는 경우 확인.
+		if ([...cursor].find((t) => t.name === "seats")) {
+			console.log("Table already exists");
+			return;
+		}
+
+		this.sql.exec(`
+				  CREATE TABLE IF NOT EXISTS seats (
+					seatId TEXT PRIMARY KEY,
+					occupant TEXT
+				  )
+				`);
+
+		//이 데모의 경우 테이블을 60 석으로 교체합니다.
+		//SQLite가 DOs가 빠르기 때문에 거래에서 일괄 처리 대신 INSERT 당 쿼리를 할 수 있습니다.
+		for (let row = 1; row <= 10; row++) {
+			for (let col = 0; col < 6; col++) {
+				const seatNumber = `${row}${String.fromCharCode(65 + col)}`;
+				this.sql.exec(`INSERT INTO seats VALUES (?, null)`, seatNumber);
+			}
+		}
+	}
+}
+```
+
+3. 추가하기`fetch`핸들러`Flight`수업. 이 핸들러는 텍스트 응답을 반환합니다. 내 계정[단계 5](#5-handle-websocket-connections)당신은 업데이트됩니다`fetch`WebSocket 연결을 처리하는 핸들러.
+
+```ts title="src/index.ts" {3-5}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+  ...
+  async fetch(request: Request): Promise<Response> {
+    return new Response("Hello from Durable Object!", { status: 200 });
+  }
+}
+```
+
+4. Next, Worker의 fetch 핸들러를 업데이트하여 각 항공편의 독특한 내구성을 만듭니다.
+
+```ts title="src/index.ts"
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//쿼리 매개 변수에서 비행 ID를 가져옵니다
+		const url = new URL(request.url);
+		const flightId = url.searchParams.get("flightId");
+
+		if (!flightId) {
+			return new Response(
+				"Flight ID not found. Provide flightId in the query parameter",
+				{ status: 404 },
+			);
+		}
+
+		const stub = env.FLIGHT.getByName(flightId);
+		return stub.fetch(request);
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+쿼리 매개 변수에서 비행 ID를 사용하여 고유 한 튼튼한 개체가 생성됩니다. 이 튼튼한 목표는 존재하지 않는 경우 테이블로 초기화됩니다.
+
+## 4. 내구재 목표에 방법을 추가하십시오
+
+1. 추가하기`getSeats()`기능에`Flight`수업. 이 기능은 테이블에 모든 좌석을 반환합니다.
+
+```ts title="src/index.ts" {8-22}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+    ...
+
+	private initializeSeats() {
+		...
+	}
+
+	//모든 좌석을 얻으십시오.
+	getSeats() {
+		let results = [];
+
+		//Query는 커서를 반환합니다.
+		let cursor = this.sql.exec(`SELECT seatId, occupant FROM seats`);
+
+		//Cursors는 iterable입니다.
+		for (let row of cursor) {
+			//각 행은 각 열의 속성을 가진 객체입니다.
+			results.push({ seatNumber: row.seatId, occupant: row.occupant });
+		}
+
+		return results;
+	}
+}
+```
+
+2. 추가하기`assignSeat()`기능에`Flight`수업. 이 기능은 승객에게 좌석을 할당합니다. 좌석 번호와 여객 이름이 매개 변수로 걸립니다.
+
+```ts title="src/index.ts" {13-48}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+	...
+
+	private initializeSeats() {
+		...
+	}
+
+	//모든 좌석을 얻으십시오.
+	getSeats() {
+		...
+	}
+
+	//승객에게 좌석을 할당합니다.
+	assignSeat(seatId: string, occupant: string) {
+		//해당 좌석은 점유하지 않습니다.
+		let cursor = this.sql.exec(
+			`SELECT occupant FROM seats WHERE seatId = ?`,
+			seatId,
+		);
+		let result = cursor.toArray()[0]; //커서에서 첫 번째 결과를 가져옵니다.
+
+		if (!result) {
+			return {message: 'Seat not available',  status: 400 };
+		}
+		if (result.occupant !== null) {
+			return {message: 'Seat not available',  status: 400 };
+		}
+
+		//점유가 이미 다른 좌석에 있다면 제거하십시오.
+		this.sql.exec(
+			`UPDATE seats SET occupant = null WHERE occupant = ?`,
+			occupant,
+		);
+
+		//좌석 할당. 참고 : 동시 요청이 발생할 수 있음을 걱정할 필요가 없습니다.
+		//코드가 비동기이기 때문에 두 개의 쿼리 사이의 자리를 잡아
+		//(`await`s 없음) 그리고 데이터베이스는 이 튼튼한 목표에 개인적입니다. 다른 것
+		//좌석이 이전에 사용할 수 있는지 확인했기 때문에 변경 될 수 있습니다!
+		this.sql.exec(
+			`UPDATE seats SET occupant = ? WHERE seatId = ?`,
+			occupant,
+			seatId,
+		);
+
+		//업데이트 된 좌석 방송.
+		this.broadcastSeats();
+		return {message: `Seat ${seatId} booked successfully`, status: 200 };
+	}
+}
+```
+
+위 함수는`broadcastSeats()`업데이트 된 좌석을 모든 연결된 고객에게 방송 할 수있는 기능. 다음 섹션에서 우리는 추가 할 것이다`broadcastSeats()`기능.
+
+## 5. 손잡이 WebSocket 연결
+
+모든 클라이언트는 WebSockets를 사용하여 내구성 객체에 연결됩니다. 튼튼한 목표는 모든 연결된 고객에게 업데이트 된 좌석을 방송합니다. UI를 실시간으로 업데이트할 수 있습니다.
+
+1. 추가하기`handleWebSocket()`기능에`Flight`수업. 이 기능은 WebSocket 연결을 처리합니다.
+
+```ts title="src/index.ts" {18-26}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+	...
+
+	private initializeSeats() {
+		...
+	}
+
+	//모든 좌석을 얻으십시오.
+	getSeats() {
+		...
+	}
+
+	//승객에게 좌석을 할당합니다.
+	assignSeat(seatId: string, occupant: string) {
+		...
+	}
+
+  private handleWebSocket(request: Request) {
+		console.log('WebSocket connection requested');
+		const [client, server] = Object.values(new WebSocketPair());
+
+		this.ctx.acceptWebSocket(server);
+		console.log('WebSocket connection established');
+
+		return new Response(null, { status: 101, webSocket: client });
+	}
+}
+```
+
+2. 추가하기`broadcastSeats()`기능에`Flight`수업. 이 기능은 모든 연결된 클라이언트에게 업데이트 된 좌석을 방송합니다.
+
+```ts title="src/index.ts" {22-24}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+	...
+
+	private initializeSeats() {
+		...
+	}
+
+	//모든 좌석을 얻으십시오.
+	getSeats() {
+		...
+	}
+
+	//승객에게 좌석을 할당합니다.
+	assignSeat(seatId: string, occupant: string) {
+		...
+	}
+
+  private handleWebSocket(request: Request) {
+		...
+	}
+
+  private broadcastSeats() {
+		this.ctx.getWebSockets().forEach((ws) => ws.send(this.getSeats()));
+	}
+}
+```
+
+3. 다음, 업데이트`fetch`핸들러`Flight`수업. 이 핸들러는 Worker에서 모든 들어오는 요청을 처리하고 WebSocket 연결을 사용하여 처리합니다.`handleWebSocket()`방법.
+
+```ts title="src/index.ts" {26-28}
+import { DurableObject } from "cloudflare:workers";
+
+export class Flight extends DurableObject {
+	...
+
+	private initializeSeats() {
+		...
+	}
+
+	//모든 좌석을 얻으십시오.
+	getSeats() {
+		...
+	}
+
+	//승객에게 좌석을 할당합니다.
+	assignSeat(seatId: string, occupant: string) {
+		...
+	}
+
+  private handleWebSocket(request: Request) {
+		...
+	}
+
+  private broadcastSeats() {
+		...
+	}
+
+  async fetch(request: Request) {
+		return this.handleWebSocket(request);
+	}
+}
+```
+
+4. 마지막으로, 업데이트`fetch`노동자의 핸들러.
+
+```ts title="src/index.ts" {8-23}
+export default {
+	...
+
+	async fetch(request, env, ctx): Promise<Response> {
+		//쿼리 매개 변수에서 비행 ID를 가져옵니다
+		...
+
+		if (request.method === "GET" && url.pathname === "/seats") {
+			return new Response(JSON.stringify(await stub.getSeats()), {
+				headers: { 'Content-Type': 'application/json' },
+			});
+		} else if (request.method === "POST" && url.pathname === "/book-seat") {
+			const { seatNumber, name } = (await request.json()) as {
+				seatNumber: string;
+				name: string;
+			};
+			const result = await stub.assignSeat(seatNumber, name);
+			return new Response(JSON.stringify(result));
+		} else if (request.headers.get("Upgrade") === "websocket") {
+			return stub.fetch(request);
+		}
+
+		return new Response("Not found", { status: 404 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+더 보기`fetch`Worker의 핸들러는 들어오는 요청을 처리하기 위해 적절한 튼튼한 개체 함수를 호출합니다. 요청이 있는 경우`GET`지원하다`/seats`, 노동자는 튼튼한 목표에서 좌석을 반환합니다. 요청이 있으면`POST`지원하다`/book-seat`, 노동자 호출`bookSeat`튼튼한 개체의 방법 좌석을 여객에 할당합니다. 요청이 WebSocket 연결이라면, 튼튼한 개체는 WebSocket 연결을 처리합니다.
+
+## 6. 신청을 시험하십시오
+
+다음 명령을 실행하여 로컬로 응용 프로그램을 테스트 할 수 있습니다.
+
+```sh frame="none"
+npm run dev
+```
+
+이 애플리케이션을 실행하는 로컬 개발 서버를 시작합니다. 이 응용 프로그램은`http://localhost:8787`.
+
+응용 프로그램에 Navigate`http://localhost:8787`당신의 브라우저. 비행 ID가 지정되지 않기 때문에 응용 프로그램은 오류 메시지를 표시합니다.
+
+비행 ID로 URL을 업데이트`http://localhost:8787?flightId=1234`. 신청은 ID로 비행 좌석을 표시합니다`1234`.
+
+## 7. 앱 배포
+
+응용 프로그램을 배포하려면 다음 명령을 실행하십시오.
+
+```sh frame="none"
+npm run deploy
+```
+
+```sh output
+ ⛅️ wrangler 3.78.8
+-------------------
+
+🌀 Building list of assets...
+🌀 Starting asset upload...
+🌀 Found 1 new or modified file to upload. Proceeding with upload...
++ /index.html
+Uploaded 1 of 1 assets
+✨ Success! Uploaded 1 file (1.93 sec)
+
+Total Upload: 3.45 KiB / gzip: 1.39 KiB
+Your worker has access to the following bindings:
+- Durable Objects:
+  - FLIGHT: Flight
+Uploaded seat-book (12.12 sec)
+Deployed seat-book triggers (5.54 sec)
+  [DEPLOYED_APP_LINK]
+Current Version ID: [BINDING_ID]
+```
+
+탐색하기`[DEPLOYED_APP_LINK]`신청하기 다시, 쿼리 문자열 매개 변수로 비행 ID를 전달 기억.
+
+## 제품정보
+
+이 튜토리얼에서:
+
+- Durable Objects에서 SQLite 저장 백엔드를 사용하여 비행 좌석을 저장합니다.
+- 좌석 예약을 관리하기 위해 튼튼한 개체 클래스를 만들었습니다.
+- Cloudflare Workers에 응용 프로그램을 배포했습니다!
+
+이 튜토리얼의 전체 코드는 사용할 수 있습니다[프로젝트](https://github.com/harshil1712/seat-booking-app).

@@ -1,0 +1,74 @@
+---
+pcx_content_type: how-to
+title: 존 수준
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 존 수준 Authenticated Origin Pulls
+---
+
+import { AvailableNotifications, Render } from "~/components";
+
+zone에 대해 Authenticated Origin Pulls(AOP)를 활성화하면, zone으로 가는 모든 프록시 트래픽이 오리진 웹 서버에서 인증됩니다.
+
+## Before you begin
+
+zone이 **Full** 이상 [SSL/TLS encryption mode](/ssl/origin-configuration/ssl-modes/)를 사용하고 있는지 확인하세요.
+
+:::caution
+
+zone-level AOP 인증서는 Cloudflare for SaaS zone에 구성된 [custom hostnames](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/)에도 적용됩니다.
+서로 다른 custom hostname에 서로 다른 AOP 인증서를 적용해야 한다면 [Per-hostname AOP](/ssl/origin-configuration/authenticated-origin-pull/set-up/per-hostname/)를 사용하세요.
+
+:::
+
+## 1. Upload certificate to origin
+
+먼저 인증서를 오리진에 업로드합니다.
+
+특정 CA를 사용하는 Cloudflare 인증서를 사용하려면 [`.PEM` 파일을 다운로드](/ssl/static/authenticated_origin_pull_ca.pem)해서 오리진에 업로드하세요. 이 인증서는 [Cloudflare origin CA certificate](/ssl/origin-configuration/origin-ca/)와 동일한 것이 아니며 대시보드에는 표시되지 않습니다.
+
+커스텀 인증서를 사용하려면 API 지침에 따라 [커스텀 인증서를 Cloudflare에 업로드](/ssl/edge-certificates/custom-certificates/uploading/#upload-a-custom-certificate)하되 [`origin_tls_client_auth` endpoint](/api/resources/origin_tls_client_auth/subresources/zone_certificates/methods/create/)를 사용하세요. 그 후 해당 인증서를 오리진에 업로드합니다.
+
+:::caution
+
+Cloudflare는 zone-level authenticated origin pulls를 쉽게 구성할 수 있도록 인증서를 제공하지만, 이 인증서는 계정 전용이 아니며 요청이 Cloudflare 네트워크에서 왔다는 것만 보장합니다. 더 엄격한 보안이 필요하다면 자체 인증서를 업로드해야 합니다.
+
+도메인이 [FIPS](https://en.wikipedia.org/wiki/Federal_Information_Processing_Standards)를 준수해야 한다면 커스텀 인증서 사용이 필수입니다.
+
+:::
+
+## 2. Configure origin to accept client certificates
+
+<Render
+	file="aop-configure-origin"
+	product="ssl"
+	params={{
+		one: "Cloudflare 인증서를 사용할 경우 위 1단계에서 다운로드한 인증서를 사용하고, `.PEM` 파일 이름을 바꾼 뒤 `/path/to/origin-pull-ca.pem`에 업로드한 후 설정을 적용하세요.",
+		two: " Cloudflare 인증서를 사용할 경우 위 1단계에서 다운로드한 인증서를 사용하고, `.PEM` 파일 이름을 바꾼 뒤 `/etc/nginx/certs/cloudflare.crt`에 업로드한 후 설정을 적용하세요.",
+	}}
+/>
+
+## 3. Configure Cloudflare to use client certificate
+
+<Render file="aop-enable-feature" product="ssl" />
+
+## 4. Enforce validation check on your origin
+
+<Render file="aop-enforce-validation" product="ssl" />
+
+## 5. (Optional) Set up expiration alerts
+
+AOP 인증서가 만료되기 전에 알림을 받도록 경고를 구성할 수 있습니다.
+
+<AvailableNotifications
+	product="SSL/TLS"
+	notificationFilter="Zone-level Authenticated Origin Pulls Certificate Expiration Alert"
+/>
+
+<Render file="get-started" product="notifications" />
+
+## Further options
+
+추가 옵션은 [Manage certificates](/ssl/origin-configuration/authenticated-origin-pull/set-up/manage-certificates/)를 참고하세요.

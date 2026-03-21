@@ -1,0 +1,59 @@
+---
+pcx_content_type: reference
+title: 1.1.1.1에 API 요청 보내기
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: DoH로 1.1.1.1에 API 요청하기
+slug: 1.1.1.1/encryption/dns-over-https/make-api-requests
+---
+
+Cloudflare는 아래와 같은 DNS over HTTPS 리졸버 엔드포인트를 제공합니다.
+
+```txt
+https://cloudflare-dns.com/dns-query
+```
+
+## HTTP 메서드
+
+Cloudflare DNS over HTTPS(DoH) 엔드포인트는 DNS wireformat 질의에 대해 `POST`와 `GET`을, JSON 형식에 대해서는 `GET`만 지원합니다.
+
+`POST`를 사용할 때는 DNS 질의를 HTTP 요청 본문에 넣고 `Content-Type` 헤더에 MIME 타입(`application/dns-message`)을 지정합니다. Cloudflare는 전송된 본문을 그대로 사용하므로 별도의 인코딩을 적용하지 마세요.
+
+`GET`을 사용할 경우 DNS 질의를 URL에 인코딩해 전달합니다.
+
+## 유효한 MIME 타입
+
+JSON 형식에는 `application/dns-json`, DNS wireformat에는 `application/dns-message`를 설정합니다.
+
+각 형식에 대한 cURL 예시는 [DNS wireformat](/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-wireformat/)과 [JSON](/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json/) 문서에서 확인할 수 있습니다.
+
+## 하나의 요청에 여러 질문 보내기
+
+하나의 요청에서 여러 질의를 동시에 처리할 수 있는지는 사용하는 HTTP 버전에 달려 있습니다. 각 DNS 질의는 하나의 HTTP 요청에 매핑되므로, HTTP/2나 HTTP/3처럼 멀티플렉싱을 지원하는 버전을 사용하면 여러 요청을 병렬로 전송할 수 있습니다. DoH에서는 HTTP/2 이상을 권장하며, 이는 1.1.1.1만의 요구 사항이 아니라 DoH 전반에 공통으로 적용되는 동작입니다.
+
+DoH가 동작하는 방식은 RFC 8484, 특히 [HTTP 계층 요구 사항](https://datatracker.ietf.org/doc/html/rfc8484#section-5.2)을 참고하세요.
+
+예시 요청:
+
+```sh
+curl --http2 --header "accept: application/dns-json" "https://one.one.one.one/dns-query?name=cloudflare.com" --next --http2 --header "accept: application/dns-json" "https://one.one.one.one/dns-query?name=example.com"
+```
+
+## 인증
+
+이 API를 호출할 때는 별도의 인증 절차가 필요하지 않습니다.
+
+## 지원 TLS 버전
+
+Cloudflare DNS over HTTPS 리졸버는 TLS 1.2와 TLS 1.3을 모두 지원합니다.
+
+## 반환 코드
+
+| HTTP Status | 의미                                                        |
+| ----------- | ----------------------------------------------------------- |
+| `400`       | DNS 질의가 없거나 너무 작습니다.                           |
+| `413`       | DNS 질의가 허용된 DNS 메시지 크기를 초과했습니다.          |
+| `415`       | 지원되지 않는 콘텐츠 타입입니다.                           |
+| `504`       | 리졸버가 질의 응답을 기다리는 중 타임아웃이 발생했습니다. |

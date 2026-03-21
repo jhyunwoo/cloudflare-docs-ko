@@ -1,0 +1,471 @@
+---
+reviewed: 2024-03-21T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: 직원 디렉토리 응용 프로그램
+products:
+  - pages
+tags:
+  - Hono
+  - TypeScript
+  - SQL
+description: D1를 사용하여 직원 디렉토리를 만듭니다. 사용자 액세스 직원 정보; 관리자는 앱 내에서 새로운 직원을 추가합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/tutorials/build-a-staff-directory-app/'
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/tutorials/build-a-staff-directory-app/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+이 튜토리얼에서 D1를 사용하여 직원 디렉토리를 구축하는 방법을 배울 것입니다. 이 응용 프로그램은 사용자가 조직의 직원에 대한 정보를 액세스하고 앱 내에서 새로운 직원을 직접 추가 할 수있는 능력을 관리 할 수 있습니다.
+이렇게하려면 먼저 설정해야합니다.[D1 데이터베이스](/d1/get-started/)데이터를 원활하게 관리하려면 응용 프로그램을 개발 및 배포합니다.[HonoX 프레임](https://github.com/honojs/honox)·[Cloudflare Pages](/pages).
+
+## 자주 묻는 질문
+
+이 튜토리얼로 앞으로 이동하기 전에 다음을 가지고 있는지 확인하십시오.
+
+- Cloudflare 계정, 하나가없는 경우,[로그인](https://dash.cloudflare.com/sign-up/workers-and-pages)계속하기
+- 최근 버전의[₢ 킹](https://docs.npmjs.com/getting-started)설치.
+
+설정으로 이동하지 않으려면,[완료된 코드 보기](https://github.com/lauragift21/staff-directory)GitHub에서
+
+## 1. HonoX 설치
+
+이 튜토리얼에서, 당신은 사용할 것이다[호노X](https://github.com/honojs/honox), 응용 프로그램을 구축하기 위해 풀 스택 웹 사이트 및 웹 API를 생성하기위한 메타 프레임 워크. 프로젝트에 HonoX를 사용하려면, 실행`hono-create`명령.
+
+시작하기에, 다음 명령을 실행:
+
+```sh
+npm create hono@latest
+```
+
+설정 과정에서 프로젝트 디렉토리의 이름을 제공하고 템플릿을 선택합니다. 당신의 선택을 할 때, 선택하십시오`x-basic`템플릿.
+
+## 2. HonoX 응용 프로그램을 초기화
+
+프로젝트가 설정되면 아래로 생성된 파일의 목록을 볼 수 있습니다. 이것은 HonoX 신청을 위한 전형적인 프로젝트 구조입니다:
+
+```
+.
+├── app
+│   ├── global.d.ts // global type definitions
+│   ├── routes
+│   │   ├── _404.tsx // not found page
+│   │   ├── _error.tsx // error page
+│   │   ├── _renderer.tsx // renderer definition
+│   │   ├── about
+│   │   │   └── [name].tsx // matches `/about/:name`
+│   │   └── index.tsx // matches `/`
+│   └── server.ts // server entry file
+├── package.json
+├── tsconfig.json
+└── vite.config.ts
+```
+
+이 프로젝트는 패키지 관리, TypeScript 및 Vite에 대한 구성 파일과 함께 앱 코드, 경로 및 서버 설정을위한 디렉터리를 포함합니다.
+
+## 3. 데이터베이스 만들기
+
+프로젝트에 대한 데이터베이스를 만들려면 Cloudflare CLI 도구를 사용하십시오.[Wrangler](/workers/wrangler)지원하다`wrangler d1`D1 데이터베이스 운영 명령. 새 데이터베이스 만들기`staff-directory`다음 명령으로:
+
+```sh
+npx wrangler d1 create staff-directory
+```
+
+데이터베이스를 작성한 후, 설정해야 할 것입니다.[관련 제품](/workers/runtime-apis/bindings/)내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/)당신의 응용 프로그램에 데이터베이스를 통합합니다.
+
+이 바인딩은 Cloudflare 자원과 D1 데이터베이스, KV 네임스페이스 및 QXQX0823XQ 물통과 같은 Cloudflare 리소스와 상호 작용할 수 있습니다. 이를 구성하려면 프로젝트의 루트 디렉토리에 Wrangler 파일을 만들고 기본 설정 정보를 입력하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "staff-directory",
+  	"compatibility_date": "$today"
+  }
+  ```
+</WranglerConfig>
+
+다음, Wrangler 파일에 데이터베이스 바인딩 세부 사항을 추가합니다. 이것은 바인딩 이름을 지정합니다 (이 경우,`DB`), 참고 자료에 사용 될 것입니다 귀하의 응용 프로그램에 데이터베이스, 와 함께`database_name`·`database_id`데이터베이스를 만들 때 제공:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB",
+  			"database_name": "staff-directory",
+  			"database_id": "f495af5f-dd71-4554-9974-97bdda7137b3"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+D1 데이터베이스에 액세스하고 상호 작용하는 응용 프로그램을 구성했습니다. 명령 줄을 통해 또는 코드베이스 내에서 직접.
+
+Vite config 파일에 대한 조정을 할 수도 있습니다.`vite.config.js`. Vite가 로컬 환경에서 Cloudflare 바인딩과 함께 작동하기 위해 다음과 같은 구성 설정을 추가하십시오.
+
+```ts
+import adapter from "@hono/vite-dev-server/cloudflare";
+
+export default defineConfig(({ mode }) => {
+	if (mode === "client") {
+		return {
+			plugins: [client()],
+		};
+	} else {
+		return {
+			plugins: [
+				honox({
+					devServer: {
+						adapter,
+					},
+				}),
+				pages(),
+			],
+		};
+	}
+});
+```
+
+## 4. D1를 가진 해석
+
+D1 데이터베이스와 상호 작용하려면 SQL 명령을 사용하여 직접 문제할 수 있습니다.`wrangler d1 execute`명령:
+
+```sh
+wrangler d1 execute staff-directory --command "SELECT name FROM sqlite_schema WHERE type ='table'"
+```
+
+위의 명령은 명령줄에서 쿼리 또는 작업을 직접 실행할 수 있습니다.
+
+초기 데이터 묘목 또는 일괄 처리와 같은 작업을 위해 명령과 SQL 파일을 통과 할 수 있습니다. 이렇게하려면`schema.sql`프로젝트의 루트 디렉토리에 파일과 SQL 쿼리를 이 파일에 삽입:
+
+```sql
+CREATE TABLE locations (
+    location_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    location_name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE departments (
+    department_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    department_name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE employees (
+    employee_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name VARCHAR(255) NOT NULL,
+    position VARCHAR(255) NOT NULL,
+    image_url VARCHAR(255) NOT NULL,
+    join_date DATE NOT NULL,
+    location_id INTEGER REFERENCES locations(location_id),
+    department_id INTEGER REFERENCES departments(department_id)
+);
+
+INSERT INTO locations (location_name) VALUES ('London, UK'), ('Paris, France'), ('Berlin, Germany'), ('Lagos, Nigeria'), ('Nairobi, Kenya'), ('Cairo, Egypt'), ('New York, NY'), ('San Francisco, CA'), ('Chicago, IL');
+
+INSERT INTO departments (department_name) VALUES ('Software Engineering'), ('Product Management'), ('Information Technology (IT)'), ('Quality Assurance (QA)'), ('User Experience (UX)/User Interface (UI) Design'), ('Sales and Marketing'), ('Human Resources (HR)'), ('Customer Support'), ('Research and Development (R&D)'), ('Finance and Accounting');
+```
+
+위 쿼리는 세 개의 테이블을 만들 것입니다 :`Locations`, `Departments`·`Employees`. 초기 데이터로이 테이블을 팝업하려면, 사용`INSERT INTO`명령. 이러한 명령으로 스키마 파일을 준비한 후 D1 데이터베이스에 적용할 수 있습니다. 이것을 사용하여`--file`실행을 위한 schema 파일을 지정하는 flag:
+
+```sh
+wrangler d1 execute staff-directory --file=./schema.sql
+```
+
+로컬 디렉토리에 schema 및 Seed 데이터를 실행하려면, 패스를`--local`위 명령에 플래그.
+
+## 5. SQL 문 만들기
+
+D1 데이터베이스를 설정하고 이전 단계로 Wrangler 파일을 구성 한 후 데이터베이스는 코드를 통해 액세스 할 수 있습니다.`DB`바인딩. SQL 문 준비 및 실행하여 데이터베이스와 직접 상호 작용할 수 있습니다. 다음 단계에서 데이터를 검색하고 새로운 기록을 삽입하는 것과 같은 일반적인 데이터베이스 작업을 수행하는 방법을 배울 것입니다.
+
+### 데이터베이스에서 데이터를 검색
+
+```ts
+export const findAllEmployees = async (db: D1Database) => {
+	const query = `
+      SELECT employees.*, locations.location_name, departments.department_name
+      FROM employees
+      JOIN locations ON employees.location_id = locations.location_id
+      JOIN departments ON employees.department_id = departments.department_id
+      `;
+	const { results } = await db.prepare(query).run();
+	const employees = results;
+	return employees;
+};
+```
+
+### Data를 데이터베이스에 삽입
+
+```ts
+export const createEmployee = async (db: D1Database, employee: Employee) => {
+	const query = `
+      INSERT INTO employees (name, position, join_date, image_url, department_id, location_id)
+      VALUES (?, ?, ?, ?, ?, ?)`;
+
+	const results = await db
+		.prepare(query)
+		.bind(
+			employee.name,
+			employee.position,
+			employee.join_date,
+			employee.image_url,
+			employee.department_id,
+			employee.location_id,
+		)
+		.run();
+	const employees = results;
+	return employees;
+};
+```
+
+응용 프로그램에 사용되는 모든 쿼리의 전체 목록은 참조[사이트맵](https://github.com/lauragift21/staff-directory/blob/main/app/db.ts)codebase 파일.
+
+## 6. UI 개발
+
+응용 프로그램 사용`hono/jsx`감사합니다. Renderer를 설정할 수 있습니다.`app/routes/_renderer.tsx`JSX 렌더링 된 미들웨어를 사용하여 응용 프로그램에 대한 항목 포인트로 제공 :
+
+```ts
+import { jsxRenderer } from 'hono/jsx-renderer'
+import { Script } from 'honox/server'
+
+export default jsxRenderer(({ children, title }) => {
+  return (
+    <html lang="en">
+      <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>{title}</title>
+        <Script src="/app/client.ts" async />
+      </head>
+      <body>{children}</body>
+    </html>
+  )
+})
+```
+
+이전에 정의된 바인딩 추가`global.d.ts`TypeScript의 글로벌 유형 정의가 응용 프로그램에 따라 유형 일관성을 보장하는 파일 :
+
+```ts
+declare module "hono" {
+	interface Env {
+		Variables: {};
+		Bindings: {
+			DB: D1Database;
+		};
+	}
+}
+```
+
+이 응용 프로그램은[꼬리바람 CSS](https://tailwindcss.com/)스타일링. Tailwind CSS를 사용하려면[TailwindCSS 문서](https://v2.tailwindcss.com/docs), 또는 단계를 따르십시오[GitHub에서 제공](https://github.com/honojs/honox?tab=readme-ov-file#using-tailwind-css).
+
+직원의 목록을 표시하려면, invoke`findAllEmployees`당신의 기능`db.ts`파일 및 호출 그 안에`routes/index.tsx`파일. 더 보기`createRoute()`파일에서 존재하는 기능은 다른 HTTP 방법을 처리하는 루트를 정의하는 돕기 기능 역할을합니다.`GET`, `POST`, `PUT`, 또는`DELETE`.
+
+```ts
+import { css } from 'hono/css'
+import { createRoute } from 'honox/factory'
+import Counter from '../islands/counter'
+
+const className = css`
+  font-family: sans-serif;
+`
+
+export default createRoute((c) => {
+  const name = c.req.query('name') ?? 'Hono'
+  return c.render(
+    <div class={className}>
+      <h1>Hello, {name}!</h1>
+      <Counter />
+    </div>,
+    { title: name }
+  )
+})
+```
+
+파일 내의 기존 코드에는 카운터 구성 요소를 사용하는 placeholder가 포함되어 있습니다. 다음 코드 블록으로이 섹션을 교체해야합니다.
+
+```ts null {2-4,19-21}
+import { createRoute } from 'honox/factory'
+import type { FC } from 'hono/jsx'
+import type { Employee } from '../db'
+import { findAllEmployees, findAllDepartments, findAllLocations } from '../db'
+
+const EmployeeCard: FC<{ employee: Employee }> = ({ employee }) => {
+  const { employee_id, name, image_url, department_name, location_name } = employee;
+  return (
+    <div className="max-w-sm bg-white border border-gray-200 rounded-lg shadow-md">
+      <a href={`/employee/${employee_id}`}>
+        <img className="bg-indigo-600 p-4 rounded-t-lg" src={image_url} alt={name} />
+        //· ...
+      </a>
+    </div>
+  );
+};
+
+export const GET = createRoute(async (c) => {
+  const employees = await findAllEmployees(c.env.DB)
+  const locations = await findAllLocations(c.env.DB)
+  const departments = await findAllDepartments(c.env.DB)
+  return c.render(
+    <section className="flex-grow">
+      <h1 className="mb-4 text-3xl font-extrabold text-gray-900 dark:text-white md:text-5xl lg:text-6xl mt-12">
+        <span className="text-transparent bg-clip-text bg-gradient-to-r to-blue-600 from-sky-400">{`Directory `}</span>
+      </h1>
+      //· ...
+      </section>
+      <section className="flex flex-wrap -mx-4">
+        {employees.map((employee) => (
+          <div className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4 px-2 mb-4">
+            <EmployeeCard employee={employee} />
+          </div>
+        ))}
+      </section>
+    </section>
+  )
+})
+```
+
+코드 스니펫은 어떻게 가져올지 보여줍니다`findAllEmployees`, `findAllLocations`·`findAllDepartments`기능에서`db.ts`파일 및 바인딩을 사용하는 방법`c.env.DB`이 함수를 호출합니다. 이로 인해 페이지의 fetched 데이터를 검색하고 표시 할 수 있습니다.
+
+### 직원 추가
+
+사용 방법`export POST`새로운 직원을 만들기 위한 경로`/admin`이름:
+
+```ts null {26}
+import { createRoute } from "honox/factory";
+import type { Employee } from "../../db";
+import { getFormDataValue, getFormDataNumber } from "../../utils/formData";
+import { createEmployee } from "../../db";
+
+export const POST = createRoute(async (c) => {
+	try {
+		const formData = await c.req.formData();
+		const imageFile = formData.get("image_file");
+		let imageUrl = "";
+
+		//TODO: R2를 가진 가공 이미지 URL
+
+		const employeeData: Employee = {
+			employee_id: getFormDataValue(formData, "employee_id"),
+			name: getFormDataValue(formData, "name"),
+			position: getFormDataValue(formData, "position"),
+			image_url: imageUrl,
+			join_date: getFormDataValue(formData, "join_date"),
+			department_id: getFormDataNumber(formData, "department_id"),
+			location_id: getFormDataNumber(formData, "location_id"),
+			location_name: "",
+			department_name: "",
+		};
+
+		await createEmployee(c.env.DB, employeeData);
+		return c.redirect("/", 303);
+	} catch (error) {
+		return new Response("Error processing your request", { status: 500 });
+	}
+});
+```
+
+### R2의 이미지 저장
+
+새로운 직원을 만드는 과정에서 업로드 된 이미지는 데이터베이스에 추가되기 전에 R2 버킷에 저장 될 수 있습니다.
+
+R2 물통에 있는 이미지를 저장하기 위하여:
+
+1. R2 버킷 만들기.
+2. 이 물통에 이미지를 업로드합니다.
+3. 버킷의 이미지에 대한 공개 URL을 얻습니다. 이 URL은 데이터베이스에 저장되어 R2 버킷에 저장된 이미지에 연결됩니다.
+
+사용 방법`wrangler r2 bucket create`버킷을 만드는 명령:
+
+```sh
+wrangler r2 bucket create employee-avatars
+```
+
+물통이 생성되면 R2 물통 바인딩을 Wrangler 파일에 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "employee-avatars"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+R2 바인딩을 통과하십시오`global.d.ts`파일 :
+
+```ts
+declare module "hono" {
+	interface Env {
+		Variables: {};
+		Bindings: {
+			DB: D1Database;
+			MY_BUCKET: R2Bucket;
+		};
+	}
+}
+```
+
+R2 버킷에 업로드 된 이미지를 저장하려면 사용할 수 있습니다.`put()`R2에 의해 제공되는 방법. 이 방법은 이미지 파일을 물통에 업로드 할 수 있습니다:
+
+```ts
+if (imageFile instanceof File) {
+	const key = `${new Date().getTime()}-${imageFile.name}`;
+	const fileBuffer = await imageFile.arrayBuffer();
+
+	await c.env.MY_BUCKET.put(key, fileBuffer, {
+		httpMetadata: {
+			contentType: imageFile.type || "application/octet-stream",
+		},
+	});
+	console.log(`File uploaded successfully: ${key}`);
+	imageUrl = `https://pub-8d936184779047cc96686a631f318fce.r2.dev/${key}`;
+}
+```
+
+[GitHub에 공유하기](https://github.com/lauragift21/staff-directory)전체 codebase를 위해.
+
+## 7. HonoX 응용 프로그램을 배포
+
+배포를 위해 준비된 응용 프로그램을 사용하면 Wrangler를 사용하여 프로젝트를 Cloudflare 네트워크에 구축하고 배포할 수 있습니다. Cloudflare 계정으로 로그인`wrangler whoami`명령. 로그인하지 않은 경우 Wrangler는 컴퓨터에서 자동으로 인증된 요청을 만들 수 있는 API 키 생성을 통해 로그인할 수 있습니다.
+
+성공적인 로그인 후 Wrangler 파일이 아래에 코드 블록과 유사하게 구성된다는 것을 확인하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "staff-directory",
+  	"compatibility_date": "$today",
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "employee-avatars"
+  		}
+  	],
+  	"d1_databases": [
+  		{
+  			"binding": "DB",
+  			"database_name": "staff-directory",
+  			"database_id": "f495af5f-dd71-4554-9974-97bdda7137b3"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+지원하다`wrangler deploy`Cloudflare에 프로젝트를 배포합니다. 배포 후에는 응용 프로그램을 테스트 할 수 있습니다. 배포 된 URL에 액세스하여 작동합니다. 브라우저는 당신이 만든 기본 프론트엔드로 응용 프로그램을 표시해야 합니다. 데이터베이스에서 모든 데이터가 팝업되지 않는 경우, 이동`/admin`새로운 직원을 추가하는 페이지, 그리고 이것은 당신의 가정 페이지에 있는 새로운 직원을 돌려야 합니다.
+
+## 이름 \*
+
+이 튜토리얼에서는 조직 내에서 모든 직원을 볼 수있는 직원 디렉토리 응용 프로그램을 구축했습니다. 더 알아보기[직원 디렉토리 저장소](https://github.com/lauragift21/staff-directory)전체 소스 코드를 위해.
+
+![직원 디렉토리 데모](https://github.com/lauragift21/staff-directory/raw/main/demo.gif)

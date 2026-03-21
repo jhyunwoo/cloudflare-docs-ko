@@ -1,0 +1,85 @@
+---
+title: DNS 레코드
+pcx_content_type: reference
+sidebar:
+  order: 5
+head:
+  - tag: title
+    content: 로드 밸런싱을 위한 DNS 레코드
+---
+
+로드 밸런서를 [생성](/load-balancing/load-balancers/create-load-balancer/)하면 Cloudflare는 지정한 **Hostname**에 대해 LB DNS 레코드를 자동으로 생성합니다. 이 기능을 사용하면 기존 DNS 레코드가 있든 없든 호스트명을 사용할 수 있습니다. Private Load Balancer에는 자동 DNS 레코드가 부여되지 않습니다. 대신 내부 DNS 시스템을 사용하거나 호스트명에 [Gateway Firewall override](/cloudflare-one/traffic-policies/dns-policies/#override)를 적용해 호스트명을 구성할 수 있습니다.
+
+<div id="supported-records" />
+
+## 지원되는 레코드
+
+Enterprise 플랜이 아닌 고객의 경우 Cloudflare는 `A`, `AAAA`, `CNAME` 레코드에 대한 로드 밸런싱을 지원합니다.
+
+Enterprise 플랜 고객의 경우 Cloudflare는 `A`, `AAAA`, `CNAME`, **MX**, **SRV** 레코드에 대한 로드 밸런싱을 지원합니다.
+
+<div id="priority-order" />
+
+## 우선순위 순서
+
+기존 DNS 레코드가 있는 호스트명의 경우, LB 레코드가 더 구체적이거나 동일한 수준으로 구체적이면 LB 레코드가 우선합니다.
+
+- **시나리오 1**:
+  - **A, AAAA 또는 CNAME**: `x.example.com`
+  - **LB 레코드**: `x.example.com`
+  - **결과**: LB 레코드가 DNS 레코드와 동일하게 구체적이므로 LB 레코드가 우선합니다.
+
+- **시나리오 2**:
+  - **A, AAAA 또는 CNAME**: `y.example.com`
+  - **LB 레코드**: `*.example.com`(와일드카드 레코드)
+  - **결과**: DNS 레코드가 더 구체적이므로 DNS 레코드가 우선합니다.
+
+- **시나리오 3**:
+  - **A, AAAA 또는 CNAME**: `*.example.com`
+  - **LB 레코드**: `*.example.com`
+  - **결과**: LB 레코드가 DNS 레코드와 동일하게 구체적이므로 LB 레코드가 우선합니다.
+
+:::note
+
+이 동작은 [지원되는 레코드](#supported-records)에만 적용됩니다. 지원 여부는 사용 중인 플랜 유형에 따라 결정됩니다.
+
+:::
+
+DNS 레코드가 [SaaS provider](/cloudflare-for-platforms/cloudflare-for-saas/)를 가리키고 활성 상태의 [custom hostname](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/)이 존재하면, custom hostname이 Load Balancing 레코드보다 우선합니다.
+
+- **시나리오 4**:
+  - **CNAME**: Cloudflare for SaaS provider를 대상으로 하는 `x.example.com`
+  - **LB 레코드**: `x.example.com`
+  - **SaaS provider 측의 활성 custom hostname**: `x.example.com`
+  - **결과**: custom hostname이 우선합니다.
+
+<div id="disabling-a-load-balancer" />
+
+## 로드 밸런서 비활성화
+
+로드 밸런서를 비활성화하면 특정 호스트명에 대한 요청은 기존 DNS 레코드에 따라 달라집니다.
+
+- 기존 DNS 레코드가 있으면 해당 레코드가 제공됩니다.
+- 기존 레코드가 없으면 해당 호스트명에 대한 요청은 실패합니다.
+
+두 경우 모두 로드 밸런서를 비활성화하면 관련된 엔드포인트나 fallback pool로 트래픽이 전달되지 않습니다.
+
+이미 `A`, `AAAA`, `CNAME` 레코드가 있는 경우, [Time to Live (TTL)](/dns/manage-dns-records/reference/ttl/)과 레코드 변경의 영향 때문에 변경 사항 전파에 시간이 걸릴 수 있다는 점에 유의하세요. 로컬 DNS 캐시가 더 늦게 갱신될 수 있습니다.
+
+<div id="ssltls-coverage" />
+
+## SSL/TLS 적용 범위
+
+내부 제한으로 인해 [Partial (CNAME) setup](/dns/zone-setups/partial-setup/)에서는 Cloudflare [Universal SSL certificates](/ssl/edge-certificates/universal-ssl/)가 기본적으로 로드 밸런싱 호스트명을 커버하지 않습니다. 이 동작은 향후 수정될 예정입니다.
+
+현재 우회 방법으로는 도메인 또는 1단계 서브도메인(`lb.example.com`)에 대해 해당 호스트명의 [proxied `CNAME`/`A`/`AAAA` record](/dns/manage-dns-records/how-to/create-dns-records/)를 생성하는 것입니다.
+
+예를 들어 로드 밸런서 호스트명이 `lb.example.com`이라면, SSL/TLS 적용 범위를 확보하기 위한 목적으로만 다음 레코드를 생성할 수 있습니다.
+
+| Type | Name | IPv4 address | Proxy status |
+| ---- | ---- | ------------ | ------------ |
+| A    | `lb` | `192.0.2.1`  | Proxied      |
+
+[우선순위 순서](#priority-order)에 따라 이 레코드는 LB 호스트명과 동일하게 구체적이므로 실제 트래픽은 받지 않습니다.
+
+더 깊은 서브도메인(`lb.dev.example.com`)에 대한 적용 범위를 확보하려면 [advanced certificate](/ssl/edge-certificates/advanced-certificate-manager/)를 구매하세요.

@@ -1,0 +1,107 @@
+---
+title: Hostname 관리
+pcx_content_type: reference
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/turnstile/additional-configuration/hostname-management/
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/additional-configuration/hostname-management/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton, Steps, Tabs, TabItem, Details } from "~/components"
+
+호스트 이름 관리는 Turnstile 위젯이 도메인을 로드하고 위젯을 실행할 수 있는 권한을 지정하여 사용할 수 있습니다. 이 보안 측정은 제어하지 않는 도메인에서 위젯의 무단 사용을 방지합니다.
+
+Hostname Management를 통해 사용할 수있는 위치를 제어하는 위젯과 호스트 이름을 연결할 수 있습니다. 호스트 이름을 관리하면 Turnstile가 설정과 원활하게 작동하므로 독립 호스트 이름을 추가하거나 Cloudflare 계정에 등록 된 영역을 활용할 수 있습니다.
+
+***
+
+## Hostname 요구 사항
+
+### 표준 윤곽
+
+기본적으로, 각 위젯은 적어도 하나의 호스트 이름을 구성해야합니다. 적어도 하나의 허가 된 호스트 이름을 지정하지 않고 위젯을 만들 수 없습니다.
+
+### Hostname 형식 요구 사항
+
+hostname을 추가할 때, 이러한 요구 사항을 따르십시오:
+
+- 호스트 이름은 완전히 자격이 된 도메인 이름이어야합니다 (FQDNs) :`example.com`또는`subdomain.example.com`
+- 와일드카드는 지원되지 않습니다. 각 hostname을 개별적으로 지정해야 합니다.
+
+:::caution\[무효한 형식]
+다음 형식은 유효하지 않으며 허용되지 않습니다 :
+
+- 같은 계획`http://example.com`또는`https://example.com`
+- 항구와 같은`example.com:443`또는`subdomain.example.com:8080`
+- 같은 경로`example.com/path`또는`subdomain.example.com/login`
+  :::
+
+### Subdomain 행동
+
+하위 도메인 지정은 위젯 사용 제한으로 추가 보안을 제공합니다.
+
+예를 들어, 추가`www.example.com`hostname은 위젯을 사용할 수 있습니다:
+
+- `www.example.com`
+- `abc.www.example.com:8080`(특정된 호스트 이름의 하위 도메인).
+
+그러나, 그것은 작동하지 않습니다 :
+
+- `example.com`(사양 도메인)
+- `dash.example.com`(subdomain 사용)
+- `cloudflare.com`(관련 도메인)
+
+## 호스트 이름 추가
+
+<Tabs>
+  <TabItem label="대시보드">
+    <Details header="Existing 위젯">
+      <Steps>
+        1. Cloudflare 대시보드에서**사이트맵**사이트 맵
+
+           <DashButton url="/?to=/:account/turnstile" />
+        2. 기존 위젯을 선택합니다.
+        3. 오시는 길**계정 설정**.
+        4. 이름 \***Hostname 관리**, 선택**호스트 이름 추가**.
+        5. 사용자 지정 이름 추가 또는 기존 호스트 이름에서 선택.
+        6. 제품정보**더 보기**.
+      </Steps>
+    </Details>
+
+    <Details header="새로운 위젯">
+      <Steps>
+        1. Cloudflare 대시보드에서**사이트맵**사이트 맵
+
+           <DashButton url="/?to=/:account/turnstile" />
+        2. 제품정보**위젯 추가**.
+        3. 호스트 이름 필드에서 도메인을 입력하십시오.
+        4. Cloudflare에 등록 된 영역이있는 경우 기존 영역에서 선택할 수 있습니다.
+      </Steps>
+    </Details>
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    ```bash title="cURL command" wrap
+      curl -X PUT "https://api.cloudflare.com/client/v4/accounts/$ACCOUNT_ID/challenges/widgets/$WIDGET_ID" \
+      -H "Authorization: Bearer $API_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d '{
+      "domains": ["example.com", "app.example.com", "api.example.com"]
+      }'
+    ```
+  </TabItem>
+</Tabs>
+
+***
+
+## 제한 사항
+
+무료 사용자는 위젯 당 최대 10 호스트 이름의 수 있습니다.
+
+엔터프라이즈 고객은 위젯 당 최대 200 개의 호스트 이름을 가질 수 있습니다.

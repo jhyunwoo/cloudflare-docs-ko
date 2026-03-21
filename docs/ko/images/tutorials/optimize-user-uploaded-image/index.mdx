@@ -1,0 +1,385 @@
+---
+pcx_content_type: tutorial
+title: R2에 업로드하기 전에 사용자 업로드 이미지를 변환
+description: '이미지, R2, 그리고 당신의 노동자에 자산을 연결하는 바인딩을 설치하십시오'
+sidebar:
+  order: 1
+reviewed: 2025-04-03T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/images/tutorials/optimize-user-uploaded-image/
+translation_source_md: >-
+  https://developers.cloudflare.com/images/tutorials/optimize-user-uploaded-image/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Render, TypeScriptExample } from "~/components";
+
+이 가이드에서 이미지 업로드를 받아들이는 응용 프로그램을 구축하고 시각적 워터 마크로 이미지를 오버레이하고 R2 Bucket에서 변환 된 이미지를 저장합니다.
+
+***
+
+이미지로, 당신은 당신의 원본 이미지가 저장되는 것을 선택하는 융통성이 있습니다. 이미지 제품의 외부에 저장되는 이미지를 변환 할 수 있습니다.[R2](/r2/).
+
+R2XQ의 사용자 업로드 미디어를 저장할 때 R2 버킷에 업로드되기 전에 이미지를 최적화하거나 조작 할 수 있습니다.
+
+Developer Platform 서비스를 바인딩을 통해 Worker에 연결하는 방법을 배울 것이며 Images API에서 다양한 최적화 기능을 사용할 수 있습니다.
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을 수행해야합니다.
+
+- 이름 \*[이미지 유료](/images/pricing/#images-paid)계정으로 가입하세요. 이미지 API를 작업자에게 바인딩할 수 있습니다.
+- 이름 \*[R2 물통](/r2/get-started/#2-create-a-bucket), 변환된 이미지는 업로드될 것입니다.
+- 새로운 Worker 프로젝트를 만듭니다.
+
+새로운 경우, 리뷰 방법[당신의 첫번째 노동자를 창조하십시오](/workers/get-started/guide/).
+
+## 1: 당신의 노동자 프로젝트를 설치하십시오
+
+시작하려면 개발자 플랫폼의 다음 리소스를 사용하려면 프로젝트를 설정해야 합니다.
+
+- [제품정보](/images/transform-images/bindings/)변환, 크기 및 작업자에서 이미지를 직접 인코딩합니다.
+- [R2](/r2/api/workers/workers-api-usage/)변환된 이미지 저장을 위한 물통을 연결하기 위하여.
+- [투자정보](/workers/static-assets/binding/)시각적 워터마크로 사용할 수 있는 정적 이미지에 액세스합니다.
+
+### Wrangler 구성에 바인딩 추가
+
+이미지, R2XQ 및 자산 바인딩을 추가하려면 WranglerX0234XQXQ 구성 파일을 구성하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"images": {
+  		"binding": "IMAGES"
+  	},
+  	"r2_buckets": [
+  		{
+  			"binding": "R2",
+  			"bucket_name": "<BUCKET>"
+  		}
+  	],
+  	"assets": {
+  		"directory": "./<DIRECTORY>",
+  		"binding": "ASSETS"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+기타 제품`<BUCKET>`R2 버킷의 이름으로 변환 후 이미지를 업로드합니다. 노동자 코드에서, 당신은이 물통을 사용하여 참조 할 수 있습니다`env.R2.`
+
+기타 제품`./<DIRECTORY>`오버레이 이미지가 저장될 프로젝트의 디렉토리의 이름으로. 작업자 코드에서, 당신은 이러한 자산을 사용하여 참조 할 수 있습니다`env.ASSETS`.
+
+### 자산 디렉토리 설정
+
+모든 업로드 이미지에 시각적 워터 마크를 적용하려면 오버레이 이미지를 저장하는 장소가 필요합니다.
+
+프로젝트의 자산 디렉토리는 작업자의 일부로 정적 자산을 업로드 할 수 있습니다. 프로젝트를 배포할 때, 이 업로드된 파일과 함께 작업자 코드로 배포되며, 단일 작업에서 Cloudflare의 인프라에 배포됩니다.
+
+Wrangler 파일을 구성한 후, 지정된 디렉토리에 오버레이 이미지를 업로드합니다. 예제 앱에서 디렉토리`./assets`오버레이 이미지를 포함합니다.
+
+## 2: 당신의 frontend를 건설하십시오
+
+사용자가 이미지를 업로드 할 수있는 응용 프로그램에 대한 인터페이스를 구축해야합니다.
+
+이 예에서 frontend는 Worker 스크립트에서 직접 렌더링됩니다.
+
+이렇게하려면 새로운`html`변수, 포함`form`다운로드 내 계정`fetch`, 새로운 건설`Response`한국어`Content-Type: text/html`클라이언트에게 정적 HTML 사이트를 봉사하는 헤더:
+
+<TypeScriptExample>
+  ```ts
+  const html = `
+  <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Upload Image</title>
+            </head>
+            <body>
+              <h1>Upload an image</h1>
+              <form method="POST" enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/*" required />
+                <button type="submit">Upload</button>
+              </form>
+            </body>
+          </html>
+  `;
+
+  interface Env {
+  	IMAGES: ImagesBinding;
+  	R2: R2Bucket;
+  	ASSETS: Fetcher;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "GET") {
+  			return new Response(html, { headers: { "Content-Type": "text/html" } });
+  		}
+  		if (request.method === "POST") {
+  			//사용자가 양식을 제출할 때 호출됩니다.
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 3: 업로드된 이미지를 읽으십시오
+
+당신은 후`form`, 업로드 된 이미지를 변환 할 수 있는지 확인해야합니다.
+
+그 때문에`form`사용자가 디스크에서 직접 업로드 할 수 있도록, 당신은 사용할 수 없습니다`fetch()`URL에서 이미지를 얻을 수 있습니다. 대신, 이미지의 몸에서 바이트의 스트림으로 작동합니다.
+
+이 작업을 수행하려면 업로드 된 파일을 파`form`그리고 스트림을 얻을:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "GET") {
+  			return new Response(html, { headers: { "Content-Type": "text/html" } });
+  		}
+  		if (request.method === "POST") {
+  			try {
+  				//Parse 형태 자료
+  				const formData = await request.formData();
+  				const file = formData.get("image");
+  				if (!file || typeof file.stream !== "function") {
+  					return new Response("No image file provided", { status: 400 });
+  				}
+
+  				//업로드된 이미지로 readable stream
+  				const fileStream = file.stream();
+  			} catch (err) {
+  				console.log((err as Error).message);
+  			}
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+<Render file="request-dot-clone-warning" product="workers" />
+
+## 4: 이미지를 변환
+
+업로드 된 이미지의 경우 다음 작업을 수행 할 수 있습니다.
+
+- 우리의 자산 디렉토리에 추가 된 시각적 워터 마크를 오버레이합니다.
+- 이미지를 변환 — 그것의 워터 마크 — 에`AVIF`. 이 이미지를 압축하고 파일 크기를 감소시킵니다.
+- R2로 변환된 이미지를 업로드합니다.
+
+### 오버레이 이미지를 설정
+
+자산 디렉토리에서 오버레이 이미지를 가져오려면 함수를 만듭니다.`assetUrl`다음 사용`env.ASSETS`관련 기사`watermark.png`이미지:
+
+<TypeScriptExample>
+  ```ts
+  function assetUrl(request: Request, path: string): URL {
+  	const url = new URL(request.url);
+  	url.pathname = path;
+  	return url;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "GET") {
+  			return new Response(html, { headers: { "Content-Type": "text/html" } });
+  		}
+  		if (request.method === "POST") {
+  			try {
+  				//Parse 형태 자료
+  				const formData = await request.formData();
+  				const file = formData.get("image");
+  				if (!file || typeof file.stream !== "function") {
+  					return new Response("No image file provided", { status: 400 });
+  				}
+
+  				//업로드된 이미지로 readable stream
+  				const fileStream = file.stream();
+
+  				//Watermark로 그림
+  				const watermarkResponse = await env.ASSETS.fetch(
+  					assetUrl(request, "watermark.png"),
+  				);
+  				const watermarkStream = watermarkResponse.body;
+  			} catch (err) {
+  				console.log((err as Error).message);
+  			}
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### Watermark와 이미지를 transcode
+
+이미지와 상호 작용할 수 있습니다.`env.IMAGES`.
+
+이것은 당신이 이미지를 수행하려는 최적화 작업의 모든 것을 넣어 어디입니다. 여기, 당신은 사용할 것이다`.draw()`업로드 된 이미지 위에 시각적 워터 마크를 적용 할 수있는 기능, 다음 사용`.output()`AVIF로 이미지를 인코딩:
+
+<TypeScriptExample>
+  ```ts
+  function assetUrl(request: Request, path: string): URL {
+  	const url = new URL(request.url);
+  	url.pathname = path;
+  	return url;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "GET") {
+  			return new Response(html, { headers: { "Content-Type": "text/html" } });
+  		}
+  		if (request.method === "POST") {
+  			try {
+  				//Parse 형태 자료
+  				const formData = await request.formData();
+  				const file = formData.get("image");
+  				if (!file || typeof file.stream !== "function") {
+  					return new Response("No image file provided", { status: 400 });
+  				}
+
+  				//업로드된 이미지로 readable stream
+  				const fileStream = file.stream();
+
+  				//Watermark로 그림
+  				const watermarkResponse = await env.ASSETS.fetch(
+  					assetUrl(request, "watermark.png"),
+  				);
+  				const watermarkStream = watermarkResponse.body;
+  				if (!watermarkStream) {
+  					return new Response("Failed to fetch watermark", { status: 500 });
+  				}
+
+  				//워터 마크를 적용하고 AVIF로 변환
+  				const imageResponse = (
+  					await env.IMAGES.input(fileStream)
+  						//이미지의 상단에 워터 마크를 그릴
+  						.draw(
+  							env.IMAGES.input(watermarkStream).transform({
+  								width: 100,
+  								height: 100,
+  							}),
+  							{ bottom: 10, right: 10, opacity: 0.75 },
+  						)
+  						//AVIF로 최종 이미지를 출력
+  						.output({ format: "image/avif" })
+  				).response();
+  			} catch (err) {
+  				console.log((err as Error).message);
+  			}
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 5: R2에 업로드
+
+R2로 변환된 이미지를 업로드합니다.
+
+회사 소개`fileName`변수, 변환 된 이미지의 이름을 지정할 수 있습니다. 이 예에서 R2에 업로드하기 전에 원래 이미지의 이름으로 날짜를 추가합니다.
+
+예제의 전체 코드는 다음과 같습니다.
+
+<TypeScriptExample>
+  ```ts
+  interface Env {
+  	IMAGES: ImagesBinding;
+  	R2: R2Bucket;
+  	ASSETS: Fetcher;
+  }
+
+  const html = `
+  <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="UTF-8">
+              <title>Upload Image</title>
+            </head>
+            <body>
+              <h1>Upload an image</h1>
+              <form method="POST" enctype="multipart/form-data">
+                <input type="file" name="image" accept="image/*" required />
+                <button type="submit">Upload</button>
+              </form>
+            </body>
+          </html>
+  `;
+
+  function assetUrl(request: Request, path: string): URL {
+  	const url = new URL(request.url);
+  	url.pathname = path;
+  	return url;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		if (request.method === "GET") {
+  			return new Response(html, { headers: { "Content-Type": "text/html" } });
+  		}
+  		if (request.method === "POST") {
+  			try {
+  				//Parse 형태 자료
+  				const formData = await request.formData();
+  				const file = formData.get("image");
+  				if (!file || typeof file.stream !== "function") {
+  					return new Response("No image file provided", { status: 400 });
+  				}
+
+  				//업로드된 이미지로 readable stream
+  				const fileStream = file.stream();
+
+  				//Watermark로 그림
+  				const watermarkResponse = await env.ASSETS.fetch(
+  					assetUrl(request, "watermark.png"),
+  				);
+  				const watermarkStream = watermarkResponse.body;
+  				if (!watermarkStream) {
+  					return new Response("Failed to fetch watermark", { status: 500 });
+  				}
+
+  				//워터 마크를 적용하고 AVIF로 변환
+  				const imageResponse = (
+  					await env.IMAGES.input(fileStream)
+  						//이미지의 상단에 워터 마크를 그릴
+  						.draw(
+  							env.IMAGES.input(watermarkStream).transform({
+  								width: 100,
+  								height: 100,
+  							}),
+  							{ bottom: 10, right: 10, opacity: 0.75 },
+  						)
+  						//AVIF로 최종 이미지를 출력
+  						.output({ format: "image/avif" })
+  				).response();
+
+  				//timetamp 파일 이름 추가
+  				const fileName = `image-${Date.now()}.avif`;
+
+  				//R2에 업로드
+  				await env.R2.put(fileName, imageResponse.body);
+
+  				return new Response(`Image uploaded successfully as ${fileName}`, {
+  					status: 200,
+  				});
+  			} catch (err) {
+  				console.log((err as Error).message);
+  				return new Response("Internal error", { status: 500 });
+  			}
+  		}
+  		return new Response("Method not allowed", { status: 405 });
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 다음 단계
+
+이 튜토리얼에서, 당신은 이미지 업로드를 허용하는 응용 프로그램을 구축하는 개발자 플랫폼의 다양한 리소스에 노동자를 연결하는 방법을 배운하고 이미지를 변환하고 R2에 출력을 업로드.
+
+다음, 당신은 할 수 있습니다[변환 URL 설정](/images/transform-images/transform-via-url/)R2에 저장되는 이미지를 동적으로 최적화합니다.

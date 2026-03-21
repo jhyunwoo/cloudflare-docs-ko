@@ -1,0 +1,55 @@
+---
+title: 서브도메인과 서브디렉터리
+pcx_content_type: how-to
+sidebar:
+  order: 14
+---
+
+## 서브도메인에서 APO 실행
+
+APO를 활성화한 후에는 WordPress를 사용하는 서브도메인에서 APO가 동작하도록 구성합니다. 예를 들어 `www.mysite.com`이라는 웹사이트에 WordPress를 실행하는 `shop.mysite.com` 서브도메인이 포함되어 있다면, APO는 `shop.mysite.com` 서브도메인에서 동작하도록 구성합니다.
+
+1. Cloudflare WordPress 플러그인 버전 4.4.0 이상을 설치합니다.
+2. Cloudflare **API token** 또는 **Global key**로 로그인합니다.
+3. APO를 활성화합니다. 카드의 호스트명 목록에 해당 서브도메인이 표시됩니다.
+4. 각 서브도메인마다 이 과정을 반복해 APO를 활성화합니다.
+
+기본적으로 APO는 apex 도메인(루트 도메인 또는 naked 도메인이라고도 함)에서 동작합니다. APO를 서브도메인에서만 실행하도록 선택하면, apex 도메인은 자동으로 비활성화됩니다. 서브도메인과 apex 도메인 모두에서 APO를 실행하려면, apex 도메인에서 WordPress 플러그인을 버전 4.4.0 이상으로 업그레이드한 다음 APO를 다시 활성화하세요.
+
+## 서브디렉터리에서 APO 실행
+
+APO를 활성화한 후에는 WordPress를 사용하는 서브디렉터리에서 APO가 동작하도록 구성합니다. 예를 들어 `www.mysite.com`이라는 웹사이트에 WordPress를 실행하는 `mysite.com/shop` 서브디렉터리가 있다면, APO는 `mysite.com` 도메인에서 동작하도록 구성합니다.
+
+1. Cloudflare WordPress 플러그인을 설치합니다.
+2. Cloudflare API Token을 추가합니다.
+3. APO를 활성화합니다.
+
+자동 캐시 비우기를 위해 WordPress 플러그인을 활성화하려면 각 서브디렉터리마다 1단계와 2단계를 반복하세요.
+
+## 서브디렉터리에서만 APO 실행
+
+APO를 서브디렉터리에서만 실행하기로 선택했다면, 도메인의 나머지 부분은 APO를 우회하도록 구성해야 합니다. APO를 우회하는 방법은 두 가지입니다.
+
+### `cf-edge-cache` 응답 헤더 사용
+
+`cf-edge-cache: no-cache`는 사이트의 WordPress가 아닌 부분에 대해 APO 서비스가 캐싱을 우회하도록 지시합니다. 아래 예시처럼 Cloudflare Workers로 이 옵션을 구현할 수 있습니다.
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		const originalResponse = await fetch(request);
+
+		// 응답 속성은 불변입니다. 변경하려면 새 Response 객체를 만드세요.
+    const response = new Response(originalResponse.body, originalResponse);
+
+    // 응답 헤더는 `set` 메서드로 수정할 수 있습니다.
+    response.headers.set("cf-edge-cache", "no-cache");
+
+		return response;
+	},
+};
+```
+
+### Cache Rules 사용
+
+[cache rule](/cache/how-to/cache-rules/)을 만들어 사이트의 WordPress가 아닌 부분을 **Cache eligibility: Bypass cache**로 설정해 캐시에서 제외하세요. 이 옵션은 해당 경로의 정적 자산을 포함한 모든 캐싱을 비활성화합니다. 따라서 응답 헤더를 통해 APO를 비활성화하는 방식을 권장합니다.

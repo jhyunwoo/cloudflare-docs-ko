@@ -1,0 +1,144 @@
+---
+pcx_content_type: concept
+title: 아웃바운드 Workers
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Outbound Workers는 고객의 Workers와 공중 인터넷 사이에서 앉습니다. 그들은 당신에게 모든 outgoing에 가시성을 줄`fetch()`사용자 Workers에서 요청.
+
+![Outbound Workers 다이어그램 정보](~/assets/images/cloudflare-for-platforms/outbound-worker-diagram.png)
+
+## 일반 용도 케이스
+
+Outbound Workers는에 사용될 수 있습니다:
+
+- 악의적인 도메인 또는 사용 패턴을 식별하기 위해 모든 subrequest를 이동합니다.
+- 사용자 Workers에 의해 요청된 호스트 이름에 대한 목록 생성, 허용, 또는 차단.
+- 장면 뒤에 APIs에 인증 구성 (End Developer needing to set credentials).
+
+:::참조
+
+Outbound Worker가 활성화되면 고객의 작업자가 더 이상 사용할 수 없습니다.[`connect() API`](/workers/runtime-apis/tcp-sockets/#connect)아웃바운드 TCP 소켓을 만듭니다. 이 모든 아웃바운드 통신이 아웃바운드 노동자를 통해 간다`fetch`방법.
+
+:::
+
+## 아웃바운드 Workers
+
+Outbound Workers를 사용하기 위하여:
+
+1. 당신의 Outbound Worker로 봉사하는 노동자를 창조하십시오.
+2. Outbound Worker는 옵션 파라미터로 지정할 수 있습니다.[비밀번호](/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/)프로젝트의 바인딩[Wrangler 구성 파일](/workers/wrangler/configuration/). 선택적으로, 당신의 동적인 파견 노동자에서 Outbound 노동자에 자료를 통과하기 위하여는, 변하기 쉬운 이름은 아래에 지정될 수 있습니다**이름 \***.
+
+당신이 가지고 있는지 확인`wrangler@3.3.0`또는 나중에[설치하기](/workers/wrangler/install-and-update/).
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"dispatch_namespaces": [
+  		{
+  			"binding": "dispatcher",
+  			"namespace": "<NAMESPACE_NAME>",
+  			"outbound": {
+  				"service": "<SERVICE_NAME>",
+  				"parameters": [
+  					"params_object"
+  				]
+  			}
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+3. 동적인 파견 노동자를 편집하여 아웃바운드 노동자를 호출하고 변수를 선언합니다.`dispatcher.get()`.
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			//URL을 파, subdomain을 읽으십시오
+			let workerName = new URL(request.url).host.split(".")[0];
+
+			let context_from_dispatcher = {
+				customer_name: workerName,
+				url: request.url,
+			};
+
+			let userWorker = env.dispatcher.get(
+				workerName,
+				{},
+				{
+					//outbound 인수. object name은 바인딩에서 매개변수를 일치해야 합니다.
+					outbound: {
+						params_object: context_from_dispatcher,
+					},
+				},
+			);
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				//우리는 우리의 파견 namespace에 존재하지 않는 노동자를 얻기 위해 시도
+				return new Response("", { status: 404 });
+			}
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+4. 아웃바운드 노동자는 이제 모든 것에 부각됩니다`fetch()`사용자 작업자에서 요청. 사용자 작업자가 트리거됩니다.[Fetch이벤트](/workers/runtime-apis/handlers/fetch/)아웃바운드 노동자에. 바인딩에 선언 된 변수는 Outbound Worker에서 액세스 할 수 있습니다.`env.<VAR_NAME>`.
+
+다음은 사용자 작업자에서 fetch 요청을 로그 아웃 바운드 노동자의 예이며 fetch 요청이 일치하면 JWT를 만듭니다.`api.example.com`.
+
+```js
+export default {
+	//이 사건은 파견된 WorkersQ가 subrequest를 만들 때 발사됩니다
+	async fetch(request, env, ctx) {
+		//env에는 `dispatcher.get()`XQ에서 설정된 값이 포함되어 있습니다.
+		const customer_name = env.customer_name;
+		const original_url = env.url;
+
+		//자주 묻는 질문
+		ctx.waitUntil(
+			fetch("https://logs.example.com", {
+				method: "POST",
+				body: JSON.stringify({
+					customer_name,
+					original_url,
+				}),
+			}),
+		);
+
+		const url = new URL(original_url);
+		if (url.host === "api.example.com") {
+			//API에 대한 사전 요청
+			const jwt = make_jwt_for_customer(customer_name);
+
+			let headers = new Headers(request.headers);
+			headers.set("Authorization", `Bearer ${jwt}`);
+
+			//기존 몸을 사용하여 새로운 헤더를 설정하는 요청을 clone
+			let new_request = new Request(request, { headers });
+
+			return fetch(new_request);
+		}
+
+		return fetch(request);
+	},
+};
+```
+
+:::참조
+
+아웃바운드 Workers에서 만든 fetch 요청을 방해하지 않습니다[모델 번호: Durable Objects](/durable-objects/)또는[mTLS 인증서 바인딩](/workers/runtime-apis/bindings/mtls/).
+
+:::

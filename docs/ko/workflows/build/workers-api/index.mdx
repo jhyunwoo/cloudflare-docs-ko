@@ -1,0 +1,539 @@
+---
+title: '모델 번호: Workers'
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/build/workers-api/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/build/workers-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	MetaInfo,
+	Render,
+	Type,
+	TypeScriptExample,
+	WranglerConfig,
+} from "~/components";
+
+이 가이드는 QXQX0022XQX0022XQXQ QXWorkersXQ, 방법, 유형 및 사용법 예제를 포함하여 QXQXQXQXQXQ API를 상세히 설명합니다.
+
+## 작업 흐름Entrypoint
+
+더 보기`WorkflowEntrypoint`클래스는 Workflow 정의의 핵심 요소입니다. Workflow는 이 클래스를 확장하고 정의해야 합니다.`run`적어도 하나의 방법`step`유효한 Workflow로 간주됩니다.
+
+```ts
+export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
+	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+		//여기에 단계
+	}
+}
+```
+
+### 지원하다
+
+{/* prettier-ignore */}
+
+- <code>run(event: WorkflowEvent\<T>, 단계: WorkflowStep): Promise\<T></code>
+  - `event`- 선택 사항 등 Workflow에 전달된 이벤트`payload`데이터 포함 (parameters)
+  - `step`- 한국어`WorkflowStep`작업 흐름에 대한 단계 방법을 제공하는 유형
+
+더 보기`run`메소드는 인스턴스 상태를 조회할 때 사용할 수 있는 데이터를 선택적으로 반환할 수 있습니다.[Workers API를](/workflows/build/workers-api/#instancestatus), [REST API를](/api/resources/workflows/subresources/instances/subresources/status/)그리고 Workflows dashboard. 작업 흐름이 결과를 계산하는 경우 유용 할 수 있습니다, 물체 저장에 저장된 데이터를 반환, 또는 당신이 행동해야 식별자의 일부 종류를 생성.
+
+```ts
+export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
+	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+		//여기에 단계
+		let someComputedState = await step.do("my step", async () => {});
+
+		//선택 사항: 우리의 run() 방법에서 반환 상태
+		return someComputedState;
+	}
+}
+```
+
+더 보기`WorkflowEvent`유형은 선택을 받아들입니다[유형 모수](https://www.typescriptlang.org/docs/handbook/2/generics.html#working-with-generic-type-variables)이를 통해 유형의 유형을 제공할 수 있습니다.`payload`숙박 시설`WorkflowEvent`.
+
+더 알아보기[이벤트 및 매개 변수](/workflows/build/events-and-parameters/)Workflow 코드 내에서 이벤트를 처리하는 방법
+
+마지막으로, 어떤 JS 통제 교류 primitive (조건, 반복, 시험 캐치, 약속, 등)는 안쪽으로 단계를 처리하기 위하여 사용될 수 있습니다`run`방법.
+
+## 채용정보
+
+```ts
+export type WorkflowEvent<T> = {
+	payload: Readonly<T>;
+	timestamp: Date;
+	instanceId: string;
+};
+```
+
+- 더 보기`WorkflowEvent`Workflow의 첫 번째 인수입니다.`run`방법 및 옵션 포함`payload`매개 변수 및`timestamp`호텔 위치
+  - `payload`- 기본 유형의`any`또는 유형`T`type 매개변수가 제공된 경우.
+  - `timestamp`- 한국어`Date`Workflow 인스턴스가 생성된 객체(triggered).
+  - `instanceId`- 관련 인스턴스의 ID.
+
+더 알아보기[이벤트 및 매개 변수](/workflows/build/events-and-parameters/)Workflow 코드 내에서 이벤트를 처리하는 방법
+
+## 작업 흐름
+
+### 한국어
+
+{/* prettier-ignore */}
+
+- <code>step.do(이름: 문자열, 콜백: (): RpcSerializable): Promise\<T></code>
+- <code>step.do(name: string, config?: WorkflowStepConfig, 콜백: ():
+  RpcSerializable): Promise\<T></code>
+  - `name`- 단계의 이름, 최대 256 문자.
+  - `config`(선택 사항) - 옵션`WorkflowStepConfig`설정하기[단계 특정 retry 행동](/workflows/build/sleeping-and-retrying/).
+  - `callback`- 선택적으로 Workflow에 serializable state를 persist로 반환하는 비동기 함수.
+
+:::주\[회전 상태]
+
+반환 상태`step`, 당신이 반환하는 객체는*일관 작업*.
+
+Primitive 유형과 같은`string`, `number`·`boolean`, 합성 구조와 함께`Array`·`Object`(일련된 값만 포함), 일련 될 수 있다.
+
+포함되는 개체`Function`또는`Symbol`원형 references를 가진 유형 및 목표는, 그 유형이 돌려보내는 경우에 serialized와 Workflow 인스턴스가 과실을 던질 수 없습니다.
+
+:::
+
+{/* prettier-ignore */}
+
+- <code>step.sleep(이름: 문자열, 기간: WorkflowDuration): Promise\<void></code>
+  - `name`- 단계의 이름.
+  - `duration`- 한 초 또는 한 초 이내에 잠을 수있는 지속 시간`WorkflowDuration`호환 문자열.
+  - 더 알아보기[수면과 호흡에 대한 문서](/workflows/build/sleeping-and-retrying/)Workflows가 검색되는 방법에 대해 자세히 알아보세요.
+
+{/* prettier-ignore */}
+
+- <code>step.sleepUntil(이름: 문자열, 타임스탬프: 날짜 | 번호): Promise\<void></code>
+  - `name`- 단계의 이름.
+  - `timestamp`- JavaScript`Date`유닉스 epoch에서 객체 또는 milliseconds는 Workflow 인스턴스를 때까지 잠그십시오.
+
+:::참조
+
+`step.sleep`·`step.sleepUntil`방법은 최대 Workflow 단계 한계를 넘지 않습니다.
+
+Workflow에 부과된 제한에 대한 자세한 정보는[Workflows 문서](/workflows/reference/limits/).
+
+:::
+
+- <code>step.waitForEvent(이름: 문자열, 옵션: ): Promise\<void></code>-
+  `name`- 단계의 이름. -`options`- 속성을 가진 객체
+  `type`(최대 100자[^1]), 이 이벤트 유형 결정
+  `waitForEvent`호출 할 때 일치합니다`instance.sendEvent`, 그리고
+  옵션 정보`timeout`속성, 긴 방법 정의`waitForEvent`이름 \*
+  timeout 예외를 던지기 전에 차단합니다. 기본값은 24입니다.
+  시간.
+
+<TypeScriptExample>
+  ```ts
+  export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
+  	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+  		//작업 흐름의 다른 단계
+  		let stripeEvent = await step.waitForEvent<IncomingStripeWebhook>(
+  			"receive invoice paid webhook from Stripe",
+  			{ type: "stripe-webhook", timeout: "1 hour" },
+  		);
+  		//당신의 Workflow의 나머지
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+자주 묻는 질문[이벤트 및 매개 변수](/workflows/build/events-and-parameters/)run Workflow 인스턴스에 이벤트를 보내는 방법을 알아보세요.
+
+## 작업 흐름StepConfig
+
+```ts
+export type WorkflowStepConfig = {
+	retries?: {
+		limit: number;
+		delay: string | number;
+		backoff?: WorkflowBackoff;
+	};
+	timeout?: string | number;
+};
+```
+
+- ·`WorkflowStepConfig`옵션의 인수는`do`방법의`WorkflowStep`그리고 그 단계의 재부 행동을 구성할 수 있는 속성을 정의합니다.
+
+더 알아보기[수면과 호흡에 대한 문서](/workflows/build/sleeping-and-retrying/)Workflows가 검색하는 방법에 대해 자세히 알아보십시오.
+
+## Workflow 단계 한계
+
+Workers Paid의 각 작업 흐름은 기본으로 10,000단계를 지원합니다. 구성으로 최대 25,000단계까지 증가할 수 있습니다.`steps`내 계정`limits`Wrangler 설정에서 작업 흐름 정의의 속성:
+
+<WranglerConfig>
+  ```toml
+  [[workflows]]
+  name = "my-workflow"
+  binding = "MY_WORKFLOW"
+  class_name = "MyWorkflow"
+
+  [workflows.limits]
+  steps = 25_000
+  ```
+</WranglerConfig>
+
+`step.sleep`최대 단계 한계를 넘지 않습니다.
+
+WorkflowsXQXQXQXQXQXQ 무료에는 1,024 단계의 한계가 있습니다. 더 알아보기[Workflow 제한](/workflows/reference/limits/)더 많은 정보.
+
+## 비밀번호
+
+{/* prettier-ignore */}
+
+- <code>새로운 NonRetryableError (message를 던짐:<Type text="string" />, 이름<Type text="string" /> <MetaInfo text="optional" />)</code>: <Type text="NonRetryableError" />
+  - 안쪽으로 던지는 때[`step.do()`](/workflows/build/workers-api/#step), 이 오류는 단계 retries를 멈추고, 오류를 최고 수준으로 전파합니다 ([지원하다](/workflows/build/workers-api/#run)기능). 이 최상위에서 처리되지 않은 오류는 Workflow 인스턴스가 실패합니다.
+  - 더 알아보기[수면과 호흡에 대한 문서](/workflows/build/sleeping-and-retrying/)Workflows 단계가 재생되는 방법에 대해 자세히 알아보십시오.
+
+## WorkflowsXQXQXQXQXQXQ
+
+Workflows는 Workers 스크립트에 직접 API를 노출[관련 제품](/workers/runtime-apis/bindings/#what-is-a-binding)이름 \* Bindings는 API 키 또는 클라이언트를 관리하지 않고 Workflow를 안전하게 호출 할 수 있습니다.
+
+작업 흐름에 바인딩 할 수 있습니다.`[[workflows]]`Wrangler 윤곽 안에 바인딩.
+
+예를 들어, Workflow 호출에 바인딩`workflows-starter`그리고 그것을 사용할 수 있도록`MY_WORKFLOW`Worker 스크립트에 대한 변수는 다음 필드를 구성할 수 있습니다.`[[workflows]]`바인딩 정의:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "workflows-starter",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"workflows": [
+  		{
+  			//작업 흐름의 이름
+  			"name": "workflows-starter",
+  			//바인딩 이름 env.MY WORKFLOW
+  			"binding": "MY_WORKFLOW",
+  			//src/index.ts에서 Workflow 클래스를 확장하는 클래스입니다.
+  			"class_name": "MyWorkflow",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+### Pages
+
+당신은에서 Workflows를 묶고 방아쇠 할 수 있습니다[Pages 기능](/pages/functions/)Workers 프로젝트를 워크 플로우 정의로 배포하고 그 작업자를 사용하여 호출하여[서비스 바인딩](/pages/functions/bindings/#service-bindings)또는 표준`fetch()`전화.
+
+문서 방문[WorkflowsQXQXQXQXQXQ](/workflows/build/call-workflows-from-pages/)예제.
+
+### Cross-script 호출
+
+Workflow 정의를 스크립트에서 다른 Worker 스크립트에 정의된 Workflow에 바인딩할 수도 있습니다. 이 작업을 수행하려면`script_name`스크립트의 이름으로 키`[[workflows]]`Wrangler 윤곽에 있는 바인딩 정의.
+
+예를 들어, Workflow가 Worker 스크립트에서 정의된 경우`billing-worker`,하지만 당신은 당신의 전화를`web-api-worker`스크립트,[Wrangler 구성 파일](/workers/wrangler/configuration/)다음과 같다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "web-api-worker",
+  	"main": "src/index.ts",
+  	"compatibility_date": "$today",
+  	"workflows": [
+  		{
+  			//작업 흐름의 이름
+  			"name": "billing-workflow",
+  			//바인딩 이름 env.MY WORKFLOW
+  			"binding": "MY_WORKFLOW",
+  			//src/index.ts에서 Workflow 클래스를 확장하는 클래스입니다.
+  			"class_name": "MyWorkflow",
+  			//Workflow가 정의된 스크립트 이름입니다.
+  			//Workflow가 다른 스크립트에서 정의된 경우 필요합니다.
+  			"script_name": "billing-worker",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+<Render file="wrangler-typegen" product="workers" />
+
+## 작업 흐름
+
+:::참조
+
+호환성 날짜가 있는지 확인하십시오.`2024-10-22`또는 나중에 Workflows 프로젝트에 Workers 프로젝트에 바인딩 할 때 설치.
+
+:::
+
+더 보기`Workflow`유형은 생성 할 수있는 방법을 제공합니다, 상태를 검사하고 작업자 스크립트 내에서 실행 워크 플로우 인스턴스를 관리.
+그것은 생성 된 유형의 일부입니다.[`wrangler types`](/workers/wrangler/commands/#types).
+
+```ts title="./worker-configuration.d.ts"
+interface Env {
+	//'MY WORKFLOW' 변수는 Wrangler config 파일에서 설정된 "binding"값과 일치해야 합니다.
+	MY_WORKFLOW: Workflow;
+}
+```
+
+더 보기`Workflow`유형은 뒤에 오는 방법을 수출합니다:
+
+### 지원하다
+
+주어진 Workflow의 새로운 인스턴스 만들기.
+
+{/* prettier-ignore */}
+
+- <code>create(options?: WorkflowInstanceCreateOptions): Promise\<WorkflowInstance></code>
+  - `options`- user-provided ID 및 페이로드 매개 변수를 포함하여 인스턴스를 만들 때 패스 할 수있는 옵션 속성.
+
+ID는 자동으로 생성되지만 사용자가 ID를 지정할 수 있습니다 (최대 100 문자[^1]). 이것은 Workflows를 사용자, 상인 또는 당신의 체계에 있는 다른 식별자를 지도할 때 유용합니다. JSON 객체도 제공 할 수 있습니다.`params`속성, 작업 흐름 인스턴스에 대한 데이터를 전달할 수 있도록[`WorkflowEvent`](/workflows/build/events-and-parameters/).
+
+```ts
+//자신의 ID를 가진 새로운 Workflow 인스턴스를 만들고 Workflow 인스턴스에 params를 전달합니다.
+let instance = await env.MY_WORKFLOW.create({
+	id: myIdDefinedFromOtherSystem,
+	params: { hello: "world" },
+});
+return Response.json({
+	id: instance.id,
+	details: await instance.status(),
+});
+```
+
+구매하기`WorkflowInstance`.
+
+제공된 ID가 아직 통과하지 않은 기존 인스턴스에 의해 이미 사용되는 오류를 검색[보유 제한](/workflows/reference/limits/). 동일한 ID로 워크플로를 다시 실행하려면,[`restart`](/workflows/build/trigger-workflows/#restart-a-workflow)현재 인스턴스.
+
+<Render file="workflows-type-parameters" product="workflows" />
+
+옵션 유형 매개 변수를 제공하기 위해`Workflow`, 당신의 Workflow 바인딩을 정의할 때 유형의 인수를 전달합니다.
+
+```ts
+interface User {
+	email: string;
+	createdTimestamp: number;
+}
+
+interface Env {
+	//Workflow 정의에 유형 매개 변수로 사용자 유형을 전달하십시오.
+  MY_WORKFLOW: Workflow<User>;
+}
+
+export default {
+	async fetch(request, env, ctx) {
+		//데이터베이스 또는 요청 몸을 통해 더 많은 가능성이!
+		const user: User = {
+			email: user@example.com,
+			createdTimestamp: Date.now()
+		}
+
+		let instance = await env.MY_WORKFLOW.create({
+			//params는 유형 사용자를 기대합니다
+			params: user
+		})
+
+		return Response.json({
+			id: instance.id,
+			details: await instance.status(),
+		});
+	}
+}
+```
+
+### 회사 소개
+
+생성 (trigger) 주어진 작업 흐름의 새로운 인스턴스의 배치, 최대 100 인스턴스 시간에.
+
+한 번에 여러 인스턴스를 스케줄링 할 때 유용합니다. 전화 번호`createBatch`호출과 같은 치료`create`(단일 경우) 작업할 수 있습니다.[인스턴스 생성 제한](/workflows/reference/limits/).
+
+{/* prettier-ignore */}
+
+- <code>createBatch(배치: WorkflowInstanceCreateOptions\[]): Promise\<WorkflowInstance\[]></code>
+  - `batch`- user-provided ID 및 페이로드 매개 변수를 포함하여 인스턴스를 만들 때 전달하는 옵션 목록.
+
+각 요소의`batch`목록은 둘 다를 것으로 예상됩니다.`id`·`params`특성:
+
+```ts
+//3 Workflow 인스턴스의 새로운 배치를 만들려면 각각 ID와 패스 파라스를 Workflow 인스턴스에 전달합니다.
+const listOfInstances = [
+	{ id: "id-abc123", params: { hello: "world-0" } },
+	{ id: "id-def456", params: { hello: "world-1" } },
+	{ id: "id-ghi789", params: { hello: "world-2" } },
+];
+let instances = await env.MY_WORKFLOW.createBatch(listOfInstances);
+```
+
+배열을 반환`WorkflowInstance`.
+
+이름 \*[`create`](/workflows/build/workers-api/#create), 이 가동은 idempotent이고 ID가 이미 사용중인 경우에 실패하지 않을 것입니다. 같은 ID를 가진 기존 인스턴스가 여전히 존재하면[보유 제한](/workflows/reference/limits/), 반환된 배열에서 건너뛰고 제외될 것입니다.
+
+### 이름 \*
+
+ID로 특정 Workflow 인스턴스를 가져옵니다.
+
+- <code>get(id: string): Promise\<WorkflowInstance></code>- `id`- ID
+  작업 흐름 인스턴스의.
+
+구매하기`WorkflowInstance`. 인스턴스 ID가 존재하지 않는 경우 예외를 찾습니다.
+
+```ts
+//ID로 기존 Workflow 인스턴스를 Fetch:
+try {
+	let instance = await env.MY_WORKFLOW.get(id);
+	return Response.json({
+		id: instance.id,
+		details: await instance.status(),
+	});
+} catch (e: any) {
+	//핸들 오류
+	//.get은 ID가 존재하지 않는 경우 예외를 던질 것입니다.
+	const msg = `failed to get instance ${id}: ${e.message}`;
+	console.error(msg);
+	return Response.json({ error: msg }, { status: 400 });
+}
+```
+
+## WorkflowInstanceCreate옵션
+
+인스턴스를 만들 때 패스 할 수있는 옵션 속성.
+
+```ts
+interface WorkflowInstanceCreateOptions {
+	/** 이름
+* Workflow 인스턴스의 ID입니다. Workflow 내에서 고유해야 합니다.*/
+	id?: string;
+	/** 이름
+* 작업 흐름 인스턴스가 트리거됩니다.*/
+	params?: unknown;
+}
+```
+
+## 작업 흐름Instance
+
+Workflow의 특정 인스턴스를 대표하며 인스턴스를 관리하는 방법을 제공합니다.
+
+```ts
+declare abstract class WorkflowInstance {
+	public id: string;
+	/** 이름
+* 인스턴스를 일시 중지합니다.*/
+	public pause(): Promise<void>;
+	/** 이름
+* 인스턴스를 구합니다. 이미 실행중인 경우 오류가 발생합니다.*/
+	public resume(): Promise<void>;
+	/** 이름
+* 인스턴스를 정의합니다. 오류가 발생하면 종료되거나 완료되면 오류가 발생합니다.*/
+	public terminate(): Promise<void>;
+	/** 이름
+* 인스턴스 재시작.*/
+	public restart(): Promise<void>;
+	/** 이름
+* 인스턴스의 현재 상태를 반환합니다.*/
+	public status(): Promise<InstanceStatus>;
+}
+```
+
+### 이름 \*
+
+Workflow의 ID를 반환합니다.
+
+- <code>id: 문자열</code>
+
+### 이름 \*
+
+실행 작업 흐름 인스턴스의 상태를 반환합니다.
+
+- <code>상태(): Promise\<InstanceStatus></code>
+
+:::카트로션
+다음 방법은 아직 현지 개발에서 지원되지 않습니다.
+주요 특징
+
+### 뚱 베어
+
+실행 작업 흐름 인스턴스를 일시 중지합니다.
+
+- <code>일시(): Promise\<void></code>
+
+### 지원하다
+
+재사용된 Workflow 인스턴스를 재개합니다.
+
+- <code>재시작(): Promise\<void></code>
+
+### 지원하다
+
+Workflow 인스턴스를 재시작합니다.
+
+- <code>재시작(): Promise\<void></code>
+
+### 제품정보
+
+Workflow 인스턴스를 정의합니다.
+
+- <code>종료(): Promise\<void></code>
+
+### SendEvent에 대해서
+
+[공지사항](/workflows/build/events-and-parameters/)실행 작업 흐름 인스턴스에.
+
+- <code>sendEvent(): 약속\<void></code>- `options`- 행사`type`(최대 100자[^1])와`payload`Workflow 인스턴스로 전송합니다.
+  더 보기`type`일치해야`type`관련 기사`waitForEvent`이름 \*
+  작업 흐름.
+
+이름 \*`void`성공에; Workflow가 실행되지 않는 경우 예외를 던져 또는 오류 상태입니다.
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(req: Request, env: Env) {
+  		const instanceId = new URL(req.url).searchParams.get("instanceId");
+  		const webhookPayload = await req.json<Payload>();
+
+  		let instance = await env.MY_WORKFLOW.get(instanceId);
+  		//`type`와 함께 이벤트 유형을 정의
+  		//우리의 step.waitForEvent 호출
+  		await instance.sendEvent({
+  			type: "stripe-webhook",
+  			payload: webhookPayload,
+  		});
+
+  		return Response.json({
+  			status: await instance.status(),
+  		});
+  	},
+  };
+  ```
+</TypeScriptExample>
+
+전화 번호`sendEvent`여러 번, 값 설정`type`특정 재산`waitForEvent`작업 흐름에 통화.
+
+한 번에 여러 이벤트를 기다리고 있습니다.`Promise.race`여러 이벤트를 기다립니다. 첫번째 이벤트를 통해 Workflow를 진행할 수 있습니다.
+
+### 관련 제품
+
+Workflow 인스턴스의 상태를 세부합니다.
+
+```ts
+type InstanceStatus = {
+	status:
+		| "queued" //그 인스턴스가 시작될 때까지 기다리는 것을 의미합니다. (자본 제한 참조)
+		| "running"
+		| "paused"
+		| "errored"
+		| "terminated" //사용자가 실행된 동안 인스턴스를 종료했습니다.
+		| "complete"
+		| "waiting" //예를 들어 수면이나 수면을 기다리는 것이 좋습니다.
+		| "waitingForPause" //인스턴스는 일시 중지에 현재 작업을 완료
+		| "unknown";
+	error?: {
+		name: string;
+		message: string;
+	};
+	output?: unknown;
+};
+```
+
+[^1]: 일치 본:`^[a-zA-Z0-9_][a-zA-Z0-9-_]*$`

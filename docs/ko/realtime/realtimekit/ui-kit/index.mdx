@@ -1,0 +1,196 @@
+---
+pcx_content_type: navigation
+title: UI Kit를 사용하여 빌드
+sidebar:
+  order: 5
+  label: 시작하기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/ui-kit/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/realtimekit/ui-kit/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+RealtimeKit Meeting UI 구성 요소는 상자에서 완벽한 미팅 경험을 제공합니다. 앱에 떨어뜨리고 갈 준비가 되어 있습니다.
+
+<Render file="realtimekit/common/installation" product="realtime" />
+
+<RTKCodeSnippet id="web-react">
+  으로**SDK 초기화**, 당신의 React 신청에 뒤에 오는 부호를 추가하십시오:
+
+  ```ts title="App.tsx"
+  import { useEffect } from 'react';
+  import { useRealtimeKitClient } from '@cloudflare/realtimekit-react';
+
+  export default function App() {
+  const [meeting, initMeeting] = useRealtimeKitClient();
+  useEffect(() => {
+    initMeeting({ authToken: '<auth-token>' });
+  }, []);
+
+  return <div></div>
+  }
+
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/subresources/meetings/methods/add_participant/)으로 fetch`authToken`.
+
+  지금,**회의 구성**사용 방법`RtkMeeting`구성 요소 및`useRealtimeKitMeeting`Hook (이 Hook은 모든 회의 상태 및 방법을 포함하는 회의 객체에 액세스 할 수 있습니다).
+
+  ```ts title="MyMeetingUI.tsx"
+  import { useRealtimeKitMeeting } from '@cloudflare/realtimekit-react';
+  import { RtkMeeting } from '@cloudflare/realtimekit-react-ui';
+
+  export default function MyMeetingUI() {
+    const { meeting } = useRealtimeKitMeeting();
+    return (
+      <RtkMeeting mode="fill" meeting={meeting} showSetupScreen={true} />
+    );
+  }
+  ```
+
+  **회의 구성품 사용**이렇게:
+
+  ```ts title="App.tsx"
+  import { useEffect } from 'react';
+  import { useRealtimeKitClient, RealtimeKitProvider } from '@cloudflare/realtimekit-react';
+  import MyMeetingUI from './MyMeetingUI.tsx'
+
+  export default function App() {
+    const [meeting, initMeeting] = useRealtimeKitClient();
+
+    useEffect(() => {
+      initMeeting({ authToken: '<auth-token>' });
+    }, []);
+
+    return (
+      <RealtimeKitProvider value={meeting}>
+        <MyMeetingUI />
+      </RealtimeKitProvider>
+    );
+  }
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-web-components">
+  **더 보기**다음 것**HTM에 가져 오기**파일 :
+
+  ```html title="index.html"
+  <!DOCTYPE html>
+  <html lang="en">
+    <head>
+      <!--UI Kit 컴포넌트를 로드하는 데 도움을 줍니다.-->
+      <script type="module">
+        import { defineCustomElements } from 'https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit-ui@latest/loader/index.es2017.js';
+        defineCustomElements();
+      </script>
+      <!--CDN을 통해 RealtimeKit 코어 가져 오기-->
+      <script src="https://cdn.jsdelivr.net/npm/@cloudflare/realtimekit@latest/dist/browser.js"></script>
+    </head>
+  </html>
+  ```
+
+  사용 방법`rtk-meeting`구성 요소**회의 UI 표시**.
+
+  ```html
+  <body>
+      <rtk-meeting id="my-meeting" show-setup-screen="true" />
+  </body>
+  ```
+
+  **SDK 초기화**사용 방법`authToken`회의에 연결하기 위해 UI 구성 요소에 회의 prop을 전달합니다.
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant)으로 fetch`authToken`.
+
+  ```html
+  <script>
+  	const authToken = <auth-token>
+  	// Initialize the SDK
+  	RealtimeKitClient.init({
+  	authToken,
+  	}).then((meeting) => {
+  	document.getElementById('my-meeting').meeting = meeting;
+  	});
+  </script>
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  **RTKComponentsModule로드**앱 모듈로.
+
+  이것은 일반적으로 app.module.ts 파일입니다.
+  구성 요소 HTML 파일에서 UI 구성 요소를 사용할 수 있습니다.
+
+  ```ts
+  import { NgModule } from "@angular/core";
+  import { BrowserModule } from "@angular/platform-browser";
+  import { RTKComponentsModule } from "@cloudflare/realtimekit-angular";
+  import { AppComponent } from "./app.component";
+
+  @NgModule({
+  	declarations: [AppComponent],
+  	imports: [BrowserModule, RTKComponentsModule],
+  	providers: [],
+  	bootstrap: [AppComponent],
+  })
+  export class AppModule {}
+  ```
+
+  *옵션 :*&#x54;ypeScript를 사용하는 경우, tsconfig.json에서 true로 AllowSyntheticDefaultImports를 설정합니다.
+
+  ```ts
+  {
+  	"compilerOptions": {
+  		"allowSyntheticDefaultImports": true
+  	}
+  }
+  ```
+
+  **RtkMeeting 구성 요소로드**템플릿 파일에 (component.html).
+
+  ```html
+  <rtk-meeting #myid></rtk-meeting>
+  ```
+
+  **미팅 시작**
+
+  ```ts
+  class AppComponent {
+  	å;
+  	title = "MyProject";
+  	@ViewChild("myid") meetingComponent: RtkMeeting;
+  	rtkMeeting: RealtimeKitClient;
+
+  	async ngAfterViewInit() {
+  		const meeting = await RealtimeKitClient.init({
+  			authToken: "<auth-token>",
+  		});
+  		meeting.join();
+  		this.rtkMeeting = meeting;
+  		if (this.meetingComponent) this.meetingComponent.meeting = meeting;
+  	}
+  }
+  ```
+
+  사용 방법[Participant API 만들기](/api/resources/realtime_kit/#create-a-participant/)으로 fetch`authToken`.
+</RTKCodeSnippet>
+
+## 다음 단계
+
+RealtimeKit을 기본 회의 UI로 성공적으로 통합했습니다. 참가자는 이제 세션에서 서로를보고 듣고 들 수 있습니다.
+
+#### 건축 주문 회의 경험
+
+기본 UI는 완벽한 미팅 경험을 제공하지만 개별 UI 키트 구성 요소를 사용하여 사용자 정의 인터페이스를 구축 할 수 있습니다. 이 접근법은 레이아웃, 디자인 및 사용자 경험에 대한 전체 제어를 제공합니다.
+
+자신의 사용자 정의 회의 UI를 구축하려면, 순서에 이러한 가이드를 따르십시오:
+
+1. **[UI 키트 구성 요소 라이브러리](/realtime/realtimekit/ui-kit/component-library/)**- 사용 가능한 구성품 및 시각적 표현
+2. **[UI 키트 미팅 Lifecycle](/realtime/realtimekit/ui-kit/state-management/)**- 회의의 수명주기 및 구성 요소가 서로 소통하고 동기화하는 방법
+3. **[세션 Lifecycle](/realtime/realtimekit/concepts/session-lifecycle/)**- 다른 동료 국가 및 전환 이해
+4. **[회의 목표 설명](/realtime/realtimekit/core/meeting-object-explained/)**- Core SDK를 이용한 접근 회의 데이터 및 참가자 정보
+5. **[자체 UI 구축](/realtime/realtimekit/ui-kit/build-your-own-ui/)**- 맞춤 회의 인터페이스를 만들기 위해 함께 모든 것을 넣어

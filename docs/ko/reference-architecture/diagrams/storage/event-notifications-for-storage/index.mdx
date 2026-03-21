@@ -1,0 +1,73 @@
+---
+title: 이벤트 알림
+pcx_content_type: reference-architecture-diagram
+products:
+  - r2
+  - workers
+sidebar:
+  order: 1
+  label: 이벤트 알림
+reviewed: 2024-10-21T00:00:00.000Z
+description: Cloudflare Workers 또는 외부 서비스를 사용하여 데이터 변경에 대한 알림을 모니터링하고 적절한 처리하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/event-notifications-for-storage/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/storage/event-notifications-for-storage/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+모델 번호: Cloudflare[모델 번호: R2](/r2/)Storage는 개발자가 일반적인 클라우드 스토리지 서비스와 관련된 비용의 egress 대역폭 수수료 없이 많은 양의 비구조 데이터를 저장할 수 있습니다. Object Storage에서 데이터의 수명주기는 종종 업로드, 수정, 삭제 또는 데이터를 삭제합니다. 변환, 분석, 또는 데이터를 처리하는 작업을 할 수 있습니다. R2는 제공합니다[이벤트 알림](/r2/buckets/event-notifications/)이 이벤트 구동 워크플로우를 관리합니다.
+
+이 문서는 serverless에 내장 된 방법을 통해 걸어[Cloudflare Workers](/workers/)또는 외부 서비스는 데이터 변경에 대한 알림을 모니터링하고 적절한 처리합니다.
+
+## Push-based 소비자 노동자
+
+이벤트 알림 기능 메시지 보내기[이름 \*](/queues/)데이터의 변화가 있을 때마다. 이 메시지는 다음 처리됩니다.[소비자 노동자](/queues/reference/how-queues-works/#consumers). 소비자 노동자는 클라이언트에 대한 용어입니다 또는 큐에서 메시지를 전달하는. 소비자 노동자는이 메시지를 자동으로 받게됩니다. 다음 작업을 정의할 수 있습니다.
+
+예를 들어, 새로운 이미지가 R2 물통에 업로드될 때 트리거에 알림을 구성할 수 있습니다. 이 알림은 자동으로 이미지를 텍스트로 변환하는 것과 같은 이미지에서 작업을 수행하는 AI 워크로드를 시작합니다.
+
+Push-based post-processing의 밑에 예를 고려하십시오: 사용자가 R2로 새로운 객체를 업로드할 때, 우리는 분리된 R2 물통으로 사건을 기록하고 저장하고 싶습니다. 이 튜토리얼을 따라 이 시나리오를 만들 수 있습니다:[이벤트 알림 R2에서 업로드 이벤트를 로그 및 저장](/r2/tutorials/upload-logs-event-notifications/).
+
+![그림 1: 푸시 기반 R2 이벤트 알림](~/assets/images/reference-architecture/event-notifications-for-storage/pushed-based-event-notification.svg "Figure 1: Push-Based R2 Event Notifications")
+
+1. 사용자 R2에 직접 새로운 객체를 업로드합니다.
+2. 이벤트 알림은 큐에 전송됩니다.
+3. 소비자 노동자는 큐에서 새로운 일을 밀어.
+4. 노동자는 R2로 로그 이벤트를 삽입합니다.
+
+## 풀 기반 HTTP 소비자
+
+대안으로, 당신은 설치할 수 있습니다[산출 근거한 소비자](/queues/configuration/pull-consumers/), 어떤 환경에서 HTTP를 통해 큐에서 끌어. Cloudflare 밖에 기존 인프라에서 메시지를 소비해야하는 경우 풀 기반 소비자를 사용하여 빠른 메시지가 소모되는 방법을 신중하게 제어해야합니다.
+
+해당 이용 후기에 달린 코멘트가 없습니다.
+
+아래 시나리오를 고려하십시오 : R2에서 삭제를 시작합니다. 외부서비스는 삭제의 통보가 필요하므로, 외부서비스를 통해 외부서비스를 구축하여 알림을 검색합니다.
+
+![그림 2: 잡아당기기 기초 R2 이벤트 알림](~/assets/images/reference-architecture/event-notifications-for-storage/pull-based-event-notification.svg "Figure 2: Pull-Based R2 Event Notifications")
+
+1. 사용자가 R2에서 삭제를 시작합니다.
+2. 이벤트 알림은 큐에 전송됩니다.
+3. 외부 서비스, 요청을 처리 할 준비가되면 HTTP POST 요청을 queue로 설정하여 메시지를 풀 수 있습니다.
+4. 큐는 단계 3에서 POST 요청에 대한 응답에 메시지를 보냅니다.
+5. 외부 서비스는 메시지가 수신 된 것을 인정해야합니다.
+
+여기에 단계를 따를 수 있습니다.[풀 기반 소비자 구성](/queues/configuration/pull-consumers/#1-enable-http-pull).
+
+## 추가 사례 사용 사례
+
+- 언제든지 관리자에게 이메일을 보내면 R2에서 삭제됩니다.
+- 비디오 또는 팟 캐스트가 R2에 업로드되면 자동으로 Cloudflare의 자동 연설 인식 (ASR) AI 모델 중 하나를 사용하여 콘텐츠를 처리하고 자막을 생성하거나 콘텐츠를 번역합니다.
+- R2의 객체가 삭제되면 관련 데이터베이스 항목을 제거하십시오.
+
+## 관련 자료
+
+- [자습서 : 이벤트 알림 R2에서 업로드 이벤트를 로그 및 저장](/r2/tutorials/upload-logs-event-notifications/)
+- [이벤트 알림 문서](/r2/buckets/event-notifications/)
+- [Cloudflare R2 개요](/r2/)
+- [Cloudflare Queues 개요](/queues/)
+- [Cloudflare Queues 잡아당기기 소비자](/queues/configuration/pull-consumers/)

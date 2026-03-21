@@ -1,0 +1,86 @@
+---
+title: Transition 유산 Vectorize 색인
+pcx_content_type: concept
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/vectorize/reference/transition-vectorize-legacy/
+translation_source_md: >-
+  https://developers.cloudflare.com/vectorize/reference/transition-vectorize-legacy/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+레거시 Vectorize (V1) 지수는 8월 15일, 2024일의 퇴행 경로에 있습니다. Vectorize 색인은 follwing crieria의 무엇이든을 성취하는 경우에 유산 색인일지도 모릅니다:
+
+1. Wrangler 버전으로 제작되었습니다.`v3.71.0`.
+2. "--deprecated-v1" 플래그를 사용하여 생성되었습니다.
+3. 레거시 REST API를 사용하여 생성되었습니다.
+
+이 문서는 레거시 Vectorize 인덱스에서 이동해야 할 모든 전환 단계에 대한 세부 정보를 제공합니다.
+
+## 왜 전환해야합니까?
+
+레거시 Vectorize (V1) 인덱스는 퇴행 경로에 있습니다. 이러한 인덱스에 대한 지원은 제한되고 그들의 사용은 어떤 생산 작업 부하에 권장되지 않습니다.
+
+또한, 더 이상 유산 Vectorize 인덱스를 만들 수 없습니다 12월 2024. 다른 가동은 unaffected 이고 기능은 남아 있을 것입니다.
+
+또한, 새로운 Vectorize (V2) 지수는 현저하게 더 큰 규모에서 작동 할 수 있습니다 (다억 벡터 용량), 빠른 성능을 제공합니다. 자주 묻는 질문[제한 사항](/vectorize/platform/limits/)Vectorize에 의해 지원하는 최신 기능을 이해하는 페이지.
+
+## 변경 사항
+
+멀티 백만 벡터와 크게 더 큰 인덱스를 지원할 뿐만 아니라, 더 빠른 성능, 이것은 레거시 Vectorize 인덱스에서 멀리 전환할 때 고려해야 하는 변화의 일부입니다:
+
+1. 새로운 Vectorize (V2) 지수는 이제 비동기 mutations를 지원합니다. 어떤 벡터 삽입 또는 삭제, 및 메타데이터 인덱스 생성 또는 삭제는 반영 될 몇 초 걸릴 수 있습니다.
+
+2. Vectorize(V2)는 메타데이터와 네임스페이스를 지원하여 훨씬 더 큰 인덱스를 필터링합니다. 그러나, 메타데이터 필터링이 벡터가 삽입되기 전에 지정된 필요가 적용될 수 있습니다. 더 알아보기[metadata 색인 생성](/vectorize/reference/client-api/#create-metadata-index)더 자세한 내용은 페이지.
+
+3. Vectorize (V2)[질문 작업](/vectorize/reference/client-api/#query-vectors)이제 100개의 가장 유사한 벡터로 검색하고 돌아갈 수 있는 능력을 지원합니다.
+
+4. Vectorize (V2) 쿼리 작업은 벡터와 함께 메타 데이터를 쿼리하기위한 더 많은 과립 제어를 제공합니다. 더 알아보기[질문 작업](/vectorize/reference/client-api/#query-vectors)더 자세한 내용은 페이지.
+
+5. Vectorize (V2)는 WranglerX0077XQXQ (QXQX0077XQX0077XQ 버전 >를 통해 유효한 VectorizeQ 기능을 확장합니다`v3.71.0`).
+
+## 교통수단
+
+:::노트\[자동 마이그레이션]
+
+새로운 Vectorize (V2) 인덱스를 자동으로 마이그레이션할 수 있는 다가오는 기능에 대한 이 공간을 보세요.
+
+:::
+
+1. Wrangler는 지금 Vectorize (V2) 색인의 새로운 버전에 가동을 기본적으로 지원합니다. 레거시의 Wrangler 명령을 사용하려면 (V1) 인덱스,`--deprecated-v1`플래그가 활성화되어야 합니다. 이 플래그는 생성, 가져오기, 목록 및 삭제 인덱스 및 벡터 삽입에만 지원됩니다.
+
+2. 더 알아보기[REST API를](/api/resources/vectorize/subresources/indexes/methods/create/)새로운 Vectorize (V2) 지수에 대한 경로 및 페이로드 유형에 대한 자세한 내용은 페이지.
+
+3. Workers의 QXQXQ 인덱스의 새로운 버전을 사용하려면, 환경 바인딩은 정의되어야 합니다`Vectorize`인터페이스.
+
+   ```typescript
+   export interface Env {
+   	//이것은 env.VECTORIZE.*에서 사용할 수있는 벡터 인덱스 메소드를 만듭니다.
+   	//예를 들어, env.VECTORIZE.insert() 또는 쿼리()
+   	VECTORIZE: Vectorize;
+   }
+   ```
+
+   더 보기`Vectorize`인터페이스는 새로운 Vectorize (V2) 색인에 의해 지원되는 유형 변화 및 기능을 포함합니다.
+
+   레거시 Vectorize (V1) 색인을 위해, 사용`VectorizeIndex`인터페이스.
+
+   ```typescript
+   export interface Env {
+   	//이것은 env.VECTORIZE.*에서 사용할 수있는 벡터 인덱스 메소드를 만듭니다.
+   	//예를 들어, env.VECTORIZE.insert() 또는 쿼리()
+   	VECTORIZE: VectorizeIndex;
+   }
+   ```
+
+4. 새로운 Vectorize (V2) 버전으로,`returnMetadata`옵션 옵션[질문 작업](/vectorize/reference/client-api/#query-vectors)현재 예상 중`all`, `indexed`또는`none`문자열 값. 유산 Vectorize (V1)를 위해,`returnMetadata`옵션은 불린 필드였다.
+
+5. 새로운 Vectorize (V2) 색인으로, 모든 색인 및 벡터 mutations는 비동기이고 돌려보냅니다`mutationId`응답에서 유일한 식별자에 대한 돌연변이 작업.
+
+   이 돌연변이 작업은:[벡터 삽입](/vectorize/reference/client-api/#insert-vectors), [벡터 Upserts](/vectorize/reference/client-api/#upsert-vectors), [벡터 삭제](/vectorize/reference/client-api/#delete-vectors-by-id), [Metadata Index 생성](/vectorize/reference/client-api/#create-metadata-index), [메타데이터 인덱스](/vectorize/reference/client-api/#delete-metadata-index).
+
+   마지막 돌연변이의 식별자와 타임스탬프를 확인하려면 Vectorize[정보 명령](/vectorize/reference/client-api/#get-index-info).

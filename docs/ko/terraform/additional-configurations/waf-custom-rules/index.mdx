@@ -1,0 +1,139 @@
+---
+title: WAF 사용자 정의 규칙 구성 Terraform 사용
+pcx_content_type: how-to
+sidebar:
+  order: 5
+  label: WAF 사용자 정의 규칙
+head:
+  - tag: title
+    content: WAF 사용자 정의 규칙 구성 Terraform 사용
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/waf-custom-rules/
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/waf-custom-rules/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip } from "~/components";
+
+이 페이지는 생성 예제를 제공합니다.[WAF 사용자 정의 규칙](/waf/custom-rules/)Terraform을 사용하여 영역 또는 계정에서. 예제는 다음과 같은 시나리오를 다룹니다.
+
+- [영역에 사용자 정의 규칙을 추가](#add-a-custom-rule-to-a-zone)
+- [사용자 정의 규칙 작성 및 배포](#create-and-deploy-a-custom-ruleset)
+
+WAF 문서에는 추가 Terraform 예제가 포함되어 있습니다. — 참조[더 많은 리소스](#more-resources).
+
+Cloudflare API를 사용하는 경우 WAF 문서의 다음 리소스를 참조하십시오.
+
+- [API를 통해 사용자 정의 규칙 만들기](/waf/custom-rules/create-api/)
+- [API를 사용하여 사용자 정의 규칙 만들기](/waf/account/custom-rulesets/create-api/)
+
+Rulesets API를 사용하여 배포 및 구성에 대한 자세한 내용은 참조[주문 규칙 작업](/ruleset-engine/custom-rulesets/)Ruleset Engine 문서에서.
+
+## 시작하기 전에
+
+### 필요한 계정 또는 영역 ID를 얻으십시오.
+
+<Render file="find-ids" product="terraform" />
+
+### 기존의 규칙을 가져오기 또는 삭제
+
+<Render file="import-delete-existing-rulesets" product="terraform" />
+
+***
+
+## 영역에 사용자 정의 규칙을 추가
+
+다음 예제는 영역 항목 점 규칙에 정의 규칙을 구성`http_request_firewall_custom`ID를 가진 지역을 위한 단계`<ZONE_ID>`. 규칙은 비표준 HTTP (S) 포트에 모든 트래픽을 차단합니다:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "zone_custom_firewall" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Phase entry point ruleset for custom rules in my zone"
+  description = ""
+  kind        = "zone"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    ref         = "block_non_default_ports"
+    description = "Block ports other than 80 and 443"
+    expression  = "(not cf.edge.server_port in {80 443})"
+    action      = "block"
+  }
+}
+```
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "custom rule" }} />
+
+<br />
+
+## 사용자 정의 규칙 작성 및 배포
+
+:::참조
+모든 고객은 사용자 정의 규칙을 만들 수 있습니다[지역 수준](/waf/custom-rules/custom-rulesets/).<br />주문 규칙[계정 수준](/waf/account/custom-rulesets/)유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+주요 특징
+
+다음 예제는[주문 규칙](/ruleset-engine/custom-rulesets/)ID로 계정에서`<ACCOUNT_ID>`단일 사용자 정의 규칙을 포함. 이 사용자 정의 규칙은 다음 분리를 사용하여 배치됩니다.`cloudflare_ruleset`Terraform 자원. 사용자 정의 규칙을 배포하지 않으면 실행되지 않습니다.
+
+다음 구성은 단일 규칙과 사용자 정의 규칙을 만듭니다.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_firewall_custom_ruleset" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Custom ruleset blocking traffic in non-standard HTTP(S) ports"
+  description = ""
+  kind        = "custom"
+  phase       = "http_request_firewall_custom"
+
+  rules {
+    ref         = "block_non_default_ports"
+    description = "Block ports other than 80 and 443"
+    expression  = "(not cf.edge.server_port in {80 443})"
+    action      = "block"
+  }
+}
+```
+
+<Render file="add-new-rule" product="terraform" params={{ ruleType: "custom rule in the custom ruleset" }} />
+
+<br />
+
+다음 구성은 계정 수준에서 사용자 정의 규칙을 배치합니다. 그것은에 의존성을 정의`account_firewall_custom_ruleset`리소스 및 생성 된 사용자 정의 규칙의 ID를 사용합니다.`action_parameters`:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_firewall_custom_entrypoint" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Account-level entry point ruleset for the http_request_firewall_custom phase deploying a custom ruleset"
+  description = ""
+  kind        = "root"
+  phase       = "http_request_firewall_custom"
+
+  depends_on = [cloudflare_ruleset.account_firewall_custom_ruleset]
+
+  rules {
+    ref         = "deploy_custom_ruleset_example_com"
+    description = "Deploy custom ruleset for example.com"
+    expression  = "(cf.zone.name eq \"example.com\") and (cf.zone.plan eq \"ENT\")"
+    action      = "execute"
+    action_parameters {
+      id = cloudflare_ruleset.account_firewall_custom_ruleset.id
+    }
+  }
+}
+```
+
+구성 및 배포에 대한 자세한 내용은 사용자 정의 규칙을 참조하시기 바랍니다[주문 규칙 작업](/ruleset-engine/custom-rulesets/)Ruleset Engine 문서에서.
+
+## 더 많은 리소스
+
+- [악성행위 탐지: 악성행위를 차단하는 사용자 정의 규칙을 추가](/waf/detections/malicious-uploads/terraform-examples/#add-a-custom-rule-to-block-malicious-uploads)
+- [누출된 자격 탐지: 누출된 자격 증명을 가진 도전 요구에 주문 규칙을 추가하십시오](/waf/detections/leaked-credentials/terraform-examples/#add-a-custom-rule-to-challenge-requests-with-leaked-credentials)

@@ -1,0 +1,195 @@
+---
+pcx_content_type: example
+title: GraphQL로 호스트명별 HTTP 이벤트 조회하기
+
+---
+
+## 시간 경과에 따른 호스트명별 집계 HTTP 메트릭
+
+이 예제에서는 GraphQL Analytics API를 사용해 특정 기간 동안 호스트명별 HTTP 이벤트의 집계 메트릭을 조회합니다.
+
+다음 API 호출은 사용자 지정 호스트명 `hostname.example.com`에 대해 4일 동안의 방문 수와 edge response bytes를 요청합니다. `CLOUDFLARE_ZONE_TAG`와 `API_TOKEN`[^1]을 zone ID와 API 자격 증명으로 바꾸고, 필요에 따라 `datetime_geq` 및 `datetime_leq` 값을 조정하세요.
+
+### API 호출
+
+```bash
+echo '{ "query":
+  "query RequestsAndDataTransferByHostname($zoneTag: string, $filter:filter) {
+    viewer {
+      zones(filter: {zoneTag: $zoneTag}) {
+        httpRequestsAdaptiveGroups(limit: 10, filter: $filter) {
+          sum {
+            visits
+            edgeResponseBytes
+          }
+          dimensions {
+            datetimeHour
+          }
+        }
+      }
+    }
+  }",
+  "variables": {
+    "zoneTag": "<CLOUDFLARE_ZONE_TAG>",
+    "filter": {
+      "datetime_geq": "2022-07-20T11:00:00Z",
+      "datetime_lt": "2022-07-24T12:00:00Z",
+      "clientRequestHTTPHost": "hostname.example.com",
+      "requestSource": "eyeball"
+    }
+  }
+}' | tr -d '\n' | curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Accept: application/json" \
+--header "Content-Type: application/json" \
+--data @- | jq .
+```
+
+반환 결과는 JSON 형식(요청한 형식)으로 제공되므로, 다음 예시처럼 `jq`로 파이프하면 읽기 쉬워집니다.
+
+```json
+{
+  "data": {
+    "viewer": {
+      "zones": [
+        {
+          "httpRequestsAdaptiveGroups": [
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-21T10:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 19849385,
+                "visits": 4383
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-21T06:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 20607204,
+                "visits": 4375
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-26T05:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 20170839,
+                "visits": 4519
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-23T08:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 20141860,
+                "visits": 4448
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-25T15:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 21070367,
+                "visits": 4469
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-28T08:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 19200774,
+                "visits": 4345
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-26T02:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 20758067,
+                "visits": 4502
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-20T19:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 22127811,
+                "visits": 4443
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-27T15:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 20480644,
+                "visits": 4268
+              }
+            },
+            {
+              "dimensions": {
+                "datetimeHour": "2022-07-27T17:00:00Z"
+              },
+              "sum": {
+                "edgeResponseBytes": 19885704,
+                "visits": 4287
+              }
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "errors": null
+}
+```
+
+## Zone에서 리소스를 가장 많이 소비하는 상위 10개 URL
+
+이 예제에서는 GraphQL Analytics API를 사용해 하나의 zone에서 리소스를 가장 많이 소비하는 상위 10개 URL을 조회하여, 리소스 사용량이 가장 높은 URL을 식별합니다. 구성 시 참고할 사항은 다음과 같습니다.
+
+* 특정 호스트명으로 필터링하려면 `"requestSource"` 아래에 `"clientRequestHTTPHost": "'$2'"` 줄을 추가하세요.
+* `API_TOKEN`은 `Read all resources` 권한으로 생성한 API 토큰으로 바꾸세요. 스크립트는 토큰 생성자가 접근할 수 있는 zone에만 접근합니다.
+* zone ID(`zoneTag`)는 `ARG=$1` 매개변수로 전달하세요.
+* 현재 날짜와 30일 전 날짜를 계산하려면 Mac에서 `gdate`를 사용하세요.
+  * `CURRENTDATE=$(gdate -u +'%FT%TZ')`
+  * `OLDDATE=$(gdate -d '-30 days' -u +'%FT%TZ')`.
+* 최근 30일 내 특정 날짜를 지정하려면 `CURRENTDATE`와 `OLDDATE` 변수를 `"YYYY-MM-DDTHH:MM:SSZ"` 형식으로 설정하세요.
+
+### API 호출
+
+```bash
+curl --silent \
+https://api.cloudflare.com/client/v4/graphql \
+--header "Authorization: Bearer <API_TOKEN>" \
+--header "Content-Type: application/json" \
+--data '{
+  "query": "{viewer {zones(filter: {zoneTag: $zoneTag}) {topPaths: httpRequestsAdaptiveGroups(filter: $filter, limit: 10, orderBy: [sum_edgeResponseBytes_DESC]) {count sum {edgeResponseBytes} dimensions {metric: clientRequestPath}}}}}",
+  "variables": {
+    "zoneTag": "'$ARG'",
+    "filter": {
+      "AND": [
+        {
+          "datetime_geq": "'$OLDDATE'",
+          "datetime_leq": "'$CURRENTDATE'"
+        },
+        {
+          "requestSource": "eyeball"
+        }
+      ]
+    }
+  }
+}' | jq -r 'try .data.viewer.zones[].topPaths[] | "\"\(.dimensions.metric)\": \(.sum.edgeResponseBytes)"' | sort
+```
+
+[^1]: 구성 및 권한에 대한 자세한 내용은 [Analytics API 토큰 구성](/analytics/graphql-api/getting-started/authentication/api-token-auth/)을 참조하세요.

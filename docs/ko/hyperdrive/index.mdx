@@ -1,0 +1,222 @@
+---
+title: '모델 번호: Hyperdrive'
+order: 0
+pcx_content_type: overview
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 제품정보
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/'
+translation_source_md: 'https://developers.cloudflare.com/hyperdrive/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	CardGrid,
+	Description,
+	Feature,
+	LinkTitleCard,
+	Plan,
+	RelatedProduct,
+	Tabs,
+	TabItem,
+	LinkButton,
+} from "~/components";
+
+<Description>
+  기존의 지역 데이터베이스를 글로벌 분산 데이터베이스로 전환합니다.
+</Description>
+
+<Plan type="workers-all" />
+
+Hyperdrive는 기존 데이터베이스에 만들 수 있는 쿼리를 가속화하는 서비스이며, 전 세계의 데이터에 액세스하는 데 더 빠르게 액세스할 수 있습니다.[CloudflareWorkers](/workers/)사용자의 위치 결정.
+
+Hyperdrive는 AWS, Google Cloud, Azure, Neon 및 PlanetScale에서 호스팅되는 사람들을 포함하여 모든 Postgres 또는 MySQL 데이터베이스를 지원합니다. Hyperdrive는 CockroachDB 및 Timescale와 같은 Postgres 호환 데이터베이스를 지원합니다.
+새로운 코드를 작성하거나 좋아하는 도구를 교체 할 필요가 없습니다 : Hyperdrive는 기존 코드와 도구를 사용하여 작동합니다.
+
+Hyperdrive의 연결 문자열을 사용하여 Cloudflare WorkersXQ 응용 프로그램을 사용하여 기존의 Postgres 드라이버 및 객체-relational mapping (ORM) 라이브러리:
+
+<Tabs>
+  <TabItem label="프로젝트">
+    <Tabs>
+      <TabItem label="사이트맵">
+        ```ts
+        import { Client } from "pg";
+
+        export default {
+        	async fetch(request, env, ctx): Promise<Response> {
+        		//각 요청에 대한 새로운 클라이언트 인스턴스를 만듭니다. Hyperdrive는 유지합니다
+        		//데이터베이스 연결 풀에서 새로운 클라이언트를 만드는 것은 빠릅니다.
+        		const client = new Client({
+        			connectionString: env.HYPERDRIVE.connectionString,
+        		});
+
+        		try {
+        			//데이터베이스에 연결
+        			await client.connect();
+        			//SQL 쿼리
+        			const result = await client.query("SELECT * FROM pg_tables");
+
+        			return Response.json(result.rows);
+        		} catch (e) {
+        			return Response.json({ error: e instanceof Error ? e.message : e }, { status: 500 });
+        		}
+        	},
+        } satisfies ExportedHandler<{ HYPERDRIVE: Hyperdrive }>;
+        ```
+      </TabItem>
+
+      <TabItem label="다운로드">
+        ```json
+        	{
+        		"$schema": "node_modules/wrangler/config-schema.json",
+        		"name": "WORKER-NAME",
+        		"main": "src/index.ts",
+        		"compatibility_date": "2025-02-04",
+        		"compatibility_flags": [
+        			"nodejs_compat"
+        		],
+        		"observability": {
+        			"enabled": true
+        		},
+        		"hyperdrive": [
+        			{
+        				"binding": "HYPERDRIVE",
+        				"id": "<YOUR_HYPERDRIVE_ID>",
+        				"localConnectionString": "<ENTER_LOCAL_CONNECTION_STRING_FOR_LOCAL_DEVELOPMENT_HERE>"
+        			}
+        		]
+        	}
+        ```
+      </TabItem>
+    </Tabs>
+  </TabItem>
+
+  <TabItem label="기본 정보">
+    <Tabs>
+      <TabItem label="사이트맵">
+        ```ts
+        import { createConnection } from 'mysql2/promise';
+
+        export default {
+          async fetch(request, env, ctx): Promise<Response> {
+            //각 요청에 대한 새로운 연결 만들기. Hyperdrive는 유지합니다
+            //데이터베이스 연결 풀에서 새로운 클라이언트를 만드는 것은 빠릅니다.
+            const connection = await createConnection({
+        		 host: env.HYPERDRIVE.host,
+        		 user: env.HYPERDRIVE.user,
+        		 password: env.HYPERDRIVE.password,
+        		 database: env.HYPERDRIVE.database,
+        		 port: env.HYPERDRIVE.port,
+
+             //Workers
+             //이 mysql2를 구성하여 eval 대신 정적 파싱 (Workers)
+             disableEval: true
+          });
+
+          const [results, fields] = await connection.query('SHOW tables;');
+
+          return new Response(JSON.stringify({ results, fields }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '\*',
+            },
+          });
+        }} satisfies ExportedHandler<{ HYPERDRIVE: Hyperdrive }>;
+
+        ```
+      </TabItem>
+
+      <TabItem label="다운로드">
+        ```json
+        	{
+        		"$schema": "node_modules/wrangler/config-schema.json",
+        		"name": "WORKER-NAME",
+        		"main": "src/index.ts",
+        		"compatibility_date": "2025-02-04",
+        		"compatibility_flags": [
+        			"nodejs_compat"
+        		],
+        		"observability": {
+        			"enabled": true
+        		},
+        		"hyperdrive": [
+        			{
+        				"binding": "HYPERDRIVE",
+        				"id": "<YOUR_HYPERDRIVE_ID>",
+        				"localConnectionString": "<ENTER_LOCAL_CONNECTION_STRING_FOR_LOCAL_DEVELOPMENT_HERE>"
+        			}
+        		]
+        	}
+        ```
+      </TabItem>
+    </Tabs>
+  </TabItem>
+</Tabs>
+
+<LinkButton href="/hyperdrive/get-started/">시작하기</LinkButton>
+
+***
+
+## 주요 특징
+
+<Feature header="데이터베이스" href="/hyperdrive/get-started/" cta="Connect Hyperdrive to your database">
+  기존 데이터베이스에 Hyperdrive를 연결하고 배포합니다.[작업자](/workers/)즉,
+</Feature>
+
+<Feature header="PostgreSQL 지원" href="/hyperdrive/examples/connect-to-postgres/" cta="Connect Hyperdrive to your PostgreSQL database">
+  Hyperdrive는 PostgreSQL 또는 PostgreSQL 호환 데이터베이스에 연결할 수 있습니다.
+</Feature>
+
+<Feature header="MySQL 지원" href="/hyperdrive/examples/connect-to-mysql/" cta="Connect Hyperdrive to your MySQL database">
+  Hyperdrive는 MySQL 데이터베이스에 연결할 수 있습니다.
+</Feature>
+
+<Feature header="Query 캐싱" href="/hyperdrive/concepts/query-caching/" cta="Learn about Query Caching">
+  데이터베이스에 대해 가장 인기있는 쿼리에 대한 기본에 캐싱.
+</Feature>
+
+***
+
+## 관련 제품
+
+<RelatedProduct header="Workers" href="/workers/" product="workers">
+  Serverless 응용 프로그램을 구축하고 뛰어난 성능, 신뢰성 및 규모를 위해 전 세계 즉시 배포합니다.
+</RelatedProduct>
+
+<RelatedProduct header="Pages" href="/pages/" product="pages">
+  기록 시간에 동적 프런트 엔드 응용 프로그램을 배포합니다.
+</RelatedProduct>
+
+***
+
+## 더 많은 리소스
+
+<CardGrid>
+  <LinkTitleCard title="가격 책정" href="/hyperdrive/platform/pricing/" icon="seti:shell">
+    Hyperdrive의 가격에 대해 알아보세요.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="제한 사항" href="/hyperdrive/platform/limits/" icon="document">
+    Hyperdrive 제한에 대해 알아보기.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="저장 옵션" href="/workers/platform/storage-options/" icon="document">
+    스토리지 및 데이터베이스 옵션에 대해 자세히 알아보기
+    모델 번호: Workers.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="개발자 Discord" href="https://discord.cloudflare.com" icon="discord">
+    Discord에 Workers 커뮤니티와 연결하여 질문, 당신이 무엇을 보여
+    건물 및 다른 개발자와 플랫폼에 대해 논의합니다.
+  </LinkTitleCard>
+
+  <LinkTitleCard title="@CloudflareDev로" href="https://x.com/cloudflaredev" icon="x.com">
+    트위터에 @CloudflareDev를 팔로우하여 제품 발표에 대해 알아보세요.
+    Cloudflare 개발자 플랫폼에서 새로운 기능.
+  </LinkTitleCard>
+</CardGrid>

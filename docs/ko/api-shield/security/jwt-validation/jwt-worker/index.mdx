@@ -1,0 +1,177 @@
+---
+title: Worker 구성하기
+pcx_content_type: how-to
+
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: JWT validation용 Worker 구성하기
+---
+
+import { Steps } from "~/components"
+
+Worker를 사용해 identity provider의 최신 공개 키를 JWT validation configuration에 자동으로 유지할 수 있습니다.
+
+## 사전 준비
+
+- zone ID를 찾습니다. 이 ID는 [Cloudflare dashboard](https://dash.cloudflare.com/)의 zone overview에서 확인할 수 있습니다.
+- identity provider의 JSON Web Key Set(JWKs) URL을 찾습니다. 일반적으로 Open Authorization(OAuth) 설정에 표시됩니다.
+- [token validation configuration](/api-shield/security/jwt-validation/#add-a-token-validation-configuration)을 생성합니다.
+- API Gateway `Write` 권한이 있는 [새 API token](https://dash.cloudflare.com/profile/api-tokens)을 만듭니다.
+
+## 프로세스
+
+먼저 JWKs endpoint를 수동으로 조회해 JWKs가 예상한 위치와 형식으로 존재하는지 확인해야 합니다. 그런 다음 JWKs 업데이트를 자동화할 Worker와, API Shield 설정 업데이트에 사용할 API key를 저장할 [Worker Secret](/workers/configuration/secrets/#via-the-dashboard)을 만들어야 합니다. 이후 Worker가 JWKs를 자동으로 갱신하도록 스케줄링할 수 있습니다.
+
+### JWKs endpoint 수동 조회
+
+Identity Provider의 URL을 찾고 `curl`과 `jq`를 사용해 키를 가져옵니다. URL이 issuer의 키 외에도 더 많은 정보를 반환할 수 있으므로, Cloudflare는 응답에서 키만 반환하도록 `jq`를 사용하는 것을 권장합니다. JWKs에 `keys` 객체가 없다면 제공된 Worker 샘플 코드를 수정해야 합니다.
+
+:::note
+아래 키는 예시 목적일 뿐이며 실제 프로덕션 환경에서 사용해서는 안 됩니다. identity provider가 JWT 서명에 사용하는 키와 절대 일치하지 않습니다.
+:::
+
+```sh title="JWKs endpoint 조회"
+curl https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/certs -s | jq .keys
+```
+
+```sh output
+[
+  {
+    "kid": "ca96ae653935dbfb49b4e19de600cc5f9d5c63e3ac2dbee406ed4bf0ae100cce",
+    "kty": "RSA",
+    "alg": "RS256",
+    "use": "sig",
+    "e": "AQAB",
+    "n": "9dG9Ph4ffncvEA9FO9pVMfJ1dh_5mtuyiIE4ap9ScrufVPq1I34St_dhcFavKiytK7Id7gTlgQgaouoJ0I5OJ_bytgX-B7oOUQHO-nJOAMycORXN8ZNaMBPKg9nBLL_BFY0YX5HggqrkXkZjJ--R4JpB30ENS8A6hxmEJ__yGMZTE2LHZoiYj9iyGNu3s3JflAoRlmziI8LsFXwyFAJUWRZq4SkSfyrRJ89pXPxIqBn9uYBtnxWzUpWG3xKZu0JAbi9YiwFCJrSe_CarvpARoWsOldtrty5yT1yJ1PZlImlF-yuEwjOoZxeib4WSidABZH0O3pbDACo8MfxR5rghHQ"
+  },
+  {
+    "kid": "1e590a6dcd60e3e2306c21eca19144c59d591531267a3ebde8d521f40894329d",
+    "kty": "RSA",
+    "alg": "RS256",
+    "use": "sig",
+    "e": "AQAB",
+    "n": "6uj6PgDq-bPsdFjiQ6M3yaxMxBUnnYj20xtLciHNafqrygAjnZKjl8LfCO_mtZ7jxfJNCARsz0L3sF9LAtARZqcsUvYLUlNDzflwNTe8woCT7yw0Ml2ZV5BWDbc3izEQnvjlBDGWv9p5jv-D-YNExtIzZKsRKyoy7hSu5FhyxmPfiAXo8b67f0dNy8V8HZfQJ5i9VGyK4Z5xKM-FjHOrC2uIbhzUE6wDe_0M23RTCxj7ZxzXUzZzc-_EBjmZDAI3tI2zBYymO55_gw8zHrNsZ4-32YvNTjBAiTLsjvKlsvNtPTN8q3saoZJWQMSiMi8dRalgA6pUDgcNs5lB9E7tWw"
+  }
+]
+```
+
+### Worker 구성
+
+<Steps>
+1. [새 Worker를 생성](/workers/get-started/guide/)합니다.
+2. 아래 예시 코드를 새 Worker에 복사해 넣고, 기존 코드를 완전히 대체합니다.
+3. 현재 zone ID를 자신의 zone ID로 바꿉니다.
+4. 현재 token validation configuration ID를 자신의 token validation configuration으로 바꿉니다.
+5. 현재 identity provider URL을 자신의 identity provider key URL로 바꿉니다.
+	:::note
+
+	Identity provider URL은 일반적으로 배포 환경마다 고정된 알려진 URL에서 접근할 수 있습니다. URL이 확실하지 않다면 identity provider에 문의하세요.
+	:::
+6. JWKs URL이 `keys` 외의 다른 JSON 객체 안에 키를 반환한다면, `fetchCredentials()` 함수가 키 데이터만 반환하도록 수정합니다.
+7. **Create** > **Deploy**를 선택합니다.
+8. Worker settings의 **Variables**로 이동해 `CF_API_TOKEN`이라는 이름의 환경 변수를 추가하고, 생성한 API token 값을 입력합니다.
+9. Worker Triggers에서 Worker에 [cron trigger](/workers/configuration/cron-triggers/)를 할당합니다. Cloudflare는 최신 키를 항상 유지하고 identity provider의 즉시 키 교체로 인한 다운타임을 최소화하기 위해 자주 업데이트하는 간격을 권장합니다.
+
+	```js title="JavaScript 예시 코드"
+	/**
+	* Update Token Validation Credentials
+	*
+	* This example shows how a Cloudflare Workers cron trigger can be used to
+	* automatically rotate a JWKs for a Token Configuration.
+	*
+	* To configure this Worker:
+	*
+	*   1. Replace `token_config_id` with the ID of the Token Config to update
+	*   2. Replace `zone_id` with your Zone ID
+	*   3. Replace `url` with a publicly accessible URL with the JWKs you want to use
+	*   4. Create a new API Token with "Zone.API Gateway Edit" permissions and add it as a secret with the name `CF_API_TOKEN` (see https://developers.cloudflare.com/workers/configuration/secrets/)
+	*
+	* This worker also handles GET and POST requests:
+	*   - GET will fetch and show the credentials from the provided URL (`GET https://random-worker-name-c134.example.workers.dev/`)
+	*   - POST triggers an update and returns the Cloudflare API response of that update (`POST https://random-worker-name-c134.example.workers.dev/`)
+	*
+	* Use these to test that the Worker is properly configured.
+	*
+	* After setting up the worker, you can create a cron trigger to run it periodically.
+	* For more information on cron triggers, refer to https://developers.cloudflare.com/workers/configuration/cron-triggers/
+	*
+	* Learn more about Workers at https://developers.cloudflare.com/workers/
+	*/
+
+	var zone_id = "760549bc17c54280d6e6ae256c3dd6ae";
+	var token_config_id = "91007e72-8f17-46b7-a223-5e57bd333b78";
+	var url = "https://cfdata.cloudflareaccess.com/cdn-cgi/access/certs"; // JWKs
+
+	/**
+	* fetchCredentials fetches new Token Configuration credentials using the URL defined above.
+	* This returns a JSON string with the credentials.
+	*
+	* Use this function to fetch and parse credentials.
+	*
+	* @returns {string} credentials
+	*/
+	async function fetchCredentials() {
+		var requestOptions = {
+			method: "GET",
+			redirect: "follow",
+		};
+		const keys = await fetch(url, requestOptions)
+			.then((e) => e.json())
+			.then((e) => e.keys);
+		return JSON.stringify({ keys: keys });
+	}
+
+	/**
+	* updateCredentials updates Token Configuration credentials using the Cloudflare API.
+	* Credentials are fetched using fetchCredentials, which also does any required processing.
+	*
+	* @param {string} bearer Cloudflare API Bearer token with "Zone.API Gateway Edit" permissions
+	* @returns {string} Cloudflare API response from the update request
+	*/
+	async function updateCredentials(bearer) {
+		// Cloudflare API endpoint for credentials update
+		const url = `https://api.cloudflare.com/client/v4/zones/${zone_id}/token_validation/config/${token_config_id}/credentials`;
+		const init = {
+			body: await fetchCredentials(),
+			method: "PUT",
+			headers: {
+				Authorization: `Bearer ${bearer}`,
+				"content-type": "application/json;charset=UTF-8",
+			},
+		};
+		const response = await fetch(url, init);
+		return response.text();
+	}
+
+	// Export a default object containing event handlers
+	export default {
+		/**
+		* fetch handles requests made directly to the Worker.
+		*
+		*/
+		async fetch(request, env, ctx) {
+			let responseBody = "";
+			if (request.method === "GET") {
+				responseBody = await fetchCredentials();
+			} else if (request.method === "POST") {
+				responseBody = await updateCredentials(env.CF_API_TOKEN);
+			}
+			return new Response(responseBody, {
+				headers: { "content-type": "application/json;charset=UTF-8" },
+			});
+		},
+
+		/**
+		* scheduled is the handler for cron triggers.
+		*
+		* For details, refer to https://developers.cloudflare.com/workers/configuration/cron-triggers/
+		*
+		*/
+		async scheduled(request, env, ctx) {
+			ctx.waitUntil(updateCredentials(env.CF_API_TOKEN));
+		},
+	};
+	```
+</Steps>

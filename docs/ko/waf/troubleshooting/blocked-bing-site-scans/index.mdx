@@ -1,0 +1,40 @@
+---
+title: Bing의 사이트 스캔은 관리 규칙에 의해 차단
+pcx_content_type: troubleshooting
+sidebar:
+  order: 1
+head: []
+description: WAF 관리 규칙은 Bing Webmaster 도구에서 수행 한 사이트 검사를 차단할 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/troubleshooting/blocked-bing-site-scans/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/troubleshooting/blocked-bing-site-scans/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { RuleID } from "~/components";
+
+마이크로 소프트[Bing Webmaster 도구](https://www.bing.com/webmaster/tools)사이트 스캔 기능을 제공하여 웹 사이트를 검색 할 수 있습니다 SEO 개선.
+
+Site Scan은 Bingbot (Bing's 웹 사이트 크롤러)와 동일한 IP 주소 범위를 사용하지 않습니다. 또한,[Bingbot 소개](https://www.bing.com/toolbox/verify-bingbot)도구는 사이트 스캔의 IP 주소를 Bingbot으로 인식하지 않습니다. 이 이유 때문에 WAF는 가짜 Bingbot 요청을 차단하는 규칙은 사이트 검사 요청을 유발할 수 있습니다. 이것은 Bing Webmaster 도구의 알려진 문제입니다.
+
+사이트 스캔을 허용하여 웹 사이트에서 실행할 수 있도록 Cloudflare는 일시적으로 트리거 WAF 관리 규칙을 건너는 것을 권장합니다.[기타 제품](/waf/managed-rules/waf-exceptions/). 스캔이 성공적으로 완료되면 가짜 Bingbot 요청을 차단하는 예외를 삭제합니다.
+
+일시적으로 건너뛰는 규칙은 다음과 같습니다.
+
+|                 | 이름 \*                                          | 이름 \*                                            |
+| --------------- | ---------------------------------------------- | ------------------------------------------------ |
+| **관리된 Ruleset** | Cloudflare 관리되는 통치자                            | <RuleID id="efb7b8c949ac4650a09736fc376e9aee" /> |
+| **【특전】**        | Anomaly:Header:User-Agent - 가짜 Bing 또는 MSN Bot | <RuleID id="ae20608d93b94e97988db1bbc12cf9c8" /> |
+
+예외, 규칙으로 표시**팟캐스트**액션은 Cloudflare Managed Ruleset을 실행하기 전에 규칙 목록에서 나타야하며, 그렇지 않으면 아무 것도 건너 뛸 수 없습니다.
+
+규칙 순서를 확인하려면 다음 방법 중 하나를 사용하십시오.
+
+- 오래된 Cloudflare 대시보드를 사용할 때, 나열된 규칙**보안 보안** > **사이트맵** > **관리 규칙**주문에서 실행.
+- 새로운 보안 대시보드를 사용할 때, 규칙이 나열된**보안 보안** > **보안 규칙**주문에서 실행.
+- Cloudflare API를 사용할 때, 규칙`rules`얻은 객체[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)가동 (당신의 지역 및를 위해`http_request_firewall_managed`단계) 순서에서 달리십시오.
+
+예외 만들기에 대한 자세한 내용은 참조[자주 묻는 질문](/waf/managed-rules/waf-exceptions/).

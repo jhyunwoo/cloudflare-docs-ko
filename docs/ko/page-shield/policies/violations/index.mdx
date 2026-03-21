@@ -1,0 +1,131 @@
+---
+title: 정책 위반
+pcx_content_type: concept
+sidebar:
+  order: 4
+head: []
+description: Cloudflare는 콘텐츠 보안 규칙에 대한 위반을보고 (또한 정책으로 알려져 있음).
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/page-shield/policies/violations/'
+translation_source_md: 'https://developers.cloudflare.com/page-shield/policies/violations/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, GlossaryTooltip } from "~/components";
+
+:::참조
+지불한 add-on를 가진 기업 고객에게만 유효한.
+주요 특징
+
+정책(또는 콘텐츠 보안 규칙)을 구성한 후, Cloudflare\`대시보드는 그 정책의 위반을 표시합니다. 이 정보는 모든 정책에 적용됩니다.[이름 \*](/page-shield/policies/#policy-actions) (*지원하다*·*로그인*).
+
+정책 위반에 대한 정보도[그래프QL API](/analytics/graphql-api/)·[다운로드](/logs/logpush/).
+
+## ‘대시보드’의 정책 위반
+
+<Render file="policy-review-violations" product="page-shield" />
+
+## GraphQL API를 통해 정책 위반 받기
+
+사용 방법[Cloudflare 그래프QL API](/analytics/graphql-api/)다음 데이터셋을 통해 정책 위반 정보를 얻기 위해:
+
+- `pageShieldReportsAdaptiveGroups`
+
+지난 30 일 동안 정책 위반에 대한 데이터 세트를 쿼리 할 수 있습니다.
+
+제품 정보[관련 상품](/analytics/graphql-api/features/discovery/introspection/)GraphQL 스키마를 사용할 수 있는 필드를 탐험하세요. 더 많은 정보를 원하시면, 참조[GraphQL 스키마를 탐험](/analytics/graphql-api/getting-started/explore-graphql-schema/).
+
+GraphQL 쿼리에 대한 소개, 참조[Querying 기본](/analytics/graphql-api/getting-started/querying-basics/).
+
+### 이름 \*
+
+```graphql graphql-api-explorer title="Example GraphQL query"
+query PageShieldReports(
+	$zoneTag: string
+	$datetimeStart: Time
+	$datetimeEnd: Time
+) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			pageShieldReportsAdaptiveGroups(
+				limit: 100
+				orderBy: [datetime_ASC]
+				filter: { datetime_geq: $datetimeStart, datetime_leq: $datetimeEnd }
+			) {
+				avg {
+					sampleInterval
+				}
+				count
+				dimensions {
+					policyID
+					datetime
+					datetimeMinute
+					datetimeFiveMinutes
+					datetimeFifteenMinutes
+					datetimeHalfOfHour
+					datetimeHour
+					url
+					urlHost
+					host
+					resourceType
+					pageURL
+					action
+				}
+			}
+		}
+	}
+}
+```
+
+<Details header="보기 컬 요구">
+  ```bash
+  echo '{ "query":
+    "query PageShieldReports($zoneTag: string, $datetimeStart: string, $datetimeEnd: string) {
+      viewer {
+        zones(filter: {zoneTag: $zoneTag}) {
+          pageShieldReportsAdaptiveGroups(limit: 100,  orderBy: [datetime_ASC], filter: {datetime_geq:$datetimeStart, datetime_leq:$datetimeEnd}) {
+            avg {
+              sampleInterval
+            }
+            count
+            dimensions {
+              policyID
+              datetime
+              datetimeMinute
+              datetimeFiveMinutes
+              datetimeFifteenMinutes
+              datetimeHalfOfHour
+              datetimeHour
+              url
+              urlHost
+              host
+              resourceType
+              pageURL
+              action
+            }
+          }
+        }
+      }
+    }",
+    "variables": {
+      "zoneTag": "<CLOUDFLARE_ZONE_ID>",
+      "datetimeStart": "2023-04-17T11:00:00Z",
+      "datetimeEnd": "2023-04-24T12:00:00Z"
+    }
+  }' | tr -d '\n' | curl --silent \
+  https://api.cloudflare.com/client/v4/graphql \
+  --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data @-
+  ```
+</Details>
+
+## Logpush를 통해 정책 위반
+
+[Cloudflare로 푸쉬](/logs/logpush/)저장 서비스에 푸시 로그를 지원,<GlossaryTooltip term="SIEM">SIEM 시스템</GlossaryTooltip>, 그리고 로그 관리 공급자.
+
+정책 위반에 대한 정보[`page_shield_events`데이터셋](/logs/logpush/logpush-job/datasets/zone/page_shield_events/).
+
+Logpush 작업 구성에 대한 자세한 내용은 참조[다운로드](/logs/logpush/)문서.

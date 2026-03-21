@@ -1,0 +1,109 @@
+---
+title: 아파치 트리노
+pcx_content_type: example
+reviewed: 2025-09-05T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/data-catalog/config-examples/trino/'
+translation_source_md: >-
+  https://developers.cloudflare.com/r2/data-catalog/config-examples/trino/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps } from "~/components";
+
+아래는 사용 예제입니다.[아파치 트리노](https://trino.io/)R2 데이터 카탈로그에 연결하십시오. Trino를 가진 R2 데이터 카탈로그에 연결에 대한 자세한 내용은 참조[Trino 문서](https://trino.io/docs/current/connector/iceberg.html).
+
+## 자주 묻는 질문
+
+- 로그인[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages).
+- [R2 버킷 만들기](/r2/buckets/create-buckets/)·[데이터 카탈로그](/r2/data-catalog/manage-catalogs/#enable-r2-data-catalog-on-a-bucket).
+- [R2 API 토큰, 키 및 비밀 만들기](/r2/api/tokens/)둘 다[R2 및 데이터 카탈로그 권한](/r2/api/tokens/#permissions).
+- 설치하기[기타 제품](https://docs.docker.com/get-docker/)Trino 컨테이너를 실행합니다.
+
+## 설치하기
+
+카탈로그 구성 및 변경 디렉토리에 대한 로컬 디렉토리를 만듭니다.
+
+```bash
+mkdir -p trino-catalog && cd trino-catalog/
+```
+
+설정파일 만들기`r2.properties`R2 자료 카탈로그 연결을 위해:
+
+```properties
+# r2.properties
+connector.name=iceberg
+
+# R2 Configuration
+fs.native-s3.enabled=true
+s3.region=auto
+s3.aws-access-key=<Your R2 access key>
+s3.aws-secret-key=<Your R2 secret>
+s3.endpoint=<Your R2 endpoint>
+s3.path-style-access=true
+
+# R2 Data Catalog Configuration
+iceberg.catalog.type=rest
+iceberg.rest-catalog.uri=<Your R2 Data Catalog URI>
+iceberg.rest-catalog.warehouse=<Your R2 Data Catalog warehouse>
+iceberg.rest-catalog.security=OAUTH2
+iceberg.rest-catalog.oauth2.token=<Your R2 authentication token>
+```
+
+## 예제 사용
+
+<Steps>
+  1. R2 카탈로그 구성으로 Trino 시작:
+
+     ```bash
+     #카탈로그 구성에 대한 로컬 디렉토리 만들기
+     mkdir -p trino-catalog
+
+     #카탈로그 디렉토리에 r2.properties 파일을 배치
+     cp r2.properties trino-catalog/
+
+     #카탈로그 구성으로 Trino 실행
+     docker run -d \
+       --name trino-r2 \
+       -p 8080:8080 \
+       -v $(pwd)/trino-catalog:/etc/trino/catalog \
+       trinodb/trino:latest
+     ```
+
+  2. Trino에 연결하고 R2 데이터 카탈로그를 쿼리하십시오:
+
+     ```bash
+     #Trino CLI에 연결
+     docker exec -it trino-r2 trino
+     ```
+
+  3. Trino CLI에서 다음 명령을 실행하십시오.
+
+     ```sql
+     -- Show all schemas in the R2 catalog
+     SHOW SCHEMAS IN r2;
+
+     -- Show all schemas in the R2 catalog
+     CREATE SCHEMA r2.example_schema
+
+     -- Create a table with some values in it
+     CREATE TABLE r2.example_schema.yearly_clicks (
+         year,
+         clicks
+     )
+     WITH (
+        partitioning = ARRAY['year']
+     )
+     AS VALUES
+         (2021, 10000),
+         (2022, 20000);
+
+     -- Show tables in a specific schema
+     SHOW TABLES IN r2.example_schema;
+
+     -- Query your Iceberg table
+     SELECT * FROM r2.example_schema.yearly_clicks;
+     ```
+</Steps>

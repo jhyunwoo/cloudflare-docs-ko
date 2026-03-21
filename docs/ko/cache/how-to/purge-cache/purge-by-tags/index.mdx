@@ -1,0 +1,68 @@
+---
+title: cache-tags로 캐시 제거
+pcx_content_type: concept
+sidebar:
+  order: 3
+
+---
+
+import { DashButton } from "~/components"
+
+cache-tag purge는 웹페이지, 이미지 파일 등 자산에 cache-tag를 추가해 두면 여러 파일을 한 번에 즉시 제거할 수 있으므로 대량 purge를 더 쉽게 만들어 줍니다.
+
+## cache-tags의 일반적인 워크플로
+
+1. 페이지, 정적 자산 등 웹 콘텐츠에 대해 오리진 웹 서버의 `Cache-Tag` HTTP 응답 헤더에 태그를 추가합니다.
+2. [웹 트래픽이 Cloudflare를 통해 프록시되도록 설정](/dns/proxy-status/)합니다.
+3. Cloudflare는 `Cache-Tag` HTTP 헤더의 태그를 캐시되는 콘텐츠와 연결합니다.
+4. 대시보드 또는 [API](/api/resources/cache/methods/purge/)를 사용해 특정 cache-tag가 포함된 콘텐츠를 Cloudflare CDN 캐시에서 즉시 제거합니다.
+5. Cloudflare는 제거된 cache-tag가 있는 콘텐츠에 [cache MISS](/cache/concepts/cache-responses/#miss)를 강제로 발생시킵니다.
+
+:::caution[경고]
+
+
+purge를 수행할 때는 주의하세요. cache MISS는 오리진 서버에서 다시 가져와야 하므로 실행 지연을 유발할 수 있습니다.
+
+
+:::
+
+## Cache-Tag HTTP 응답 헤더 추가
+
+웹 콘텐츠에 `Cache-Tag` HTTP 응답 헤더로 cache-tag를 추가하면 클라이언트와 서버가 요청이나 응답에 추가 정보를 전달할 수 있습니다. HTTP 헤더는 대소문자를 구분하지 않는 특정 이름 뒤에 콜론 `:`과 유효한 값이 오는 형식이며, 예를 들면 `Cache-Tag:tag1,tag2,tag3`입니다. 여러 cache-tag를 사용하려면 쉼표로 구분하세요.
+
+콘텐츠가 Cloudflare 엣지 네트워크에 도달하면 Cloudflare는 다음 작업을 수행합니다.
+
+* 응답을 웹사이트 방문자에게 보내기 전에, 또는 응답을 [Worker](/workers/)에 전달하기 전에 `Cache-Tag` HTTP 헤더를 제거합니다. 최종 사용자나 Worker는 Cloudflare가 활성화된 웹사이트에서 `Cache-Tag` HTTP 헤더를 볼 수 없습니다.
+* 헤더 내부의 공백과 cache-tag 이름 앞뒤의 공백을 제거합니다. 즉 `tag1`, `tag2`와 `tag1,tag2`는 동일하게 간주됩니다.
+* cache-tag를 적용하기 전에 반복된 쉼표와 마지막의 쉼표를 모두 제거합니다. 즉 `tag1,,,tag2`와 `tag1,tag2`는 동일하게 간주됩니다.
+
+## 기억해야 할 몇 가지 사항
+
+* 하나의 HTTP 응답에는 `Cache-Tag` HTTP 헤더 필드가 둘 이상 있을 수 있습니다.
+* cache-tag의 최소 길이는 1바이트입니다.
+* 개별 태그에는 최대 길이가 없지만, 헤더 필드 이름 뒤의 `Cache-Tag` HTTP 헤더 전체는 16 KB를 초과할 수 없으며 대략 1,000개의 고유 태그에 해당합니다. 길이에는 공백과 쉼표가 포함되지만 헤더 필드 이름은 포함되지 않습니다.
+* cache purge에서 API 호출 내 cache-tag의 최대 길이는 1,024자입니다.
+* `Cache-Tag` HTTP 헤더에는 출력 가능한 ASCII 인코딩 문자만 포함되어야 합니다.
+* cache-tag에는 공백을 사용할 수 없습니다.
+* 대소문자는 구분하지 않습니다. 예를 들어 `Tag1`과 `tag1`은 동일하게 간주됩니다.
+
+## cache-tags를 사용한 purge
+
+1. Cloudflare 대시보드에서 **Configuration** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/caching/configuration" />
+
+2. **Purge Cache** 아래에서 **Custom Purge**를 선택합니다. **Custom Purge** 창이 나타납니다.
+3. **Purge by**에서 **Tag**를 선택합니다.
+4. 캐시된 리소스를 제거하는 데 사용할 태그를 텍스트 상자에 입력합니다. 여러 cache-tag 리소스를 제거하려면 각 태그를 쉼표로 구분하거나 한 줄에 하나씩 입력하세요.
+5. **Purge**를 선택합니다.
+
+속도 제한 정보는 [사용 가능 여부 및 한도](/cache/how-to/purge-cache/#availability-and-limits) 섹션을 참고하세요.
+
+
+## 제거 후 캐시 상태
+
+태그 기준 purge는 리소스를 삭제하므로, 이후 요청에서는 `CF-Cache-Status` 헤더가 [`MISS`](/cache/concepts/cache-responses/#miss)로 설정됩니다.
+
+[Tiered Cache](/cache/how-to/tiered-cache/)를 사용하는 경우, 하위 티어가 상위 티어와 재검증하여 상위 티어의 부하를 줄이려 하기 때문에 태그 기준 purge가 `EXPIRED`를 반환할 수 있습니다.
+상위 티어가 리소스를 가지고 있는지 여부, 최종 사용자가 하위 티어에 도달하는지 상위 티어에 도달하는지에 따라 `EXPIRED` 또는 `MISS`가 반환됩니다.

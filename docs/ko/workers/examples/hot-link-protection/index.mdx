@@ -1,0 +1,162 @@
+---
+summary: >-
+  Block other websites from linking to your content. This is useful for
+  protecting images.
+tags:
+  - Security
+  - Headers
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 핫 링크 보호
+sidebar:
+  order: 1001
+description: 귀하의 콘텐츠에 연결하여 다른 웹 사이트를 차단하십시오. 이것은 이미지를 보호하는 데 유용합니다.
+reviewed: 2020-09-30T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/hot-link-protection/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/examples/hot-link-protection/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/hot-link-protection)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare WorkersXQ에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		const HOMEPAGE_URL = "https://tutorial.cloudflareworkers.com/";
+    		const PROTECTED_TYPE = "image/";
+
+    		//자주 묻는 질문
+    		const response = await fetch(request);
+
+    		//이미지가 있다면, Hotlink Protection을 기반으로 합니다.
+    		//Referer 헤더.
+    		const referer = request.headers.get("Referer");
+    		const contentType = response.headers.get("Content-Type") || "";
+
+    		if (referer && contentType.startsWith(PROTECTED_TYPE)) {
+    			//hostnames가 일치하지 않는 경우에, 그것은 hotlink입니다
+    			if (new URL(referer).hostname !== new URL(request.url).hostname) {
+    				//웹 사이트에 사용자를 다시
+    				return Response.redirect(HOMEPAGE_URL, 302);
+    			}
+    		}
+
+    		//모든 것은 벌금, 응답을 일반적으로 반환합니다.
+    		return response;
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		const HOMEPAGE_URL = "https://tutorial.cloudflareworkers.com/";
+    		const PROTECTED_TYPE = "image/";
+
+    		//자주 묻는 질문
+    		const response = await fetch(request);
+
+    		//이미지가 있다면, Hotlink Protection을 기반으로 합니다.
+    		//Referer 헤더.
+    		const referer = request.headers.get("Referer");
+    		const contentType = response.headers.get("Content-Type") || "";
+
+    		if (referer && contentType.startsWith(PROTECTED_TYPE)) {
+    			//hostnames가 일치하지 않는 경우에, 그것은 hotlink입니다
+    			if (new URL(referer).hostname !== new URL(request.url).hostname) {
+    				//웹 사이트에 사용자를 다시
+    				return Response.redirect(HOMEPAGE_URL, 302);
+    			}
+    		}
+
+    		//모든 것은 벌금, 응답을 일반적으로 반환합니다.
+    		return response;
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            homepage_url = "https://tutorial.cloudflareworkers.com/"
+            protected_type = "image/"
+
+            #자주 묻는 질문
+            response = await fetch(request)
+
+            #이미지가 있다면, referer header를 기반으로 Hotlink Protection에 참여하십시오.
+            referer = request.headers["Referer"]
+            content_type = response.headers["Content-Type"] or ""
+
+            if referer and content_type.startswith(protected_type):
+                #hostnames가 일치하지 않는 경우에, 그것은 hotlink입니다
+                if urlparse(referer).hostname != urlparse(request.url).hostname:
+                    #웹 사이트에 사용자를 다시
+                    return Response.redirect(homepage_url, 302)
+
+            #모두는 벌금, 응답을 일반적으로 돌려
+            return response
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    const app = new Hono();
+
+    //핫 링크 보호를위한 Middleware
+    app.use('*', async (c, next) => {
+      const HOMEPAGE_URL = "https://tutorial.cloudflareworkers.com/";
+      const PROTECTED_TYPE = "image/";
+
+      //응답을 얻기 위해 다음 핸들러에 계속
+      await next();
+
+      //응답이있는 경우, hotlinking에 대한 체크
+      if (c.res) {
+        //이미지가 있다면, Referer header를 기반으로 Hotlink Protection을 참여하십시오.
+        const referer = c.req.header("Referer");
+        const contentType = c.res.headers.get("Content-Type") || "";
+
+        if (referer && contentType.startsWith(PROTECTED_TYPE)) {
+          //hostnames가 일치하지 않는 경우에, 그것은 hotlink입니다
+          if (new URL(referer).hostname !== new URL(c.req.url).hostname) {
+            //웹 사이트에 사용자를 다시
+            c.res = c.redirect(HOMEPAGE_URL, 302);
+          }
+        }
+      }
+    });
+
+    //Default route handler 를 사용하여 요청을 전달합니다.
+    app.all('*', async (c) => {
+      //자주 묻는 질문
+      return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

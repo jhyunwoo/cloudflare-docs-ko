@@ -1,0 +1,150 @@
+---
+pcx_content_type: configuration
+title: 글쓰기
+description: Worker 바인딩 또는 HTTP 엔드포인트를 통해 스트림에 데이터를 전송
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pipelines/streams/writing-to-streams/'
+translation_source_md: >-
+  https://developers.cloudflare.com/pipelines/streams/writing-to-streams/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, WranglerConfig, TypeScriptExample } from "~/components";
+
+이벤트를 전송[Worker 바인딩](/workers/runtime-apis/bindings/)또는 클라이언트 측 애플리케이션 및 외부 시스템에 대한 HTTP 엔드포인트.
+
+## Workers를 통해 보내십시오
+
+Worker 바인딩은 데이터를 전송하는 안전한 방법을 제공합니다.[모델 번호: Workers](/workers/)API 토큰 또는 자격 관리 없이.
+
+### 파이프라인 바인딩
+
+스트림에 포인트를 Wrangler 파일에 파이프라인 바인딩 추가:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"pipelines": [
+  		{
+  			"pipeline": "<STREAM_ID>",
+  			"binding": "STREAM"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+### 모델 번호: Workers
+
+파이프라인 바인딩은 귀하의 스트림에 데이터를 전송하는 방법을 노출:
+
+#### `send(records)`
+
+JSON-serializable 레코드를 스트림에 전송합니다. 레코드가 ingested로 확인 될 때 해결하는 약속을 반환합니다.
+
+<TypeScriptExample>
+  ```typescript
+  export default {
+  	async fetch(request, env, ctx): Promise<Response> {
+  		const events = await request.json<Record<string, unknown>[]>();
+
+  		await env.STREAM.send(events);
+
+  		return new Response("Events sent");
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### Typed 파이프라인 바인딩
+
+스트림이 정의 된 schema가있을 때, 실행`wrangler types`파이프라인 바인딩을 위한 schema 특정한 TypeScript 유형을 생성합니다. 대신 일반`Pipeline<PipelineRecord>`, 당신의 바인딩은 가득 차있는 autocomplete와 컴파일 시간 유형 검사를 가진 명명한 기록 유형을 얻습니다. 더 알아보기[`wrangler types`관련 기사](/workers/wrangler/commands/#types)더 알아보기.
+
+#### 분류 유형
+
+실행 후`wrangler types`, 생성`worker-configuration.d.ts`파일에는 이름 레코드 유형이 포함되어 있습니다.`Cloudflare`네임스페이스 타입 이름은 스트림 이름에서 파생됩니다 ( 바인딩 이름 아닙니다), PascalCase로 변환`Record`뚱 베어
+
+아래는 생성된 유형의 예입니다.`worker-configuration.d.ts`이름 \*`ecommerce_stream`:
+
+```typescript
+declare namespace Cloudflare {
+	type EcommerceStreamRecord = {
+		user_id: string;
+		event_type: string;
+		product_id?: string;
+		amount?: number;
+	};
+	interface Env {
+		STREAM: import("cloudflare:pipelines").Pipeline<Cloudflare.EcommerceStreamRecord>;
+	}
+}
+```
+
+#### Fallback 행동
+
+`wrangler types`일반으로 돌아가기`Pipeline<PipelineRecord>`다음 시나리오에서 유형:
+
+- **인증되지 않음**: 실행`wrangler login`Typed 파이프라인 바인딩을 가능하게 합니다.
+- **찾을 수 없음**: Wrangler 구성의 스트림 ID는 기존 스트림과 일치하지 않습니다.
+- **통합 스트림**: 스트림은 스키마없이 생성되었습니다.
+
+## HTTP를 통해 보내기
+
+각 스트림은 외부 응용 프로그램, 브라우저 또는 HTTP 요청을 만들 수있는 모든 시스템에서 데이터를 섭취하기위한 옵션 HTTP 엔드 포인트를 제공합니다.
+
+### Endpoint 형식
+
+HTTP 엔드포인트는 이 형식을 따릅니다:
+
+```txt
+https://{stream-id}.ingest.cloudflare.com
+```
+
+아래 Cloudflare QX대시보드에서 스트림의 엔드 포인트 URL 찾기**파이프 라인** > **사이트 맵**또는 Wrangler CLI를 사용하여:
+
+```bash
+npx wrangler pipelines streams get <STREAM_ID>
+```
+
+### 자주 묻는 질문
+
+POST 요청을 통해 JSON 배열으로 이벤트를 전송:
+
+```bash
+curl -X POST https://{stream-id}.ingest.cloudflare.com \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "user_id": "12345",
+      "event_type": "purchase",
+      "product_id": "widget-001",
+      "amount": 29.99
+    }
+  ]'
+```
+
+### 인증현황
+
+인증이 활성화되면 스트림에 API 토큰을 포함`Authorization`머리:
+
+```bash
+curl -X POST https://{stream-id}.ingest.cloudflare.com \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_TOKEN" \
+  -d '[{"event": "test"}]'
+```
+
+API 토큰은 있어야 합니다.**Workers Pipeline 전송**이름 \* 더 알아보기 위해, 참조[API 토큰 만들기](/fundamentals/api/get-started/create-token/)문서.
+
+## Schema 검증
+
+Streams 핸들 검증은 서로 다른 구성을 기반으로:
+
+- **통합 스트림**: 이벤트는 정의 된 스키마 필드와 유형과 일치해야합니다.
+- **통합된 스트림**: 유효한 JSON 구조를 받아들이십시오. 단일 데이터 저장`value`열.
+
+구조화된 스트림을 위해, 당신의 사건은 schema 정의 일치합니다. 잘못된 이벤트는 허용되지만 떨어질 것입니다. 그래서 이벤트를 피하기 전에 데이터를 검증합니다. Worker 바인딩을 사용할 때, 실행`wrangler types`생성하기[Typed 파이프라인 바인딩](#typed-pipeline-bindings)컴파일 시간에 schema 위반을 잡아. 당신은 또한 쿼리 할 수 있습니다[사용자 오류 메트릭](/pipelines/observability/metrics/#user-error-metrics)떨어졌다 이벤트 및 진단 스키마 검증 문제.

@@ -1,0 +1,26 @@
+---
+title: HEAD 요청과 Set-Cookie 헤더
+pcx_content_type: concept
+
+---
+
+이 페이지에서는 Cloudflare의 캐시 시스템이 다음 요소와 상호작용할 때 어떻게 동작하는지 설명합니다.
+
+* `HEAD` 요청
+* `Set-Cookie` 응답 헤더
+
+## `HEAD` 요청과 캐시의 상호작용
+
+Cloudflare는 [캐시 가능한 요청](/cache/concepts/default-cache-behavior/#default-cached-file-extensions)에 대해 `HEAD` 요청을 `GET` 요청으로 변환합니다.
+
+캐시 가능한 리소스에 대해 `HEAD` 요청을 보냈는데 Cloudflare 엣지 캐시에 해당 리소스가 없는 경우 캐시 미스가 발생합니다. Cloudflare는 오리진으로 `GET` 요청을 보내 전체 응답을 캐시한 뒤, 응답 헤더만 반환합니다. 오리진 서버가 `HEAD` 요청만 예상하는 경우라도 `GET` 요청을 처리할 수 있도록 구성해 두어야 이 동작과의 호환성이 보장됩니다.
+
+## `Set-Cookie` 응답 헤더와 캐시의 상호작용
+
+캐시할 수 없는 요청의 경우 `Set-Cookie`는 항상 보존됩니다. 캐시 가능한 요청의 경우에는 세 가지 동작이 있을 수 있습니다.
+
+* 오리진에서 `Set-Cookie`가 반환되고 기본 캐시 수준이 사용되는 경우. [Origin Cache Control](/cache/concepts/cache-control/)이 활성화되어 있지 않으면 Cloudflare는 `Set-Cookie`를 제거하고 자산을 캐시합니다. Origin Cache Control이 활성화되어 있으면 Cloudflare는 자산을 캐시하지 않고 `Set-Cookie`를 보존합니다. 이 경우 캐시 상태로 `BYPASS`가 반환됩니다.
+
+* 오리진에서 `Set-Cookie`가 반환되고 Page Rules에서 캐시 수준이 `Cache Everything`, 또는 Cache Rules에서 `Eligible for cache`로 설정된 경우. 이 경우 Cloudflare는 `Set-Cookie`를 보존하지만 자산은 캐시하지 않습니다. 매번 캐시 `MISS`가 반환됩니다.
+
+* 오리진에서 `Set-Cookie`가 반환되고, Page Rules에서 캐시 수준이 `Cache Everything`, 또는 Cache Rules에서 `Eligible for cache`로 설정되어 있으며, `"Ignore cache-control header and use this TTL"` 또는 `"Status code TTL"` 설정으로 엣지 캐시 TTL이 명시적으로 지정된 경우. 이 경우 Cloudflare는 `Set-Cookie`를 제거하고 자산을 캐시합니다.

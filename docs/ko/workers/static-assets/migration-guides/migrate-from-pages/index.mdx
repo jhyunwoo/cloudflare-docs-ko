@@ -1,0 +1,456 @@
+---
+pcx_content_type: concept
+title: Pages에서 Workers로 마이그레이션
+sidebar:
+  order: 7
+head: []
+description: >-
+  QXQX0695XQQ PagesXQ에서 CloudflareQ QXQXQXQXWorkersQ에 마이그레이션하는 가이드. QXQX0695XQ
+  QXQX0696XQ 및 PagesXQ의 특징을 비교하는 호환성 모체를 포함합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/static-assets/migration-guides/migrate-from-pages/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Badge,
+	Description,
+	FileTree,
+	InlineBadge,
+	Render,
+	TabItem,
+	Tabs,
+	WranglerConfig,
+	TypeScriptExample,
+	PackageManagers,
+} from "~/components";
+
+프론트 엔드 정적 자산과 백엔드 API, 서버 사이드 렌더링 페이지(SSR)을 포함한 전체 스택 애플리케이션을 배포할 수 있습니다.[Cloudflare Workers](/workers/static-assets/).
+
+Pages와 같은 Workers의 정적 자산은 무료이며,[Pages 기능](#pages-functions)직업은 Workers로 동일한 비율에 위탁됩니다, 그래서 당신은 예상할 수 있습니다[비슷한 비용 구조](/workers/platform/pricing/#workers).
+
+Pages와는 달리, Workers는 그것에 유효한 특징의 명백하게 더 넓은 세트가 있습니다, (Durable Objects, Cron Triggers 및 더 포괄적인 관찰 가능성). 전체 목록에서 찾을 수 있습니다[이 페이지의 하단](#compatibility-matrix).
+
+## 관련 기사
+
+Cloudflare QXPages에서 QXQX0707XQ QXQXQXWorkersXQ는 수시로 straightforward 과정입니다. 다음은 가장 일반적인 단계 중 일부는 프로젝트를 마이그레이션해야합니다.
+
+### 프레임 워크
+
+Pages 프로젝트가 사용하는 경우[인기 프레임](/workers/framework-guides/), 대부분의 기구는 이미 Cloudflare WorkersXQ를 위해 유효한 접합기가 있습니다. WorkersXQX0713XQXQXWorkersXQXQXPagesXQXQXPagesXQXQXQXQXQXQXQXQXPagesXQXQXQXQ-특정 어댑터를 전환하여 제공한 모든 지침을 따르십시오.
+
+### 프로젝트 구성
+
+프로젝트가 이미 하나가 없는 경우, 생성[Wrangler 구성 파일](/workers/wrangler/configuration/)(이더`wrangler.jsonc`, `wrangler.json`또는`wrangler.toml`) 프로젝트의 뿌리에. 두 가지 필수 필드는:
+
+- [`name`](/workers/wrangler/configuration/#inheritable-keys)
+
+  배포하려는 Worker의 이름으로 설정합니다. 이것은 기존 Pages 프로젝트 이름과 동일 할 수 있으므로 Workers의 이름 제한 (예를들면 최대 길이)에 따릅니다.
+
+- [`compatibility_date`](/workers/configuration/compatibility-dates/).
+
+  이미 사용중인 경우[모델 번호: Pages 제품정보](/pages/functions/wrangler-configuration/#inheritable-keys), 같은 날짜로 설정한다. 그렇지 않으면 현재 날짜로 설정합니다.
+
+#### 출력 디렉토리
+
+이전에는 PagesXQ에 대한 "build output directory"를 구성 할 곳 (하나님)[Wrangler 구성 파일](/pages/functions/wrangler-configuration/#inheritable-keys)또는[Cloudflare dashboard](/pages/configuration/build-configuration/#build-commands-and-directories)), 당신은 지금 설정해야합니다[`assets.directory`](/workers/static-assets/binding/#directory)Worker 프로젝트의 가치.
+
+시작하기**CloudflarePages**:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-pages-project",
+  	"pages_build_output_dir": "./dist/client/"
+  }
+  ```
+</WranglerConfig>
+
+지금, 와**Cloudflare Workers**:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/client/"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+
+작업자가 자산과 노동자 스크립트를 포함하지 않으면 제거해야합니다.`"binding": "ASSETS"`구성 파일에서 필드, 이 때문에 단지 유효하다면 노동자 스크립트에 의해 표시된 경우`"main"`호텔 위치 이름 \*[자산 바인딩](#assets-binding)아래에 단면도.
+
+:::
+
+#### 봉사 활동
+
+Pages는 자동으로 배포되는 프로젝트의 유형을 결정하려고합니다. 견적 요청`404.html`·`index.html`프로젝트가 가능성이 있는지 여부에 대한 신호로 파일[단일 페이지 응용 프로그램 (SPA)](/pages/configuration/serving-pages/#single-page-application-spa-rendering)또는 만약[관례 봉사 404 페이지](/pages/configuration/serving-pages/#not-found-behavior).
+
+Workers에서 사고를 방지하기 위해이 행동은 명시되고[수동 설정](/workers/static-assets/routing/).
+
+단일 페이지 신청 (SPA)를 위해:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/client/",
+  		"not_found_handling": "single-page-application"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+관례 404 페이지를 위해:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"assets": {
+  		"directory": "./dist/client/",
+  		"not_found_handling": "404-page"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+##### 자산을 무시
+
+Pages는 자동적으로 몇몇 파일 및 폴더를 제외하고와 같은 정체되는 자산으로 업로드될 것입니다`node_modules`, `.DS_Store`·`.git`. 당신이 또한 Workers에 이 파일을 업로드하지 않는 경우에, 당신은 창조할 수 있습니다[`.assetsignore`이름 \*](/workers/static-assets/binding/#ignoring-assets)프로젝트의 정적 자산 디렉토리에.
+
+```txt title="dist/client/.assetsignore"
+**/node_modules
+**/.DS_Store
+**/.git
+```
+
+#### Pages 기능
+
+##### 풀 스택 프레임
+
+전체 스택 프레임 워크를 사용하는 경우[모델 번호: Pages 제품정보](/pages/functions/), 당신을 지킵니다[당신의 프레임을 업데이트](#frameworks)대상 Workers 대신 Pages.
+
+##### 모델 번호: Pages "advanced mode"기능`_worker.js`이름 \*
+
+Pages 기능을 사용하는 경우["advanced 모드"`_worker.js`이름 \*](/pages/functions/advanced-mode/), 먼저 이 스크립트가 정적 자산으로 업로드 되지 않도록 해야 합니다. 하나 이동`_worker.js`정적 자산 디렉토리에서 (권장), 또는 생성[이름 \*`.assetsignore`이름 \*](/workers/static-assets/binding/#ignoring-assets)정적 자산 디렉토리에 포함`_worker.js`그것 안에.
+
+```txt title="dist/client/.assetsignore"
+_worker.js
+```
+
+그런 다음 구성 파일을 업데이트하십시오.`main`이 Worker 스크립트의 위치로 가려면 필드:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./dist/client/_worker.js", // or some other location if you moved the script out of the static asset directory
+  	"assets": {
+  		"directory": "./dist/client/"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+##### 모델 번호: Pages 기능과 기능`functions/`파일 형식
+
+이용안내**모델 번호: Pages 기능과 기능[폴더의`functions/`](/pages/functions/)**, 당신은 먼저이 기능을 단일 노동자 스크립트로 컴파일해야합니다[`wrangler pages functions build`](/workers/wrangler/commands/#functions-build)명령.
+
+<PackageManagers type="exec" pkg="wrangler" args={"pages functions build --outdir=./dist/worker/"} />
+
+이 명령은 언제든지 실행할 수 있지만 파일 기반 라우팅을 계속 사용하려면 다른 프레임워크를 사용하는 것이 좋습니다.[호노X](https://github.com/honojs/honox)인기있는 옵션입니다.
+
+Worker 스크립트가 컴파일되면 구성 파일을 업데이트할 수 있습니다.`main`위치에 가리키는 필드는 다음과 같습니다.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./dist/worker/index.js",
+  	"assets": {
+  		"directory": "./dist/client/"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+##### `_routes.json`Pages 기능 미들웨어
+
+당신이 승인 한 경우[한국어`_routes.json`이름 \*](/pages/functions/routing/#create-a-_routesjson-file)Pages 프로젝트에서 또는 사용[미들웨어](/pages/functions/middleware/)Pages 기능, 당신은 당신의 노동자 스크립트의 구성에주의를 기울여야 합니다. Pages는 정적 자산의 앞에 Pages 기능을 봉사하기 위하여 기본적으로 이고`_routes.json`Pages 이 행동을 사용자 정의 할 수있는 기능 미들웨어.
+
+Workers는 다른 한편으로는 작업자 스크립트 앞에 정적 자산을 제공해야 합니다.[`assets.run_worker_first`](/workers/static-assets/routing/worker-script/#run-your-worker-script-first). 이 옵션은 예를 들어, 정적 자산을 제공하기 전에 인증 체크 또는 로깅 요청을 수행하는 경우 필요합니다.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./dist/worker/index.js",
+  	"assets": {
+  		"directory": "./dist/client/",
+  		"run_worker_first": true
+  	}
+  }
+  ```
+</WranglerConfig>
+
+##### 처음부터 시작
+
+원하는 경우, 스크래치에서 새로운 노동자 스크립트를 시작하고 Wrangler의 모든 장점과 최신 실행 시간 기능 (예를 들어.[`WorkerEntrypoint`₢ 킹](/workers/runtime-apis/bindings/service-bindings/rpc/), [TypeScript 지원](/workers/languages/typescript/), [뚱 베어](/workers/wrangler/bundling), 등):
+
+<TypeScriptExample filename="./worker/index.ts">
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export default class extends WorkerEntrypoint {
+  	async fetch(request: Request) {
+  		return new Response("Hello, world!");
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./worker/index.ts",
+  	"assets": {
+  		"directory": "./dist/client/"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+#### 자산 바인딩
+
+Pages 자동 제공[이름 \*`ASSETS`관련 제품](/pages/functions/api-reference/#envassetsfetch)Pages 기능에서 정적 자산에 액세스하십시오. Workers에서, 이 바인딩의 이름은 customizable이고 수동으로 형성되어야 합니다:
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./worker/index.ts",
+  	"assets": {
+  		"directory": "./dist/client/",
+  		"binding": "ASSETS"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+#### 지원하다
+
+사용자 정의[관련 기사](/workers/configuration/placement/), 또는 설정[호환성 날짜](/workers/configuration/compatibility-dates/)또는 어떤[모델 번호: compatibility flags](/workers/configuration/compatibility-flags/)Pages 프로젝트에서 Wrangler 구성 파일과 동일하게 정의할 수 있습니다.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"compatibility_flags": ["nodejs_compat"],
+  	"main": "./worker/index.ts",
+  	"placement": {
+  		"mode": "smart"
+  	},
+  	"assets": {
+  		"directory": "./dist/client/",
+  		"binding": "ASSETS"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+### 변수, 비밀 및 바인딩
+
+[변수](/workers/configuration/environment-variables/)·[관련 제품](/workers/runtime-apis/bindings/)설정할 수 있습니다.[Wrangler 구성 파일](/workers/wrangler/configuration/)노동자의 환경에서 사용할 수 있습니다 (`env`). [계정 관리](/workers/configuration/secrets/)Wrangler로 업로드하거나 QXQX0753XQQ QXdashboard로 정의할 수 있습니다.[회사연혁](/workers/configuration/secrets/#adding-secrets-to-your-project)·[`.dev.vars`현지 개발](/workers/configuration/secrets/#local-development-with-secrets).
+
+당신은[Workers 회사연혁](#builds), 당신을 또한 지킵니다[Build 환경에 관련된 모든 변수를 구성](/workers/ci-cd/builds/configuration/). Pages와는 달리, Workers는 런타임과 build-time 변수의 동일한 세트를 공유하지 않습니다.
+
+### Wrangler 명령
+
+현재 위치[`wrangler pages dev`](/workers/wrangler/commands/#dev-1)·[`wrangler pages deploy`](/workers/wrangler/commands/#deploy-1), 이제 대신 사용[`wrangler dev`](/workers/wrangler/commands/#dev)·[`wrangler deploy`](/workers/wrangler/commands/#deploy). 또한 Vite-powered Framework를 사용하는 경우,[우리의 새로운 Vite 플러그인](/workers/vite-plugin/)단순한 개발 경험을 제공할 수 있습니다.
+
+:::note\[Wrangler는 로컬 개발을 위한 다른 기본 포트를 사용한다]
+
+`wrangler pages dev`기본적으로 로컬 개발 서버를 노출`http://localhost:8788`, 어디`wrangler dev`그것에 노출`http://localhost:8787/`.
+
+포트를 사용할 수 있습니다.`--port`.
+:::
+
+### 회사연혁
+
+Pages' 내장 CI/CD 시스템을 사용 중인 경우, WorkersXQXQ를 대체할 수 있습니다. 첫 번째로[Workers 빌드에 저장소 연결](/workers/ci-cd/builds/#get-started)그리고 그때[Pages 프로젝트에 자동 배포를 해제](/pages/configuration/git-integration/#disable-automatic-deployments).
+
+### 미리보기 환경
+
+Pages는 각 프로젝트를 위한 시사 환경을 자동적으로 창조하고, indepenedently 형성될 수 있습니다.
+
+Workers의 비슷한 경험을 얻으려면 다음을해야합니다.
+
+1. 이름 \*[URL 미리보기](/workers/configuration/previews/)활성화 (기본값에 의해).
+
+   <WranglerConfig>
+     ```json
+     {
+     	"name": "my-worker",
+     	"compatibility_date": "$today",
+     	"main": "./worker/index.ts",
+     	"assets": {
+     		"directory": "./dist/client/"
+     	},
+     	"preview_urls": true
+     }
+     ```
+   </WranglerConfig>
+
+2. [비생산점 구축 가능](/workers/ci-cd/builds/build-branches/#configure-non-production-branch-builds)Workers 빌드.
+
+선택적으로, 당신은 또한 할 수 있습니다[이 미리보기 URL을 Cloudflare로 보호합니다. 오시는 길](/workers/configuration/previews/#manage-access-to-preview-urls).
+
+:::참조
+
+Pages와는 달리, Workers는 생산 대 비 생산 구조에 있는 다른 의무를 정의하지 않습니다. 이것은 우리가 적극적으로 탐구하고있는 것입니다, 그러나 그러는 동안, 당신은 사용 고려해야 할 수 있습니다[모델 번호: Wrangler 환경분야](/workers/wrangler/environments/)한국어[적당한 Workers 구성](/workers/ci-cd/builds/advanced-setups/#wrangler-environments)이를 달성하기 위해.
+
+:::
+
+### 헤더와 리디렉션
+
+[`_headers`](/workers/static-assets/headers/)·[`_redirects`](/workers/static-assets/redirects/)파일은 정적 자산으로 Workers에서 기본적으로 지원됩니다. Pages를 위해서만, 이 파일은 프로젝트의 정적 자산 디렉토리에 포함되어 있습니다.
+
+### 페이지.dev
+
+이전에 제안한 곳`pages.dev`Pages 프로젝트의 하위 도메인을 구성할 수 있습니다.`workers.dev`당신의 노동자 프로젝트 전부를 위한 subdomain. 당신은 할 수[Cloudflare dashboard](/workers/configuration/routing/workers-dev/#configure-workersdev), 그리고 그것을 사용하여 opt-in[`workers_dev`옵션 정보](/workers/configuration/routing/workers-dev/#disabling-workersdev-in-the-wrangler-configuration-file)설정 파일에서.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "my-worker",
+  	"compatibility_date": "$today",
+  	"main": "./worker/index.ts",
+  	"workers_dev": true
+  }
+  ```
+</WranglerConfig>
+
+### 주문 영역
+
+도메인 네임 서버가 Cloudflare에 의해 관리되는 경우 Pages와 같은 QXQXQ, 구성[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 노동자를 위해. 또한 구성할 수 있습니다.[오시는 길](/workers/configuration/routing/routes/)직장인에게 봉사 할 수있는 경로의 일부 하위 세트 만 원한다면.
+
+:::참조
+
+Pages와는 달리, Workers는 네임서버가 Cloudflare에 의해 관리되지 않는 어떤 도메인도 지원하지 않습니다.
+
+:::
+
+### 롤아웃
+
+노동자의 행동을 검증 한 후에는 개발 워크플로우에 만족하며 생산 트래픽의 모든 마이그레이션을 가지고 PagesXQ 프로젝트를 QX0783XQXQ QXdashboardXQ 또는 WranglerXQXQ:
+
+<PackageManagers type="exec" pkg="wrangler" args={"pages project delete"} />
+
+## AI 코딩 보조를 사용하여 프로젝트 마이그레이션
+
+다음을 추가할 수 있습니다.[실험적인 신속한](https://developers.cloudflare.com/workers/prompts/pages-to-workers.txt)Workers와 호환되는 프로젝트를 만들기 위해 선호하는 코딩 조수 (예: Claude Code, Cursor)에서:
+
+```
+https://developers.cloudflare.com/workers/prompts/pages-to-workers.txt
+```
+
+Cloudflare 문서도 사용할 수 있습니다.[MCP 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/docs-vectorize)WorkersXQXQXQXQ에 PagesXQXQXQXQXQXQXQXQXQXQ에서 마이그레이션을 요청할 때 코딩 조수에서 더 나은 컨텍스트를 제공 할 수 있습니다.
+
+## 호환성 matrix
+
+이 호환성 모체는 Workers 및 PagesQ의 특징을 비교합니다. PagesXQQXQQXQQXQXQXQ에서 작동하지 않는, WorkersQXQQXQQXQQXQQQXQQXQQ에서 어떤 일든지에 명시되지 않는. 이 목록에서 뭔가가 누락되었습니까?[풀 요청 열기](https://github.com/cloudflare/cloudflare-docs/edit/production/src/content/docs/workers/static-assets/compatibility-matrix.mdx)또는[GitHub 문제 생성](https://github.com/cloudflare/cloudflare-docs/issues/new).
+
+**인기 있는** <br />✅: 지원되는<br />: 곧 시작<br />: 지원되지 않는, 유효한 workaround<br />❌: 지원되지 않음
+
+|                                                                                                         | 모델 번호: Workers | 모델 번호: Pages |
+| ------------------------------------------------------------------------------------------------------- | -------------- | ------------ |
+| **작성, 테스트 및 배포 코드**                                                                                     |                |              |
+| [모델 번호: Cloudflare Vite 플러그인](/workers/vite-plugin/)                                                    | ✅              | ❌            |
+| [롤백](/workers/configuration/versions-and-deployments/rollbacks/)                                        | ✅              | ✅            |
+| [Gradual 배포](/workers/configuration/versions-and-deployments/)                                          | ✅              | ❌            |
+| [미리보기 URL](/workers/configuration/previews)                                                             | ✅              | ✅            |
+| [테스트 툴](/workers/testing)                                                                               | ✅              | ✅            |
+| [지역 개발](/workers/development-testing/)                                                                  | ✅              | ✅            |
+| [원격 개발 (Remote Development)`--remote`)](/workers/wrangler/commands/)                                    | ✅              | ❌            |
+| [Dashboard의 빠른 편집기](https://blog.cloudflare.com/improved-quick-edit)                                    | ✅              | ❌            |
+| **정적 자산**                                                                                               |                |              |
+| [초기 힌트](/pages/configuration/early-hints/)                                                              | ❌              | ✅            |
+| [정적 자산에 대한 사용자 정의 HTTP 헤더](/workers/static-assets/headers/)                                             | ✅              | ✅            |
+| [기타 제품](/workers/static-assets/binding/#run_worker_first)                                               | ✅ [^1]         | ✅            |
+| [회사 소개](/workers/static-assets/redirects/)                                                              | ✅              | ✅            |
+| [스마트 배치](/workers/configuration/placement/)                                                             | ✅              | ✅            |
+| [경로의 Serve 자산](/workers/static-assets/routing/advanced/serving-a-subdirectory/)                         | ✅              | ❌            |
+| **옵션 정보**                                                                                               |                |              |
+| [모델 번호: Workers 로그인](/workers/observability/)                                                           | ✅              | ❌            |
+| [다운로드](/workers/observability/logs/logpush/)                                                            | ✅              | ❌            |
+| [꼬리 Workers](/workers/observability/logs/tail-workers/)                                                 | ✅              | ❌            |
+| [실시간 로그](/workers/observability/logs/real-time-logs/)                                                   | ✅              | ✅            |
+| [소스 맵](/workers/observability/source-maps/)                                                             | ✅              | ❌            |
+| **Runtime APIs & Compute 모델**                                                                           |                |              |
+| [Node.js 호환성 형태](/workers/runtime-apis/nodejs/)                                                         | ✅              | ✅            |
+| [Durable Objects](/durable-objects/api/)                                                                | ✅              | 🟡 [^2]      |
+| [Cron 트리거](/workers/configuration/cron-triggers/)                                                       | ✅              | ❌            |
+| **회사 소개**                                                                                               |                |              |
+| [사이트맵](/workers-ai/get-started/workers-wrangler/#2-connect-your-worker-to-workers-ai)                   | ✅              | ✅            |
+| [Analytics 엔진](/analytics/analytics-engine)                                                             | ✅              | ✅            |
+| [투자정보](/workers/static-assets/binding/)                                                                 | ✅              | ✅            |
+| [브라우저 렌더링](/browser-rendering)                                                                          | ✅              | ✅            |
+| [모델 번호: D1](/d1/worker-api/)                                                                            | ✅              | ✅            |
+| [이메일 Workers](/email-routing/email-workers/send-email-workers/)                                         | ✅              | ❌            |
+| [환경 변수](/workers/configuration/environment-variables/)                                                  | ✅              | ✅            |
+| [Hyperdrive](/hyperdrive/)                                                                              | ✅              | ✅            |
+| [이미지 Resizing](/images/transform-images/bindings/)                                                      | ✅              | ❌            |
+| [KV](/kv/)                                                                                              | ✅              | ✅            |
+| [사이트맵](/workers/runtime-apis/bindings/mtls/)                                                            | ✅              | ✅            |
+| [큐 프로듀서](/queues/configuration/configure-queues/#producer-worker-configuration)                         | ✅              | ✅            |
+| [Queue 소비자](/queues/configuration/configure-queues/#consumer-worker-configuration)                      | ✅              | ❌            |
+| [R2](/r2/)                                                                                              | ✅              | ✅            |
+| [비율 제한](/workers/runtime-apis/bindings/rate-limit/)                                                     | ✅              | ❌            |
+| [계정 관리](/workers/configuration/secrets/)                                                                | ✅              | ✅            |
+| [서비스 바인딩](/workers/runtime-apis/bindings/service-bindings/)                                             | ✅              | ✅            |
+| [Vectorize](/vectorize/get-started/intro/#3-bind-your-worker-to-your-index)                             | ✅              | ✅            |
+| **구조 (CI/CD)**                                                                                          |                |              |
+| [모노레포지](/workers/ci-cd/builds/advanced-setups/)                                                         | ✅              | ✅            |
+| [시계 경로](/workers/ci-cd/builds/build-watch-paths/)                                                       | ✅              | ✅            |
+| [회사 소개](/workers/ci-cd/builds/build-caching/)                                                           | ✅              | ✅            |
+| [배포 후크](/pages/configuration/deploy-hooks/)                                                             | ⏳              | ✅            |
+| [Branch 배포 제어](/pages/configuration/branch-build-controls/)                                             | 🟡 [^3]        | ✅            |
+| [사용자 정의 지점 Aliases](/pages/how-to/custom-branch-aliases/)                                               | ⏳              | ✅            |
+| **Pages 기능**                                                                                            |                |              |
+| [파일 기반 Routing](/pages/functions/routing/)                                                              | 🟡 [^4]        | ✅            |
+| [Pages 플러그인](/pages/functions/plugins/)                                                                 | 🟡 [^5]        | ✅            |
+| **도메인 구성**                                                                                              |                |              |
+| [주문 영역](/workers/configuration/routing/custom-domains/#add-a-custom-domain)                             | ✅              | ✅            |
+| [주문 subdomains](/workers/configuration/routing/custom-domains/#set-up-a-custom-domain-in-the-dashboard) | ✅              | ✅            |
+| [Cloudflare 지역 외부 주문 영역](/pages/configuration/custom-domains/#add-a-custom-cname-record)                | ❌              | ✅            |
+| [비 루트 경로](/workers/configuration/routing/routes/)                                                       | ✅              | ❌            |
+
+[^1]: Middleware는 구성할 수 있습니다.[`run_worker_first`](/workers/static-assets/binding/#run_worker_first)옵션이지만, 일반 노동자에게 부과됩니다. 우리는 미래의 추가 관련 옵션을 탐구 할 계획.
+
+[^2]: 으로[Durable ObjectsXQ를 Cloudflare Pages 프로젝트로 사용](/pages/functions/bindings/#durable-objects), 당신은 튼튼한 목표를 가진 분리되는 노동자를 창조해야 하고 그 후에 당신의 생산 및 미리보기 환경 둘 다에 그것에 바인딩을 선언합니다. Durable ObjectsXQ를 사용하여 QXQXQXQXQ는 더 간단합니다 추천됩니다.
+
+[^3]: 모델 번호: Workers 빌드 지원[비생산점 구축](/workers/ci-cd/builds/build-branches/#configure-non-production-branch-builds), 아직 Pages와 같은 구성의 수준이 없습니다.
+
+[^4]: 모델 번호: Workers[인기 프레임 워크 지원](/workers/framework-guides/), 파일 기반 라우팅을 구현하는 많은. 또한 Wrangler를 사용할 수 있습니다.[폴더를 컴파일`functions/`](#pages-functions-with-a-functions-folder)Pages에서 QXQXQXQXQXQXQ에서 마이그레이션을 용이하게하는 노동자로.
+
+[^5]: 이름 \*<sup>4</sup>, Wrangler는 할 수 있습니다[Pages를 컴파일 작업자에 기능](#pages-functions-with-a-functions-folder). 또는 당신이 처음부터 시작되는 경우에, PagesXQ로 가능한 모든 것 Functions는 Worker에 코드를 추가하거나 관련 타사 도구에 대한 Framework-specific 플러그인을 사용하여 얻을 수 있습니다.

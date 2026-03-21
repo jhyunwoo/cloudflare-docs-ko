@@ -1,0 +1,162 @@
+---
+title: 코딩 도구에서 결제하기
+pcx_content_type: how-to
+sidebar:
+  order: 4
+description: OpenCode와 Claude Code에 x402 결제 처리를 추가합니다.
+---
+
+다음 예시는 AI 코딩 도구에 x402 결제 처리를 추가하는 방법을 보여 줍니다. 도구가 402 응답을 만나면 자동으로 결제하고 재시도합니다.
+
+두 예시 모두 다음이 필요합니다.
+
+- wallet private key(`X402_PRIVATE_KEY` 환경 변수로 설정)
+- x402 packages: `@x402/fetch`, `@x402/evm`, `viem`
+
+## OpenCode plugin
+
+OpenCode plugins는 agent에 tools를 노출합니다. 402 응답을 처리하는 `x402-fetch` tool을 만들려면 `.opencode/plugins/x402-payment.ts`를 생성하세요.
+
+```ts
+// Use base-sepolia for testing. Get test USDC from https://faucet.circle.com/
+import type { Plugin } from "@opencode-ai/plugin";
+import { tool } from "@opencode-ai/plugin";
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+export const X402PaymentPlugin: Plugin = async () => ({
+	tool: {
+		"x402-fetch": tool({
+			description:
+				"Fetch a URL with x402 payment. Use when webfetch returns 402.",
+			args: {
+				url: tool.schema.string().describe("The URL to fetch"),
+				timeout: tool.schema.number().optional().describe("Timeout in seconds"),
+			},
+			async execute(args) {
+				const privateKey = process.env.X402_PRIVATE_KEY;
+				if (!privateKey) {
+					throw new Error("X402_PRIVATE_KEY environment variable is not set.");
+				}
+
+				// Your human-in-the-loop confirmation flow...
+				// const approved = await confirmPayment(args.url, estimatedCost);
+				// if (!approved) throw new Error("Payment declined by user");
+
+				const account = privateKeyToAccount(privateKey as `0x${string}`);
+				const client = new x402Client();
+				registerExactEvmScheme(client, { signer: account });
+				const paidFetch = wrapFetchWithPayment(fetch, client);
+
+				const response = await paidFetch(args.url, {
+					method: "GET",
+					signal: args.timeout
+						? AbortSignal.timeout(args.timeout * 1000)
+						: undefined,
+				});
+
+				if (!response.ok) {
+					throw new Error(`${response.status} ${response.statusText}`);
+				}
+
+				return await response.text();
+			},
+		}),
+	},
+});
+```
+
+내장 `webfetch`가 402를 반환하면, agent는 `x402-fetch`를 호출해 결제 후 재시도합니다.
+
+## Claude Code hook
+
+Claude Code hooks는 tool 결과를 가로챕니다. 402를 투명하게 처리하려면 `.claude/scripts/handle-x402.mjs`에 스크립트를 만드세요.
+
+```js
+// Use base-sepolia for testing. Get test USDC from https://faucet.circle.com/
+import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
+import { registerExactEvmScheme } from "@x402/evm/exact/client";
+import { privateKeyToAccount } from "viem/accounts";
+
+const input = JSON.parse(await readStdin());
+
+const haystack = JSON.stringify(input.tool_response ?? input.error ?? "");
+if (!haystack.includes("402")) process.exit(0);
+
+const url = input.tool_input?.url;
+if (!url) process.exit(0);
+
+const privateKey = process.env.X402_PRIVATE_KEY;
+if (!privateKey) {
+	console.error("X402_PRIVATE_KEY not set.");
+	process.exit(2);
+}
+
+try {
+	// Your human-in-the-loop confirmation flow...
+	// const approved = await confirmPayment(url);
+	// if (!approved) process.exit(0);
+
+	const account = privateKeyToAccount(privateKey);
+	const client = new x402Client();
+	registerExactEvmScheme(client, { signer: account });
+	const paidFetch = wrapFetchWithPayment(fetch, client);
+
+	const res = await paidFetch(url, { method: "GET" });
+	const text = await res.text();
+
+	if (!res.ok) {
+		console.error(`Paid fetch failed: ${res.status}`);
+		process.exit(2);
+	}
+
+	console.log(
+		JSON.stringify({
+			hookSpecificOutput: {
+				hookEventName: "PostToolUse",
+				additionalContext: `Paid for "${url}" via x402:\n${text}`,
+			},
+		}),
+	);
+} catch (err) {
+	console.error(`x402 payment failed: ${err.message}`);
+	process.exit(2);
+}
+
+function readStdin() {
+	return new Promise((resolve) => {
+		let data = "";
+		process.stdin.on("data", (chunk) => (data += chunk));
+		process.stdin.on("end", () => resolve(data));
+	});
+}
+```
+
+hook는 `.claude/settings.json`에 등록합니다.
+
+```json
+{
+	"hooks": {
+		"PostToolUse": [
+			{
+				"matcher": "WebFetch",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node .claude/scripts/handle-x402.mjs",
+						"timeout": 30
+					}
+				]
+			}
+		]
+	}
+}
+```
+
+## 관련 링크
+
+- [Pay from Agents SDK](/agents/x402/pay-from-agents-sdk/) — Agents SDK를 사용해 더 많은 제어 얻기
+- [Charge for HTTP content](/agents/x402/charge-for-http-content/) — 서버 측 구현 만들기
+- [Human-in-the-loop guide](/agents/guides/human-in-the-loop/) — 승인 workflow 구현
+- [x402.org](https://x402.org) — 프로토콜 명세

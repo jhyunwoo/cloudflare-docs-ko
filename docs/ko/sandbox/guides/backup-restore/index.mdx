@@ -1,0 +1,439 @@
+---
+title: 백업 및 복원
+pcx_content_type: how-to
+sidebar:
+  order: 11
+description: point-in-time 백업 및 복원 sandbox 디렉토리.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/backup-restore/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/backup-restore/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample, WranglerConfig } from "~/components";
+
+sandbox 디렉토리의 point-in-time snapshot를 작성하고 copy-on-write 오버레이를 사용하여 복원하십시오. 백업은 R2 물통에서 저장되고 Squashfs 압축을 사용하십시오.
+
+:::카ution\[제품만]
+백업 및 복원은 작동하지 않습니다.`wrangler dev`현재 wrangler가 제공하지 않는 FUSE 지원이 필요합니다. 작업자 배치`wrangler deploy`이 기능을 사용할 수 있습니다. 다른 Sandbox SDK는 현지 개발에서 작동합니다.
+주요 특징
+
+## 자주 묻는 질문
+
+1. 백업 저장을 위한 R2 물통을 창조하십시오:
+
+   ```sh
+   npx wrangler r2 bucket create my-backup-bucket
+   ```
+
+2. 추가하기`BACKUP_BUCKET`R2 바인딩 및 할당 된 URL 자격 증명 WranglerXQ 구성 :
+
+   <WranglerConfig>
+     ```jsonc
+     {
+     	"name": "my-sandbox-worker",
+     	"main": "src/index.ts",
+     	"compatibility_date": "$today",
+     	"compatibility_flags": ["nodejs_compat"],
+     	"containers": [
+     		{
+     			"class_name": "Sandbox",
+     			"image": "./Dockerfile",
+     		},
+     	],
+     	"durable_objects": {
+     		"bindings": [
+     			{
+     				"class_name": "Sandbox",
+     				"name": "Sandbox",
+     			},
+     		],
+     	},
+     	"migrations": [
+     		{
+     			"new_sqlite_classes": ["Sandbox"],
+     			"tag": "v1",
+     		},
+     	],
+     	"vars": {
+     		"BACKUP_BUCKET_NAME": "my-backup-bucket",
+     		"CLOUDFLARE_ACCOUNT_ID": "<YOUR_ACCOUNT_ID>",
+     	},
+     	"r2_buckets": [
+     		{
+     			"binding": "BACKUP_BUCKET",
+     			"bucket_name": "my-backup-bucket",
+     		},
+     	],
+     }
+     ```
+   </WranglerConfig>
+
+3. 비밀로 R2 API 자격 증명을 설정하십시오:
+
+   ```sh
+   npx wrangler secret put R2_ACCESS_KEY_ID
+   npx wrangler secret put R2_SECRET_ACCESS_KEY
+   ```
+
+   R2 API 토큰을 만들 수 있습니다.[Cloudflare dashboard](https://dash.cloudflare.com/)이름 \***R2** > **제품정보** > **R2 API 관리 토큰 토큰**. 토큰 요구**개체 읽기 및 쓰기**백업 버킷에 대한 권한.
+
+## 백업 만들기
+
+제품 정보`createBackup()`디렉토리를 스냅 하 고 R2에 업로드:
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  ///workspace의 백업 만들기
+  const backup = await sandbox.createBackup({ dir: "/workspace" });
+  console.log(`Backup created: ${backup.id}`);
+  ```
+</TypeScriptExample>
+
+SDK는 디렉토리의 압축 스쿼시 아카이브를 만들고 사전 서명 된 URL을 사용하여 R2 버킷에 직접 업로드합니다.
+
+## 백업 복원
+
+제품 정보`restoreBackup()`백업에서 디렉토리를 복원하려면:
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //백업 만들기
+  const backup = await sandbox.createBackup({ dir: "/workspace" });
+
+  //백업 복원
+  const result = await sandbox.restoreBackup(backup);
+  console.log(`Restored: ${result.success}`);
+  ```
+</TypeScriptExample>
+
+:::카트로션\[Ephemeral mount]
+FUSE 마운트는 sandbox 수면 또는 컨테이너 재시작 때 손실됩니다. 백업 핸들에서 복구합니다.
+주요 특징
+
+## gitignored 파일 제외
+
+git 저장소 내부 디렉토리를 백업 할 때, set`useGitignore: true`관련 파일`.gitignore`이름 \* 이것은 큰 생성 된 디렉토리를 건너는 데 유용합니다.`node_modules/`, `dist/`, 또는`build/`다시 만들 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //추적 및 추적되지 않은 파일을 백업
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	useGitignore: true,
+  });
+  ```
+</TypeScriptExample>
+
+SDK 사용`git ls-files`어떤 파일이 무시되는지 해결하기 위해. 루트 레벨과 배열 모두`.gitignore`파일이 존중됩니다.
+
+기본적으로,`useGitignore`이름 \*`false`디렉토리의 모든 파일은 백업에 포함되어 있습니다.
+
+:::노트\[문의]
+`useGitignore`견적 요청`git`컨테이너에 설치됩니다. 이름 \*`useGitignore`이름 \*`true`·`git`사용할 수 없습니다.`createBackup()`더 보기`BackupCreateError`. 백업 디렉토리가 git 저장소 안에 있지 않다면, 옵션에는 효과가 없으며 모든 파일이 포함되어 있지 않습니다.
+주요 특징
+
+## 체크포인트 및 롤백
+
+위험 작업 전에 상태를 저장하고 뭔가 실패하면 복원 :
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //위험 작업 전에 체크 포인트를 저장
+  const checkpoint = await sandbox.createBackup({ dir: "/workspace" });
+
+  try {
+  	await sandbox.exec("npm install some-experimental-package");
+  	await sandbox.exec("npm run build");
+  } catch (error) {
+  	//뭔가 잘못되었는지 체크포인트 복원
+  	await sandbox.restoreBackup(checkpoint);
+  	console.log("Rolled back to checkpoint");
+  }
+  ```
+</TypeScriptExample>
+
+## 저장 백업 손잡이
+
+더 보기`DirectoryBackup`손잡이는 serializable 입니다. KV, D1, 또는 나중에 사용을 위한 튼튼한 목표 저장에 그것을 주장하십시오:
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //백업을 만들고 KV
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	name: "deploy-v2",
+  	ttl: 604800, //7 일
+  });
+
+  await env.KV.put(`backup:${userId}`, JSON.stringify(backup));
+
+  //나중에, 검색 및 복원
+  const stored = await env.KV.get(`backup:${userId}`);
+  if (stored) {
+  	const backupHandle = JSON.parse(stored);
+  	await sandbox.restoreBackup(backupHandle);
+  }
+  ```
+</TypeScriptExample>
+
+## 이름 백업 사용
+
+추가하기`name`백업을 식별하는 옵션. 이름은 256까지 문자일 수 있습니다:
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	name: "before-migration",
+  });
+
+  console.log(`Backup ID: ${backup.id}`);
+  ```
+</TypeScriptExample>
+
+## TTL 구성
+
+사용자 정의 시간 - 라이브 백업을 설정합니다. 기본 TTL은 3 일 (259200 초)입니다. 더 보기`ttl`값은 몇 초의 긍정적 인 수이어야합니다.
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //빠른 작업을위한 짧은 라이브 백업
+  const shortBackup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	ttl: 600, //10 분
+  });
+
+  //확장된 워크플로우를 위한 Long-lived 백업
+  const longBackup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	name: "daily-snapshot",
+  	ttl: 604800, //7 일
+  });
+  ```
+</TypeScriptExample>
+
+### TTL이 시행되는 방법
+
+TTL은 시행**복구 시간**, 창조 시간에. 전화 번호`restoreBackup()`, SDK는 R2에서 백업 메타 데이터를 읽고 현재 시간에 대한 TTL 생성 타임 스탬프 플러스 비교 (60 초 버퍼와 레이스 조건을 방지). TTL이 탈출 한 경우 복원이 거부됩니다.`BACKUP_EXPIRED`오류.
+
+TTL는**아니다.**&#x52;2에서 자동으로 백업 개체를 삭제합니다. Expired Backups는 버킷에 남아 있으며, 저장을 명시적으로 삭제하거나 자동 정리 규칙을 구성 할 때까지 계속합니다.
+
+### 자동 세척을위한 R2 수명주기 규칙 구성
+
+자동으로 R2에서 만료 된 백업 개체를 제거하려면, 설정[R2 객체 수명주기 규칙](/r2/buckets/object-lifecycles/)당신의 백업 물통에. 이것은 무한하게 축적 된 백업을 방지하는 권장 방법입니다.
+
+예를 들어, 가장 긴 TTL이 7 일이라면, 7 일 이상 객체를 삭제하는 생명주기 규칙을 구성하십시오.`backups/`연락처 이것은 R2 저장은 당신이 어떤 비 폭발적인 백업을 복원하기 위해 버퍼를 주는 동안 언바운드를 성장하지 않습니다.
+
+## R2에서 백업 개체를 청소
+
+백업 아카이브는 아래에 R2 물통에 저장됩니다`backups/`구조의 접두사`backups/{backupId}/data.sqsh`·`backups/{backupId}/meta.json`. 당신은 사용할 수 있습니다`BACKUP_BUCKET`R2는 이 목표를 직접 관리하기 위하여 바인딩합니다.
+
+### 최신 백업 교체 (delete-then-write)
+
+가장 최근의 백업만 필요로 하는 경우, 새로운 것을 만들기 전에 이전 하나를 삭제:
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //이전 백업의 R2 개체를 새로운 것을 만들기 전에 삭제
+  if (previousBackup) {
+  	await env.BACKUP_BUCKET.delete(`backups/${previousBackup.id}/data.sqsh`);
+  	await env.BACKUP_BUCKET.delete(`backups/${previousBackup.id}/meta.json`);
+  }
+
+  //신선한 백업 만들기
+  const backup = await sandbox.createBackup({
+  	dir: "/workspace",
+  	name: "latest",
+  });
+
+  //핸들을 저장하여 다음 시간을 삭제할 수 있습니다.
+  await env.KV.put("latest-backup", JSON.stringify(backup));
+  ```
+</TypeScriptExample>
+
+### prefix로 이전 백업 목록 및 삭제
+
+여러 오래된 백업을 청소하려면 아래 목록 개체`backups/`prefix 및 키로 삭제:
+
+<TypeScriptExample>
+  ```ts
+  //버킷의 모든 백업 개체 목록
+  const listed = await env.BACKUP_BUCKET.list({ prefix: "backups/" });
+
+  for (const object of listed.objects) {
+  	//키 (backups/{id}/data.sqsh 또는 Backups/{id}/meta.json)에서 백업 ID를 파십시오.
+  	const parts = object.key.split("/");
+  	const backupId = parts[1];
+
+  	//7일 이상 대상 삭제
+  	const ageMs = Date.now() - object.uploaded.getTime();
+  	const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+  	if (ageMs > sevenDaysMs) {
+  		await env.BACKUP_BUCKET.delete(object.key);
+  		console.log(`Deleted expired object: ${object.key}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### ID로 특정 백업 삭제
+
+백업 ID가있는 경우, 아카이브 및 메타 데이터를 직접 삭제하십시오.
+
+<TypeScriptExample>
+  ```ts
+  const backupId = backup.id;
+
+  await env.BACKUP_BUCKET.delete(`backups/${backupId}/data.sqsh`);
+  await env.BACKUP_BUCKET.delete(`backups/${backupId}/meta.json`);
+  ```
+</TypeScriptExample>
+
+## Copy-on-write 동작
+
+Restore는 FUSE overlayfs를 사용하여 읽기 전용 낮은 층으로 백업을 마운트합니다. 새로운 쓰기 writable upper layer로 이동하고 원래 백업에 영향을 미치지 않습니다.
+
+<TypeScriptExample>
+  ```ts
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //백업 만들기
+  const backup = await sandbox.createBackup({ dir: "/workspace" });
+
+  //백업 복원
+  await sandbox.restoreBackup(backup);
+
+  //새 글은 위층으로 이동 — 백업은 변경되지 않습니다
+  await sandbox.writeFile(
+  	"/workspace/new-file.txt",
+  	"This does not modify the backup",
+  );
+
+  //discard 변경에 다시 동일한 백업 복원
+  await sandbox.restoreBackup(backup);
+  ```
+</TypeScriptExample>
+
+## 핸들 오류
+
+백업 및 복원 작업은 특정 오류를 발생시킬 수 있습니다. 랩 통화[`try...catch`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch)블록:
+
+<TypeScriptExample>
+  ```ts
+  import { getSandbox } from "@cloudflare/sandbox";
+
+  const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+  //핸들 백업 오류
+  try {
+  	const backup = await sandbox.createBackup({ dir: "/workspace" });
+  } catch (error) {
+  	if (error.code === "INVALID_BACKUP_CONFIG") {
+  		//Missing BACKUP BUCKET 바인딩 또는 잘못된 디렉토리 경로
+  		console.error("Configuration error:", error.message);
+  	} else if (error.code === "BACKUP_CREATE_FAILED") {
+  		//R2XQ에 대한 아카이브 생성 또는 업로드 실패
+  		console.error("Backup failed:", error.message);
+  	}
+  }
+
+  //핸들 복원 오류
+  try {
+  	await sandbox.restoreBackup(backup);
+  } catch (error) {
+  	if (error.code === "BACKUP_NOT_FOUND") {
+  		console.error("Backup not found in R2:", error.message);
+  	} else if (error.code === "BACKUP_EXPIRED") {
+  		console.error("Backup TTL has elapsed:", error.message);
+  	} else if (error.code === "BACKUP_RESTORE_FAILED") {
+  		console.error("Restore failed:", error.message);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 경로 권한
+
+더 보기`createBackup()`방법 사용`mksquashfs`대상 디렉토리의 압축 아카이브를 만듭니다. 이 과정은 당신이 백업하는 경로 내에서 모든 파일과 하위 디렉토리를 읽을 수 있어야합니다. 어떤 파일이나 디렉토리가 읽기에서 아카이브를 방지하는 제한적 권한을 가지고 있다면, 백업은 실패`BackupCreateError`그리고 "Permission denied" 메시지.
+
+### 일반적인 원인
+
+- **다른 사용자가 소유한 이사**- 대상 디렉토리가 다른 사용자 또는 프로세스에 의해 생성 된 하위 디렉토리가 포함 된 경우 (예를 들어,`/home/sandbox/.claude`), archiver는 접근을 읽지 않을지도 모릅니다.
+- **제한 파일 모드**— 같은 모드로 파일`0600`또는 감독과`0700`백업 프로세스를 실행하는 것보다 다른 사용자에 속합니다.
+- **Runtime-generated 설정 디렉토리**- 도구 및 응용 프로그램은 종종 구성 디렉토리를 만듭니다 (예 :`.cache`, `.config`제한적인 권한을 가진 , 또는 공구 특정한 dotfiles).
+
+### 빌드 시간에 권한 수정
+
+권장된 접근법은 모든 컨테이너가 올바른 접근으로 시작되도록 Dockerfile에서 권한을 설정하는 것입니다. 이것은 달리는 것을 피합니다`chmod`각 백업의 앞에 runtime에:
+
+```dockerfile
+# Ensure the backup target directory is readable
+RUN mkdir -p /home/sandbox && chmod -R a+rX /home/sandbox
+```
+
+더 보기`a+rX`flag Grants는 모든 파일에 대한 액세스를 읽고 (traverse) 모든 디렉토리에 액세스, 쓰기 권한 변경없이.
+
+### runtime에서 권한 수정
+
+제한적 권한이 runtime에서 생성된 파일에서 나온 경우 (예를 들어, config 파일을 생성하는 도구`0600`모드), 호출하기 전에 수정`createBackup()`:
+
+```ts
+await sandbox.exec("chmod -R a+rX /home/sandbox/.claude");
+const backup = await sandbox.createBackup({ dir: "/home/sandbox" });
+```
+
+### 예제 오류
+
+백업이 권한 문제가 발생하면 다음과 같은 오류가 표시됩니다.
+
+```txt
+BackupCreateError: mksquashfs failed: Could not create destination file: Permission denied
+```
+
+이 수단`mksquashfs`디렉토리 안에 하나 이상의 파일을 읽을 수 없습니다.`createBackup()`. 그 경로 내에서 모든 파일 및 하위 디렉토리의 권한을 확인합니다.
+
+## 좋은 관행
+
+- **restoring 전에 쓰기**- 호출하기 전에 대상 디렉토리에 쓰기 중지`restoreBackup()`
+- **자주 묻는 질문**- 패키지 설치 또는 마이그레이션과 같은 위험 작업 전에 백업 생성
+- **gitignored 파일 제외**- 세트`useGitignore: true`git 저장소를 백업하면 생성된 파일을 건너뛰기`node_modules/`백업 크기를 감소
+- **적절한 TTLs 설정**- 임시 체크포인트를 위한 짧은 TTLs 및 지속적인 스냅샷을 위한 더 긴 TTLs 사용
+- **저장은 외부로 취급합니다**- 지속`DirectoryBackup`KV, D1, 또는 크로스 리퀘스트 접근을 위한 튼튼한 목표 저장에 손잡이
+- **R2 수명주기 규칙 구성**- 설정[객체 수명주기 규칙](/r2/buckets/object-lifecycles/)자동으로 R2에서 만료 된 백업을 삭제하려면 TTL이 복원 시간에 만 시행됩니다.
+- **오래된 백업 청소**- R2에서 이전 백업 개체를 삭제하면 더 이상 필요하거나 롤링 백업에 대한 삭제 된 쓰기 패턴을 사용하십시오.
+- **핸들 오류**- 랩 백업 및 테스트 / 캐치 블록에서 통화 복원
+- **재시작 후 복원**- FUSE 마운트는 ephemeral이므로 컨테이너 재시작 후 백업 핸들에서 다시 복원
+
+## 관련 자료
+
+- [백업 API reference](/sandbox/api/backups/)- 전체 방법 문서
+- [저장 API reference](/sandbox/api/storage/)- 마운트 S3- 호환 버킷
+- [R2 문서](/r2/)- Cloudflare R2XQ에 대해 알아보기
+- [R2 수명주기 규칙](/r2/buckets/object-lifecycles/)- 자동 객체 정리 구성

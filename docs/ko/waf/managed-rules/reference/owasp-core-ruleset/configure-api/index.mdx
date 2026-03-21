@@ -1,0 +1,307 @@
+---
+pcx_content_type: configuration
+title: API를 통해 구성
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/managed-rules/reference/owasp-core-ruleset/configure-api/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/reference/owasp-core-ruleset/configure-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, RuleID, APIRequest } from "~/components";
+
+API를 사용하여 주어진 영역에 대한 Cloudflare OWASP Core Ruleset을 활성화하려면 규칙을 작성하십시오.`execute`활동에 대한 항목 포인트 규칙`http_request_firewall_managed`단계. 관리 규칙을 배포하는 더 많은 정보를 위해, 참조[관리 규칙 배포](/ruleset-engine/managed-rulesets/deploy-managed-ruleset/).
+
+API를 사용하여 Cloudflare OWASP Core Ruleset을 구성하려면 생성[관련 기사](/ruleset-engine/managed-rulesets/override-managed-ruleset/)Rulesets API를 사용하여. 다음 구성을 수행할 수 있습니다:
+
+- [파라노아 수준 설정](#set-the-paranoia-level).
+- [점수 임계값 구성](#configure-the-score-threshold-and-the-action).
+- [수행 할 작업 지정](#configure-the-score-threshold-and-the-action)위협 점수가 임계값보다 큰 경우.
+
+관리 규칙에 따라 특정 규칙을 비활성화 할 수 있습니다.[규칙 overrides](/ruleset-engine/managed-rulesets/override-managed-ruleset/).
+
+## 파라노아 수준 설정
+
+특정 규칙을 활성화하려면[paranoia 수준](/waf/managed-rules/reference/owasp-core-ruleset/concepts/#paranoia-level), 생성[태그 overrides](/ruleset-engine/managed-rulesets/override-managed-ruleset/#work-with-overrides)더 높은 paranoia 수준과 관련된 모든 규칙을 비활성화합니다.
+
+다른 paranoia 수준과 관련된 태그는 다음과 같습니다.
+
+- `paranoia-level-1`
+- `paranoia-level-2`
+- `paranoia-level-3`
+- `paranoia-level-4`
+
+예를 들어 Paranoia Level 2 (PL2)과 관련된 모든 규칙을 활성화하려면 태그와 관련된 규칙을 비활성화하십시오.`paranoia-level-3`·`paranoia-level-4`. 원하는 파라노아 수준까지 파라노아 수준과 관련된 모든 규칙은 활성화됩니다 (이 예에서 PL1 및 PL2)와 관련된 모든 규칙.
+
+### 이름 \*
+
+이 예제는 Cloudflare OWASP Core Ruleset의 파라노아 레벨을 PL2로 설정합니다. 이 구성을 수행하려면 레벨 PL3 및 PL4과 관련된 태그를 비활성화해야합니다 (`paranoia-level-3`·`paranoia-level-4`) 태그 overrides를 사용하여.
+
+1. Cloudflare OWASP Core Ruleset의 ID를 받아 보세요.[계정 규칙](/api/resources/rulesets/methods/list/)WAF의 관리 규칙은 계정 수준에 존재합니다. 또는 다음 규칙 ID를 직접 사용하십시오.<RuleID id="4814384a9e5d4991b9815dcfc25d2f1f" />.
+
+   <APIRequest path="/accounts/{account_id}/rulesets" method="GET" roles={false} />
+
+   ```json output {4-5}
+   {
+   	"result": [
+   		{
+   			"id": "4814384a9e5d4991b9815dcfc25d2f1f",
+   			"name": "Cloudflare OWASP Core Ruleset",
+   			"description": "Cloudflare's implementation of the Open Web Application Security Project (OWASP) ModSecurity Core  Rule Set. We routinely monitor for updates from OWASP based on the latest version available from the official  code repository",
+   			"source": "firewall_managed",
+   			"kind": "managed",
+   			"version": "35",
+   			"last_updated": "2022-01-24T21:08:20.293196Z",
+   			"phase": "http_request_firewall_managed"
+   		}
+   		// (...)
+   	],
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+2. OWASP 규칙을 사용하여 영역에 배치하는 규칙의 ID를 얻으십시오.[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/). 규칙을 검색`"action": "execute"`OWASP 규칙의 ID로 구성`action_parameters`객체 (ID)<RuleID id="4814384a9e5d4991b9815dcfc25d2f1f" />). 이 규칙은 이미 OWASP 규칙을 배포 한 경우만 존재합니다.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_request_firewall_managed",
+     }}
+     roles={false}
+   />
+
+   ```json output {3,12,14-16}
+   {
+   	"result": {
+   		"id": "<ENTRY_POINT_RULESET_ID>",
+   		"name": "zone",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "<EXECUTE_RULE_ID>",
+   				"version": "1",
+   				"action": "execute",
+   				"action_parameters": {
+   					"id": "4814384a9e5d4991b9815dcfc25d2f1f",
+   					"version": "latest"
+   				},
+   				"expression": "true",
+   				"last_updated": "2022-02-04T16:27:58.930927Z",
+   				"ref": "<RULE_REF>",
+   				"enabled": true
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2022-02-07T10:41:31.702744Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+3. 자주 묻는 질문[지역 규칙 규칙 업데이트](/api/resources/rulesets/methods/update/)작업, 태그와 규칙을 비활성화 태그 overrides 추가`paranoia-level-3`·`paranoia-level-4`.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+     method="PATCH"
+     parameters={{
+     	ruleset_id: "$ENTRY_POINT_RULESET_ID",
+     	rule_id: "$EXECUTE_RULE_ID",
+     }}
+     json={{
+     	action: "execute",
+     	action_parameters: {
+     		id: "4814384a9e5d4991b9815dcfc25d2f1f",
+     		overrides: {
+     			categories: [
+     				{
+     					category: "paranoia-level-3",
+     					enabled: false,
+     				},
+     				{
+     					category: "paranoia-level-4",
+     					enabled: false,
+     				},
+     			],
+     		},
+     	},
+     	expression: "true",
+     	enabled: true,
+     }}
+     code={{
+     	mark: [{ range: "8-19" }],
+     }}
+     roles={false}
+   />
+
+overrides 만들기에 대한 자세한 내용은 참조[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/).
+
+## 점수 임계값과 동작 구성
+
+정의하기[점수 임계 값](/waf/managed-rules/reference/owasp-core-ruleset/concepts/#score-threshold), 또는 지정[이름 \*](/ruleset-engine/rules-language/actions/)위협 점수가 임계 값보다 더 큰 경우 수행 할 수 있습니다.[규칙 override](/ruleset-engine/managed-rulesets/override-managed-ruleset/#work-with-overrides)마지막 규칙을 위해 :
+
+- 행동을 지정한다`action`호텔 위치 사용 가능한 작업은:`js_challenge`(Non-Interactive Challenge),`managed_challenge`(수익 도전),`block`(과태)`challenge`(Interactive Challenge) 및`log`.
+- 원어민 점수 임계값(integer value)를 무시합니다.`score_threshold`호텔 위치
+
+### 이름 \*
+
+이 예제는 관리된 규칙 점수 임계값과 관리된 규칙의 마지막 규칙에 대한 규칙을 작성하여 수행된 작업을 구성합니다.
+
+1. Cloudflare OWASP Core Ruleset의 ID를 받아 보세요.[계정 규칙](/api/resources/rulesets/methods/list/)WAF의 관리 규칙은 계정 수준에 존재합니다. 또는 다음 규칙 ID를 직접 사용하십시오.<RuleID id="4814384a9e5d4991b9815dcfc25d2f1f" />.
+
+   <APIRequest path="/accounts/{account_id}/rulesets" method="GET" roles={false} />
+
+   ```json output {4-5}
+   {
+   	"result": [
+   		{
+   			"id": "4814384a9e5d4991b9815dcfc25d2f1f",
+   			"name": "Cloudflare OWASP Core Ruleset",
+   			"description": "Cloudflare's implementation of the Open Web Application Security Project (OWASP) ModSecurity Core Rule Set. We routinely monitor for updates from OWASP based on the latest version available from the official code repository",
+   			"source": "firewall_managed",
+   			"kind": "managed",
+   			"version": "35",
+   			"last_updated": "2022-01-24T21:08:20.293196Z",
+   			"phase": "http_request_firewall_managed"
+   		}
+   		// (...)
+   	],
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+2. ID 받기[마지막 규칙](/waf/managed-rules/reference/owasp-core-ruleset/example/)Cloudflare OWASP 핵심 규칙 세트에서. 사용 방법[계정 규칙 받기](/api/resources/rulesets/methods/get/)규칙에 규칙의 목록을 얻는 방법. 또는 다음 규칙 ID를 직접 사용하십시오.<RuleID id="6179ae15870a4bb7b2d480d4843b323c" />.
+
+   <APIRequest path="/accounts/{account_id}/rulesets/{ruleset_id}" method="GET" parameters={{ ruleset_id: "$OWASP_RULESET_ID" }} roles={false} />
+
+   ```json output {12,16}
+   {
+   	"result": {
+   		"id": "4814384a9e5d4991b9815dcfc25d2f1f",
+   		"name": "Cloudflare OWASP Core Ruleset",
+   		"description": "Cloudflare's implementation of the Open Web Application Security Project (OWASP) ModSecurity Core Rule Set. We routinely monitor for updates from OWASP based on the latest version available from the official code repository",
+   		"source": "firewall_managed",
+   		"kind": "managed",
+   		"version": "36",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "6179ae15870a4bb7b2d480d4843b323c",
+   				"version": "35",
+   				"action": "block",
+   				"score_threshold": 40,
+   				"description": "949110: Inbound Anomaly Score Exceeded",
+   				"last_updated": "2022-02-08T16:11:18.236676Z",
+   				"ref": "ad0beb2fce9f149e565ee78d6e659d47",
+   				"enabled": true
+   			}
+   		],
+   		"last_updated": "2022-02-08T16:11:18.236676Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+3. OWASP 규칙을 사용하여 영역에 배치하는 규칙의 ID를 얻으십시오.[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)(이 예에서,`<EXECUTE_RULE_ID>`). 규칙을 검색`"action": "execute"`OWASP 규칙의 ID로 구성`action_parameters`객체 (ID)<RuleID id="4814384a9e5d4991b9815dcfc25d2f1f" />). 이 규칙은 이미 OWASP 규칙을 배포 한 경우만 존재합니다.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+      ruleset_phase: "http_request_firewall_managed",
+   }}
+     roles={false}
+   />
+
+   ```json output {3,12,14-16}
+   {
+   	"result": {
+   		"id": "<ENTRY_POINT_RULESET_ID>",
+   		"name": "zone",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "<EXECUTE_RULE_ID>",
+   				"version": "1",
+   				"action": "execute",
+   				"action_parameters": {
+   					"id": "4814384a9e5d4991b9815dcfc25d2f1f",
+   					"version": "latest"
+   				},
+   				"expression": "true",
+   				"last_updated": "2022-02-04T16:27:58.930927Z",
+   				"ref": "<RULE_REF>",
+   				"enabled": true
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2022-02-07T10:41:31.702744Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+4. 룰을 업데이트하십시오.[지역 규칙 규칙 업데이트](/api/resources/rulesets/methods/update/)OWASP 규칙의 마지막 규칙에 대한 규칙을 추가 (단계에서 식별 2) 다음과 같은 속성과 값 :
+
+   - `"score_threshold": 60`
+   - `"action": "managed_challenge"`
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules/{rule_id}"
+     method="PATCH"
+     parameters={{
+      ruleset_id: "$ENTRY_POINT_RULESET_ID",
+      rule_id: "$EXECUTE_RULE_ID",
+   }}
+     json={{
+      action: "execute",
+      action_parameters: {
+      	id: "4814384a9e5d4991b9815dcfc25d2f1f",
+      	overrides: {
+      		rules: [
+      			{
+      				id: "6179ae15870a4bb7b2d480d4843b323c",
+      				score_threshold: 60,
+      				action: "managed_challenge",
+      			},
+      		],
+      	},
+      },
+      expression: "true",
+      enabled: true,
+   }}
+     code={{
+      mark: [{ range: "12-13" }],
+   }}
+     roles={false}
+   />
+
+## 더 많은 리소스
+
+API 예제를 위해, 참조[Override 예제](/ruleset-engine/managed-rulesets/override-examples/)Ruleset Engine 문서에서.

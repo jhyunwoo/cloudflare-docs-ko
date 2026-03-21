@@ -1,0 +1,240 @@
+---
+pcx_content_type: reference
+title: 포스트 마스터
+sidebar:
+  order: 8
+head: []
+description: '전문가를 위한 postmaster 정보를 가진 참고 페이지, 뿐 아니라 알려진 제한 단면도.'
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/email-routing/postmaster/'
+translation_source_md: 'https://developers.cloudflare.com/email-routing/postmaster/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 페이지는 이메일 시스템을 관리하는 전문가에게 이메일 Routing에 대한 기술 정보를 제공하고 다른 이메일 공급자.
+
+이메일 Routing에 대한 정보를 찾을 수 있습니다, 최고의 관행과 함께, 규칙, 지침, 문제 해결 도구,뿐만 아니라 이메일 Routing에 대한 알려진 제한.
+
+## 포스트 마스터
+
+### 인증받은 수신 체인 (ARC)
+
+이메일 Routing 지원[인증받은 수신 체인 (ARC)](http://arc-spec.org/). ARC는 이메일 인증 결과를 보존하기 위해 중간 이메일 서버를 허용하도록 설계된 이메일 인증 시스템입니다. Google은 또한 ARC를 지원합니다.
+
+### 연락처
+
+저희에게 연락하는 제일 방법은 우리의 사용입니다[커뮤니티 포럼](https://community.cloudflare.com/new-topic?category=Feedback/Previews%20%26%20Betas\&tags=email)또는 우리의[Discord 서버](https://discord.com/invite/cloudflaredev).
+
+### DKIM 서명
+
+[DKIM (DomainKeys 식별 메일)](https://en.wikipedia.org/wiki/DomainKeys_Identified_Mail)이메일 메시지가 sender와 Public-key 암호화를 통해 수신자의 SMTP 서버간에 전송되지 않습니다.
+
+이 표준을 통해 sender는 도메인의 DNS에 공개 키를 한 번 게시하고 서버가 떠난하기 전에 각 메시지의 몸을 표시합니다. 수신자 서버는 메시지를 읽고 도메인의 DNS에서 도메인 공개 키를 얻고 메시지를 전달하지 않도록 서명을 검증합니다.
+
+이메일 Routing은 transit에서 이메일에 두 개의 새로운 서명을 추가, 보낸 사람 rewriting에 사용되는 Cloudflare 도메인 대신에 하나`email.cloudflare.net`, 다른 하나는 고객의 수신 도메인을 대신합니다.
+
+아래는 DKIM 키입니다.`email.cloudflare.net`:
+
+```sh
+dig TXT cf2024-1._domainkey.email.cloudflare.net +short
+```
+
+```sh output
+"v=DKIM1; h=sha256; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAiweykoi+o48IOGuP7GR3X0MOExCUDY/BCRHoWBnh3rChl7WhdyCxW3jgq1daEjPPqoi7sJvdg5hEQVsgVRQP4DcnQDVjGMbASQtrY4WmB1VebF+RPJB2ECPsEDTpeiI5ZyUAwJaVX7r6bznU67g7LvFq35yIo4sdlmtZGV+i0H4cpYH9+3JJ78k" "m4KXwaf9xUJCWF6nxeD+qG6Fyruw1Qlbds2r85U9dkNDVAS3gioCvELryh1TxKGiVTkg4wqHTyHfWsp7KD3WQHYJn0RyfJJu6YEmL77zonn7p2SRMvTMP3ZEXibnC9gz3nnhR6wcYL8Q7zXypKTMD58bTixDSJwIDAQAB"
+```
+
+고객의 DKIM 열쇠를 찾을 수 있습니다.`example.com`다음을 조회하여 도메인:
+
+```sh
+dig TXT cf2024-1._domainkey.example.com +short
+```
+
+### DMARC는
+
+이메일 루팅은 도메인 기반 메시지 인증, 보고 및 적합성 (DMARC)를 적용합니다. 보낸 사람의 DMARC 정책에 따라 이메일 Routing은 인증 실패가있을 때 이메일을 거부합니다. 더 알아보기[다운로드](https://dmarc.org/)이 프로토콜에 대한 자세한 내용은.
+모든 senders가 성공적으로 Cloudflare에 이메일을 전달하기 위해 DMARC 프로토콜을 구현하는 것이 좋습니다.
+
+### Mail 인증 요건
+
+Cloudflare는 이메일이 요구합니다[인증의 일부 양식을 전달](/changelog/2025-06-30-mail-authentication/)SPF 검증을 통과하거나 올바르게 DKIM 서명해야합니다. DMARC 구성도 긍정적 인 영향을 미칠 것이며 권장됩니다.
+
+### IPv6 지원
+
+현재 이메일 Routing은 MX 서버의 AAAA 레코드를 제공하면 IPv6를 사용하여 업스트림 SMTP 서버에 연결되며, 불가능한 경우 IPv4로 돌아갑니다.
+
+아래는 IPv6를 지원하는 인기있는 공급자의 예입니다.
+
+```sh
+dig mx gmail.com
+```
+
+```sh output
+
+gmail.com. 3084 IN MX 5 gmail-smtp-in.l.google.com.
+gmail.com. 3084 IN MX 20 alt2.gmail-smtp-in.l.google.com.
+gmail.com. 3084 IN MX 40 alt4.gmail-smtp-in.l.google.com.
+gmail.com. 3084 IN MX 10 alt1.gmail-smtp-in.l.google.com.
+gmail.com. 3084 IN MX 30 alt3.gmail-smtp-in.l.google.com.
+```
+
+```sh
+dig AAAA gmail-smtp-in.l.google.com
+```
+
+```sh output
+gmail-smtp-in.l.google.com. 17 IN AAAA 2a00:1450:400c:c09::1b
+```
+
+이메일 Routing은 Cloudflare의 인바운드 MX 서버를 통해 IPv6를 지원합니다.
+
+### MX, SPF 및 DKIM 레코드
+
+이메일 Routing은 고객이 이메일 Routing을 가능하게 할 때 영역에 몇 개의 DNS 레코드를 자동으로 추가합니다. 우리가 가지고 있는 경우`example.com`예:
+
+```txt
+example.com. 300 IN MX 13 amir.mx.cloudflare.net.
+example.com. 300 IN MX 86 linda.mx.cloudflare.net.
+example.com. 300 IN MX 24 isaac.mx.cloudflare.net.
+
+example.com. 300 IN TXT "v=spf1 include:_spf.mx.cloudflare.net ~all"
+```
+
+[MX (mail 교환) 기록](https://www.cloudflare.com/learning/dns/dns-records/dns-mx-record/)inbound 서버가 영역의 이메일 메시지를 수신하는 인터넷을 말합니다. 이 경우, 누구든지 이메일을 보내려면`example.com`사용 가능`amir.mx.cloudflare.net`, `linda.mx.cloudflare.net`, 또는`isaac.mx.cloudflare.net`SMTP 서버.
+
+### 연락처
+
+이메일 Routing은 업스트림 SMTP 서버에서 지원할 때 IPv4 및 IPv6 접두사를 사용하여 트래픽을 보냅니다.
+
+postmaster인 경우 이메일 Routing의 이메일을 수신하는 데 문제가 있으며, 서버 구성의 다음 아웃바운드 IP 주소를 허용합니다.
+
+**IPv4 지원**
+
+`104.30.0.0/19`
+
+**IPv6를**
+
+`2405:8100:c000::/38`
+
+*마지막 업데이트 범위: 12월 13일, 2023*
+
+### 아웃바운드 호스트명
+
+아웃바운드 접두사 외에도 이메일 루팅은 다음 아웃바운드 도메인을 사용합니다.`HELO/EHLO`명령:
+
+- `cloudflare-email.net`
+- `cloudflare-email.org`
+- `cloudflare-email.com`
+
+PTR 레코드(reverse DNS)는 각 호스트명에는 해당 IP가 있다는 것을 보증합니다. 예를 들면:
+
+```sh
+dig a-h.cloudflare-email.net +short
+```
+
+```sh output
+104.30.0.7
+```
+
+```sh
+dig -x 104.30.0.7 +short
+```
+
+```sh output
+a-h.cloudflare-email.net.
+```
+
+### 리필링
+
+SMTP envelope sender를 다시 씁니다.`MAIL FROM`) 전달 도메인에 문제를 피하기 위해[사이트맵](#spf-record). 이메일 Routing 용도[Sender Rewriting Scheme에 대한 의견](https://en.wikipedia.org/wiki/Sender_Rewriting_Scheme)이를 달성하기 위해.
+
+이것은 최종 사용자의 경험에 영향을 미치지 않습니다. 메시지 헤더는 여전히 원래의 sender's를보고`From:`이름 \*
+
+### SMTP 오류
+
+대부분의 경우, 이메일 Routing은 송수신 클라이언트에 다시 상류 SMTP 오류를 전달합니다.
+
+### 실시간 블록 목록
+
+이메일 Routing은 내부 도메인 이름 시스템 블록리스트 (DNSBL) 서비스를 사용하여 보낸 사람의 IP가 하나 이상의 실시간 블록 목록 (RBL) 목록에 있습니다. 시스템이 abusive IP를 감지하면 이메일을 차단하고 SMTP 오류를 반환합니다.
+
+```txt
+554 <YOUR_IP_ADDRESS> found on one or more RBLs (abusixip). Refer to https://developers.cloudflare.com/email-routing/postmaster/#spam-and-abusive-traffic/
+```
+
+우리는 RBLs를 정기적으로 업데이트합니다. 당신은 같은 결합된 구획 명부 조회 서비스를 이용할 수 있습니다[MxToolbox는](https://mxtoolbox.com/blacklists.aspx)IP가 다른 RBLs와 일치하는지 확인하십시오. IP 평판 블록은 일반적으로 임시이지만, IP가 즉시 제거되면 SMTP 오류에 직접 언급 한 RBL의 유지 보수 담당자에게 문의하십시오.
+
+### 안티 스팸
+
+DNSBL 외에도 이메일 Routing은 이메일 헤더 및 텍스트의 고급 통계 및 통계 분석을 사용하여 스팸 점수를 계산합니다. 우리는 사용자 정의에 점수를 주사`X-Cf-Spamh-Score`머리:
+
+```
+X-Cf-Spamh-Score: 2
+```
+
+이 헤더는 전달된 이메일에서 볼 수 있습니다. 더 높은 점수, 5 최대, 더 가능성이 이메일 스팸입니다. 현재이 시스템은 실험적이고 수동적이다; 우리는 그것에 행동하지 않고 업스트림 서버와 전자 메일 클라이언트가 그것을 행동하지 않는다는 것을 제안한다.
+
+우리는이 페이지를 더 많은 정보로 업데이트합니다.
+
+### SPF 기록
+
+SPF DNS 레코드는 IP 주소와 도메인이 귀하의 영역을 대신하여 이메일을 보낼 수 있음을 지정하는 데 사용되는 스팸 방지 메커니즘입니다.
+
+인터넷 공학 작업 힘 (IETF)는 SPFv1 명세를 추적합니다[RFC 7208에서](https://datatracker.ietf.org/doc/html/rfc7208). 참조[SPF 기록 Syntax](http://www.open-spf.org/SPF_Record_Syntax/)SPF 구문을 배울 수 있습니다.
+
+이메일 Routing의 SPF 레코드는 다음과 같습니다.
+
+```txt
+v=spf1 include:_spf.mx.cloudflare.net ~all
+```
+
+위의 예에서:
+
+- `spf1`: SPF 버전 1, SPF의 가장 일반 및 더 널리 채택 된 버전에 Refers.
+- `include`: 두 번째 쿼리를 포함`_spf.mx.cloudflare.net`그리고 그 내용을 허용한다.
+- `~all`: 그렇지 않으면[`SoftFail`](http://www.open-spf.org/SPF_Record_Syntax/)다른 모든 기원에.`SoftFail`전송할 수 없습니다. 이 업스트림 서버가 이메일을 수락하지만 SPF 레코드에 정의 된 사람들 이외의 IP 주소에서 온 경우 의심스러운 것처럼 표시한다.
+
+TXT 쿼리를 할 경우`_spf.mx.cloudflare.net`, 우리는 얻습니다:
+
+```txt
+_spf.mx.cloudflare.net. 300 IN TXT "v=spf1 ip4:104.30.0.0/20 ~all"
+```
+
+이 응답은:
+
+- 모든 IPv4 IP를 허용`104.30.0.0/20`서브넷
+- 다른 것,`SoftFail`.
+
+SPF, DKIM 및 DMARC에 대한 자세한 내용을 읽을 수 있습니다.[이메일 Spoofing 및 Phishing](https://blog.cloudflare.com/tackling-email-spoofing/)블로그.
+
+***
+
+## Known 제한
+
+아래, 이메일 Routing에 대한 알려진 제한에 대한 정보를 찾을 수 있습니다.
+
+### 이메일 주소 국제화 (EAI)
+
+이메일 Routing 지원하지 않습니다[국제 이메일 주소](https://en.wikipedia.org/wiki/International_email). 이메일 Routing만 지원[국제 도메인 이름](https://en.wikipedia.org/wiki/Internationalized_domain_name).
+
+이것은 국제화 된 도메인과 전자 메일 주소를 가질 수 있지만 국제화 된 로컬 부품 (이메일 주소의 첫 번째 부분, 전에`@`기호). 다음 예제에 대한 참조 :
+
+- `info@piñata.es`- 지원.
+- `piñata@piñata.es`- 지원되지 않음.
+
+### 비 배달 보고서 (NDR)
+
+이메일 Routing은 원래의 sender에 비 배달 보고서를 전달하지 않습니다. 이것은 메일이 의도한 목적지에 도달하지 않았다는 것을 나타내는 알림을받지 않습니다.
+
+### 제한적인 DMARC 정책은 전달된 이메일 실패를 만들 수 있습니다
+
+이메일 전달의 본질 때문에 DMARC 정책은 전달 된 이메일이 전달되지 않을 수 있습니다. 더 알아보기[다운로드](https://dmarc.org/wiki/FAQ#My_users_often_forward_their_emails_to_another_mailbox.2C_how_do_I_keep_DMARC_valid.3F)더 많은 정보.
+
+### Cloudflare 도메인에서 이메일 보내기 또는 회신
+
+이메일 Routing은 Cloudflare 도메인에서 보내거나 회신하지 않습니다. 이메일 전달에 회신 할 때 이메일 Routing, 회신은 귀하의 목적지 주소로부터 보내질 것입니다 (like)`my-name@gmail.com`), 당신의 주문 주소가 아닙니다 (like)`info@my-company.com`).
+
+### "`.`"은 사용자 정의 주소에 대한 정상적인 문자로 처리됩니다.
+
+더 보기`.`Gmail과 같은 이메일 제공 업체의 특별한 작업을 수행하는 문자는 사용자 정의 주소의 정상적인 문자로 처리됩니다.

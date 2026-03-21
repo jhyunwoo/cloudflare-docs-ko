@@ -1,0 +1,146 @@
+---
+summary: >-
+  Send a GET request and read in JSON from the response. Use to fetch external
+  data.
+pcx_content_type: example
+title: JSON 파일
+tags:
+  - JSON
+  - JavaScript
+  - TypeScript
+  - Python
+sidebar:
+  order: 4
+description: GET 요청을 보내고 응답에서 JSON에 읽으십시오. 외부 데이터를 fetch로 사용합니다.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/fetch-json/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/fetch-json/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get startedXQ를 신속하고, 아래의 버튼을 클릭합니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/fetch-json)
+
+GitHub 계정에서 저장소를 생성하고 QXQX0164XQ QXWorkers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env, ctx) {
+    		const url = "https://jsonplaceholder.typicode.com/todos/1";
+
+    		//collectResponse는 모두 content-type & response body를 문자열로 반환합니다.
+    		async function gatherResponse(response) {
+    			const { headers } = response;
+    			const contentType = headers.get("content-type") || "";
+    			if (contentType.includes("application/json")) {
+    				return { contentType, result: JSON.stringify(await response.json()) };
+    			}
+    			return { contentType, result: await response.text() };
+    		}
+
+    		const response = await fetch(url);
+    		const { contentType, result } = await gatherResponse(response);
+
+    		const options = { headers: { "content-type": contentType } };
+    		return new Response(result, options);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    interface Env {}
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		const url = "https://jsonplaceholder.typicode.com/todos/1";
+
+    		//collectResponse는 모두 content-type & response body를 문자열로 반환합니다.
+    		async function gatherResponse(response) {
+    			const { headers } = response;
+    			const contentType = headers.get("content-type") || "";
+    			if (contentType.includes("application/json")) {
+    				return { contentType, result: JSON.stringify(await response.json()) };
+    			}
+    			return { contentType, result: await response.text() };
+    		}
+
+    		const response = await fetch(url);
+    		const { contentType, result } = await gatherResponse(response);
+
+    		const options = { headers: { "content-type": contentType } };
+    		return new Response(result, options);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+    import json
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            url = "https://jsonplaceholder.typicode.com/todos/1"
+
+            #replica response는 content-type & response body를 문자열로 반환합니다.
+            async def gather_response(response):
+                headers = response.headers
+                content_type = headers["content-type"] or ""
+
+                if "application/json" in content_type:
+                    return (content_type, json.dumps(await response.json()))
+                return (content_type, await response.text())
+
+            response = await fetch(url)
+            content_type, result = await gather_response(response)
+
+            headers = {"content-type": content_type}
+            return Response(result, headers=headers)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+
+    type Env = {};
+
+    const app = new Hono<{ Bindings: Env }>();
+
+    app.get('*', async (c) => {
+      const url = "https://jsonplaceholder.typicode.com/todos/1";
+
+      //collectResponse는 모두 content-type & response body를 문자열로 반환합니다.
+      async function gatherResponse(response: Response) {
+        const { headers } = response;
+        const contentType = headers.get("content-type") || "";
+
+        if (contentType.includes("application/json")) {
+          return { contentType, result: JSON.stringify(await response.json()) };
+        }
+
+        return { contentType, result: await response.text() };
+      }
+
+      const response = await fetch(url);
+      const { contentType, result } = await gatherResponse(response);
+
+      return new Response(result, {
+        headers: { "content-type": contentType }
+      });
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

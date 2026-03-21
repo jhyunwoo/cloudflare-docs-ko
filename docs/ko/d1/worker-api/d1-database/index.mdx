@@ -1,0 +1,494 @@
+---
+title: '모델 번호: D1 관련 기사'
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/worker-api/d1-database/'
+translation_source_md: 'https://developers.cloudflare.com/d1/worker-api/d1-database/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, MetaInfo, Details, Tabs, TabItem } from "~/components";
+
+작업자에서 D1 데이터베이스와 상호 작용하려면 작업자에게 제공되는 환경 바인딩을 통해 액세스해야합니다 (`env`).
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    async fetch(request, env) {
+    	//D1 데이터베이스는 'env.DB'이며, 여기서 "DB"는 WranglerXQ 구성 파일에서 바인딩 이름입니다.
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            #D1 데이터베이스는 "DB"가 Wrangler 구성 파일에서 바인딩 이름인 'self.env.DB'입니다.
+            pass
+    ```
+  </TabItem>
+</Tabs>
+
+D1 바인딩에는 유형이 있습니다`D1Database`, 그리고 아래에 나열된 것과 같이 방법의 수를 지원합니다.
+
+## 제품 설명
+
+### `prepare()`
+
+나중에 실행할 쿼리문을 준비합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const someVariable = `Bs Beverages`;
+    const stmt = env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(someVariable);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    some_variable = "Bs Beverages"
+    stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(some_variable)
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>이름 \*</code>: <Type text="String" /> <MetaInfo text="Required" />
+  - 데이터베이스에서 실행하려는 SQL 쿼리.
+
+#### 반환 값
+
+- <code>D1프리미엄</code>: <Type text="Object" />
+  - 메서드만 포함되는 객체. 더 알아보기[자주 묻는 질문](/d1/worker-api/prepared-statements/).
+
+#### 구시가지
+
+당신은 사용할 수 있습니다`bind`동적인 묶는 방법은 아래에 보이는 것과 같이 조회 문으로 값을, 묶습니다.
+
+- 사용없이 정적 진술의 예`bind`:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const stmt = db
+      	.prepare("SELECT * FROM Customers WHERE CompanyName = 'Alfreds Futterkiste' AND CustomerId = 1")
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      stmt = db.prepare("SELECT * FROM Customers WHERE CompanyName = 'Alfreds Futterkiste' AND CustomerId = 1")
+      ```
+    </TabItem>
+  </Tabs>
+
+- 자주 묻는 질문`bind`:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const stmt = db
+      	.prepare("SELECT * FROM Customers WHERE CompanyName = ? AND CustomerId = ?")
+      	.bind("Alfreds Futterkiste", 1);
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      stmt = db.prepare("SELECT * FROM Customers WHERE CompanyName = ? AND CustomerId = ?").bind("Alfreds Futterkiste", 1)
+      ```
+    </TabItem>
+  </Tabs>
+
+더 알아보기[`bind`방법 문서](/d1/worker-api/prepared-statements/#bind)더 많은 정보.
+
+### `batch()`
+
+데이터베이스에 단일 통화 내부의 여러 SQL 문 보내기. 이것은 네트워크 라운드 여행에서 D1XQ로 대기시간을 줄일 때 큰 성능 영향을 미칠 수 있습니다. D1는 auto-commit에서 작동합니다. 우리의 구현은 목록의 각 문이 실행되고, 실행되고, 순차적으로, 비 동시.
+
+Batched 문은[SQL 거래](https://www.sqlite.org/lang_transaction.html). 순서에 있는 문이 실패한 경우에, 그 특정한 문 및 그것 aborts를 위해 오류가 돌려보내거나 전체 순서 후에 구릅니다.
+
+일괄 문 보내기, 제공`D1Database::batch`준비된 문 목록과 같은 순서에 결과를 얻을.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const companyName1 = `Bs Beverages`;
+    const companyName2 = `Around the Horn`;
+    const stmt = env.DB.prepare(`SELECT * FROM Customers WHERE CompanyName = ?`);
+    const batchResult = await env.DB.batch([
+    	stmt.bind(companyName1),
+    	stmt.bind(companyName2)
+    ]);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    from pyodide.ffi import to_js
+
+    company_name1 = "Bs Beverages"
+    company_name2 = "Around the Horn"
+    stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?")
+    batch_result = await self.env.DB.batch(to_js([
+        stmt.bind(company_name1),
+        stmt.bind(company_name2)
+    ]))
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>이름 \*</code>: <Type text="Array" />
+  - 배열의[`D1PreparedStatement`](#prepare)₢ 킹
+
+#### 반환 값
+
+- <code>이름 \*</code>: <Type text="Array" />
+  - 배열의`D1Result`결과의 개체[`D1Database::prepare`](#prepare)이름 \* 각 객체는 초기의 배열 위치에 대응하는 배열 위치에 있습니다.[`D1Database::prepare`](#prepare)자주 묻는 질문`statements`.
+  - 더 알아보기[`D1Result`](/d1/worker-api/return-object/#d1result)이 개체에 대한 자세한 내용은.
+
+<Details header="반환 값의 예" open={false}>
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const companyName1 = `Bs Beverages`;
+      const companyName2 = `Around the Horn`;
+      const stmt = await env.DB.batch([
+      	env.DB.prepare(`SELECT * FROM Customers WHERE CompanyName = ?`).bind(companyName1),
+      	env.DB.prepare(`SELECT * FROM Customers WHERE CompanyName = ?`).bind(companyName2)
+      ]);
+      return Response.json(stmt)
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      from pyodide.ffi import to_js
+      from workers import Response
+
+      company_name1 = "Bs Beverages"
+      company_name2 = "Around the Horn"
+      stmt = await self.env.DB.batch(to_js([
+          self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(company_name1),
+          self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?").bind(company_name2)
+      ]))
+      return Response.json(stmt)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  [
+    {
+      "success": true,
+      "meta": {
+        "served_by": "miniflare.db",
+        "duration": 0,
+        "changes": 0,
+        "last_row_id": 0,
+        "changed_db": false,
+        "size_after": 8192,
+        "rows_read": 4,
+        "rows_written": 0
+      },
+      "results": [
+        {
+          "CustomerId": 11,
+          "CompanyName": "Bs Beverages",
+          "ContactName": "Victoria Ashworth"
+        },
+        {
+          "CustomerId": 13,
+          "CompanyName": "Bs Beverages",
+          "ContactName": "Random Name"
+        }
+      ]
+    },
+    {
+      "success": true,
+      "meta": {
+        "served_by": "miniflare.db",
+        "duration": 0,
+        "changes": 0,
+        "last_row_id": 0,
+        "changed_db": false,
+        "size_after": 8192,
+        "rows_read": 4,
+        "rows_written": 0
+      },
+      "results": [
+        {
+          "CustomerId": 4,
+          "CompanyName": "Around the Horn",
+          "ContactName": "Thomas Hardy"
+        }
+      ]
+    }
+  ]
+  ```
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      console.log(stmt[1].results);
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      print(stmt[1].results.to_py())
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  [
+    {
+      "CustomerId": 4,
+      "CompanyName": "Around the Horn",
+      "ContactName": "Thomas Hardy"
+    }
+  ]
+  ```
+</Details>
+
+#### 구시가지
+
+- 동일한 준비된 진술을 재사용하는 배치를 구성할 수 있습니다:
+
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const companyName1 = `Bs Beverages`;
+      const companyName2 = `Around the Horn`;
+      const stmt = env.DB.prepare(`SELECT * FROM Customers WHERE CompanyName = ?`);
+      const batchResult = await env.DB.batch([
+      	stmt.bind(companyName1),
+      	stmt.bind(companyName2)
+      ]);
+      return Response.json(batchResult);
+      ```
+    </TabItem>
+
+    <TabItem label="Python" icon="seti:python">
+      ```py
+      from pyodide.ffi import to_js
+      from workers import Response
+
+      company_name1 = "Bs Beverages"
+      company_name2 = "Around the Horn"
+      stmt = self.env.DB.prepare("SELECT * FROM Customers WHERE CompanyName = ?")
+      batch_result = await self.env.DB.batch(to_js([
+          stmt.bind(company_name1),
+          stmt.bind(company_name2)
+      ]))
+      return Response.json(batch_result)
+      ```
+    </TabItem>
+  </Tabs>
+
+### `exec()`
+
+준비된 문이나 매개 변수 바인딩 없이 1개 이상의 쿼리를 직접 실행합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const returnValue = await env.DB.exec(`SELECT * FROM Customers WHERE CompanyName = "Bs Beverages"`);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    return_value = await self.env.DB.exec('SELECT * FROM Customers WHERE CompanyName = "Bs Beverages"')
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>이름 \*</code>: <Type text="String" /> <MetaInfo text="Required" />
+  - 매개변수 바인딩 없이 SQL 쿼리 문.
+
+#### 반환 값
+
+- <code>D1ExecResult의 특징</code>: <Type text="Object" />
+  - 더 보기`count`속성은 실행된 쿼리의 수를 포함합니다.
+  - 더 보기`duration`재산은 milliseconds에 있는 가동의 내구를 포함합니다.
+    - 더 알아보기[`D1ExecResult`](/d1/worker-api/return-object/#d1execresult)더 많은 정보.
+
+<Details header="반환 값의 예" open={false}>
+  <Tabs syncKey="workersExamples">
+    <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+      ```js
+      const returnValue = await env.DB.exec(`SELECT * FROM Customers WHERE CompanyName = "Bs Beverages"`);
+      return Response.json(returnValue);
+      ```
+    </TabItem>
+
+    <TabItem label="모델 번호: Python" icon="seti:python">
+      ```py
+      from workers import Response
+
+      return_value = await self.env.DB.exec('SELECT * FROM Customers WHERE CompanyName = "Bs Beverages"')
+      return Response.json(return_value)
+      ```
+    </TabItem>
+  </Tabs>
+
+  ```json output
+  {
+    "count": 1,
+    "duration": 1
+  }
+  ```
+</Details>
+
+#### 구시가지
+
+- 오류가 발생하면 예외는 쿼리 및 오류 메시지, 실행 중지 및 추가 문이 실행되지 않습니다. 더 알아보기[계정 관리](/d1/observability/debug-d1/#errors)더 알아보기.
+- 이 방법은 가난한 성능을 가질 수 있습니다 (사전 진술은 일부 경우에 재사용 될 수 있음) 그리고 더 중요한 것은 덜 안전합니다.
+- 유지 보수 및 원 샷 작업에 대한이 방법을 사용합니다 (예 : 마이그레이션 작업).
+- 입력은 분리된 1개 다수 쿼리일 수 있습니다`\n`.
+
+### `dump`
+
+:::카트로션
+이 API는 D1의 알파 기간 중 생성된 데이터베이스에서만 작동합니다. 어떤 버전의 데이터베이스 사용`wrangler d1 info <DATABASE_NAME>`.
+:::
+
+ArrayBuffer 내부 SQLite 호환 파일에 전체 D1 데이터베이스를 덤프합니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const dump = await db.dump();
+    return new Response(dump, {
+    	status: 200,
+    	headers: {
+    		"Content-Type": "application/octet-stream",
+    	},
+    });
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import Response
+
+    dump = await db.dump()
+    return Response(dump, status=200, headers={"Content-Type": "application/octet-stream"})
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- 없음.
+
+#### 반환 값
+
+- 없음.
+
+### `withSession()`
+
+반환된 쿼리 중 순차적 일관성을 유지하는 D1 세션을 시작합니다`D1DatabaseSession`객체.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    const session = env.DB.withSession("<parameter>");
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    session = self.env.DB.withSession("<parameter>")
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- <code>한국어</code>: <Type text="String" /><MetaInfo text="Optional" />
+  - Session (whether read or write)에서 기본 데이터베이스 인스턴스에 대한 첫 번째 쿼리를 지시합니다. 이 옵션을 사용하면 세션을 시작해야 할 경우 기본 데이터베이스 인스턴스에서 최신 데이터.
+  - 세션의 수속 쿼리는 read replicas를 사용할 수 있습니다.
+  - 세션의 적격 쿼리는 순차적 일관성을 가지고 있습니다.
+
+- <code>첫번째 unconstrained</code>: <Type text="String" /><MetaInfo text="Optional" />
+  - Session (whether read or write)에서 데이터베이스 인스턴스에 대한 첫 번째 쿼리를 지시합니다. 대부분의 최신 데이터와 세션을 시작할 필요가 없다면이 옵션을 사용하며 세션의 시작에서 쿼리 지연을 최소화하고자합니다.
+  - 세션의 적격 쿼리는 순차적 일관성을 가지고 있습니다.
+  - 이 매개 변수가 제공되지 않을 때 기본 동작입니다.
+
+- <code>책갈피</code>: <Type text="String" /><MetaInfo text="Optional" />
+  - ·[`bookmark`](/d1/reference/time-travel/#bookmarks)이전 D1 세션에서. 이것은 적어도 제공된 새로운 세션을 시작할 수 있습니다.`bookmark`.
+  - 세션의 적격 쿼리는 순차적 일관성을 가지고 있습니다.
+
+#### 반환 값
+
+- <code>D1데이터베이스</code>: <Type text="Object" />
+  - 메서드를 포함하는 객체[`prepare()`](/d1/worker-api/d1-database#prepare)·[`batch()`](/d1/worker-api/d1-database#batch)관련 기사`D1Database`, 추가와 함께[`getBookmark`](/d1/worker-api/d1-database#getbookmark)방법.
+
+#### 구시가지
+
+- 읽기 복제를 사용하려면 D1 세션 API를 사용해야합니다. 그렇지 않으면 모든 쿼리는 기본 데이터베이스에서만 실행됩니다.
+- 당신은 마지막 만남을 반환 할 수 있습니다`bookmark`주어진 세션을 위해[`session.getBookmark()`](/d1/worker-api/d1-database/#getbookmark).
+
+## `D1DatabaseSession`계정 만들기
+
+### `getBookmark`
+
+최신 기사`bookmark`D1 세션에서.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const session = env.DB.withSession("first-primary");
+    const result = await session
+    	.prepare(`SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'`)
+    	.run()
+    const { bookmark } = session.getBookmark();
+    	return bookmark;
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```py
+    session = self.env.DB.withSession("first-primary")
+    result = await session.prepare(
+        "SELECT * FROM Customers WHERE CompanyName = 'Bs Beverages'"
+    ).run()
+
+    bookmark = session.getBookmark()
+    ```
+  </TabItem>
+</Tabs>
+
+#### 매개 변수
+
+- 이름 \*
+
+#### 반환 값
+
+- <code>책갈피</code>: <Type text="String | null" />
+  - ·[`bookmark`](/d1/reference/time-travel/#bookmarks)세션 내에서 마지막 쿼리가 실행된 데이터베이스의 최신 버전을 식별합니다.
+  - 기타 제품`null`세션 내에서 쿼리가 실행되지 않는 경우.
+
+### `prepare()`
+
+이 방법은 다음과 같습니다.[`D1Database::prepare`](/d1/worker-api/d1-database/#prepare).
+
+### `batch()`
+
+이 방법은 다음과 같습니다.[`D1Database::batch`](/d1/worker-api/d1-database/#batch).

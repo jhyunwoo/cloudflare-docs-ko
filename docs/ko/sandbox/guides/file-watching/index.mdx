@@ -1,0 +1,484 @@
+---
+title: filesystem 변경
+pcx_content_type: how-to
+sidebar:
+  order: 3
+description: 실시간 모니터링 파일 및 디렉터리는 반응형 개발 도구 및 자동화 워크플로우를 구축합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/guides/file-watching/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/guides/file-watching/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TypeScriptExample } from "~/components";
+
+이 가이드는 Sandbox SDK의 파일 보기 API를 사용하여 실시간 파일 시스템 변경을 모니터링하는 방법을 보여줍니다. File watch는 개발 도구, 자동화 된 워크플로우 및 파일 변경에 반응하는 응용 프로그램에 유용합니다.
+
+더 보기`watch()`메소드는 SSE (Server-Sent Events) 스트림을 반환합니다.`parseSSEStream()`. 스트림의 각 이벤트는 filesystem 변경을 설명합니다.
+
+## 기본 파일 watch
+
+어떤 변경에 대한 디렉토리를보고 시작:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src");
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		console.log(`${event.eventType}: ${event.path}`);
+  		console.log(`Is directory: ${event.isDirectory}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+스트림은 4 개의 수명주기 이벤트 유형을 방출합니다.
+
+- **`watching`**- 설치되는 시계, 포함`watchId`
+- **`event`**— 파일시스템 변경
+- **`error`**— 시계는 오류 발생
+- **`stopped`**— 시계가 중지되었습니다.
+
+Filesystem 변경 이벤트 (`event.eventType`)는 다음을 포함합니다:
+
+- **`create`**- 파일 또는 디렉토리가 생성되었습니다.
+- **`modify`**- 파일 내용 변경
+- **`delete`**- 파일 또는 디렉토리가 제거되었습니다.
+- **`move_from`** / **`move_to`**- 파일 또는 디렉토리가 이동되거나 이름을 변경되었습니다.
+- **`attrib`**- 파일 속성 변경 (출금, 타임스탬프)
+
+## 필터 파일 유형
+
+제품 정보`include`특정 파일 유형만 볼 수 있는 패턴:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  //오직 시계 TypeScript 및 JavaScript 파일
+  const stream = await sandbox.watch("/workspace/src", {
+  	include: ["*.ts", "*.tsx", "*.js", "*.jsx"],
+  });
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		console.log(`${event.eventType}: ${event.path}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+일반은 패턴을 포함한다 :
+
+- `*.ts`- TypeScript 파일
+- `*.js`- JavaScript 파일
+- `*.json`— JSON 구성 파일
+- `*.md`- Markdown 문서
+- `package*.json`— 패키지 파일 특별히
+
+## 감독 제외
+
+제품 정보`exclude`특정 디렉토리 또는 파일을 건너뛰기위한 패턴 :
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace", {
+  	exclude: ["node_modules", "dist", "*.log", ".git", "*.tmp"],
+  });
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		console.log(`Change detected: ${event.path}`);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+:::note\[기본 포함]
+다음 패턴은 기본적으로 제외됩니다:`.git`, `node_modules`, `.DS_Store`. 당신은 당신의 자신의 제공에 의해 이것을 override 할 수`exclude`배열.
+주요 특징
+
+## responsive 개발 도구 구축
+
+### 변화에 대한 자동 재건
+
+Trigger는 소스 파일을 수정할 때 자동으로 빌드합니다:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src", {
+  	include: ["*.ts", "*.tsx"],
+  });
+
+  let buildInProgress = false;
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (
+  		event.type === "event" &&
+  		event.eventType === "modify" &&
+  		!buildInProgress
+  	) {
+  		buildInProgress = true;
+  		console.log(`File changed: ${event.path}, rebuilding...`);
+
+  		try {
+  			const result = await sandbox.exec("npm run build");
+  			if (result.success) {
+  				console.log("Build completed successfully");
+  			} else {
+  				console.error("Build failed:", result.stderr);
+  			}
+  		} catch (error) {
+  			console.error("Build error:", error);
+  		} finally {
+  			buildInProgress = false;
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 변화에 대한 자동 실행 테스트
+
+테스트 파일을 수정할 때 재 실행 테스트:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/tests", {
+  	include: ["*.test.ts", "*.spec.ts"],
+  });
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event" && event.eventType === "modify") {
+  		console.log(`Test file changed: ${event.path}`);
+  		const result = await sandbox.exec(`npm test -- ${event.path}`);
+  		console.log(result.success ? "Tests passed" : "Tests failed");
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### Incremental 색인
+
+Re-index는 전체 디렉토리 트리를 재사용하는 대신 파일을 변경했습니다.
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/docs", {
+  	include: ["*.md", "*.mdx"],
+  });
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		switch (event.eventType) {
+  			case "create":
+  			case "modify":
+  				console.log(`Indexing ${event.path}...`);
+  				await indexFile(event.path);
+  				break;
+  			case "delete":
+  				console.log(`Removing ${event.path} from index...`);
+  				await removeFromIndex(event.path);
+  				break;
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 고급 패턴
+
+### helper 기능으로 프로세스 이벤트
+
+추출 이벤트 처리 reusable 기능으로 스트림 수명주기를 처리:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  async function watchFiles(
+  	sandbox: any,
+  	path: string,
+  	options: { include?: string[]; exclude?: string[] },
+  	handler: (
+  		eventType: string,
+  		filePath: string,
+  		isDirectory: boolean,
+  	) => Promise<void>,
+  ) {
+  	const stream = await sandbox.watch(path, options);
+
+  	for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  		switch (event.type) {
+  			case "watching":
+  				console.log(`Watching ${event.path}`);
+  				break;
+  			case "event":
+  				await handler(event.eventType, event.path, event.isDirectory);
+  				break;
+  			case "error":
+  				console.error(`Watch error: ${event.error}`);
+  				break;
+  			case "stopped":
+  				console.log(`Watch stopped: ${event.reason}`);
+  				return;
+  		}
+  	}
+  }
+
+  //제품 정보
+  await watchFiles(
+  	sandbox,
+  	"/workspace/src",
+  	{ include: ["*.ts"] },
+  	async (eventType, filePath) => {
+  		console.log(`${eventType}: ${filePath}`);
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+### Debounced 파일 작업
+
+처리하기 전에 변경 사항을 수집하여 과도한 작업을 방지하십시오:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src");
+  const changedFiles = new Set<string>();
+  let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		changedFiles.add(event.path);
+
+  		if (debounceTimeout) {
+  			clearTimeout(debounceTimeout);
+  		}
+
+  		debounceTimeout = setTimeout(async () => {
+  			console.log(`Processing ${changedFiles.size} changed files...`);
+  			for (const filePath of changedFiles) {
+  				await processFile(filePath);
+  			}
+  			changedFiles.clear();
+  			debounceTimeout = null;
+  		}, 1000);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 비 반복 모드로 보기
+
+디렉토리의 최고 수준만 볼 수 있습니다. 하위 디렉토리로 자란없이:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  //오직 watch root-level config 파일
+  const stream = await sandbox.watch("/workspace", {
+  	include: ["package.json", "tsconfig.json", "vite.config.ts"],
+  	recursive: false,
+  });
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		console.log("Configuration changed, rebuilding project...");
+  		await sandbox.exec("npm run build");
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 공지사항
+
+흐름은 자연적으로 컨테이너 수면 또는 폐쇄 때. 일찍 시계를 중지하는 두 가지 방법이 있습니다 :
+
+### AbortController 사용
+
+패스워드`AbortSignal`으로`parseSSEStream`. 신호가 스트림 리더를 취소, 이는 서버에 정리를 전파. 이것은 당신이 consuming 반복 외부에서 시계를 취소 할 때 권장된 접근법입니다:
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src");
+  const controller = new AbortController();
+
+  //60초 후 취소
+  setTimeout(() => controller.abort(), 60_000);
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(
+  	stream,
+  	controller.signal,
+  )) {
+  	if (event.type === "event") {
+  		console.log(`${event.eventType}: ${event.path}`);
+  	}
+  }
+
+  console.log("Watch stopped");
+  ```
+</TypeScriptExample>
+
+### 반복의 끊기
+
+자주 묻는 질문`for await`루프는 또한 스트림을 취소 :
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src");
+  let eventCount = 0;
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		console.log(`${event.eventType}: ${event.path}`);
+  		eventCount++;
+
+  		//100개의 사건 후에 정지
+  		if (eventCount >= 100) {
+  			break; //반복에서 벗어나 스트림을 취소
+  		}
+  	}
+  }
+
+  console.log("Watch stopped");
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+### 서버 측 필터링 사용
+
+필터와`include`또는`exclude`JavaScript의 필터링 이벤트보다는 패턴. 서버 측 필터링은 네트워크에 전송된 이벤트의 수를 줄인 inotify 수준에서 발생합니다.
+
+:::참조
+`include`·`exclude`자주 묻는 질문 하나 또는 다른, 둘 다 사용. 특정 파일 형식을 볼 필요가 있다면 특정 디렉토리를 무시하고 사용`include`당신이 원하는 파일을 일치 패턴.
+주요 특징
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  //능률: 필터링은 inotify 수준에서 일합니다
+  const stream = await sandbox.watch("/workspace/src", {
+  	include: ["*.ts"],
+  });
+
+  //더 적은 능률: 모든 사건은 보내지고 그 후에 JavaScript에서 거르는
+  const stream2 = await sandbox.watch("/workspace/src");
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream2)) {
+  	if (event.type === "event") {
+  		if (!event.path.endsWith(".ts")) continue;
+  		//핸들 이벤트
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 이벤트 처리 오류
+
+이벤트 핸들러의 오류는 시계 스트림을 멈추지 않습니다. 랩 핸들러 로직은 unhandled 예외를 방지하기 위해 / 캐치에서 :
+
+<TypeScriptExample>
+  ```ts
+  import { parseSSEStream } from "@cloudflare/sandbox";
+  import type { FileWatchSSEEvent } from "@cloudflare/sandbox";
+
+  const stream = await sandbox.watch("/workspace/src");
+
+  for await (const event of parseSSEStream<FileWatchSSEEvent>(stream)) {
+  	if (event.type === "event") {
+  		try {
+  			await handleFileChange(event.eventType, event.path);
+  		} catch (error) {
+  			console.error(
+  				`Failed to handle ${event.eventType} for ${event.path}:`,
+  				error,
+  			);
+  			//행사 일정
+  		}
+  	}
+
+  	if (event.type === "error") {
+  		console.error("Watch error:", event.error);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 감독은 시청하기 전에 존재
+
+non-existent 경로가 오류를 반환합니다. 시계를 시작하기 전에 경로가 존재합니다.
+
+<TypeScriptExample>
+  ```ts
+  const watchPath = "/workspace/src";
+  const result = await sandbox.exists(watchPath);
+
+  if (!result.exists) {
+  	await sandbox.mkdir(watchPath, { recursive: true });
+  }
+
+  const stream = await sandbox.watch(watchPath, {
+  	include: ["*.ts"],
+  });
+  ```
+</TypeScriptExample>
+
+## 문제 해결
+
+### 높은 CPU 사용
+
+큰 감독을 보는 경우 성능 문제 발생:
+
+1. 특정 사용`include`패턴 대신 모든 것을 볼
+2. 큰 감독을 제외`node_modules`·`dist`
+3. 전체 프로젝트 대신 특정 하위 디렉토리보기
+4. 제품 정보`recursive: false`얕은 감시
+
+### 오류를 발견하지 않는 경로
+
+모든 경로가 존재하고 해결해야`/workspace`. 상대 경로가 해결됩니다.`/workspace`.
+
+:::노트\[컨테이너 라이프사이클]
+File watchers는 자동으로 샌드 박스 수면 또는 폐쇄 될 때 중지됩니다. sandbox가 일어나면 응용 논리에서 시계를 재구성해야합니다.
+주요 특징
+
+## 관련 자료
+
+- [API reference를 감시하는 파일](/sandbox/api/file-watching/)- 완전한 API 문서 및 유형
+- [파일 관리](/sandbox/guides/manage-files/)- 파일 작업
+- [배경 프로세스 가이드](/sandbox/guides/background-processes/)— Long-running 프로세스
+- [스트림 출력 가이드](/sandbox/guides/streaming-output/)- 실시간 출력 처리

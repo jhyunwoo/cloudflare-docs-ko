@@ -1,0 +1,109 @@
+---
+pcx_content_type: get-started
+title: 생성 Credentials
+sidebar:
+  order: 10
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/turn/generate-credentials/'
+translation_source_md: 'https://developers.cloudflare.com/realtime/turn/generate-credentials/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare는 TURN 열쇠를 발행할 것입니다, 그러나 이 열쇠는 credentials로 사용될 수 없습니다`turn.cloudflare.com`. TURN을 사용하려면 TTL 값이 만료된 credentials를 만들 필요가 있습니다.
+
+## TURN 키 만들기
+
+TURN 자격 증명을 만들려면 먼저 TURN 키를 생성해야합니다.[대시보드](https://dash.cloudflare.com/?to=/:account/calls), 또는[사이트맵](/api/resources/calls/subresources/turn/methods/create/).
+
+서버 측에서 TURN 키를 유지해야합니다 (브라우저 / 앱과 공유하지 마십시오). TURN 키는 TURN 클라이언트에게 무제한을 생성 할 수있는 장기적인 비밀입니다.
+
+당신이 할 수있는 TURN 열쇠로:
+
+- 만료된 TURN 자격 증명
+- 이전에 발행된 TURN 자격 증명
+
+## credentials 만들기
+
+TURN 사용자에 대한 짧은 라이브 크리덴셜을 생성해야합니다. 자격 증명을 만들려면 TURN 토큰 ID 및 API 토큰을 사용하여 TURN 토큰 ID 및 API 토큰을 사용하는 백엔드 서비스가 있어야 합니다. API 호출은 다음과 같습니다:
+
+```bash
+curl https://rtc.live.cloudflare.com/v1/turn/keys/$TURN_KEY_ID/credentials/generate-ice-servers \
+--header "Authorization: Bearer $TURN_KEY_API_TOKEN" \
+--header "Content-Type: application/json" \
+--data '{"ttl": 86400}'
+```
+
+아래의 JSON 응답은 프런트 엔드 애플리케이션에 전달될 수 있습니다.
+
+```json
+{
+  "iceServers": [
+		{
+			"urls": [
+				"stun:stun.cloudflare.com:3478",
+				"stun:stun.cloudflare.com:53"
+			]
+		},
+		{
+			"urls": [
+				"turn:turn.cloudflare.com:3478?transport=udp",
+				"turn:turn.cloudflare.com:53?transport=udp",
+				"turn:turn.cloudflare.com:3478?transport=tcp",
+				"turn:turn.cloudflare.com:80?transport=tcp",
+				"turns:turn.cloudflare.com:5349?transport=tcp",
+				"turns:turn.cloudflare.com:443?transport=tcp"
+			],
+			"username": "bc91b63e2b5d759f8eb9f3b58062439e0a0e15893d76317d833265ad08d6631099ce7c7087caabb31ad3e1c386424e3e",
+			"credential": "ebd71f1d3edbc2b0edae3cd5a6d82284aeb5c3b8fdaa9b8e3bf9cec683e0d45fe9f5b44e5145db3300f06c250a15b4a0"
+		}
+	]
+}
+```
+
+:::참조
+반환된 URL의 목록은 1 차 및 교체 포트로 URL을 포함합니다. 변경 포트 53은 웹 브라우저에 의해 차단 될 것으로 알려져 있으며, TURN URL은 브라우저에서 사용 된 경우 시간을 초과합니다. 속임수 ICE를 사용하는 경우, 문제가 발생하지 않습니다. 까다로운 얼음없이 당신은 포트 53와 URL을 필터링 할 수 있습니다.
+주요 특징
+
+제품 정보`iceServers`다음과 같이 즉시`RTCPeerConnection`:
+
+```js
+const myPeerConnection = new RTCPeerConnection({
+  iceServers: [
+    {
+      urls: [
+				"stun:stun.cloudflare.com:3478",
+				"stun:stun.cloudflare.com:53"
+			]
+		},
+		{
+			urls: [
+				"turn:turn.cloudflare.com:3478?transport=udp",
+				"turn:turn.cloudflare.com:53?transport=udp",
+				"turn:turn.cloudflare.com:3478?transport=tcp",
+				"turn:turn.cloudflare.com:80?transport=tcp",
+				"turns:turn.cloudflare.com:5349?transport=tcp",
+				"turns:turn.cloudflare.com:443?transport=tcp"
+      ],
+			"username": "bc91b63e2b5d759f8eb9f3b58062439e0a0e15893d76317d833265ad08d6631099ce7c7087caabb31ad3e1c386424e3e",
+			"credential": "ebd71f1d3edbc2b0edae3cd5a6d82284aeb5c3b8fdaa9b8e3bf9cec683e0d45fe9f5b44e5145db3300f06c250a15b4a0"
+    },
+  ],
+});
+
+```
+
+더 보기`ttl`값은 일정한 시간에 짧은 생활 열쇠를 만료하기 위하여 조정될 수 있습니다. 이 값은 사용자가 TURN 서비스를 사용할 것으로 예상되는 시간보다 더 커야합니다. 예를 들어, 비디오 conferencing 앱의 TURN을 사용하는 경우, 값은 앱에서 발생할 것으로 예상되는 가장 긴 비디오 통화로 설정해야합니다.
+
+WebRTC와 함께 짧은 라이브 TURN 자격 증명을 사용할 때, 자격 증명은 WebRTC 세션에서 WebRTC 세션에서 새로 고침 될 수 있습니다.`RTCPeerConnection` [`setConfiguration()`](https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/setConfiguration)API.
+
+## 자격 증명
+
+짧은 생존 자격은 TTL이 API 호출에 만료되기 전에 수정 될 수 있습니다:
+
+```bash
+curl --request POST \
+https://rtc.live.cloudflare.com/v1/turn/keys/$TURN_KEY_ID/credentials/$USERNAME/revoke \
+--header "Authorization: Bearer $TURN_KEY_API_TOKEN"
+```

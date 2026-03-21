@@ -1,0 +1,191 @@
+---
+pcx_content_type: concept
+title: 메타데이터
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/configuration/metadata/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/configuration/metadata/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { FileTree } from "~/components"
+
+검색 결과를 찾을 수 없음 한국어 사전에 이 페이지는 필터를 적용하고 파일에 선택된 컨텍스트 메타데이터를 첨부하는 방법을 다룹니다.
+
+## Metadata 필터링
+
+Metadata 필터링은 메타데이터를 기반으로 검색 결과를 축소하므로 관련 콘텐츠만 검색됩니다. 필터는 검색하기 전에 결과를 좁히기 때문에 해당 문서의 범위를 쿼리합니다.
+
+메타데이터 필터링의 예입니다.[Workers 바인딩](/ai-search/usage/workers-binding/)하지만 쉽게 사용할 수 있습니다[REST API를](/ai-search/usage/rest-api/)대신.
+
+```js
+const answer = await env.AI.autorag("my-autorag").search({
+	query: "How do I train a llama to deliver coffee?",
+	filters: {
+		type: "and",
+		filters: [
+			{
+				type: "eq",
+				key: "folder",
+				value: "llama/logistics/",
+			},
+			{
+				type: "gte",
+				key: "timestamp",
+				value: "1735689600000", //2025-01-01를 위한 unix 타임스탬프
+			},
+		],
+	},
+});
+```
+
+### Metadata 속성
+
+| 사이트 맵       | 이름 \*                                                                                  | 이름 \*                                                                                                                 |
+| ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `filename`  | 파일 이름.                                                                                 | `dog.png`또는`animals/mammals/cat.png`                                                                                  |
+| `folder`    | 객체에 폴더 또는 접두사.                                                                         | 객체의 경우`animals/mammals/cat.png`, 폴더는`animals/mammals/`                                                                |
+| `timestamp` | 객체가 마지막으로 수정되었을 때 타임스탬프. 비교는 13 자리 유닉스 타임스탬프 (밀리초)를 사용하여 지원되지만 값은 10 자리 (둘째)로 돌릴 것입니다. | 타임스탬프`2025-01-01 00:00:00.999 UTC`이름 \*`1735689600999`그리고 그것은 아래로 돌릴 것입니다`1735689600000`, 대응`2025-01-01 00:00:00 UTC` |
+
+### 필터 스키마
+
+간단한 비교 필터 또는 복합 필터를 사용하여 비교 필터의 배열을 만들 수 있습니다.
+
+#### 비교 필터
+
+metadata 속성을 비교할 수 있습니다 (예를 들어,`folder`또는`timestamp`) 비교 필터를 사용하여 대상 값.
+
+```js
+filters: {
+  type: "operator",
+  key: "metadata_attribute",
+  value: "target_value"
+}
+```
+
+비교를 위한 유효한 통신수는:
+
+| 회사연혁  | 이름 \*        |
+| ----- | ------------ |
+| `eq`  | 이름 \*        |
+| `ne`  | 아니다.         |
+| `gt`  | 더 큰          |
+| `gte` | 더 중대한 또는 동등물 |
+| `lt`  | 더 적은 보다는     |
+| `lte` | 더 적은 또는 동등물  |
+
+#### 복합 필터
+
+화합물 필터를 사용하여 논리 연산자와 여러 비교 필터를 결합 할 수 있습니다.
+
+```js
+filters: {
+  type: "compound_operator",
+  filters: [...]
+}
+```
+
+유효한 화합물 통신수는:`and`, `or`.
+
+화합물 연산자와 다음과 같은 제한을 참고:
+
+- 중첩 조합 없음`and`이름과`or`'s, 당신이 1 만 선택할 수있는 의미`and`또는 1`or`.
+- 사용 방법`or`:
+  - 한국어`eq`연산자가 허용됩니다.
+  - 모든 조건은 필터해야 합니다.**동일한 열쇠**(예를 들어, 모두`folder`)
+
+#### "과 함께 시작"폴더 용 필터
+
+"starts with" 필터링을 사용할 수 있습니다.`folder`metadata 속성은 특정 경로 내에서 모든 파일 및 하위 폴더를 검색합니다.
+
+예를 들어,이 파일 구조를 고려:
+
+<FileTree>
+  - 고객-a
+    - 프로파일.md
+    - 계약서
+      - 이름 \*
+        - 계약-1.pdf
+</FileTree>
+
+필터를 사용하는 경우`eq`(equals) 연산자와`value: "customer-a/"`, 그것은 단지 그 폴더 안에 파일을 직접 일치할 것입니다, 같이`profile.md`. 그것은 같은 폴더에 있는 파일을 포함하지 않을 것입니다`customer-a/contracts/`.
+
+경로로 시작하는 모든 항목에 대해 반복적으로 필터링하기`customer-a/`, 당신은 뒤에 오는 화합물 여과기를 사용할 수 있습니다:
+
+```js
+filters: {
+    type: "and",
+    filters: [
+      {
+        type: "gt",
+        key: "folder",
+        value: "customer-a//",
+      },
+      {
+        type: "lte",
+        key: "folder",
+        value: "customer-a/z",
+      },
+    ],
+  },
+```
+
+이 필터는 시작된 경로 식별`customer-a/`사용 :
+
+- 더 보기`and`조건의 효과를 결합`gt`·`lte`이름 \*
+- 더 보기`gt`더 큰 길을 포함 하는 조건`/`ASCII 캐릭터.
+- 더 보기`lte`더 낮은 케이스를 포함하여 경로 더 적은을 포함하는 상태`z`ASCII 캐릭터.
+
+함께, 이러한 조건은 효과적으로 제공된 경로 값으로 시작하는 경로 선택.
+
+## 더 보기`context`AI 검색 가이드
+
+선택적으로 사용자 정의 메타 데이터 필드를 포함 할 수 있습니다`context`R2 버킷에 개체를 업로드 할 때.
+
+더 보기`context`필드는 각 펑크에 부착되며 LLM에 전달됩니다.`/ai-search`이름 \* Retrieval에 영향을 미치지 않지만 LLM 해석 및 프레임에 대한 답변을 돕습니다.
+
+이 필드는 파일 내용을 수정하지 않고 문서 요약, 소스 링크 또는 사용자 정의 지침을 제공 할 수 있습니다.
+
+추가할 수 있습니다.[메타데이터](/r2/api/workers/workers-api-reference/#r2putoptions)객체에`/PUT`R2 버킷에 개체를 업로드 할 때 작동. 예를 들어,[WorkersXQ 결합 R2](/r2/api/workers/workers-api-usage/):
+
+```javascript
+await env.MY_BUCKET.put("cat.png", file, {
+  customMetadata: {
+    context: "This is a picture of Joe's cat. His name is Max."
+  }
+});
+```
+
+기간 중`/ai-search`, 이 컨텍스트는 아래 응답에서 나타납니다`attributes.file.context`, 그리고 LLM에 전달된 데이터에 응답을 생성.
+
+## 관련 기사
+
+속성에 따라 응답에서 검색된 데이터의 메타데이터 속성을 볼 수 있습니다.`attributes`각 retrieved 펑크를 위해. 예를 들면:
+
+```js
+"data": [
+  {
+    "file_id": "llama001",
+    "filename": "llama/logistics/llama-logistics.md",
+    "score": 0.45,
+    "attributes": {
+      "timestamp": 1735689600000,   //2025-01-01를 위한 unix 타임스탬프
+      "folder": "llama/logistics/",
+      "file": {
+        "url": "www.llamasarethebest.com/logistics"
+        "context": "This file contains information about how llamas can logistically deliver coffee."
+      }
+    },
+    "content": [
+      {
+        "id": "llama001",
+        "type": "text",
+        "text": "Llamas can carry 3 drinks max."
+      }
+    ]
+  }
+]
+```

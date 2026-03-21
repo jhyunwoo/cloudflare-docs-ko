@@ -1,0 +1,87 @@
+---
+pcx_content_type: reference
+title: 'HTTP: HTTP'
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: HTTP 도메인 제어 검증 (DCV)
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/http/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/http/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+HTTP 검증은 고객의 원산지에 DCV 토큰을 추가합니다.
+
+***
+
+## Non-wildcard 사용자 정의 호스트 이름
+
+사용자 정의 호스트 이름이 와일드 카드를 포함하지 않는 경우, Cloudflare는 항상 자동으로 DCV를 완료하려고합니다[HTTP 유효성](#http-automatic)선택한 경우에도**사이트맵**당신의 검증 방법.
+
+이 HTTP 유효성 검사는 당신의 고객 때문에 당신의 주문 hostname에 점유하고 그들에는 아무 것도 없는 성공해야 합니다[CAA 기록](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/troubleshooting/#certificate-authority-authorization-caa-records)선택한 인증 기관 차단.
+
+## Wildcard 사용자 정의 호스트 이름
+
+HTTP DCV 유효성 검사는 와일드카드 인증서에 허용되지 않습니다. 자주 묻는 질문[TXT 검증](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/validate-certificates/txt/)대신.
+
+***
+
+## 유효 방법
+
+### HTTP (자동)
+
+simplicity와 당신의 고객은 다운타임의 몇 분을 처리할 수 있는 경우에, 당신은 Cloudflare 자동적인 HTTP 검증에 의존할 수 있습니다.
+
+당신은[새로운 hostname 만들기](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/issue-certificates/)그리고 선택`http`유효한 방법, 당신의 고객은 당신에 CNAME를 추가해야 합니다`$CNAME_TARGET`Cloudflare는 나머지를 돌릴 것입니다.
+
+<Details header="사용자 정의 hostname을 만드는 후에 무슨 일이 일어나는">
+  <Render file="cname-cert-verification" product="ssl" />
+</Details>
+
+:::참조
+
+Cloudflare는 사실 때문에 우리의 가장자리에서 무작위 토큰을 봉사할 수 있습니다`site.example.com`CNAME이 있습니다.`$CNAME_TARGET`Cloudflare IPs로 궁극적으로 해결되는 . 고객이 CNAME을 추가하지 않은 경우, CA는 토큰을 검색 할 수 없으며 프로세스가 완료되지 않습니다.
+
+우리는 타이밍하기 전에이 유효성 검사를 재 시도합니다. 더 알아보기[유효성 검사](/ssl/edge-certificates/changing-dcv-method/validation-backoff-schedule/)더 많은 정보.
+
+:::
+
+고객이 CNAME(또는 대상 CNAME의 해상도를 변경하기 전에 CloudflareXQ)에 의해 발음되는 경우, 다른 검증 방법을 선택하십시오.
+
+### HTTP (수동)
+
+<Render file="ssl-for-saas-create-hostname" product="cloudflare-for-platforms" />
+
+<br />
+
+- [**사이트맵**](/api/resources/custom_hostnames/methods/get/): 이내`ssl`객체, 값을 현재 저장`validation_records`배열 (특히`http_url`·`http_body`).
+- **대시보드**: 개별 인증서를 볼 때[**사용자 이름**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/custom-hostnames)페이지, 값 참조**인증서 검증 요청**·**인증서 검증 응답**.
+
+당신의 근원에, 만듭니다`http_body`지정된 경로에서 TXT 레코드에서 사용할 수`http_url`. 이 경로는 인터넷에서 누구에게 공개적으로 접근해야하므로 CA가 액세스 할 수 있습니다.
+
+다음은 토큰을 반환하는 NGINX 구성입니다.
+
+```txt
+location "/.well-known/pki-validation/ca3-0052344e54074d9693e89e27486692d6.txt" {
+       return 200 "ca3-be794c5f757b468eba805d1a705e44f6\n";
+}
+```
+
+구성이 생길 때 DCV 텍스트 파일이 있는 것을 테스트합니다.`curl`:
+
+```sh
+$ curl "http://http-preval.example.com/.well-known/pki-validation/ca3-0052344e54074d9693e89e27486692d6.txt"
+ca3-be794c5f757b468eba805d1a705e44f6
+```
+
+토큰은 하나의 체크 사이클에 유효합니다. 다음 체크 사이클에서 Cloudflare는 URL, 유효성 검사 및 인증서를 발급하는 CA를 요청합니다.
+
+<Render file="ssl-for-saas-validate-patch" product="cloudflare-for-platforms" />

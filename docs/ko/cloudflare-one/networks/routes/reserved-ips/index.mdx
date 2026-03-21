@@ -1,0 +1,97 @@
+---
+pcx_content_type: reference
+title: IP 주소
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/networks/routes/reserved-ips/'
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/routes/reserved-ips/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import SubtractIPCalculator from "~/components/SubtractIPCalculator.tsx";
+
+Cloudflare는 내부 라우팅 및 서비스 기능을 위해 여러 IPv4 및 IPv6 범위를 보유합니다. 이 범위는 CGNAT 주소 공간에서 그려집니다 (`100.64.0.0/10`). 충돌을 방지하기 위해 Cloudflare 터널, WARP 커넥터 또는 WAN 경로는 이러한 예약 범위의 하위 세트를 포함하지 않아야합니다. Broader 노선은 예약된 범위를 포함`0.0.0.0/0`, longest-prefix 일치 때문에 unaffected는 예약한 범위를 아직도 가지고 가는 우선권을 지킵니다.
+
+개인 네트워크 주소 및 설정 계획[분할 터널](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)항목은 아래 테이블을 사용하여 IP 범위 Cloudflare가 예약되어 재구성 할 수 있는지 확인합니다.
+
+## IPv4 범위
+
+| 이름 \*                                             | 기본 CIDR          | 설정 가능 |
+| ------------------------------------------------- | ---------------- | ----- |
+| [Cloudflare 소스 IP](#cloudflare-source-ips)        | `100.64.0.0/12`  | 이름 \* |
+| [Gateway 초기 해결 IP](#gateway-initial-resolved-ips) | `100.80.0.0/16`  | 이름 \* |
+| [WARP 장치 IPs](#warp-device-ips)                   | `100.96.0.0/12`  | 이름 \* |
+| [개인 부하 균형 IP](#private-load-balancer-ips)         | `100.112.0.0/16` | 이름 \* |
+
+## IPv6 범위
+
+| 이름 \*                                             | 기본 CIDR                    | 설정 가능 |
+| ------------------------------------------------- | -------------------------- | ----- |
+| [WARP 장치 IPs](#warp-device-ips)                   | `2606:4700:0cf1:1000::/64` | 이름 \* |
+| [Gateway 초기 해결 IP](#gateway-initial-resolved-ips) | `2606:4700:0cf1:4000::/64` | 이름 \* |
+| [Cloudflare 소스 IP](#cloudflare-source-ips)        | `2606:4700:0cf1:5000::/64` | 이름 \* |
+
+## Cloudflare 소스 IP
+
+Cloudflare 소스 IP는 Cloudflare 서비스가 개인 네트워크에 트래픽을 보냅니다 때 사용되는 소스 주소입니다. 이 범위는 고객에 적용[통합 Routing (베타)](/cloudflare-one/networks/connectors/cloudflare-wan/reference/traffic-steering/#unified-routing-mode-beta). 이 범위에서 sourced 요청의 예는 다음과 같습니다.
+
+- [적재 Balancing](/load-balancing/monitors/)— Private Endpoints에 대한 건강 검사 요청
+- [Gateway DNS 해결자](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/dns-resolver-ips/)— Private hostnames의 DNS 해상도
+- [Cloudflare Workers](/workers/)— Workers에서 민간인에게 요청
+
+기본 IPv4 범위는`100.64.0.0/12`. 당신은 다른 것에 이것을 바꿀 수 있습니다`/12`CIDR는 기존 IP 주소 관리 계획과 충돌을 방지합니다. 영향을받는 서비스 및 구성 지침에 대한 자세한 내용은 참조[Cloudflare 소스 IP 구성](/cloudflare-one/networks/connectors/cloudflare-wan/configuration/manually/how-to/configure-cloudflare-source-ips/).
+
+## Gateway 초기 해결 IP
+
+Gateway 초기 해결 IP는 네트워크 계층의 IP를 대상 IP로 맵 호스트 이름에 사용되는 ephemeral 주소입니다. 호스트 이름 정보는 일반적으로 사용할 수 없습니다.
+
+뒤에 오는 특징은 이 범위를 이용합니다:
+
+- [개인 별명 routing](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/connect-private-hostname/)- Cloudflare 터널 뒤에 개인 응용 프로그램에 대한 트래픽을 호스트 이름.
+- [공공 호스트 이름 routing](/cloudflare-one/traffic-policies/egress-policies/egress-cloudflared/)- Cloudflare 터널을 통해 트래픽을 공개 목적지에 대한 소스 IP를 앵커합니다.
+- [Egress 정책 호스트 선택자](/cloudflare-one/traffic-policies/egress-policies/host-selectors/)— hostname-based selectors를 사용하여 Gateway egress 정책을 평가합니다.
+- [오시는 길](/cloudflare-one/access-controls/applications/non-http/self-hosted-private-app/)- 개인 호스트명을 사용하여 개인 응용 프로그램에 대한 액세스를 관리합니다.
+
+처음 해결 된 IP는 할당 된`100.80.0.0/16`(IPv4) 또는`2606:4700:0cf1:4000::/64`(IPv6) 범위. 이 범위는 구성할 수 없습니다.
+
+## WARP 장치 IPs
+
+WARP 장치 IP는 각 WARP 장치 등록에 할당된 가상 주소입니다. 이 IP는 다음과 같은 기능에 대한 특정 장치에 대한 트래픽을 식별하고 경로:
+
+- [Peer-to-peer 연결 (WARP-to-WARP)](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-to-warp/)- WARP 장치가 Cloudflare의 네트워크에 직접 통신 할 수 있습니다.
+- [WARP 연결관](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/)— 개인 네트워크와 WARP 장치 사이의 트래픽을 경로.
+- [Cloudflare 대만](/cloudflare-one/networks/connectors/cloudflare-wan/)- WAN 터널에서 WARP 장치에 온램프 트래픽.
+
+기본 IPv4 범위는`100.96.0.0/12`. 이 범위가 개인 네트워크에 서비스와 충돌하면, RFC 1918 또는 CGNAT 주소 공간에서 그려진 사용자 정의 IPv4 서브넷을 구성할 수 있습니다. 구성 지침에 대한 참조[장치 IP](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-ips/).
+
+## 개인 부하 균형 IP
+
+Private Load Balancer IPs는 가상 주소로 할당됩니다.[개인 네트워크 로드밸런서](/load-balancing/private-network/). 각 개인적인 짐 밸런서는 a를 받습니다`/32`이름 \*`100.112.0.0/16`load balancer's virtual IP로 private endpoints에 전달합니다. 대안으로, 당신은 관례를 구성할 수 있습니다[RFC 1918년](https://datatracker.ietf.org/doc/html/rfc1918) `/32`각 짐 밸런서를 위한 주소.
+
+## WARP 분할 터널 구성
+
+배포를 위해[WARP 클라이언트](/cloudflare-one/team-and-resources/devices/warp/), 그것을 지킵니다[IP 범위](#ipv4-ranges)설치 경로에 의해 필요[WARP 분할 터널](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)Cloudflare에. 구성은 당신에 달려 있습니다[분할 터널 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/#change-split-tunnels-mode)설정**IP 및 도메인 제외**또는**IP 및 도메인 포함**.
+
+### 제외 모드 (과태)
+
+내 계정**IP 및 도메인 제외**모드, CGNAT 범위 (`100.64.0.0/10`)는 기본적으로 WARP 라우팅에서 제외됩니다. 당신은 삭제해야[IP 범위](#ipv4-ranges)Split Tunnels에서 목록 제외, 또는 관련 기능은 작동 중지됩니다.
+
+Cloudflare는 Cloudflare에 명시적으로 사용되는 IP를 다시 추가하는 것이 좋습니다. 1개의 서비스. CGNAT 주소 공간을 사용할 수있는 기존 개인 네트워크 구성과 충돌의 위험을 줄일 수 있습니다.
+
+아래 계산기를 사용하여 Cloudflare에 따라 IP 범위를 추가 할 수 있습니다. 당신이 사용하는 1개의 특징. 예를 들어, 배포가 필요한 경우[Gateway 초기 해결 IP](#gateway-initial-resolved-ips) (`100.80.0.0/16`)와[WARP 장치 IPs](#warp-device-ips) (`100.96.0.0/12`), 삭제`100.64.0.0/10`Split Tunnels에서 뒤로 추가`100.64.0.0/12`, `100.81.0.0/16`, `100.82.0.0/15`, `100.84.0.0/14`, `100.88.0.0/13`·`100.112.0.0/12`.
+
+<SubtractIPCalculator
+  client:load
+  defaults={{
+  	base: "100.64.0.0/10",
+  	subtract: ["100.80.0.0/16", "100.96.0.0/12"],
+  }}
+/>
+
+### 모드 포함
+
+내 계정**IP 및 도메인 포함**모드, 포함 된 경로 만 트래픽은 Cloudflare로 전송됩니다. 지정된 IP 범위를 명시적으로 추가해야합니다. 배포가 달려 있습니다. 예를 들어, 사용 중인 경우[hostname 라우팅 또는 egress 정책 호스트 선택자](#gateway-initial-resolved-ips), 추가`100.80.0.0/16`Split Tunnels에 목록이 있습니다.

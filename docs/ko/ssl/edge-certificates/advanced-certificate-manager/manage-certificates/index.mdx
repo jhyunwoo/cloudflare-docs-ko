@@ -1,0 +1,113 @@
+---
+pcx_content_type: how-to
+title: 고급 인증서 관리
+sidebar:
+  order: 1
+head: []
+description: Learn how to create, delete and perform other operations to manage
+  your Cloudflare Advanced SSL certificates.
+---
+
+import { AvailableNotifications, Render, TabItem, Tabs, DashButton } from "~/components";
+
+## 인증서 생성
+
+기존 [Universal SSL certificate](/ssl/edge-certificates/universal-ssl/)를 사용 중이라면, 고급 인증서 주문을 완료한 후 Cloudflare가 해당 인증서를 자동으로 교체합니다.
+
+인증서를 주문한 뒤에는 [**Edge Certificates**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/edge-certificates) 페이지 또는 [GET request](/api/resources/ssl/subresources/certificate_packs/methods/list/)를 사용하는 API를 통해 [certificate's status](/ssl/reference/certificate-statuses/)를 확인할 수 있습니다.
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+대시보드에서 새 고급 인증서를 생성하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **Order Advanced Certificate**를 선택합니다.
+3. Cloudflare에 청구 정보가 없다면 해당 정보를 입력해야 합니다.
+4. 다음 정보를 입력합니다.
+   - Certificate authority
+   - Certificate hostnames
+     - 64자를 초과하는 호스트명의 경우 API를 사용하세요.
+   - Validation method
+   - Certificate validity period
+5. **Save**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 새 인증서를 생성하려면 Cloudflare API에 [POST request](/api/resources/ssl/subresources/certificate_packs/methods/create/)를 보냅니다.
+
+[RFC 5280](https://www.rfc-editor.org/rfc/rfc5280.html) 기준으로 64자를 초과하는 호스트명에 대한 인증서가 필요하다면 `cloudflare_branding` 옵션을 `true`로 설정하세요. 그러면 Common Name(CN) 필드에는 `sni.cloudflaressl.com`이 추가되고, 긴 호스트명은 Subject Alternative Name(SAN)의 일부로 포함됩니다.
+
+</TabItem> </Tabs>
+
+:::caution
+
+<Render file="acm-ca-hostnames-conditions" product="ssl" />
+
+:::
+
+---
+
+## 인증서 삭제
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+대시보드에서 고급 인증서를 삭제하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. 인증서를 선택합니다.
+3. **Delete Certificate**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 인증서를 삭제하려면 Cloudflare API에 [DELETE request](/api/resources/ssl/subresources/certificate_packs/methods/delete/)를 보냅니다.
+
+</TabItem> </Tabs>
+
+---
+
+## 검증 재시작
+
+`validation_timed_out` 상태인 인증서의 검증을 다시 시작하려면 API에 [PATCH request](/api/resources/ssl/subresources/certificate_packs/methods/edit/)를 보냅니다.
+
+---
+
+## Cipher suite 제한
+
+<Render file="cipher-suites-definition" product="ssl" />
+
+자세한 내용은 [Cipher suite 사용자 지정](/ssl/edge-certificates/additional-options/cipher-suites/customize-cipher-suites/)을 참고하세요.
+
+---
+
+## Domain control validation (DCV) 수행
+
+<Render file="dcv-definition" product="ssl" /> <br />
+
+보통은 애플리케이션이 partial setup에 있는 경우(Cloudflare가 authoritative nameserver를 운영하지 않는 경우)에만 DCV를 업데이트하면 됩니다.
+
+DCV에 대한 자세한 내용은 [DCV methods](/ssl/edge-certificates/changing-dcv-method/)를 참고하세요.
+
+---
+
+## 알림 설정
+
+인증서 변경 사항에 대한 알림을 받도록 경고를 구성할 수 있습니다.
+
+<AvailableNotifications
+	product="SSL/TLS"
+	notificationFilter="Advanced Certificate Alert"
+/>
+
+<Render file="get-started" product="notifications" />
+
+---
+
+## 고급 인증서 갱신
+
+선택한 인증서 유효 기간은 인증서 자동 갱신이 언제 시작되는지를 결정합니다. 자세한 내용은 [Validity period and renewal](/ssl/reference/certificate-validity-periods/)을 참고하세요.

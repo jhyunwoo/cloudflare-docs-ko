@@ -1,0 +1,122 @@
+---
+title: 백업 (Legacy)
+pcx_content_type: concept
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/reference/backups/'
+translation_source_md: 'https://developers.cloudflare.com/d1/reference/backups/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+D1는 예정된 자동 백업 및 수동 백업 관리를 위한 지원을 포함하여 wrangler v3를 가진 당신의 데이타베이스의 창조 그리고 회복 백업을 위한 붙박이 지원이 있습니다.
+
+:::caution\[플랜드 제거]
+
+이 문서에 설명 된 D1 알파 데이터베이스에 대한 스냅 샷 기반 백업에 액세스는 제거됩니다[2025-07-01](/d1/platform/release-notes/#2025-07-01).
+
+:::
+
+:::자동차\[시간 여행]
+
+D1의 데이터베이스[생산 저장 subsystem](https://blog.cloudflare.com/d1-turning-it-up-to-11/)Time Travel Point-in-time Recovery를 사용할 수 있습니다.[시간 여행](/d1/reference/time-travel/)레거시 알파 데이터베이스에 사용되는 스냅 샷 기반 백업을 대체합니다.
+
+어떤 저장 하위 시스템 데이터베이스 사용 이해, 실행`wrangler d1 info YOUR_DATABASE`자주 묻는 질문`version`산출에 있는 분야. 데이터베이스`version: alpha`이전, 스냅샷 기반 백업 API만 지원합니다.
+
+:::
+
+## 자동 백업
+
+D1는 당신의 대신에 당신의 데이타베이스를 매번 백업하고,[24시간 백업 유지](/d1/platform/limits/). 백업은 DB에 접근을 차단하며 실행 중입니다. 대부분의 경우이 두 번째 또는 두 가지가 있어야하며 백업 중에 도착하는 모든 요청은 누락됩니다.
+
+이 백업을 보고 관리하려면, 어떤 수동 백업을 포함하여, 당신은 사용할 수 있습니다`d1 backup list <DATABASE_NAME>`각 백업을 나열하는 명령.
+
+예를 들어, D1 데이터베이스의 백업 목록`existing-db`:
+
+```sh
+wrangler d1 backup list existing-db
+```
+
+```sh output
+
+┌──────────────┬──────────────────────────────────────┬────────────┬─────────┐
+│ created_at   │ id                                   │ num_tables │ size    │
+├──────────────┼──────────────────────────────────────┼────────────┼─────────┤
+│ 1 hour ago   │ 54a23309-db00-4c5c-92b1-c977633b937c │ 1          │ 95.3 kB │
+├──────────────┼──────────────────────────────────────┼────────────┼─────────┤
+│ <...>        │ <...>                                │ <...>      │ <...>   │
+├──────────────┼──────────────────────────────────────┼────────────┼─────────┤
+│ 2 months ago │ 8433a91e-86d0-41a3-b1a3-333b080bca16 │ 1          │ 65.5 kB │
+└──────────────┴──────────────────────────────────────┴────────────┴─────────┘%
+```
+
+더 보기`id`각 백업의 특정 백업을 다운로드하거나 복원 할 수 있습니다.
+
+## Manually 백업 데이터베이스
+
+대용량 스키마 변경, 수동 삽입 또는 삭제 데이터를 만들기 전에 데이터베이스의 수동 백업을 작성, 또는 사용 가능한 데이터베이스를 수정하는 것은 좋은 연습입니다. D1는 언제든지 데이터베이스의 백업을 만들 수 있으며, 대신 백업을 저장합니다. 당신은 또한 고려해야[사용방법](/d1/reference/migrations/)기존 데이터베이스의 변경을 단순화합니다.
+
+D1 데이터베이스를 백업하려면 다음을해야합니다.
+
+1. Cloudflare[Wrangler CLI 설치](/workers/wrangler/install-and-update/)
+2. 기존 D1 데이터베이스를 백업하고 싶습니다.
+
+예를 들어, D1 데이터베이스의 수동 백업을 만들려면`example-db`, 전화`d1 backup create`.
+
+```sh
+wrangler d1 backup create example-db
+```
+
+```sh output
+┌─────────────────────────────┬──────────────────────────────────────┬────────────┬─────────┬───────┐
+│ created_at                  │ id                                   │ num_tables │ size    │ state │
+├─────────────────────────────┼──────────────────────────────────────┼────────────┼─────────┼───────┤
+│ 2023-02-04T15:49:36.113753Z │ 123a81a2-ab91-4c2e-8ebc-64d69633faf1 │ 1          │ 65.5 kB │ done  │
+└─────────────────────────────┴──────────────────────────────────────┴────────────┴─────────┴───────┘
+```
+
+더 큰 데이터베이스, 특히 많은 테이블 크기에 여러 메가 바이트 (MB), 몇 초를 백업 할 수 있습니다. 더 보기`state`출력의 열은 백업이 완료되면 알려줍니다.
+
+## 로컬로 백업 다운로드
+
+로컬로 백업을 다운로드하려면 전화`wrangler d1 backup download <DATABASE_NAME> <BACKUP_ID>`. 사용`wrangler d1 backup list <DATABASE_NAME>`유효한 백업을 나열하려면 ID를 포함, 주어진 D1 데이터베이스.
+
+예를 들어, 지정된 데이터베이스에 대한 특정 백업을 다운로드`example-db`:
+
+```sh
+wrangler d1 backup download example-db 123a81a2-ab91-4c2e-8ebc-64d69633faf1
+```
+
+```sh output
+
+🌀 Downloading backup 123a81a2-ab91-4c2e-8ebc-64d69633faf1 from 'example-db'
+🌀 Saving to /Users/you/projects/example-db.123a81a2.sqlite3
+🌀 Done!
+```
+
+데이터베이스 백업은 기본 SQLite3 형식으로 현재 작업 디렉토리에 다운로드됩니다. 로컬 데이터베이스를 가져오기 위해, read[데이터 가져오기](/d1/best-practices/import-export-data/)D1.에.
+
+## 백업 복원
+
+:::카트로션
+
+백업을 복원하면 기존 버전의 D1 데이터베이스를 삽입합니다. 우리는 당신이 데이터베이스를 복원하기 전에 수동 백업을 만드는 것이 좋습니다, 그래서 당신은 실수로 잘못된 백업을 복원하거나 응용 프로그램을 파괴하는 경우 백업을 가지고.
+
+:::
+
+백업 복원은 백업과 데이터베이스의 현재 실행 버전을 덮어줍니다. 백업에 존재하지 않는 데이터베이스 테이블 (및 데이터)는 데이터베이스의 현재 버전에서 더 이상 존재하지 않으며 그에 의존하는 쿼리는 실패합니다.
+
+D1 데이터베이스의 이전 백업을 복원하려면`existing-db`, 그 백업의 ID를 전달`d1 backup restore`:
+
+```sh
+wrangler d1 backup restore existing-db  6cceaf8c-ceab-4351-ac85-7f9e606973e3
+```
+
+```sh output
+Restoring existing-db from backup 6cceaf8c-ceab-4351-ac85-7f9e606973e3....
+Done!
+```
+
+데이터베이스에 대한 모든 쿼리는 즉시 복원이 완료되면 현재 (restored) 버전을 쿼리합니다.

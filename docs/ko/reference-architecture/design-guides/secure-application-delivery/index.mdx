@@ -1,0 +1,243 @@
+---
+title: 안전하게 Cloudflare를 가진 신청을 전달하십시오
+pcx_content_type: design-guide
+products:
+  - network-interconnect
+sidebar:
+  label: 서비스 약관
+reviewed: 2023-12-18T00:00:00.000Z
+description: 'Cloudflare는 애플리케이션 성능, 보안, 신뢰성, 개발 및 Zero Trust 주변의 완벽한 서비스를 제공합니다.'
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/secure-application-delivery/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/secure-application-delivery/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 개요와 Cloudflare 이점
+
+Cloudflare는 신청 성과, 안전, 신뢰성, 발달 및 Zero Trust의 주위에 서비스의 완전한 한 벌을 제공합니다. Cloudflare의 글로벌 네트워크는 인터넷 연결 인구의 약 95 %에서 약 50m 떨어져 있으며 모든 데이터 센터의 모든 서버에서 실행되는 서비스로 구성됩니다. Cloudflare의 세계적인 가늠자는 또한 Cloudflare 안전 제품으로 끊임없이 끊긴 튼튼한 위협 인텔리전스 근원을 위해 기계 학습 모형 및 서비스를 더 이상 강화하는 것을 허용합니다.
+
+![Cloudflare는 모든 데이터 센터의 모든 서버에서 실행되는 애플리케이션 성능과 보안 서비스를 제공하며 사용자 위치에 상관없이 최고 수준의 성능을 보장합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-1.png "Figure 1: Cloudflare services run on every server in every data center")
+
+다른 차별화자는 Cloudflare가 API 보안 또는 제로 신뢰 서비스 또는 특정 성능 / 보안 서비스를 제공하는 일부 공급업체와는 달리 포인트 제품이 아닙니다. 고객은 운영 및 관리 복잡성, 교차 제품 혁신 / 통합을 활용할 수 없는 불확실성, 네트워크 / 리소스의 규모를 모두 활용할 수 없습니다.
+
+![Cloudflare의 글로벌 플랫폼은 Cloudflare를 포함한 여러 제품 제품군을 통해 Zero 신뢰, 네트워크 및 응용 서비스를 통합 하나의 Cloudflare의 개발자 플랫폼과 우리의 준수 및 개인 정보 보호 기능.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-2.png "Figure 2: Cloudflare Global Cloud Platform.")
+
+또한, 고객은 특정 클라우드 공급자에 잠겨 싶지 않지만, 많은 성능과 보안 공급 업체는 자신의 클라우드에 집중하고 최적화 된 서비스에 초점을 맞추고 멀티 클라우드 전략을 채택하기 어려운 작업을 수행함으로써 고객에게 플랫폼을 잠금을 해제합니다.
+
+Cloudflare는 워크로드가 실행되거나 클라우드 공급자가 사용되는 곳에 임신입니다. 고객은 특정 클라우드 또는 온프레미스에서 실행되는 워크로드가 실행되는지 여부와 같은 일관성있는 통합된 대시보드 및 운영 단순성을 얻습니다. 다양한 공급업체와 달리 Cross-product 혁신과 통합의 이점은 워크로드에 대한 특정 클라우드를 사용하여 고객에게 의존하지 않습니다.
+
+이 문서는 Cloudflare의 공동 서비스를 사용하는 방법을 설명합니다. 이 문서의 예를 들어, 애플리케이션 워크로드는 Cloudflare DNS, CDN, WAF 및 Cloudflare 터널을 사용하여 Cloudflare 네트워크에 안전하게 연결할 수 있습니다. 이 포괄적인 수준의 보안 기능을 제공하기 위해 공급 업체를 위해 드문 작업과 일관적인 패션에서.
+
+특정 서비스에 대한 자세한 내용과 참고 자료 아키텍처를 위해, 우리의 참조[참고 자료 건축 문서](/reference-architecture/).
+
+## Cloudflare와 응용 프로그램을 내장하고 보호
+
+Cloudflare와 같은 클라우드 기반 보안 및 성능 제공 업체는 역 프록시로 작동합니다. 역 프록시는 웹 서버 앞에 앉아서 클라이언트 요청을 전달하는 서버입니다. 역 프록시는 일반적으로 보안, 성능 및 신뢰성을 높일 수 있도록 합니다.
+
+정상적인 트래픽은 역 프록시없이 클라이언트가 DNS 조회 요청을 전송, 원산지 IP 주소를 수신, 직접 communicating[근원 서버 (s)](https://www.cloudflare.com/learning/cdn/glossary/origin-server/).
+
+역 프록시가 도입되면 클라이언트는 여전히 DNS 조회에 DNS 조회 요청을 보냅니다. 이는 DNS 조회의 첫 번째 중지입니다. 일부 경우에, 역 프록시를 제공하는 공급 업체는 DNS 서비스를 제공합니다; 이것은 아래 그림 3에서 시각화됩니다. 그러나 클라이언트는 이제 역 프록시로 통신하고 역 프록시는 원래 서버(s)로 통신합니다. 이 트래픽 흐름은 역 프록시를 통해 모든 트래픽이 전달되며, 추가 애플리케이션 보안, 성능 및 신뢰성 서비스를 통해 애플리케이션을 쉽게 구현할 수 있습니다.
+
+![Cloudflare는 클라이언트와 근원 서버 사이 반전 프록시 기능을 제공하고, 더 중대한 사용자 및 신청 안전을 가능하게 합니다.](~/assets/images/reference-architecture/multi-vendor-architecture-images/Figure_3.png "Figure 3: Same vendor providing DNS and security/performance services via proxy.")
+
+이 예에서, 우리는 주요 클라우드 제공 업체 중 하나에서 실행 웹 사이트가 있으며 Cloudflare DNS, CDN, WAF 및 액세스를 사용하고 싶습니다. 우리는 데모 목적으로이 서비스를 시작하고 싶습니다. 고객은 다른 Cloudflare 서비스를 원하는대로 확장 할 수 있습니다. Cloudflare는 클라우드 공급자에서 모든 서비스를 해독하는 이점을 제공하고 나중에 클라우드 공급자를 바꾸거나 다른 구름에서 달리는 다른 신청을 보호하고 싶은 경우에, 대시보드와 가동은 일관되게 유지합니다.
+
+고객은 Cloudflare 네트워크에 웹 애플리케이션을 쉽게 연결하고 애플리케이션 성능과 보안 서비스를 활용할 수 있습니다. 다른 사용 사례에 맞는 몇 가지 연결 옵션이 있습니다.
+
+### 연결 옵션
+
+#### 인터넷에 접속
+
+대부분의 기본 시나리오에서, Cloudflare 프록시는 인터넷에 대한 요청 트래픽을 기원합니다. 이 설정에서 클라이언트와 기원은 각 ISP를 통해 인터넷에 직접 연결됩니다. 요청은 클라이언트에서 Cloudflare 프록시 (DN 구성을 통해) 프록시 경로가 인터넷에서 고객의 기원에 대한 요청을 전달하기 전에 인터넷을 통해 전달됩니다.
+
+아래 다이어그램은 Cloudflare 네트워크를 통해 요청 흐름으로 인한 기본 연결성을 설명합니다. Cloudflare에 의해 호스팅되는 IP에 대한 요청을 할 때, 그 요청은 Cloudflare 네트워크에 의해 처리되고 대중적인 인터넷을 통해 원래 서버에 전달됩니다.
+
+![Cloudflare는 인터넷 연결을 통해 애플리케이션 성능과 보안 서비스를 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-4.png "Figure 4: Connectivity from Cloudflare to origin server(s) via Internet")
+
+기원은 인터넷과 트래픽에 직접 연결되며 Cloudflare DNS에 의해 해결 된 IP 주소에 근거하여 원래로 경로됩니다. DNS A 레코드는 원래 서버(s)의 IP 주소로 도메인 이름을 부과하거나 일반적으로 원래의 짐 밸런서에 앉아 있습니다.
+
+이 모델에서 Cloudflare DNS가 A 레코드에 대한 쿼리를 수신 할 때 Cloudflare anycast IP 주소가 반환되므로 모든 트래픽은 Cloudflare를 통해 경로화됩니다. 그러나 추가 주의가 취하지 않는 한, 그것은 원래에 도달 할 수 있습니다 Cloudflare 누군가가 기원의 IP 주소를 알고 있다면.
+
+또한, 이 모델에서 고객은 근원 (들) 또는 웹 서버 (들)에 대한 방화벽 규칙을 열고 있으므로 해당 HTTP / HTTPS 포트에 액세스 할 수 있습니다. 그러나 고객은 레버리지를 선택할 수 있습니다.[전용 CDN Egress IPs](/smart-shield/configuration/dedicated-egress-ips/)Cloudflare가 당신의 근원에 다시 연결하기 위하여 이용된다는 고객의 특정한 IPs를 할당하는 . 우리는 이 네트워크에서 트래픽을 허용하는 것이 좋습니다.
+
+원래의 방화벽에서 IP 차단 외에도 트래픽의 추가 검증을 강력하게 권장합니다.["Full (Strict)" SSL 설정](/ssl/origin-configuration/ssl-modes/full-strict/)또는[mTLS 오](/ssl/origin-configuration/authenticated-origin-pull/)모든 트래픽을 고객 구성 영역을 통해 요청을 전달하는 것입니다.
+
+Cloudflare는 또한 지원합니다[자신의 IP를 가져 오기 (BYOIP)](/byoip/). BYOIP가 형성될 때, Cloudflare 세계적인 네트워크는 고객의 자신의 IP 접두사 및 접두사는 각각 Cloudflare로 사용될 수 있습니다 층 7 서비스. 이것은 고객이 Cloudflare를 통해 프록시 트래픽을 허용하고 여전히 DNS 해상도에서 반환된 고객 IP 주소를 가지고 있습니다. 이것은 일 수 있습니다[이름 \*](https://blog.cloudflare.com/bringing-your-own-ips-to-cloudflare-byoip/)고객 IP 접두사는 이미 허용 목록 및 업데이트 방화벽 규칙이 바람직하지 않거나 관리 장애물을 제시하는 경우.
+
+#### 인터넷 전용 연결 - Tunnel
+
+인터넷상의 기원(s)를 연결하는 경우 권장 옵션은 추가 보안을 위해 인터넷에 개인 터널/연결이 있습니다.
+
+전통적인 VPN 설정은 backhauling 트래픽이 중앙 집중식 VPN 게이트웨이 위치로 인해 유지되지 않습니다. 이는 부정적인 영향을 미칩니다. Cloudflare 제안[Cloudflare 갱도](/cloudflare-one/networks/connectors/cloudflare-tunnel/)당신의 근원 (s)와 Cloudflare의 네트워크 사이에서 암호화된 갱도를 제공하는 소프트웨어. 또한 Cloudflare는 글로벌 네트워크에서 anycast를 레버리지 때문에, 근원 (s)는 클라이언트와 같이, 가까운 Cloudflare 자료 센터 (s)에 연결하고 그러므로 end-to-end latency 및 throughput를 낙관합니다.
+
+터널을 실행할 때, 인프라의 경량 데몬, 클라우드, 원래 서버와 Cloudflare 네트워크 사이에 4개의 아웃바운드 전용 연결을 설정한다. 이 4개의 연결은 강력한 탄력성을 제공하는 적어도 2개의 명백한 자료 센터의 맞은편에 4개의 다른 서버로 퍼집니다. 원래 서버와 Cloudflare 네트워크 사이의 탄력을 증가하는 많은 클라우드 인스턴스를 설치할 수 있습니다.
+
+Cloudflared는 당신의 근원 웹 서버 (s)와 Cloudflare의 가장 가까운 자료 센터 (s) 사이에서, 어떤 공중 상행한 항구를 열기를 위한 필요 없이 암호화된 갱도를 창조합니다. 이 기능은 방화벽에 필요한 보안 변경이 없습니다. 이 솔루션은 또한 공격에 취약 할 수있는 방화벽 구성의 위험을 낮춥니다.
+
+방화벽 및 보안 자세는 방화벽을 통해 모든 Origin 서버 포트 및 프로토콜을 잠금하여 경화됩니다. 한 번 Cloudflare 터널은 배치 및 해당 보안 적용, HTTP / S 포트의 모든 요청은 볼륨 디도스 공격을 포함하여 삭제됩니다. Data breach 시도는 transit 또는 brute force login 공격에 데이터의 스누핑과 같은 완전히 차단됩니다.
+
+![aCloudflare는 인터넷에 Cloudflare 갱도로 안전하게 신청 성과와 안전 서비스를 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-5.png "Figure 5: Connectivity from Cloudflare to origin server(s) via Cloudflare Tunnel")
+
+위 도표는 Cloudflare 갱도를 통해서 연결성 모형을 설명합니다. 이 옵션은 Cloudflare에 리소스를 연결하는 안전한 방법을 제공합니다. 모델: Cloudflare 터널은 HTTP 웹 서버, SSH 서버, 원격 데스크톱 및 Cloudflare에 안전하게 다른 프로토콜을 연결할 수 있습니다.
+
+#### 직접 연결 - Cloudflare 네트워크 상호 연결 (CNI)
+
+대부분의 공급 업체는 네트워크에 직접 연결 옵션을 제공합니다. 직접 연결은 공공 인터넷을 사용하여 보안, 신뢰성 및 성능 혜택을 제공합니다. 이 직접 연결은 피어링 시설, 인터넷 교환 (IX) 인터넷 서비스 제공 업체 (ISP) 및 인터넷 네트워크가 서로 상호 연결하거나 공급업체 파트너를 통해 할 수 있습니다.
+
+![Cloudflare는 직접적인 연결, Cloudflare 네트워크 Interconnect에 신청 성과 그리고 안전 서비스를 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-6.png "Figure 6: Connectivity from Cloudflare to origin server(s) via Cloudflare Network Interconnect (CNI)")
+
+위의 다이어그램은 소스 연결을 통해 설명합니다.[Cloudflare 네트워크 상호 연결 (CNI)](https://blog.cloudflare.com/cloudflare-network-interconnect/)Cloudflare와 직접 네트워크 인프라를 연결하고 그 직접 링크에서만 통신 할 수 있습니다. CNI는 Cloudflare와 직접 상호 연결 분지 및 본부 위치를 허용합니다. 고객은 Cloudflare를 3가지 방법으로 상호 연결할 수 있습니다: 개인 네트워크 상호 연결 (PNI)에 유효한[Cloudflare 피어링 시설](https://www.peeringdb.com/net/4224)IX를 통해[많은 글로벌 거래소 Cloudflare 참여](https://bgp.he.net/AS13335#_ix), 또는 Cloudflare의 하나를 통해[Interconnection 플랫폼 파트너](https://blog.cloudflare.com/cloudflare-network-interconnect-partner-program).
+
+Cloudflare의 글로벌 네트워크는 인프라 및 직원이 어디에 상관없이 네트워크에 쉽게 연결할 수 있습니다.
+
+## 원래에 여정
+
+어떤 연결 모델을 사용하든 DNS 확인이 먼저 수행되며, 이를 통해 Cloudflare는 트래픽을 어디로 라우팅해야 하는지 알 수 있습니다. Cloudflare는 권한 DNS 공급자, Secondary DNS 공급자, 또는 zone에 대한 비 Cloudflare DNS(CNAME) 구성도 지원합니다. Cloudflare의 성능 및 보안 서비스를 적용하려면 트래픽이 Cloudflare 네트워크로 라우팅되어야 합니다.
+
+### 예: Cloudflare 터널 및 액세스로 응용 프로그램을 진행
+
+#### Cloudflare 터널과의 연결
+
+Cloudflare 서비스를 사용하는 응용 프로그램을 내장 할 수있는 여러 가지 방법이 있지만 일반적인 접근법은 Cloudflare DNS를 기본 권한 DNS로 사용합니다. 고객에 대한 추가 혜택은 Cloudflare가 지속적으로 순위[가장 빠른 유효한 권위있는 DNS 공급자 Globally](https://www.dnsperf.com/#!dns-providers).
+
+이 예제에서는 인터넷을 통해 Cloudflare Tunnel을 사용해 origin을 Cloudflare에 더 안전하게 연결하고, origin으로 향하는 인바운드 방화벽 규칙을 열 필요도 없게 합니다. 이 경우 DNS 구성의 A 레코드 대신, 우리가 배포한 터널을 가리키는 CNAME 레코드를 사용합니다. 여기서는 origin에서 Cloudflare 네트워크로 터널을 배포하며 DNS는 자동으로 구성됩니다. 터널을 가리키는 CNAME 레코드가 생성되고, 이를 통해 origin으로 가는 모든 트래픽이 Cloudflare Tunnel을 통해 라우팅되도록 강제할 수 있습니다.
+
+Cloudflare가 인터넷을 통해 routing을 위해 구성되는 경우, DNS 구성은 아래와 같은 것을 보일 것입니다, 원래 서버의 IP 주소 또는 각각의 로드 밸런서의 기록 포인트. Cloudflare는 반전 프록시로 행동하고, 상태는 Proxied로 보여줍니다." 으로, Cloudflare는 여전히 반대 프록시로 작동하므로 CDN, WAF, 액세스와 같은 모든 Cloudflare 서비스를 사용할 수 있습니다.
+
+![Cloudflare 네트워크를 통해 트래픽을 지시하는 전형적인 윤곽.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-7.png "Figure 7: DNS configuration for 'cftestsite3.com' - pointing to IP address of origin or load balancer.")
+
+우리는 또한 인터넷을 통해 Cloudflare 터널을 사용하여 보안을 제공하고 원본 (s)에 인바운드 방화벽 규칙을 여는 데 필요한 것을 방지 할 수 있습니다. 이 방법에서는 DNS 구성에서 A 레코드 대신 CNAME 레코드가 배포됩니다. 여기에서 우리는 기원에서 Cloudflare 네트워크에 터널을 배포하고 DNS는 자동으로 구성됩니다. CNAME 레코드는 터널에 포인트가 생성됩니다. 이 모든 트래픽은 기원 (들)에가는 Cloudflare 터널.
+
+터널을 생성하고 관리하기 위해 원시 서버에서 Cloudflared를 설치하고 인증해야합니다. Cloudflared는 Cloudflare의 글로벌 네트워크에 서버를 연결하는 것입니다.
+
+터널을 만들기위한 두 가지 옵션이 있습니다 -[대시보드를 통해](/cloudflare-one/networks/connectors/cloudflare-tunnel/get-started/create-remote-tunnel/)또는[명령행을 통해](/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/local-management/create-local-tunnel/). 그것은 대시보드로 시작된 것을 추천했습니다, 그것이 당신이 어떤 기계든지에서 갱도를 관리하는 것을 허용하기 때문에.
+
+원격 관리 터널은 터널 토큰을 실행해야 합니다. 토큰에 액세스하는 사람은 터널을 실행할 수 있습니다. 대시보드에서 터널의 토큰을 얻을 수 있습니다 또는 아래의 API를 통해. 대시보드에서 제공되는 명령은 auth 토큰을 사용하여 서비스로 실행하기 위해 Cloudflared를 설치하고 구성합니다.
+
+Cloudflare 대시보드에서, Zero Trust > 네트워크 > 연결관으로 이동하십시오. "터널"버튼을 선택하고 터널 이름을 지정하고 저장하십시오.
+
+![Cloudflare는 갱도를 창조하고 naming 쉽게 할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-8.png "Figure 8: Cloudflare Tunnel Creation.")
+
+다음, 당신은 당신의 Origin 서버의 운영 체제 (OS)를 선택 화면으로 표시됩니다. Cloudflare 터널 소프트웨어를 자동으로 다운로드하고 설치하기 위해 소스에서 실행할 수있는 CLI 명령을 제공 할 것입니다.
+
+![Cloudflare는 모든 대중적인 운영 체계를 위한 갱도 배치/configuration를 지원합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-9.png "Figure 9: Instructions to install and run a connector.")
+
+아래, CLI 명령은 Cloudflare 터널 소프트웨어를 다운로드하고 설치하기 위해 실행되었습니다.
+
+![Cloudflare는 CLI를 통해 Cloudflare 갱도의 쉬운 배치/configuration를 지원합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-10.png "Figure 10: Downloading and installing Cloudflare Tunnel")
+
+커넥터는 이제 자동으로 연결됩니다.
+
+![성공적인 윤곽에, Cloudflare는 Cloudflare 네트워크에 연결의 연결관 그리고 상태를 표시합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-11.png "Figure 11: Cloudflare Tunnel Connectors showing in dashboard.")
+
+대시보드에서 터널을 만들 수있는 다음 단계로 계속하고 아래 그림과 같이 원래에 서비스를지도 할 수 있습니다. 이 경우, 모든 HTTPS 트래픽은 기원 서버에 터널을 통해 전송됩니다.
+
+![모델 번호: Cloudflare 터널 구성을 통해 특정 서비스에 트래픽을 라우팅 할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-12.png "Figure 12: Cloudflare Tunnel Configuration.")
+
+터널이 생성되고 건강한 대시보드에서 볼 수 있습니다.
+
+![Cloudflare는 배치된 갱도의 건강 상태를 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-13.png "Figure 13: Cloudflare Tunnel is created and healthy.")
+
+또한 DNS 구성을 보면 DNS 레코드가 자동으로 터널 ID로 포인트를 만들 수 있습니다. 터널을 만들 때 Cloudflare는 하위 도메인을 생성합니다.`cfargotunnel.com`창조된 갱도의 UUID로. 공개적으로 routable IP 주소와는 달리 하위 도메인은 동일한 Cloudflare 계정에서 DNS 레코드에 대한 프록시 트래픽입니다. 다른 사용자를 위해 사용할 수 없습니다 다른 계정 또는 시스템에서 DNS 레코드를 만들 수 있습니다이 터널을 통해 프록시 트래픽.
+
+![모델 번호: Cloudflare 터널은 CNAME DNS 입력을 배포 터널에 전달합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-14.png "Figure 14: Cloudflare DNS CNAME record automatically created")
+
+우리는 이제 안전한 애플리케이션 액세스를 가지고 있습니다. 사용자는 Cloudflare 네트워크에 연결된 갱도를 통해서만 신청할 수 있습니다. 터널은 Cloudflare에 아웃바운드 연결을 사용하고 아웃바운드 연결의 반품 트래픽은 허용되지 않습니다. 인바운드 방화벽 규칙은 더 적은 오버 헤드와 더 많은 작동 단순성을 생성해야합니다.
+
+CLI를 통해 터널을 배포하는 경우 터널 설치 후, 인증해야 합니다.[구름 많음](/cloudflare-one/glossary/?term=cloudflared)원래 서버에서. Cloudflared는 Cloudflare의 글로벌 네트워크에 서버를 연결하는 것입니다. 이 인증은 수행 할 수 있습니다`cloudflared tunnel login`아래에 표시된 것과 같이 명령.
+
+![Cloudflare는 Cloudflare 계정으로 쉽게 인증 Cloudflare 터널을 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-15.png "Figure 15: Authenticating cloudflared on the origin server.")
+
+아래에서 터널을 추가하려면 지역을 선택해야합니다.
+
+![Cloudflare는 특정한 지역에 갱도 전용 연결을 강제할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-16.png "Figure 16: Adding Cloudflare Tunnel to a selected zone.")
+
+다음 영역의 터널을 승인할 것입니다.
+
+![사용자는 터널을 연결하는 영역을 승인해야합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-17.png "Figure 17: Authorizing the tunnel for a zone.")
+
+마지막으로, 인증서가 설치되었는지 확인을 받으면 해당 영역에 터널을 만들 수 있습니다.
+
+![Cloudflare는 Cloudflare 네트워크에 갱도를 통해 연결하는 것을 근원에 증명서를 설치하기 위하여 확인을 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-18.png "Figure 18: Confirmation that certificate has been successfully installed.")
+
+#### Cloudflare 액세스와 응용 프로그램 진행
+
+이 문서 이전에 설명 된 현재 설정은 아래에서 표시됩니다. 원래 서버가 터널을 통해 Cloudflare 네트워크에 연결됩니다. 지금, 우리는 Cloudflare 서비스를 소비하는 것을 시작할 수 있습니다.
+
+![Cloudflare는 트래픽이 지시하고 적용된 성능 및 보안 서비스가 있는 프록시 역할을 합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-19.png "Figure 19: Web app securely connected to Cloudflare network for performance and security services.")
+
+현재 기원은 Cloudflare 터널을 통해 접근 할 수 있습니다. 대중적인 hostname이 사용되기 때문에, 근원에 접근은 대중적입니다. 이 응용 프로그램은 Cloudflare 뒤에 보호되고 DDoS 및 공격의 다른 유형에서 보호됩니다. 추가 보안을 위해, Cloudflare 액세스는 터널 응용 프로그램의 앞에 인증 및 액세스 제어 층을 배치 할 수 있습니다. 액세스는 요청하기 전에 인증 단계를 수행 할 수 있습니다. 다른 많은 신원, 장치 및 네트워크 속성은 정책에서 사용할 수 있으며, 고객은 단지 인증 이상을 정의 할 수 있습니다. 예를 들어, 고객은 네트워크를 정의 할 수 있습니다. 요청은 시작되며 사용자 장치가 최신 운영 체제를 실행하는 것입니다.
+
+아래에서 cftestsite3.com에 응용 프로그램을 만들 수 있습니다.
+
+![모델 번호: Cloudflare Access는 응용 프로그램을 구축 할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-20.png "Figure 20: Cloudflare Access Policy Configuration.")
+
+아래 정책 구성을 보면 사용자가 "Secure Staff" Access Group의 일부가 될 수 있습니다.
+
+![Cloudflare는 여러 액세스 그룹을 사전 정의 된 정책 세트를 시행 할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-21.png "Figure 21 : Access group assigned to the application.")
+
+"Secure Staff" Access 그룹에서 더 깊은 모습을 보시면, "Employees"라고 불리는 회사의 Okta identity 공급자 (IdP) 그룹에서 회원이 볼 수 있습니다. 또한 Access 그룹은 멀티 팩터 인증(MFA)을 위한 것입니다.
+
+![모델 번호: Cloudflare 액세스 그룹은 특정 그룹/개인에 대한 정의 기준에 대한 단순성을 허용합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-22.png "Figure 22 : Access group configuration with defined group criteria.")
+
+"Image and Video Gallery" 응용 프로그램에서 "Authentication"의 밑에 고객은이 응용 프로그램에 연결할 수 있습니다.
+
+![모델 번호: Cloudflare Access는 모든 주요 Identity Provider (IdPs)를 지원하며 사용자는 IdPs를 사용할 수 있는 수동으로 선택할 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-23.png "Figure 23 : Manually selecting identity providers users can use.")
+
+우리는 터널을 통해 원산지(s) 및 인증 및 액세스 정책을 통해 액세스 권한을 확보했습니다. 사용자가 사이트에 액세스하려고 할 때, 그들은 Cloudflare로 동의 설정된 IdP로 인증된 사용자를 위한 액세스 페이지; 페이지는 아래와 같이 고객의 liking에 사용자 지정할 수 있습니다.
+
+![Cloudflare 사용하기 회사의 IdP로 구성된 액세스는 응용 프로그램에 액세스하기 위해 인증 된 것입니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-24.png "Figure 24 : Sign-in via IdP configured in Access.")
+
+### 다른 Cloudflare 서비스를 사용하여 (CDN, WAF, 보안 분석, 등)
+
+현재 설정에서 기원 서버(s)는 Cloudflare0001ZZX 터널과 Cloudflare를 통해 Cloudflare 네트워크에 안전하게 연결됩니다. 인증 및 기타 보안 요구 사항을 충족하는 정책을 통해 액세스.
+
+Cloudflare는 이미 위치에 대한 역 프록시로 작동하고, 트래픽은 Cloudflare를 통해 지시되고, 그래서 모든 Cloudflare 서비스는 쉽게 CDN, 보안 분석, WAF, API Shield, Bot 관리, 클라이언트 측 보안을 위한 페이지 방패를 포함하여 레버리지될 수 있습니다.
+
+DNS 조회 요청이 해당 웹 사이트에 대한 클라이언트에 의해 만들어진 경우, 이 경우 "cftestsite3.com," Cloudflare는 anycast IP 주소를 반환, 그래서 모든 트래픽은 모든 서비스가 요청 전에 적용 될 가장 가까운 데이터 센터에 지시 Cloudflare 터널을 통해 원래 서버 (s).
+
+Cloudflare CDN은 Cloudflare의 글로벌 anycast 가장자리 네트워크를 활용합니다. 네트워크 성능과 탄력성에 대한 모든 캐스트를 사용 외에도 Cloudflare CDN 레버리지[Argo Tiered 캐시](/cache/how-to/tiered-cache/)고객의 비용을 절감하면서 최적화된 결과를 제공합니다. 고객도 가능[Argo 스마트 여정](/argo-smart-routing/)가장 빠른 네트워크 경로를 찾을 수 있습니다. 아래에 표시된대로 Cloudflare CDN은 이제 전 세계적으로 컨텐츠를 캐싱하고 기본 동작에 영향을 미치는 CDN 정책을 적용할 수 있습니다.
+
+![Cloudflare는 캐싱 데이터 및 성능에 대한 가시성을 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-25.png "Figure 25 : Cloudflare Caching Analytics.")
+
+있습니다.[다른 캐싱 토폴로지 및 구성 가능](/reference-architecture/architectures/cdn/). 아래에서 Cache 규칙이 도메인에 캐시 요청을 구성하고 TTL을 무시할 수 있습니다.
+
+![Cloudflare 캐시 규칙은 캐싱의 과립 통제를 허용합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-26.png "Figure 26 : Cloudflare rule configuration.")
+
+[Cloudflare 캐시 예약](/cache/advanced-configuration/cache-reserve/)대시보드에서 "Caching > Cache Reserve" 아래의 "Enable storage sync"버튼을 클릭하여 활성화되었습니다. 캐시 보전은 Cloudflare의 지속 가능한 객체 저장, R2를 활용하여 다른 공공 클라우드 공급자로부터 egress 비용을 제거합니다. 단일 버튼의 푸시로 고객을 지속적으로 캐시 데이터를 가능하게함으로써 캐시 히트 비율을 향상시킵니다.
+
+![Cloudflare는 CDN에 대한 지속적인 객체 저장을 제공하는 Cache Reserve의 원클릭 활성화를 제공하여 많은 클라우드 제공 업체에 의해 충전 된 egress 수수료로 줄일 수 있습니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-27.png "Figure 27 : Cloudflare Cache Reserve.")
+
+또한, 아래와 같이, Cloudflare Security Analytics는 Cloudflare의 탐지 기능을 모두 포함하고 각 사이트에가는 모든 트래픽에 대한 글로벌 뷰와 중요한 통찰력을 제공합니다. 트래픽은 Cloudflare 네트워크를 통해 경로가되고, Cloudflare는 대시보드, 로그 및보고에 고객에게 노출되는 위협과 통찰력으로 가시성을 가지고 있습니다.
+
+![모델 번호: Cloudflare 보안 보안 분석은 한 곳에서 Cloudflare의 탐지 기능을 모두 함께 가져옵니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-28.png "Figure 28 : Cloudflare Security Analytics.")
+
+Cloudflare WAF 규칙은 교통 인라인에 정책을 시행하기 위하여 적용될 수 있습니다. 방화벽 정책 아래는 \< 30 및 WAF 공격 점수 \< 50의 봇 점수로 모든 트래픽을 로그 할 수 있습니다. \< 30의 봇 점수는 자동화되거나 자동화되고 WAF 공격 점수 \< 50는 악의적 또는 악의적 인 것으로 분류 된 모든 트래픽을 나타냅니다.
+
+![Cloudflare WAF는 수시로 규칙이 명중하는 방법로 시정을 가진 규칙의 쉬운 윤곽을 허용합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-29.png "Figure 29 : Cloudflare WAF.")
+
+Cloudflare WAF는 더 많은 다른 요구 기준을 활용할 수 있는 과립상 정책을 허용합니다. 고객은 할 수 있습니다[다양한 작업](/firewall/cf-firewall-rules/actions/)로깅, 차단 및 도전을 포함하여.
+
+![Cloudflare는 요청 속성과 Cloudflare 데이터 / 필드의 조합에 일치하여 특정 작업을 수행해야합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-30.png "Figure 30 : Cloudflare WAF Rule Configuration.")
+
+고객은 WAF를 사용하여 사용자 정의 규칙, 제한 규칙 및 관리 규칙을 실행하고 사용할 수 있습니다. 각의 간단한 설명은 아래에 제공됩니다.
+
+- WAF 사용자 정의 규칙 : 다른 요청 속성 및 헤더 정보를 기반으로 사용자 정의 규칙을 생성 할 수있는 기능을 제공합니다.
+- 모델 번호: WAF 비율 제한 규칙: 남용, DDoS, 방어력 시도를 방지하고 API 중심 제어를 제공합니다.
+- WAF 관리 규칙
+  - Cloudflare 관리되는 통치자: 진보된 0 일 취약점 보호를 제공합니다
+  - Cloudflare OWASP 핵심 통치자: 구획 일반적인 웹 신청 취약점, OWASP 정상에 있는 몇몇 10
+  - Cloudflare 누출된 Credential 체크: 대중적인 내용 관리 체계 (CMS) 신청을 위한 드러낸 credential 데이타베이스를 검사하십시오
+
+동일한 방법론은 다른 Cloudflare 신청 성과와 안전 제품 (API Shield, Bot 관리, 등)를 위해 적용합니다: 일단 Cloudflare 네트워크를 통해서 교통을 노선하기 위하여 형성된, 고객은 Cloudflare 서비스를 레버리지 시작할 수 있습니다. Figure 31 Cloudflare의 Bot Analytics를 표시하여 봇 점수를 기반으로 트래픽을 분류하고 봇 점수 배포 및 기타 봇 분석을 보여줍니다. 모든 요청 데이터는 정의된 정책에 근거한 인라인 및 모든 강제로 캡처됩니다.
+
+![Cloudflare는 봇 점수 배포를 포함한 봇 트래픽으로 분석 및 통찰력을 제공합니다.](~/assets/images/reference-architecture/secure-application-delivery-design-guide/secure-app-dg-fig-31.png "Figure 31 : Cloudflare Bot Management - Bot Analytics.")
+
+## 제품정보
+
+Cloudflare는 종합적인 신청 성과 및 안전 서비스를 제안합니다. 고객은 Clooudflare의 네트워크로 트래픽을 라우팅하여 모든 성능과 보안 서비스를 쉽게 통합하고 시작할 수 있습니다. 또한, Cloudflare는 Cloudflare 터널을 포함하여 여러 연결 옵션이 제공되며 Cloudflare의 네트워크에 안전하게 연결됩니다.

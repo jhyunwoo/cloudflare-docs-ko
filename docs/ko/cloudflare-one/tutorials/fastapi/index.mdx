@@ -1,0 +1,113 @@
+---
+reviewed: 2023-06-09T00:00:00.000Z
+category: Access
+difficulty: Beginner
+pcx_content_type: tutorial
+title: FastAPI로 액세스 토큰을 검증
+tags:
+  - Python
+description: >-
+  이 튜토리얼은 Access JWT가 FastAPI 앱으로 만든 요청에 있는지 검증하는 방법을 다룹니다. 이 코드는 Python로
+  작성되었습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/cloudflare-one/tutorials/fastapi/'
+translation_source_md: 'https://developers.cloudflare.com/cloudflare-one/tutorials/fastapi/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 튜토리얼은 검증하는 방법을 다룹니다.[액세스 JWT](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)FastAPI 앱으로 만든 요청입니다.
+
+**완료 시간:**&#x31;5 분
+
+## 자주 묻는 질문
+
+- ·[셀프 호스팅 액세스 응용](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)FastAPI 앱
+- 더 보기[AUD 태그](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#get-your-aud-tag)당신의 접근 신청
+
+## 1. 검증 함수 만들기
+
+1. FastAPI 프로젝트에서 새로운 파일을 호출합니다.`cloudflare.py`다음 코드를 포함:
+
+```python
+from fastapi import Request, HTTPException
+
+#신청 Audience (AUD) 당신의 신청을 위한 꼬리표
+POLICY_AUD = "XXXXX"
+
+#당신의 CF Access 팀 도메인
+TEAM_DOMAIN = "https://<your-team-name>.cloudflareaccess.com"
+CERTS_URL = "{}/cdn-cgi/access/certs".format(TEAM_DOMAIN)
+
+async def validate_cloudflare(request: Request):
+    """
+    Validate that the request is authenticated by Cloudflare Access.
+    """
+    if verify_token(request) != True:
+        raise HTTPException(status_code=400, detail="Not authenticated properly!")
+
+
+def _get_public_keys():
+    """
+    Returns:
+        List of RSA public keys usable by PyJWT.
+    """
+    r = requests.get(CERTS_URL)
+    public_keys = []
+    jwk_set = r.json()
+    for key_dict in jwk_set["keys"]:
+        public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key_dict))
+        public_keys.append(public_key)
+    return public_keys
+
+
+def verify_token(request):
+    """
+    Verify the token in the request.
+    """
+    token = ""
+
+    if "CF_Authorization" in request.cookies:
+        token = request.cookies["CF_Authorization"]
+    else:
+        raise HTTPException(status_code=400, detail="missing required cf authorization token")
+
+    keys = _get_public_keys()
+
+    #우리가 디코더에 열쇠 세트를 통과할 수 없기 때문에 열쇠를 통해서 반복
+    valid_token = False
+    for key in keys:
+        try:
+            #decode는 필요할 때 이메일이 있는 주장을 반환합니다.
+            jwt.decode(token, key=key, audience=POLICY_AUD, algorithms=["RS256"])
+            valid_token = True
+            break
+        except:
+            raise HTTPException(status_code=400, detail="Error decoding token")
+    if not valid_token:
+        raise HTTPException(status_code=400, detail="Invalid token")
+
+    return True
+
+```
+
+## 2. 앱의 유효성 기능 사용
+
+이제 FastAPI 앱의 의존성으로 검증 기능을 추가할 수 있습니다. 이것을 할 수있는 한 가지 방법[`APIRouter`이름 \*](https://fastapi.tiangolo.com/tutorial/bigger-applications/#another-module-with-apirouter). 다음 예제는 각 요청에 대한 유효성을 실행합니다.`/admin`:
+
+```python
+from fastapi import APIRouter, Depends, HTTPException
+from cloudflare import validate_cloudflare
+
+router = APIRouter(
+    prefix="/admin",
+    tags=["admin"],
+    dependencies=[Depends(validate_cloudflare)]
+    responses={404: {"description": "Not found"}},
+)
+
+@router.get("/")
+async def root():
+    return {"message": "Hello World"}
+```

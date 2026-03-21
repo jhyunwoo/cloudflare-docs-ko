@@ -1,0 +1,810 @@
+---
+title: 비밀번호
+pcx_content_type: how-to
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/objects/upload-objects/'
+translation_source_md: 'https://developers.cloudflare.com/r2/objects/upload-objects/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Steps, Tabs, TabItem, Render, DashButton, LinkCard, TypeScriptExample } from "~/components"
+
+R2에 개체를 업로드하는 몇 가지 방법이 있습니다. 당신이 선택하는 어떤 접근은 당신의 목표 및 당신의 성과 필요조건의 크기에 달려 있습니다.
+
+## 업로드 방법 선택
+
+|              | 단일 업로드 (`PUT`)          | Multipart 업로드                           |
+| ------------ | ----------------------- | --------------------------------------- |
+| **제품 정보**    | 중간 파일에 작은 (\~100 MB 이하) | 큰 파일, 또는 당신은 병렬 및 resumability를 필요로 할 때 |
+| **최대 객체 크기** | 5 지브                    | 5 TiB (최대 10,000 부품)                    |
+| **부품 크기**    | 사이트맵                    | 5 MiB - 부품 당 5 GiB                      |
+| **옵션 정보**    | No — 전체 업로드를 다시 시작해야    | 예 —만 재사용할 필요가 없습니다.                     |
+| **관련 링크**    | 이름 \*                   | 예 - 부품은 동시 업로드 가능                       |
+| **이용 시**     | 작은 개체의 빠르고 간단한 업로드      | 비디오, 백업, 데이터 세트 또는 신뢰성이 중요 한 파일         |
+
+:::참조
+대부분의 S3- 호환 SDK 및 도구 (예 :`rclone`) configurable 임계값에 근거를 둔 큰 파일을 위한 자동적으로 multipart 올려주기를 선택합니다. 일반적으로 S3 API를 사용할 때 멀티 파트 로직을 직접 구현할 필요가 없습니다.
+주요 특징
+
+## dashboard를 통해 업로드
+
+QXQX0885XQQ QXdashboard에서 물통에 목표를 업로드하려면:
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**R2 객체 저장**사이트 맵
+
+     <DashButton url="/?to=/:account/r2/overview" />
+  2. 당신의 물통을 선택하십시오.
+  3. 제품정보**제품정보**.
+  4. 파일을 업로드 영역 또는 드롭**컴퓨터에서 선택**.
+</Steps>
+
+성공적인 업로드 후 확인 메시지를 받게 됩니다.
+
+## Workers API를 통해 업로드
+
+사용 R2[관련 제품](/workers/runtime-apis/bindings/)Workers에서 오브젝트 서버 측을 업로드합니다. 더 알아보기[R2XQXQXQXQXQ에서 사용](/r2/api/workers/workers-api-usage/)R2 바인딩을 설정하는 방법에 대한 지침.
+
+### 단일 업로드
+
+제품 정보`put()`단일 요청에 객체를 업로드합니다. 이것은 중간 개체에 대한 가장 간단한 접근입니다.
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		try {
+  			const object = await env.MY_BUCKET.put("image.png", request.body, {
+  				httpMetadata: {
+  					contentType: "image/png",
+  				},
+  			});
+
+  			if (object === null) {
+  				return new Response("Precondition failed or upload returned null", { status: 412 });
+  			}
+
+  			return Response.json({
+  				key: object.key,
+  				size: object.size,
+  				etag: object.etag,
+  			});
+  		} catch (err) {
+  			return new Response(`Upload failed: ${err}`, { status: 500 });
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+### Multipart 업로드
+
+제품 정보`createMultipartUpload()`·`resumeMultipartUpload()`큰 파일을 위해 또는 당신이 평행한에 있는 부속을 업로드해야 할 때. 각 부분은 적어도 5 MiB이어야합니다 (마지막 부분을 제외하고).
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const key = "large-file.bin";
+
+  		//새로운 멀티플레이 업로드 만들기
+  		const multipartUpload = await env.MY_BUCKET.createMultipartUpload(key);
+
+  		try {
+  			//실제 애플리케이션에서는 실제 데이터 펑크가 될 것입니다.
+  			//마지막을 제외하고 각 부분은 적어도 5 MiB이어야 합니다.
+  			const firstChunk = new Uint8Array(5 * 1024 * 1024); //회사연혁
+  			const secondChunk = new Uint8Array(1024); //회사연혁
+
+  			const part1 = await multipartUpload.uploadPart(1, firstChunk);
+  			const part2 = await multipartUpload.uploadPart(2, secondChunk);
+
+  			//모든 부품으로 업로드 완료
+  			const object = await multipartUpload.complete([part1, part2]);
+
+  			return Response.json({
+  				key: object.key,
+  				etag: object.httpEtag,
+  			});
+  		} catch (err) {
+  			//실패에 대한 정렬 그래서 불완전한 업로드는 저장에 대해 계산하지 않습니다
+  			await multipartUpload.abort();
+  			return new Response(`Multipart upload failed: ${err}`, { status: 500 });
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+대부분의 경우, multipart 상태 (the`uploadId`그리고 업로드된 부분 ETags)는 클라이언트가 당신의 노동자에게 요청을 보내는 추적됩니다. 다음 예제는 클라이언트 애플리케이션이 생성, 업로드 부분을 호출할 수 있는 HTTP API를 노출하고, 복수 업로드를 완료합니다:
+
+<TypeScriptExample>
+  ```ts
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const url = new URL(request.url);
+  		const key = url.pathname.slice(1);
+  		const action = url.searchParams.get("action");
+
+  		if (!key || !action) {
+  			return new Response("Missing key or action", { status: 400 });
+  		}
+
+  		switch (action) {
+  			//단계 1: 클라이언트 호출 POST /<key>?action=mpu-create
+  			case "mpu-create": {
+  				const upload = await env.MY_BUCKET.createMultipartUpload(key);
+  				return Response.json({ key: upload.key, uploadId: upload.uploadId });
+  			}
+
+  			//단계 2: 클라이언트 호출 PUT /<key>?action=mpu-uploadpart&uploadId=...&partNumber=...
+  			case "mpu-uploadpart": {
+  				const uploadId = url.searchParams.get("uploadId");
+  				const partNumber = Number(url.searchParams.get("partNumber"));
+  				if (!uploadId || !partNumber || !request.body) {
+  					return new Response("Missing uploadId, partNumber, or body", { status: 400 });
+  				}
+  				const upload = env.MY_BUCKET.resumeMultipartUpload(key, uploadId);
+  				try {
+  					const part = await upload.uploadPart(partNumber, request.body);
+  					return Response.json(part);
+  				} catch (err) {
+  					return new Response(String(err), { status: 400 });
+  				}
+  			}
+
+  			//단계 3: 클라이언트 호출 POST /<key>?action=mpu-complete&uploadId=...
+  			case "mpu-complete": {
+  				const uploadId = url.searchParams.get("uploadId");
+  				if (!uploadId) {
+  					return new Response("Missing uploadId", { status: 400 });
+  				}
+  				const upload = env.MY_BUCKET.resumeMultipartUpload(key, uploadId);
+  				const body = await request.json<{ parts: R2UploadedPart[] }>();
+  				try {
+  					const object = await upload.complete(body.parts);
+  					return new Response(null, {
+  						headers: { etag: object.httpEtag },
+  					});
+  				} catch (err) {
+  					return new Response(String(err), { status: 400 });
+  				}
+  			}
+
+  			//in-progress 업로드
+  			case "mpu-abort": {
+  				const uploadId = url.searchParams.get("uploadId");
+  				if (!uploadId) {
+  					return new Response("Missing uploadId", { status: 400 });
+  				}
+  				const upload = env.MY_BUCKET.resumeMultipartUpload(key, uploadId);
+  				try {
+  					await upload.abort();
+  				} catch (err) {
+  					return new Response(String(err), { status: 400 });
+  				}
+  				return new Response(null, { status: 204 });
+  			}
+
+  			default:
+  				return new Response(`Unknown action: ${action}`, { status: 400 });
+  		}
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+완전한 Workers API reference를 위해, 참조하십시오[Workers API reference](/r2/api/workers/workers-api-reference/).
+
+### 할당된 URL (Workers)
+
+클라이언트가 필요할 때 (브라우저, 모바일 앱)는 작업자를 통해 프록시하지 않고 R2XQ에 직접 업로드하기 위해 사전 서명 된 URL 서버 측을 생성하고 클라이언트에게 손을 넣습니다.
+
+<TypeScriptExample>
+  ```ts
+  import { AwsClient } from "aws4fetch";
+
+  interface Env {
+  	R2_ACCESS_KEY_ID: string;
+  	R2_SECRET_ACCESS_KEY: string;
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env): Promise<Response> {
+  		const r2 = new AwsClient({
+  			accessKeyId: env.R2_ACCESS_KEY_ID,
+  			secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+  		});
+
+  		//1 시간 동안 사전 서명 된 PUT URL을 생성
+  		const url = new URL(
+  			"https://<ACCOUNT_ID>.r2.cloudflarestorage.com/my-bucket/image.png",
+  		);
+  		url.searchParams.set("X-Amz-Expires", "3600");
+
+  		const signed = await r2.sign(
+  			new Request(url, { method: "PUT" }),
+  			{ aws: { signQuery: true } },
+  		);
+
+  		//클라이언트에 서명한 URL을 반환 — 그들은 R2XQ에 직접 PUT 할 수 있습니다
+  		return Response.json({ url: signed.url });
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+GET, PUT 및 보안 모범 사례를 포함한 전체 사전 서명된 URL 문서의 경우, 참조[위탁된 URL](/r2/api/s3/presigned-urls/).
+
+## S3 API를 통해 업로드
+
+S3-compatible SDK를 사용하여 객체를 업로드합니다. 당신은 당신의 필요[계정 ID](/fundamentals/account/find-account-and-zone-ids/)·[R2 API 토큰](/r2/api/tokens/).
+
+### 단일 업로드
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+    import { readFile } from "node:fs/promises";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const fileContent = await readFile("./image.png");
+
+    const response = await S3.send(
+    	new PutObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "image.png",
+    		Body: fileContent,
+    		ContentType: "image/png",
+    	}),
+    );
+    console.log(`Uploaded successfully. ETag: ${response.ETag}`);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+    import { readFile } from "node:fs/promises";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const fileContent = await readFile("./image.png");
+
+    const response = await S3.send(
+    	new PutObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "image.png",
+    		Body: fileContent,
+    		ContentType: "image/png",
+    	}),
+    );
+    console.log(`Uploaded successfully. ETag: ${response.ETag}`);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+        service_name="s3",
+        endpoint_url="https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+        aws_access_key_id="<ACCESS_KEY_ID>",
+        aws_secret_access_key="<SECRET_ACCESS_KEY>",
+        region_name="auto",
+    )
+
+    with open("./image.png", "rb") as f:
+        response = s3.put_object(
+            Bucket="my-bucket",
+            Key="image.png",
+            Body=f,
+            ContentType="image/png",
+        )
+        print(f"Uploaded successfully. ETag: {response['ETag']}")
+    ```
+  </TabItem>
+</Tabs>
+
+### Multipart 업로드
+
+대부분의 S3 SDK는 파일이 설정가능한 임계값을 초과할 때 자동으로 멀티 파트 업로드를 처리합니다. 아래 예제는 자동 (고수준) 및 수동 (낮 레벨) 접근 방식을 모두 보여줍니다.
+
+#### 자동 multipart 업로드
+
+SDK는 파일과 파일을 병렬로 변환합니다.
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { S3Client } from "@aws-sdk/client-s3";
+    import { Upload } from "@aws-sdk/lib-storage";
+    import { createReadStream } from "node:fs";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const upload = new Upload({
+    	client: S3,
+    	params: {
+    		Bucket: "my-bucket",
+    		Key: "large-file.bin",
+    		Body: createReadStream("./large-file.bin"),
+    	},
+    	//평행한 (과태에 있는 부속 업로드하십시오: 4)
+    	leavePartsOnError: false,
+    });
+
+    upload.on("httpUploadProgress", (progress) => {
+    	console.log(`Uploaded ${progress.loaded ?? 0} bytes`);
+    });
+
+    const result = await upload.done();
+    console.log(`Upload complete. ETag: ${result.ETag}`);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { S3Client } from "@aws-sdk/client-s3";
+    import { Upload } from "@aws-sdk/lib-storage";
+    import { createReadStream } from "node:fs";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const upload = new Upload({
+    	client: S3,
+    	params: {
+    		Bucket: "my-bucket",
+    		Key: "large-file.bin",
+    		Body: createReadStream("./large-file.bin"),
+    	},
+    	leavePartsOnError: false,
+    });
+
+    upload.on("httpUploadProgress", (progress) => {
+    	console.log(`Uploaded ${progress.loaded ?? 0} bytes`);
+    });
+
+    const result = await upload.done();
+    console.log(`Upload complete. ETag: ${result.ETag}`);
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+        service_name="s3",
+        endpoint_url="https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+        aws_access_key_id="<ACCESS_KEY_ID>",
+        aws_secret_access_key="<SECRET_ACCESS_KEY>",
+        region_name="auto",
+    )
+
+    #upload file 자동적으로 큰 파일에 대 한 multipart를 사용
+    s3.upload_file(
+        Filename="./large-file.bin",
+        Bucket="my-bucket",
+        Key="large-file.bin",
+    )
+    ```
+  </TabItem>
+</Tabs>
+
+#### 수동 multipart 업로드
+
+일부 크기 또는 업로드 순서에 전체 제어를 필요로 할 때 낮은 수준의 API를 사용하십시오.
+
+<Tabs>
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import {
+    	S3Client,
+    	CreateMultipartUploadCommand,
+    	UploadPartCommand,
+    	CompleteMultipartUploadCommand,
+    	AbortMultipartUploadCommand,
+    	type CompletedPart,
+    } from "@aws-sdk/client-s3";
+    import { createReadStream, statSync } from "node:fs";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const bucket = "my-bucket";
+    const key = "large-file.bin";
+    const partSize = 10 * 1024 * 1024; //부품 당 10 MiB
+
+    //단계 1: 복수 업로드 만들기
+    const { UploadId } = await S3.send(
+    	new CreateMultipartUploadCommand({ Bucket: bucket, Key: key }),
+    );
+
+    try {
+    	const fileSize = statSync("./large-file.bin").size;
+    	const partCount = Math.ceil(fileSize / partSize);
+    	const parts: CompletedPart[] = [];
+
+    	//단계 2: 각 부분을 업로드
+    	for (let i = 0; i < partCount; i++) {
+    		const start = i * partSize;
+    		const end = Math.min(start + partSize, fileSize);
+    		const { ETag } = await S3.send(
+    			new UploadPartCommand({
+    				Bucket: bucket,
+    				Key: key,
+    				UploadId,
+    				PartNumber: i + 1,
+    				Body: createReadStream("./large-file.bin", { start, end: end - 1 }),
+    				ContentLength: end - start,
+    			}),
+    		);
+    		parts.push({ PartNumber: i + 1, ETag });
+    	}
+
+    	//단계 3: 업로드 완료
+    	await S3.send(
+    		new CompleteMultipartUploadCommand({
+    			Bucket: bucket,
+    			Key: key,
+    			UploadId,
+    			MultipartUpload: { Parts: parts },
+    		}),
+    	);
+    	console.log("Multipart upload complete.");
+    } catch (err) {
+    	//불완전한 부속을 청소하는 실패에 Abort
+    	try {
+    		await S3.send(
+    			new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId }),
+    		);
+    	} catch (_abortErr) {
+    		//Best-effort cleanup - 원래 오류가 더 중요합니다.
+    	}
+    	throw err;
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import {
+    	S3Client,
+    	CreateMultipartUploadCommand,
+    	UploadPartCommand,
+    	CompleteMultipartUploadCommand,
+    	AbortMultipartUploadCommand,
+    } from "@aws-sdk/client-s3";
+    import { createReadStream, statSync } from "node:fs";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const bucket = "my-bucket";
+    const key = "large-file.bin";
+    const partSize = 10 * 1024 * 1024; //부품 당 10 MiB
+
+    //단계 1: 복수 업로드 만들기
+    const { UploadId } = await S3.send(
+    	new CreateMultipartUploadCommand({ Bucket: bucket, Key: key }),
+    );
+
+    try {
+    	const fileSize = statSync("./large-file.bin").size;
+    	const partCount = Math.ceil(fileSize / partSize);
+    	const parts = [];
+
+    	//단계 2: 각 부분을 업로드
+    	for (let i = 0; i < partCount; i++) {
+    		const start = i * partSize;
+    		const end = Math.min(start + partSize, fileSize);
+    		const { ETag } = await S3.send(
+    			new UploadPartCommand({
+    				Bucket: bucket,
+    				Key: key,
+    				UploadId,
+    				PartNumber: i + 1,
+    				Body: createReadStream("./large-file.bin", { start, end: end - 1 }),
+    				ContentLength: end - start,
+    			}),
+    		);
+    		parts.push({ PartNumber: i + 1, ETag });
+    	}
+
+    	//단계 3: 업로드 완료
+    	await S3.send(
+    		new CompleteMultipartUploadCommand({
+    			Bucket: bucket,
+    			Key: key,
+    			UploadId,
+    			MultipartUpload: { Parts: parts },
+    		}),
+    	);
+    	console.log("Multipart upload complete.");
+    } catch (err) {
+    	//불완전한 부속을 청소하는 실패에 Abort
+    	try {
+    		await S3.send(
+    			new AbortMultipartUploadCommand({ Bucket: bucket, Key: key, UploadId }),
+    		);
+    	} catch (_abortErr) {
+    		//Best-effort cleanup - 원래 오류가 더 중요합니다.
+    	}
+    	throw err;
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    import boto3
+    import math
+    import os
+
+    s3 = boto3.client(
+        service_name="s3",
+        endpoint_url="https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+        aws_access_key_id="<ACCESS_KEY_ID>",
+        aws_secret_access_key="<SECRET_ACCESS_KEY>",
+        region_name="auto",
+    )
+
+    bucket = "my-bucket"
+    key = "large-file.bin"
+    file_path = "./large-file.bin"
+    part_size = 10 * 1024 * 1024  #부품 당 10 MiB
+
+    #단계 1: 복수 업로드 만들기
+    mpu = s3.create_multipart_upload(Bucket=bucket, Key=key)
+    upload_id = mpu["UploadId"]
+
+    try:
+        file_size = os.path.getsize(file_path)
+        part_count = math.ceil(file_size / part_size)
+        parts = []
+
+        #단계 2: 각 부분을 업로드
+        with open(file_path, "rb") as f:
+            for i in range(part_count):
+                data = f.read(part_size)
+                response = s3.upload_part(
+                    Bucket=bucket,
+                    Key=key,
+                    UploadId=upload_id,
+                    PartNumber=i + 1,
+                    Body=data,
+                )
+                parts.append({"PartNumber": i + 1, "ETag": response["ETag"]})
+
+        #단계 3: 업로드 완료
+        s3.complete_multipart_upload(
+            Bucket=bucket,
+            Key=key,
+            UploadId=upload_id,
+            MultipartUpload={"Parts": parts},
+        )
+        print("Multipart upload complete.")
+    except Exception:
+        #불완전한 부속을 청소하는 실패에 Abort
+        try:
+            s3.abort_multipart_upload(Bucket=bucket, Key=key, UploadId=upload_id)
+        except Exception:
+            pass  #Best-effort cleanup - 원래 오류가 더 중요합니다.
+        raise
+    ```
+  </TabItem>
+</Tabs>
+
+### 할당된 URL (S3 API)
+
+클라이언트 측 업로드를 위해 사용자가 서버를 통해 이동하지 않고 R2XQ에 직접 업로드하는 경우, presigned PUT URL을 생성합니다. 서버는 URL과 클라이언트의 업로드를 만듭니다. — API 자격 증명은 클라이언트에 노출되지 않습니다.
+
+<Tabs>
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+    import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const presignedUrl = await getSignedUrl(
+    	S3,
+    	new PutObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "user-upload.png",
+    		ContentType: "image/png",
+    	}),
+    	{ expiresIn: 3600 }, //1 시간 동안 유효
+    );
+
+    console.log(presignedUrl);
+    //반환 presignedUrl 클라이언트
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+    import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+
+    const S3 = new S3Client({
+    	region: "auto",
+    	endpoint: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com`,
+    	credentials: {
+    		accessKeyId: "<ACCESS_KEY_ID>",
+    		secretAccessKey: "<SECRET_ACCESS_KEY>",
+    	},
+    });
+
+    const presignedUrl = await getSignedUrl(
+    	S3,
+    	new PutObjectCommand({
+    		Bucket: "my-bucket",
+    		Key: "user-upload.png",
+    		ContentType: "image/png",
+    	}),
+    	{ expiresIn: 3600 }, //1 시간 동안 유효
+    );
+
+    console.log(presignedUrl);
+    //반환 presignedUrl 클라이언트
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    import boto3
+
+    s3 = boto3.client(
+        service_name="s3",
+        endpoint_url="https://<ACCOUNT_ID>.r2.cloudflarestorage.com",
+        aws_access_key_id="<ACCESS_KEY_ID>",
+        aws_secret_access_key="<SECRET_ACCESS_KEY>",
+        region_name="auto",
+    )
+
+    presigned_url = s3.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": "my-bucket",
+            "Key": "user-upload.png",
+            "ContentType": "image/png",
+        },
+        ExpiresIn=3600,  #1 시간 동안 유효
+    )
+
+    print(presigned_url)
+    #반환 presigned url 클라이언트에
+    ```
+  </TabItem>
+</Tabs>
+
+전체 할당된 URL 문서의 경우, 참조[위탁된 URL](/r2/api/s3/presigned-urls/).
+
+R2의 참조[S3 API 문서](/r2/api/s3/api/)지원되는 S3 API 방법을 위해.
+
+## CLI를 통해 업로드
+
+### 구독하기
+
+[구독하기](https://rclone.org/)클라우드 스토리지에 파일을 관리하기위한 명령 줄 도구입니다. Rclone는 로컬 머신에서 여러 파일을 업로드하거나 다른 클라우드 스토리지 공급자로부터 데이터를 복사하기 위해 잘 작동합니다.
+
+rclone를 사용하려면 공식 문서를 사용하여 기계에 설치하십시오.[rclone 설치](https://rclone.org/install/).
+
+파일 업로드`rclone copy`명령:
+
+```sh
+#단일 파일 업로드
+rclone copy /path/to/local/image.png r2:bucket_name
+
+#디렉토리에 모든 업로드
+rclone copy /path/to/local/folder r2:bucket_name
+```
+
+첨부파일`rclone ls`:
+
+```sh
+rclone ls r2:bucket_name
+```
+
+더 많은 정보를 원하시면,[rclone 예제](/r2/examples/rclone/).
+
+### Wrangler
+
+:::참조
+
+Wrangler는 업로드 파일을 최대 315 MB 지원하며 한 번에 하나의 객체를 허용합니다. 큰 파일 또는 대량 업로드의 경우, 사용[뚱 베어](/r2/examples/rclone/)또는 다른[S3 호환](/r2/api/s3/)도구.
+
+:::
+
+제품 정보[Wrangler](/workers/wrangler/install-and-update/)물체를 업로드. 시작하기[`r2 object put`이름 \*](/workers/wrangler/commands/#r2-object-put):
+
+```sh
+wrangler r2 object put test-bucket/image.png --file=image.png
+```
+
+설정할 수 있습니다.`Content-Type`(MIME 유형),`Content-Disposition`, `Cache-Control`옵션 플래그를 통해 다른 HTTP 헤더 메타데이터.
+
+## Multipart 업로드 세부사항
+
+### 부품 크기 제한
+
+- 최소 부분 크기 : 5 MiB (마지막 부분 제외)
+- 최대 부분 크기: 5 GiB
+- 최대 부품 수: 10,000
+- 마지막을 제외하고 모든 부속은 동일한 크기이어야 합니다
+
+### Incomplete 업로드 수명주기
+
+불완전한 복수 업로드는 기본적으로 7 일 후에 자동적으로 낙관됩니다. 이렇게 변경할 수 있습니다.[사용자 정의 Lifecycle 정책을 구성](/r2/buckets/object-lifecycles/).
+
+### 기타
+
+multipart를 통해 업로드된 개체의 ETags는 업로드된 것들과 다릅니다`PUT`. 각 부분의 ETag는 그 부분의 내용의 MD5 해시입니다. 완료된 multipart 객체의 ETag는 모든 부분의 concatenated 바이너리 MD5 요약의 해시이며, hyphen과 부품의 수에 따라 다릅니다.
+
+예를 들어, 두 부분 업로드가 ETags의 경우`bce6bf66aeb76c7040fdd5f4eccb78e6`·`8165449fc15bbf43d3b674595cbcc406`ETag의 완성된 객체는`f77dc0eecdebcd774a2a22cb393ad2ff-2`.
+
+## 관련 자료
+
+<LinkCard title="Workers API reference" href="/r2/api/workers/workers-api-reference/" description="referenceXQXQXQXQXQXWorkersXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQXQX" />
+
+<LinkCard title="S3 API 호환성" href="/r2/api/s3/api/" description="지원된 S3 API 가동 및 R2 별 행동." />
+
+<LinkCard title="위탁된 URL" href="/r2/api/s3/presigned-urls/" description="임시 업로드 및 클라이언트 측 액세스에 대한 URL을 다운로드합니다." />
+
+<LinkCard title="목표 수명주기" href="/r2/buckets/object-lifecycles/" description="incomplete multipart의 자동적인 정리를 형성하십시오." />

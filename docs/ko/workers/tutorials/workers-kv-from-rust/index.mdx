@@ -1,0 +1,211 @@
+---
+reviewed: 2024-05-15T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: Workers KV를 직접 사용하십시오
+products:
+  - kv
+tags:
+  - Rust
+description: >-
+  이 튜토리얼은 KVXQ에 직접 RustQXQ를 읽고 쓰기하는 방법을 가르칩니다. Workers QXKVXQXQXQXQ를 사용하여 앱을
+  저장하고 검색 도시를 구축합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/tutorials/workers-kv-from-rust/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/tutorials/workers-kv-from-rust/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+이 튜토리얼은 KV에 직접 Rust에 읽고 쓰는 방법을 가르칠 것입니다
+이름 \*[채용정보](https://github.com/cloudflare/workers-rs).
+
+<Render file="tutorials-before-you-start" product="workers" />
+
+## 자주 묻는 질문
+
+이 튜토리얼을 완료하려면 다음을해야합니다.
+
+- [사이트맵](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git).
+- [모델 번호: Wrangler](/workers/wrangler/)로그인
+- 더 보기[모델 번호: Rust](https://www.rust-lang.org/tools/install)툴체인.
+- 이름 \*`cargo-generate`실행에 의해 sub-command:
+
+```sh
+cargo install cargo-generate
+```
+
+## 1. Rust에 있는 노동자 프로젝트를 창조하십시오
+
+터미널 창을 열고 다음 명령을 실행하여 Rust의 Worker 프로젝트 템플릿을 생성합니다.
+
+```sh
+cargo generate cloudflare/workers-rs
+```
+
+다음 선택`template/hello-world-http`템플릿은, 기술적인 이름을 주고 입력을 선택합니다. 새 프로젝트는 디렉토리에 생성되어야 합니다. 편집기에서 프로젝트를 열고 실행`npx wrangler dev`프로젝트를 컴파일하고 실행합니다.
+
+이 튜토리얼에서는 Workers KVXQXQXQXQXQXQ를 사용하여 해당 국가 이름으로 도시를 저장하고 검색하는 응용 프로그램을 구축합니다.
+
+## 2. KV 네임스페이스 만들기
+
+터미널에서 Wrangler를 사용하여 KV 네임스페이스를 만들 수 있습니다.`cities`. 이 프로젝트에 추가될 구성을 생성합니다:
+
+```sh
+npx wrangler kv namespace create cities
+```
+
+프로젝트에 이 구성을 추가하려면 Wrangler 파일을 열고 항목 만들기`kv_namespaces`빌드 명령의 위:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"kv_namespaces": [
+  		{
+  			"binding": "cities",
+  			"id": "e29b263ab50e42ce9b637fa8370175e8"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+이 구성으로, 당신은 바인딩을 가진 KV namespace에 접근할 수 있습니다`"cities"`Rust에서.
+
+## 3. KV에 자료를 쓰기
+
+이 응용 프로그램을 위해, 당신은 두 가지 노선을 만들 것입니다: A`POST`KV에서 도시를 수신하고 저장하는 경로, 및`GET`지정된 국가의 도시를 검색하는 경로. 예를 들어,`POST`지원하다`/France`몸으로`{"city": "Paris"}`프랑스의 도시로 파리의 입장을 만들려면. ·`GET`지원하다`/France`KV에서 검색하고 파리에 응답해야합니다.
+
+설치하기[사이트맵](https://serde.rs/)JSON을 처리하는 프로젝트 의존성`cargo add serde`. 그런 다음 앱 라우터를 만들고 struct for`Country`내 계정`src/lib.rs`:
+
+```rust null {1,6,8,9,10,11,15,17}
+use serde::{Deserialize, Serialize};
+use worker::*;
+
+#[event(fetch)]
+async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    let router = Router::new();
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Country {
+        city: String,
+    }
+
+    router
+        // TODO:
+        .post_async("/:country", |_, _| async move { Response::empty() })
+        // TODO:
+        .get_async("/:country", |_, _| async move { Response::empty() })
+        .run(req, env)
+        .await
+}
+
+```
+
+포스트 핸들러의 경우, 요청 몸에서 경로와 도시 이름에서 국가 이름을 검색합니다. 그런 다음 KV에서 키와 값으로 도시를 저장합니다. 마지막으로, 앱은 도시 이름과 응답합니다.
+
+```rust
+.post_async("/:country", |mut req, ctx| async move {
+    let country = ctx.param("country").unwrap();
+    let city = match req.json::<Country>().await {
+        Ok(c) => c.city,
+        Err(_) => String::from(""),
+    };
+    if city.is_empty() {
+        return Response::error("Bad Request", 400);
+    };
+    return match ctx.kv("cities")?.put(country, &city)?.execute().await {
+        Ok(_) => Response::ok(city),
+        Err(_) => Response::error("Bad Request", 400),
+    };
+})
+```
+
+파일을 저장하고 만들기`POST`이 endpoint를 시험하는 요구:
+
+```sh
+curl --json '{"city": "Paris"}' http://localhost:8787/France
+```
+
+## 4. KV에서 자료를 읽으십시오
+
+KV에 저장된 도시를 검색하려면, 쓰기`GET`경로에서 국가 이름을 끌어 KV. 국가가 발견되지 않은 경우도 오류 처리가 필요합니다.
+
+```rust
+.get_async("/:country", |_req, ctx| async move {
+    if let Some(country) = ctx.param("country") {
+        return match ctx.kv("cities")?.get(country).text().await? {
+            Some(city) => Response::ok(city),
+            None => Response::error("Country not found", 404),
+        };
+    }
+    Response::error("Bad Request", 400)
+})
+```
+
+저장하고 endpoint를 시험하기 위하여 컬 요구에 만드십시오:
+
+```sh
+curl http://localhost:8787/France
+```
+
+## 5. 프로젝트 배포
+
+완료된 앱의 소스 코드는 다음과 같습니다.
+
+```rust
+use serde::{Deserialize, Serialize};
+use worker::*;
+
+#[event(fetch)]
+async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
+    let router = Router::new();
+
+    #[derive(Serialize, Deserialize, Debug)]
+    struct Country {
+        city: String,
+    }
+
+    router
+        .post_async("/:country", |mut req, ctx| async move {
+            let country = ctx.param("country").unwrap();
+            let city = match req.json::<Country>().await {
+                Ok(c) => c.city,
+                Err(_) => String::from(""),
+            };
+            if city.is_empty() {
+                return Response::error("Bad Request", 400);
+            };
+            return match ctx.kv("cities")?.put(country, &city)?.execute().await {
+                Ok(_) => Response::ok(city),
+                Err(_) => Response::error("Bad Request", 400),
+            };
+        })
+        .get_async("/:country", |_req, ctx| async move {
+            if let Some(country) = ctx.param("country") {
+                return match ctx.kv("cities")?.get(country).text().await? {
+                    Some(city) => Response::ok(city),
+                    None => Response::error("Country not found", 404),
+                };
+            }
+            Response::error("Bad Request", 400)
+        })
+        .run(req, env)
+        .await
+}
+```
+
+노동자를 배포하려면 다음 명령을 실행하십시오.
+
+```sh
+npx wrangler deploy
+```
+
+## 관련 자료
+
+- [Rust 지원 Workers](/workers/languages/rust/).
+- [KVXQXQXQXQXQ](/kv/get-started/).

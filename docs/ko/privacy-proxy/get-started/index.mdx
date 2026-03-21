@@ -1,0 +1,115 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/privacy-proxy/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/privacy-proxy/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 개인 정보 보호 프록시에 연결하고 트래픽이 제대로 발음되는지 확인합니다.
+
+## 시작하기 전에
+
+Privacy Proxy는 관리 서비스입니다. 연결하기 전에 Cloudflare는 엔드포인트를 제공하고 당신에게 제공 할 것입니다 :
+
+- **프록시 엔드포인트 URL**: 개인 정보 보호 프록시 인스턴스의 호스트명(예를 들면,`https://your-proxy.example.com`).
+- **사전 공유 키 (PSK)**: 증명을 위한 비밀 열쇠.
+- **Egress IP 범위**: 대상 서버가 proxied 트래픽을 볼 IP 주소.
+
+[제품 정보](https://www.cloudflare.com/lp/privacy-edge/)접근을 요청하고 구성 세부 사항을 수신합니다.
+
+***
+
+## 1. 클라이언트 구성
+
+개인 정보 보호 프록시는 HTTP / 2 및 HTTP / 3에서 HTTP CONNECT 방법을 사용합니다. Privacy Proxy는 인증 헤더를 요구하므로 브라우저를 직접 연결할 수 없습니다. 대신 다음 접근법 중 하나를 사용합니다.
+
+### 국부적으로 테스트를 위한 사용 컬
+
+빠른 테스트를 위해 컬을 사용하여`--proxy`·`--proxy-header`직접 인증을 통과하는 플래그:
+
+```sh
+curl -v \
+  --proxy https://your-proxy.example.com \
+  --proxy-header "Proxy-Authorization: Preshared <YOUR_PSK>" \
+  https://example.com
+```
+
+### 사용 Chaussette
+
+[스낵 바](/privacy-proxy/reference/client-libraries/#chaussette)Proxy에 인증 및 전달 요청을 처리하는 로컬 SOCKS5 프록시입니다.
+
+1. PSK 및 프록시 엔드포인트로 Chaussette 시작:
+
+   ```sh
+   MASQUE_PRESHARED_KEY=<YOUR_PSK> chaussette \
+     --listen 127.0.0.1:1987 \
+     --proxy https://your-proxy.example.com:443
+   ```
+
+2. 로컬 SOCKS5 프록시를 사용하는 브라우저 구성:
+
+   ```sh
+   google-chrome --proxy-server="socks5://127.0.0.1:1987"
+   ```
+
+***
+
+## 2. 연결 확인
+
+트래픽이 개인 프록시를 통해 여정을 확인하려면 명백한 IP 주소를 확인하십시오.
+
+```sh
+curl -v \
+  --proxy https://your-proxy.example.com \
+  --proxy-header "Proxy-Authorization: Preshared <YOUR_PSK>" \
+  https://cloudflare.com/cdn-cgi/trace
+```
+
+응답에는 연결 metadata가 포함되어 있습니다. 자세히 보기`ip`실제 IP보다 Cloudflare egress IP 주소를 표시해야 하는 필드.
+
+```txt title="Example response"
+fl=123f456
+h=cloudflare.com
+ip=162.159.xxx.xxx
+ts=1234567890.123
+visit_scheme=https
+uag=curl/8.0.0
+colo=SJC
+http=http/2
+loc=US
+tls=TLSv1.3
+```
+
+더 보기`ip`값은 프록시에 의해 사용되는 egress IP 주소를 확인합니다.
+
+***
+
+## 3. (선택) 시험 위치
+
+개인 정보 보호 프록시는 클라이언트의 위치에 근거를 둔 egress IP 주소를 선택하여 사용자 지리적 위치를 유지합니다. Geohash를 지정할 수 있습니다.
+
+```sh
+curl -v \
+  --proxy https://your-proxy.example.com \
+  --proxy-header "Proxy-Authorization: Preshared <YOUR_PSK>" \
+  --proxy-header "sec-ch-geohash: xn76c-JP" \
+  https://cloudflare.com/cdn-cgi/trace
+```
+
+더 보기`sec-ch-geohash`헤더는[프로젝트](https://en.wikipedia.org/wiki/Geohash)프록시는 적절한 egress IP를 선택합니다. 형식은`<geohash>-<country_code>`.
+
+응답은 표시해야 합니다`loc`geohash 지역에 해당하는 값.
+
+***
+
+## 다음 단계
+
+- 자세히 알아보기[배포 모델](/privacy-proxy/concepts/deployment-models/)Single-hop versus Double-hop 아키텍처를 이해하기 위해.
+- 이름 \*[인증 방법](/privacy-proxy/concepts/authentication/)개인정보처리방침
+- 설정하기[관련 상품](/privacy-proxy/reference/observability/)OpenTelemetry로 프록시 트래픽을 모니터링합니다.

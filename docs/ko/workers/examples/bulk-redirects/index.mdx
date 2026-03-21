@@ -1,0 +1,148 @@
+---
+summary: >-
+  Redirect requests to certain URLs based on a mapped object to the request's
+  URL.
+tags:
+  - Middleware
+  - Redirects
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 대량 리디렉션
+sidebar:
+  order: 1001
+description: 요청의 URL에 맵핑된 객체를 기반으로 하는 특정 URL에 대한 리디렉션 요청.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/bulk-redirects/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/bulk-redirects/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		const externalHostname = "examples.cloudflareworkers.com";
+
+    		const redirectMap = new Map([
+    			["/bulk1", "https://" + externalHostname + "/redirect2"],
+    			["/bulk2", "https://" + externalHostname + "/redirect3"],
+    			["/bulk3", "https://" + externalHostname + "/redirect4"],
+    			["/bulk4", "https://google.com"],
+    		]);
+
+    		const requestURL = new URL(request.url);
+    		const path = requestURL.pathname;
+    		const location = redirectMap.get(path);
+
+    		if (location) {
+    			return Response.redirect(location, 301);
+    		}
+    		//지도에서 요청하지 않은 경우, 원래 요청을 반환
+    		return fetch(request);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		const externalHostname = "examples.cloudflareworkers.com";
+
+    		const redirectMap = new Map([
+    			["/bulk1", "https://" + externalHostname + "/redirect2"],
+    			["/bulk2", "https://" + externalHostname + "/redirect3"],
+    			["/bulk3", "https://" + externalHostname + "/redirect4"],
+    			["/bulk4", "https://google.com"],
+    		]);
+
+    		const requestURL = new URL(request.url);
+    		const path = requestURL.pathname;
+    		const location = redirectMap.get(path);
+
+    		if (location) {
+    			return Response.redirect(location, 301);
+    		}
+    		//지도에서 요청하지 않은 경우, 원래 요청을 반환
+    		return fetch(request);
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response, fetch
+    from urllib.parse import urlparse
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            external_hostname = "examples.cloudflareworkers.com"
+
+            redirect_map = {
+              "/bulk1": "https://" + external_hostname + "/redirect2",
+              "/bulk2": "https://" + external_hostname + "/redirect3",
+              "/bulk3": "https://" + external_hostname + "/redirect4",
+              "/bulk4": "https://google.com",
+              }
+
+            url = urlparse(request.url)
+            location = redirect_map.get(url.path, None)
+
+            if location:
+                return Response.redirect(location, 301)
+
+            #지도에서 요청하지 않은 경우, 원래 요청을 반환
+            return fetch(request)
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from "hono";
+
+    const app = new Hono();
+
+    //리디렉션 구성
+    const externalHostname = "examples.cloudflareworkers.com";
+
+    const redirectMap = new Map([
+    	["/bulk1", `https://${externalHostname}/redirect2`],
+    	["/bulk2", `https://${externalHostname}/redirect3`],
+    	["/bulk3", `https://${externalHostname}/redirect4`],
+    	["/bulk4", "https://google.com"],
+    ]);
+
+    //리디렉션을 처리하는 Middleware
+    app.use("*", async (c, next) => {
+    	const path = c.req.path;
+    	const location = redirectMap.get(path);
+
+    	if (location) {
+    		//경로를 리디렉션 맵에 있다면 리디렉션을 수행합니다.
+    		return c.redirect(location, 301);
+    	}
+
+    	//그렇지 않으면 다음 핸들러에 계속
+    	await next();
+    });
+
+    //어떤 리디렉션과 일치하지 않는 요청에 대한 기본 핸들러
+    app.all("*", async (c) => {
+    	//본문 바로가기
+    	return fetch(c.req.raw);
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

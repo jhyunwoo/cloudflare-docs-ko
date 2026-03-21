@@ -1,0 +1,63 @@
+---
+title: 문제 해결
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/durable-objects/observability/troubleshooting/
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/observability/troubleshooting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 관련 링크
+
+[`wrangler dev`](/workers/wrangler/commands/#dev)·[`wrangler tail`](/workers/wrangler/commands/#tail)Durable ObjectsXQ를 디버깅하는 데 사용할 수 있습니다.
+
+더 보기`wrangler dev --remote`명령은 로컬 개발 환경에서 터널을 Cloudflare의 글로벌 네트워크를 열고 Durable ObjectsXQ 코드를 Workers 환경에서 테스트합니다.
+
+`wrangler tail`각 요청에 대한 콘솔 및 예외 로그의 라이브 피드를 표시하십시오. 정상적인 작업자 요청과 튼튼한 개체 요청을 포함하여 노동자 코드에 의해 제공. 실행 후`npx wrangler deploy`, 당신은 사용할 수 있습니다`wrangler tail`Worker 프로젝트의 루트 디렉토리에서 콘솔과 오류 로그를 볼 수 있도록 Worker URL을 방문하십시오.
+
+## 일반적인 오류
+
+### 이벤트 핸들러가 등록되지 않았습니다. 이 스크립트는 아무것도 없다.
+
+Wrangler 파일에서 확인`dir`·`main`작업자 코드를 포함하는 올바른 파일에 항목 포인트, 그리고 그 파일 확장은`.mjs`대신에`.js`ES 모듈 구문을 사용하는 경우.
+
+### 적용되지 않음`--delete-class`수업으로 이동.
+
+이동을 삭제할 때`npx wrangler deploy --delete-class <ClassName>`, 이 오류가 발생할 수 있습니다:`"Cannot apply --delete-class migration to class <ClassName> without also removing the binding that references it"`. 당신은 밑에 대응 바인딩을 제거해야 합니다`[durable_objects]`내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/)적용하기 전에`--delete-class`다시.
+
+### 튼튼한 목표는 과부하됩니다.
+
+튼튼한 개체의 단일 인스턴스는 단일 스레드에서 더 많은 작업을 수행 할 수 없습니다. 이 오류는 내구성 객체가 너무 많은 작업이 들어오는 요청으로 유지됩니다.
+
+- `Error: Durable Object is overloaded. Too many requests queued.`쿼드 요청의 총 수는 너무 높다.
+- `Error: Durable Object is overloaded. Too much data queued.`queued 요청의 데이터의 총 크기는 너무 높다.
+- `Error: Durable Object is overloaded. Requests queued for too long.`가장 오래된 요청은 queue에서 너무 오래되었습니다.
+- `Error: Durable Object is overloaded. Too many requests for the same object within a 10 second window.`튼튼한 개체에 대한 요청의 수는 짧은 시간 (10 초) 내에 너무 높다. 이 오류는 과부하의 더 극한 수준을 나타냅니다.
+
+이 오류를 해결하려면 요청에 따라 덜 작업 할 수 있습니다. 또는 몇 가지 요청을 보냅니다. 예를 들어, 더 많은 인스턴스들 사이에서 요청을 분할할 수 있습니다.
+
+과부하로 인해 이러한 오류와 다른 사람은[`.overloaded`이름 \*](/durable-objects/best-practices/error-handling)과부하된 가동을 피하기 위하여 사용될 수 있는 그들의 예외에 놓으십시오.
+
+### 귀하의 계정은 Durable Objects에 너무 많은 부하를 생성하고 있습니다. 나중에 다시 시도하십시오.
+
+새로운 것을 만들 수있는 방법[뚱 베어](/durable-objects/api/stub)새로운 기존의 Durable Objects. 이러한 조회는 일반적으로 캐시되고, 최근에 액세스 된 Durable ObjectsXQ의 동일한 세트에 대한 의미 시도는 성공해야합니다, 그래서 짧은 대기 후이 오류를 잡고 안전합니다. 가능한 경우, 또한 여러 요청을 통해 그 조회를 확산 고려.
+
+### 그것의 부호가 새롭게 된 때문에 튼튼한 목표 리셋.
+
+오류 메시지에서 재설정은 in-memory 상태를 나타냅니다. 이미 성공적으로 persisted 있는 어떤 튼튼한 국가`state.storage`영향을받지 않습니다.
+
+더 알아보기[글로벌 고유](/durable-objects/platform/known-issues/#global-uniqueness).
+
+### 튼튼한 개체 저장 가동은 재시동할 것을 일으키는 원인이 되는 timeout를 초과했습니다.
+
+무한 차단을 방지하기 위해 몇 번의 저장 작업이 걸릴 수있는 제한이 있습니다. Durable Objects에서 키값 쌍의 충분한 큰 수를 포함하는,`deleteAll()`그 시간 제한과 실패를 명중할 수 있습니다. 이런 일이 발생하면 각각 주의하십시오.`deleteAll()`호출은 진행 상황을 확인하고 성공할 때까지 회복하는 것이 안전합니다. 기타 연락처[Cloudflare 지원](/support/contacting-cloudflare-support/).
+
+### 당신의 계정은 너무 많은 동시 저장 가동을하고 있습니다. 나중에 다시 시도하십시오.
+
+제안 된 접근 방식 외에도 코드를 변경하여 사용`state.storage.get(keys Array<string>)`여러 개 이상의 개인`state.storage.get(key)`자주 묻는 질문

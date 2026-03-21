@@ -1,0 +1,530 @@
+---
+title: 위젯을 Embed
+pcx_content_type: get-started
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/'
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/get-started/client-side-rendering/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Tabs, TabItem, Steps, Details } from "~/components";
+
+웹 페이지에 Turnstile 위젯을 implicit 또는 명시 렌더링 방법을 추가하는 방법을 알아보십시오.
+
+Turnstile에 적합한 렌더링 방법을 선택하면 최적의 성능과 사용자 경험을 보장하면서 웹 사이트에 추가하는 것이 중요합니다. 둘 다 implicit와 명시된 연출에는 그들의 자신의 이점이 있고 웹 신청의 다른 유형에 적응됩니다. 아래 표에 참조하여이 렌더링 방법의 각에 이상적인 사용 사례를 강조합니다.
+
+| 제품 정보          | Implicit 연출       | Explicit 렌더링          |
+| -------------- | ----------------- | --------------------- |
+| **설정의 용이성**    | 단순, 최소 코드         | 추가 JavaScript 필요      |
+| **타이밍에 대한 제어** | 페이지 부하에서 자동으로 렌더링 | 연출 타이밍에 가득 차있는 통제     |
+| **사용 사례**      | 정적 내용             | 동적 또는 상호 작용하는 내용      |
+| **주문화**        | HTML 속성에 제한       | JavaScript API를 통해 저렴 |
+
+## 자주 묻는 질문
+
+시작하기 전에 다음을해야합니다.
+
+- Cloudflare 계정
+- [Turnstile 위젯](/turnstile/get-started/#1-create-your-widget)사이트 맵
+- 웹 사이트의 HTML을 편집하는 액세스
+- HTML 및 JavaScript의 기본 지식
+
+## 회사연혁
+
+1. 페이지로드 : Turnstile 스크립트로드 및 요소에 대한 검사 또는 programmatic 통화에 대한 대기.
+2. Widget 렌더링 : 위젯은 생성되고 도전을 시작합니다.
+3. 토큰 생성 : 도전이 완료되면 토큰이 생성됩니다.
+4. 형태 통합: 토큰은 콜백 또는 숨겨진 양식 필드를 통해 사용할 수 있습니다.
+5. 서버 검증: 서버는 토큰을 받고 Siteverify API를 사용하여 검증합니다.
+
+## Implicit 연출
+
+Implicit 렌더링 자동적으로 요소에 대한 HTML을 스캔`cf-turnstile`추가 JavaScript 코드없이 클래스 및 렌더링 위젯. 이 설정은 페이지로드가 즉시로드 할 위젯을 원하는 정적 페이지에 이상적입니다.
+
+### 사용 사례
+
+Cloudflare는 다음과 같은 시나리오에서 implicit 렌더링을 사용하는 것이 좋습니다.
+
+- 간단한 구현과 빠른 통합을 원합니다.
+- 당신은 똑 바른 형태로 정적 웹 사이트가 있습니다.
+- 페이지로드에서 즉시 나타나는 위젯을 원합니다.
+- 당신은 위젯의 programmatic 제어가 필요하지 않습니다.
+
+### - 연혁
+
+#### 1. Turnstile 스크립트 추가
+
+**Turnstile 스크립트 포함**: Turnstile JavaScript API를 HTML 파일에 추가`<head>`섹션 또는 닫기 전에`</body>`태그.
+
+```html wrap
+<script
+	src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+	async
+	defer
+></script>
+```
+
+:::카트로션
+더 보기`api.js`위의 정확한 URL에서 파일을 붙여야 합니다. 프록시 또는 캐싱이 파일은 Turnstile가 미래의 업데이트가 출시 될 때 실패합니다.
+주요 특징
+
+#### 2. (선택) 자원 hints를 가진 낙관한 성과
+
+Cloudflare 서버에 초기 연결을 설정하여 로딩 성능을 향상시키기 위해 리소스 힌트를 추가하십시오. 이름 \*`<link>`HTML 태그`<head>`Turnstile 스크립트 전에 섹션.
+
+```html wrap
+<link rel="preconnect" href="https://challenges.cloudflare.com">
+```
+
+#### 3. 위젯 요소 추가
+
+웹 사이트에 나타나는 도전을 원하는 위젯 컨테이너를 추가하십시오.
+
+```html wrap
+<div class="cf-turnstile" data-sitekey="<YOUR-SITE-KEY>"></div>
+```
+
+#### 3. 데이터 속성과 구성
+
+[위젯을 사용자 정의](/turnstile/get-started/client-side-rendering/widget-configurations/)data 속성을 사용하여. 기타 제품`div`당신이 나타나는 위젯을 원하는 요소.
+
+```html
+<div
+	class="cf-turnstile"
+	data-sitekey="<YOUR-SITE-KEY>"
+	data-theme="light"
+	data-size="normal"
+	data-callback="onSuccess"
+></div>
+```
+
+도전이 해결되면 토큰은 성공 콜백으로 전달됩니다. 이 토큰은 우리의 검증되어야 합니다.[Siteverify 엔드포인트](/turnstile/get-started/server-side-validation/).
+
+### 완전한 implicit 연출 예제 사용 사례
+
+<Details header="비밀번호">
+  Turnstile는 로그인 양식 또는 연락처 양식과 같은 웹 사이트에 양식을 보호하는 데 종종 사용됩니다. 당신은 당신의 위젯을 embed 할 수`<form>`태그.
+
+  ```html title="Example"
+  <!DOCTYPE html>
+  <html>
+  <head>
+      <title>Login Form</title>
+      <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+      <form action="/login" method="POST">
+          <input type="text" name="username" placeholder="Username" required />
+          <input type="password" name="password" placeholder="Password" required />
+
+          <!--기본 설정 Turnstile 위젯-->
+          <div class="cf-turnstile" data-sitekey="<YOUR-SITE-KEY>"></div>
+          <button type="submit">Log in</button>
+      </form>
+
+  </body>
+  </html>
+  ```
+
+  이름과 보이지 않는 입력`cf-turnstile-response`추가되고 다른 필드로 서버로 전송됩니다.
+
+  ```html title="Complete HTML example"
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>Implicit Rendering with Cloudflare Turnstile</title>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+    <h1>Contact Us</h1>
+    <form action="/submit" method="POST">
+      <label for="name">Name:</label><br>
+      <input type="text" id="name" name="name" required><br>
+      <label for="email">Email:</label><br>
+      <input type="email" id="email" name="email" required><br>
+      <!--사이트맵 다운로드-->
+      <div class="cf-turnstile" data-sitekey="<YOUR-SITE-KEY>"></div>
+      <br>
+      <button type="submit">Submit</button>
+    </form>
+  </body>
+  </html>
+  ```
+</Details>
+
+<Details header="콜백과 고급 양식">
+  ```html title="Example"
+  <form action="/contact" method="POST" id="contact-form">
+  	<input type="email" name="email" placeholder="Email" required />
+  	<textarea name="message" placeholder="Message" required></textarea>
+  	<!--Callbacks 및 사용자 정의 구성과 위젯-->
+  	<div
+  		class="cf-turnstile"
+  		data-sitekey="<YOUR-SITE-KEY>"
+  		data-theme="auto"
+  		data-size="flexible"
+  		data-callback="onTurnstileSuccess"
+  		data-error-callback="onTurnstileError"
+  		data-expired-callback="onTurnstileExpired"
+  	></div>
+  	<button type="submit" id="submit-btn" disabled>Send Message</button>
+  </form>
+
+  <script>
+  	function onTurnstileSuccess(token) {
+  		console.log("Turnstile success:", token);
+  		document.getElementById("submit-btn").disabled = false;
+  	}
+  	function onTurnstileError(errorCode) {
+  		console.error("Turnstile error:", errorCode);
+  		document.getElementById("submit-btn").disabled = true;
+  	}
+  	function onTurnstileExpired() {
+  		console.warn("Turnstile token expired");
+  		document.getElementById("submit-btn").disabled = true;
+  	}
+  </script>
+  ```
+</Details>
+
+<Details header="다른 구성과 여러 위젯">
+  ```html title="Example"
+  <!--뉴스 레터 가입을위한 컴팩트 위젯-->
+  <form action="/newsletter" method="POST">
+  	<input type="email" name="email" placeholder="Email" />
+  	<div
+  		class="cf-turnstile"
+  		data-sitekey="<YOUR-SITE-KEY>"
+  		data-size="compact"
+  		data-action="newsletter"
+  	></div>
+  	<button type="submit">Subscribe</button>
+  </form>
+
+  <!--연락처 양식에 대 한 일반 위젯-->
+  <form action="/contact" method="POST">
+  	<input type="text" name="name" placeholder="Name" />
+  	<input type="email" name="email" placeholder="Email" />
+  	<textarea name="message" placeholder="Message"></textarea>
+  	<div
+  		class="cf-turnstile"
+  		data-sitekey="<YOUR-SITE-KEY>"
+  		data-action="contact"
+  		data-theme="dark"
+  	></div>
+  	<button type="submit">Send</button>
+  </form>
+  ```
+</Details>
+
+<Details header="자동 형태 통합">
+  Turnstile 위젯을 삽입할 때`<form>`요소, 이름과 보이지 않는 입력 필드`cf-turnstile-response`자동 생성. 이 필드는 검증 토큰을 포함하고 다른 양식 데이터로 제출됩니다.
+
+  ```html
+  <form action="/submit" method="POST">
+  	<input type="text" name="data" />
+  	<div class="cf-turnstile" data-sitekey="<YOUR-SITE-KEY>"></div>
+  	<!--관련된 태그:-->
+  	<!--<input type="hidden" name="cf-turnstile-response" value="TOKEN VALUE" />-->
+  	<button type="submit">Submit</button>
+  </form>
+  ```
+</Details>
+
+***
+
+## Explicit 렌더링
+
+Explicit 렌더링을 통해 프로그래밍 컨트롤을 제공 할 때 위젯이 나타나고 위젯이 JavaScript 기능을 사용하여 생성되는 방법. 이 방법은 동적 콘텐츠, 단일 페이지 응용 프로그램 (SPA) 또는 사용자 상호 작용에 따라 조건 렌더링에 적합합니다.
+
+### 사용 사례
+
+Cloudflare는 다음과 같은 시나리오에 명시된 렌더링을 사용하는 것이 좋습니다.
+
+- 동적 웹 사이트 및 단일 페이지 응용 프로그램 (SPAs)가 있습니다.
+- 위젯 생성의 타이밍을 제어해야합니다.
+- 당신은 조건으로 방문자 상호 작용을 기반으로 위젯을 렌더링합니다.
+- 다른 구성으로 여러 위젯을 원합니다.
+- 위젯 수명주기 관리가 필요한 복잡한 응용 프로그램이 있습니다.
+
+### - 연혁
+
+#### 1. 명시된 렌더링으로 웹 사이트에 스크립트를 추가
+
+```html wrap
+<script
+	src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+	defer
+></script>
+```
+
+#### 2. 컨테이너 요소 만들기
+
+없는 컨테이너 만들기`cf-turnstile`수업.
+
+```html
+<div id="turnstile-container"></div>
+```
+
+#### 3. 위젯 렌더링 programmatically
+
+이름 \*`turnstile.render()`위젯을 만들 준비가되면.
+
+```js
+const widgetId = turnstile.render("#turnstile-container", {
+	sitekey: "<YOUR-SITE-KEY>",
+	callback: function (token) {
+		console.log("Success:", token);
+	},
+});
+```
+
+### 선택 통화
+
+Turnstile 위젯을 명시적으로 렌더링 한 후 애플리케이션의 요구 사항에 따라 상호 작용할 수 있습니다. 아래 섹션을 참조하여 위젯의 상태를 관리합니다.
+
+#### 위젯 재설정
+
+주어진 위젯이 밖으로 중단되거나 만료되면 위젯을 재설정하려면, 당신은 기능을 사용할 수:
+
+```js
+turnstile.reset(widgetId);
+```
+
+#### 응답 토큰 받기
+
+언제든지 현재 응답 토큰을 검색:
+
+```js
+const responseToken = turnstile.getResponse(widgetId);
+```
+
+#### 위젯 제거
+
+위젯이 더 이상 필요하지 않을 때, 그것은 사용 페이지에서 제거 할 수 있습니다:
+
+```js
+turnstile.remove(widgetId)
+```
+
+이것은 콜백을 호출하고 모든 관련 DOM 요소를 제거하지 않습니다.
+
+### 사용 사례에 의해 명시된 렌더링 예제 완료
+
+<Details header="Basic 명시된 구현">
+  ```html title="Example"
+  <!DOCTYPE html>
+  <html>
+  	<head>
+  		<title>Explicit Rendering</title>
+  		<script
+  			src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+  			defer
+  		></script>
+  	</head>
+  	<body>
+  		<form id="login-form">
+  			<input type="text" name="username" placeholder="Username" />
+  			<input type="password" name="password" placeholder="Password" />
+  			<div id="turnstile-widget"></div>
+  			<button type="submit">Login</button>
+  		</form>
+
+  		<script>
+  			window.onload = function () {
+  				turnstile.render("#turnstile-widget", {
+  					sitekey: "<YOUR-SITE-KEY>",
+  					callback: function (token) {
+  						console.log("Turnstile token:", token);
+  						// Handle successful verification
+  					},
+  					"error-callback": function (errorCode) {
+  						console.error("Turnstile error:", errorCode);
+  					},
+  				});
+  			};
+  		</script>
+  	</body>
+  </html>
+  ```
+</Details>
+
+<Details header="onload 콜백 사용">
+  ```html title="Example"
+  <script
+  	src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onTurnstileLoad"
+  	defer
+  ></script>
+  <div id="widget-container"></div>
+  <script>
+  	function onTurnstileLoad() {
+  		turnstile.render("#widget-container", {
+  			sitekey: "<YOUR-SITE-KEY>",
+  			theme: "light",
+  			callback: function (token) {
+  				console.log("Challenge completed:", token);
+  			},
+  		});
+  	}
+  </script>
+  ```
+</Details>
+
+<Details header="고급 SPA 구현">
+  ```html title="Example"
+  <div id="dynamic-form-container"></div>
+
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
+
+  <script>
+  	class TurnstileManager {
+  		constructor() {
+  			this.widgets = new Map();
+  		}
+  		createWidget(containerId, config) {
+  			// Wait for Turnstile to be ready
+  			turnstile.ready(() => {
+  				const widgetId = turnstile.render(containerId, {
+  					sitekey: config.sitekey,
+  					theme: config.theme || "auto",
+  					size: config.size || "normal",
+  					callback: (token) => {
+  						console.log(`Widget ${widgetId} completed:`, token);
+  						if (config.onSuccess) config.onSuccess(token, widgetId);
+  					},
+  					"error-callback": (error) => {
+  						console.error(`Widget ${widgetId} error:`, error);
+  						if (config.onError) config.onError(error, widgetId);
+  					},
+  				});
+
+  				this.widgets.set(containerId, widgetId);
+  				return widgetId;
+  			});
+  		}
+  		removeWidget(containerId) {
+  			const widgetId = this.widgets.get(containerId);
+  			if (widgetId) {
+  				turnstile.remove(widgetId);
+  				this.widgets.delete(containerId);
+  			}
+  		}
+  		resetWidget(containerId) {
+  			const widgetId = this.widgets.get(containerId);
+  			if (widgetId) {
+  				turnstile.reset(widgetId);
+  			}
+  		}
+  	}
+
+  	// Usage
+  	const manager = new TurnstileManager();
+
+  	// Create a widget when user clicks a button
+  	document.getElementById("show-form-btn").addEventListener("click", () => {
+  		document.getElementById("dynamic-form-container").innerHTML = `
+          <form>
+              <input type="email" placeholder="Email" />
+              <div id="turnstile-widget"></div>
+              <button type="submit">Submit</button>
+          </form>
+      `;
+  		manager.createWidget("#turnstile-widget", {
+  			sitekey: "<YOUR-SITE-KEY>",
+  			theme: "dark",
+  			onSuccess: (token) => {
+  				// Handle successful verification
+  				console.log("Form ready for submission");
+  			},
+  		});
+  	});
+  </script>
+  ```
+</Details>
+
+### Widget Lifecycle 관리
+
+Explicit 렌더링은 위젯 Lifecycle을 통해 전체 제어를 제공합니다.
+
+```js
+//위젯 렌더링
+const widgetId = turnstile.render("#container", {
+	sitekey: "<YOUR-SITE-KEY>",
+	callback: handleSuccess,
+});
+
+//현재 토큰 받기
+const token = turnstile.getResponse(widgetId);
+
+//위젯이 만료되면 확인
+const isExpired = turnstile.isExpired(widgetId);
+
+//위젯을 재설정 (현재 상태에 분명)
+turnstile.reset(widgetId);
+
+//위젯을 완전히 제거
+turnstile.remove(widgetId);
+```
+
+### 실행 모드
+
+실행 모드와 함께 실행할 때 제어.
+
+```js
+//위젯을 렌더링하지만 아직 도전하지 않습니다
+const widgetId = turnstile.render("#container", {
+	sitekey: "<YOUR-SITE-KEY>",
+	execution: "execute", //자동화하지 마십시오
+});
+
+//나중에 필요한 경우 도전을 실행
+turnstile.execute("#container");
+```
+
+***
+
+## 성과 및 사용자 경험 최적화
+
+Cloudflare는 방문자의 페이지 입력을 가능한 한 일찍 Turnstile 스크립트를 실행하는 것이 좋습니다. 확인이 완료되고 상호 작용이 페이지에 한 번 사용할 수 있습니다.
+
+***
+
+## 구성 옵션
+
+implicit 및 명시된 렌더링 방법 모두 동일한 구성 옵션을 지원합니다. 가장 일반적으로 사용되는 구성을 위해 아래 테이블에 Refer.
+
+| 옵션 정보            | 이름 \*     | 제품정보                                    |
+| ---------------- | --------- | --------------------------------------- |
+| `sitekey`        | 위젯의 사이트 키 | 필수 문자열                                  |
+| `theme`          | Visual 테마 | `auto`, `light`, `dark`                 |
+| `size`           | Widget 크기 | `normal`, `flexible`, `compact`         |
+| `callback`       | 성공 콜백     | 제품정보                                    |
+| `error-callback` | 오류 콜백     | 제품정보                                    |
+| `execution`      | 도전을 실행할 때 | `render`, `execute`                     |
+| `appearance`     | 위젯이 볼 때   | `always`, `execute`, `interaction-only` |
+
+구성 옵션의 전체 목록의 경우, 참조[Widget 구성](/turnstile/get-started/client-side-rendering/widget-configurations/).
+
+***
+
+## 제품정보
+
+<Render file="test-sitekey" product="turnstile" />
+
+***
+
+## 제한 사항
+
+Turnstile는 페이지에서만 사용하도록 설계되었습니다.`http://`또는`https://`URI 계획. 다른 의정서와 같은`file://`, 위젯을 embedding에 대 한 지원 되지 않습니다.
+
+***
+
+## 보안 요구 사항
+
+<Render file="security-requirements" product="turnstile" />

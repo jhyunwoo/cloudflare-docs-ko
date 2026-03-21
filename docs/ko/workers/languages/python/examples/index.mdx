@@ -1,0 +1,249 @@
+---
+pcx_content_type: example
+title: 이름 *
+head:
+  - tag: title
+    content: Python 작업자 예제
+reviewed: 2024-04-03T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/languages/python/examples/'
+translation_source_md: 'https://developers.cloudflare.com/workers/languages/python/examples/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Cloudflare는 Python 예의 광범위가 있습니다[Workers 본문 바로가기](/workers/examples/?languages=Python).
+
+그 예제 외에도 Python-specific 행동을 설명하는 다음 것들을 고려하십시오.
+
+## 당신의 노동자에 있는 단위
+
+노동자는 다음과 같은 구조를 가지고 있다고 말하자 :
+
+```
+├── src
+│   ├── module.py
+│   └── main.py
+├── uv.lock
+├── pyproject.toml
+└── wrangler.toml
+```
+
+수입하기`module.py`내 계정`main.py`, 당신은 다음과 같은 수입 진술을 사용할 것 이다:
+
+```python
+import module
+```
+
+이 경우, 메인 모듈은 설정`src/main.py`wrangler.toml 파일에서 다음과 같은:
+
+```toml
+main = "src/main.py"
+```
+
+즉,`src`디렉토리는 import 문에 지정할 필요가 없습니다.
+
+## 수신 요청 URL을 파
+
+```python
+from workers import WorkerEntrypoint, Response
+from urllib.parse import urlparse, parse_qs
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        #수신 요청 URL을 파
+        url = urlparse(request.url)
+        #Python 사전으로 쿼리 매개 변수를 파
+        params = parse_qs(url.query)
+
+        if "name" in params:
+            greeting = "Hello there, {name}".format(name=params["name"][0])
+            return Response(greeting)
+
+
+        if url.path == "/favicon.ico":
+          return Response("")
+
+        return Response("Hello world!")
+```
+
+## 수신 요청에서 JSON을 파
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        name = (await request.json()).name
+        return Response("Hello, {name}".format(name=name))
+```
+
+## Worker에서 번들 된 자산 파일 읽기
+
+노동자는 다음과 같은 구조를 가지고 있다고 말하자 :
+
+```
+├── src
+│   ├── file.html
+│   └── main.py
+└── wrangler.jsonc
+```
+
+작업자의 파일을 읽으려면 다음을 수행해야합니다.
+
+```python
+from pathlib import Path
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        html_file = Path(__file__).parent / "file.html"
+        return Response(html_file.read_text(), headers={"Content-Type": "text/html"})
+```
+
+## Python에서 로그 전송 작업자
+
+```python
+#JavaScript 콘솔 API를 사용하려면
+from js import console
+from workers import WorkerEntrypoint, Response
+#기본 Python 로깅을 사용하려면
+import logging
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        #JavaScript에서 콘솔 API 사용
+        #모델 번호: https://developer.mozilla.org/en-US/docs/Web/API/console
+        console.log("console.log from Python!")
+
+        #대안으로, 기본 Python 로거 사용
+        logger = logging.getLogger(__name__)
+
+        #기본 레벨은 경고입니다. 우리는 정보를 변경할 수 있습니다.
+        logging.basicConfig(level=logging.INFO)
+
+        logger.error("error from Python!")
+        logger.info("info log from Python!")
+
+        #또는 다만 사용 인쇄 ()
+        print("print() from Python!")
+
+        return Response("We're testing logging!")
+```
+
+## Queue에 게시
+
+```python
+from js import Object
+from pyodide.ffi import to_js as _to_js
+
+from workers import WorkerEntrypoint, Response
+
+#to js는 Python 사전과 JavaScript Objects 사이 변환합니다.
+def to_js(obj):
+   return _to_js(obj, dict_converter=Object.fromEntries)
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        #바인딩은 'env' 속성에서 사용할 수 있습니다.
+        #https://developers.cloudflare.com/queues/
+
+        #기본 contentType은 "json"입니다.
+        #일반 텍스트 문자열을 전달할 수 있습니다.
+        await self.env.QUEUE.send("hello", contentType="text")
+        #JSON 페이로드 전송
+        await self.env.QUEUE.send(to_js({"hello": "world"}))
+
+        #응답을 반환
+        return Response.json({"write": "success"})
+```
+
+## 질문 D1 관련 기사
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        results = await self.env.DB.prepare("PRAGMA table_list").run()
+        #JSON 응답을 반환
+        return Response.json(results)
+```
+
+더 알아보기[QXD1XQXQXQXQQXWorkers](/d1/examples/query-d1-from-python-workers/)새로운 D1 데이터베이스를 만들고 D1XQX0417XQXQXQ에 바인딩을 구성하는 방법을 포함하는 더 심층적인 튜토리얼을 위해.
+
+## 튼튼한 목표
+
+```python
+from workers import WorkerEntrypoint, Response, DurableObject
+from pyodide.ffi import to_js
+
+class List(DurableObject):
+    async def get_messages(self):
+        messages = await self.ctx.storage.get("messages")
+        return messages if messages else []
+
+    async def add_message(self, message):
+        messages = await self.get_messages()
+        messages.append(message)
+        await self.ctx.storage.put("messages", to_js(messages))
+        return
+
+    async def say_hello(self):
+        result = self.ctx.storage.sql.exec(
+            "SELECT 'Hello, World!' as greeting"
+        ).one()
+
+        return result.greeting
+```
+
+더 알아보기[Durable Objects 문서](/durable-objects/get-started/)더 많은 정보.
+
+## Cron 방아쇠
+
+```python
+from workers import WorkerEntrypoint, Response
+
+class Default(WorkerEntrypoint):
+    async def scheduled(self, controller, env, ctx):
+  			print("cron processed")
+```
+
+더 알아보기[Cron Triggers 문서](/workers/configuration/cron-triggers/)더 많은 정보.
+
+## Workflows
+
+```python
+from workers import WorkflowEntrypoint
+
+class MyWorkflow(WorkflowEntrypoint):
+    async def run(self, event, step):
+        @step.do()
+        async def step_a():
+            #몇 가지 일
+            return 10
+
+        @step.do()
+        async def step_b():
+            #몇 가지 일
+            return 20
+
+        @step.do(concurrent=True)
+        async def my_final_step(step_a, step_b):
+            #반환 30
+            return step_a + step_b
+
+        await my_final_step()
+```
+
+더 알아보기[Python Workflows 문서](/workflows/python/)더 많은 정보.
+
+## 더 많은 예제
+
+또는 당신은 clone 할 수 있습니다[예제 저장소](https://github.com/cloudflare/python-workers-examples)여행하기
+더 많은 예제:
+
+```bash
+git clone https://github.com/cloudflare/python-workers-examples
+```

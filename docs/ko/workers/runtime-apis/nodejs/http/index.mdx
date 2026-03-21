@@ -1,0 +1,379 @@
+---
+pcx_content_type: configuration
+title: ₢ 킹
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/http/'
+translation_source_md: 'https://developers.cloudflare.com/workers/runtime-apis/nodejs/http/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+<Render file="nodejs-compat-howto" product="workers" />
+
+## 호환성 깃발
+
+### 클라이언트 측 방법
+
+HTTP 클라이언트 측 메소드를 사용하려면 (`http.get`, `http.request`, 등), 당신은 활성화해야 합니다[`enable_nodejs_http_modules`](/workers/configuration/compatibility-flags/)호환성 플래그 외에도[`nodejs_compat`](/workers/runtime-apis/nodejs/)플래그.
+
+이 깃발은 Workers를 위해 자동적으로 활성화됩니다[호환성 날짜](/workers/configuration/compatibility-dates/)이름 \*`2025-08-15`또는 나중에 때`nodejs_compat`지원하다 이전 호환성 날짜를 사용하여 Workers를 위해, 당신은 수동으로 당신의 WranglerXQ 윤곽 파일에 깃발을 추가해서 가능하게 할 수 있습니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"compatibility_flags": [
+  		"nodejs_compat",
+  		"enable_nodejs_http_modules"
+  	]
+  }
+  ```
+</WranglerConfig>
+
+### 서버 측 방법
+
+HTTP Server-side 메소드를 사용하려면`http.createServer`, `http.Server`, `http.ServerResponse`), 당신은 활성화해야`enable_nodejs_http_server_modules`호환성 플래그 외에도[`nodejs_compat`](/workers/runtime-apis/nodejs/)플래그.
+
+이 깃발은 Workers를 위해 자동적으로 활성화됩니다[호환성 날짜](/workers/configuration/compatibility-dates/)이름 \*`2025-09-01`또는 나중에 때`nodejs_compat`지원하다 이전 호환성 날짜를 사용하여 Workers를 위해, 당신은 수동으로 당신의 WranglerXQ 윤곽 파일에 깃발을 추가해서 가능하게 할 수 있습니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"compatibility_flags": [
+  		"nodejs_compat",
+  		"enable_nodejs_http_server_modules"
+  	]
+  }
+  ```
+</WranglerConfig>
+
+클라이언트 측과 서버 측 방법을 사용하기 위하여는, 둘 다 깃발을 가능하게 합니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"compatibility_flags": [
+  		"nodejs_compat",
+  		"enable_nodejs_http_modules",
+  		"enable_nodejs_http_server_modules"
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 이름 \*
+
+Node.js의 구현[`http.get`](https://nodejs.org/docs/latest/api/http.html#httpgetoptions-callback)방법.
+
+더 보기`get`메소드는 지정된 URL에 GET 요청을 수행하고 응답으로 콜백을 호출합니다. 수동 설정 요청 옵션 없이 HTTP GET 요청을 단순화하는 편리한 방법입니다.
+
+이름 \*`get`주변 래퍼`fetch(...)`, 그것은 수출 안에 단지 사용될지도 모릅니다
+fetch 또는 유사한 핸들러. 핸들러의 외부, 사용 시도`get`뚱 베어
+오류.
+
+```js
+import { get } from "node:http";
+
+export default {
+	async fetch() {
+		const { promise, resolve, reject } = Promise.withResolvers();
+		get("http://example.org", (res) => {
+			let data = "";
+			res.setEncoding("utf8");
+			res.on("data", (chunk) => {
+				data += chunk;
+			});
+			res.on("end", () => {
+				resolve(new Response(data));
+			});
+			res.on("error", reject);
+		}).on("error", reject);
+		return promise;
+	},
+};
+```
+
+구현`get`Workers는 전 세계 래퍼입니다.
+[`fetch`사이트맵](https://developers.cloudflare.com/workers/runtime-apis/fetch/)그리고 같은 주제[제한 사항](https://developers.cloudflare.com/workers/platform/limits/).
+
+위의 예시로, 그것은 제대로 할 수있는 요청을 준비해야합니다
+자주 묻는 질문`fetch`약속 또는 fetch를 사용하여 핸들러는 조기 취소 될 수 있습니다.
+핸들러가 반환될 때.
+
+## 이름 \*
+
+Node.js의 구현[\`http.request''''에 대하여](https://nodejs.org/docs/latest/api/http.html#httprequesturl-options-callback)방법.
+
+더 보기`request`메소드는 메소드, 헤더, 몸과 같은 customizable 옵션을 가진 HTTP 요청을 만듭니다. Node.js[사이트 맵 이름 \*](https://developers.cloudflare.com/workers/runtime-apis/nodejs/streams/)요청 데이터를 전송합니다.
+
+이름 \*`request`주변 래퍼`fetch(...)`, 그것은 수출 안에 단지 사용될지도 모릅니다
+fetch 또는 유사한 핸들러. 핸들러의 외부, 사용 시도`request`뚱 베어
+오류.
+
+```js
+import { get } from "node:http";
+
+export default {
+	async fetch() {
+		const { promise, resolve, reject } = Promise.withResolvers();
+		get(
+			{
+				method: "GET",
+				protocol: "http:",
+				hostname: "example.org",
+				path: "/",
+			},
+			(res) => {
+				let data = "";
+				res.setEncoding("utf8");
+				res.on("data", (chunk) => {
+					data += chunk;
+				});
+				res.on("end", () => {
+					resolve(new Response(data));
+				});
+				res.on("error", reject);
+			},
+		)
+			.on("error", reject)
+			.end();
+		return promise;
+	},
+};
+```
+
+뒤에 오는 선택권은`request`(그리고)`get`) 방법은 Cloudflare Workers 구현에 의해 요구되는 차이로 인해 지원되지 않습니다`node:http`전 세계 래퍼로`fetch`API:
+
+- `maxHeaderSize`
+- `insecureHTTPParser`
+- `createConnection`
+- `lookup`
+- `socketPath`
+
+## 회사연혁
+
+더 보기[`OutgoingMessage`](https://nodejs.org/docs/latest/api/http.html#class-httpoutgoingmessage)class는 클라이언트에게 보낸 HTTP 응답을 나타냅니다. 그것은 응답 헤더와 몸, 뿐 아니라 응답을 종료하는 방법을 제공합니다.`OutgoingMessage`Node.js에서 확장[`stream.Writable`스트림 클래스](https://developers.cloudflare.com/workers/runtime-apis/nodejs/streams/).
+
+더 보기`OutgoingMessage`class는 HTTP 메시지(both request and responses)를 설명하는 기본 클래스입니다. headers 및 body data를 작성하는 방법을 제공합니다.`OutgoingMessage`에서 확장[`Writable`스트림 클래스](https://nodejs.org/docs/latest/api/stream.html#class-streamwritable).
+
+모두 보기`ClientRequest`·`ServerResponse`모두에서 확장하고 상속`OutgoingMessage`.
+
+## 회사연혁
+
+더 보기`IncomingMessage`class는 클라이언트에서 수신되는 HTTP 요청을 나타냅니다. 독서 요청 헤더와 몸뿐만 아니라 요청을 종료하는 방법을 제공합니다.`IncomingMessage`에서 확장`Readable`스트림 클래스.
+
+더 보기`IncomingMessage`클래스는 HTTP 메시지 (복구 또는 응답)를 나타냅니다. 그것은 독서 우두머리와 몸 자료를 위한 방법을 제공합니다.`IncomingMessage`에서 확장`Readable`스트림 클래스.
+
+```js
+import { get, IncomingMessage } from "node:http";
+import { ok, strictEqual } from "node:assert";
+
+export default {
+	async fetch() {
+		//· ...
+		get("http://example.org", (res) => {
+			ok(res instanceof IncomingMessage);
+		});
+		//· ...
+	},
+};
+```
+
+Workers 구현에는`cloudflare`이름 \*`IncomingMessage`물체:
+
+```js
+import { createServer } from "node:http";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = createServer((req, res) => {
+	console.log(req.cloudflare.cf.country);
+	console.log(req.cloudflare.cf.ray);
+	res.write("Hello, World!");
+	res.end();
+});
+
+server.listen(8080);
+
+export default httpServerHandler({ port: 8080 });
+```
+
+더 보기`cloudflare.cf`호텔 위치[Cloudflare-특수 요청 속성](/workers/runtime-apis/request/#incomingrequestcfproperties).
+
+다음 차이는 Workers 구현과 Node.js의 사이에 존재합니다:
+
+- 트레일러 헤더는 지원되지 않습니다.
+- 더 보기`socket`이름 \***확장되지 않음`net.Socket`**&#xADF8;리고 다음 속성만 포함:`encrypted`, `remoteFamily`, `remoteAddress`, `remotePort`, `localAddress`, `localPort`·`destroy()`방법.
+- 다음 것`socket`속성은 Node.js 대응보다 다르게 행동합니다.
+  - `remoteAddress`공지사항`127.0.0.1`현지에서
+  - `remotePort`2^15와 2^16 사이 임의 포트 번호를 반환합니다
+  - `localAddress`요청의 값을 반환합니다.`host`헤더가 있다면. 그렇지 않으면, 반환`127.0.0.1`
+  - `localPort`서버 인스턴스에 할당된 포트 번호를 반환합니다.
+  - `req.socket.destroy()`계속하기`req.destroy()`
+
+## 이름 \*
+
+Node.js의 부분 구현[\`http. 에이전트](https://nodejs.org/docs/latest/api/http.html#class-httpagent)수업.
+
+이름 \*`Agent`host/port 당 요청 큐를 유지함으로써 HTTP 연결 재사용을 관리합니다. 근로자 환경에서 네트워크 연결, 포트 등의 저수준 관리는 대신 Cloudflare 인프라에 의해 처리되기 때문에 관련이 없습니다. 따라서, 구현`Agent`Workers는 연결 풀링 또는 유지 보수를 지원하지 않는 stub 구현입니다.
+
+```js
+import { Agent } from "node:http";
+import { strictEqual } from "node:assert";
+
+const agent = new Agent();
+strictEqual(agent.protocol, "http:");
+```
+
+## 생성서
+
+Node.js의 구현[`http.createServer`](https://nodejs.org/docs/latest/api/http.html#httpcreateserveroptions-requestlistener)방법.
+
+더 보기`createServer`메소드는 수신 요청을 처리 할 수있는 HTTP 서버 인스턴스를 만듭니다.
+
+```js
+import { createServer } from "node:http";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = createServer((req, res) => {
+	res.writeHead(200, { "Content-Type": "text/plain" });
+	res.end("Hello from Node.js HTTP server!");
+});
+
+server.listen(8080);
+export default httpServerHandler({ port: 8080 });
+```
+
+## Node.js 통합
+
+### 웹 사이트
+
+더 보기`httpServerHandler`함수는 QXNode.js HTTP 서버를 Cloudflare QXWorkers 요청 모델과 통합합니다. 그것은 2개의 API 본을 지원합니다:
+
+```js
+import http from "node:http";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = http.createServer((req, res) => {
+	res.end("hello world");
+});
+
+//직접 서버 통과 (간단한) - 필요한 경우 자동으로 듣기() 호출
+export default httpServerHandler(server);
+
+//또는 여러 서버에 포트 기반 룰렛을 사용
+server.listen(8080);
+export default httpServerHandler({ port: 8080 });
+```
+
+핸들러는 Node.js 서버에 들어오는 노동자 요청을 자동으로 경로를 제공합니다. 포트 기반 라우팅을 사용할 때 포트 번호는 서버가 요청을 처리하는 것을 결정하기 위해 라우팅 키 역할을하며 동일한 작업자에 여러 서버가 공동 작업을 수행 할 수 있습니다.
+
+### 핸들AsNodeRequest
+
+요청 여정에 더 직접적인 통제를 위해, 당신은 사용할 수 있습니다`handleAsNodeRequest`기능에서`cloudflare:node`. 이 기능은 직접 특정 포트에서 실행되는 Node.js 서버에 노동자 요청을 경로:
+
+```js
+import { createServer } from "node:http";
+import { handleAsNodeRequest } from "cloudflare:node";
+
+const server = createServer((req, res) => {
+	res.writeHead(200, { "Content-Type": "text/plain" });
+	res.end("Hello from Node.js HTTP server!");
+});
+
+server.listen(8080);
+
+export default {
+	fetch(request) {
+		return handleAsNodeRequest(8080, request);
+	},
+};
+```
+
+이 접근법은 여전히 Node.js HTTP 서버를 사용하면서 fetch 핸들러에 대한 전체 제어를 제공합니다.
+
+:::참조
+자주 묻는 질문`close()`HTTP 서버에서 worker가 파괴 될 때까지 서버 persisting에서 발생할 수 있습니다. 대부분의 경우 서버가 일반적으로 worker의 수명에 살고 있기 때문에 문제가되지 않습니다. 그러나 작업자의 일생 동안 여러 서버를 만들 필요가 있거나 명시된 수명주기 제어 (테스트 시나리오와 같은), 전화`close()`서버와 함께 할 때, 또는 사용[명시된 리소스 관리](https://v8.dev/features/explicit-resource-management).
+:::
+
+## 계정 관리
+
+Node.js의 구현[`http.Server`](https://nodejs.org/docs/latest/api/http.html#class-httpserver)수업.
+
+더 보기`Server`class는 HTTP 서버를 나타내며 수신 요청을 처리하는 방법을 제공합니다. Node.js`EventEmitter`클래스는 사용자 정의 서버 구현을 만들 수 있습니다.
+
+사용 방법`httpServerHandler`, 지정된 항구 수에서`server.listen()`실제 네트워크 포트보다는 라우팅 키로 작동합니다. 핸들러는 이 포트를 사용하여 HTTP 서버 인스턴스가 들어오는 요청을 처리해야하며, 여러 서버가 식별을 위해 다른 포트 번호를 사용하여 동일한 Worker 내에서 coexist를 허용한다. 포트 값 사용`0`(주)`null`또는`undefined`)는 지정된 임의 포트 번호에서 발생합니다.
+
+```js
+import { Server } from "node:http";
+import { httpServerHandler } from "cloudflare:node";
+
+const server = new Server((req, res) => {
+	res.writeHead(200, { "Content-Type": "application/json" });
+	res.end(JSON.stringify({ message: "Hello from HTTP Server!" }));
+});
+
+server.listen(8080);
+export default httpServerHandler({ port: 8080 });
+```
+
+다음 차이는 Workers 구현과 Node.js의 사이에 존재합니다.
+
+- 연결 관리 방법과 같은`closeAllConnections()`·`closeIdleConnections()`구현되지 않음
+- 한국어`listen()`포트 번호 또는 매개 변수가 지원되지 않는 변형 :`listen()`, `listen(0, callback)`, `listen(callback)`, 등등. reference를 위해, 보십시오[Node.js 문서](https://nodejs.org/docs/latest/api/net.html#serverlisten).
+- 다음 서버 옵션은 지원되지 않습니다:`maxHeaderSize`, `insecureHTTPParser`, `keepAliveTimeout`, `connectionsCheckingInterval`
+
+## 서버Response
+
+Node.js의 구현[`http.ServerResponse`](https://nodejs.org/docs/latest/api/http.html#class-httpserverresponse)수업.
+
+더 보기`ServerResponse`클래스는 요청 핸들러로 전달되는 서버 측 응답 객체를 나타냅니다. 그것은 응답 우두머리와 몸 자료를 쓰고, Node.js를 확장하는 방법을 제공합니다`Writable`스트림 클래스.
+
+```js
+import { createServer, ServerResponse } from "node:http";
+import { httpServerHandler } from "cloudflare:node";
+import { ok } from "node:assert";
+
+const server = createServer((req, res) => {
+	ok(res instanceof ServerResponse);
+
+	//한 번에 다중 헤더 설정
+	res.writeHead(200, {
+		"Content-Type": "application/json",
+		"X-Custom-Header": "Workers-HTTP",
+	});
+
+	//Stream 응답 데이터
+	res.write('{"data": [');
+	res.write('{"id": 1, "name": "Item 1"},');
+	res.write('{"id": 2, "name": "Item 2"}');
+	res.write("]}");
+
+	//응답 종료
+	res.end();
+});
+
+export default httpServerHandler(server);
+```
+
+다음 방법 및 기능은 Workers 구현에서 지원되지 않습니다.
+
+- `assignSocket()`·`detachSocket()`이용안내
+- 트레일러 헤더는 지원되지 않습니다.
+- `writeContinue()`·`writeEarlyHints()`이용안내
+- 일반적으로 1xx 응답은 지원되지 않습니다.
+
+## Node.js와 Workers의 다른 차이`node:http`
+
+Workers의 구현`node:http`전 세계 래퍼`fetch`API, 표준 Node.js 환경과 비교된 행동과 한계에 있는 몇몇 다름이 있습니다:
+
+- `Connection`헤더는 사용되지 않습니다. Workers는 연결을 자동적으로 관리할 것입니다.
+- `Content-Length`헤더는 같은 방법으로 처리됩니다`fetch`API. 몸이 제공되면 헤더가 자동으로 설정되고 수동 설정 값은 무시됩니다.
+- `Expect: 100-continue`헤더는 지원되지 않습니다.
+- Trailing headers는 지원되지 않습니다.
+- 더 보기`'continue'`이벤트는 지원되지 않습니다.
+- 더 보기`'information'`이벤트는 지원되지 않습니다.
+- 더 보기`'socket'`이벤트는 지원되지 않습니다.
+- 더 보기`'upgrade'`이벤트는 지원되지 않습니다.
+- underlying에 직접 액세스 얻기`socket`지원되지 않습니다.

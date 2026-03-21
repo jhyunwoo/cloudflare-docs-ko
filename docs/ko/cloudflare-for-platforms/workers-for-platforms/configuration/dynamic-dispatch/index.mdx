@@ -1,0 +1,197 @@
+---
+pcx_content_type: how-to
+title: 동적인 파견 노동자
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/dynamic-dispatch/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+·[동적인 파견 노동자](/cloudflare-for-platforms/workers-for-platforms/how-workers-for-platforms-works/#dynamic-dispatch-worker)귀하의 파견 네임스페이스에서 적절한 사용자 WorkersXQ에 대한 수신 요청을 지시하는 전문 라우팅 작업자입니다. 사용 방법[Workers 노선](/workers/configuration/routing/routes/), Workers를 파견하는 파견 당신은 코드를 통해 프로그래밍 가능한 제어 요청 여정을 할 수 있습니다.
+
+![그림 1: 플랫폼을 위한 Workers: 주요 교류](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-1.svg)
+
+:::참조
+Cloudflare QXdashboardXQ에서 파견 노동자를 만들 수도 있습니다. 오시는 길**플랫폼을위한 Workers**, 네임스페이스 선택, 클릭**이름 \*** > **Dispatch 작업자**. dashboard는 경로 기반 및 하위 도메인 기반 라우팅을위한 템플릿을 제공합니다.
+주요 특징
+
+#### 왜 동적 파견 노동자를 사용합니까?
+
+- **제품정보**: 정의없이 다른 WorkersXQ에 호스트 이름의 수백만에 대한 경로 요청[Workers 노선](/workers/configuration/routing/routes/)각 것을 위한 윤곽
+- **사용자 정의 routing 논리**: 요청이 경로를 결정하는 코드를 작성합니다. 예를 들면:
+  - hostname-to-Worker 매핑 저장[Workers KV](/kv/)그리고 그들을 동적으로 봐
+  - 하위 도메인, 경로, 헤더 또는 기타 요청 속성에 따라 경로 요청
+  - 제품 정보[메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)첨부파일[사용자 정의 hostnames](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/)routing 결정
+- **플랫폼 기능 추가**: routing 층에서 추가 기능을 구축 :
+  - 요청의 앞에 인증 체크를 실행하십시오 사용자 Workers
+  - incoming 요청에서 headers 또는 metadata 제거 또는 추가
+  - 사용자 ID 또는 계정 정보와 같은 유용한 상황에 첨부
+  - 요청 또는 응답을 필요에 따라 변환
+
+### 파견 namespace 바인딩 구성
+
+동적 인 파견 노동자를 허용하기 위해 Workers에 동적 경로 요청을 동적으로, 당신은 파견 네임스페이스를 구성해야합니다[관련 제품](/workers/runtime-apis/bindings/). 이 바인딩은 네임스페이스 내에서 사용자 작업자를 호출하기 위해 동적 파견 작업자를 가능하게 합니다.`env.dispatcher.get()`.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"dispatch_namespaces": [
+  		{
+  			"binding": "DISPATCHER",
+  			"namespace": "my-dispatch-namespace"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+바인딩이 구성되면 동적 인 파견 노동자는 네임스페이스에서 어떤 노동자에게 요청을 할 수 있습니다. 아래의 일반적인 라우팅 패턴은 당신의 파견자에서 구현할 수 있습니다.
+
+### 여정 예제
+
+![그림 2: 플랫폼을 위한 Workers: 주요 교류](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-2.svg)
+
+#### KV 기반 여정
+
+routing 매핑을 저장[Workers KV](/kv/). 이것은 동적인 파견 노동자를 바꾸거나 redeploy 없이 당신의 routing 논리를 수정할 수 있습니다.
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			const url = new URL(request.url);
+
+			//hostname, path 또는 routing 키로 조합을 사용하십시오.
+			const routingKey = url.hostname;
+
+			//KV 상점에서 사용자 노동자 이름 찾기
+			const userWorkerName = await env.USER_ROUTING.get(routingKey);
+
+			if (!userWorkerName) {
+				return new Response("Route not configured", { status: 404 });
+			}
+
+			//선택 사항 : KV 룩업 결과 캐시
+			const userWorker = env.DISPATCHER.get(userWorkerName);
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				return new Response("", { status: 404 });
+			}
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+#### Subdomain 기반 여정
+
+해당 노동자에게 루트 하위 도메인. 예를 들어,`my-customer.example.com`지명된 노동자로 가는 길`my-customer`파견 네임스페이스에서.
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			//subdomain에서 사용자 작업자 이름을 추출
+			//예: customer1.example.com -> customer1
+			const url = new URL(request.url);
+			const userWorkerName = url.hostname.split(".")[0];
+
+			//전송 네임스페이스에서 User Worker 받기
+			const userWorker = env.DISPATCHER.get(userWorkerName);
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				//User Worker는 파견 네임스페이스에 존재하지 않습니다.
+				return new Response("", { status: 404 });
+			}
+			//fetch() 또는 파견 노동자로부터 다른 예외가 될 수 있습니다.
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+#### Path-Based 여정
+
+해당 작업자에게 경로 URL 경로. 예를 들어,`example.com/customer-1`지명된 노동자로 가는 길`customer-1`파견 네임스페이스에서.
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			const url = new URL(request.url);
+			const pathParts = url.pathname.split("/").filter(Boolean);
+
+			if (pathParts.length === 0) {
+				return new Response("Invalid path", { status: 400 });
+			}
+
+			//example.com/customer-1 -> 'customer-1' 작업자 경로
+			const userWorkerName = pathParts[0];
+
+			const userWorker = env.DISPATCHER.get(userWorkerName);
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				return new Response("", { status: 404 });
+			}
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+### 사용자 정의 제한
+
+제품 정보[주문 제한](/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/)주어진 사용자 노동자가 사용할 수 있는 얼마나 많은 CPU 시간을 통제하기 위하여, 또는 그것을 만드는 방법 많은 잠수함. 고객 플랜 유형 또는 기타 기준에 따라 다른 제한을 설정할 수 있습니다.
+
+```js
+export default {
+	async fetch(request, env) {
+		try {
+			const url = new URL(request.url);
+			const userWorkerName = url.hostname.split(".")[0];
+
+			//데이터베이스 또는 KV에서 고객 계획을 찾습니다
+			const customerPlan = await env.CUSTOMERS.get(userWorkerName);
+
+			//플랜 유형에 따라 제한 설정
+			const plans = {
+				enterprise: { cpuMs: 50, subRequests: 50 },
+				pro: { cpuMs: 20, subRequests: 20 },
+				free: { cpuMs: 10, subRequests: 5 },
+			};
+			const limits = plans[customerPlan] || plans.free;
+
+			const userWorker = env.DISPATCHER.get(userWorkerName, {}, { limits });
+			return await userWorker.fetch(request);
+		} catch (e) {
+			if (e.message.startsWith("Worker not found")) {
+				return new Response("", { status: 404 });
+			}
+			if (e.message.includes("CPU time limit")) {
+				//Analytics Engine을 통한 제한 위반
+				env.ANALYTICS.writeDataPoint({
+					indexes: [userWorkerName],
+					blobs: ["cpu_limit_exceeded"],
+				});
+				return new Response("CPU limit exceeded", { status: 429 });
+			}
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+사용 가능한 제한에 대한 자세한 내용은 참조[주문 제한](/cloudflare-for-platforms/workers-for-platforms/configuration/custom-limits/).
+
+사용자 Workers에 따라 제한 위반 및 기타 지표를 추적하려면[Workers Analytics 엔진](/analytics/analytics-engine/). 상세한 로깅 및 디버깅을 위해, 구성[꼬리 노동자](/workers/observability/logs/tail-workers/)당신의 파견 노동자에게서 사건을 붙잡기 위하여.

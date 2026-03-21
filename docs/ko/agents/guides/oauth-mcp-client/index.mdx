@@ -1,0 +1,373 @@
+---
+title: MCP 서버로 OAuth 핸들
+pcx_content_type: how-to
+tags:
+  - MCP
+sidebar:
+  order: 12
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/oauth-mcp-client/'
+translation_source_md: 'https://developers.cloudflare.com/agents/guides/oauth-mcp-client/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	Render,
+	TypeScriptExample,
+	PackageManagers,
+	LinkCard,
+} from "~/components";
+
+OAuth-protected MCP 서버 (Slack 또는 Notion와 같은)에 연결하면 에이전트가 데이터에 액세스 할 수 있기 전에 인증해야합니다. 이 가이드는 OAuth 흐름을 원활한 승인으로 구현합니다.
+
+## 어떻게 작동합니까?
+
+1. 이름 \*`addMcpServer()`서버 URL로
+2. OAuth가 필요한 경우,`authUrl`연결 대신 반환
+3. 현재 위치`authUrl`사용자 (직접, 팝업 또는 링크)
+4. 공급자의 사이트에 사용자 인증
+5. 공급자는 에이전트의 콜백 URL로 돌아갑니다
+6. 귀하의 에이전트는 자동으로 연결 완료
+
+MCP 클라이언트는 붙박이를 사용합니다`DurableObjectOAuthClientProvider`OAuth state를 안전하게 관리하기 위해 - 콜백에서 검증된 nonce 및 서버 ID를 저장하고 사용 또는 만료 후 청소합니다.
+
+## OAuth 시작
+
+OAuth-protected 서버에 연결하면, 확인`authUrl`반환합니다. 현재, 사용자를 리디렉션하여 인증 완료:
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  export class MyAgent extends Agent<Env> {
+  	async onRequest(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		if (url.pathname.endsWith("/connect") && request.method === "POST") {
+  			const { id, authUrl } = await this.addMcpServer(
+  				"Cloudflare Observability",
+  				"https://observability.mcp.cloudflare.com/mcp",
+  			);
+
+  			if (authUrl) {
+  				//OAuth 필수 - 사용자가 승인하는 리디렉션
+  				return Response.redirect(authUrl, 302);
+  			}
+
+  			//Already 인증 - 연결 완료
+  			return Response.json({ serverId: id, status: "connected" });
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 다른 접근법
+
+자동 리디렉션 대신, 당신은 할 수 있습니다`authUrl`사용자에:
+
+- **팝업 창**: `window.open(authUrl, '_blank', 'width=600,height=700')`‘대시보드’-style 앱
+- **자주 묻는 질문**: 멀티스텝 플로우에 대한 버튼 또는 링크로 표시
+- **딥 링크**: 모바일 앱에 대한 사용자 정의 URL 구성
+
+## 콜백 동작 구성
+
+OAuth가 완료되면 공급자는 에이전트의 콜백 URL로 다시 리디렉션합니다. 기본적으로, 성공적인 인증은 애플리케이션 원산지로 리디렉션되며, 인증은 오류 메시지로 HTML 오류 페이지를 표시합니다.
+
+### 당신의 신청에 Redirect
+
+Redirect 사용자는 OAuth가 완료 한 후 응용 프로그램에 다시 :
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  export class MyAgent extends Agent<Env> {
+  	onStart() {
+  		this.mcp.configureOAuthCallback({
+  			successRedirect: "/dashboard",
+  			errorRedirect: "/auth-error",
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+사용자 반환`/dashboard`성공 또는`/auth-error?error=<message>`실패에.
+
+### 팝업 창 닫기
+
+팝업에 OAuth를 열면 자동으로 닫습니다.
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  import { Agent } from "agents";
+
+  export class MyAgent extends Agent<Env> {
+  	onStart() {
+  		this.mcp.configureOAuthCallback({
+  			customHandler: () => {
+  				//OAuth 완료 후 팝업 닫기
+  				return new Response("<script>window.close();</script>", {
+  					headers: { "content-type": "text/html" },
+  				});
+  			},
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+당신의 주요 응용 프로그램은 팝업 닫기를 감지하고 연결 상태를 새로 고침 할 수 있습니다. OAuth가 실패하면 연결 상태가됩니다.`"failed"`오류 메시지가 저장됩니다.`server.error`당신의 UI에 있는 전시를 위해.
+
+## 감시 연결 상태
+
+### React 응용
+
+사용 방법`useAgent`WebSocket을 통해 실시간 업데이트를 위한 후크:
+
+<TypeScriptExample>
+  ```tsx title="src/App.tsx"
+  import { useAgent } from "agents/react";
+  import { useState } from "react";
+  import type { MCPServersState } from "agents";
+
+  function App() {
+  	const [mcpState, setMcpState] = useState<MCPServersState>({
+  		prompts: [],
+  		resources: [],
+  		servers: {},
+  		tools: [],
+  	});
+
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		name: "session-id",
+  		onMcpUpdate: (mcpServers: MCPServersState) => {
+  			//MCP 상태가 변경 될 때 자동 호출!
+  			setMcpState(mcpServers);
+  		},
+  	});
+
+  	return (
+  		<div>
+  			{Object.entries(mcpState.servers).map(([id, server]) => (
+  				<div key={id}>
+  					<strong>{server.name}</strong>: {server.state}
+  					{server.state === "authenticating" && server.auth_url && (
+  						<button onClick={() => window.open(server.auth_url, "_blank")}>
+  							Authorize
+  						</button>
+  					)}
+  					{server.state === "failed" && server.error && (
+  						<p className="error">{server.error}</p>
+  					)}
+  				</div>
+  			))}
+  		</div>
+  	);
+  }
+  ```
+</TypeScriptExample>
+
+더 보기`onMcpUpdate`MCP state가 변경 될 때 콜백 화재가 자동으로 - 오염이 필요하지 않습니다.
+
+### 기타 프레임
+
+endpoint를 통해 연결 상태를 오염:
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  export class MyAgent extends Agent<Env> {
+  	async onRequest(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		if (
+  			url.pathname.endsWith("connection-status") &&
+  			request.method === "GET"
+  		) {
+  			const mcpState = this.getMcpServers();
+
+  			const connections = Object.entries(mcpState.servers).map(
+  				([id, server]) => ({
+  					serverId: id,
+  					name: server.name,
+  					state: server.state,
+  					isReady: server.state === "ready",
+  					needsAuth: server.state === "authenticating",
+  					authUrl: server.auth_url,
+  				}),
+  			);
+
+  			return Response.json(connections);
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+연결 상태 흐름:`authenticating`(OAuth) →`connecting`(완료) →`ready`(사용 가능)
+
+## 손잡이 실패
+
+OAuth가 실패하면 연결 상태가됩니다.`"failed"`오류 메시지가 저장됩니다.`server.error`이름 \* UI에서 이 오류를 표시하고 사용자가 재교육을 허용:
+
+<TypeScriptExample>
+  ```tsx title="src/App.tsx"
+  import { useAgent } from "agents/react";
+  import { useState } from "react";
+  import type { MCPServersState } from "agents";
+
+  function App() {
+  	const [mcpState, setMcpState] = useState<MCPServersState>({
+  		prompts: [],
+  		resources: [],
+  		servers: {},
+  		tools: [],
+  	});
+
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		name: "session-id",
+  		onMcpUpdate: setMcpState,
+  	});
+
+  	const handleRetry = async (
+  		serverId: string,
+  		serverUrl: string,
+  		name: string,
+  	) => {
+  		//실패한 연결을 제거
+  		await fetch(`/agents/my-agent/session-id/disconnect`, {
+  			method: "POST",
+  			body: JSON.stringify({ serverId }),
+  		});
+
+  		//Retry 연결
+  		const response = await fetch(`/agents/my-agent/session-id/connect`, {
+  			method: "POST",
+  			body: JSON.stringify({ serverUrl, name }),
+  		});
+  		const { authUrl } = await response.json();
+  		if (authUrl) window.open(authUrl, "_blank");
+  	};
+
+  	return (
+  		<div>
+  			{Object.entries(mcpState.servers).map(([id, server]) => (
+  				<div key={id}>
+  					<strong>{server.name}</strong>: {server.state}
+  					{server.state === "failed" && (
+  						<div>
+  							{server.error && <p className="error">{server.error}</p>}
+  							<button
+  								onClick={() => handleRetry(id, server.server_url, server.name)}
+  							>
+  								Retry Connection
+  							</button>
+  						</div>
+  					)}
+  				</div>
+  			))}
+  		</div>
+  	);
+  }
+  ```
+</TypeScriptExample>
+
+일반적인 실패 이유:
+
+- **사용자 취소**: 승인 완료하기 전에 OAuth 창 닫기
+- **잘못된 자격**: 공급자 자격은 잘못되었습니다.
+- **제출 거부**: 사용자의 권리
+- **Expired 세션**: OAuth 세션
+
+실패한 연결은 제거될 때까지 상태에서 남아 있습니다`removeMcpServer(serverId)`. 오류 메시지는 자동으로 XSS 공격을 방지하기 위해 탈출하므로 UI에서 직접 표시하는 것이 안전합니다.
+
+## 완전한 예
+
+이 예제는 Cloudflare Observability와 완전한 OAuth 통합을 보여줍니다. 사용자는 팝업 창에서 승인하고 연결이 가능합니다. 오류는 UI의 디스플레이에 대한 연결 상태에 자동으로 저장됩니다.
+
+<TypeScriptExample>
+  ```ts title="src/index.ts"
+  import { Agent, routeAgentRequest } from "agents";
+
+  type Env = {
+  	MyAgent: DurableObjectNamespace<MyAgent>;
+  };
+
+  export class MyAgent extends Agent<Env> {
+  	onStart() {
+  		this.mcp.configureOAuthCallback({
+  			customHandler: () => {
+  				//OAuth가 완료 한 후 닫는 팝업 (교육 또는 실패)
+  				return new Response("<script>window.close();</script>", {
+  					headers: { "content-type": "text/html" },
+  				});
+  			},
+  		});
+  	}
+
+  	async onRequest(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//MCP 서버 연결
+  		if (url.pathname.endsWith("/connect") && request.method === "POST") {
+  			const { id, authUrl } = await this.addMcpServer(
+  				"Cloudflare Observability",
+  				"https://observability.mcp.cloudflare.com/mcp",
+  			);
+
+  			if (authUrl) {
+  				return Response.json({
+  					serverId: id,
+  					authUrl: authUrl,
+  					message: "Please authorize access",
+  				});
+  			}
+
+  			return Response.json({ serverId: id, status: "connected" });
+  		}
+
+  		//연결 상태 확인
+  		if (url.pathname.endsWith("/status") && request.method === "GET") {
+  			const mcpState = this.getMcpServers();
+  			const connections = Object.entries(mcpState.servers).map(
+  				([id, server]) => ({
+  					serverId: id,
+  					name: server.name,
+  					state: server.state,
+  					authUrl: server.auth_url,
+  				}),
+  			);
+  			return Response.json(connections);
+  		}
+
+  		//연결하기
+  		if (url.pathname.endsWith("/disconnect") && request.method === "POST") {
+  			const { serverId } = (await request.json()) as { serverId: string };
+  			await this.removeMcpServer(serverId);
+  			return Response.json({ message: "Disconnected" });
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+  }
+
+  export default {
+  	async fetch(request: Request, env: Env) {
+  		return (
+  			(await routeAgentRequest(request, env, { cors: true })) ||
+  			new Response("Not found", { status: 404 })
+  		);
+  	},
+  } satisfies ExportedHandler<Env>;
+  ```
+</TypeScriptExample>
+
+## 이름 \*
+
+<LinkCard title="MCP 서버에 연결" href="/agents/guides/connect-mcp-client/" description="OAuth없이 시작하십시오." />
+
+<LinkCard title="MCP 클라이언트 API" href="/agents/api-reference/mcp-client-api/" description="MCP 클라이언트를 위한 API 문서 완료." />

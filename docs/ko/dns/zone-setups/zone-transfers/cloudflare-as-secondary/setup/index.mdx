@@ -1,0 +1,115 @@
+---
+pcx_content_type: tutorial
+title: 설정
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: 들어오는 zone transfer 설정(Cloudflare as Secondary)
+description: >-
+  들어오는 zone transfer를 사용하면 기존 primary DNS 제공자는 유지하면서 Cloudflare를 secondary DNS 제공자로 사용할 수 있습니다.
+---
+
+import { Render, TabItem, Tabs } from "~/components";
+
+[들어오는 zone transfer](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/)를 사용하면 기존 primary DNS 제공자는 유지하면서 Cloudflare를 secondary DNS 제공자로 사용할 수 있습니다.
+
+<Render file="secondary-dns-override" product="dns" /> <br />
+
+## 시작하기 전에
+
+- 등록된 도메인이 있어야 하며, primary DNS 제공자에서 이미 설정되어 있어야 합니다.
+- [Cloudflare as secondary에서 DNSSEC를 사용하는 방법](/dns/zone-setups/zone-transfers/cloudflare-as-secondary/dnssec-for-secondary/)을 검토하고 어떤 옵션을 사용할지 계획합니다.
+- primary DNS 제공자 쪽과 Cloudflare 쪽에서 아래 작업을 완료했는지 확인합니다.
+
+### Primary DNS 제공자에서
+
+primary DNS 제공자는 [peer 서버 구성](#2-peer-server-만들기)에 지정된 IP 주소와 포트에서 오는 트래픽을 허용해야 합니다.
+
+또한 zone transfer가 차단되지 않도록 [Access Control Lists(ACL)](/dns/zone-setups/zone-transfers/access-control-lists/cloudflare-ip-addresses/#cloudflare-as-secondary)도 업데이트되어 있어야 합니다.
+
+secondary zone이 가능한 한 빠르게 최신 변경 사항으로 갱신되도록, primary DNS 제공자에서 [DNS NOTIFY](https://datatracker.ietf.org/doc/html/rfc1996)를 구성하는 것을 강력히 권장합니다. 이를 위해 primary DNS 제공자에 [Cloudflare NOTIFY IP](/dns/zone-setups/zone-transfers/access-control-lists/cloudflare-ip-addresses/#notify-ips)를 설정하세요.
+
+또한 primary DNS 제공자로부터 다음 정보가 필요합니다.
+
+- **Primary IP address**: Cloudflare가 zone transfer 요청(AXFR 또는 IXFR)을 보내는 IP 주소
+- **Zone transfer type**: zone transfer가 전체(AXFR)인지 증분(IXFR)인지
+- **TSIG name**(선택 사항): 도메인 이름 문법([RFC 8945 section 4.2](https://datatracker.ietf.org/doc/html/rfc8945#section-4.2))을 따르는 TSIG의 설명용 이름. <Render file="tsig-name-match" product="dns" />
+- **TSIG secret**(선택 사항): zone transfer 인증에 사용되는 비밀 문자열
+- **TSIG algorithm**(선택 사항): zone transfer 인증에 사용되는 알고리즘
+
+### Cloudflare에서
+
+계정 팀이 해당 zone에서 Secondary DNS를 활성화했는지 확인하세요.
+
+Cloudflare 계정에서 다음 값을 확인합니다.
+
+- [Account ID](/fundamentals/account/find-account-and-zone-ids/)
+- [Zone ID](/fundamentals/account/find-account-and-zone-ids/)
+- [네임서버 이름](/dns/zone-setups/full-setup/setup/#get-nameserver-names) - 이름에 **secondary**가 포함되어 있어야 합니다.
+
+---
+
+## 1. TSIG 만들기(선택 사항)
+
+<Render file="tsig-definition" product="dns" />
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+<Render file="tsig-create-dash" product="dns" />
+
+</TabItem> <TabItem label="API">
+
+<Render file="tsig-create-api" product="dns" />
+
+</TabItem> </Tabs>
+
+## 2. Peer 서버 만들기
+
+<Render file="create-peer-server" product="dns" />
+
+## 3. Secondary zone 만들기
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="대시보드">
+
+대시보드에서 secondary zone을 만들려면:
+
+1. [Cloudflare 대시보드](https://dash.cloudflare.com/login)에 로그인한 뒤 계정을 선택합니다.
+2. **Onboard a domain**을 선택합니다.
+3. zone 이름을 입력하고 **Secondary DNS**를 선택합니다(이 옵션이 보이지 않으면 계정 팀에 문의하세요).
+4. **Continue**를 선택합니다.
+5. 요금제 유형을 선택합니다.
+6. **Zone refresh** 값을 선택합니다. 이 값은 primary DNS 서버로부터 zone 업데이트를 확인하는 간격(초)을 제어합니다.
+   :::caution
+   Cloudflare는 primary 제공자가 제공하는 SOA 레코드 안의 REFRESH 값을 사용하지 않습니다. 대신 Cloudflare의 secondary zone에 구성한 zone refresh 값이 primary zone의 SOA serial을 다시 확인할 간격을 결정합니다.
+   :::
+7. [이전에 만든](#2-peer-서버-만들기) peer 서버를 선택합니다. 필요하다면 하나의 zone에 둘 이상의 peer 서버를 연결할 수 있습니다.
+   :::note
+   <Render file="linked-peers-limit" product="dns" />
+   :::
+8. **Continue**를 선택합니다.
+9. 전송된 레코드 목록을 검토한 후 **Continue**를 선택합니다.
+   :::note
+   아무 레코드도 나타나지 않는다면 TSIG 또는 peer 서버의 IP 주소를 잘못 구성했거나, primary DNS 제공자 쪽 [Access Control List](/dns/zone-setups/zone-transfers/access-control-lists/cloudflare-ip-addresses/#cloudflare-as-secondary)가 잘못 설정되었을 수 있습니다.
+   :::
+10. **Initiate zone transfer**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 secondary zone을 만들려면 `type` 값을 `"secondary"`로 지정하여 [POST](/api/resources/dns/subresources/zone_transfers/subresources/incoming/methods/create/) 요청을 보냅니다.
+
+</TabItem> </Tabs>
+
+## 4. 등록기관 업데이트
+
+등록기관에서 [Cloudflare 대시보드에 표시된](/dns/zone-setups/full-setup/setup/#get-nameserver-names) secondary 네임서버를 추가합니다. primary DNS 제공자의 네임서버는 제거하지 마세요.
+
+Cloudflare 네임서버를 추가한 뒤에는 새 secondary zone으로 이동하여 **Done, check nameservers**를 선택합니다.
+
+## 5. 알림 만들기(선택 사항)
+
+들어오는 zone transfer의 신뢰성을 높이기 위해 [알림을 설정](/notifications/get-started/#create-a-notification)하여 primary 장애, 레코드 업데이트, [그 밖의 상황](/notifications/notification-available/#dns)에 대한 알림을 받을 수 있습니다.
+
+## 6. Cloudflare를 통해 트래픽 프록시(선택 사항)
+
+<Render file="secondary-dns-override" product="dns" />

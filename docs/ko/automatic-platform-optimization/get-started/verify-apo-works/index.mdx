@@ -1,0 +1,45 @@
+---
+title: APO 작동 확인
+pcx_content_type: how-to
+sidebar:
+  order: 9
+description: >-
+  APO가 작동하면 CF-Cache-Status, cf-apo-via, cf-edge-cache의 세 가지 헤더가 존재합니다. 이 헤더가 아래 값과 정확히 일치하면 APO가 정상적으로 작동하는 것입니다.
+---
+
+APO 헤더가 존재하는지 확인하면 APO가 작동하는지 점검할 수 있습니다. APO가 작동할 때는 `CF-Cache-Status`, `cf-apo-via`, `cf-edge-cache` 세 가지 헤더가 표시됩니다.
+
+1. [Uptrends.com](https://www.uptrends.com/tools/http-response-header-check)에 접속합니다.
+2. 텍스트 필드에 `https://www.`를 포함한 WordPress 홈페이지 URL을 입력합니다.
+3. **Start test**를 선택합니다. 그러면 **Response Headers** 표가 표시됩니다.
+4. 세 가지 헤더 응답과 설명을 찾습니다. 헤더가 아래 값과 정확히 일치하면 APO가 정상적으로 작동합니다.
+
+- `CF-Cache-Status` | `HIT`
+  - `cf-cache-status` 헤더는 자산이 캐시에서 제공되었는지, 또는 동적으로 간주되어 오리진에서 제공되었는지를 보여 줍니다.
+- `cf-apo-via` | `tcache`
+  - `cf-apo-via` 헤더는 해당 요청에 대한 APO 상태를 반환합니다.
+- `cf-edge-cache` | `cache, platform=wordpress`
+  - `cf-edge-cache` 헤더는 WordPress 플러그인이 설치되어 있고 활성화되어 있음을 확인해 줍니다.
+
+터미널에서는 다음 cURL 명령을 사용하세요. `'accept: text/html'` 헤더가 중요합니다.
+
+```sh
+curl -svo /dev/null -A "CF" 'https://example.com/' -H 'accept: text/html' 2>&1 | grep 'cf-cache-status\|cf-edge\|cf-apo-via'
+```
+
+```sh output
+< cf-cache-status: HIT
+< cf-apo-via: cache
+< cf-edge-cache: cache,platform=wordpress
+```
+
+평소와 마찬가지로 `cf-cache-status`는 자산이 캐시에 적중했는지, 또는 동적으로 간주되어 오리진에서 제공되었는지를 표시합니다.
+
+- `cf-apo-via` | `tcache`
+  - `cf-apo-via` 헤더는 해당 요청에 대한 APO 상태를 반환합니다.
+- `cf-edge-cache` | `cache, platform=wordpress`
+  - `cf-edge-cache` 헤더는 WordPress 플러그인이 설치되어 있고 활성화되어 있음을 확인해 줍니다.
+
+## APO 통합과 WordPress 통합이 작동하는지 확인
+
+WordPress 사이트를 열고 변경 사항을 게시하세요. 통합이 정상적으로 작동하면 페이지는 `cf-cache-status: HIT`와 `cf-apo-via: tcache`로 캐시됩니다.

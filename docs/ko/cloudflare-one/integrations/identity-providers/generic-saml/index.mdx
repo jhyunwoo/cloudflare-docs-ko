@@ -1,0 +1,173 @@
+---
+pcx_content_type: how-to
+title: 일반 SAML 2.0
+tags:
+  - SAML
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/generic-saml/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/generic-saml/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+사이트맵 SAML 2.0을 지원하는 모든 정체 공급자와 통합합니다. ID 공급자가 Cloudflare의 로그인 방법의 통합 목록에 나열되지 않은 경우 하나, SAML 2.0을 사용하여 구성할 수 있습니다 (또는 OIDC 기반 경우 OpenID). Generic SAML은 추가 SAML 헤더를 전달하거나 통합 목록에서 IdP에 대해 주장하는 경우도 사용할 수 있습니다.
+
+## 자주 묻는 질문
+
+ID 공급자를 위한 최소한도 필요조건:
+
+- IdP는 SAML 2.0을 준수해야 합니다.
+- IdP는**단일 로그인 URL**·**ID 또는 발급 URL**, 그리고**서명 인증서**.
+- IdP는 SAML 응답에서 공개 키를 포함해야합니다.
+
+## 1. ID 공급자에 있는 신청을 창조하십시오
+
+대부분의 ID 공급자는 사용자가 만들 수 있도록**제품 설명**. 이 맥락에서는, 신청은 ID 공급자가 Cloudflare에 통합을 설치하기 위하여 통과할 것이라는 모수의 세트입니다.
+
+일반적인 설정 요구 사항은:
+
+1. ID 공급자의 새로운 통합을 입력으로 설정**사이트맵**.
+2. 모두 설정**엔티티티/이즈 ID**그리고**단일 로그인 URL**에:
+   ```txt
+   https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+   ```
+   <Render file="find-team-name" product="cloudflare-one" />
+3. 설정하기**이름 ID/이메일 체재**으로`emailAddress`.
+4. (선택) 서명 정책 설정*항상 로그인*.
+
+### (선택 사항) SAML 메타데이터 업로드
+
+ID 공급자가 metadata 파일 구성을 지원한다면 기본 또는 ID 공급자 특정 메타데이터 엔드포인트를 사용할 수 있습니다.
+
+- **기본 정보:** `https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/saml-metadata`
+- **Identity 공급자 특정:** `https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/<identity-provider-id>/saml-metadata`, 어디`<identity-provider-id>`이름 \*`id`얻은 값[서비스 약관](/api/resources/zero_trust/subresources/identity_providers/methods/list/). IdP가 기본 메타데이터 파일에서 정의되지 않는 구성을 요구합니다.
+
+SAML 메타데이터 파일을 다운로드하려면 웹 브라우저에 metadata 엔드포인트를 복사하고 페이지를 저장하십시오.`.xml`파일. 이 XML 파일을 identity 공급자에 업로드하십시오.
+
+## 2. Cloudflare One에 SAML ID 공급자 추가
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**통합** > **Identity 공급자**.
+    2. 제품정보**새로운 ID 공급자 추가**선택하기**사이트맵**.
+    3. ID 공급자에게 descriptive 이름을 선택하십시오.
+    4. 이름 \***URL에 단일 로그인**, **ID 또는 발급 URL**·**서명 인증서**당신의 ID 공급자에게서 얻어.
+    5. (선택) SCIM을 활성화하려면[사용자 및 그룹 동기화](#synchronize-users-and-groups).
+    6. (선택) 밑에**옵션 구성**, 구성[추가 SAML 옵션](#optional-configurations).
+    7. 제품정보**제품 정보**.
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+       - `Access: Organizations, Identity Providers, and Groups Write`
+
+    2. 설정하기[`cloudflare_zero_trust_access_identity_provider`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_access_identity_provider)자료:
+
+       ```tf
+       resource "cloudflare_zero_trust_access_identity_provider" "generic_saml_example" {
+       	account_id = var.cloudflare_account_id
+       	name       = "Generic SAML example"
+       	type       = "saml"
+       	config 		 = {
+       		sso_target_url = "https://example.com/1234/sso/saml"
+       		issuer_url = "https://example.com/1234"
+       		idp_public_certs = ["-----BEGIN CERTIFICATE-----\nXXXXX\n-----END CERTIFICATE-----"]
+       		sign_request = false
+       		email_attribute_name = "email"
+       		attributes = ["employeeID", "groups"]
+       	}
+       }
+       ```
+  </TabItem>
+</Tabs>
+
+:::카트로션
+
+일반적인 SAML ID 공급자로부터 얻은 서명 인증서의 만료 날짜에 대한 알림을 설정합니다. 인증서가 만료되면 Cloudflare 대시보드 또는 Terraform을 통해 Cloudflare 구성에 새로운 서명 인증서를 생성하고 다시 추가해야합니다.
+
+:::
+
+## 3. 연결을 시험하십시오
+
+지금 할 수 있습니다[IdP 통합 테스트](/cloudflare-one/integrations/identity-providers/#test-idps-in-cloudflare-one). 성공 응답은 구성 된 SAML 속성을 반환해야합니다.
+
+## 사용자 및 그룹 동기화
+
+일반적인 SAML 통합을 사용하면 사용자 그룹을 동기화하고 자동으로 사용자를 식별 할 수 있습니다.[사이트맵](/cloudflare-one/team-and-resources/users/scim/).
+
+### 자주 묻는 질문
+
+신원 공급자는 SCIM 버전 2.0을 지원해야 합니다.
+
+### 1. Cloudflare에 있는 가능하게 하는 SCIM 한국어
+
+<Render file="access/enable-scim-on-dashboard" product="cloudflare-one" params={{ idp: "IdP" }} />
+
+### 2. IdP에서 SCIM 구성
+
+설정 지침은 ID 공급자에 따라 다릅니다. 당신의 정체성 공급자에서, 당신은 편집할 필요가 있을 것입니다[본래 SSO 신청](#1-create-an-application-in-your-identity-provider)또는 새로운 SCIM 응용 프로그램을 만들. ID 공급자의 문서에 대한 자세한 내용을 참조하십시오. 예를 들면 지시, 우리의 참고[오오타](/cloudflare-one/integrations/identity-providers/okta/#synchronize-users-and-groups)또는[채용정보](/cloudflare-one/integrations/identity-providers/jumpcloud-saml/#synchronize-users-and-groups)관련 기사
+
+#### IdP 그룹
+
+IdP 그룹에 따라 정책을 구축하려면:
+
+- IdP가 보내는 것을 확신합니다.`groups`이름 \* naming은 정확히 일치해야합니다 (문자 과민성). 다른 모든 값은 SAML 속성으로 전송됩니다.
+- IdP가 새로운 SCIM 응용 프로그램을 만들려면 SCIM 응용 프로그램에 그룹이 그룹에 일치한다는 것을 확인하십시오.[본래 SSO 신청](/cloudflare-one/integrations/identity-providers/generic-saml/#1-create-an-application-in-your-identity-provider). SCIM 그룹 회원 업데이트가 사용자의 정체성에 어떤 그룹을 덮기 때문에 각 앱에 동일한 그룹을 할당하는 것은 일관된 정책 평가를 보장합니다.
+
+### 3. SCIM 규정 준수
+
+<Render file="access/verify-scim-provisioning" product="cloudflare-one" />
+
+## 옵션 구성
+
+SAML 통합은 추가 헤드를 통과하거나 응용 프로그램에 주장 할 수 있습니다.
+
+### SAML 인증 요청
+
+이 선택적 구성 징후[액세스 JWT](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/)Cloudflare Access public key를 사용하여 JWT가 합법적인 소스에서 오는 것을 보장합니다. Cloudflare 공공 키에서 얻을 수 있습니다`https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/certs`.
+
+### Email 속성 이름
+
+이름 \*[오시는 길](/cloudflare-one/access-controls/policies/)사용자의 이메일 주소에 따라 달라집니다. 몇몇 정체성 공급자는 이메일 주소 속성을 위한 다른 naming가 있습니다 (예를 들면,`Email`, `e-mail`, `emailAddress`). 이것은 일반적으로 ID 공급자의 SAML 시험 선택권에서 검사될 수 있습니다.
+
+Okta의 예:
+
+![Okta 대시보드에서 SAML assertion 미리보기](~/assets/images/cloudflare-one/identity/saml-assertion.png)
+![SAML assertion의 이메일 속성 이름 결정](~/assets/images/cloudflare-one/identity/saml-attributes.png)
+
+### SAML 헤더 및 속성
+
+사이트맵 모든 SAML IdP 통합을 위한 SAML(Security Assertion Markup Language) 속성 및 SAML 헤더를 지원합니다.
+
+[**SAML 속성**](#saml-attributes)IdP는 인증된 사용자에 대한 특정 데이터 포인트 또는 특성을 나타냅니다. 이 속성은 종종 이메일 주소, 이름, 또는 역할과 같은 세부 사항이 포함되며 성공적인 인증에 대한 서비스 제공 업체에 따라 전달됩니다.
+
+[**SAML 헤더**](#saml-headers)전송기, 수신자 및 메시지 자체에 대한 정보를 전달하는 SAML 프로토콜 통신의 메타데이터입니다. 이 헤더는 통신에 여분의 컨텍스트 또는 제어를 제공 할 수 있습니다.
+
+#### SAML 속성
+
+SAML 속성이 추가됩니다.[액세스 JWT](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/). 이러한 속성은 액세스에 연결된 자체 호스팅 또는 SaaS 응용 프로그램에 의해 소모 될 수 있습니다. SAML 통합으로 구성된 SAML 속성은 IdP에서 전송되어야 합니다.
+
+Okta의 예:
+
+![SAML 속성을 보낼 Okta 구성](~/assets/images/cloudflare-one/identity/attribute-statements.png)
+
+Cloudflare의 이러한 SAML 속성을 얻는 방법 :
+
+![Cloudflare를 구성하여 SAML 속성을 수신합니다.](~/assets/images/cloudflare-one/identity/attributes-cloudflare.png)
+
+#### SAML 헤더
+
+SAML 속성이 서명에 필요한 경우, 속성은 헤더로 전달될 수 있습니다. 더 보기**이름 \***&#x49;dP에서 오는 값이어야한다 (예를 들어,`department`). 모든 것을 할당할 수 있습니다.**헤더 이름**속성에. 헤더 이름은 접근할 때 응답 헤더에 나타날 것입니다 초기 승인 요청`https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback`.
+
+#### 다중 기록 SAML 속성
+
+사이트맵 Access는 그룹과 같은 다중 기록 SAML 속성에 대한 지원을 확장합니다. 이 속성은 파싱되고 개인적으로 참고 자료d 정책. 이 기능은 granular 접근 제한과 애플리케이션의 정확한 사용자 권한화를 가능하게 합니다.
+
+사이트맵 Access는 현재 부분 속성 값 참고 자료s를 지원하지 않습니다.

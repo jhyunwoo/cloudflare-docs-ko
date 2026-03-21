@@ -1,0 +1,43 @@
+---
+title: 캐시 성능
+pcx_content_type: how-to
+---
+
+## 캐시 비율 최적화
+
+수신하는 cache status에 따라 캐시 비율을 개선하기 위한 변경을 적용할 수 있습니다. cache status 목록은 [Cloudflare cache responses](/cache/concepts/cache-responses/)를 참고하세요.
+
+- **Dynamic**: HTML을 포함한 많은 파일 유형의 기본 응답입니다. 추가 콘텐츠를 캐시하려면 [Cache Rules](/cache/how-to/cache-rules/)를 참고하세요.
+- **Revalidated**: 재검증된 콘텐츠가 비정상적으로 많다면 [Edge Cache TTL을 늘리는 것](/cache/how-to/cache-rules/settings/#edge-ttl)을 고려하세요.
+- **Expired**: Cache Rule을 통해 해당 리소스의 [Edge Cache TTL을 늘리거나](/cache/how-to/cache-rules/settings/#edge-ttl), 오리진에서 재검증을 활성화하는 것을 고려하세요.
+- **Miss**: 최적화가 쉽지는 않지만 몇 가지 가능한 해결책이 있습니다.
+  - [Argo Tiered Caching을 활성화](/cache/how-to/tiered-cache/#enable-tiered-cache)하여 오리진 웹 서버를 확인하기 전에 다른 Cloudflare 데이터 센터의 캐시를 먼저 확인합니다.
+  - 예를 들어 쿼리 문자열을 무시하도록 설정해 여러 URL이 같은 캐시 리소스와 매칭되도록 [사용자 지정 cache key를 생성](/cache/how-to/cache-rules/examples/custom-cache-key/)합니다.
+
+## 캐시 성능 문제 해결을 위한 예시 보고서
+
+Cache Analytics를 통해 사이트 성능에 대한 유용한 인사이트를 얻을 수 있는 예시는 다음과 같습니다.
+
+- HTML이 캐시되지 않음.
+
+  - 문제 식별: **Add filter**를 선택하고 **Cache status equals Dynamic**을 선택합니다.
+  - 해결 방법: Cloudflare Cache Rule을 설정해 [동적 콘텐츠를 캐시](/cache/how-to/cache-rules/examples/cache-everything/)합니다.
+
+:::caution
+
+이 옵션은 동적 콘텐츠가 포함되어 있는지와 관계없이 모든 HTML을 캐시합니다. 이 방법으로 동적 콘텐츠가 포함된 페이지를 캐시하면 방문자가 자신에게 의도되지 않은 정보를 받게 될 수 있습니다. 동적 콘텐츠를 캐시하지 않으려면 규칙의 매칭 조건에 해당 콘텐츠와 일치하지 않도록 하는 조건을 추가할 수 있습니다. 예시는 다음과 같습니다.
+
+- 쿠키 존재 여부 확인
+- 알려진 동적 콘텐츠 파일 경로에 대한 부정 매칭
+- 동적 콘텐츠 확장자(또는 확장자 없음)에 대한 부정 매칭
+:::
+
+* 짧은 캐시 만료 TTL
+
+  - 문제 식별: **Add filter**를 선택하고 **Cache status equals Revalidated**를 선택합니다.
+  - 해결 방법: [Cache Rule을 통해 Cloudflare의 Edge Cache TTL을 증가](/cache/how-to/cache-rules/examples/edge-ttl/)시킵니다.
+
+* Tiered Cache 또는 Custom Cache Key 활성화 필요
+
+  - 문제 식별: **Add filter**를 선택하고 **Cache status equals Miss**를 선택합니다.
+  - 해결 방법: [Argo Tiered Caching을 활성화](/cache/how-to/tiered-cache/#enable-tiered-cache)하거나 [사용자 지정 cache key를 생성](/cache/how-to/cache-rules/examples/custom-cache-key/)합니다.

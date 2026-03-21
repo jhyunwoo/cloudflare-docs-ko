@@ -1,0 +1,90 @@
+---
+summary: Running a container on a schedule using Cron Triggers
+pcx_content_type: example
+title: Cron 컨테이너
+sidebar:
+  order: 4
+description: Cron Triggers를 사용하여 일정에 컨테이너를 실행
+reviewed: 2025-06-24T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/containers/examples/cron/'
+translation_source_md: 'https://developers.cloudflare.com/containers/examples/cron/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+일정에 컨테이너를 실행하려면 Workers[Cron 방아쇠](/workers/configuration/cron-triggers/).
+
+전체 예제의 경우,[Cron 컨테이너 템플릿](https://github.com/mikenomitch/cron-container/tree/main).
+
+Wrangler config에서 cron식을 사용하여 일정을 지정합니다.
+
+<WranglerConfig>
+  ```json
+  {
+  	"name": "cron-container",
+  	"main": "src/index.ts",
+  	"triggers": {
+  		"crons": [
+  			"*/2 * * * *" // Run every 2 minutes
+  		]
+  	},
+  	"containers": [
+  		{
+  			"class_name": "CronContainer",
+  			"image": "./Dockerfile"
+  		}
+  	],
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"class_name": "CronContainer",
+  				"name": "CRON_CONTAINER"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"new_sqlite_classes": ["CronContainer"],
+  			"tag": "v1"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+그런 다음 작업자에서 "스케이드" 핸들러에서 컨테이너를 호출하십시오.
+
+```ts
+import { Container, getContainer } from '@cloudflare/containers';
+
+export class CronContainer extends Container {
+  sleepAfter = '10s';
+
+  override onStart() {
+    console.log('Starting container');
+  }
+
+  override onStop() {
+    console.log('Container stopped');
+  }
+}
+
+export default {
+  async fetch(): Promise<Response> {
+    return new Response("This Worker runs a cron job to execute a container on a schedule.");
+  },
+
+  async scheduled(_controller: any, env: { CRON_CONTAINER: DurableObjectNamespace<CronContainer> }) {
+    let container = getContainer(env.CRON_CONTAINER);
+    await container.start({
+      envVars: {
+				MESSAGE: "Start Time: " + new Date().toISOString(),
+      }
+    })
+  },
+};
+```

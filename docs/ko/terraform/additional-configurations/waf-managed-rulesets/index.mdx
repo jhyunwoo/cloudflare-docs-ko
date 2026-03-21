@@ -1,0 +1,326 @@
+---
+title: WAF 관리 규칙 구성을 사용하여 Terraform
+pcx_content_type: how-to
+sidebar:
+  order: 2
+  label: WAF 관리 규칙
+head:
+  - tag: title
+    content: WAF 관리 규칙 구성을 사용하여 Terraform
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/waf-managed-rulesets/
+translation_source_md: >-
+  https://developers.cloudflare.com/terraform/additional-configurations/waf-managed-rulesets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, RuleID } from "~/components";
+
+이 페이지는 배포 및 구성 예제를 제공합니다.[WAF 관리 규칙](/waf/managed-rules/)Terraform을 사용하여 영역 또는 계정에서. 그것은 뒤에 오는 윤곽을 포함합니다:
+
+- [영역 수준에서 관리되는 규칙](#deploy-managed-rulesets-at-the-zone-level)
+- [계정 수준에서 관리되는 규칙](#deploy-managed-rulesets-at-the-account-level)
+- [예외 설정](#configure-exceptions)
+- [payload 로깅 구성](#configure-payload-logging)
+- [overrides 구성](#configure-overrides)
+- [OWASP paranoia 레벨 구성, 점수 임계값 및 동작](#configure-the-owasp-paranoia-level-score-threshold-and-action)
+
+Cloudflare API를 사용하는 경우 다음 리소스를 참조하십시오.
+
+- [API를 통해 WAF 관리 규칙 배포](/waf/managed-rules/deploy-api/)
+- [API를 통해 WAF 관리 규칙 배포 (계정)](/waf/account/managed-rulesets/deploy-api/)
+
+Rulesets API를 사용하여 배포 및 구성 관리 규칙에 대한 자세한 내용은 참조[관리 규칙과 함께 일](/ruleset-engine/managed-rulesets/)Ruleset Engine 문서에서.
+
+## 시작하기 전에
+
+### 필요한 계정, 영역 및 관리되는 규칙 ID를 얻으십시오.
+
+<Render file="find-ids-managed-rulesets" product="terraform" />
+
+WAF 관리 규칙의 ID는 또한 유효합니다[WAF 관리 규칙](/waf/managed-rules/#available-managed-rulesets)사이트 맵
+
+### 기존의 규칙을 가져오기 또는 삭제
+
+<Render file="import-delete-existing-rulesets" product="terraform" />
+
+***
+
+## 영역 수준에서 관리되는 규칙
+
+다음 예제는 ID와 영역에 두 개의 관리 규칙을 배치`<ZONE_ID>`Terraform을 사용하여`cloudflare_ruleset`관리 규칙을 실행하는 두 가지 규칙을 가진 자원.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+# Configure a ruleset at the zone level for the "http_request_firewall_managed" phase
+resource "cloudflare_ruleset" "zone_level_managed_waf" {
+  zone_id     = "<ZONE_ID>"
+  name        = "Managed WAF entry point ruleset"
+  description = "Zone-level WAF Managed Rules config"
+  kind        = "zone"
+  phase       = "http_request_firewall_managed"
+
+  # Execute Cloudflare Managed Ruleset
+  rules {
+    ref         = "execute_cloudflare_managed_ruleset"
+    description = "Execute Cloudflare Managed Ruleset on my zone-level phase entry point ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee"
+    }
+  }
+
+  # Execute Cloudflare OWASP Core Ruleset
+  rules {
+    ref         = "execute_cloudflare_owasp_core_ruleset"
+    description = "Execute Cloudflare OWASP Core Ruleset on my zone-level phase entry point ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "4814384a9e5d4991b9815dcfc25d2f1f"
+    }
+  }
+}
+```
+
+## 계정 수준에서 관리되는 규칙
+
+:::주\[주]
+
+- [계정 수준 WAF 구성](/waf/account/)유료 애드온과 엔터프라이즈 플랜이 필요합니다.
+
+- 계정 수준에 배치 된 관리 된 규칙은 엔터프라이즈 계획에 영역의 들어오는 트래픽을 적용합니다. 당신의 표현`execute`규칙은 끝이어야 합니다`and cf.zone.plan eq "ENT"`.
+
+:::
+
+다음 예제는 ID로 계정으로 두 개의 관리 규칙을 배치합니다.`<ACCOUNT_ID>`Terraform을 사용하여`cloudflare_ruleset`Enterprise Zone에 속하는 두 개의 호스트 이름에 대한 관리 규칙을 실행하는 두 가지 규칙을 가진 자원.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf
+resource "cloudflare_ruleset" "account_level_managed_waf" {
+  account_id  = "<ACCOUNT_ID>"
+  name        = "Managed WAF entry point ruleset"
+  description = "Account-level WAF Managed Rules config"
+  kind        = "root"
+  phase       = "http_request_firewall_managed"
+
+  # Execute Cloudflare Managed Ruleset
+  rules {
+    ref         = "execute_cloudflare_managed_ruleset_api_store"
+    description = "Execute Cloudflare Managed Ruleset on my account-level phase entry point ruleset"
+    expression  = "http.host in {\"api.example.com\" \"store.example.com\"} and cf.zone.plan eq \"ENT\""
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee"
+    }
+  }
+
+  # Execute Cloudflare OWASP Core Ruleset
+  rules {
+    ref         = "execute_owasp_core_ruleset_api_store"
+    description = "Execute Cloudflare OWASP Core Ruleset on my account-level phase entry point ruleset"
+    expression  = "http.host in {\"api.example.com\" \"store.example.com\"} and cf.zone.plan eq \"ENT\""
+    action      = "execute"
+    action_parameters {
+      id = "4814384a9e5d4991b9815dcfc25d2f1f"
+    }
+  }
+}
+```
+
+## 예외 설정
+
+다음 예제는 두 개의 추가[옵션 정보](/waf/managed-rules/waf-exceptions/)Cloudflare 관리되는 통치자를 위해:
+
+- 첫 번째 규칙은 전체 Cloudflare 관리 규칙 세트의 실행을 건너 뛸 것입니다 (ID로<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />) 규칙 표현에 따라 특정 URL에 대한.
+- 두 번째 규칙은 규칙 표현에 따라 Cloudflare 관리 규칙 세트에 속하는 두 가지 규칙의 실행을 건너 뛸 것입니다.
+
+두 가지 예외를 추가하십시오.`cloudflare_ruleset`Cloudflare 관리 규칙을 배치하는 규칙의 앞에 자원:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf null {4-13,15-27}
+resource "cloudflare_ruleset" "zone_level_managed_waf" {
+  # (...)
+
+  # Skip execution of the entire Cloudflare Managed Ruleset for specific URLs
+  rules {
+    ref         = "skip_cloudflare_managed_ruleset_example_com"
+    description = "Skip Cloudflare Managed Ruleset"
+    expression  = "(http.request.uri.path eq \"/status\" and http.request.uri.query contains \"skip=rulesets\")"
+    action      = "skip"
+    action_parameters {
+      rulesets = ["efb7b8c949ac4650a09736fc376e9aee"]
+    }
+  }
+
+  # Skip execution of two rules in the Cloudflare Managed Ruleset for specific URLs
+  rules {
+    ref         = "skip_wordpress_sqli_rules_example_com"
+    description = "Skip WordPress and SQLi rules"
+    expression  = "(http.request.uri.path eq \"/status\" and http.request.uri.query contains \"skip=rules\")"
+    action      = "skip"
+    action_parameters {
+      rules = {
+        # Format: "<RULESET_ID>" = "<RULE_ID_1>,<RULE_ID_2>,..."
+        "efb7b8c949ac4650a09736fc376e9aee" = "5de7edfa648c4d6891dc3e7f84534ffa,e3a567afc347477d9702d9047e97d760"
+      }
+    }
+  }
+
+  # Execute Cloudflare Managed Ruleset
+  rules {
+    ref         = "execute_cloudflare_managed_ruleset"
+    description = "Execute Cloudflare Managed Ruleset on my zone-level phase entry point ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee"
+    }
+  }
+
+  # (...)
+}
+```
+
+:::카ution\[중요]
+
+당신은 예외를 배치**이전 다음**관리된 규칙을 실행하는 규칙 (또는 규칙의 일부) 당신이 건너뛰고 싶은, 이전 예에서.
+주요 특징
+
+## overrides 구성
+
+다음 예제는 세 가지를 추가[관련 기사](/ruleset-engine/managed-rulesets/override-managed-ruleset/)Cloudflare 관리되는 통치자를 위해:
+
+- ID를 가진 규칙에 대한 규칙`5de7edfa648c4d6891dc3e7f84534ffa`작업 설정`log`.
+- ID를 가진 규칙에 대한 규칙`75a0060762034a6cb663fd51a02344cb`규칙을 해제.
+- 태그 override`wordpress`태그, 이 태그와 모든 규칙의 동작을 설정`js_challenge`.
+
+<Render file="managed-ruleset-override-warning" product="waf" />
+
+다음 구성에는 Cloudflare Managed Ruleset을 실행하는 규칙에 세 개의 overrides가 포함되어 있습니다.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf null {11-26}
+  # (...)
+
+  # Execute Cloudflare Managed Ruleset
+  rules {
+    ref         = "execute_cloudflare_managed_ruleset"
+    description = "Execute Cloudflare Managed Ruleset on my zone-level phase entry point ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee"
+      overrides {
+        rules {
+          id      = "5de7edfa648c4d6891dc3e7f84534ffa"
+          action  = "log"
+          enabled = true
+        }
+        rules {
+          id      = "75a0060762034a6cb663fd51a02344cb"
+          enabled = false
+        }
+        categories {
+          category = "wordpress"
+          action   = "js_challenge"
+          enabled  = true
+        }
+      }
+    }
+  }
+
+  # (...)
+```
+
+## payload 로깅 구성
+
+이 예제는[payload 로깅](/waf/managed-rules/payload-logging/)Cloudflare 관리 규칙 세트의 일치한 규칙을 위해, 기록된 페이로드를 암호화하기 위하여 사용된 대중적인 열쇠를 놓으십시오.
+
+Cloudflare 관리 규칙을 배치하는 규칙에 건물, 뒤에 오는 규칙 윤곽은 추가합니다`matched_data`payload를 암호화하는 데 사용되는 공공 키와 객체:
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf null {11-13}
+  # (...)
+
+  # Execute Cloudflare Managed Ruleset
+  rules {
+    ref         = "execute_cloudflare_managed_ruleset"
+    description = "Execute Cloudflare Managed Ruleset on my zone-level phase entry point ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "efb7b8c949ac4650a09736fc376e9aee"
+      matched_data {
+         public_key = "Ycig/Zr/pZmklmFUN99nr+taURlYItL91g+NcHGYpB8="
+      }
+    }
+  }
+
+  # (...)
+```
+
+## OWASP paranoia 레벨 구성, 점수 임계값 및 동작
+
+OWASP 관리 규정은 다음과 같은 구성을 지원합니다.
+
+- 더 높은 파라노아 수준과 관련된 모든 규칙을 비활성화 태그 오버라이드를 생성하여 특정 파라노아 수준까지 모든 규칙을 활성화 할 수 있습니다.
+
+- 계산된 위협 점수가 Cloudflare OWASP Core Ruleset의 마지막 규칙에 대한 규칙을 작성하여 점수 임계값보다 더 큰 동작을 설정한다 (ID로 정렬)<RuleID id="6179ae15870a4bb7b2d480d4843b323c" />), 등`action`호텔 위치
+
+- Cloudflare OWASP Core Ruleset의 마지막 규칙을 작성하여 점수 임계값을 설정하십시오 (ID로 정렬)<RuleID id="6179ae15870a4bb7b2d480d4843b323c" />), 등`score_threshold`호텔 위치
+
+사용 가능한 구성 값에 대한 자세한 내용은 참조[Cloudflare OWASP 핵심 통치자](/waf/managed-rules/reference/owasp-core-ruleset/)WAF 문서의 페이지.
+
+다음 예제 규칙`cloudflare_ruleset`Terraform 리소스는 다음과 같은 구성을 수행합니다.
+
+- OWASP 관리 규정을 배포합니다.
+- OWASP 파라노아 수준 설정*공장 투어*.
+- 점수 임계 값을 설정`60` (*이름 \**).
+- 규칙 작업을 설정`log`.
+
+<Render file="v4-code-snippets" product="terraform" />
+
+```tf null {11-28}
+  # (...)
+
+  # Execute Cloudflare OWASP Core Ruleset
+  rules {
+    ref         = "execute_owasp_core_ruleset"
+    description = "Execute Cloudflare OWASP Core Ruleset"
+    expression  = "true"
+    action      = "execute"
+    action_parameters {
+      id = "4814384a9e5d4991b9815dcfc25d2f1f"
+      overrides {
+        # By default, all PL1 to PL4 rules are enabled.
+        # Set the paranoia level to PL2 by disabling rules with
+        # tags "paranoia-level-3" and "paranoia-level-4".
+        categories {
+          category = "paranoia-level-3"
+          enabled  = false
+        }
+        categories {
+          category = "paranoia-level-4"
+          enabled  = false
+        }
+        rules {
+          id              = "6179ae15870a4bb7b2d480d4843b323c"
+          action          = "log"
+          score_threshold = 60
+        }
+      }
+    }
+  }
+
+  # (...)
+```

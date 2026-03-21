@@ -1,0 +1,295 @@
+---
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: R2XQ
+reviewed: 2024-06-07T00:00:00.000Z
+products:
+  - r2
+tags:
+  - AI
+  - Hono
+  - TypeScript
+sidebar:
+  order: 1
+description: 이 튜토리얼에서는 OpenAI API와 Cloudflare R2XQ를 사용하여 정밀한 다행 모델을 만듭니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/tutorials/create-finetuned-chatgpt-ai-models-with-r2/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/tutorials/create-finetuned-chatgpt-ai-models-with-r2/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+이 튜토리얼에서, 당신은 사용할 것이다[오시는 길](https://openai.com)API 및[Cloudflare R2](/r2)더 보기[고급 모델](https://platform.openai.com/docs/guides/fine-tuning).
+
+OpenAI의 API의 이 기능은 사용자 정의 지침 및 예 답변 세트를 기반으로 OpenAI의 다양한 대형 언어 모델에서 사용자 정의 모델을 파생 할 수 있습니다. 이 지침과 예 답변은 훌륭한 문서로 알려진 문서에서 작성됩니다. 이 문서는 R2에 저장되며 새로운 고급 모델 생성시 OpenAI의 API에 동적 제공됩니다.
+
+이 기능을 사용하려면 다음 작업을 수행 할 것입니다.
+
+1. R2에 고급 문서 업로드.
+2. R2 파일을 읽고 OpenAI에 업로드하십시오.
+3. 문서에 근거한 새로운 고급 모델 만들기.
+
+![계정 만들기](~/assets/images/workers/tutorials/finetune/finetune-example.png)
+
+이 응용 프로그램에 대한 완료 된 코드를 검토하려면, 참조[이 튜토리얼에 대한 GitHub 저장소](https://github.com/kristianfreeman/openai-finetune-r2-example).
+
+## 자주 묻는 질문
+
+시작하기 전에, 당신이 가지고 있는지 확인하십시오:
+
+- Cloudflare 계정은 R2에 액세스 할 수 있습니다. Cloudflare 계정이 없는 경우,[로그인](https://dash.cloudflare.com/sign-up/workers-and-pages)계속하기 다음 R2XQ를 Cloudflare dashboardXQ에서 구매하십시오.
+- OpenAI API 키입니다.
+- 고급 문서, 구조화[JSON 라인](https://jsonlines.org/). 사용[예제 문서](https://github.com/kristianfreeman/openai-finetune-r2-example/blob/16ca53ca9c8589834abe317487eeedb8a24c7643/example_data.jsonl)소스 코드에서.
+
+## 1. Worker 응용 프로그램 만들기
+
+첫째, 사용`c3`새로운 Cloudflare Workers 프로젝트를 만들려면 CLI.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"finetune-chatgpt-model"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+위의 옵션은 "Hello World"TypeScript 프로젝트를 만들 것입니다.
+
+새로 만든 디렉토리로 이동:
+
+```sh
+cd finetune-chatgpt-model
+```
+
+## 2. R2
+
+다음, R2에 고급 문서 업로드. R2는 당신이 당신의 Workers 신청 안에 파일을 저장하고 검색할 수 있는 중요한 가치 상점입니다. 이용안내[모델 번호: Wrangler](/workers/wrangler)새로운 R2 물통을 창조하기 위하여.
+
+새로운 R2 버킷을 만들기 위해[`wrangler r2 bucket create`](/workers/wrangler/commands/#r2-bucket-create)명령. Cloudflare 계정으로 로그인됩니다. Wrangler를 통해 로그인하지 않으면 사용[`wrangler login`](/workers/wrangler/commands/#login)명령.
+
+```sh
+npx wrangler r2 bucket create <BUCKET_NAME>
+```
+
+기타 제품`<BUCKET_NAME>`당신의 원한 물통 이름으로. 버킷 이름은 더 낮은 케이스이어야하며 dashes를 포함 할 수 있습니다.
+
+다음으로 파일을 업로드[`wrangler r2 object put`](/workers/wrangler/commands/#r2-object-put)명령.
+
+```sh
+npx wrangler r2 object put <PATH> -f <FILE_NAME>
+```
+
+`<PATH>`업로드하려는 파일의 결합 된 버킷 및 파일 경로입니다 -- 예를 들어,`fine-tune-ai/finetune.jsonl`, 어디`fine-tune-ai`버킷 이름입니다. 기타 제품`<FILE_NAME>`고급 문서의 로컬 파일 이름.
+
+## 3. 노동자에 당신의 물통을 바짝 죄십시오
+
+바인딩은 QXQX0873XQ 물통과 같은 외부 자원과 어떻게 상호 작용합니다.
+
+R2 버킷을 작업자에게 바인딩하려면 Wrangler 파일에 다음을 추가하십시오. 유효한 JavaScript 가변 식별자에 바인딩 속성을 업데이트하십시오. 기타 제품`<YOUR_BUCKET_NAME>`버킷의 이름으로 만든[단계 2](#2-upload-a-fine-tune-document-to-r2):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET", //<~ 유효한 JavaScript 가변 이름
+  			"bucket_name": "<YOUR_BUCKET_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 4. 당신의 노동자 신청을 초기화하십시오
+
+이용안내[호노](https://hono.dev/)QXQX0878XQ QXWorkers 신청을 건축하는 경량 기구. Hono는 노선과 미들웨어 기능을 정의하는 인터페이스를 제공합니다. 프로젝트 디렉토리에서 다음 명령을 실행하여 Hono를 설치하십시오.
+
+<PackageManagers pkg="hono" />
+
+당신은 또한 설치해야합니다[OpenAI Node API 라이브러리](https://www.npmjs.com/package/openai). 이 라이브러리는 Node.js 프로젝트에서 OpenAI REST API에 편리한 액세스를 제공합니다. 라이브러리를 설치하려면 다음 명령을 실행하십시오.
+
+<PackageManagers pkg="openai" />
+
+다음, 열다`src/index.ts`파일 및 아래의 코드와 기본 코드를 대체합니다. 기타 제품`<MY_BUCKET>`Wrangler 파일에서 설정된 바인딩 이름.
+
+```typescript
+import { Context, Hono } from "hono";
+import OpenAI from "openai";
+
+type Bindings = {
+	<MY_BUCKET>: R2Bucket
+	OPENAI_API_KEY: string
+}
+
+type Variables = {
+	openai: OpenAI
+}
+
+const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
+
+app.use('*', async (c, next) => {
+	const openai = new OpenAI({
+		apiKey: c.env.OPENAI_API_KEY,
+	})
+	c.set("openai", openai)
+	await next()
+})
+
+app.onError((err, c) => {
+	return c.text(err.message, 500)
+})
+
+export default app;
+```
+
+위의 코드에서 먼저 필요한 패키지를 가져와 유형을 정의합니다. 그때, 당신은 초기화`app`새로운 Hono 인스턴스로. 사용 방법`use`Midware 기능, 당신은 모든 경로의 상황에 OpenAI API 클라이언트를 추가합니다. 이 미들웨어 기능은 어떤 경로 핸들러 내에서 클라이언트에 액세스 할 수 있습니다.`onError()`오류 핸들러를 정의하여 JSON 응답으로 오류를 반환합니다.
+
+## 5. R2 파일을 읽고 OpenAI에 업로드하십시오
+
+이 섹션에서는 파일 업로드에 책임있는 경로와 기능을 정의합니다.
+
+내 계정`createFile`, 당신의 노동자는 R2에서 파일을 읽고 그것에 개조합니다`File`객체. 작업자가 OpenAI API를 사용하여 파일을 업로드하고 응답을 반환합니다.
+
+더 보기`GET /files`경로 듣기`GET`쿼리 매개 변수와 요청`file`R2에서 업로드된 고급 문서의 파일 이름을 나타냅니다. 함수는`createFile`파일 업로드 프로세스를 관리하는 기능.
+
+기타 제품`<MY_BUCKET>`Wrangler 파일에서 설정된 바인딩 이름.
+
+```typescript
+//파일의 시작에 새 수입 추가
+import { toFile } from 'openai/uploads'
+
+const createFile = async (c: Context, r2Object: R2ObjectBody) => {
+	const openai: OpenAI = c.get("openai")
+
+	const blob = await r2Object.blob()
+	const file = await toFile(blob, r2Object.key)
+
+	const uploadedFile = await openai.files.create({
+		file,
+		purpose: "fine-tune",
+	})
+
+	return uploadedFile
+}
+
+app.get('/files', async c => {
+	const fileQueryParam = c.req.query("file")
+	if (!fileQueryParam) return c.text("Missing file query param", 400)
+
+	const file = await c.env.<MY_BUCKET>.get(fileQueryParam)
+	if (!file) return c.text("Couldn't find file", 400)
+
+	const uploadedFile = await createFile(c, file)
+	return c.json(uploadedFile)
+})
+```
+
+## 6. 미세 조정 모델 만들기
+
+이 섹션에는`GET /models`경로 및`createModel`기능. 함수`createModel`세부사항을 지정하고 OpenAI를 가진 정밀한 조정 과정을 개시하는 데 걸리십시오. 경로는 새로운 고급 모델을 만들기위한 수신 요청을 처리합니다.
+
+```typescript
+const createModel = async (c: Context, fileId: string) => {
+	const openai: OpenAI = c.get("openai");
+
+	const body = {
+		training_file: fileId,
+		model: "gpt-4o-mini",
+	};
+
+	return openai.fineTuning.jobs.create(body);
+};
+
+app.get("/models", async (c) => {
+	const fileId = c.req.query("file_id");
+	if (!fileId) return c.text("Missing file ID query param", 400);
+
+	const model = await createModel(c, fileId);
+	return c.json(model);
+});
+```
+
+## 7. 모든 고급 작업 목록
+
+이 단면도는 설명합니다`GET /jobs`경로 및 대응`getJobs`기능. 이 기능은 OpenAI의 API와 상호 작용하여 모든 미세 조정 작업 목록을 파악합니다. 이 정보를 검색하는 인터페이스를 제공합니다.
+
+```typescript
+const getJobs = async (c: Context) => {
+	const openai: OpenAI = c.get("openai");
+	const resp = await openai.fineTuning.jobs.list();
+	return resp.data;
+};
+
+app.get("/jobs", async (c) => {
+	const jobs = await getJobs(c);
+	return c.json(jobs);
+});
+```
+
+## 8. 앱 배포
+
+Worker 응용 프로그램을 생성하고 필요한 기능을 추가 한 후 응용 프로그램을 배포합니다.
+
+배포하기 전에, 당신은 설정해야`OPENAI_API_KEY` [이름 \*](/workers/configuration/secrets/)당신의 신청을 위해. 이 작업을 수행[`wrangler secret put`](/workers/wrangler/commands/#secret-put)명령:
+
+```sh
+npx wrangler secret put OPENAI_API_KEY
+```
+
+Cloudflare 글로벌 네트워크에 Worker 응용 프로그램을 배포하려면:
+
+1. Worker 프로젝트의 디렉토리에 있는지 확인하십시오.[`wrangler deploy`](/workers/wrangler/commands/#deploy)명령:
+
+```sh
+npx wrangler deploy
+```
+
+2. Wrangler는 당신의 코드를 포장하고 업로드할 것입니다.
+
+3. 응용 프로그램이 배포되면 Wrangler는 작업자의 URL을 제공합니다.
+
+## 9. 미세 톤 작업 상태를 확인하고 모델을 사용하십시오.
+
+당신의 응용 프로그램을 사용하려면, 요청에 따라 새로운 고급 작업 만들기`/files`한국어`file`먼저 업로드된 파일명과 일치하는 쿼리 파라m:
+
+```sh
+curl https://your-worker-url.com/files?file=finetune.jsonl
+```
+
+파일이 업로드되면 다른 요청을 발급`/models`, 통과`file_id`쿼리 매개 변수. 이것은 일치해야합니다`id`JSON으로 반환`/files`경로:
+
+```sh
+curl https://your-worker-url.com/models?file_id=file-abc123
+```
+
+마지막으로, 방문`/jobs`OpenAI에서 훌륭한 일자리의 상태를 볼 수 있습니다. 잘 완료되면, 당신은 볼 수 있습니다`fine_tuned_model`훌륭한 모델이 생성 된 값을 나타냅니다.
+
+![채용 정보](~/assets/images/workers/tutorials/finetune/finetune-jobs.png)
+
+자주 묻는 질문[OpenAI 놀이터](https://platform.openai.com/playground)고급 모델을 사용하기 위해. 인터페이스의 top-left dropdown에서 고급 모델 선택.
+
+![계정 만들기](~/assets/images/workers/tutorials/finetune/finetune-example.png)
+
+OpenAI의 채팅 완료 엔드포인트로 만들 수있는 API 요청에서 사용하십시오. 예를 들어, 아래 코드 예에서:
+
+```javascript
+openai.chat.completions.create({
+	messages: [{ role: "system", content: "You are a helpful assistant." }],
+	model: "ft:gpt-4o-mini:my-org:custom_suffix:id",
+});
+```
+
+## 다음 단계
+
+Workers에 더 많은 것을 건설하려면, 참조[다운로드](/workers/tutorials).
+
+질문이 있으시면 지원이 필요하거나 프로젝트를 공유하거나 Cloudflare 개발자 커뮤니티에 가입하십시오.[공지사항](https://discord.cloudflare.com)다른 개발자와 Cloudflare 팀과 연결할 수 있습니다.

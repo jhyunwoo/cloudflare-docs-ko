@@ -1,0 +1,225 @@
+---
+pcx_content_type: concept
+title: 오시는 길
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/configuration/routing/routes/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/configuration/routing/routes/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, DashButton, Steps } from "~/components";
+
+## 이름 \*
+
+Routes는 사용자에게 URL 패턴을 Worker로 맵 할 수 있습니다. 요청이 지정된 URL 패턴과 일치하는 Cloudflare 네트워크에 들어올 때, 작업자는 그 경로에 실행됩니다.
+
+경로는 요청의 URL에 대해 평가하는 규칙의 집합입니다. 지정된 애플리케이션 서버가 있는 경우 Routes는 항상 통신해야 합니다. 전화 번호`fetch()`자주 묻는 질문`Request`객체는 애플리케이션 서버에 subrequest를 트리거합니다.**DNS 보호**Cloudflare 영역의 설정.
+
+Route는 애플리케이션 서버 앞에 Workers 기능을 추가합니다. 이것은 프록시로 행동하는 Workers를 허용하고 CloudflareXQQ 뒤에 신청 서버에 도달하기 전에 필요한 작업을 수행 할 수 있습니다.
+
+![Cloudflare DNS에서 정의된 애플리케이션과 경로 작업](~/assets/images/workers/learning/routes-diagram.png)
+
+노선도`fetch()`Custom Domains와 같은 hostname에 설정된 경우 precedence를 취합니다. 응용 프로그램의 앞에 로깅 노동자를 실행하려는 경우, 예를 들어, 응용 프로그램에 대한 사용자 정의 도메인을 만들 수 있습니다.`app.example.com`, 당신의 로깅 노동자에 대한 경로 만들기`app.example.com/*`. 전화`fetch()`Custom Domain에서 Application Worker를 호출합니다. 같은 영역의 대상이 될 수 없습니다`fetch()`전화.
+
+## 경로 설정
+
+경로를 추가하려면 다음을해야합니다.
+
+1. 이름 \*[활동적인 Cloudflare 지역](/dns/zone-setups/).
+2. invoke에 노동자.
+3. DNS 레코드 설정[이름 \*](/dns/manage-dns-records/how-to/create-zone-apex/)또는[이름 \*](/dns/manage-dns-records/how-to/create-subdomain/)Cloudflare (또한 오렌지 클라우드로 알려져 있음)에 의해 발음됩니다.
+
+:::카트로션
+
+루트 설정은 응용 프로그램의 기원이 노동자인지 여부에 따라 다릅니다. 당신의 노동자가 당신의 신청의 근원인 경우에, 사용[사용자 정의 도메인](/workers/configuration/routing/custom-domains/).
+:::
+
+당신의 노동자가 응용 프로그램의 기원이 아닌 경우, 아래의 지침을 따라 경로 설정.
+
+:::참조
+
+루트는 API를 통해 만들 수 있습니다. 더 알아보기[모델 번호: Workers API 문서](/api/resources/workers/subresources/routes/methods/create/)더 많은 정보.
+주요 특징
+
+### dashboard의 경로 설정
+
+경로를 설정하기 전에 DNS 레코드를 설정해야합니다.[이름 \*](/dns/manage-dns-records/how-to/create-zone-apex/)또는[이름 \*](/dns/manage-dns-records/how-to/create-subdomain/)당신은 노선을 좋아할 것입니다.
+
+dashboard의 노선을 설정하려면:
+
+<Steps>
+  1. Cloudflare dashboard에서, 가십시오**Workers & Pages**사이트 맵
+
+     <DashButton url="/?to=/:account/workers-and-pages" />
+
+  2. 내 계정**제품정보**, 당신의 노동자를 선정하십시오.
+
+  3. 오시는 길**계정 설정** > **도메인 및 경로** > **더 보기** > **오시는 길**.
+
+  4. 지역을 선택하고 노선 패턴을 입력하십시오.
+
+  5. 제품정보**경로 추가**.
+</Steps>
+
+### Wrangler 설정 파일에서 경로 설정
+
+경로를 설정하기 전에 DNS 레코드를 설정해야합니다.[이름 \*](/dns/manage-dns-records/how-to/create-zone-apex/)또는[이름 \*](/dns/manage-dns-records/how-to/create-subdomain/)당신은 노선을 좋아할 것입니다.
+
+경로를 설정하려면[Wrangler 구성 파일](/workers/wrangler/configuration/), 다음 예제를 참조.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "subdomain.example.com/*",
+  			"zone_name": "example.com"
+  		},
+  		//또는
+  		{
+  			"pattern": "subdomain.example.com/*",
+  			"zone_id": "<YOUR_ZONE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+추가하기`zone_name`또는`zone_id`각 노선 후에 선택권. 더 보기`zone_name`·`zone_id`옵션은 교환이 가능합니다. 사용 방법`zone_id`, 당신의 지역 ID를 곁에 찾아내십시오:
+
+<Steps>
+  1. Cloudflare dashboard에서 영역 개요 페이지로 이동하십시오.
+
+     <DashButton url="/?to=/:account/:zone/" />
+
+  2. 자주 묻는 질문**지역 ID**왼쪽에서**제품정보**.
+</Steps>
+
+여러 경로를 추가하려면:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"routes": [
+  		{
+  			"pattern": "subdomain.example.com/*",
+  			"zone_name": "example.com"
+  		},
+  		{
+  			"pattern": "subdomain-two.example.com/example",
+  			"zone_id": "<YOUR_ZONE_ID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 일치 행동
+
+노선 패턴은 다음과 같습니다 :
+
+```txt
+https://*.example.com/images/*
+```
+
+이 패턴은 모든 HTTPS 요청은 하위 호스트를 위해 종료됩니다
+example.com과 그 경로가 prefixed by`/images/`.
+
+모든 요청과 일치하는 패턴은 다음과 같습니다.
+
+```txt
+*example.com/*
+```
+
+그들은 비슷하지만[구독하기](https://en.wikipedia.org/wiki/Regular_expression)패턴, 경로 패턴은 특정 규칙을 따릅니다:
+
+- 지원되는 연산자는 와일드 카드입니다 (`*`), 어떤 문자의 0 이상 일치.
+
+- Route 패턴은 infix 와일드 카드 또는 쿼리 매개 변수를 포함 할 수 없습니다. 예를 들어,`example.com/*.jpg`이름 \*`example.com/?foo=*`유효한 노선 본.
+
+- 한 개 이상의 경로 패턴이 요청 URL과 일치 할 수있을 때, 가장 특정 경로 패턴이 승리합니다. 예를 들어, 패턴`www.example.com/*`더 많은 것을`*.example.com/*`요청을 일치할 때`https://www.example.com/`. 본`example.com/hello/*`더 많은 것을`example.com/*`요청을 일치할 때`example.com/hello/world`.
+
+- Route 패턴 매칭은 쿼리 매개 변수 문자열을 포함하여 전체 요청 URL을 고려합니다. 경로 패턴이 쿼리 매개 변수를 포함하지 않기 때문에, 쿼리 매개 변수와 경로 패턴 일치 URL을 가지고하는 유일한 방법은 와일드 카드로 종료됩니다,`*`.
+
+- 경로 패턴의 경로 구성 요소는 예를 들어 민감한 경우,`example.com/Images/*`·`example.com/images/*`두 가지 경로입니다.
+
+- 10월 15일 이전에 만들어진 루트의 경우, 2023년, 경로 패턴의 호스트 구성 요소는 예를 들어,`example.com/*`·`Example.com/*`두 가지 경로입니다.
+
+- 10월 15일, 2023일 이후에 생성된 경로의 경우, 경로 패턴의 호스트 구성 요소는 예를 들어,`example.com/*`·`Example.com/*`해당 경로입니다.
+
+작업자와 관련된 경로는 지정할 수 있습니다. 이것은 더 적은 특정한 본을 negate에 행동할 것입니다. 예를 들어, Workers 스크립트와 하나가 없는 경로 패턴의 쌍을 고려하십시오.
+
+```txt
+*example.com/images/cat.png -> <no script>
+*example.com/images/*       -> worker-script
+```
+
+이 예에서, 모든 요청은 example.com을 위해 destined와 그의 경로가 prefixed`/images/`오시는 길`worker-script`, *이름 \**&#xC81C;품 정보`/images/cat.png`Workers를 완전하게 우회할 것입니다. 자주 묻는 질문`/images/cat.png?foo=bar`오시는 길`worker-script`쿼리 문자열의 존재로 인해.
+
+## 인증 및 인증
+
+규칙 지배 노선 패턴 유효성의 다음 세트.
+
+#### 노선 패턴은 지역을 포함해야합니다
+
+지역이 있다면`example.com`, 다음 당신이 가질 수있는 가장 간단한 경로 패턴`example.com`일치할 것`http://example.com/`·`https://example.com/`, 다른 아무것도. URL과 마찬가지로, 임의 경로가 있습니다.`/`지정하지 않는 경우.
+
+#### Route 패턴은 어떤 쿼리 매개 변수를 포함 할 수 없습니다
+
+예를 들어,`https://example.com/?anything`유효한 노선 패턴이 아닙니다.
+
+#### 노선 본은 선택적으로 시작될지도 모릅니다`http://`또는`https://`
+
+경로 패턴의 계획을 omit하면 둘 다 일치합니다.`http://`·`https://`URL. 당신이 포함 하는 경우`http://`또는`https://`, 각각 HTTP 또는 HTTPS 요청만 일치합니다.
+
+- `https://*.example.com/`이름 \*`https://www.example.com/`그러나 아니`http://www.example.com/`.
+
+- `*.example.com/`모두 일치`https://www.example.com/`·`http://www.example.com/`.
+
+#### 호스트명은 선택적으로 시작될 수 있습니다.`*`
+
+경로 패턴 hostname이 시작되면`*`, 다음 호스트와 모든 하위 호스트와 일치합니다. 경로 패턴 hostname이 시작되면`*.`, 그때 그것은 단지 모든 하위 호스트 일치.
+
+- `*example.com/`이름 \*`https://example.com/`·`https://www.example.com/`.
+
+- `*.example.com/`이름 \*`https://www.example.com/`그러나 아니`https://example.com/`.
+
+:::카트로션
+
+이름 \*`*`경기 0 이상**모든 문자**(만 하위 도메인),`*example.com`hostnames도 일치합니다.`example.com`. 만 일치하고 싶은 경우`example.com`그리고 그 하위 도메인은 두 개의 별도의 노선을 사용합니다 (`example.com/*`·`*.example.com/*`) 대신.
+
+:::
+
+다음 예제는 차이점을 설명합니다.`*example.com/*`·`*.example.com/*`:
+
+| URL 요청                         | `*example.com/*` | `*.example.com/*` |
+| ------------------------------ | ---------------- | ----------------- |
+| `https://example.com/`         | 이름 \*            | 일치하지 않음           |
+| `https://www.example.com/path` | 이름 \*            | 이름 \*             |
+| `https://myexample.com/`       | 이름 \*            | 일치하지 않음           |
+| `https://not-example.com/`     | 일치하지 않음          | 일치하지 않음           |
+
+#### 경로는 선택적으로 끝낼지도 모릅니다`*`
+
+경로 패턴 경로가 끝나면`*`, 그 경로의 모든 suffixes 일치.
+
+- `https://example.com/path*`이름 \*`https://example.com/path`·`https://example.com/path2`·`https://example.com/path/readme.txt`
+
+:::카트로션
+
+Wildcards와 일치하는 경로와 관련된 잘 알려진 버그가 있습니다 (`*`)와 앞으로 슬픔 (`/`) 문서화[알려진 문제](/workers/platform/known-issues/).
+
+:::
+
+#### 도메인 및 하위 도메인에는 DNS 레코드가 있어야 합니다.
+
+모든 도메인과 하위 도메인이 있어야[DNS 기록](/dns/manage-dns-records/how-to/create-dns-records/)Cloudflare에 proxied 및 노동자를 호출하는 데 사용됩니다. 예를 들어, 노동자를 넣어하려는 경우`myname.example.com`, 그리고 당신은 추가했습니다`example.com`Cloudflare 하지만 어떤 DNS 레코드를 추가 하지`myname.example.com`, 어떤 요구든지에`myname.example.com`오류가 발생합니다.`ERR_NAME_NOT_RESOLVED`.
+
+:::카트로션
+
+이전에 Cloudflare dashboard를 사용하여 추가`AAAA`관련 기사`myname`으로`example.com`, 지적`100::`(대)[IPv6 디스크 접두사](https://tools.ietf.org/html/rfc6666)), Cloudflare는 창조를 추천합니다[주문 영역](/workers/configuration/routing/custom-domains/)대신 노동자에게 지적.
+
+:::

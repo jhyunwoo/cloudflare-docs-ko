@@ -1,0 +1,269 @@
+---
+reviewed: 2024-10-01T00:00:00.000Z
+difficulty: Intermediate
+pcx_content_type: tutorial
+title: API 구축
+products:
+  - workers
+tags:
+  - Hono
+  - JavaScript
+  - SQL
+description: >-
+  이 튜토리얼에서 D1를 사용하여 정적 블로그 사이트에 의견을 추가하는 방법을 배울 것입니다. 새로운 D1 데이터베이스를 구성하고, JSON
+  API를 구축하여 작성 및 의견의 회복을 가능하게 합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/tutorials/build-a-comments-api/'
+translation_source_md: 'https://developers.cloudflare.com/d1/tutorials/build-a-comments-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig, YouTube } from "~/components";
+
+이 튜토리얼에서 D1를 사용하여 정적 블로그 사이트에 의견을 추가하는 방법을 배울 것입니다. 이렇게하려면 새로운 D1 데이터베이스를 구성하고, JSON API를 구축하여 작성 및 코멘트를 재생할 수 있습니다.
+
+## 자주 묻는 질문
+
+제품 정보[사이트맵](https://developers.cloudflare.com/learning-paths/workers/get-started/c3-and-wrangler/#c3), Cloudflare의 개발자 제품에 대한 명령줄 도구는 새로운 디렉토리를 만들고 새로운 작업자 프로젝트를 초기화합니다.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"d1-example"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "JavaScript",
+  }}
+/>
+
+당신의 노동자를 개발하기 시작하려면,`cd`새 프로젝트 디렉토리에:
+
+```sh
+cd d1-example
+```
+
+## 비디오 자습서
+
+<YouTube id="egBdW6vBIhM" />
+
+## 1. Hono 설치
+
+이 튜토리얼에서, 당신은 사용할 것이다[호노](https://github.com/honojs/hono), Express.js-style 프레임 워크, API를 구축. 이 프로젝트에서 Hono를 사용하려면, 그것을 사용하여 설치`npm`:
+
+<PackageManagers pkg="hono" />
+
+## 2. Hono 응용 프로그램을 초기화
+
+내 계정`src/worker.js`, 새로운 호노 응용 프로그램을 초기화하고 다음 엔드포인트를 정의합니다.
+
+- `GET /api/posts/:slug/comments`.
+- `POST /api/posts/:slug/comments`.
+
+```js
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/api/posts/:slug/comments", async (c) => {
+	//뭔가를하고 HTTP 응답을 반환
+	//선택적으로, `c.req.param("slug")`로 무언가를 하십시오
+});
+
+app.post("/api/posts/:slug/comments", async (c) => {
+	//뭔가를하고 HTTP 응답을 반환
+	//선택적으로, `c.req.param("slug")`로 무언가를 하십시오
+});
+
+export default app;
+```
+
+## 3. 데이터베이스 만들기
+
+이제 D1 데이터베이스를 만듭니다. Wrangler에서는, 지원이 있습니다`wrangler d1`subcommand, 이는 명령줄에서 D1 데이터베이스를 직접 만들고 쿼리할 수 있습니다. 새 데이터베이스 만들기`wrangler d1 create`:
+
+```sh
+npx wrangler d1 create d1-example
+```
+
+당신의 생성 된 데이터베이스를 참조하여 Worker 코드[관련 제품](/workers/runtime-apis/bindings/)내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/). 바인딩은 Cloudflare 리소스에 액세스 할 수 있습니다. D1 데이터베이스, KV 네임스페이스 및 QXQX0786XQ 버킷, 코드의 변수 이름을 사용하여. Wrangler 설정 파일에서 바인딩을 설정`DB`연결하기`database_name`·`database_id`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"d1_databases": [
+  		{
+  			"binding": "DB", //`env.DB`
+  			"database_name": "d1-example",
+  			"database_id": "4e1c28a9-90e4-41da-8b4b-6cf36e5abb29"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+Wrangler 파일에서 설정된 바인딩을 사용하면 명령줄에서 데이터베이스와 상호 작용할 수 있으며, Workers 기능 안에 있습니다.
+
+## 4. D1
+
+D1를 사용하여 직접 SQL 명령을 발급`wrangler d1 execute`:
+
+```sh
+npx wrangler d1 execute d1-example --remote --command "SELECT name FROM sqlite_schema WHERE type ='table'"
+```
+
+```sh output
+
+Executing on d1-example:
+
+┌───────┐
+│ name  │
+├───────┤
+│ d1_kv │
+└───────┘
+```
+
+SQL 파일을 통과 할 수 있습니다 - 단일 명령에서 초기 데이터 묘기를 위해 완벽합니다. 이름 \*`schemas/schema.sql`새로운 것`comments`당신의 프로젝트를 위한 테이블:
+
+```sql
+DROP TABLE IF EXISTS comments;
+CREATE TABLE IF NOT EXISTS comments (
+  id integer PRIMARY KEY AUTOINCREMENT,
+  author text NOT NULL,
+  body text NOT NULL,
+  post_slug text NOT NULL
+);
+CREATE INDEX idx_comments_post_slug ON comments (post_slug);
+
+-- Optionally, uncomment the below query to create data
+
+-- INSERT INTO COMMENTS (author, body, post_slug) VALUES ('Kristian', 'Great post!', 'hello-world');
+```
+
+생성된 파일로 D1 데이터베이스에 대한 스키마 파일을 실행하여 플래그로 전달합니다.`--file`:
+
+```sh
+npx wrangler d1 execute d1-example --remote --file schemas/schema.sql
+```
+
+## 5. SQL 실행
+
+초기 단계에서 SQL 데이터베이스를 생성하고 초기 데이터로 변환합니다. 이제 Workers 기능에 대한 경로를 추가하여 해당 데이터베이스에서 데이터를 검색합니다. 이전 단계에서 Wrangler 구성을 기반으로 D1 데이터베이스가 이제 액세스 할 수 있습니다.`DB`바인딩. 코드에서 SQL 문장을 준비하고, 예를 들어, 주석을 검색하기 위해 바인딩을 사용합니다.
+
+```js
+app.get("/api/posts/:slug/comments", async (c) => {
+	const { slug } = c.req.param();
+	const { results } = await c.env.DB.prepare(
+		`
+    select * from comments where post_slug = ?
+  `,
+	)
+		.bind(slug)
+		.run();
+	return c.json(results);
+});
+```
+
+위 코드의 사용`prepare`, `bind`·`run`D1 바인딩의 기능은 SQL 선언을 준비하고 실행합니다. 더 알아보기[D1 Workers 바인딩 API](/d1/worker-api/)사용 가능한 모든 방법 목록.
+
+이 기능에서, 당신은 받아들입니다`slug`URL 쿼리 매개 변수를 설정하고 일치하는 모든 코멘트를 선택 새로운 SQL 문 설정`post_slug`쿼리 매개 변수에 값. JSON 응답으로 돌아갈 수 있습니다.
+
+## 6. 삽입 자료
+
+이전 단계 보조금은 데이터에 대한 읽기 전용 액세스. 데이터를 데이터베이스에 삽입하여 새로운 의견을 작성하려면 다른 엔드포인트를 정의하십시오.`src/worker.js`:
+
+```js
+app.post("/api/posts/:slug/comments", async (c) => {
+	const { slug } = c.req.param();
+	const { author, body } = await c.req.json();
+
+	if (!author) return c.text("Missing author value for new comment");
+	if (!body) return c.text("Missing body value for new comment");
+
+	const { success } = await c.env.DB.prepare(
+		`
+    insert into comments (author, body, post_slug) values (?, ?, ?)
+  `,
+	)
+		.bind(author, body, slug)
+		.run();
+
+	if (success) {
+		c.status(201);
+		return c.text("Created");
+	} else {
+		c.status(500);
+		return c.text("Something went wrong");
+	}
+});
+```
+
+## 7. Hono 응용 프로그램을 배포
+
+WranglerXQ를 사용하여 프로젝트를 Cloudflare 네트워크에 구축하고 배포합니다.
+
+실행하기`wrangler whoami`Cloudflare 계정에 로그인했는지 확인하십시오. 로그인하지 않은 경우 Wrangler는 로그인하여 로컬 머신에서 자동으로 인증된 요청을 만들 수 있는 API 키를 생성합니다.
+
+로그인한 후 Wrangler 파일이 아래와 같이 구성되어 있음을 확인합니다. 변경할 수 있습니다.`name`당신의 선택의 프로젝트 이름에 분야:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "d1-example",
+  	"main": "src/worker.js",
+  	"compatibility_date": "$today",
+  	"d1_databases": [
+  		{
+  			"binding": "DB", //env.DB에 있는 당신의 노동자에서 유효한
+  			"database_name": "<YOUR_DATABASE_NAME>",
+  			"database_id": "<YOUR_DATABASE_UUID>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+지금, 실행`npx wrangler deploy`Cloudflare에 프로젝트를 배포합니다.
+
+```sh
+npx wrangler deploy
+```
+
+성공적으로 배포되면 API를 테스트하여`GET`관련 게시물에 대한 의견을 검색 할 수 있습니다. 아직 게시물이 없기 때문에이 응답은 비어있을 것입니다. 그러나 여전히 D1 데이터베이스에 대한 요청을 만들 것입니다. 이는 응용 프로그램이 올바르게 배포되었는지 확인하는 데 사용할 수 있습니다.
+
+```sh
+#주의: 당신의 노동자. dev 배포 URL은 다를 수 있습니다
+curl https://d1-example.signalnerve.workers.dev/api/posts/hello-world/comments
+[
+  {
+    "id": 1,
+    "author": "Kristian",
+    "body": "Hello from the comments section!",
+    "post_slug": "hello-world"
+  }
+]
+```
+
+## 8. 선택적 frontend를 가진 시험
+
+이 응용 프로그램은 API 백엔드, 만들기 및 보기 코멘트를 위한 프런트 엔드 UI와 함께 최고의 서비스를 제공합니다. prebuild front-end UI와 함께 이 백엔드를 테스트하려면, 예제 UI를 참조[example-frontend 디렉토리](https://github.com/cloudflare/workers-sdk/tree/main/templates/worker-d1-api/example-frontend). 확실히,[`loadComments`·`submitComment`제품정보](https://github.com/cloudflare/workers-sdk/tree/main/templates/worker-d1-api/example-frontend/src/views/PostView.vue#L57-L82)이 사이트의 배포 된 버전에 대한 요청을 작성, 의미 당신은 프론트엔드를 취할 수 있고이 튜토리얼에서 코드베이스의 배포 된 버전과 URL을 대체 할 수 있습니다 자신의 데이터를 사용합니다.
+
+프론트엔드에서 이 API를 해석하면 특정 Cross-Origin Resource Sharing(또는*사이트맵*) 귀하의 백엔드 API의 헤더. Hono는 Cross-Origin Resource Sharing을 지원할 수 있습니다. 구매하기`cors`모듈과 API에 미들웨어로 추가`src/worker.js`:
+
+```typescript null {5}
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+
+const app = new Hono();
+app.use("/api/*", cors());
+```
+
+이제 요청을 할 때`/api/*`, Hono는 자동적으로 생성하고 당신의 API에서 응답에 CORS 우두머리를 추가할 것입니다, 과실 없이 상호 작용하는 front-end UIs를 허용하.
+
+## 이름 \*
+
+이 예제에서, 당신은 블로그를 강화하기위한 주석 API를 구축. 이 D1-powered 의견 API를 위한 가득 차있는 근원을 보시려면, 당신은 방문할 수 있습니다[cloudflare/workers-sdk/templates/worker-d1-api](https://github.com/cloudflare/workers-sdk/tree/main/templates/worker-d1-api).

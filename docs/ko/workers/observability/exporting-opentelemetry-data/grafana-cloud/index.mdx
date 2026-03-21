@@ -1,0 +1,83 @@
+---
+pcx_content_type: how-to
+title: Grafana Cloud로 내보내기
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/grafana-cloud/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/observability/exporting-opentelemetry-data/grafana-cloud/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {WranglerConfig} from "~/components";
+
+Grafana Cloud는 원격 측정 데이터에 대한 시각화, 경고 및 분석 기능을 제공하는 완전 관리 가능한 플랫폼입니다. Cloudflare Workers 텔레메틱을 Grafana Cloud로 내보내기 위해 다음을 수행할 수 있습니다.
+
+- 분산 추적을 시각화**Grafana 튀김**요청 흐름과 성능 Bottlenecks을 이해하기 위해
+- Query 및 분석 로그에**콜롬비아**당신의 흔적을 따라
+
+이 가이드는 Cloudflare QXQXWorkers를 구성하여 OpenTelemetry-compliant 추적을 내보내고 Grafana Cloud stack에 로그인합니다.
+
+![사이트맵 템포 추적보기는 fetch request, 튼튼한 object subrequests 및 queue operations을 포함한 여러 스팬과 함께 배포 추적을 보여주는, 타임라인에 표시된 타이밍 정보](~/assets/images/workers-observability/grafana-traces.png)
+
+## 자주 묻는 질문
+
+시작하기 전에, 당신은 가지고:
+
+- 이름 \*[Grafana 클라우드 계정](https://grafana.com/auth/sign-up/create-user)(무료 계층 가능)
+- 모니터링 할 작업자 배치
+
+## 단계 1: OpenTelemetry 설정 가이드에 액세스
+
+1. 로그인[Grafana 클라우드 포털](https://grafana.com/)
+2. 조직의 홈페이지에서 탐색**연결하기** → **새 연결 추가**
+3. "OpenTelemetry" 검색 및 선택**OpenTelemetry (OTLP)를**
+4. 제품정보**빠른 시작**다음 선택**JavaScript**
+5. 이름 \***새로운 토큰 만들기**
+6. 토큰의 이름을 입력하십시오 (예 :,`cloudflare-workers-otel`) 클릭**토큰 생성**
+7. 관련 기사**이름 \***&#xD1A0;큰 복사 없이
+8. 복사 및 저장 값`OTEL_EXPORTER_OTLP_ENDPOINT`·`OTEL_EXPORTER_OTLP_HEADERS`내 계정`Environment variables`코드 블록 OTel 엔드 포인트와 Auth 헤더 값으로 각각
+
+## 단계 2: 목적지 설정
+
+1. Cloudflare 계정으로 이동[모델 번호: Workers 옵션 정보](https://dash.cloudflare.com/?to=/:account/workers-and-pages/observability/pipelines)이름 \*
+2. 이름 \***자주 묻는 질문**대상명(e.g.`grafana-tracing`)
+3. Grafana에서 Otel endpoint, auth header 및 auth 값을 복사하십시오.
+
+- OTEL 엔드포인트는 다음과 같습니다.`https://otlp-gateway-prod-us-east-2.grafana.net/otlp`(필수)`/v1/traces`추적 및`/v1/logs`로그인
+- 당신의 주문 우두머리는 다음을 포함합니다:
+  - 당신의 auth 헤더 이름`Authorization`
+  - auth 헤더 값`Basic MTMxxx...`
+
+## 단계 3: 노동자를 구성
+
+QXQX0463XQQ dashboardXQ에서 생성된 목적지로, 원격 측정 수출을 가능하게 하는 노동자의 윤곽을 새롭게 합니다.
+
+<WranglerConfig>
+  ```json
+  {
+    "observability": {
+      "traces": {
+        "enabled": true,
+        // Must match the destination name in the dashboard
+        "destinations": ["grafana-traces"]
+      },
+      "logs": {
+        "enabled": true,
+        // Must match the destination name in the dashboard
+        "destinations": ["grafana-logs"]
+      }
+    }
+  }
+  ```
+</WranglerConfig>
+
+구성을 업데이트 한 후, 효과에 대한 변경 사항에 대한 작업자를 배치하십시오.
+
+:::참조
+Grafana Cloud에 표시되는 데이터 배포 후 몇 분이 걸릴 수 있습니다.
+주요 특징

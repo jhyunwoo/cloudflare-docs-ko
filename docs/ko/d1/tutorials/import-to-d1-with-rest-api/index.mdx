@@ -1,0 +1,474 @@
+---
+reviewed: 2024-10-28T00:00:00.000Z
+difficulty: Beginner
+content_type: Tutorial
+pcx_content_type: tutorial
+title: REST API를 사용하여 D1에 대량 수입
+tags:
+  - JavaScript
+  - TypeScript
+  - SQL
+description: 이 튜토리얼은 REST API를 사용하여 데이터베이스를 D1로 가져올 수 있습니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/d1/tutorials/import-to-d1-with-rest-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/d1/tutorials/import-to-d1-with-rest-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Steps, PackageManagers, DashButton } from "~/components";
+
+이 튜토리얼에서 데이터베이스를 D1로 가져올 방법을 배우게 됩니다.[REST API를](/api/resources/d1/subresources/database/methods/import/).
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+## 1. D1 API 토큰 생성
+
+REST API를 사용하려면 API 토큰을 생성해야 합니다. Cloudflare 대시보드를 통해 이것을 할 수 있습니다.
+
+<Render file="generate-d1-api-token" product="d1" />
+
+## 2. 대상 테이블 만들기
+
+기존의 D1 테이블을 가지고 있어야 합니다.
+
+이 튜토리얼은 다음과 같습니다 :
+
+- A 데이터베이스 호출`d1-import-tutorial`.
+- 테이블 호출`TargetD1Table`
+- 내 계정`TargetD1Table`, 3개의 란 호출`id`, `text`·`date_added`.
+
+테이블을 만들려면 다음 단계를 따르십시오.
+
+<Steps>
+  1. Cloudflare 대시보드에서, 가십시오**모델 번호: D1**사이트 맵
+
+     <DashButton url="/?to=/:account/workers/d1" />
+
+  2. 제품정보**데이터베이스**.
+
+  3. 데이터베이스 이름. 이 튜토리얼의 경우 D1 데이터베이스 이름`d1-import-tutorial`.
+
+  4. (선택) 위치 hint를 제공합니다. Location hint는 데이터베이스에 원하는 지리적 위치를 표시 할 수있는 옵션 매개 변수입니다. 더 알아보기[위치 hint 제공](/d1/configuration/data-location/#provide-a-location-hint)더 많은 정보.
+
+  5. 제품정보**이름 \***.
+
+  6. 오시는 길**회사 소개**, 다음 SQL 스니펫을 붙여. 이 테이블을 만듭니다.`TargetD1Table`.
+
+     ```sql
+     DROP TABLE IF EXISTS TargetD1Table;
+     CREATE TABLE IF NOT EXISTS TargetD1Table (id INTEGER PRIMARY KEY, text TEXT, date_added TEXT);
+     ```
+
+     대안으로, 당신은 사용할 수 있습니다[Wrangler 클립](/workers/wrangler/install-and-update/).
+
+     ```bash
+     #D1 데이터베이스 생성
+     npx wrangler d1 create d1-import-tutorial
+
+     #D1 테이블 만들기
+     npx wrangler d1 execute d1-import-tutorial --command="DROP TABLE IF EXISTS TargetD1Table; CREATE TABLE IF NOT EXISTS TargetD1Table (id INTEGER PRIMARY KEY, text TEXT, date_added TEXT);" --remote
+
+     ```
+</Steps>
+
+## 3. 만들기`index.js`이름 \*
+
+<Steps>
+  1. 새로운 디렉토리를 만들고 새로운 Node.js 프로젝트를 초기화합니다.
+
+     ```bash
+     mkdir d1-import-tutorial
+     cd d1-import-tutorial
+     npm init -y
+     ```
+
+  2. 이 저장소에서 호출 된 새 파일을 만듭니다.`index.js`. 이 파일은 REST API를 사용하여 D1 데이터베이스에 데이터를 가져올 수 있는 코드를 포함합니다.
+
+  3. 내 계정`index.js`파일, 다음 변수 정의:
+
+     - `TARGET_TABLE`: 대상 테이블 이름
+     - `ACCOUNT_ID`: 계정 ID. 더 알아보기**계정 세부 정보**내 계정**Workers & Pages**.
+     - `DATABASE_ID`: D1 데이터베이스 ID. 데이터베이스 ID를 볼 데이터베이스로 이동합니다.
+     - `D1_API_KEY`: D1 API 토큰 생성[단계 1](/d1/tutorials/import-to-d1-with-rest-api#1-create-a-d1-api-token)
+
+     :::카트로션
+     생산에서는 민감한 정보를 저장하기 위해 환경 변수를 사용한다.
+     주요 특징
+
+     ```js title="index.js"
+     const TARGET_TABLE = " "; //튜토리얼의 경우 `TargetD1Table`
+     const ACCOUNT_ID = " ";
+     const DATABASE_ID = " ";
+     const D1_API_KEY = " ";
+     const D1_URL = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/d1/database/${DATABASE_ID}/import`;
+     const filename = crypto.randomUUID(); //임의 파일명 만들기
+     const uploadSize = 500;
+     const headers = {
+     	"Content-Type": "application/json",
+     	Authorization: `Bearer ${D1_API_KEY}`,
+     };
+     ```
+</Steps>
+
+## 4. (선택) 예를들면 자료
+
+실제로 D1 데이터베이스에 가져올 데이터가 이미있을 수 있습니다.
+
+이 튜토리얼은 가져 오기 프로세스를 설명하기 위해 예 데이터를 생성합니다.
+
+<Steps>
+  1. 설치하기`@faker-js/faker`모듈.
+
+     <PackageManagers pkg="@faker-js/faker" />
+
+  2. 다음 코드를 초기에 추가`index.js`파일. 이 코드는 배열을 만듭니다.`data`2500으로 (`uploadSize`) 배열 요소, 각 배열 요소는 객체를 포함`id`, `text`·`date_added`. 각 배열 성분은 테이블 줄에 대응합니다.
+
+     ```js title="index.js"
+     import crypto from "crypto";
+     import { faker } from "@faker-js/faker";
+
+     //Fake 데이터 생성
+     const data = Array.from({ length: uploadSize }, () => ({
+     	id: Math.floor(Math.random() * 1000000),
+     	text: faker.lorem.paragraph(),
+     	date_added: new Date().toISOString().slice(0, 19).replace("T", " "),
+     }));
+     ```
+</Steps>
+
+## 5. SQL 명령 생성
+
+<Steps>
+  1. SQL 명령을 생성하여 대상 테이블에 데이터를 삽입합니다. 이 함수는`data`이전 단계에서 생성 된 배열.
+
+     ```js title="index.js"
+     function makeSqlInsert(data, tableName, skipCols = []) {
+     	const columns = Object.keys(data[0]).join(",");
+     	const values = data
+     		.map((row) => {
+     			return (
+     				"(" +
+     				Object.values(row)
+     					.map((val) => {
+     						if (skipCols.includes(val) || val === null || val === "") {
+     							return "NULL";
+     						}
+     						return `'${String(val).replace(/'/g, "").replace(/"/g, "'")}'`;
+     					})
+     					.join(",") +
+     				")"
+     			);
+     		})
+     		.join(",");
+
+     	return `INSERT INTO ${tableName} (${columns}) VALUES ${values};`;
+     }
+     ```
+</Steps>
+
+## 6. D1에 자료를 수입하십시오
+
+수입 과정은 4 단계로 이루어져 있습니다:
+
+1. **Init 업로드**: 이 단계는 업로드 프로세스를 초기화합니다. 그것은 D1 API에 SQL 명령의 해시를 보내고 업로드 URL을받습니다.
+2. **R2에 업로드**: 이 단계는 업로드 URL에 SQL 명령을 업로드합니다.
+3. **시작 ingestion**: 이 단계는 섭취 과정을 시작합니다.
+4. **회사연혁**: 이 단계는 수입 프로세스가 완료 될 때까지.
+
+<Steps>
+  1) 함수 만들기`uploadToD1`수입 프로세스의 4단계를 실행합니다.
+
+     ```js title="index.js"
+     async function uploadToD1() {
+     	//1. 업로드
+     	const hashStr = crypto.createHash("md5").update(sqlInsert).digest("hex");
+
+     	try {
+     		const initResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify({
+     				action: "init",
+     				etag: hashStr,
+     			}),
+     		});
+
+     		const uploadData = await initResponse.json();
+     		const uploadUrl = uploadData.result.upload_url;
+     		const filename = uploadData.result.filename;
+
+     		//2. R2XQ에 업로드
+     		const r2Response = await fetch(uploadUrl, {
+     			method: "PUT",
+     			body: sqlInsert,
+     		});
+
+     		const r2Etag = r2Response.headers.get("ETag").replace(/"/g, "");
+
+     		//etag 인증
+     		if (r2Etag !== hashStr) {
+     			throw new Error("ETag mismatch");
+     		}
+
+     		//3. 섭취 시작
+     		const ingestResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify({
+     				action: "ingest",
+     				etag: hashStr,
+     				filename,
+     			}),
+     		});
+
+     		const ingestData = await ingestResponse.json();
+     		console.log("Ingestion Response:", ingestData);
+
+     		//4. 오염
+     		await pollImport(ingestData.result.at_bookmark);
+
+     		return "Import completed successfully";
+     	} catch (e) {
+     		console.error("Error:", e);
+     		return "Import failed";
+     	}
+     }
+     ```
+
+     위 코드에서:
+
+     - 이름 \*`md5`SQL 명령의 해시가 생성됩니다.
+     - `initResponse`업로드 프로세스를 초기화하고 업로드 URL을받습니다.
+     - `r2Response`업로드 URL에 SQL 명령을 업로드합니다.
+     - 섭취를 시작하기 전에 ETag가 확인되었습니다.
+     - `ingestResponse`ingestion 프로세스를 시작합니다.
+     - `pollImport`완료 될 때까지 수입 프로세스를 polls.
+
+  2) 추가하기`pollImport`기능에`index.js`파일.
+
+     ```js title="index.js"
+     async function pollImport(bookmark) {
+     	const payload = {
+     		action: "poll",
+     		current_bookmark: bookmark,
+     	};
+
+     	while (true) {
+     		const pollResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify(payload),
+     		});
+
+     		const result = await pollResponse.json();
+     		console.log("Poll Response:", result.result);
+
+     		const { success, error } = result.result;
+
+     		if (
+     			success ||
+     			(!success && error === "Not currently importing anything.")
+     		) {
+     			break;
+     		}
+
+     		await new Promise((resolve) => setTimeout(resolve, 1000));
+     	}
+     }
+     ```
+
+     위의 코드는 다음과 같습니다.
+
+     - 견적 요청`poll`D1 API로 동작합니다.
+     - 수입 프로세스가 완료 될 때까지.
+
+  3) 마지막으로, 추가`runImport`기능에`index.js`가져올 프로세스를 실행하는 파일.
+
+     ```js title="index.js"
+     async function runImport() {
+     	const result = await uploadToD1();
+     	console.log(result);
+     }
+
+     runImport();
+     ```
+</Steps>
+
+## 7. 최종 코드를 작성
+
+이전 단계에서 데이터를 D1로 가져 오기에 관련된 다양한 프로세스를 수행 할 수 있습니다. 최종 코드는 대상 D1 테이블에 예 데이터를 가져올 수있는 기능을 실행합니다.
+
+<Steps>
+  1. 당신의 마지막 코드를 복사`index.js`아래 그림과 같이, 코드의 상단에 정의된 변수와.
+
+     ```js
+     import crypto from "crypto";
+     import { faker } from "@faker-js/faker";
+
+     const TARGET_TABLE = "";
+     const ACCOUNT_ID = "";
+     const DATABASE_ID = "";
+     const D1_API_KEY = "";
+     const D1_URL = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/d1/database/${DATABASE_ID}/import`;
+     const uploadSize = 500;
+     const headers = {
+     	"Content-Type": "application/json",
+     	Authorization: `Bearer ${D1_API_KEY}`,
+     };
+
+     //Fake 데이터 생성
+     const data = Array.from({ length: uploadSize }, () => ({
+     	id: Math.floor(Math.random() * 1000000),
+     	text: faker.lorem.paragraph(),
+     	date_added: new Date().toISOString().slice(0, 19).replace("T", " "),
+     }));
+
+     //SQL 삽입 문 만들기
+     function makeSqlInsert(data, tableName, skipCols = []) {
+     	const columns = Object.keys(data[0]).join(",");
+     	const values = data
+     		.map((row) => {
+     			return (
+     				"(" +
+     				Object.values(row)
+     					.map((val) => {
+     						if (skipCols.includes(val) || val === null || val === "") {
+     							return "NULL";
+     						}
+     						return `'${String(val).replace(/'/g, "").replace(/"/g, "'")}'`;
+     					})
+     					.join(",") +
+     				")"
+     			);
+     		})
+     		.join(",");
+
+     	return `INSERT INTO ${tableName} (${columns}) VALUES ${values};`;
+     }
+
+     const sqlInsert = makeSqlInsert(data, TARGET_TABLE);
+
+     async function pollImport(bookmark) {
+     	const payload = {
+     		action: "poll",
+     		current_bookmark: bookmark,
+     	};
+
+     	while (true) {
+     		const pollResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify(payload),
+     		});
+
+     		const result = await pollResponse.json();
+     		console.log("Poll Response:", result.result);
+
+     		const { success, error } = result.result;
+
+     		if (
+     			success ||
+     			(!success && error === "Not currently importing anything.")
+     		) {
+     			break;
+     		}
+
+     		await new Promise((resolve) => setTimeout(resolve, 1000));
+     	}
+     }
+
+     //D1에 업로드
+     async function uploadToD1() {
+     	//1. 업로드
+     	const hashStr = crypto.createHash("md5").update(sqlInsert).digest("hex");
+
+     	try {
+     		const initResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify({
+     				action: "init",
+     				etag: hashStr,
+     			}),
+     		});
+
+     		const uploadData = await initResponse.json();
+     		const uploadUrl = uploadData.result.upload_url;
+     		const filename = uploadData.result.filename;
+
+     		//2. R2에 업로드
+     		const r2Response = await fetch(uploadUrl, {
+     			method: "PUT",
+     			body: sqlInsert,
+     		});
+
+     		const r2Etag = r2Response.headers.get("ETag").replace(/"/g, "");
+
+     		//etag 인증
+     		if (r2Etag !== hashStr) {
+     			throw new Error("ETag mismatch");
+     		}
+
+     		//3. 섭취 시작
+     		const ingestResponse = await fetch(D1_URL, {
+     			method: "POST",
+     			headers,
+     			body: JSON.stringify({
+     				action: "ingest",
+     				etag: hashStr,
+     				filename,
+     			}),
+     		});
+
+     		const ingestData = await ingestResponse.json();
+     		console.log("Ingestion Response:", ingestData);
+
+     		//4. 오염
+     		await pollImport(ingestData.result.at_bookmark);
+
+     		return "Import completed successfully";
+     	} catch (e) {
+     		console.error("Error:", e);
+     		return "Import failed";
+     	}
+     }
+
+     async function runImport() {
+     	const result = await uploadToD1();
+     	console.log(result);
+     }
+
+     runImport();
+     ```
+</Steps>
+
+## 8. 코드를 실행
+
+<Steps>
+  1. 코드를 실행합니다.
+
+     ```sh
+     node index.js
+     ```
+</Steps>
+
+대상 D1 테이블이 예 데이터로 채워집니다.
+
+:::참조
+당신이 만난다면`statement too long`오류, SQL 명령을 더 작은 펑크로 파괴하고 배치로 업로드해야합니다. 이 오류에 대해 더 알아볼 수 있습니다.[D1 문서](/d1/best-practices/import-export-data/#resolve-statement-too-long-error).
+:::
+
+## 제품정보
+
+이 튜토리얼을 완료하면,
+
+1. API 토큰 생성.
+2. 대상 데이터베이스 및 테이블 생성.
+3. 생성된 예 데이터.
+4. 예제 데이터에 대한 SQL 명령을 작성했습니다.
+5. REST API를 사용하여 D1 대상 테이블에 예를 들어 데이터를 가져옵니다.

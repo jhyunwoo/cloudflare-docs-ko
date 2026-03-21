@@ -1,0 +1,114 @@
+---
+pcx_content_type: concept
+title: Cloudflare의 MCP 서버
+tags:
+  - MCP
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/model-context-protocol/mcp-servers-for-cloudflare/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+Cloudflare는 고객의 OAuth를 사용하여 연결할 수있는 관리 된 원격 MCP 서버 카탈로그를 실행[이름 \*](https://modelcontextprotocol.io/quickstart/user), [윈드 서핑](https://docs.windsurf.com/windsurf/cascade/mcp), 우리의 자신[AI 놀이터](https://playground.ai.cloudflare.com/)또는 어떤[MCP를 지원하는 SDK](https://github.com/cloudflare/agents/tree/main/packages/agents/src/mcp).
+
+이 MCP 서버는 귀하의 계정, 프로세스 정보에서 구성을 읽을 수 있도록 MCP 클라이언트를 허용하고 데이터를 기반으로 제안을 만들고, 그 제안 된 변경 사항을 만들 수 있습니다. 이러한 모든 작업은 애플리케이션 개발, 보안 및 성능을 포함하여 'Cloudflare'의 많은 서비스를 통해 발생할 수 있습니다. 그들은 모두 지원`streamable-http`수송 via`/mcp`그리고`sse`수송 (deprecated) 통해`/sse`.
+
+## Cloudflare API MCP 서버
+
+더 보기[Cloudflare API MCP 서버](https://github.com/cloudflare/mcp)전체 액세스[Cloudflare API](/api/)— 이상 2,500 DNS의 엔드 포인트, Workers,R2,Zero Trust,그리고 모든 다른 제품 —을 통해 단지 두 도구:`search()`·`execute()`.
+
+그것은 사용[비밀번호](/agents/api-reference/codemode/), 모델이 OpenAPI spec의 typed 표현에 대해 JavaScript를 작성하는 기법과 'Cloudflare\` API 클라이언트, 오히려 각 엔드포인트에 대한 개별 도구 정의를로드하는 것보다. 생성된 코드는 격리된 내부에서 실행됩니다.[동적인 노동자](/workers/runtime-apis/bindings/worker-loader/)샌드박스.
+
+이 접근법은 많은 API 엔드포인트가 존재하는지에 관계없이 약 1,000개의 토큰을 사용합니다. 기본 도구로 모든 엔드포인트를 노출하는 동등한 MCP 서버는 1 백만 개 이상의 토큰을 소비합니다. - 대부분의 기초 모델의 전체 컨텍스트 창보다 더 많은.
+
+| 계정 관리                  | 회사 소개 | 토큰 비용       |
+| ---------------------- | ----- | ----------- |
+| MCP (전체 스키마)           | 2,594 | \~1,170,000 |
+| 기본 MCP (필요한 params 전용) | 2,594 | \~244,000   |
+| 비밀번호                   | 2     | \~1,000     |
+
+### Cloudflare API MCP 서버 연결
+
+MCP 클라이언트에 다음 구성을 추가:
+
+```json
+{
+	"mcpServers": {
+		"cloudflare-api": {
+			"url": "https://mcp.cloudflare.com/mcp"
+		}
+	}
+}
+```
+
+연결할 때, OAuth를 통해 승인하고 에이전트에게 권한을 부여하기 위해 Cloudflare로 리디렉션됩니다.
+
+CI/CD 또는 자동화를 위해, 당신은 창조할 수 있습니다[Cloudflare API 토큰](https://dash.cloudflare.com/profile/api-tokens)필요한 권한과 곰기 토큰으로 전달`Authorization`헤더. 사용자 토큰과 계정 토큰 모두 지원됩니다.
+
+더 많은 정보를 원하시면, 참조[Cloudflare MCP 저장소](https://github.com/cloudflare/mcp).
+
+### 에이전트 및 IDE 플러그인을 통해 설치
+
+당신은 설치할 수 있습니다[Cloudflare Skills 플러그인](https://github.com/cloudflare/skills), Cloudflare MCP 서버가 Cloudflare에 구축을 위한 컨텍스트 기술 및 슬래시 명령을 따라 묶습니다. 플러그인은 Claude Code, OpenCode, OpenAI Codex 및 Pi를 포함한 에이전트 스킬 표준을 지원하는 에이전트와 함께 작동합니다.
+
+#### Claude 코드
+
+설치하기[플러그인 마켓](https://code.claude.com/docs/en/discover-plugins#add-from-github):
+
+```txt
+/plugin marketplace add cloudflare/skills
+```
+
+#### 커서
+
+설치하기**Cursor 마켓**, 또는 수동으로 추가**계정 설정** > **이름 \*** > **추가 규칙** > **원격 규칙 (Github)**&#xC774;름 \*`cloudflare/skills`.
+
+#### npx 기술
+
+설치하기[`npx skills`](https://skills.sh)클립:
+
+```sh
+npx skills add https://github.com/cloudflare/skills
+```
+
+#### Clone 또는 사본
+
+외계인[클라우드 플레어/스킬](https://github.com/cloudflare/skills)저장소 및 기술 폴더를 에이전트에 적합한 디렉토리에 복사:
+
+| 이름 \*     | 기술 디렉토리                      | 사이트맵                                                                                        |
+| --------- | ---------------------------- | ------------------------------------------------------------------------------------------- |
+| Claude 코드 | `~/.claude/skills/`          | [Claude 코드 기술](https://code.claude.com/docs/en/skills)                                      |
+| 커서        | `~/.cursor/skills/`          | [커서 기술](https://cursor.com/docs/context/skills)                                             |
+| 오픈코드      | `~/.config/opencode/skills/` | [OpenCode 기술](https://opencode.ai/docs/skills/)                                             |
+| OpenAI 코드 | `~/.codex/skills/`           | [OpenAI Codex 기술](https://developers.openai.com/codex/skills/)                              |
+| 뚱 베어      | `~/.pi/agent/skills/`        | [Pi 코딩 에이전트 기술](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent#skills) |
+
+## 제품별 MCP 서버
+
+'Cloudflare' API MCP 서버 외에도 'Cloudflare'는 대상 사용 사례에 대한 제품 별 MCP 서버를 제공합니다.
+
+| 서버 이름                                                                                                            | 이름 \*                                                       | 서버 URL                                         |
+| ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------- | ---------------------------------------------- |
+| [문서 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/docs-vectorize)                       | 'Cloudflare'에 대한 자세한 정보                                     | `https://docs.mcp.cloudflare.com/mcp`          |
+| [Workers 바인딩 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/workers-bindings)            | 저장, AI 및 compute primitives를 가진 Workers 신청을 건설하십시오          | `https://bindings.mcp.cloudflare.com/mcp`      |
+| [Workers 서버 구축](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/workers-builds)               | 'Cloudflare\`\`Workers Builds를 파악하고 관리하십시오.                 | `https://builds.mcp.cloudflare.com/mcp`        |
+| [Observability 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/workers-observability)     | Debug 및 애플리케이션의 로그 및 분석에 대한 통찰력                             | `https://observability.mcp.cloudflare.com/mcp` |
+| [Radar 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/radar)                             | 글로벌 인터넷 트래픽 통찰력, 트렌드, URL 스캔 및 기타 유틸리티를 얻으십시오.              | `https://radar.mcp.cloudflare.com/mcp`         |
+| [컨테이너 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/sandbox-container)                  | sandbox 개발 환경을 회전                                           | `https://containers.mcp.cloudflare.com/mcp`    |
+| [브라우저 렌더링 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/browser-rendering)              | Fetch 웹 페이지, markdown로 변환하고 스크린 샷을 찍                        | `https://browser.mcp.cloudflare.com/mcp`       |
+| [Logpush 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/logpush)                         | Logpush 작업 건강에 대한 빠른 요약                                     | `https://logs.mcp.cloudflare.com/mcp`          |
+| [AI Gateway 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/ai-gateway)                   | 로그인을 검색, 신속한 및 응답에 대한 세부 정보를 얻을                             | `https://ai-gateway.mcp.cloudflare.com/mcp`    |
+| [AI 검색 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/autorag)                           | AI 검색에 대한 문서 목록 및 검색                                        | `https://autorag.mcp.cloudflare.com/mcp`       |
+| [감사 로그 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/auditlogs)                         | Query 감사 로그 및 검토 보고서 생성                                     | `https://auditlogs.mcp.cloudflare.com/mcp`     |
+| [DNS 보호 Analytics 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/dns-analytics)          | 현재 설정된 DNS 성능과 디버그 문제를 최적화                                  | `https://dns-analytics.mcp.cloudflare.com/mcp` |
+| [Digital Experience 모니터링 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/dex-analysis)    | 당신의 조직에 중요한 애플리케이션에 대한 빠른 통찰력                               | `https://dex.mcp.cloudflare.com/mcp`           |
+| [Cloudflare 1개의 CASB 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/cloudflare-one-casb) | SaaS 애플리케이션에 대한 보안 misconfigurations를 신속히 식별하여 사용자 및 데이터 보호 | `https://casb.mcp.cloudflare.com/mcp`          |
+| [GraphQL 서버](https://github.com/cloudflare/mcp-server-cloudflare/tree/main/apps/graphql/)                        | 'Cloudflare'' GraphQL API를 사용하여 분석 데이터를 가져옵니다               | `https://graphql.mcp.cloudflare.com/mcp`       |
+| [Agents SDK 문서 서버](https://github.com/cloudflare/agents/tree/main/site/agents)                                   | 'Cloudflare\` Agents SDK 문서의 토큰 효율적인 검색                     | `https://agents.cloudflare.com/mcp`            |
+
+자주 묻는 질문[GitHub 페이지](https://github.com/cloudflare/mcp-server-cloudflare)다른 MCP 클라이언트와 함께 Cloudflare의 원격 MCP 서버를 사용하는 방법을 배우기 위해.

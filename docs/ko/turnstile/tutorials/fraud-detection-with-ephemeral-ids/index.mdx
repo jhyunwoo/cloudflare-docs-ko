@@ -1,0 +1,251 @@
+---
+title: Ephemeral ID를 가진 Fraud 탐지
+pcx_content_type: tutorial
+reviewed: 2026-01-12T00:00:00.000Z
+difficulty: Advanced
+products:
+  - bots
+tags:
+  - JavaScript
+  - Node.js
+  - SQL
+sidebar:
+  order: 4
+description: Turnstile의 Ephemeral ID를 사용하여 사기 탐지를 구현하는 방법을 알아서 IP 주소를 회전시키는 나쁜 행동자를 차단하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/turnstile/tutorials/fraud-detection-with-ephemeral-ids/
+translation_source_md: >-
+  https://developers.cloudflare.com/turnstile/tutorials/fraud-detection-with-ephemeral-ids/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[일반 ID](/turnstile/additional-configuration/ephemeral-id/)전통적인 IP 기반 탐지를 평가하는 사기 패턴을 감지 할 수 있습니다. 이 튜토리얼은 Ephemeral ID를 로그하는 방법을 보여 주며 의심스러운 패턴을 감지하고 나쁜 배우를 차단합니다.
+
+공격자는 종종 가짜 계정의 수백을 남용 프로모션으로 만들고, IP 기반 비율 제한을 방지하기 위해 프록시 풀을 통해 회전하고 기본 봇 감지에 실제 브라우저를 사용합니다.
+
+IP 기반 탐지는 각 요청이 다른 주소에서 온 것처럼 실패합니다. Ephemeral IDs는 IP 주소가 변경 될 때 IP 주소를 변경할 때 클라이언트 장치를 식별하여 이것을 해결합니다.
+
+## 시작하기 전에
+
+- Ephemeral ID는 요구합니다[기업 Bot 관리](/bots/plans/bm-subscription/)이름 \*[기업 Turnstile 부가에](/turnstile/plans/), 또는[독립 기업 Turnstile](/turnstile/plans/). 계정 팀에 문의하여 이 기능을 활성화하십시오.
+- Turnstile 통합과 기본 익숙성을 가지고 있어야 합니다. 더 알아보기[Turnstile 시작하기](/turnstile/get-started/)더 많은 정보.
+
+:::카트로션\[Ephemeral ID는 고유하게 보장되지 않습니다]
+모든 고유한 장치가 고유한 Ephemeral ID를 생성할 것입니다. 개인정보 중심의 장치 및 브라우저(iPhone 및 Safari와 같은)는 여러 개의 합법적인 사용자가 동일한 Ephemeral ID를 공유할 수 있는 지문을 사용할 수 있는 신호를 제한합니다.
+
+Ephemeral ID를 사용하여 높은 볼륨 남용 패턴을 감지하고 고유하게 개별 장치를 식별하지 않습니다. 항상 검출 임계값을 false 긍정을 방지하기 위해 충분히 높은 설정.
+주요 특징
+
+***
+
+### 로그 설정
+
+Ephemeral ID로 이벤트를 저장하는 테이블을 만듭니다.
+
+```sql
+CREATE TABLE turnstile_events (
+    id              BIGSERIAL PRIMARY KEY,
+    ephemeral_id    VARCHAR(64) NOT NULL,
+    event_type      VARCHAR(50) NOT NULL,  -- 'signup', 'login', 'checkout'
+    ip_address      VARCHAR(45),
+    user_id         VARCHAR(128),          -- NULL for signups, populated after
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE blocked_ephemeral_ids (
+    ephemeral_id    VARCHAR(64) PRIMARY KEY,
+    reason          VARCHAR(255),
+    created_at      TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Ephemeral IDs 추출 및 로그
+
+Siteverify를 호출하면 Ephemeral ID가 반환됩니다.`metadata`이름 \* 모든 보호 작업으로 이동합니다.
+
+```typescript
+async function verifyAndLogTurnstile(
+	token: string,
+	ip: string,
+	secretKey: string,
+	eventType: string,
+	db: Database,
+): Promise<{ success: boolean; ephemeralId?: string; isBlocked: boolean }> {
+	//Siteverify API를 호출
+	const response = await fetch(
+		"https://challenges.cloudflare.com/turnstile/v0/siteverify",
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded" },
+			body: new URLSearchParams({
+				secret: secretKey,
+				response: token,
+				remoteip: ip,
+			}),
+		},
+	);
+
+	const result = await response.json();
+
+	if (!result.success) {
+		return { success: false, isBlocked: false };
+	}
+
+	const ephemeralId = result.metadata?.ephemeral_id;
+
+	if (ephemeralId) {
+		//공지사항
+		await db.query(
+			`INSERT INTO turnstile_events (ephemeral_id, event_type, ip_address)
+       VALUES ($1, $2, $3)`,
+			[ephemeralId, eventType, ip],
+		);
+
+		//자주 묻는 질문
+		const blocked = await db.query(
+			`SELECT 1 FROM blocked_ephemeral_ids WHERE ephemeral_id = $1`,
+			[ephemeralId],
+		);
+
+		if (blocked.rows.length > 0) {
+			return { success: true, ephemeralId, isBlocked: true };
+		}
+	}
+
+	return { success: true, ephemeralId, isBlocked: false };
+}
+```
+
+### 로그인에 Ephemeral ID를 사용하십시오.
+
+```typescript
+export async function handleSignup(request: Request, env: Env) {
+	const formData = await request.formData();
+	const email = formData.get("email") as string;
+	const turnstileToken = formData.get("cf-turnstile-response") as string;
+	const ip = request.headers.get("CF-Connecting-IP") || "";
+
+	//Turnstile를 검증하고 Ephemeral ID를 로그
+	const verification = await verifyAndLogTurnstile(
+		turnstileToken,
+		ip,
+		env.TURNSTILE_SECRET_KEY,
+		"signup",
+		env.DB,
+	);
+
+	if (!verification.success) {
+		return new Response("Verification failed", { status: 400 });
+	}
+
+	//이 장치가 끌리는 경우에 구획
+	if (verification.isBlocked) {
+		//일반적인 메시지를 반환 - 검출하지 마십시오
+		return new Response("Please verify your email to continue", {
+			status: 202,
+		});
+	}
+
+	//정상적인 signup로 Proceed
+	const userId = await createUser(email, formData.get("password"));
+
+	//새 사용자 ID로 로그 업데이트
+	if (verification.ephemeralId) {
+		await env.DB.query(
+			`UPDATE turnstile_events
+       SET user_id = $1
+       WHERE ephemeral_id = $2 AND event_type = 'signup' AND user_id IS NULL
+       ORDER BY created_at DESC LIMIT 1`,
+			[userId, verification.ephemeralId],
+		);
+	}
+
+	return new Response("Account created", { status: 201 });
+}
+```
+
+### 사기 패턴을 감지
+
+다음 쿼리 주기적으로 실행 (예를 들어, 5 분마다) 의심스러운 Ephemeral ID를 찾을 수:
+
+```sql
+-- Find devices creating multiple accounts in the last hour
+SELECT
+    ephemeral_id,
+    COUNT(*) as signup_count,
+    COUNT(DISTINCT ip_address) as unique_ips
+FROM turnstile_events
+WHERE
+    event_type = 'signup'
+    AND created_at > NOW() - INTERVAL '1 hour'
+GROUP BY ephemeral_id
+HAVING COUNT(*) > 3;  -- More than 3 signups = suspicious
+```
+
+의심스러운 ID를 찾을 때, 그들을 차단:
+
+```sql
+INSERT INTO blocked_ephemeral_ids (ephemeral_id, reason)
+SELECT
+    ephemeral_id,
+    'Multiple signups: ' || COUNT(*) || ' in 1 hour'
+FROM turnstile_events
+WHERE
+    event_type = 'signup'
+    AND created_at > NOW() - INTERVAL '1 hour'
+GROUP BY ephemeral_id
+HAVING COUNT(*) > 3
+ON CONFLICT (ephemeral_id) DO NOTHING;
+```
+
+### Investigate 과 소요 활동
+
+학대를 금지하면 동일한 장치에서 다른 계정을 찾을 수 있습니다.
+
+```sql
+-- Find all accounts created from the same device as a banned user
+SELECT DISTINCT te2.user_id, te2.created_at
+FROM turnstile_events te1
+JOIN turnstile_events te2 ON te1.ephemeral_id = te2.ephemeral_id
+WHERE te1.user_id = 'BANNED_USER_ID'
+  AND te2.user_id IS NOT NULL
+  AND te2.user_id != 'BANNED_USER_ID';
+```
+
+검토에 대 한 대량 플랩 계정:
+
+```sql
+-- Flag all accounts from a suspicious device
+UPDATE users
+SET status = 'under_review'
+WHERE id IN (
+    SELECT DISTINCT user_id
+    FROM turnstile_events
+    WHERE ephemeral_id = 'x:SUSPICIOUS_ID_HERE'
+      AND user_id IS NOT NULL
+);
+```
+
+***
+
+## Recommend
+
+:::노트\[개인정보]
+Ephemeral ID는 개인 정보 보호 정책입니다. 그들은 귀하의 계정, 간결, 그리고 사이트에 걸쳐 개인을 식별 할 수 없습니다.
+주요 특징
+
+- **즉시 로그인**: Siteverify를 호출 할 때 Ephemeral ID를 캡처합니다.
+- **공급 능력**: 사기 차단시, 반환 일반 오류. 기기를 감지하지 못했습니다.
+- **Tune 임계 값**: 보존 시작 (예를 들면, 3개의 표시는 시간 당 올립니다) 쿼리와 당신의 트래픽을 기반으로 조정합니다.
+- **결합 신호**: IP 평판과 행동 분석과 함께 Ephemeral ID를 사용합니다.
+
+***
+
+## 관련 자료
+
+- [일반 ID](/turnstile/additional-configuration/ephemeral-id/)
+- [Server-side 검증](/turnstile/get-started/server-side-validation/)
+- [Turnstile, WAF 및 Bot 관리 통합](/turnstile/tutorials/integrating-turnstile-waf-and-bot-management/)

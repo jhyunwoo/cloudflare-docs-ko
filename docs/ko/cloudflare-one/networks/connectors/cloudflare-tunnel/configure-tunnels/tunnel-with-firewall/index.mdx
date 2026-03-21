@@ -1,0 +1,289 @@
+---
+pcx_content_type: reference
+title: 방화벽과 터널
+description: |
+  모든 진입을 차단하면서 `cloudflared` egress 트래픽을 허용하는 방화벽 규칙을 구성하고 긍정적 인 보안 모델을 구현합니다.
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+모든 진입 트래픽을 차단하여 Cloudflare 터널을 사용하여 긍정적 인 보안 모델을 구현할 수 있으며 egress 트래픽 만 허용`cloudflared`. 당신의 갱도 윤곽에서 지정된 서비스는 외부 세계에 드러낼 것입니다.
+
+## 항구 항구
+
+아래의 매개 변수는 방화벽 내부의 egress 트래픽을 구성할 수 있습니다.
+
+방화벽 유형을 구성하는 방법:
+
+- 방화벽이 도메인 기반 규칙 (FQDN 수당)을 지원한다면 아래 나열된 호스트 이름에 아웃바운드 연결을 허용할 수 있습니다.
+- 방화벽이 IP 기반 규칙을 필요로 하는 경우, 각 도메인의 모든 목록 IP 주소로 아웃바운드 연결을 허용한다.
+
+공급 능력`7844`TCP 및 UDP 프로토콜 모두 허용됩니다 (for`http2`·`quic`).
+
+### 터널 작업에 필요한
+
+`cloudflared`포트에 Cloudflare의 글로벌 네트워크에 연결`7844`. Cloudflare를 사용하기 위하여 터널, 방화벽은 포트에 다음 목적지에 아웃바운드 연결을 허용해야합니다`7844`(UDP를 사용하려면`quic`프로토콜 또는 TCP를 사용하는 경우`http2`프로토콜).
+
+<Render file="tunnel/firewall/required-ports" product="cloudflare-one" />
+
+#### SNI-enforcing 방화벽
+
+<Render file="tunnel/firewall/sni-hostnames" product="cloudflare-one" />
+
+### 지역 미국
+
+<Render file="tunnel/firewall/us-region-ports" product="cloudflare-one" params={{ regionURL: "/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/run-parameters/#region" }} />
+
+### 지역 FedRAMP 사이트맵
+
+<Render file="tunnel/firewall/fedramp-high-ports" product="cloudflare-one" params={{ tunnelTokenURL: "/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/remote-tunnel-permissions/" }} />
+
+### 옵션 정보
+
+열기 항구`443`몇몇 선택적인 특징을 가능하게 합니다. 이 연결을 허용하는 실패는 로그 오류를 초래할 수 있지만`cloudflared`아직 제대로 실행됩니다.
+
+#### `api.cloudflare.com`
+
+지원하다`cloudflared`소프트웨어 업데이트가 가능한 경우 쿼리에.
+
+| IPv4 지원                                                                                             | IPv6를                                                                                                                                                                   | 항구 항구 | 프로젝트                |
+| --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | ------------------- |
+| `104.19.192.29` `104.19.192.177` `104.19.192.175` `104.19.193.29` `104.19.192.174` `104.19.192.176` | `2606:4700:300a::6813:c0af` `2606:4700:300a::6813:c01d` `2606:4700:300a::6813:c0ae` `2606:4700:300a::6813:c11d` `2606:4700:300a::6813:c0b0` `2606:4700:300a::6813:c0b1` | 443   | TCP (HTTPS) (HTTPS) |
+
+#### `update.argotunnel.com`
+
+지원하다`cloudflared`소프트웨어 업데이트가 가능한 경우 쿼리에.
+
+| IPv4 지원                         | IPv6를                                         | 항구 항구 | 프로젝트                |
+| ------------------------------- | --------------------------------------------- | ----- | ------------------- |
+| `104.18.25.129` `104.18.24.129` | `2606:4700::6812:1881` `2606:4700::6812:1981` | 443   | TCP (HTTPS) (HTTPS) |
+
+#### `github.com`
+
+지원하다`cloudflared`최신 릴리스를 다운로드하고 소프트웨어 업데이트를 수행합니다.
+
+| IPv4 지원                                                                                                                 | IPv6를                                                                                                                   | 항구 항구 | 프로젝트                |
+| ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----- | ------------------- |
+| [GitHub의 IP](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-githubs-ip-addresses) | [GitHub의 IP](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-githubs-ip-addresses) | 443   | TCP (HTTPS) (HTTPS) |
+
+#### `<your-team-name>.cloudflareaccess.com`
+
+지원하다`cloudflared`액세스 JWT를 검증합니다. 만 필요한 경우[`access`](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/cloudflared-parameters/origin-parameters/#access)설정이 활성화됩니다.
+
+| IPv4 지원                         | IPv6를                                                   | 항구 항구 | 프로젝트                |
+| ------------------------------- | ------------------------------------------------------- | ----- | ------------------- |
+| `104.19.194.29` `104.19.195.29` | `2606:4700:300a::6813:c31d` `2606:4700:300a::6813:c21d` | 443   | TCP (HTTPS) (HTTPS) |
+
+#### `pqtunnels.cloudflareresearch.com`
+
+지원하다`cloudflared`관련 기사[포스트퀀텀 키 교환](https://blog.cloudflare.com/post-quantum-tunnel/)Cloudflare에 오류.
+
+| IPv4 지원                     | IPv6를                                       | 항구 항구 | 프로젝트                |
+| --------------------------- | ------------------------------------------- | ----- | ------------------- |
+| `104.18.4.64` `104.18.5.64` | `2606:4700::6812:540` `2606:4700::6812:440` | 443   | TCP (HTTPS) (HTTPS) |
+
+#### `cfd-features.argotunnel.com`
+
+| IPv4 지원 | IPv6를   | 항구 항구   | 프로젝트    |
+| ------- | ------- | ------- | ------- |
+| 적용되지 않음 | 적용되지 않음 | 적용되지 않음 | 적용되지 않음 |
+
+DNS 쿼리 수행`TXT`이 hostname에 기록할 수 있습니다.`cloudflared`어떤 버전의 결정[UDP 데이터그램](/changelog/2025-07-15-udp-improvements/)연결시 사용`quic`프로토콜. 방화벽 필터가 FQDN에 의해 DNS 쿼리를 승인하면 이 도메인에 쿼리를 허용해야 할 수 있습니다.`quic`성능.
+
+## 방화벽 구성
+
+### 클라우드 VM 방화벽
+
+클라우드 공급자의 가상 머신 (VM) 인스턴스에서 서비스를 호스팅하는 경우 모든 진입 트래픽을 차단하고 egress 트래픽을 허용하는 인스턴스 레벨 방화벽 규칙을 설정할 수 있습니다. 예를 들어, Google Cloud Platform (GCP)에서 모든 진입 규칙을 삭제할 수 있습니다. GCP의 방화벽 denies ingress 트래픽이 명시된 규칙과 일치하지 않는 것이기 때문입니다.
+
+### OS 방화벽
+
+대안으로, 당신은 운영 체제 (OS) 레벨 방화벽 규칙을 사용하여 모든 진입 트래픽을 차단하고 유일한 egress 트래픽을 허용 할 수 있습니다. 예를 들어, 서버가 Linux에서 실행하면 사용할 수 있습니다.`iptables`방화벽 규칙을 설정하려면:
+
+1. 현재 방화벽 규칙을 확인하십시오.
+
+   ```sh
+   sudo iptables -L
+   ```
+
+2. 지원하다`localhost`스스로 소통하기.
+
+   ```sh
+   sudo iptables -A INPUT -i lo -j ACCEPT
+   ```
+
+3. 이미 연결 및 관련 트래픽을 설정할 수 있습니다.
+
+   ```sh
+   sudo iptables -A INPUT -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
+   ```
+
+4. 새로운 SSH 연결을 허용.
+
+   ```sh
+   sudo iptables -A INPUT -p tcp --dport ssh -j ACCEPT
+   ```
+
+5. 다른 진입 트래픽을 드롭합니다.
+   :::카트로션\[Warning]
+
+   뒤에 오는 명령에 아주 주의하십시오. 현재 SSH 연결을 보존하지 않았거나 새로운 SSH 연결을 허용하지 않았다면, SSH가 다시 시스템에 다시 로그 아웃 할 수 없습니다.
+   주요 특징
+
+   ```sh
+   sudo iptables -A INPUT -j DROP
+   ```
+
+6. 방화벽 규칙을 설정한 후, 이 명령을 사용하여 현재 확인`iptables`설정:
+
+   ```sh
+   sudo iptables -L
+   ```
+
+7. 터널을 실행하고 모든 구성 된 서비스는 터널을 통해 외부 세계에 접근 할 수 있지만 서버의 외부 IP 주소를 통해하지 않습니다.
+
+8. 기본적으로, 규칙을 통해 추가`iptables`명령은 메모리에만 저장되며 재부팅에 persist하지 않습니다. Linux 배포에 따라 방화벽 규칙을 저장하고 다시로드하는 다양한 방법이 있습니다. 예를 들어, Debian에서 사용할 수 있습니다.[`iptables-persistent`](https://packages.debian.org/sid/iptables-persistent)포장:
+
+   ```sh
+   sudo apt install iptables-persistent
+   sudo netfilter-persistent save
+   ```
+
+## 시험 연결
+
+### dig를 가진 시험
+
+Cloudflare에 연결성을 테스트하려면 사용할 수 있습니다.`dig`위의 호스트명을 쿼리하는 명령. 주의사항`cloudflared`기본적으로 IPv4로 연결됩니다.
+
+```sh
+dig A region1.v2.argotunnel.com
+```
+
+```sh output
+;; ANSWER SECTION:
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.167
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.67
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.57
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.107
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.27
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.7
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.227
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.47
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.37
+region1.v2.argotunnel.com. 86400 IN	A	198.41.192.77
+...
+```
+
+```sh
+dig AAAA region1.v2.argotunnel.com
+```
+
+```sh output
+...
+;; ANSWER SECTION:
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::1
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::2
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::3
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::4
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::5
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::6
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::7
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::8
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::9
+region1.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a0::10
+...
+```
+
+```sh
+dig A region2.v2.argotunnel.com
+```
+
+```sh output
+;; ANSWER SECTION:
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.13
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.193
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.33
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.233
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.53
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.63
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.113
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.73
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.43
+region2.v2.argotunnel.com. 86400 IN	A	198.41.200.23
+...
+```
+
+```sh
+dig AAAA region2.v2.argotunnel.com
+```
+
+```sh output
+...
+;; ANSWER SECTION:
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::1
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::2
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::3
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::4
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::5
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::6
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::7
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::8
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::9
+region2.v2.argotunnel.com. 86400 IN	AAAA	2606:4700:a8::10
+...
+```
+
+### PowerShell로 테스트
+
+Windows에서 PowerShell 명령을 사용할 수 있습니다.`dig`없습니다.
+
+DNS를 테스트하려면:
+
+```powershell
+Resolve-DnsName -Name _v2-origintunneld._tcp.argotunnel.com SRV
+```
+
+```txt output
+Name                                     Type   TTL   Section    NameTarget                     Priority Weight Port
+----                                     ----   ---   -------    ----------                     -------- ------ ----
+_v2-origintunneld._tcp.argotunnel.com       SRV    112   Answer     region2.v2.argotunnel.com         2        1      7844
+_v2-origintunneld._tcp.argotunnel.com       SRV    112   Answer     region1.v2.argotunnel.com         1        1      7844
+```
+
+항구를 시험하기 위하여:
+
+```powershell
+tnc region1.v2.argotunnel.com -port 443
+```
+
+```txt output
+ComputerName     : region1.v2.argotunnel.com
+RemoteAddress    : 198.41.192.227
+RemotePort       : 443
+InterfaceAlias   : Ethernet
+SourceAddress    : 10.0.2.15
+TcpTestSucceeded : True
+```
+
+```powershell
+tnc region1.v2.argotunnel.com -port 7844
+```
+
+```txt output
+ComputerName     : region1.v2.argotunnel.com
+RemoteAddress    : 198.41.192.227
+RemotePort       : 7844
+InterfaceAlias   : Ethernet
+SourceAddress    : 10.0.2.15
+TcpTestSucceeded : True
+```

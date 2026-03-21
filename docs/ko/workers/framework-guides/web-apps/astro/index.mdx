@@ -1,0 +1,251 @@
+---
+pcx_content_type: how-to
+title: Astro
+sidebar:
+  order: 2
+tags:
+  - ssg
+  - full-stack
+  - Astro
+description: Astro 응용 프로그램을 만들고 Cloudflare WorkersXQXQXQXQXQXQXQXQ 자산에 배포합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/astro/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	AutoconfigDiagram,
+	Badge,
+	Details,
+	Steps,
+	WranglerConfig,
+	Description,
+	InlineBadge,
+	Render,
+	TabItem,
+	Tabs,
+	PackageManagers,
+} from "~/components";
+
+**CLI에서 시작**: WorkersXQ 프로젝트에 QXAstro 프로젝트를 비계하고 템플릿을 선택하십시오.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args="my-astro-app --framework=astro" />
+
+***
+
+**또는 그냥 배포**: Astro와 정적 블로그를 만들고 Cloudflare Workers, CI/CD와 함께 배포하고 당신을 위해 모든 설정을 미리보기합니다.
+
+[![Workers에 배포](https://deploy.workers.cloudflare.com/button)](https://dash.cloudflare.com/?to=/:account/workers-and-pages/create/deploy-to-workers\&repository=https://github.com/cloudflare/templates/tree/main/astro-blog-starter-template)
+
+## Astro는 무엇입니까?
+
+[Astro](https://astro.build/)JavaScript 웹 프레임 워크는 많은 양의 콘텐츠를 표시하는 웹 사이트를 만들기 위해 설계되었습니다 (블로그, 문서 사이트 또는 온라인 상점과 같은).
+
+Astro는 최소한의 클라이언트 측 JavaScriptXQ를 통해 성과를 강조합니다 - 기본적으로, 그것은 건축 시간, 또는에 가능한 한 많은 내용을 렌더링합니다[주문하기](https://docs.astro.build/en/guides/on-demand-rendering/)"서버"에 - 이것은 Cloudflare 노동자일 수 있습니다.[“아일랜드”](https://docs.astro.build/en/concepts/islands/)JavaScript는 상호 작용 또는 개인화가 필요한 곳에만 추가됩니다.
+
+Astro는 또한 기구 마취이고, React, Preact, Svelte, Vue, SolidJS를 포함하여 모든 중요한 UI 기구를, 지원합니다[연결하기](https://astro.build/integrations/).
+
+## Workers의 새로운 Astro 프로젝트 배포
+
+<Steps>
+  1. **Create-cloudflare CLI (C3)로 새로운 프로젝트를 만듭니다.**
+
+     <PackageManagers type="create" pkg="cloudflare@latest" args="my-astro-app --framework=astro" />
+
+     <Details header="장면 뒤에 무슨 일이 일어나는가?">
+       이 명령을 실행할 때, C3는 새로운 프로젝트 디렉토리를 생성, initiates[Astro의 공식 설정 도구](https://docs.astro.build/en/tutorial/1-setup/2/), Cloudflare를 위한 프로젝트를 구성합니다. Cloudflare에 즉시 응용 프로그램을 배포 할 수있는 옵션을 제공합니다.
+     </Details>
+
+  2. **현지 개발**
+
+     프로젝트를 작성한 후 프로젝트 디렉토리에서 다음 명령을 실행하여 로컬 개발 서버를 시작합니다.
+
+     <PackageManagers type="run" args="dev" />
+
+  3. **프로젝트 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="run" args="deploy" />
+</Steps>
+
+## 기존 AstroXQ 프로젝트 배포
+
+:::tip\[자동 설정]
+지원하다`wrangler deploy`WranglerXQ 구성 파일 및 Wrangler가 자동으로 Astro를 감지하고 필요한 구성을 생성하고 프로젝트를 배포합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+더 알아보기[자동 프로젝트 구성](/workers/framework-guides/automatic-configuration/).
+:::
+
+<AutoconfigDiagram
+  framework="Astro"
+  configs={[
+  	{ label: "main", file: "wrangler.jsonc", value: "dist/_worker.js/index.js" },
+  	{ label: "assets", file: "wrangler.jsonc", value: "directory: ./dist, binding: ASSETS" },
+  	{ label: "compatibility_flags", file: "wrangler.jsonc", value: "nodejs_compat" },
+  	{ label: "observability", file: "wrangler.jsonc", value: "enabled: true" },
+  	{ label: "adapter", file: "astro.config.mjs", value: "@astrojs/cloudflare" },
+  ]}
+/>
+
+## 수동 구성
+
+프로젝트를 수동으로 구성하려면 아래 단계를 따르십시오.
+
+### 정적 사이트가 있는 경우
+
+Astro 프로젝트가 완전히 사전 렌더링되면 다음 단계를 따르십시오.
+
+<Steps>
+  1. **Wrangler 구성 파일 추가**
+
+     프로젝트 루트에서 다음 내용으로 Wrangler 구성 파일을 만듭니다.
+
+     <WranglerConfig>
+       ```json
+       {
+       	"name": "my-astro-app",
+       	"compatibility_date": "$today",
+       	"assets": {
+       		"directory": "./dist"
+       	}
+       }
+       ```
+     </WranglerConfig>
+
+     <Details header="이 구성은 무엇입니까?">
+       이 구성의 핵심 부분은`assets`정적 자산을 찾기 위해 Wrangler를 말하는 필드. 이 경우, 우리는 Wrangler를 알려줍니다.`./dist`디렉토리. 자산이 다른 디렉토리에 있다면, 업데이트`directory`가치 그러므로.
+       자세히보기[자산 구성 옵션](/workers/wrangler/configuration/#assets).
+
+       또한 아무 것도 없다`main`이 구성의 필드 - 이것은 정적 자산을 제공하지만, 작업자 코드는 수요 렌더링 / SSR에 필요합니다.
+     </Details>
+
+  2. **프로젝트 구축 및 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="exec" pkg="astro" args="build" />
+
+     <PackageManagers type="exec" pkg="wrangler@latest" args="deploy" />
+</Steps>
+
+### 사이트가 수요 렌더링에 사용한다면
+
+Astro 프로젝트가 사용하는 경우[수요 렌더링 (일컬어 SSR)](https://docs.astro.build/en/guides/on-demand-rendering/), 다음 단계를 따르십시오:
+
+<Steps>
+  1. **Astro Cloudflare 어댑터 설치**
+
+     <PackageManagers type="exec" pkg="astro" args="add cloudflare" />
+
+     <Details header="장면 뒤에 무슨 일이 일어나는가?">
+       이 명령은 Cloudflare 어댑터를 설치하고 적절한 변경을 만듭니다.`astro.config.mjs`한 단계에 파일. 기본적으로, 이것은 빌드 출력 구성을 설정한다.`output: 'server'`서버는 기본적으로 모든 페이지를 렌더링합니다. 특정 페이지가 있는 경우*뚱 베어*요구 사항 렌더링 / SSR, 예를 들어 개인 정보 보호 정책과 같은 정적 페이지, 당신은 설정해야`export const prerender = true`그 페이지 또는 경로에 사전 렌더링. 어댑터 구성 옵션에 대해 더 많은 것을 읽을 수 있습니다.[Astro 문서에서](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#options).
+     </Details>
+
+  2. **추가하기`.assetsignore`이름 \***&#xC774;름 \*`.assetsignore`파일 형식`public/`폴더, 다음 줄을 추가:
+
+     ```txt title=".assetsignore"
+     _worker.js
+     _routes.json
+     ```
+
+  3. **Wrangler 설정파일 추가**
+
+     프로젝트 루트에서 다음 내용으로 Wrangler 구성 파일을 만듭니다.
+
+     <WranglerConfig>
+       ```json
+       {
+       	"name": "my-astro-app",
+       	"main": "./dist/_worker.js/index.js",
+       	// Update to today's date
+       	"compatibility_date": "$today",
+       	"compatibility_flags": ["nodejs_compat"],
+       	"assets": {
+       		"binding": "ASSETS",
+       		"directory": "./dist"
+       	},
+       	"observability": {
+       		"enabled": true
+       	}
+       }
+       ```
+     </WranglerConfig>
+
+     <Details header="이 구성은 무엇입니까?">
+       이 구성의 핵심 부분은:
+
+       - `main`Worker 스크립트의 항목 포인트에. 이것은 Astro 어댑터에 의해 생성되며 서버 렌더링 페이지의 전원입니다.
+       - `assets.directory`Wrangler에게 정적 자산을 찾을 수 있습니다. 이 경우, 우리는 Wrangler를 알려줍니다.`./dist`디렉토리. 자산이 다른 디렉토리에 있다면, 업데이트`directory`가치 그러므로.
+
+       더 알아보기[Wrangler 구성 옵션](/workers/wrangler/configuration/)·[자산 구성 옵션](/workers/wrangler/configuration/#assets).
+     </Details>
+
+  4. **프로젝트 구축 및 배포**
+
+     프로젝트에 배포할 수 있습니다.[`*.workers.dev`이름 \*](/workers/configuration/routing/workers-dev/)또는[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)당신의 국부적으로 기계 또는 어떤 CI/CD 체계든지에서 (를 포함하여[Workers 회사연혁](/workers/ci-cd/#workers-builds)). 다음 명령을 사용하여 빌드 및 배포합니다. CI 서비스를 사용하는 경우, "deploy command"를 따라 업데이트해야 합니다.
+
+     <PackageManagers type="exec" pkg="astro" args="build" />
+
+     <PackageManagers type="exec" pkg="wrangler@latest" args="deploy" />
+</Steps>
+
+## 회사 소개
+
+:::참조
+Astro를 사용하여 묶음을 사용할 수 없습니다.
+주요 특징
+
+바인딩으로, 당신의 Astro 신청은 Cloudflare 개발자 플랫폼과 완전히 통합될 수 있습니다, 당신이 compute, 저장, AI 및 더 많은 것에 접근하는 것을 주. 더 알아보기[바인딩 overview](/workers/runtime-apis/bindings/)더 많은 정보를 사용할 수 있고 구성하는 방법.
+
+더 보기[Astro 문서](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#cloudflare-runtime)당신에게 접근 할 수있는 방법에 대한 정보를 제공`locals`.
+
+## 교육과정
+
+Astro의[세션 API](https://docs.astro.build/en/guides/sessions/)사용자의 preferenceS, 쇼핑 카트, 또는 인증 자격 증명과 같은 요청에 따라 사용자 데이터를 저장할 수 있습니다. Cloudflare 어댑터를 사용할 때 Astro는 자동으로 구성[Workers KV](/kv/)세션 저장.
+
+Wrangler는 자동적으로 KV namespace를 지명합니다`SESSION`배포시 수동 설정이 필요하지 않습니다.
+
+```astro
+---
+export const prerender = false;
+const cart = await Astro.session?.get("cart");
+---
+
+<a href="/checkout">{cart?.length ?? 0} items</a>
+```
+
+KV 바인딩 이름을 지정할 수 있습니다.[`sessionKVBindingName`](https://docs.astro.build/en/guides/integrations-guide/cloudflare/#sessionkvbindingname)다른 바인딩 이름을 사용하려면 어댑터 옵션.
+
+## 관례 404 페이지
+
+Astro 사이트에 대한 사용자 정의 404 페이지를 제공하기 위해 추가`not_found_handling`Wrangler 윤곽에:
+
+<WranglerConfig>
+  ```json
+  {
+  	"assets": {
+  		"directory": "./dist",
+  		"not_found_handling": "404-page"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+이것은 Cloudflare에게 당신의 관례 404 페이지를 봉사하는 것을 말합니다 (예를 들면,`src/pages/404.astro`) 노선이 발견되지 않을 때. 더 알아보기[static 자산 여정 행동](/workers/static-assets/routing/).
+
+## Astro의 구성
+
+Astro Cloudflare 접합기는 구조 산출 윤곽을에 놓습니다`output: 'server'`모든 페이지가 Cloudflare Worker에서 렌더링되는 것을 의미합니다. 특정 페이지가 있는 경우*뚱 베어*요구 사항 렌더링 / SSR, 예를 들어 개인 정보 보호 정책과 같은 정적 페이지, 당신은 설정해야`export const prerender = true`그 페이지 또는 경로에 사전 렌더링. on-demand 렌더링에 대한 자세한 내용을 읽을 수 있습니다.[Astro 문서](https://docs.astro.build/en/guides/on-demand-rendering/).
+
+정적 사이트 생성기로 Astro를 사용하려면 Astro QXQXQXCloudflare 어댑터가 필요하지 않습니다. Astro는 기본적으로 빌드 시간에 모든 페이지를 미리 렌더링 할 것이며 Cloudflare에 의해 제공 될 정적 자산을 업로드 할 수 있습니다.
+
+## Node.js 필요조건
+
+Astro 5.x는 Node.jsXQ를 요구합니다 18.17.1 이상. Astro 6 (현재 베타에서) Node.js 22 이상. 당신이 사용 하는 경우[Workers 회사연혁](/workers/ci-cd/builds/), 당신의 건축 환경을 지키는 것은 이 요구에 응합니다.

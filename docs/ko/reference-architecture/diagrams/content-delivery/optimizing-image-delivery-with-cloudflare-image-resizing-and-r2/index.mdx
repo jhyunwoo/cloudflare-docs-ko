@@ -1,0 +1,63 @@
+---
+title: Cloudflare 이미지 resizing와 R2를 가진 이미지 납품을 최적화하십시오
+pcx_content_type: reference-architecture-diagram
+products:
+  - cache
+  - images
+  - r2
+  - transform-rules
+sidebar:
+  order: 1
+  label: 최적화된 이미지 납품
+reviewed: 2024-06-12T00:00:00.000Z
+description: 이미지 전달을 최적화하기 위해 확장 가능한 고성능 솔루션을 얻는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/content-delivery/optimizing-image-delivery-with-cloudflare-image-resizing-and-r2/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/content-delivery/optimizing-image-delivery-with-cloudflare-image-resizing-and-r2/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+웹 사이트의 최적화 된 이미지 전달은 사용자 경험을 향상시키기 위해 중요합니다. 이미지는 종종 웹 사이트의 데이터를 가장 큰 부분을 나타냅니다. 그들은 페이지로드 시간, 검색 엔진 순위, 배달 비용 및 전반적인 성능에 크게 영향을줍니다. 이 참고 자료 건축 도표는 똑바른, 확장 가능 및 고성능 해결책을 통해 당신을 인도할 것입니다. URL 문자열을 간단히 조정하여 이미지 크기와 품질을 지정할 수 있으며, 해당 형식을 요청하는 사용자에 최적화된 이미지를 전달할 수 있습니다. 아래의 Cloudflare 구성 요소는 다음과 같습니다.
+
+- [Cloudflare CDN](https://www.cloudflare.com/en-gb/application-services/products/cdn/)- 레버리지[Cloudflare의 글로벌 네트워크](https://www.cloudflare.com/en-gb/network/)당신의 최종 사용자에게 빠르고 신뢰할 수있는 배달을위한 변환 된 이미지를 캐시하십시오.
+- [모델 번호: Cloudflare 제품정보](https://www.cloudflare.com/en-gb/developer-platform/cloudflare-images/)- 레버리지 Cloudflare Cloudflare R2와 같은 객체 저장 솔루션에 저장되는 이미지 크기를 조정하고 최적화하고 변환합니다. Transformations는 응용 프로그램에 최소한의 반복을 필요로하는 특정 형식의 URL을 기반으로 수행됩니다.
+- [Cloudflare R2 개체 저장](https://www.cloudflare.com/en-gb/developer-platform/r2/)- R2는 사용자가 많은 양의 압축 데이터 저장을 허용하고, 이 사용 케이스는 변환을 위해 우리의 본래 이미지 (최고 질) 저장을 위해 사용될 것입니다.
+- [Cloudflare 변형 규칙](/rules/transform/)- 다른 솔루션에서 Cloudflare로 마이그레이션하는 경우, Transform 규칙은 다른 솔루션 구문에서 Cloudflare 특정 구문으로 URL을 다시 작성할 수 있습니다. 마이그레이션의 복잡성을 감소시킵니다.
+
+## Cloudflare 이미지 조정과 R2를 가진 이미지 납품
+
+![그림 1: Cloudflare 이미지 조정과 R2](~/assets/images/reference-architecture/optimizing-image-delivery-with-cloudflare-image-resizing-and-r2-diagrams/optimizing-image-delivery-with-cloudflare-image-resizing-and-r2-diagram.svg "Figure 1: Cloudflare Image Resizing and R2")
+
+1. **사용자 요청**: 사용자는 URL에서 URL을 comma-separated 리스트로 가로 및 품질과 같은 변형을 지정하는 이미지(image.jpg)의 HTTP 요청을 보냅니다.
+2. **캐시 히트**: Cloudflare는 사용자에게 가까운 존재의 시점에서 요청을 처리합니다. 요청된 이미지 변환이 이미 Cloudflare의 캐시에 있는지 첫 번째 검사입니다. 그래서, 이미지는 즉시 사용자에게 반환, 더 많은 처리에 대한 필요 제거. 그렇지 않은 경우, 요청은 다음 단계로 이동합니다.
+3. [Transform 규칙](/rules/transform/)(선택): 다른 이미지 솔루션에서 마이그레이션하는 경우 URL 경로와 쿼리 문자열을 다시 작성해야 할 수 있으므로 마이그레이션을 지원하기 위해 애플리케이션 수준에서 복잡한 재구성을 방지 할 수 있습니다. 동적 및 정적 리깅 모두 지원, 동적 리깅 지원 복잡 한 표현 URL 리깅의 multitude를 지원 합니다.
+4. **캐시 MISS - R2**: 요청된 이미지가 Cloudflare의 캐시에서 유효하지 않은 경우, 이 시나리오에서 요청이 전달됩니다.[Cloudflare의 R2 목표 저장](/r2/)플랫폼. 원본 이미지는 R2에서 저장됩니다만, resize 변종은 R2 물통에서, 물체 수명주기 규칙 더 적은 1rous 없이 R2를 운영하.
+5. **Transform 이미지**: 단계 1 또는 단계 3로 변환 된 URL 구문을 기반으로[모델 번호: Cloudflare 제품정보](/images/)이미지를 변환하고 요청한 이미지로 최종 사용자에게 다시 봉사하기 전에 캐시에 보냅니다.
+
+## 이미지 URL Syntax 참고 자료를 Resizing
+
+특별히 포맷된 URL을 통해 요청하여 이미지를 쉽게 변환하고 크기를 조정할 수 있습니다. 이 섹션은 이미지 변환의 URL 구조를 설명하고, 다이어그램을 다시 참조하고 각 URL 구성 요소를 자세히 설명합니다.
+
+- **부품 1**- Cloudflare의 특정 도메인 이름, 이것은 Cloudflare에 내장 된 영역이며 웹 사이트 또는 이미지가 제공됩니다. 사이트맵[모델 번호: https://www.mywebsite.com/](https://www.mywebsite.com/)
+- **부품 2**- 이 식별하는 고정 접두사는 Cloudflare의 내장 노동자에 의해 처리 된 특수 경로입니다.
+- **부품 3**- width=80,quality=75와 같은 이미지를 위한 선택권의 comma 격리된 명부
+- **부품 4**- 근원 서버의 절대 경로. 예를 들면: /uploads/image.jpg
+
+요청에서 사용되는 최종 URL은 다음과 같습니다.
+
+```plain
+https://www.mywebsite.com/cdn-cgi/image/width=80,quality=75/uploads/image.jpg
+```
+
+## 관련 자료
+
+- [Image 문서화](/images/transform-images/)
+- [Cloudflare R2 개발자 Docs](/r2/)
+- [URL Rewrite 규칙](/rules/transform/url-rewrite/)
+- [Serverless 이미지 콘텐츠 관리 플랫폼](/reference-architecture/diagrams/serverless/serverless-image-content-management/)

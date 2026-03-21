@@ -1,0 +1,138 @@
+---
+title: Recording SDK를 사용하여 Custom Recording App 만들기
+sidebar_position: 9
+slug: realtime/realtimekit/recording-guide/create-record-app-using-sdks
+description: RealtimeKit의 SDK를 사용하여 녹화 앱을 만드는 방법을 알아보세요. 효과적인 앱 작성 및 통합 가이드를 따르십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/realtime/realtimekit/recording-guide/create-record-app-using-sdks/
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/recording-guide/create-record-app-using-sdks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+RealtimeKit 회의에 가입하면 회의 레이아웃은 자동으로 당신의 경험을 최적화하도록 설계되었습니다. 공유 콘텐츠에 초점을 맞추고 활성 스피커를 강조하면서 참가자는 작은 썸네일보기에 표시됩니다. 미팅 녹화를 시작할 때 기본 UI 키트 구성 요소를 사용하여 동일한 레이아웃으로 기록됩니다.[RtkGrid의 특징](https://docs.realtime.cloudflare.com/react-ui-kit/components/rtk-grid).
+
+기록 응용 프로그램에 대한 사용자 정의 레이아웃을 가지고 싶다면 RealtimeKit의 사용자 정의 녹음 SDK는 preferenceS에 따라 기록의 외관을 맞춤화 할 수있는 유연성을 제공합니다. 당신은 같이 선택권에서 선택할 수 있습니다:
+
+- Active speaker 보기
+- 공유 화면 썸네일 갤러리보기
+- 큰 활성 스피커 thumbnail와 공유 화면
+- Active speaker 또는 gallery view없이 공유 화면
+- 당신의 기록을 위한 주문을 받아서 만들어진 배경
+- Portrait 레이아웃 등
+
+RealtimeKit 녹음 앱에 대한 사용자 정의 외관을 만들기에 관련된 단계를 이해하기 위해 다이빙을 하십시오.
+
+사용자 지정 녹음 SDK는 상단에 사용됩니다.[UI 키트](/realtime/realtimekit/ui-kit)또는[핵심 SDK](/realtime/realtimekit/core)·`RealtimeKitRecording`SDK 내에서 녹화 기능을 관리하기 위해 사용됩니다.
+
+## 회사연혁
+
+`constructor(options)`
+
+인스턴스 생성`RealtimeKitRecording`수업.
+
+### 매개 변수
+
+`options (object)`: 옵션 객체.
+
+| **옵션 (object)**                 | **이름 \***                                                                                                                                                                                                                                                                                |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `options.waitTimeMs (number)`   | 모든 동료가 회의를 떠나기 전에 기다리는 시간 (밀리 초). 이 옵션은 무시됩니다.`autoStop`true로 설정한다.                                                                                                                                                                                                                      |
+| `options.autoStart (boolean)`   | 수동으로 호출하려는 경우 true로 설정`startRecording`기능. 기본적으로,`autoStart`매개 변수 설정`true`. 녹음의 시작을 연기하려는 경우 이 매개 변수의 값을 설정할 수 있습니다.`false`. 그 경우에, 당신은 수동으로 호출할 수 있습니다`startRecording()`기능 나중에. 2 분의 타임 아웃이 있음을 주의하십시오.`startRecording()`방법. 이 메소드가 WebSocket 연결의 2 분 이내에 호출되지 않는 경우 기록 프로세스는 오류가 발생합니다. |
+| `options.autoStop (boolean)`    | 자동 피어 휴가를 비활성화하고 수동으로 호출 할 경우 true로 설정`stopRecording`기능.                                                                                                                                                                                                                                 |
+| `options.scanInterval (number)` | 자동 피어 휴가 스캔 사이에 간격 (밀리 초).                                                                                                                                                                                                                                                               |
+| `options.devMode (boolean)`     | 개발 모드를 활성화하기 위해 true로 설정하면 로그와 특정 기능을 비활성화할 수 있습니다. 또한 녹음 앱을 로컬로 테스트할 때 이 작업을 true로 설정해야 합니다.                                                                                                                                                                                            |
+
+### 제품 설명
+
+```js
+init(client: RealtimeKitClient)
+```
+
+SDK를 시작으로`RealtimeKitClient`객체. 회의 객체를 만들고 호출하기 전에이 호출`meeting.joinRoom()`.
+
+```js
+startRecording();
+```
+
+수동으로 녹음을 시작합니다. 견적 요청`autoStart`constructor 옵션에서 true로 전달됩니다.
+
+```js
+stopRecording();
+```
+
+수동으로 녹음을 중지합니다. 견적 요청`autoStop`constructor 옵션에서 true로 전달됩니다.
+
+```js
+cleanup();
+```
+
+WebSocket을 추가한 청취자 및 웹소켓 연결을 취소한 후 정리 작업을 수행합니다.
+
+## 사용법 예
+
+RealtimeKit 회의에 대한 녹음 앱을 만들려면 다음 단계를 수행하십시오.
+
+### 단계 1: SDK 설치
+
+```js
+npm i @cloudflare/realtimekit-recording-sdk
+```
+
+### 단계 2: 수입품`RealtimeKitRecording`기타 제품
+
+```js
+import { RealtimeKitRecording } from '@cloudflare/realtimekit-recording-sdk';
+```
+
+### 단계 3: 만들기`RealtimeKitRecording`기타 제품
+
+```js
+const recordingSdk = new RealtimeKitRecording(options);
+```
+
+### 4단계: 녹화 SDK 초기화
+
+이름 \*`init`회의 객체를 만들고 전에`joinRoom`이름 \*
+
+```js
+//initMeeting 호출 후이 전화
+await recordingSdk.init();
+```
+
+### (선택) 단계 5: 수동으로 기록 시작
+
+수동으로 녹음을 시작하려면`startRecording()`기능. 예를 들어, 앱에서 UI 콘텐츠를 로드한 후 녹화를 시작하고 싶습니다.`autoStart`true로 설정되지 않습니다. 그런 경우 수동으로 호출 할 수 있습니다.`startRecording()`녹음을 시작할 준비가 될 때 기능.
+
+```js
+//autoStart가 false로 설정되면 예외를 던집니다.
+await recordingSdk.startRecording();
+```
+
+### (선택) 단계 6: 수동으로 기록 중지
+
+수동으로 녹음을 중지, 사용`stopRecording`.
+
+```js
+//autoStop이 false로 설정되면 예외를 버립니다.
+await recordingSdk.stopRecording();
+```
+
+1시간`stopRecording`호출, 녹음 앱의 기록자는 몇 초 후에 종료됩니다. 이 시점에서 녹화 앱 내에서 더 많은 작업을 수행할 수 없습니다.
+
+### Step 7: 녹음 앱 배포
+
+앱을 만들면 플랫폼과 같은 배포[Cloudflare Workers](https://cloudflare.com/workers). RealtimeKit의 레코딩 API에서이 URL을 입력해야 할 때 앱을 배포 한 URL에주의하십시오.
+
+### 단계 8: 사용자 지정 URL 지정
+
+내 계정[회의 시작](/api/resources/realtime_kit/subresources/recordings/methods/start_recordings/)API는 배포된 앱의 위치를 나타냅니다.
+
+<head>
+  <title>Recording SDK Guide를 사용하여 Custom Recording App 만들기</title>
+
+  <meta name="description" content="Learn how to create a recording app using RealtimeKit's SDKs. Follow our guide for effective app creation and integration." />
+</head>

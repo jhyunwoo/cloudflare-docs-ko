@@ -1,0 +1,98 @@
+---
+title: 근원 규칙 FAQ
+pcx_content_type: faq
+structured_data: true
+sidebar:
+  order: 10
+  label: 제품 정보
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/origin-rules/faq/'
+translation_source_md: 'https://developers.cloudflare.com/rules/origin-rules/faq/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Example } from "~/components";
+
+아래는 Origin 규칙에 관한 가장 일반적으로 묻는 질문에 대한 답변을 찾을 수 있습니다.
+
+## 호스트 헤더/DNS 레코드 오버라이드를 수행하기 위해 기원 규칙과 페이지 규칙을 모두 사용하는 경우 어떻게됩니까?
+
+이 상황에서 기원 규칙 매개 변수는 override[페이지 규칙](/rules/page-rules/)모수.
+
+다음 예제 시나리오를 고려:
+
+- 페이지 규칙은 Host Header override를 정의하지만, 오버라이드 (또는 DNS 레코드 오버라이드)를 해결하지 않습니다. 근원 규칙은 DNS 기록 override를 정의하지만 호스트 헤더를 무시하지 않습니다. 결과 요청은`Host`페이지 규칙에 의해 정의 된 헤더 및 기원 규칙에 의해 정의 된 기원 호스트 이름.
+- 페이지 규칙은 Host header override를 정의하고, 원래 규칙은 Host Header override를 정의합니다. 결과 요청은`Host`원래 규칙에 의해 정의 된 헤더.
+
+## Cloudflare는 호스트 헤더와 DNS 레코드를 사용하여 페이지 규칙을 자동으로 마이그레이션합니까?
+
+예. 더 알아보기[페이지 규칙 마이그레이션 가이드](/rules/reference/page-rules-migration/)마이그레이션 프로세스에 대한 모든 업데이트.
+
+## 1 개 이상의 기원 규칙이 현재 요청을 일치하면 어떻게됩니까?
+
+두 개 이상의 기원 규칙이 요청에 일치하면, 그 규칙의 구성이 합병됩니다. 두 가지 구성을 merging 동안, 나중에 규칙의 설정은 이전 규칙에서 정의 된 설정, 업데이트 또는 구성 속성을 추가합니다. CloudflareXQ에 의해 적용된 최종 구성은 이 합병한 버전일 것입니다.
+
+예를 들어, 다음 두 가지를 구성하는 경우[기본 규칙](/rules/origin-rules/)그리고 규칙 일치 모두, Cloudflare는 첫번째 규칙에 의해 놓인 목적지 항구를 이용하고, DNS hostname override와`Host`두 번째 규칙에 의해 설정 헤더 값.
+
+<Example>
+  **근원 규칙 #1**
+
+  | 제품 설명           | 제품정보          |
+  | --------------- | ------------- |
+  | 설치하기`Host`기타 제품 | `example.com` |
+  | 항구를 놓으십시오       | `8081`        |
+</Example>
+
+<Example>
+  **근원 규칙 #2**
+
+  | 제품 설명           | 제품정보          |
+  | --------------- | ------------- |
+  | 설치하기`Host`기타 제품 | `example.net` |
+  | DNS 호스트명 설정     | `example.net` |
+</Example>
+
+<Details header="API 사용자를 위한 JSON 예제">
+  시간 :[API 사용](/rules/origin-rules/create-api/), 당신은 근원 규칙 모수를 안으로 구성합니다`action_parameters`객체.
+
+  ```json
+  {
+  	"rules": [
+  		{
+  			"expression": "http.request.uri.query contains \"/eu/\"",
+  			"description": "Origin rule #1",
+  			"action": "route",
+  			"action_parameters": {
+  				"host_header": "example.com",
+  				"origin": {
+  					"port": 8081
+  				}
+  			}
+  		},
+  		{
+  			"expression": "http.request.uri.query contains \"/eu/\"",
+  			"description": "Origin rule #2",
+  			"action": "route",
+  			"action_parameters": {
+  				"host_header": "example.net",
+  				"origin": {
+  					"host": "example.net"
+  				}
+  			}
+  		}
+  	]
+  }
+  ```
+</Details>
+
+합병 된 구성은 다음과 같습니다.
+
+| 제품 설명           | 제품정보          |
+| --------------- | ------------- |
+| 설치하기`Host`기타 제품 | `example.net` |
+| 항구를 놓으십시오       | `8081`        |
+| DNS 호스트명 설정     | `example.net` |
+
+규칙 #2의 대상 포트를 구성하면 값이 무시됩니다.`8081`규칙 #1에 정의된 항구.

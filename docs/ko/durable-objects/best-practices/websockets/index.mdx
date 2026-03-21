@@ -1,0 +1,711 @@
+---
+title: WebSockets 사용
+pcx_content_type: concept
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/best-practices/websockets/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/best-practices/websockets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Tabs,
+	TabItem,
+	GlossaryTooltip,
+	Type,
+	WranglerConfig,
+	TypeScriptExample,
+} from "~/components";
+
+Durable Objects는 인스턴스당 수천 개의 클라이언트를 연결하는 WebSocket 서버 역할을 할 수 있습니다. 다른 서버 또는 Durable Objects에 연결할 클라이언트로 WebSockets를 사용할 수 있습니다.
+
+2개의 WebSocket APIs는 유효합니다:
+
+1. **웹소켓 API**- idle이 아닌 클라이언트를 연결하지 않고 튼튼한 개체를 허용한다.**(추천)**
+2. **웹 표준 WebSocket API**- 익숙한 사용`addEventListener`이벤트 패턴.
+
+## WebSockets란?
+
+WebSockets는 클라이언트와 서버 간의 양방향, 실시간 통신을 가능하게 하는 오랜 TCP 연결입니다.
+
+주요 특성:
+
+- 둘 다 Workers와 Durable Objects는 WebSocket 엔드포인트 (클라이언트 또는 서버)로 행동할 수 있습니다
+- WebSocket 세션은 긴 수명이며, Durable Objects 연결에 이상적입니다.
+- 단일 내구성 객체 인스턴스는 여러 클라이언트(예, 채팅 룸 또는 멀티 플레이어 게임) 사이에서 조정할 수 있습니다.
+
+더 알아보기[Cloudflare Edge 채팅 데모](https://github.com/cloudflare/workers-chat-demo)웹소켓과 Durable Objects를 사용하는 예입니다.
+
+### 왜 Hibernation를 사용합니까?
+
+Hibernation WebSocket API는 Durable Objects를 허용하여 비용을 줄일 수 있습니다.
+
+- 클라이언트는 내구재 목표가 메모리에 있지 않는 동안 연결 유지
+- [요금제(GB-s)](/durable-objects/platform/pricing/)hibernation 도중 accrue하지 마십시오
+- 메시지가 도착하면, 튼튼한 개체가 자동으로 깨어납니다.
+
+## Durable Objects 웹소켓 API
+
+Hibernation WebSocket API 확장[웹 표준 WebSocket API](/workers/runtime-apis/websockets/)Inactivity 기간 동안 비용을 절감합니다.
+
+### 어떻게 hibernation 작품
+
+튼튼한 개체가 짧은 기간 동안 이벤트 (예 : 알람 또는 메시지)를받지 못하면 메모리에서 evicted입니다. 수화 중:
+
+- WebSocket 클라이언트는 Cloudflare 네트워크에 연결 유지
+- In-memory 상태는 재설정
+- 이벤트가 도착하면, 튼튼한 개체가 재 시작되고 그`constructor`지원하다
+
+hibernation 후에 국가를 복원하기 위해, 사용[`serializeAttachment`](#websocketserializeattachment)·[`deserializeAttachment`](#websocketdeserializeattachment)각 WebSocket 연결에 대한 persist 데이터.
+
+더 알아보기[튼튼한 목표의 수명주기](/durable-objects/concepts/durable-object-lifecycle/)더 많은 정보.
+
+### Hibernation 예제
+
+Durable Objects를 가진 WebSockets를 사용하기 위하여:
+
+1. Worker에서 튼튼한 개체에 요청을 프록시
+2. 이름 \*[`DurableObjectState::acceptWebSocket`](/durable-objects/api/state/#acceptwebsocket)서버 측 연결을 수락
+3. 관련 행사를 위한 튼튼한 Object 클래스의 핸들러 방법 정의
+
+이벤트가 hibernated 튼튼한 개체에 대 한 발생 하는 경우, runtime re-initializes it by call constructor. 생성기에서 작업 최소화 할 때 hibernation.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class WebSocketHibernationServer extends DurableObject {
+    	async fetch(request) {
+    		//WebSocket 연결의 두 끝을 만듭니다.
+    		const webSocketPair = new WebSocketPair();
+    		const [client, server] = Object.values(webSocketPair);
+
+    		//`acceptWebSocket()`를 호출하면 WebSocket을 튼튼한 개체에 연결하여 WebSocket을 보내고 메시지를 수신합니다.
+    		//`ws.accept()`와는 달리, `state.acceptWebSocket(ws)`는 튼튼한 목표를 hibernated 수 있습니다
+    		//튼튼한 목표가 Hibernation 도중 메시지를 받을 때, 그것은 재 시작될 `constructor`를 달릴 것입니다
+    		this.ctx.acceptWebSocket(server);
+
+    		return new Response(null, {
+    			status: 101,
+    			webSocket: client,
+    		});
+    	}
+
+    	async webSocketMessage(ws, message) {
+    		//클라이언트에서 메시지를 수신하면 동일한 메시지와 회신,
+    		//그러나 "[Durable Object] : "과의 메시지를 접두하고 연결의 번호를 반환합니다.
+    		ws.send(
+    			`[Durable Object] message: ${message}, connections: ${this.ctx.getWebSockets().length}`,
+    		);
+    	}
+
+    	async webSocketClose(ws, code, reason, wasClean) {
+    		//서버의 호출 닫기()는 WebSocket close Handhake를 완료합니다.
+    		ws.close(code, reason);
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+    	WEBSOCKET_HIBERNATION_SERVER: DurableObjectNamespace<WebSocketHibernationServer>;
+    }
+
+    //튼튼한 목표
+    export class WebSocketHibernationServer extends DurableObject {
+    	async fetch(request: Request): Promise<Response> {
+    		//WebSocket 연결의 두 끝을 만듭니다.
+    		const webSocketPair = new WebSocketPair();
+    		const [client, server] = Object.values(webSocketPair);
+
+    		//`acceptWebSocket()`를 호출하면 WebSocket을 튼튼한 개체에 연결하여 WebSocket을 보내고 메시지를 수신합니다.
+    		//`ws.accept()`와는 달리, `state.acceptWebSocket(ws)`는 튼튼한 목표를 hibernated 수 있습니다
+    		//튼튼한 개체가 Hibernation 도중 메시지를 받으면 `constructor`를 다시 시작될 것입니다
+    		this.ctx.acceptWebSocket(server);
+
+    		return new Response(null, {
+    			status: 101,
+    			webSocket: client,
+    		});
+    	}
+
+    	async webSocketMessage(ws: WebSocket, message: ArrayBuffer | string) {
+    		//클라이언트에서 메시지를 수신하면 동일한 메시지와 회신,
+    		//그러나 "[Durable Object] : "과의 메시지를 접두하고 연결의 번호를 반환합니다.
+    		ws.send(
+    			`[Durable Object] message: ${message}, connections: ${this.ctx.getWebSockets().length}`,
+    		);
+    	}
+
+    	async webSocketClose(
+    		ws: WebSocket,
+    		code: number,
+    		reason: string,
+    		wasClean: boolean,
+    	) {
+    		//서버의 호출 닫기()는 WebSocket close Handhake를 완료합니다.
+    		ws.close(code, reason);
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    from workers import Response, DurableObject
+    from js import WebSocketPair
+
+    #튼튼한 목표
+
+    class WebSocketHibernationServer(DurableObject):
+    def **init**(self, state, env):
+    super().**init**(state, env)
+    self.ctx = state
+
+        async def fetch(self, request):
+            #WebSocket 연결의 두 끝을 만듭니다.
+            client, server = WebSocketPair.new().object_values()
+
+            #`acceptWebSocket()`를 호출하면 WebSocket을 튼튼한 개체에 연결하여 WebSocket을 보내고 메시지를 수신합니다.
+            #`ws.accept()`와는 달리, `state.acceptWebSocket(ws)`는 튼튼한 목표를 hibernated 수 있습니다
+            #튼튼한 목표가 Hibernation 도중 메시지를 받을 때, 그것은 재 시작될 `__init__`를 달릴 것입니다
+            self.ctx.acceptWebSocket(server)
+
+            return Response(
+                None,
+                status=101,
+                web_socket=client
+            )
+
+        async def webSocketMessage(self, ws, message):
+            #클라이언트에서 메시지를 수신하면 동일한 메시지와 회신,
+            #그러나 "[Durable Object] : "과의 메시지를 접두하고 연결의 번호를 반환합니다.
+            ws.send(
+                f"[Durable Object] message: {message}, connections: {len(self.ctx.get_websockets())}"
+            )
+
+        async def webSocketClose(self, ws, code, reason, was_clean):
+            #서버의 호출 닫기()는 WebSocket close Handhake를 완료합니다.
+            ws.close(code, reason)
+
+    ```
+  </TabItem>
+</Tabs>
+
+Wrangler 파일을 튼튼한 개체로 구성[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "websocket-hibernation-server",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "WEBSOCKET_HIBERNATION_SERVER",
+  				"class_name": "WebSocketHibernationServer"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["WebSocketHibernationServer"]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+전체 예제를 사용할 수 있습니다.[WebSocket Hibernation로 WebSocket 서버 구축](/durable-objects/examples/websocket-hibernation-server/).
+
+:::caution\[Local 개발 지원]
+
+시작하기`wrangler@3.13.2`그리고 Miniflare`v3.20231016.0`WebSockets는 현지 개발에서 납치하지 않았습니다. Hibernatable WebSocket 이벤트[`webSocketMessage()`](/durable-objects/api/base/#websocketmessage)아직도 배달. 그러나, 튼튼한 목표는 기억에서 결코 evicted.
+
+:::
+
+### 자동적인 ping/pong 취급
+
+Cloudflare 런타임은 자동으로 WebSocket 프로토콜을 처리한다.
+
+- 내 계정[핑 프레임](https://www.rfc-editor.org/rfc/rfc6455#section-5.5.2)자동 pong 응답을 받으십시오
+- Ping/pong 취급은 hibernation를 중단하지 않습니다
+- 더 보기`webSocketMessage`핸들러는 통제 구조를 위해 호출되지 않습니다
+
+이 행동은 튼튼한 개체를 waking 없이 연결 유지.
+
+### 오버 헤드를 줄이기 위해 일괄 메시지
+
+각 WebSocket 메시지는 JavaScript 런타임과 언더링 시스템 간의 컨텍스트 스위치에서 오버헤드 처리됩니다. 많은 작은 메시지를 전송하는 것은 단일 내구성 개체를 압도 할 수있다. 전체 데이터 볼륨이 작으면도 발생합니다.
+
+처리량 극대화:
+
+- **다중 논리 메시지 배치**단일 WebSocket 프레임으로
+- **간단한 봉투 형식 사용**to pack and unpack 일괄 메시지
+- **대상, 더 큰 메시지**많은 작은 것 보다는 오히려
+
+<TypeScriptExample>
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  //일괄 봉투 형식 정의
+  interface BatchedMessage {
+  messages: Array<{ type: string; payload: unknown }>;
+  timestamp: number;
+  }
+
+  //Client-side: 전송하기 전에 일괄 메시지
+  function sendBatch(
+  ws: WebSocket,
+  messages: Array<{ type: string; payload: unknown }>,
+  ) {
+  const batch: BatchedMessage = {
+  messages,
+  timestamp: Date.now(),
+  };
+  ws.send(JSON.stringify(batch));
+  }
+
+  //튼튼한 목표: 처리 일괄된 메시지
+  export class GameRoom extends DurableObject<Env> {
+  async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+  if (typeof message !== "string") return;
+
+      	const batch = JSON.parse(message) as BatchedMessage;
+
+      	//단일 핸들러 invocation에서 일괄 처리에 모든 메시지 처리
+      	for (const msg of batch.messages) {
+      		this.handleMessage(ws, msg);
+      	}
+      }
+
+      private handleMessage(ws: WebSocket, msg: { type: string; payload: unknown }) {
+      	//개별 메시지 논리
+      }
+
+  }
+
+  ```
+</TypeScriptExample>
+
+#### 왜 일괄 처리 도움
+
+WebSocket은 커널과 JavaScript 런타임 사이에 컨텍스트 스위치가 필요합니다. 각 개별 메시지는이 오버 헤드를 트리거합니다. Batching 10-100 단일 WebSocket 프레임으로 논리 메시지는 비례적으로 컨텍스트 스위치를 감소시킵니다.
+
+센서 읽기 또는 게임 상태 업데이트와 같은 고주파 데이터의 경우 시간 기반 또는 카운트 기반 배치를 사용하십시오. 50-100ms 또는 50-100 메시지마다 배치하십시오.
+
+:::참조
+
+Hibernation는 WebSocket 서버로 튼튼한 오브젝트가 작동할 때만 지원됩니다. Outgoing WebSockets는 납작하지 않습니다.
+
+같은 행사[공지사항](/durable-objects/api/alarms/), 들어오는 요구 및 예정된 콜백은 hibernation를 방지합니다. 이 포함`setTimeout`·`setInterval`사용방법 더 알아보기[튼튼한 Object incurs 내구 요금](/durable-objects/platform/pricing/#when-does-a-durable-object-incur-duration-charges).
+
+:::
+
+### 확장 방법
+
+다음 방법은 Hibernation WebSocket API에서 사용할 수 있습니다. persist에 그들을 사용 하 고 전에 상태를 복원 하 고 hibernation 후.
+
+#### `WebSocket.serializeAttachment`
+
+- <code>
+    serializeAttachment (값)<Type text="any" />)
+  </code>
+  : <Type text="void" />
+
+자주 묻는 질문`value`WebSocket 연결 관련.
+
+중요한 행동:
+
+- WebSocket이 건강하게 유지되도록 hibernation을 통해 직렬화 된 첨부 파일
+- 연결이 닫으면 첨부 파일이 손실됩니다.
+- 수정하기`value`이 방법을 호출 한 후 다시 전화하지 않는 한 유지되지 않습니다
+- 더 보기`value`지원되는 어떤 유형일 수 있습니다[구조화된 clone 알고리즘](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Structured_clone_algorithm)
+- 최대 일련된 크기는 2,048 바이트입니다
+
+WebSocket 일생을 넘어 지속해야 하는 더 큰 가치 또는 자료를 위해, 사용[저장 API](/durable-objects/api/sqlite-storage-api/)첨부 파일로 해당 키를 저장합니다.
+
+#### `WebSocket.deserializeAttachment`
+
+- `deserializeAttachment()`: <Type text="any" />
+
+가장 최근의 값을 검색`serializeAttachment()`, 또는`null`아무도 존재하지 않는 경우.
+
+#### 첨부 파일
+
+제품 정보`serializeAttachment`·`deserializeAttachment`hibernation를 통하여 per-connection 국가에:
+
+<TypeScriptExample>
+  ```ts
+  import { DurableObject } from "cloudflare:workers";
+
+  interface ConnectionState {
+  	orderId: string;
+  	joinedAt: number;
+  }
+
+  export class WebSocketServer extends DurableObject<Env> {
+  	async fetch(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+  		const orderId = url.searchParams.get("orderId") ?? "anonymous";
+
+  		const webSocketPair = new WebSocketPair();
+  		const [client, server] = Object.values(webSocketPair);
+
+  		this.ctx.acceptWebSocket(server);
+
+  		//수련을 생존하는 Persist
+  		const state: ConnectionState = {
+  			orderId,
+  			joinedAt: Date.now(),
+  		};
+  		server.serializeAttachment(state);
+
+  		return new Response(null, { status: 101, webSocket: client });
+  	}
+
+  	async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer) {
+  		//잠재적인 hibernation 후에 국가를 저장하십시오
+  		const state = ws.deserializeAttachment() as ConnectionState;
+  		ws.send(`Hello ${state.orderId}, you joined at ${state.joinedAt}`);
+  	}
+
+  	async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean) {
+  		const state = ws.deserializeAttachment() as ConnectionState;
+  		console.log(`${state.orderId} disconnected`);
+  		ws.close(code, reason);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## WebSocket 표준 API
+
+WebSocket 연결은 HTTP GET 요청을 작성하여 설치됩니다.`Upgrade: websocket`헤더.
+
+전형적인 교류:
+
+1. Worker는 업그레이드 요청을 검증합니다.
+2. Worker 프록시는 튼튼한 개체에 요청합니다.
+3. 튼튼한 개체는 서버 측 연결을 받아들입니다
+4. Worker는 응답에서 클라이언트 측 연결을 반환합니다.
+
+:::노트\[일러의 날]
+
+둘 다 Workers와 Durable ObjectsXQ는 요구에 근거를 둔 청구됩니다. 작업자의 유효 요청은 튼튼한 개체에 대한 잘못된 요청에 대한 청구를 피하기 위해.
+
+:::
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    //작업자
+    export default {
+    	async fetch(request, env, ctx) {
+    		if (request.method === "GET" && request.url.endsWith("/websocket")) {
+    			//WebSocket 업그레이드 요청을 받기를 기대합니다.
+    			//하나 있다면, 요청을 받아 WebSocket 응답을 반환합니다.
+    			const upgradeHeader = request.headers.get("Upgrade");
+    			if (!upgradeHeader || upgradeHeader !== "websocket") {
+    				return new Response(null, {
+    					status: 426,
+    					statusText: "Durable Object expected Upgrade: websocket",
+    					headers: {
+    						"Content-Type": "text/plain",
+    					},
+    				});
+    			}
+
+    			//이 예제는 "foo"라는 이름으로 단일 튼튼한 객체 인스턴스를 참조합니다.
+    			//하드코딩
+    			let stub = env.WEBSOCKET_SERVER.getByName("foo");
+
+    			//튼튼한 Object's fetch 핸들러는 서버 측 연결을 받아 반환합니다.
+    			//클라이언트
+    			return stub.fetch(request);
+    		}
+
+    		return new Response(null, {
+    			status: 400,
+    			statusText: "Bad Request",
+    			headers: {
+    				"Content-Type": "text/plain",
+    			},
+    		});
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    //작업자
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		if (request.method === "GET" && request.url.endsWith("/websocket")) {
+    			//WebSocket 업그레이드 요청을 받기를 기대합니다.
+    			//하나 있다면, 요청을 받아 WebSocket 응답을 반환합니다.
+    			const upgradeHeader = request.headers.get("Upgrade");
+    			if (!upgradeHeader || upgradeHeader !== "websocket") {
+    				return new Response(null, {
+    					status: 426,
+    					statusText: "Durable Object expected Upgrade: websocket",
+    					headers: {
+    						"Content-Type": "text/plain",
+    					},
+    				});
+    			}
+
+    			//이 예제는 "foo"라는 이름으로 단일 튼튼한 객체 인스턴스를 참조합니다.
+    			//하드코딩
+    			let stub = env.WEBSOCKET_SERVER.getByName("foo");
+
+    			//튼튼한 Object's fetch 핸들러는 서버 측 연결을 받아 반환합니다.
+    			//클라이언트
+    			return stub.fetch(request);
+    		}
+
+    		return new Response(null, {
+    			status: 400,
+    			statusText: "Bad Request",
+    			headers: {
+    				"Content-Type": "text/plain",
+    			},
+    		});
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import Response, WorkerEntrypoint
+
+    #작업자
+
+    class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+    if request.method == "GET" and request.url.endswith("/websocket"): #WebSocket 업그레이드 요청을 받기를 기대합니다. # 하나 있다면, 요청을 받아 WebSocket 응답을 반환합니다.
+    upgrade_header = request.headers.get("Upgrade")
+    if not upgrade_header or upgrade_header != "websocket":
+    return Response(
+    None,
+    status=426,
+    status_text="Durable Object expected Upgrade: websocket",
+    headers={
+    "Content-Type": "text/plain",
+    },
+    )
+
+                #이 예제는 "foo"라는 이름으로 단일 튼튼한 객체 인스턴스를 참조합니다.
+                #하드코딩
+                stub = self.env.WEBSOCKET_SERVER.getByName("foo")
+
+                #튼튼한 Object's fetch 핸들러는 서버 측 연결을 받아 반환합니다.
+                #클라이언트
+                return await stub.fetch(request)
+
+            return Response(
+                None,
+                status=400,
+                status_text="Bad Request",
+                headers={
+                    "Content-Type": "text/plain",
+                },
+            )
+
+    ```
+  </TabItem>
+</Tabs>
+
+뒤에 오는 튼튼한 목표는 WebSocket 연결을 창조하고 연결의 총 수에 메시지를 응답합니다:
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class WebSocketServer extends DurableObject {
+    	currentlyConnectedWebSockets;
+
+    	constructor(ctx, env) {
+    		super(ctx, env);
+    		this.currentlyConnectedWebSockets = 0;
+    	}
+
+    	async fetch(request) {
+    		//WebSocket 연결의 두 끝을 만듭니다.
+    		const webSocketPair = new WebSocketPair();
+    		const [client, server] = Object.values(webSocketPair);
+
+    		//`accept()`는 WebSocket을 이 튼튼한 목표에 연결합니다
+    		server.accept();
+    		this.currentlyConnectedWebSockets += 1;
+
+    		//클라이언트에서 메시지를 수신하면 서버는 같은 메시지로 응답합니다.
+    		//그리고 "[Durable Object]: "prefix
+    		server.addEventListener("message", (event) => {
+    			server.send(
+    				`[Durable Object] currentlyConnectedWebSockets: ${this.currentlyConnectedWebSockets}`,
+    			);
+    		});
+
+    		//클라이언트가 연결을 닫으면, runtime은 연결도 닫힙니다.
+    		server.addEventListener("close", (cls) => {
+    			this.currentlyConnectedWebSockets -= 1;
+    			server.close(cls.code, "Durable Object is closing WebSocket");
+    		});
+
+    		return new Response(null, {
+    			status: 101,
+    			webSocket: client,
+    		});
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    //튼튼한 목표
+    export class WebSocketServer extends DurableObject {
+    	currentlyConnectedWebSockets: number;
+
+    	constructor(ctx: DurableObjectState, env: Env) {
+    		super(ctx, env);
+    		this.currentlyConnectedWebSockets = 0;
+    	}
+
+    	async fetch(request: Request): Promise<Response> {
+    		//WebSocket 연결의 두 끝을 만듭니다.
+    		const webSocketPair = new WebSocketPair();
+    		const [client, server] = Object.values(webSocketPair);
+
+    		//`accept()`는 WebSocket을 이 튼튼한 목표에 연결합니다
+    		server.accept();
+    		this.currentlyConnectedWebSockets += 1;
+
+    		//클라이언트에서 메시지를 수신하면 서버는 같은 메시지로 응답합니다.
+    		//그리고 "[Durable Object]: "prefix
+    		server.addEventListener("message", (event: MessageEvent) => {
+    			server.send(
+    				`[Durable Object] currentlyConnectedWebSockets: ${this.currentlyConnectedWebSockets}`,
+    			);
+    		});
+
+    		//클라이언트가 연결을 닫으면, runtime은 연결도 닫힙니다.
+    		server.addEventListener("close", (cls: CloseEvent) => {
+    			this.currentlyConnectedWebSockets -= 1;
+    			server.close(cls.code, "Durable Object is closing WebSocket");
+    		});
+
+    		return new Response(null, {
+    			status: 101,
+    			webSocket: client,
+    		});
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    from workers import Response, DurableObject
+    from js import WebSocketPair
+    from pyodide.ffi import create_proxy
+
+    #튼튼한 목표
+
+    class WebSocketServer(DurableObject):
+    def **init**(self, ctx, env):
+    super().**init**(ctx, env)
+    self.currently_connected_websockets = 0
+
+        async def fetch(self, request):
+            #WebSocket 연결의 두 끝을 만듭니다.
+            client, server = WebSocketPair.new().object_values()
+
+            #`accept()`는 WebSocket을 이 튼튼한 목표에 연결합니다
+            server.accept()
+            self.currently_connected_websockets += 1
+
+            #클라이언트에서 메시지를 수신하면 서버는 같은 메시지로 응답합니다.
+            #그리고 "[Durable Object]: "prefix
+            def on_message(event):
+                server.send(
+                    f"[Durable Object] currentlyConnectedWebSockets: {self.currently_connected_websockets}"
+                )
+
+            server.addEventListener("message", create_proxy(on_message))
+
+            #클라이언트가 연결을 닫으면, runtime은 연결도 닫힙니다.
+            def on_close(event):
+                self.currently_connected_websockets -= 1
+                server.close(event.code, "Durable Object is closing WebSocket")
+
+            server.addEventListener("close", create_proxy(on_close))
+
+            return Response(
+                None,
+                status=101,
+                web_socket=client,
+            )
+
+    ```
+  </TabItem>
+</Tabs>
+
+Wrangler 파일 구성[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "websocket-server",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "WEBSOCKET_SERVER",
+  				"class_name": "WebSocketServer"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": ["WebSocketServer"]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+전체 예제를 사용할 수 있습니다.[WebSocket 서버 구축](/durable-objects/examples/websocket-server/).
+
+:::caution\[웹소켓 배포 중단]
+
+코드 업데이트는 모든 WebSockets를 차단합니다. 새로운 버전을 배포하는 모든 튼튼한 개체를 다시 시작, 어떤 기존의 연결을 차단.
+
+:::
+
+## 관련 자료
+
+- [Mozilla Developer Network의 (MDN) 문서에 WebSocket 클래스](https://developer.mozilla.org/en-US/docs/Web/API/WebSocket)
+- [Cloudflare의 WebSockets를 사용하여 WorkersXQ에 건축 신청을 위한 웹소켓 템플릿](https://github.com/cloudflare/websocket-template)
+- [튼튼한 목표 기초 종류](/durable-objects/api/base/)
+- [튼튼한 목표 국가 공용영역](/durable-objects/api/state/)
+
+```
+```

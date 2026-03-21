@@ -1,0 +1,60 @@
+---
+pcx_content_type: concept
+title: DNS over TLS
+slug: 1.1.1.1/encryption/dns-over-tls
+sidebar:
+  order: 4
+---
+
+기본적으로 DNS는 평문 연결을 통해 전달됩니다. DNS over TLS(DoT)는 이 트래픽을 암호화된 채널로 전송하는 방법 가운데 하나입니다. Cloudflare는 표준 포트 853에서 DoT를 제공하며 [RFC 7858](https://tools.ietf.org/html/rfc7858)을 준수합니다. DoT는 TCP 연결 위에 TLS 계층을 추가해 전송 계층에서 암호화를 수행합니다.
+
+## 동작 방식
+
+Cloudflare는 포트 `853`에서 `1.1.1.1`, `1.0.0.1`과 그에 대응하는 IPv6 주소(`2606:4700:4700::1111`, `2606:4700:4700::1001`)에 대해 DoT를 지원합니다. 사용하는 클라이언트가 IP 주소 구성을 허용하지 않는다면 `one.one.one.one` 호스트 이름으로도 동일한 엔드포인트에 접근할 수 있습니다. 장치에서 리졸버와 통신하는 스텁 리졸버는 TLS 연결을 통해 DNS 메시지를 주고받습니다.
+
+1. 연결을 시작하기 전에 DNS 스텁 리졸버는 1.1.1.1의 TLS 인증서에서 추출한 base64 인코딩 SHA256 해시(SPKI)를 저장합니다.
+2. DNS 스텁 리졸버가 `1.1.1.1:853`에 TCP 연결을 설정합니다.
+3. DNS 스텁 리졸버가 TLS 핸드셰이크를 시작합니다.
+4. TLS 핸드셰이크 중 1.1.1.1이 TLS 인증서를 제시합니다.
+5. TLS 연결이 성립되면 DNS 스텁 리졸버는 암호화된 연결을 통해 DNS를 전송할 수 있어 도청이나 변조를 방지합니다.
+6. TLS 연결을 통해 전송되는 모든 DNS 질의는 [TCP 위에서 DNS 전송](https://tools.ietf.org/html/rfc1035#section-4.2.2) 명세를 따라야 합니다.
+
+## 예시
+
+```sh
+kdig -d @1.1.1.1 +tls-ca +tls-host=one.one.one.one example.com
+```
+
+```sh output
+
+;; DEBUG: Querying for owner(example.com.), class(1), type(1), server(1.1.1.1), port(853), protocol(TCP)
+;; DEBUG: TLS, imported 138 system certificates
+;; DEBUG: TLS, received certificate hierarchy:
+;; DEBUG:  #1, C=US,ST=California,L=San Francisco,O=Cloudflare\, Inc.,CN=cloudflare-dns.com
+;; DEBUG:      SHA-256 PIN: GP8Knf7qBae+aIfythytMbYnL+yowaWVeD6MoLHkVRg=
+;; DEBUG:  #2, C=US,O=DigiCert Inc,CN=DigiCert TLS Hybrid ECC SHA384 2020 CA1
+;; DEBUG:      SHA-256 PIN: e0IRz5Tio3GA1Xs4fUVWmH1xHDiH2dMbVtCBSkOIdqM=
+;; DEBUG: TLS, skipping certificate PIN check
+;; DEBUG: TLS, The certificate is trusted.
+;; TLS session (TLS1.3)-(ECDHE-X25519)-(ECDSA-SECP256R1-SHA256)-(AES-256-GCM)
+;; ->>HEADER<<- opcode: QUERY; status: NOERROR; id: 3395
+;; Flags: qr rd ra; QUERY: 1; ANSWER: 1; AUTHORITY: 0; ADDITIONAL: 1
+
+;; EDNS PSEUDOSECTION:
+;; Version: 0; flags: ; UDP size: 1232 B; ext-rcode: NOERROR
+;; PADDING: 408 B
+
+;; QUESTION SECTION:
+;; example.com.        		IN	A
+
+;; ANSWER SECTION:
+example.com.        	75897	IN	A	93.184.216.34
+
+;; Received 468 B
+;; Time 2023-06-23 18:05:42 PDT
+;; From 1.1.1.1@853(TCP) in 12.1 ms
+```
+
+## 지원 TLS 버전
+
+Cloudflare의 DNS over TLS는 TLS 1.3과 TLS 1.2를 지원합니다.

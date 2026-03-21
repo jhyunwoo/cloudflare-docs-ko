@@ -1,0 +1,89 @@
+---
+pcx_content_type: how-to
+title: 관련 규칙
+sidebar:
+  order: 4
+head:
+  - tag: title
+    content: 사용자 정의 hostname 당 관리되는 통치자
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/managed-rulesets/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/managed-rulesets/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+당신이 관심이 있다면[SaaS를 위한 WAF](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/)CloudflareXQ는 WAF 관리 규칙을 사용하는 것이 좋습니다. Cloudflare 보안 팀은 일반적인 공격 벡터를 감지하고 취약점에서 응용 프로그램을 보호하도록 설계된 다양한 규칙을 생성합니다. 이 규칙은[관리 규칙](/waf/managed-rules/)CloudflareXQ와 같이, 다른 설정과 감도 수준으로 배포 할 수있는 관리 및 OWASP.
+
+***
+
+## 자주 묻는 질문
+
+SaaS를 위한 WAF는 기업 계획에 고객을 위해 유효합니다.
+
+계정 수준에서 관리되는 규칙을 배포하려면, 참조[WAF 문서](/waf/account/managed-rulesets/deploy-dashboard/).
+
+자주 묻는 질문[SaaS를 위한 Cloudflare 시작하기](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)자주 묻는 질문[SaaS를 위한 WAF](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/).
+
+고객은 automate 할 수 있습니다[메타데이터](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/custom-metadata/)생성에 사용자 정의 hostnames에 추가하여 태그. custom metadata로 사용자 정의 hostname을 태깅하는 방법에 대한 자세한 내용은 참조[API 문서](/api/resources/custom_hostnames/methods/edit/).
+
+***
+
+## 1. 보안 태그 시스템 선택
+
+1. 기타 제품`security_tag`물통. 이들은 양에 엄격한 한계 없이 완전히 customizable 입니다. 예를 들어, 설정할 수 있습니다.`security_tag`으로`low`,`medium`·`high`기본으로, custom hostname 당 1개의 꼬리표로.
+
+2. 이미 수행하지 않은 경우,[사용자 정의 메타 데이터를 사용자 정의 hostnames에 연결](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/#1-associate-custom-metadata-to-a-custom-hostname)으로`security_tag`custom hostname과 관련된 custom metadata에서. 사용자 정의 hostname과 관련된 JSON blob는 완전히 customizable입니다.
+
+협회가 완료되면, JSON blob는 정의 된 사용자 정의 호스트 이름에 추가됩니다. 이 blob는 다음 각 들어오는 요구에 관련되고 WAF에서 드러냅니다[`cf.hostname.metadata`](/ruleset-engine/rules-language/fields/reference/cf.hostname.metadata/)이름 \* 규칙에서 액세스 할 수 있습니다.`cf.hostname.metadata`그리고 그 blob에서 필요한 데이터를 얻을.
+
+***
+
+## 2. 배포 규칙
+
+:::참조
+계정 수준 WAF는 지불한 추가에 기업 계획을 요구합니다.
+주요 특징
+
+1. Cloudflare 대시보드에서, 가십시오**WAF**사이트 맵
+
+   <DashButton url="/?to=/:account/application-security/waf" />
+
+2. 오시는 길**관련 규칙**탭.
+
+3. 제품정보**계정 만들기** > **Deploy 관리 규칙**.
+
+4. 이름 \***모델 번호: Cloudflare 관리된 Ruleset**, 선택**자주 묻는 질문**.
+
+5. 규칙을 배포하는 규칙에 이름을 부여**실행 이름**.
+
+6. 제품정보**연락처**수신 요청의 하위 설정에 대한 관리 규칙을 실행합니다.
+
+7. 제품정보**사용자 정의 필터 표현**.
+
+8. 제품정보**본문 바로가기**전환하기[Expression 편집기](/ruleset-engine/rules-language/expressions/edit-expressions/#expression-editor).
+
+9. 기본 표현은 이처럼 보일 수 있으며, 어떤 논리도 추가 할 수 있습니다 (특정 사용자 정의 호스트 이름 필터링과 같은)`http.host eq "<HOSTNAME>"`):
+
+   ```txt
+   (lookup_json_string(cf.hostname.metadata, "security_tag") eq "low") and (cf.zone.plan eq "ENT")
+   ```
+
+   :::참조
+   계정 수준에 배포된 Rulesets는 계정의 엔터프라이즈 도메인의 수신 트래픽에만 적용됩니다. Expression Editor를 사용하여 사용자 정의 표현을 정의 할 때, 사용자 정의 조건을 둘러싸고 표현을 종료하기 위해 parentheses를 사용합니다.`and (cf.zone.plan eq "ENT")`그래서 규칙은 엔터프라이즈 계획에 도메인에만 적용됩니다.
+   주요 특징
+
+10. 제품정보**이름 \***.
+
+11. (선택) 변경하여 규칙 구성을 수정할 수 있습니다. 예를 들어, 규칙이 활성화되거나 행동이 기본이어야합니다.
+
+12. 제품정보**계정 만들기**.
+
+## 다음 단계
+
+이 가이드는 Cloudflare 관리 규칙 세트를 사용하지만 사용자 정의 규칙을 만들고 사용자 정의 호스트 이름에 배치 할 수 있습니다. 이렇게하려면**주문 규칙**탭 및 선택**규칙 만들기**. 낮은 / 중간 / 높은 규칙의 예를 들어, 참조[SaaS를 위한 WAF](/cloudflare-for-platforms/cloudflare-for-saas/security/waf-for-saas/).

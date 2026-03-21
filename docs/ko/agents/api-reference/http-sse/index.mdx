@@ -1,0 +1,195 @@
+---
+title: HTTP 및 Server-Sent 이벤트
+pcx_content_type: reference
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/http-sse/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/http-sse/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+Agents는 Server-Sent Events(SSE)를 사용하여 HTTP 요청 및 스트림 응답을 처리할 수 있습니다. 이 페이지는`onRequest`방법 및 SSE 패턴.
+
+## HTTP 요청 처리
+
+수정하기`onRequest`에이전트에 HTTP 요청을 처리하는 방법:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+
+  export class APIAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+
+  		//경로 기반 경로
+  		if (url.pathname.endsWith("/status")) {
+  			return Response.json({ status: "ok", state: this.state });
+  		}
+
+  		if (url.pathname.endsWith("/action")) {
+  			if (request.method !== "POST") {
+  				return new Response("Method not allowed", { status: 405 });
+  			}
+  			const data = await request.json<{ action: string }>();
+  			await this.processAction(data.action);
+  			return Response.json({ success: true });
+  		}
+
+  		return new Response("Not found", { status: 404 });
+  	}
+
+  	async processAction(action: string) {
+  		//작업 핸들
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## Server-Sent 이벤트 (SSE)
+
+SSE는 긴 실행 HTTP 연결을 통해 고객에게 데이터를 스트림 할 수 있습니다. 이것은 토큰을 incrementally 생성하는 AI 모델 응답에 이상적입니다.
+
+### 수동 SSE
+
+SSE 스트림을 수동으로 만들기`ReadableStream`:
+
+<TypeScriptExample>
+  ```ts
+  export class StreamAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		const encoder = new TextEncoder();
+
+  		const stream = new ReadableStream({
+  			async start(controller) {
+  				//공지사항
+  				controller.enqueue(encoder.encode("data: Starting...\n\n"));
+
+  				for (let i = 1; i <= 5; i++) {
+  					await new Promise((r) => setTimeout(r, 500));
+  					controller.enqueue(encoder.encode(`data: Step ${i} complete\n\n`));
+  				}
+
+  				controller.enqueue(encoder.encode("data: Done!\n\n"));
+  				controller.close();
+  			},
+  		});
+
+  		return new Response(stream, {
+  			headers: {
+  				"Content-Type": "text/event-stream",
+  				"Cache-Control": "no-cache",
+  				Connection: "keep-alive",
+  			},
+  		});
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### SSE 메시지 형식
+
+SSE 메시지는 특정 형식을 따릅니다:
+
+```txt
+data: your message here\n\n
+```
+
+이벤트 유형 및 ID도 포함할 수 있습니다.
+
+```txt
+event: update\n
+id: 123\n
+data: {"count": 42}\n\n
+```
+
+### AI SDK로
+
+더 보기[AI SDK 지원](https://sdk.vercel.ai/)내장 SSE 스트리밍 제공:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+  import { streamText } from "ai";
+  import { createWorkersAI } from "workers-ai-provider";
+
+  interface Env {
+  	AI: Ai;
+  }
+
+  export class ChatAgent extends Agent<Env> {
+  	async onRequest(request: Request): Promise<Response> {
+  		const { prompt } = await request.json<{ prompt: string }>();
+
+  		const workersai = createWorkersAI({ binding: this.env.AI });
+
+  		const result = streamText({
+  			model: workersai("@cf/zai-org/glm-4.7-flash"),
+  			prompt: prompt,
+  		});
+
+  		return result.toTextStreamResponse();
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 연결 처리
+
+SSE 연결은 오래 살아남을 수 있습니다. 핸들 클라이언트가 우아하게 분리 :
+
+- **Persist 진행**- 쓰기[에이전트 상태](/agents/api-reference/store-and-sync-state/)그래서 클라이언트는 재개할 수 있습니다
+- **사용 대리인 routing**— 클라이언트는 할 수 있습니다[동일한 에이전트 인스턴스에 다시 연결](/agents/api-reference/routing/)세션 스토어 없음
+- **시간 제한 없음**— CloudflareWorkers는 SSE 응답 기간에 효과적인 제한이 없습니다.
+
+<TypeScriptExample>
+  ```ts
+  export class ResumeAgent extends Agent {
+  	async onRequest(request: Request): Promise<Response> {
+  		const url = new URL(request.url);
+  		const lastEventId = request.headers.get("Last-Event-ID");
+
+  		if (lastEventId) {
+  			//클라이언트는 resuming - lastEventId 후에 사건을 보냅니다
+  			return this.resumeStream(lastEventId);
+  		}
+
+  		return this.startStream();
+  	}
+
+  	async startStream(): Promise<Response> {
+  		//새로운 스트림을 시작, 이 작업을 저장. 주요 특징
+  	}
+
+  	async resumeStream(fromId: string): Promise<Response> {
+  		//저장된 국가의 이력서
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 웹소켓 대 SSE
+
+| 제품 정보      | 웹소켓                | 사이트맵         |
+| ---------- | ------------------ | ------------ |
+| 오시는 길      | 양방향                | 서버 → 클라이언트만  |
+| 프로젝트       | `ws://` / `wss://` | HTTP: HTTP   |
+| Binary 데이터 | 이름 \*              | 없음 (텍스트 만)   |
+| 연락처        | 제품 설명              | 자동 (browser) |
+| 제품 정보      | 대화 형 앱, 채팅         | 스트리밍 응답, 알림  |
+
+**추천 :**&#x57;ebSockets 사용 SSE를 사용하여 AI 응답 또는 서버 푸시 알림을 스트리밍합니다.
+
+더 알아보기[웹소켓](/agents/api-reference/websockets/)WebSocket 문서.
+
+## 다음 단계
+
+<LinkCard title="웹소켓" href="/agents/api-reference/websockets/" description="양방향 실시간 통신." />
+
+<LinkCard title="국가 관리" href="/agents/api-reference/store-and-sync-state/" description="Persist 스트림 진행 및 에이전트 상태." />
+
+<LinkCard title="채팅 에이전트" href="/agents/getting-started/build-a-chat-agent/" description="AI 채팅으로 응답 스트리밍." />

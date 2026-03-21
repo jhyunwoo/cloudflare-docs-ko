@@ -1,0 +1,163 @@
+---
+pcx_content_type: tutorial
+title: DNSSEC가 활성화된 기존 영역 마이그레이션
+sidebar:
+  order: 5
+  label: Migration tutorial
+head:
+  - tag: title
+    content: DNSSEC migration tutorial
+description: >-
+  DNSSEC를 비활성화하지 않고도 기존 DNS 영역을 Cloudflare로 마이그레이션하는 방법을 안내합니다.
+---
+
+import { Details, APIRequest } from "~/components";
+
+DNSSEC를 비활성화하지 않고 기존 DNS 영역을 Cloudflare로 마이그레이션하려면 이 튜토리얼을 따르세요.
+
+:::caution
+이 절차는 한 공급자에서 다른 공급자로 [zone signing key(ZSK)](https://www.cloudflare.com/learning/dns/dns-records/dnskey-ds-records/)를 상호 가져오는 작업을 포함합니다. 이에 대해 더 알고 싶다면 [multi-signer DNSSEC 소개](/dns/dnssec/multi-signer-dnssec/about/) 문서나 [RFC 8901](https://www.rfc-editor.org/rfc/rfc8901.html)을 참고하세요.
+:::
+
+이것은 고급 절차이며 [DNS 개념](/dns/concepts/), [API 작업](/fundamentals/api/), 기본 설정 단계에 익숙하다는 것을 전제로 합니다. 이 튜토리얼에서 자세히 설명하지 않는 전제 지식은 각 단계의 링크된 문서를 통해 참고할 수 있습니다.
+
+## 요구 사항
+
+마이그레이션하려는 기존 공급자는 영역 apex에 DNSKEY 레코드를 추가할 수 있어야 하며, DNS 질의 응답에 해당 레코드를 사용할 수 있어야 합니다.
+
+## 1. Cloudflare 설정
+
+1. [영역을 Cloudflare에 추가](/fundamentals/manage-domains/add-site/)합니다.
+
+   API로 영역을 추가하려면 [Create Zone endpoint](/api/resources/zones/methods/create/)를 참고하세요.
+
+2. [자동 스캔으로 발견된 레코드를 검토](/dns/manage-dns-records/how-to/create-dns-records/)하거나 [영역 파일을 가져옵니다](/dns/manage-dns-records/how-to/import-and-export/).
+
+   API로 영역 파일을 가져오려면 [Import DNS Records endpoint](/api/resources/dns/subresources/records/methods/import/)를 참고하세요.
+
+3. [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지에서 **Enable DNSSEC**를 선택합니다. 또는 다음 [API 요청](/api/resources/dns/subresources/dnssec/methods/edit/)을 사용하세요.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+		status: "active",
+	}}
+/>
+
+4. [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지에서 **Multi-signer DNSSEC**를 활성화합니다. 또는 다음 [API 요청](/api/resources/dns/subresources/dnssec/methods/edit/)을 사용하세요.
+
+<APIRequest
+	path="/zones/{zone_id}/dnssec"
+	method="PATCH"
+	json={{
+		dnssec_multi_signer: true,
+	}}
+/>
+
+## 2. ZSK 상호 가져오기
+
+1. 영역에 DNSKEY 레코드를 생성하여 이전 공급자의 [ZSK](https://www.cloudflare.com/learning/dns/dns-records/dnskey-ds-records/)를 Cloudflare에 추가합니다.
+
+대시보드에서 [생성](/dns/manage-dns-records/how-to/create-dns-records/#create-dns-records)할 수도 있고, 다음 예시처럼 [Create DNS Record endpoint](/api/resources/dns/subresources/records/methods/create/)를 사용할 수도 있습니다.
+
+<APIRequest
+	path="/zones/{zone_id}/dns_records"
+	method="POST"
+	json={{
+		type: "DNSKEY",
+		name: "<ZONE_NAME>",
+		data: {
+			flags: 256,
+			protocol: 3,
+			algorithm: 13,
+			public_key: "<PUBLIC_KEY>",
+		},
+		ttl: 3600,
+	}}
+/>
+
+2. API 또는 Cloudflare에 할당된 네임서버 중 하나에 대한 질의를 사용해 Cloudflare의 ZSK를 가져옵니다.
+
+API 예시:
+
+```bash
+curl https://api.cloudflare.com/client/v4/zones/{zone_id}/dnssec/zsk \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>"
+```
+
+명령줄 질의 예시:
+
+```sh
+dig <ZONE_NAME> dnskey @<CLOUDFLARE_NAMESERVER> +noall +answer | grep 256
+```
+
+3. 마지막 단계에서 가져온 Cloudflare의 ZSK를 이전 공급자에 추가합니다.
+
+:::note
+
+다음 예시처럼 공급자별로 `dig` 명령을 각각 실행하면 두 공급자가 모두 두 개의 ZSK로 응답하는지 확인할 수 있습니다. [Dig Web Interface](https://www.digwebinterface.com/?type=DNSKEY)를 사용할 수도 있습니다.
+
+```sh
+dig <ZONE_NAME> dnskey @<PREVIOUS_PROVIDER_NAMESERVER> +noall +answer
+dig <ZONE_NAME> dnskey @<CLOUDFLARE_NAMESERVER> +noall +answer
+```
+
+두 질의 모두 두 개의 ZSK(태그 `256`)를 반환해야 합니다.
+
+<Details header="예시">
+
+```sh
+dig multisigner.info dnskey @dns1.p01.nsone.net. +noall +answer
+```
+
+```sh output
+multisigner.info.    3600    IN    DNSKEY    257 3 13 t+4D<bla_bla_bla>JBmA==
+multisigner.info.    3600    IN    DNSKEY    256 3 13 pxEU<bla_bla_bla>0xOg==
+multisigner.info.    3600    IN    DNSKEY    256 3 13 oJM<bla_bla_bla>XhSA==
+```
+
+```sh
+dig multisigner.info dnskey @ashley.ns.cloudflare.com +noall +answer
+```
+
+```sh output
+multisigner.info.    3600    IN    DNSKEY    257 3 13 mdss<bla_bla_bla>eKGQ==
+multisigner.info.    3600    IN    DNSKEY    256 3 13 oJM<bla_bla_bla>XhSA==
+multisigner.info.    3600    IN    DNSKEY    256 3 13 pxEU<bla_bla_bla>0xOg==
+```
+
+</Details>
+
+:::
+
+## 3. 등록기관 설정
+
+1. 등록기관에 Cloudflare DS 레코드를 추가합니다. Cloudflare DS 레코드는 [**DNS Settings**](https://dash.cloudflare.com/?to=/:account/:zone/dns/settings) 페이지의 **DS Record** 아래에서 확인할 수 있습니다.
+2. 등록기관에 Cloudflare가 할당한 네임서버를 추가합니다. Cloudflare 네임서버는 [**DNS Records**](https://dash.cloudflare.com/?to=/:account/:zone/dns/records) 페이지에서 확인할 수 있습니다.
+
+이 시점에서 해당 영역은 [multi-signer DNSSEC 구성](/dns/dnssec/multi-signer-dnssec/) 상태가 됩니다.
+
+## 4. 이전 공급자 제거
+
+1. 등록기관에서 이전 공급자의 DS 레코드를 제거합니다.
+2. 등록기관에서 이전 공급자의 네임서버를 제거합니다.
+3. 이전 공급자의 DS 레코드 [TTL](https://www.cloudflare.com/learning/cdn/glossary/time-to-live-ttl/)의 최소 1.5배 시간이 지난 뒤, [2단계](#2-cross-import-zsks)에서 Cloudflare 영역에 추가한 DNSKEY 레코드(이전 공급자의 ZSK를 담고 있는 레코드)를 제거할 수 있습니다.
+
+:::note
+
+이전 공급자의 DS 레코드 TTL은 아래 예시와 같은 `dig` 명령이나 [Dig Web Interface 링크](https://www.digwebinterface.com/?type=DS)를 통해 확인할 수 있습니다.
+
+```sh
+dig multisigner.info ds +noall +answer
+```
+
+```sh output
+multisigner.info. 3600 IN DS 2371 13 2 227B4C7FF3E1D49D59BAF39BDA54CA0839DE700DD9896076AA3E6AD7 19A0CF55
+multisigner.info. 3600 IN DS 48553 13 2 893709B51A9C53D011A4054B15FC5454BEDF68E739BB3B3FA1E333DA 7B8DACFE
+```
+
+이 예시에서는 두 DS 레코드 모두 TTL이 `3600`초입니다. Cloudflare DS 레코드는 항상 키 태그가 `2371`로 설정되므로, 응답의 두 번째 줄이 다른 공급자의 DS 레코드입니다.
+
+:::

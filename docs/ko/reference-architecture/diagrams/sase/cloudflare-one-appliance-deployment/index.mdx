@@ -1,0 +1,130 @@
+---
+title: '모델 번호: Cloudflare One Appliance 배포 옵션'
+pcx_content_type: reference-architecture-diagram
+products:
+  - cloudflare-wan
+sidebar:
+  order: 1
+  label: '모델 번호: Cloudflare 1개의 기구 배치'
+reviewed: 2024-11-14T00:00:00.000Z
+description: Cloudflare 배포 방법 알아보기 One Appliance는 다양한 배포 옵션을 평가합니다.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/sase/cloudflare-one-appliance-deployment/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/sase/cloudflare-one-appliance-deployment/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+Cloudflare는 조직이 네트워크, 가상 클라우드 네트워크 및 SaaS 애플리케이션에 대한 보안, 고성능 연결을 제공함으로써 네트워크를 변환하는 데 도움이됩니다. 응용 프로그램으로 클라우드에 마이그레이션,[Cloudflare의 안전](https://www.cloudflare.com/zero-trust/)플랫폼은 기존의 온프레미스 솔루션을 대체할 수 있으며 보안 액세스, 낮은 대기 시간 및 분산된 환경에서 자동화된 확장성을 보장합니다. 이 접근법은 레거시 하드웨어의 신뢰성을 감소시키고, IT 관리를 단순화하고 클라우드 기반 서비스에 대한 사용자 경험을 향상시킵니다.
+
+Cloudflare One Appliance (이전 Magic WAN 커넥터)는 물리적 또는 가상 (초보자에 VM로 배포) 장치이며 사용[제로 터치 프로비저닝](https://en.wikipedia.org/wiki/Zero-touch_provisioning), Cloudflare에 로컬 네트워크에 대 한 자동으로 on-ramps 트래픽, 기존 교체, 가장자리 하드웨어를 관리 하기 어려운.
+
+모든 조직과 네트워크는 다르고, Cloudflare가 어떻게 옵니다 때 하나 크기 모두가 없습니다 1개의 기구는 배치될 수 있습니다. 따라서, 이 문서의 목적은 대부분의 환경에 감각을 만들 수있는 배포 옵션의 높은 수준의 설명을 제공하는 것입니다, 또한 몇 가지 고급 사용 사례의 지원을 설명하는 동안.
+
+## 배치 위치
+
+Cloudflare의 첫 번째 결정 One Appliance 배포는 네트워크의 위치이며, 조직이 기존 고객 Premises 장비 (CPE, Edge 라우터 또는 방화벽 사이트)를 유지하려는지 여부를 결정하는 것이 좋습니다. 경험은이 결정은 일반적으로 세 가지 다른 토폴로지로 이동합니다 :
+
+- **CPE 교체**(그림 1a): 링크가 인터넷 연결이며 조직은 커넥터가 DHCP, DNS, NAT, Trunking (801.1Q), IP 액세스 목록, 브레이크 아웃 트래픽 등과 같은 모든 필수 네트워킹 기능을 지원합니다. 예:
+  - MPLS에서 인터넷 기반 연결에 전환, MPLS 라우터 아마 배포에 어떤 값을 추가하지 않습니다.
+  - 인터넷 직면 CPE 도달, 또는 이미 초과, 그것의 삶의 끝.
+  - Cloudflare와 중복되는 인터넷 직면 CPE 1개의 기구는 간단한 술을 위해 제거될 수 있습니다.
+
+- **CPE의 연결관 북쪽**(그림 1b): 이 옵션은 기존 CPE가 방화벽이며, 조직은 그것을 계속할 때 선호될 수 있습니다.
+  - 방어적인 접근의 결과로 추가적인 랜 보호.
+  - 고급 세그먼트 요구 사항, 예를 들어, 다양 한 레이어 3 레이어 7 규칙에 따라 세그먼트 사이 트래픽을 허용 / 차단, Cloudflare 이후 1개의 기구는 OSI 모형의 층 3 그리고 4에서만 세그먼트를 지원합니다.
+
+- **CPE의 연결관 남쪽**(그림 1c): Cloudflare 설치를 위한 이유 기존의 Internet-facing CPE의 1개의 기구는 일 수 있습니다:
+  - CPE는 프리젠 테이션 (예 : RJ-11) 또는 프로토콜 (예 : PPPoE) Cloudflare One Appliance는 지원하지 않습니다.
+  - CPE는 ISP-provided ONT (Optical Network Terminal)와 같은 특정 하드웨어와 함께 작동하는 섬유 서비스의 일부이기 때문에 대체 할 수 없습니다.
+  - CPE는 활성 관리 서비스의 일부이기 때문에 대체 될 수 없습니다.
+  - CPE는 조직이 다른 이유 (technical 또는 수축성)에 보관하려는 방화벽이기 때문에 대체 될 수 없습니다.
+
+![그림 1: 연결관 위치 선택권: (a) CPE를 대체하는, (b) CPE의 북쪽, (c) CPE의 남쪽.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure01.svg "Figure 1. Connector location options: (a) replacing CPE, (b) north of CPE , (c) south of CPE")
+
+*참고: 이 이미지의 라벨은 이전 제품 이름을 반영할 수 있습니다.*
+
+## 높은 가용성
+
+넓은 지역 네트워크 (WAN) 환경에서 원격 사무실, 데이터 센터 및 클라우드 서비스는 상호 연결되고, 어떤 가동 중단든지 중요한 신청, 커뮤니케이션 붕괴 및 생산성 손실에 접근의 손실에 지도할 수 있습니다. 이러한 다운타임을 피하기 위해 WAN 네트워크는 주로 높은 가용성 (HA) 원칙으로 설계되었습니다. 중복 하드웨어 및 업 링크 회로 배포, 뿐만 아니라 실패 메커니즘, 하나의 구성 요소가 실패하면, 또 다른 즉시 걸릴 수 있습니다. 이 탄력은 분산 네트워크의 원활한 연결, 신뢰성 및 서비스 연속성을 유지하는 핵심입니다.
+
+### 업링크 HA
+
+모델 번호: Cloudflare 1개의 기구는 uplinks를 위한 2개 이상 WAN 항구를 이용할 수 있고, 그러므로 회로 탄력을 위한 다수 다른 ISPs에 연결할 수 있습니다. HA의 기본 수준에 대한 하나의 옵션은 단일 Cloudflare를 사용하는 것입니다 두 개의 업 링크가있는 하나의 어플라이언스, 트래픽은 그들 사이에로드 균형 (아래 2 개). 이 접근은 비범성 분지, 작은 사무실 및 다른 유사한 유형의 위치를 위해 사용될 수 있었습니다, 또는 가득 차있는 HA 배치를 향한 중간 단계로.
+
+![그림 2. Uplink 높 가용성 배치.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure02.svg "Figure 2. Uplink high-availability deployment.")
+
+### 전체 HA
+
+이 유형의 설정에서, 과다한 장치는 기본 장치에서 실패의 경우에, 이음새가 없는 교통이 실패하고 신청, 자료 및 서비스에 무정한 접근을 지키도록 구성됩니다. 이 접근법은 네트워크 탄력을 향상시키고 서비스 신뢰성을 향상시키고, 단일 지점의 위험 감소로 생산성을 유지할 수 있습니다.
+
+Cloudflare One Appliance가 전체 HA를 지원합니다. 선거 프로세스를 사용하여 하나의 장치가 활성화되고 다른 것은 수동으로됩니다. 이를 달성하기 위해 두 개의 커넥터는 심박수 메시지를 위해 동일한 레이어 2 도메인 (VLAN과 같은)에 LAN 스위치에 연결해야합니다. Active/passive는 활동적인 연결관은 시간에 있는 어떤 점든지에 트래픽을 전파하는 유일한 장치입니다.
+
+![그림 3. 이중 연결관과 이중 상공을 가진 가득 차있는 HA.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure03.svg "Figure 3. Full HA with dual Connectors and dual uplinks.")
+
+각 Cloudflare 1개의 기구는 이중 상공을 사용하여 동일한 2개의 ISPs에 연결하고, WAN 항구 당 1개의 IPsec 갱도를 자동적으로 만듭니다. 이것은 각 ISP가 현장 네트워크 종료 단위에 여러 포트를 지원하도록 요구합니다 (또는 CPE, 하나 존재하는 경우). 이 HA 배포에는 총 4 개의 터널이 있으며, 커넥터 당 2 개의 터널이 있으며, 트래픽은 활성 장치에서 두 개의 터널 사이에로드 균형을 잡을 수 있습니다. 활성 커넥터 중 하나 또는 IPsec 터널이 내려갈 때, 다른 커넥터는 트래픽을 초과하고 전파를 전파하고, 실패 때까지 활성 역할을 유지 (임시 불필요한 실패 지연을 방지하기 위해 사용되지 않습니다).
+
+## 고급 사용 사례
+
+이 섹션은 Cloudflare One Appliance가 몇 가지 고급 사용 사례를 지원하기 위해 배포 될 수있는 방법을 설명합니다. 커넥터가 현장에 Cloudflare에 간단한 CPE로 작동하는 일반적인 시나리오를 초과하는 경우 또는 사이트 - 인터넷, 연결 및 보호.
+
+### 로컬 인터넷 차단을 보호 (LIBO)
+
+이 유형의 배포에 대한 주요 사용 사례는 오늘날 많은 조직이 클라우드 및 SaaS 애플리케이션의 성능을 향상시키기 위해 로컬 인터넷 차단을 필요로하는 사실에 근거하여, 그들은 아마 자체 호스팅 응용 프로그램에 대한 개인 MPLS 연결을 계속하거나 사이트 사이트 접속을 위해, 나중에 단계에 자신의 아키텍처를 더 현대화하기로 결정할 때까지. 그러한 결정 뒤에 이유는:
+
+- MPLS 서비스는 여전히 계약에 있지만 용어가 종료 될 때 인터넷 연결에 의해 대체 될 예정
+- Self-hosted 응용 프로그램은 합의 된 SLA와 낮은 대기 시간을 필요로하므로 하이브리드 MPLS / 인터넷 아키텍처가 필요할 수 있습니다.
+
+![그림 4. 잡종 MPLS/Internet 사용 케이스.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure04.svg "Figure 4. Hybrid MPLS/Internet use case.")
+
+이 유형의 하이브리드 아키텍처는 대상에 따라 다른 인터페이스를 통해 LAN에서 MPLS 고객 가장자리 라우터 (CE) 또는 다른 L3 장치를 필요로합니다. 다음과 같이 이 시나리오에서 교통 흐름:
+
+1. 로컬 네트워크의 장치는 MPLS CE (또는 다른 로컬 L3 장치)를 기본 게이트웨이로 사용합니다.
+2. 프라이빗 트래픽은 MPLS 네트워크로 전송됩니다. 예를 들어, MPLS CE는 MPLS 네트워크에서 BGP를 통해 RFC1918 범위를 수신하기 때문에 이러한 루트를 어떻게 알 수 있습니다.
+3. LAN 네트워크의 인터넷 트래픽은 Cloudflare One Appliance (MPLS CE / L3 게이트웨이는 커넥터 방향 정적 기본 경로)로 전달됩니다.
+
+내부 위치 및 자체 호스팅 응용 프로그램에 대한 모든 트래픽은 MPLS 경로에 따라 클라우드 기반 및 SaaS 애플리케이션에 트래픽은 Cloudflare 보안 서비스에 의해 보호되는 로컬 인터넷 브레이크 아웃 경로를 따릅니다.
+
+### 연락처
+
+일부 배포에서 고객은 Cloudflare 보안 서비스를 사용하여 특정 프로토콜을 보호합니다.[보안 웹 게이트웨이](/cloudflare-one/traffic-policies/), 기존의 가장자리 장치 (router 또는 방화벽)을 통해 트래픽 경로의 나머지. 그림 5 같은 사용 사례를 보여줍니다.
+
+![Figure 5. 'Split Tunneling' 사용 사례.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure05.svg "Figure 5. 'Split Tunneling' use case.")
+
+이 예에서 조직은 Cloudflare를 원하여 모든 인터넷 웹 트래픽 (HTTP / HTTPS)을 보호하고 기존 방화벽을 통해 트래픽의 나머지가 흐릅니다. 후자는 기존 VPN을 향해 트래픽이 될 수 있습니다, 또는 사이트 종료 비 웹 트래픽, 하지만 온프레미스 방화벽에 의해 보호. 이 방법은 예를 들어 로컬 장치 정책 기반 라우팅 (PBR) 기능을 활용할 수 있습니다.
+
+1. 로컬 디바이스는 기본 게이트웨이로 온프레미스 방화벽을 사용합니다.
+2. 방화벽은 PBR을 사용하여 적절한 교통을 우회합니다.
+3. 웹 트래픽 (TCP 80/443)는 Cloudflare One Appliance를 통해 Cloudflare로 보내집니다
+4. 온프레미스 방화벽을 통해 다른 모든 트래픽 출구
+
+PBR 기능으로 로컬로 존재하며, ISP는 조직에 최소한 두 개의 공공 IP 주소를 제공하며 Cloudflare를 향해 분산 트래픽의 가능성을 제공합니다. 1개의 기구는 끝이 없고, 진짜로 각 조직의 유일한 환경 및 사용 케이스에 달려 있습니다.
+
+### 보호 세그먼트 / 세그먼트
+
+Cloudflare의 또 다른 고급 그룹 1개의 기구는 국부적으로 세그먼트 및 특정한 국부적으로 네트워크의 보호입니다. 이를 달성하기 위해 조직의 현재 아키텍처에 따라 비즈니스, 보안 정책 및 준수 요구 사항, Cloudflare 1개의 기구는 사이트 가장자리 장치의 남쪽에 그림 6에서 설명되고 뒤에 오는 단락에서 설명된 것과 같이 더 과립상 네트워크 안전을 제공하기 위하여 설치될 수 있습니다.
+
+![그림 6. Segmentation 관련 사용 사례.](~/assets/images/reference-architecture/cloudflare-one-appliance-deployment/figure06.svg "Figure 6. Segmentation-related use cases.")
+
+이 예에서 Cloudflare One Appliance는 내장 방화벽 및 로컬 인터넷 연결을 통해 Cloudflare에 IPsec 터널을 만들 것입니다. Subnet A와 B는 둘 다 Cloudflare 하나 기구에 연결되고, 그러나 서로도 직접적인 연결이 없습니다. 이 두 가지 사용 사례를 사용할 수 있습니다:
+
+- **인터넷 보안**: Segment 1은 Cloudflare 보안 정책을 준수하며 로컬 방화벽 정책을 우회합니다.
+- **사이트 연결**: Segment 1은 조직의 정책에 따라 다른 위치 (또는 전체 사이트, 예를 들어 사이트 2)의 로컬 세그먼트에 연결할 수 있습니다.
+
+예를 들어 Cloudflare는 어떻게 보여줍니다 1개의 기구는 국부적으로 네트워크 세그먼트의 2가지의 유형을 제공할 수 있습니다:
+
+- **인트라-segment**: 같은 커넥터의 LAN 포트 사이의 교통은 기본적으로 차단됩니다. 따라서 Segment 1의 Subnet A 및 Subnet B는 서로 대화 할 수 없습니다. 관리자는 IP 액세스 목록과 비슷한 구성 논리를 사용하여이 트래픽 흐름을 명시적으로 허용해야합니다. 커넥터의 LAN 포트를 통해 로컬 트래픽을 차단하는이 기능은 Cloudflare 플랫폼 (즉, IPsec/GRE 터널을 통해 여행 및 뒤로 이동)을 통해 트래픽 tromboning을 방지하여 인터넷 회로 아웃시 서로 연결성을 잃을 수 있습니다. 따라서, 이 기능은 예를 들어 프린터, 파일 서버, 네트워크 첨부 스토리지 (NAS) 노드 및 다양한 Internet of Things (IoT) 장치가 필요하지 않는 로컬 노드를 허용하므로 Internet Outages 동안 다른 세그먼트에서 로컬 호스트에 액세스 할 수 있습니다.
+- **관련 상품**: Cloudflare One Appliance는 WAN 포트에 어떤 inbound 트래픽을 허용하지 않습니다. 따라서, 세그먼트 1과 2는 서로 대화 할 수 없습니다.
+
+요약, Cloudflare One Appliance는 Cloudflare에 연결하고 고급 보안 및 연결 서비스를 소비하는 조직이 사용할 수있는 Zero-Touch Provisioning (ZTP) 장치입니다.
+
+## 관련 자료
+
+- [Cloudflare WAN - 클라우드 배달 엔터프라이즈 네트워킹](https://www.cloudflare.com/en-gb/network-services/products/magic-wan/)
+- [Cloudflare One Appliance : 차세대 네트워크에 가장 쉬운 On-ramp](https://blog.cloudflare.com/magic-wan-connector/)
+- [Cloudflare 구성 1개의 기구](/cloudflare-wan/configuration/appliance/)

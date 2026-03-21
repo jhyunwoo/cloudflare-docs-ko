@@ -1,0 +1,244 @@
+---
+title: 알람 시계
+pcx_content_type: concept
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/api/alarms/'
+translation_source_md: 'https://developers.cloudflare.com/durable-objects/api/alarms/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Type, GlossaryTooltip, Tabs, TabItem } from "~/components";
+
+## 이름 \*
+
+Durable Objects 경보는 당신이 미래에 있는 시간에 woken 할 것이다 튼튼한 목표를 계획할 수 있습니다. 알람의 예정된 시간이 올 때,`alarm()`핸들러 방법은 호출됩니다. 알람을 사용하여 수정<GlossaryTooltip term="Storage API">저장 API</GlossaryTooltip>, 및 경보 가동은 다른 저장 가동과 같은 규칙을 따릅니다.
+
+태그 :
+
+- 각 튼튼한 목표는 호출하여 한 번에 단일 알람을 일정 할 수 있습니다.`setAlarm()`.
+- 알람은 at-least-once 실행을 보장하고 자동으로 재생됩니다.`alarm()`handler 던지기.
+- Retries는 최대 6개의 retries를 가진 첫번째 실패에서 2 초 지연에서 exponential backoff를 사용하여 실행됩니다.
+
+:::note\[Cron Triggers와 다른 알람은?]
+
+경보는 더 정밀한 곡물 보다는입니다[Cron 트리거](/workers/configuration/cron-triggers/). 노동자는 한 번에 형성된 3개의 Cron Triggers까지 가지고 있을 수 있습니다, 그러나 그것은 Durable ObjectsXQ의 무제한 양이, 경보 세트가 있을 수 있는 각각 있습니다.
+
+알람은 내구성 객체 내에서 직접 예약됩니다. Cron Triggers, 다른 한편, 프로그래밍되지 않습니다.[Cron 트리거](/workers/configuration/cron-triggers/)QXQX0035XQ QX대시보드 또는 API를 통해 구성해야 하는 일정을 기반으로 합니다.
+
+:::
+
+경보는 일 atop Durable ObjectsXQ의 queues 또는 배치 같이 분배된 primitives를 건설하기 위하여 사용될 수 있습니다. Alarms also provide the mechanism to guarantee that operations within the 튼튼한 개체 살아 숨을 지도록 들어오는 요청에 의존하지 않고 완료 될 것입니다. 완전한 예시를 위해, 참조[Alarms API 사용](/durable-objects/examples/alarms-api/).
+
+## 단일 알람으로 여러 이벤트 일정
+
+각 튼튼한 개체는 한 번에 한 개의 알람 세트를 가질 수 있지만, 스토리지에서 이벤트 일정을 저장하여 많은 일정 및 반복 이벤트를 관리 할 수 있습니다.`alarm()`핸들러 프로세스는 이벤트로, 다음을 위해 자체를 재개합니다.
+
+```js
+import { DurableObject } from "cloudflare:workers";
+
+export class AgentServer extends DurableObject {
+  //한 번 또는 반복 이벤트 일정
+  async scheduleEvent(id, runAt, repeatMs = null) {
+    await this.ctx.storage.put(`event:${id}`, { id, runAt, repeatMs });
+    const currentAlarm = await this.ctx.storage.getAlarm();
+    if (!currentAlarm || runAt < currentAlarm) {
+      await this.ctx.storage.setAlarm(runAt);
+    }
+  }
+
+  async alarm() {
+    const now = Date.now();
+    const events = await this.ctx.storage.list({ prefix: "event:" });
+    let nextAlarm = null;
+
+    for (const [key, event] of events) {
+      if (event.runAt <= now) {
+        await this.processEvent(event);
+        if (event.repeatMs) {
+          event.runAt = now + event.repeatMs;
+          await this.ctx.storage.put(key, event);
+        } else {
+          await this.ctx.storage.delete(key);
+        }
+      }
+      //다음 이벤트 시간을 추적
+      if (event.runAt > now && (!nextAlarm || event.runAt < nextAlarm)) {
+        nextAlarm = event.runAt;
+      }
+    }
+
+    if (nextAlarm) await this.ctx.storage.setAlarm(nextAlarm);
+  }
+
+  async processEvent(event) {
+    //당신의 이벤트 취급 논리 여기
+  }
+}
+```
+
+## 저장 방법
+
+### `getAlarm`
+
+- <code>getAlarm()을</code>: <Type text="number | null" />
+
+  - 알람 설정이있는 경우, 현재 UNIX epoch 이후 발생하는 밀리 초 수로 알람 시간을 반환합니다. 그렇지 않으면, 반환`null`.
+
+  - 이름 \*`getAlarm`하지만,[`alarm`](/durable-objects/api/alarms/#alarm)이미 실행, 그것은 반환`null`이름 \*`setAlarm`알람 핸들러가 시작된 이후로도 호출되었습니다.
+
+### `setAlarm`
+
+- <code>setAlarm(예정시간Ms<Type text="number" />) </code>: <Type text="void" />
+
+  - 알람의 시간을 실행합니다. UNIX epoch 이후 밀리 초의 수로 시간을 지정합니다.
+  - 전화 번호`setAlarm`이미 예정된 경우, 기존의 알람을 무시합니다.
+
+:::카ution\[커밍]`setAlarm`생성자 내부]
+자주 묻는 질문`setAlarm`튼튼한 개체의 생성자 안쪽에, 당신이 경보가 이미 놓인지 확인하는 것을 지킵니다.
+
+이것은 사실 때문에, 튼튼한 목표가 불활성 후에 일어나면, constructor는 전복됩니다[`alarm`회사 소개](/durable-objects/api/alarms/#alarm). 따라서, constructor 호출이면`setAlarm`, 그것은 이미 놓인 뒤에 오는 경보도 방해할 수 있었습니다.
+주요 특징
+
+### `deleteAlarm`
+
+- `deleteAlarm()`: <Type text="void" />
+
+  - 현재 설정된 알람이 있는 경우 알람을 해제하십시오.
+
+  - 전화 번호`deleteAlarm()`안쪽에`alarm()`핸들러는 최고의 노력에 대한 retries를 방지 할 수 있지만 보장되지 않습니다.
+
+## Handler 방법
+
+### `alarm`
+
+- <code>경보 (alarmInfo<Type text="Object" />)</code>: <Type text="void" />
+
+  - 예정된 알람 시간이 도달될 때 시스템에 의해 호출됩니다.
+
+  - 옵션 매개 변수`alarmInfo`객체에는 두 개의 속성이 있습니다:
+
+    - `retryCount` <Type text="number" />: 이 알람 이벤트의 수는 다시 시도되었습니다.
+    - `isRetry` <Type text="boolean" />: 알람이 회복된 경우 불린 값. 이 값은`true`이 알람 이벤트가 재발이라면.
+
+  - 1개의 인스턴스만`alarm()`Elastic Object 인스턴스 당 주어진 시간에 실행됩니다.
+
+  - 더 보기`alarm()`핸들러는 at-least-once 실행을 보장하고 exponential backoff를 사용하여 실패에 대한 retried, 최대 6 개의 retries에 대한 2 초 지연. 이것은 가장 최근의 적용`setAlarm()`전화. Retries는 uncaught 예외로 실패한 경우 수행됩니다.
+
+  - 이 방법은 일 수 있습니다`async`.
+
+:::note\[ 알람 핸들러의 예외]
+
+알람은 오류에서 최대 6 배만 회복되기 때문에, 당신의 내부에서 예외를 잡는 것이 좋습니다.`alarm()`핸들러와 새로운 알람을 예약하면 알람 핸들러가 무한하게 회복됩니다. 그렇지 않으면, 시간 제한 수를 배출 할 수있는 코드의 또는 버그에 따라 다운스트림 서비스에서 부족한 긴 아웃리지는 다음 호출 될 때까지 미래에 다시 실행되지 않도록 경보를 발생`setAlarm`.
+
+:::
+
+## 이름 \*
+
+이 예제는 두 세트의 알람을 보여줍니다.`setAlarm(timestamp)`방법 및 핸들 알람과`alarm()`당신의 튼튼한 목표 안에 handler.
+
+- 더 보기`alarm()`핸들러는 한 번 호출됩니다. 알람 화재.
+- 예상치 못한 오류가 튼튼한 개체를 종료하면,`alarm()`핸들러는 다른 기계에 재 instantiated 일 수 있습니다.
+- 짧은 지연 후,`alarm()`핸들러는 다른 기계에 시작에서 실행됩니다.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    export default {
+    	async fetch(request, env) {
+    		return await env.ALARM_EXAMPLE.getByName("foo").fetch(request);
+    	},
+    };
+
+    const SECONDS = 1000;
+
+    export class AlarmExample extends DurableObject {
+    	constructor(ctx, env) {
+    		super(ctx, env);
+    		this.storage = ctx.storage;
+    	}
+    	async fetch(request) {
+    		//현재 설정되지 않은 알람이 없다면 현재 10 초 동안 설정하십시오.
+    		let currentAlarm = await this.storage.getAlarm();
+    		if (currentAlarm == null) {
+    			this.storage.setAlarm(Date.now() + 10 * SECONDS);
+    		}
+    	}
+    	async alarm() {
+    		//알람 핸들러는 알람 화재가 발생할 수 있습니다.
+    		//이 작업을 수행 할 수 있습니다, 스토리지 API에서 읽을, HTTP 호출을 만들
+    		//그리고 이 핸들러 내에서 this.storage.setAlarm()를 사용하여 실행하는 미래의 알람을 설정합니다.
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```python
+    import time
+
+    from workers import DurableObject, WorkerEntrypoint
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            return await self.env.ALARM_EXAMPLE.getByName("foo").fetch(request)
+
+    SECONDS = 1000
+
+    class AlarmExample(DurableObject):
+        def __init__(self, ctx, env):
+            super().__init__(ctx, env)
+            self.storage = ctx.storage
+
+        async def fetch(self, request):
+            #현재 설정되지 않은 알람이 없다면 현재 10 초 동안 설정하십시오.
+            current_alarm = await self.storage.getAlarm()
+            if current_alarm is None:
+                self.storage.setAlarm(int(time.time() * 1000) + 10 * SECONDS)
+
+        async def alarm(self):
+            #알람 핸들러는 알람 화재가 발생할 수 있습니다.
+            #이 작업을 수행 할 수 있습니다, 스토리지 API에서 읽을, HTTP 호출을 만들
+            #이 핸들러 내에서 self.storage.setAlarm()를 사용하여 실행하는 미래의 알람을 설정합니다.
+            pass
+    ```
+  </TabItem>
+</Tabs>
+
+다음 예제는 사용 방법을 보여줍니다`alarmInfo`알람 이벤트가 이전 시도되었는지 확인하는 속성.
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    class MyDurableObject extends DurableObject {
+    	async alarm(alarmInfo) {
+    		if (alarmInfo?.retryCount != 0) {
+    			console.log(
+    				"This alarm event has been attempted ${alarmInfo?.retryCount} times before.",
+    			);
+    		}
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: Python" icon="seti:python">
+    ```python
+    class MyDurableObject(DurableObject):
+        async def alarm(self, alarm_info):
+            if alarm_info and alarm_info.get('retryCount', 0) != 0:
+                print(f"This alarm event has been attempted {alarm_info.get('retryCount')} times before.")
+    ```
+  </TabItem>
+</Tabs>
+
+## 관련 자료
+
+- 자주 묻는 질문[Alarms API 사용](/durable-objects/examples/alarms-api/)마지막 예제에서.
+- 자세히보기[Durable Objects 경보 발표 블로그 게시물](https://blog.cloudflare.com/durable-objects-alarms/).
+- 자주 묻는 질문[저장 API](/durable-objects/api/sqlite-storage-api/)Durable Objects에 대한 문서.

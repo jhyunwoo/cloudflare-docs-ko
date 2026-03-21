@@ -1,0 +1,152 @@
+---
+pcx_content_type: how-to
+title: 이름 *
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/partners/fleet/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/partners/fleet/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 가이드는 Cloudflare WARP 클라이언트를 사용하여 배치하는 방법을 포함합니다[이름 \*](https://fleetdm.com/)장치 관리 소프트웨어.
+
+## 맥 OS
+
+### 1. 사용자 정의 MDM 파일 만들기
+
+1. [다운로드](/cloudflare-one/static/mdm/CloudflareWARP.mobileconfig)이름 \*`.mobileconfig`파일.
+2. 원하는 파일 수정[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/).
+
+### 2. Fleet에 MDM 파일을 업로드
+
+1. Fleet admin 콘솔에서 이동**제품정보**.
+2. 에 의해**팀 소개**드롭다운, Cloudflare WARP를 요구하는 팀 (그룹)을 선택하십시오.
+3. 제품정보**OS 설정** > **주문 설정**.
+4. 제품정보**더 보기**사용자 지정 업로드`.mobileconfig`.
+5. Cloudflare WARP를 요구하는 주인을 선택하십시오:
+   - **모든 호스트**: 팀의 모든 호스트에 WARP 배포.
+   - **제품 정보**: WARP를 팀의 호스트의 하위 세트로 배포합니다. 제품 정보[이름 \*](https://fleetdm.com/guides/managing-labels-in-fleet#basic-article)포함되거나 제외되는 호스트를 정의합니다.
+6. 제품정보**더 보기**.
+
+정의 된 호스트는 즉시 배포 프로파일을 수신하지만 WARP는 아직 설치되지 않습니다.
+
+### 3. macOS용 WARP 패키지 다운로드
+
+자주 묻는 질문[다운로드](/cloudflare-one/team-and-resources/devices/warp/download-warp/#macos)시스템 요구 사항을 검토하고 운영 체제에 대한 설치 프로그램을 다운로드합니다.
+
+### 4. Fleet에 WARP 포장을 업로드하십시오
+
+WARP 클라이언트 설치 패키지를 추가하려면 Fleet에 등록 된 호스트에 배포하십시오.
+
+1. Fleet admin 콘솔에서 이동**소프트웨어**.
+2. 에 의해**팀 소개**드롭다운, Cloudflare WARP를 요구하는 팀 (그룹)을 선택하십시오.
+3. 제품정보**소프트웨어**다운로드`.pkg`이전에 다운로드 한 파일.
+
+### 5. Fleet를 가진 WARP를 설치하십시오
+
+업로드하기`.pkg`호스트에 파일:
+
+1. Fleet admin 콘솔에서 이동**이름 \***.
+2. WARP 클라이언트가 필요한 호스트를 선택하십시오.
+3. 오시는 길**소프트웨어**자주 묻는 질문`Cloudflare`.
+4. 제품정보**관련 기사** > **설치하기**.
+
+설치는 호스트가 온라인으로 올 때 자동으로 발생합니다. REST API 또는 GitOps로 배포하려면[비밀번호](https://fleetdm.com/guides/deploy-software-packages). <Render file="warp/connectivity-status-check" product="cloudflare-one" />
+
+### 6. Fleet를 가진 WARP 제거
+
+Fleet-deployed WARP 클라이언트를 제거하려면:
+
+1. Fleet admin 콘솔에서 이동**이름 \***.
+2. WARP 클라이언트가 제거 될 호스트를 선택하십시오.
+3. 오시는 길**소프트웨어**자주 묻는 질문`Cloudflare`.
+4. 제품정보**관련 기사** > **다운로드**.
+
+## 윈도우
+
+### 1. Windows 용 WARP 패키지 다운로드
+
+자주 묻는 질문[다운로드](/cloudflare-one/team-and-resources/devices/warp/download-warp/#windows)시스템 요구 사항을 검토하고 운영 체제에 대한 설치 프로그램을 다운로드합니다.
+
+### 2. Fleet에 WARP 포장을 업로드하십시오
+
+WARP 클라이언트 설치 패키지를 추가하려면 Fleet에 등록 된 호스트에 배포하십시오.
+
+1. Fleet admin 콘솔에서 이동**소프트웨어**.
+2. 에 의해**팀 소개**드롭다운, Cloudflare WARP를 요구하는 팀 (그룹)을 선택하십시오.
+3. 제품정보**소프트웨어**다운로드`.msi`이전에 다운로드 한 파일.
+4. (선택) Fleet 데스크톱에서 WARP를 설치 할 수 있도록 선택**셀프 서비스**.
+5. 제품정보**고급 옵션**.
+6. 내 계정**설치 스크립트**, 다음과 같은 기본 스크립트를 대체:
+
+```bash
+$logFile = "${env:TEMP}/fleet-install-software.log"
+
+try {
+
+$installProcess = Start-Process msiexec.exe `
+  -ArgumentList "/quiet /norestart ORGANIZATION=your-team-name SUPPORT_URL=https://example.com /lv ${logFile} /i `"${env:INSTALLER_PATH}`"" `
+  -PassThru -Verb RunAs -Wait
+
+Get-Content $logFile -Tail 500
+
+Exit $installProcess.ExitCode
+
+} catch {
+  Write-Host "Error: $_"
+  Exit 1
+}
+```
+
+더 알아보기[배포 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)각 인수에 대한 설명.
+
+### 3. Fleet를 가진 WARP를 설치하십시오
+
+업로드하기`.pkg`호스트에 파일:
+
+1. Fleet admin 콘솔에서 이동**이름 \***.
+2. WARP 클라이언트가 필요한 호스트를 선택하십시오.
+3. 오시는 길**소프트웨어**자주 묻는 질문`Cloudflare`.
+4. 제품정보**관련 기사** > **설치하기**.
+
+설치는 호스트가 온라인으로 올 때 자동으로 발생합니다. REST API 또는 GitOps로 배포하려면[비밀번호](https://fleetdm.com/guides/deploy-software-packages). <Render file="warp/connectivity-status-check" product="cloudflare-one" />
+
+### 4. Fleet를 가진 WARP 제거
+
+Fleet-deployed WARP 클라이언트를 제거하려면:
+
+1. Fleet admin 콘솔에서 이동**이름 \***.
+2. WARP 클라이언트가 제거 될 호스트를 선택하십시오.
+3. 오시는 길**소프트웨어**자주 묻는 질문`Cloudflare`.
+4. 제품정보**관련 기사** > **다운로드**.
+
+## 리눅스
+
+Fleet는 당신을 허용합니다[사용자 정의 스크립트를 실행](https://fleetdm.com/guides/scripts)Linux 호스트. 다음 예제 스크립트를 만듭니다.[MDM 파일](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/#linux)우분투에 WARP를 설치 22.04 호스트:
+
+```sh
+#!/bin/sh
+
+#mdm.xml 파일을 작성
+touch /var/lib/cloudflare-warp/mdm.xml
+echo -e "<dict>\n   <key>organization</key>\n   <string>your-team-name</string>\n</dict>
+" > /var/lib/cloudflare-warp/mdm.xml
+
+#Cloudflare gpg 키 추가
+curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+
+#당신의 apt 저장소에 이 repo를 추가
+echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ any main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+
+#설치하기
+sudo apt-get -y update && sudo apt-get -y install cloudflare-warp
+```
+
+다른 리눅스 배포판에 WARP를 설치하려면, 참조[패키지 저장소](https://pkg.cloudflareclient.com/).

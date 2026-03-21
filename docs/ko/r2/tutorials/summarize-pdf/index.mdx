@@ -1,0 +1,501 @@
+---
+title: 업로드에 PDF 파일을 요약하는 이벤트 알림
+pcx_content_type: tutorial
+products:
+  - workers
+  - queues
+  - workers-ai
+difficulty: Intermediate
+reviewed: 2024-10-11T00:00:00.000Z
+tags:
+  - TypeScript
+description: 이벤트 알림을 사용하여 업로드에 PDF 파일을 요약합니다. Workers AI를 사용하여 PDF를 요약하고 텍스트 파일로 요약 저장하십시오.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/tutorials/summarize-pdf/'
+translation_source_md: 'https://developers.cloudflare.com/r2/tutorials/summarize-pdf/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, Details, WranglerConfig } from "~/components";
+
+이 튜토리얼에서, 당신은 사용하는 방법을 배울 것이다[이벤트 알림](/r2/buckets/event-notifications/)R2 Bucket에 업로드될 때 PDF 파일을 처리할 수 있습니다. 이용안내[모델 번호: Workers AI](/workers-ai/)PDF를 요약하고 같은 버킷의 텍스트 파일로 요약 저장하십시오.
+
+## 자주 묻는 질문
+
+계속하려면:
+
+- ·[Cloudflare 계정](https://dash.cloudflare.com/sign-up/workers-and-pages)R2에 접근.
+- 기존 R2 버킷이 있습니다. 더 알아보기[R2](/r2/get-started/#2-create-a-bucket).
+- 설치하기[`Node.js`](https://docs.npmjs.com/downloading-and-installing-node-js-and-npm).
+
+<Details header="Node.js 버전 관리자">
+  Node 버전 관리자를 사용하여[볼트](https://volta.sh/)또는
+  [사이트맵](https://github.com/nvm-sh/nvm)권한 문제 및 변경 방지
+  Node.js 버전.[Wrangler](/workers/wrangler/install-and-update/), 토론
+  이 가이드에서 나중에 Node 버전이 필요합니다.`16.17.0`또는 나중에.
+</Details>
+
+## 1. 새 프로젝트 만들기
+
+새로운 Worker 프로젝트를 만들 것입니다.[정적 자산](/workers/static-assets/)당신의 신청의 앞에 봉사하기 위하여. 사용자는 이 프론트 엔드를 사용하여 PDF 파일을 업로드 할 수 있습니다. 그러면 작업자가 처리됩니다.
+
+다음 명령을 실행하여 새로운 Worker 프로젝트를 만듭니다.
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"pdf-summarizer"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  	}}
+/>
+
+탐색하기`pdf-summarizer`디렉토리:
+
+```sh frame="none"
+cd pdf-summarizer
+```
+
+## 2. 정면 끝을 창조하십시오
+
+Static Assets를 사용하여 작업자에서 응용 프로그램의 프런트 엔드를 제공 할 수 있습니다. 정적 자산을 사용하려면 Wrangler 파일에 필요한 바인딩을 추가해야합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"assets": {
+  		"directory": "public"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+다음, 생성`public`디렉토리 및 추가`index.html`파일. 더 보기`index.html`파일은 다음 HTML 코드를 포함해야 합니다:
+
+<details>
+  <summary>
+    HTML 코드 보기
+  </summary>
+
+  ```html
+  <!doctype html>
+  <html lang="en">
+  	<head>
+  		<meta charset="UTF-8" />
+  		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  		<title>PDF Summarizer</title>
+  		<style>
+  			body {
+  				font-family: Arial, sans-serif;
+  				display: flex;
+  				flex-direction: column;
+  				min-height: 100vh;
+  				margin: 0;
+  				background-color: #fefefe;
+  			}
+  			.content {
+  				flex: 1;
+  				display: flex;
+  				justify-content: center;
+  				align-items: center;
+  			}
+  			.upload-container {
+  				background-color: #f0f0f0;
+  				padding: 20px;
+  				border-radius: 8px;
+  				box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  			}
+  			.upload-button {
+  				background-color: #4caf50;
+  				color: white;
+  				padding: 10px 15px;
+  				border: none;
+  				border-radius: 4px;
+  				cursor: pointer;
+  				font-size: 16px;
+  			}
+  			.upload-button:hover {
+  				background-color: #45a049;
+  			}
+  			footer {
+  				background-color: #f0f0f0;
+  				color: white;
+  				text-align: center;
+  				padding: 10px;
+  				width: 100%;
+  			}
+  			footer a {
+  				color: #333;
+  				text-decoration: none;
+  				margin: 0 10px;
+  			}
+  			footer a:hover {
+  				text-decoration: underline;
+  			}
+  		</style>
+  	</head>
+  	<body>
+  		<div class="content">
+  			<div class="upload-container">
+  				<h2>Upload PDF File</h2>
+  				<form id="uploadForm" onsubmit="return handleSubmit(event)">
+  					<input
+  						type="file"
+  						id="pdfFile"
+  						name="pdfFile"
+  						accept=".pdf"
+  						required
+  					/>
+  					<button type="submit" id="uploadButton" class="upload-button">
+  						Upload
+  					</button>
+  				</form>
+  			</div>
+  		</div>
+
+  		<footer>
+  			<a
+  				href="https://developers.cloudflare.com/r2/buckets/event-notifications/"
+  				target="_blank"
+  				>R2 Event Notification</a
+  			>
+  			<a
+  				href="https://developers.cloudflare.com/queues/get-started/#3-create-a-queue"
+  				target="_blank"
+  				>Cloudflare Queues</a
+  			>
+  			<a href="https://developers.cloudflare.com/workers-ai/" target="_blank"
+  				>Workers AI</a
+  			>
+  			<a
+  				href="https://github.com/harshil1712/pdf-summarizer-r2-event-notification"
+  				target="_blank"
+  				>GitHub Repo</a
+  			>
+  		</footer>
+
+  		<script>
+  			handleSubmit = async (event) => {
+  				event.preventDefault();
+
+  				// Disable the upload button and show a loading message
+  				const uploadButton = document.getElementById("uploadButton");
+  				uploadButton.disabled = true;
+  				uploadButton.textContent = "Uploading...";
+
+  				// get form data
+  				const formData = new FormData(event.target);
+  				const file = formData.get("pdfFile");
+
+  				if (file) {
+  					// call /api/upload endpoint and send the file
+  					await fetch("/api/upload", {
+  						method: "POST",
+  						body: formData,
+  					});
+
+  					event.target.reset();
+  				} else {
+  					console.log("No file selected");
+  				}
+  				uploadButton.disabled = false;
+  				uploadButton.textContent = "Upload";
+  			};
+  		</script>
+  	</body>
+  </html>
+  ```
+</details>
+
+응용 프로그램의 프런트 엔드를 보시려면 다음 명령을 실행하고 터미널에 표시된 URL로 탐색하십시오.
+
+```sh
+npm run dev
+```
+
+```txt output
+ ⛅️ wrangler 3.80.2
+-------------------
+
+⎔ Starting local server...
+[wrangler:inf] Ready on http://localhost:8787
+╭───────────────────────────╮
+│  [b] open a browser       │
+│  [d] open devtools        │
+│  [l] turn off local mode  │
+│  [c] clear console        │
+│  [x] to exit              │
+╰───────────────────────────╯
+```
+
+브라우저에서 URL을 열면 파일 업로드 양식이 있음을 알 수 있습니다. 파일을 업로드하면 서버에 파일을 업로드 할 수 없습니다. 프론트엔드가 백엔드에 연결되지 않기 때문에 다음 단계에서 파일 업로드를 처리 할 작업자를 업데이트합니다.
+
+## 3. 손잡이 파일 업로드
+
+파일 업로드를 처리하려면 먼저 R2 바인딩을 추가해야합니다. Wrangler 파일에서 다음 코드를 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET",
+  			"bucket_name": "<R2_BUCKET_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+기타 제품`<R2_BUCKET_NAME>`R2 버킷의 이름으로.
+
+다음, 업데이트`src/index.ts`파일. 더 보기`src/index.ts`파일은 다음과 같은 코드를 포함해야합니다:
+
+```ts title="src/index.ts"
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//자주 묻는 질문
+		const pathname = new URL(request.url).pathname;
+
+		if (pathname === "/api/upload" && request.method === "POST") {
+			//요청에서 파일을 가져옵니다
+			const formData = await request.formData();
+			const file = formData.get("pdfFile") as File;
+
+			//Cloudflare R2에 파일을 업로드
+			const upload = await env.MY_BUCKET.put(file.name, file);
+			return new Response("File uploaded successfully", { status: 200 });
+		}
+
+		return new Response("incorrect route", { status: 404 });
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+위의 코드는 다음과 같습니다 :
+
+- 요청이 POST 요청인지 확인`/api/upload`끝점. 그것이라면 요청에서 파일을 가져 와서 Cloudflare R2에 업로드하십시오.[Workers API를 설치하십시오](/r2/api/workers/).
+- 요청이 POST 요청이 아닌 경우`/api/upload`endpoint, 그것은 404 응답을 반환합니다.
+
+Worker 코드가 TypeScript에 기록되어 있기 때문에 필요한 유형 정의를 추가하려면 다음 명령을 실행해야합니다. 이 필요는 없지만 오류를 피할 수 있습니다.
+
+<Render file="request-dot-clone-warning" product="workers" />
+
+```sh
+npm run cf-typegen
+```
+
+개발자 서버를 다시 시작할 수 있습니다.
+
+```sh
+npm run dev
+```
+
+## 4. queue 만들기
+
+이벤트 알림 캡처는 R2 버킷의 데이터로 변경됩니다. 새로운 큐를 만들 필요가`pdf-summarize`알림 받기:
+
+```sh
+npx wrangler queues create pdf-summarizer
+```
+
+Wrangler 파일에 바인딩을 추가하십시오:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "pdf-summarizer"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 5. 핸들 이벤트 알림
+
+이제 이벤트 알림을 수신 할 수 있습니다. 이벤트 알림을 처리하기 위해 Worker를 업데이트해야합니다. Workers AI를 사용하여 PDF에서 텍스트 콘텐츠를 추출하고 내용을 요약하고 R2XQ를 사용하여 R2 물통에 저장해야합니다.
+
+업데이트`src/index.ts`Queue 핸들러를 추가하는 파일:
+
+```ts title="src/index.ts"
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//fetch 핸들러의 변경 사항 없음
+	},
+	async queue(batch, env) {
+		for (let message of batch.messages) {
+			console.log(`Processing the file: ${message.body.object.key}`);
+		}
+	},
+} satisfies ExportedHandler<Env>;
+```
+
+위의 코드는 다음과 같습니다 :
+
+- 더 보기`queue`핸들러는 새로운 메시지가 큐에 추가 될 때 호출됩니다. 일괄 처리의 메시지를 통해 반복하고 파일의 이름을 기록합니다.
+
+현재 위치`queue`핸들러는 아무것도하지 않습니다. 다음 단계에서, 당신은 업데이트됩니다`queue`PDF에서 텍스트 콘텐츠를 추출하는 핸들러는 Workers AI를 사용하여 콘텐츠를 요약하고 물통에 추가합니다.
+
+## 6. PDF에서 텍스트 콘텐츠를 추출
+
+PDF에서 텍스트 콘텐츠를 추출하려면 Worker는 사용[다운로드](https://github.com/unjs/unpdf)도서관. 더 보기`unpdf`라이브러리는 PDF 파일로 작업할 수 있는 유틸리티를 제공합니다.
+
+설치하기`unpdf`다음 명령을 실행하여 라이브러리:
+
+<PackageManagers pkg="unpdf" />
+
+업데이트`src/index.ts`필요한 모듈을 가져올 파일`unpdf`도서관:
+
+```ts title="src/index.ts" ins={1}
+import { extractText, getDocumentProxy } from "unpdf";
+```
+
+다음, 업데이트`queue`PDF의 텍스트 콘텐츠를 추출하는 핸들러:
+
+```ts title="src/index.ts" ins={4-15}
+async queue(batch, env) {
+  for(let message of batch.messages) {
+    console.log(`Processing file: ${message.body.object.key}`);
+    //R2 버킷에서 파일을 가져옵니다
+    const file = await env.MY_BUCKET.get(message.body.object.key);
+    if (!file) {
+				console.error(`File not found: ${message.body.object.key}`);
+				continue;
+			}
+    //PDF에서 텍스트 콘텐츠를 추출
+    const buffer = await file.arrayBuffer();
+    const document = await getDocumentProxy(new Uint8Array(buffer));
+
+    const {text} = await extractText(document, {mergePages: true});
+    console.log(`Extracted text: ${text.substring(0, 100)}...`);
+    }
+}
+```
+
+위의 코드는 다음과 같습니다 :
+
+- 더 보기`queue`핸들러는 R2 물통에서 파일을 가져옵니다.
+- 더 보기`queue`handler는 PDF에서 텍스트 콘텐츠를 추출합니다.`unpdf`도서관.
+- 더 보기`queue`handler는 textual content를 로그합니다.
+
+## 7. 내용을 요약하는 Workers AI를 사용하십시오
+
+Workers AI를 사용하려면 Workers AIXQ 바인딩을 Wrangler 파일에 추가해야합니다. Wrangler 파일은 다음 코드를 포함해야 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"ai": {
+  		"binding": "AI"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+다음 명령을 실행하여 AI 유형 정의를 추가하십시오.
+
+```sh
+npm run cf-typegen
+```
+
+업데이트`src/index.ts`Workers AI를 사용하여 콘텐츠를 요약 할 파일 :
+
+```ts title="src/index.ts" ins={7-15}
+async queue(batch, env) {
+  for(let message of batch.messages) {
+    //PDF에서 텍스트 콘텐츠를 추출
+    const {text} = await extractText(document, {mergePages: true});
+    console.log(`Extracted text: ${text.substring(0, 100)}...`);
+
+    //내용을 요약하려면 Workers AI를 사용하십시오.
+    const result: AiSummarizationOutput = await env.AI.run(
+    "@cf/facebook/bart-large-cnn",
+      {
+        input_text: text,
+      }
+    );
+    const summary = result.summary;
+    console.log(`Summary: ${summary.substring(0, 100)}...`);
+  }
+}
+```
+
+더 보기`queue`핸들러는 이제 Workers AI를 사용하여 콘텐츠를 요약합니다.
+
+## 8. R2 물통에 요약을 추가하십시오
+
+이제 요약이있어 R2 버킷에 추가해야합니다. 업데이트`src/index.ts`R2 물통에 요약을 추가하는 파일:
+
+```ts title="src/index.ts" ins={8-14}
+async queue(batch, env) {
+  for(let message of batch.messages) {
+    //PDF에서 텍스트 콘텐츠를 추출
+    //· ...
+    //내용을 요약하려면 Workers AI를 사용하십시오.
+    //· ...
+
+    //R2 버킷에 대한 요약 추가
+    const upload = await env.MY_BUCKET.put(`${message.body.object.key}-summary.txt`, summary, {
+					httpMetadata: {
+						contentType: 'text/plain',
+					},
+		});
+		console.log(`Summary added to the R2 bucket: ${upload.key}`);
+  }
+}
+```
+
+큐 핸들러는 이제 텍스트 파일로 R2 버킷에 요약을 추가합니다.
+
+## 9. 이벤트 알림 사용
+
+내 계정`queue`핸들링은 이벤트 알림 메시지를 처리 할 준비가되어 있습니다. 이벤트 알림을 활성화해야 합니다.[`wrangler r2 bucket notification create`이름 \*](/workers/wrangler/commands/#r2-bucket-notification-create)당신의 물통을 위해. 다음 명령은 이벤트 알림을 만듭니다.`object-create`이벤트 유형`pdf`스프록:
+
+```sh
+npx wrangler r2 bucket notification create <R2_BUCKET_NAME> --event-type object-create --queue pdf-summarizer --suffix "pdf"
+```
+
+기타 제품`<R2_BUCKET_NAME>`R2 버킷의 이름으로.
+
+이벤트 알림이 생성됩니다.`pdf`뚱 베어 새 파일이 있을 때`pdf`suffix는 R2 물통에 업로드됩니다,`pdf-summarizer`queue는 트리거됩니다.
+
+## 10. 작업자를 배포
+
+작업자를 배포하려면, 실행[`wrangler deploy`](/workers/wrangler/commands/#deploy)명령:
+
+```sh
+npx wrangler deploy
+```
+
+출력에서`wrangler deploy`명령, URL 복사. 배포된 응용 프로그램의 URL입니다.
+
+## 11. 시험
+
+응용 프로그램을 테스트하려면 배포 응용 프로그램의 URL로 이동하고 PDF 파일을 업로드하십시오. 대안으로, 당신은 사용할 수 있습니다[Cloudflare dashboard](https://dash.cloudflare.com/)PDF 파일을 업로드합니다.
+
+로그를 볼 수 있습니다.[`wrangler tail`](/workers/wrangler/commands/#tail)명령.
+
+```sh
+npx wrangler tail
+```
+
+당신은 당신의 맨끝에 있는 통나무를 볼 것입니다. QXQX1203XQQ dashboard로 이동하여 Workers 로그 섹션에서 로그를 볼 수 있습니다.
+
+R2 버킷을 확인하면 요약 파일을 볼 수 있습니다.
+
+## 이름 \*
+
+이 튜토리얼에서 R2 이벤트 알림을 사용하여 업로드 대상을 처리하는 방법을 배웠습니다. PDF 파일을 업로드하고, PDF 파일의 요약을 생성하는 소비자 노동자를 만들었습니다. Workers AI를 사용하여 PDF 파일의 내용을 요약하고 R2 Bucket에 요약을 업로드하는 방법을 배웠습니다.
+
+이미지, 비디오 및 오디오 파일과 같은 다른 유형의 파일을 처리하는 동일한 접근 방식을 사용할 수 있습니다. 다른 유형의 이벤트를 처리하는 것과 같은 접근 방식을 사용할 수 있습니다. object deletion, object update.
+
+이 튜토리얼의 코드를보고 싶다면, 그것을 찾을 수 있습니다[프로젝트](https://github.com/harshil1712/pdf-summarizer-r2-event-notification).

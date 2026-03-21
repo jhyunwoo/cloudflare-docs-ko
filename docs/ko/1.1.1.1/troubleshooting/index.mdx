@@ -1,0 +1,140 @@
+---
+pcx_content_type: troubleshooting
+title: 문제 해결
+description: Cloudflare DNS Resolver의 문제를 진단하고 보고하는 방법을 알아보세요
+sidebar:
+  order: 8
+head:
+  - tag: title
+    content: DNS Resolver 문제 해결
+slug: 1.1.1.1/troubleshooting
+---
+
+import { Render } from "~/components";
+
+이 가이드는 Cloudflare DNS Resolver에서 발생하는 일반적인 문제를 진단하고 해결하는 데 도움이 됩니다. 수동 문제 해결 단계를 진행하기 전에, [연결 확인](/1.1.1.1/check/)을 통해 관련 정보를 자동으로 수집할 수 있습니다.
+
+## 이름 해석 문제
+
+### Linux/macOS
+
+```sh
+# Test DNS resolution
+dig example.com @1.1.1.1
+dig example.com @1.0.0.1
+dig example.com @8.8.8.8
+
+# Check connected nameserver
+dig +short CHAOS TXT id.server @1.1.1.1
+dig +short CHAOS TXT id.server @1.0.0.1
+
+# Optional: Network information
+dig @ns3.cloudflare.com whoami.cloudflare.com txt +short
+```
+
+### Windows
+
+```sh
+# Test DNS resolution
+nslookup example.com 1.1.1.1
+nslookup example.com 1.0.0.1
+nslookup example.com 8.8.8.8
+
+# Check connected nameserver
+nslookup -class=chaos -type=txt id.server 1.1.1.1
+nslookup -class=chaos -type=txt id.server 1.0.0.1
+
+# Optional: Network information
+nslookup -type=txt whoami.cloudflare.com ns3.cloudflare.com
+```
+
+**참고:** 네트워크 정보 명령은 사용자의 IP 주소를 노출합니다. 이 정보를 공유해도 괜찮은 경우에만 Cloudflare에 보내는 보고서에 포함하세요.
+
+추가 분석이 필요하다면 해당 도메인에 대한 [DNSViz](http://dnsviz.net/) 보고서를 생성할 수 있습니다.
+
+## 연결 및 라우팅 문제
+
+연결 문제를 보고하기 전에 다음을 확인하세요.
+
+1. 국가와 ISP 기준으로 이미 보고된 사례가 있는지 검색합니다.
+2. Cloudflare DNS 리졸버 두 곳 모두에 대해 traceroute를 실행합니다.
+
+### Linux/macOS
+
+```sh
+# Basic connectivity tests
+traceroute 1.1.1.1
+traceroute 1.0.0.1
+
+# If reachable, check nameserver identity
+dig +short CHAOS TXT id.server @1.1.1.1
+dig +short CHAOS TXT id.server @1.0.0.1
+
+# TCP connection tests
+dig +tcp @1.1.1.1 id.server CH TXT
+dig +tcp @1.0.0.1 id.server CH TXT
+```
+
+### Windows
+
+```sh
+# Basic connectivity tests
+tracert 1.1.1.1
+tracert 1.0.0.1
+
+# If reachable, check nameserver identity
+nslookup -class=chaos -type=txt id.server 1.1.1.1
+nslookup -class=chaos -type=txt id.server 1.0.0.1
+
+# TCP connection tests
+nslookup -vc -class=chaos -type=txt id.server 1.1.1.1
+nslookup -vc -class=chaos -type=txt id.server 1.0.0.1
+```
+
+## DNS-over-TLS (DoT) 문제 해결
+
+### Linux/macOS
+
+```sh
+# Test TLS connectivity
+openssl s_client -connect 1.1.1.1:853
+openssl s_client -connect 1.0.0.1:853
+
+# Test DNS resolution over TLS
+kdig +tls @1.1.1.1 id.server CH TXT
+kdig +tls @1.0.0.1 id.server CH TXT
+```
+
+### Windows
+
+Windows에는 독립 실행형 DoT 클라이언트가 기본 포함되어 있지 않습니다. OpenSSL을 수동으로 설치한 뒤 이를 사용해 TLS 연결을 테스트할 수 있습니다.
+
+## DNS-over-HTTPS (DoH) 문제 해결
+
+### Linux/macOS
+
+```sh
+curl -H 'accept: application/dns-json' 'https://cloudflare-dns.com/dns-query?name=cloudflare.com&type=AAAA'
+```
+
+### Windows
+
+```powershell
+(Invoke-WebRequest -Uri 'https://cloudflare-dns.com/dns-query?name=cloudflare.com&type=AAAA').RawContent
+```
+
+## 일반적인 문제
+
+### 첫 홉 실패
+
+traceroute가 첫 번째 홉에서 실패한다면, 문제는 하드웨어와 관련되어 있을 가능성이 높습니다. 라우터에 `1.1.1.1`로 향하는 경로가 하드코딩되어 있을 수 있습니다. 이 문제를 보고할 때는 다음 정보를 포함하세요.
+
+- 라우터 제조사와 모델명
+- ISP 이름
+- 관련 있는 라우터 구성 세부 정보
+
+## 추가 자료
+
+- [1.1.1.1 DNS Resolver 홈페이지](https://1.1.1.1)
+- [DNS over TLS 문서](/1.1.1.1/encryption/dns-over-tls/)
+- [진단 도구](https://one.one.one.one/help/)

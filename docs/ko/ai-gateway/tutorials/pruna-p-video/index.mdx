@@ -1,0 +1,138 @@
+---
+pcx_content_type: tutorial
+difficulty: Beginner
+tags:
+  - AI
+title: AI Gateway를 통한 Pruna P-video 사용
+description: AI Gateway를 통해 Replicate에 prunaai/p-video 호출하는 방법 알아보기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/tutorials/pruna-p-video/'
+translation_source_md: 'https://developers.cloudflare.com/ai-gateway/tutorials/pruna-p-video/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+이 튜토리얼은 호출하는 방법을 보여줍니다[Pruna의 P 비디오](https://replicate.com/prunaai/p-video)모형에[구매하기](/ai-gateway/usage/providers/replicate/)AI Gateway를 통해
+
+## 자주 묻는 질문
+
+- ·[Cloudflare 계정](https://cloudflare.com/sign-up)
+- ·[계정 삭제](https://replicate.com/)API 토큰으로
+
+## 1. Replicate API 토큰 받기
+
+1. 오시는 길[레퍼런스](https://replicate.com/)계정 등록
+2. 로그인하면[replicate.com/설정/api-tokens](https://replicate.com/account/api-tokens).
+3. 제품정보**토큰 만들기**그리고 이름을 부여합니다.
+4. 토큰을 복사하고 안전한 곳에 저장하십시오.
+
+## 2. AI Gateway 만들기
+
+<Render file="create-gateway" product="ai-gateway" />
+
+제품 정보**계정 ID**·**Gateway 이름**나중에 단계에 사용.
+
+게이트웨이에 인증을 추가하려면, 참조[인증된 Gateway](/ai-gateway/configuration/authentication/).
+
+## 3. 게이트웨이 URL 구축
+
+AI Gateway URL을 가진 표준 Replicate API 기본 URL을 대체하십시오:
+
+```txt
+# Instead of:
+https://api.replicate.com/v1
+
+# Use:
+https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/replicate
+```
+
+예를 들어 계정 ID가 있는 경우`abc123`당신의 출입구는`my-gateway`:
+
+```txt
+https://gateway.ai.cloudflare.com/v1/abc123/my-gateway/replicate
+```
+
+## 4. 비디오를 생성
+
+P-video 예측은 일반적으로 30 초 이내에 완료됩니다. Replicate의 60 초 동시 한계의 밑에 있기 때문에, 당신은 사용할 수 있습니다`Prefer: wait`요청을 보내고 단일 통화에서 결과를 얻을 헤더 :
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/replicate/predictions \
+  --header "Authorization: Bearer {replicate_api_token}" \
+  --header "cf-aig-authorization: Bearer {cloudflare_api_token}" \
+  --header "Content-Type: application/json" \
+  --header "Prefer: wait" \
+  --data '{
+    "version": "prunaai/p-video",
+    "input": {
+      "prompt": "A cat walking through a field of flowers in slow motion",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "fps": 24
+    }
+  }'
+```
+
+- `Authorization`- Replicate API 토큰(Replicate).
+- `cf-aig-authorization`- Cloudflare API 토큰 (본격 게이트웨이 용).
+- `Prefer: wait`— 예측이 즉시 반환하는 대신 블록.
+
+유효한 입력 모수의 가득 차있는 명부를 위해, 체크 아웃[prunaai/p-video 모델 페이지](https://replicate.com/prunaai/p-video)관련 기사
+
+예측이 완료되면 응답은 포함`output`생성된 비디오 파일에 URL을 가진 필드.
+
+## 5. (선택) 더 긴 요구를 위한 async polling를 사용하십시오
+
+요청이 60 초를 초과 할 수 있다면 (예를 들어, 더 긴 기간 또는 더 높은 해상도), 대신 async 모드를 사용합니다.없이 요청 보내기`Prefer: wait`머리:
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/replicate/predictions \
+  --header "Authorization: Bearer {replicate_api_token}" \
+  --header "cf-aig-authorization: Bearer {cloudflare_api_token}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "version": "prunaai/p-video",
+    "input": {
+      "prompt": "A cat walking through a field of flowers in slow motion",
+      "duration": 5,
+      "aspect_ratio": "16:9",
+      "resolution": "720p",
+      "fps": 24
+    }
+  }'
+```
+
+응답에는 예측이 포함됩니다.`id`:
+
+```json
+{
+  "id": "xyz789...",
+  "status": "starting",
+  "urls": {
+    "get": "https://api.replicate.com/v1/predictions/xyz789...",
+    "cancel": "https://api.replicate.com/v1/predictions/xyz789.../cancel"
+  }
+}
+```
+
+예측 상태는 다음과 같습니다.
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/replicate/predictions/{prediction_id} \
+  --header "Authorization: Bearer {replicate_api_token}" \
+  --header "cf-aig-authorization: Bearer {cloudflare_api_token}"
+```
+
+계속하기`status`이름 \*`succeeded`(주)`failed`). 완료할 때,`output`필드는 생성 된 비디오 파일에 URL을 포함합니다.
+
+## 다음 단계
+
+여기에서 당신은 할 수 있습니다:
+
+- 제품 정보[로그인](/ai-gateway/observability/logging/)요청 및 디버그 문제를 모니터링합니다.
+- 설치하기[비율 제한](/ai-gateway/features/rate-limiting/)관련 제품
+- 복제 또는 기타 모델 사용[지원되는 공급자](/ai-gateway/usage/providers/)AI Gateway를 통해

@@ -1,0 +1,90 @@
+---
+pcx_content_type: reference
+title: 인증서 및 호스트명 우선순위
+sidebar:
+  order: 4
+head: []
+description: 개별 호스트명에 어떤 인증서와 관련 SSL/TLS 설정을 적용할지 Cloudflare가 어떻게 결정하는지 알아보세요.
+
+---
+
+import { GlossaryTooltip } from "~/components";
+
+새 인증서가 생성되면 Cloudflare는 먼저 인증서를 배포한 다음 제공하기 시작합니다.
+
+***
+
+## 인증서 배포
+
+주어진 호스트명에 대해 Cloudflare는 해당 호스트명에 적용할 인증서(및 관련 TLS 설정)를 결정할 때 다음 순서를 사용합니다.
+
+1. **호스트명 구체성**: 특정 서브도메인 인증서(`www.example.com`)는 `www.example.com` 요청에 대해 와일드카드 인증서(`*.example.com`)보다 우선합니다.
+
+2. **영역 구체성**: 특정 서브도메인 인증서(`www.example.com`)는 도메인이 Cloudflare에서 영역으로 활성화되어 있을 경우 custom hostname certificate보다 우선합니다.
+
+3. **인증서 우선순위**: 호스트명이 같으면, 특정 인증서 유형이 다른 유형보다 우선합니다.
+
+   | Priority | Certificate Type                                                                        |
+   | -------- | --------------------------------------------------------------------------------------- |
+   | 1        | [Keyless SSL](/ssl/keyless-ssl/)                                                        |
+   | 2        | [Custom Legacy](/ssl/edge-certificates/custom-certificates/)                            |
+   | 3        | [Custom Modern](/ssl/edge-certificates/custom-certificates/)                            |
+   | 4        | [Custom Hostname (Cloudflare for SaaS)](/cloudflare-for-platforms/cloudflare-for-saas/) |
+   | 5        | [Advanced](/ssl/edge-certificates/advanced-certificate-manager/)                        |
+   | 6        | [Advanced - Total TLS](/ssl/edge-certificates/additional-options/total-tls/)            |
+   | 7        | [Universal](/ssl/edge-certificates/universal-ssl/)                                      |
+
+4. **인증서 만료일**: 인증서가 삭제된 적이 없는 한, 가장 최근에 주문된 인증서가 우선합니다. 인증서가 삭제되면 가장 늦은 만료 날짜를 가진 인증서가 배포됩니다.
+
+:::note
+이 경우 가장 가까운 만료일을 가진 인증서가 갱신되면 가장 늦은 만료일을 갖게 되므로 그 인증서가 제공됩니다.
+:::
+
+***
+
+## 인증서 제시
+
+Cloudflare는 TLS handshake 중 사용할 인증서와 설정을 결정할 때 다음 순서를 사용합니다.
+
+1. **SNI 일치**: SNI 호스트명과 *정확히* 일치하는 인증서와 설정이 우선합니다.
+2. **SNI 와일드카드 일치**: 호스트명과 SNI 호스트명이 정확히 일치하지 않으면 Cloudflare는 SNI 와일드카드와 일치하는 인증서와 설정을 사용합니다.
+3. **IP 주소**: SNI가 제시되지 않으면 Cloudflare는 IP 주소를 기준으로 인증서를 사용합니다(해당 호스트명은 SNI 없이 수행된 TLS handshake를 지원할 수 있습니다).
+
+***
+
+## 호스트명 우선순위
+
+하나의 호스트명에 대해 여러 <GlossaryTooltip term="proxy status">프록시된 DNS 레코드</GlossaryTooltip>가 여러 <GlossaryTooltip term="zone">영역</GlossaryTooltip>에 존재할 때, 일반적으로 [Cloudflare for SaaS](/cloudflare-for-platforms/cloudflare-for-saas/) 때문에 이런 상황이 발생하며, 그중 하나의 레코드만 영역 설정과 관련 origin server를 제어합니다.
+
+Cloudflare는 각 레코드가 존재하고 프록시됨(오렌지 클라우드)이라는 가정하에 다음 순서로 우선순위를 결정합니다.
+
+1. **정확한 호스트명 일치**:
+
+   1. SaaS 제공업체에 속한 [새 custom hostname](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/)
+   2. SaaS 제공업체에 속한 [레거시 custom hostname](/cloudflare-for-platforms/cloudflare-for-saas/reference/versioning/)
+   3. 논리적 DNS 영역에 속한 [DNS](/dns/proxy-status/)
+
+2. **와일드카드 호스트명 일치**:
+
+   1. 논리적 DNS 영역에 속한 DNS
+   2. SaaS 제공업체에 속한 새 custom hostname
+
+호스트명 리소스 레코드가 Cloudflare 영역에서 프록시되지 않음(회색 클라우드) 상태라면, 해당 영역의 설정은 적용되지 않고 대신 연결된 origin의 설정이 적용됩니다. 이 origin은 Cloudflare의 다른 영역일 수도 있고 다른 서버일 수도 있습니다.
+
+### 예시 시나리오
+
+#### 시나리오 1
+
+Customer1은 `shop.example.com` 영역에 대해 Cloudflare를 authoritative DNS로 사용합니다. Customer2는 `shop.example.com`이라는 [새 custom hostname을 생성하고 성공적으로 검증](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/)한 SaaS 제공업체입니다. 그 이후 트래픽은 Customer2의 영역을 통해 라우팅되기 시작합니다.
+
+* Customer1이 자신의 영역 제어권을 되찾고 싶다면, Customer1은 Customer2에게 연락해 custom hostname 레코드를 삭제해 달라고 요청합니다. Customer1은 SaaS provider target이 아닌 다른 대상으로 레코드 타깃을 업데이트했는지 확인해야 합니다. 그렇지 않으면 [`1014` 오류](/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/error-1014/)가 발생합니다.
+* Customer1이 Customer2가 `www.example.com`에 대한 새 custom hostname을 생성하고 검증했을 때 이미 `www.example.com`에 대한 프록시된 레코드를 가지고 있었다면, [Orange-to-Orange](/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/how-it-works/)가 적용됩니다.
+* Customer1이 이미 Customer3이라는 다른 SaaS 제공업체와의 legacy custom hostname 설정에서 `www.example.com`에 대한 프록시된 레코드를 가지고 있고, Customer2가 `*.example.com`에 대한 새 와일드카드 custom hostname을 생성하고 검증했다면, 정확한 호스트명 일치 때문에 Customer3 플랫폼의 legacy custom hostname이 우선합니다.
+
+#### 시나리오 2
+
+한 고객이 자신의 도메인에 대해 [프록시된](/dns/proxy-status/) DNS 레코드를 가지고 있습니다. 고객의 Cloudflare 영역은 Free 요금제를 사용합니다.
+
+이 고객은 또한 Cloudflare for SaaS를 사용하는 SaaS 제공업체를 사용하고 있습니다. 이 SaaS 제공업체는 Cloudflare Enterprise 요금제를 사용합니다.
+
+제공업체가 와일드카드 custom hostname을 사용하는 경우, 원래 고객의 요금제 제한이 제공업체의 요금제 제한보다 우선합니다(Cloudflare는 해당 영역을 Free 영역으로 취급합니다). Cloudflare for SaaS를 통해 Enterprise 제한을 적용하려면 원래 고객의 영역이 [DNS-only](/dns/proxy-status/) 레코드를 사용하거나 SaaS 제공업체가 정확한 호스트명 일치를 사용해야 합니다.

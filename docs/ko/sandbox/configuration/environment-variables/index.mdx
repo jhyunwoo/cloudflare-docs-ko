@@ -1,0 +1,384 @@
+---
+title: 환경 변수
+pcx_content_type: configuration
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/configuration/environment-variables/'
+translation_source_md: >-
+  https://developers.cloudflare.com/sandbox/configuration/environment-variables/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+환경 변수를 사용하여 샌드박스에 구성, 비밀 및 실행 시간 설정을 전달합니다.
+
+## SDK 구성 변수
+
+이러한 환경 변수는 Sandbox SDK가 어떻게 동작하는지 구성합니다. Worker로 이러한 설정`vars`내 계정`wrangler.jsonc`파일. SDK는 노동자의 환경 바인딩에서 그들을 읽습니다.
+
+### SANDBOX 트랜스포트
+
+|           |                           |
+| --------- | ------------------------- |
+| **제품정보**  | `"http"` \| `"websocket"` |
+| **기본 정보** | `"http"`                  |
+
+SDK-to-container 커뮤니케이션을 위한 수송 의정서를 통제하십시오. WebSocket 전송 다중화 단일 지속적 연결, 피[subrequest 제한](/workers/platform/limits/#subrequests)요청 당 많은 SDK 작업을 수행 할 때.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"SANDBOX_TRANSPORT": "websocket"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+이름 \*[수송 형태](/sandbox/configuration/transport/)각 운송, 성능 고려 사항 및 마이그레이션 지침을 사용할 때 포함 된 완벽한 가이드.
+
+### 팝업레이어 알림
+
+|           |               |
+| --------- | ------------- |
+| **제품정보**  | `number`(밀리초) |
+| **기본 정보** | 없음 (시간 없음)    |
+
+글로벌 디폴트 타임아웃 설정`exec()`전화. 설정할 때, 이 기간을 초과하는 명령은 콜러 측에 오류를 제기하고 연결을 닫습니다.
+
+회사 소개`timeout`에 의해`exec()`회의 수준`commandTimeoutMs`에 의해[`createSession()`](/sandbox/api/sessions/#createsession)둘 다 이 값을 override. timeout precedence에 대한 자세한 내용은 참조[실행 명령 - Timeouts](/sandbox/guides/execute-commands/#timeouts).
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"COMMAND_TIMEOUT_MS": "30000"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+:::참조
+타임아웃은 언더링 프로세스를 죽이지 않습니다. 호출기에 연결만 종료합니다. 세션이 삭제되거나 샌드박스가 파괴 될 때까지 프로세스가 계속 실행됩니다.
+주요 특징
+
+## 환경 변수를 설정하는 세 가지 방법
+
+Sandbox SDK는 환경 변수를 설정하기위한 세 가지 방법을 제공합니다. 다른 사용 사례에 대한 각 스위트 :
+
+### 1. setEnvVars ()를 가진 Sandbox 수준
+
+sandbox의 모든 명령에 대해 전 세계적으로 환경 변수 설정:
+
+```typescript
+const sandbox = getSandbox(env.Sandbox, "my-sandbox");
+
+//한 번 설정, 모든 후속 명령에 사용할 수
+await sandbox.setEnvVars({
+	DATABASE_URL: env.DATABASE_URL,
+	API_KEY: env.API_KEY,
+});
+
+await sandbox.exec("python migrate.py"); //DATABASE URL 및 API KEY가 있습니다.
+await sandbox.exec("python seed.py"); //DATABASE URL 및 API KEY가 있습니다.
+
+//undefined를 통과하여 변수를 설정
+await sandbox.setEnvVars({
+	API_KEY: "new-key", //업데이트 API KEY
+	OLD_SECRET: undefined, //언셋 OLD SECRET
+});
+```
+
+**사용 시간:**&#xC5EC;러 명령의 동일한 환경 변수가 필요합니다.
+
+**옵션 설정**: 패스`undefined`또는`null`unset 환경 변수에:
+
+```typescript
+await sandbox.setEnvVars({
+	API_KEY: 'new-key',     //API KEY 설정
+	OLD_SECRET: undefined,  //언셋 OLD SECRET
+	DEBUG_MODE: null        //DEBUG MODE 설정
+});
+```
+
+### 2. 실행 () 옵션으로 Per-command
+
+특정 명령에 대한 환경 변수를 전달:
+
+```typescript
+await sandbox.exec("node app.js", {
+	env: {
+		NODE_ENV: "production",
+		PORT: "3000",
+	},
+});
+
+//또한 startProcess()로 작동
+await sandbox.startProcess("python server.py", {
+	env: {
+		DATABASE_URL: env.DATABASE_URL,
+	},
+});
+```
+
+**사용 시간:**&#xB2E4;른 명령에 대한 다른 환경 변수가 필요하거나 sandbox-level 변수를 override하고 싶습니다.
+
+:::참조
+Per-command 환경 변수`undefined`값은 건너 뛰기 ( "notconfig"),`setEnvVars()`이름 \*`undefined`명시적으로 변수를 설정한다.
+주요 특징
+
+### 3. CreateSession()로 세션 레벨
+
+격리된 세션을 자체 환경 변수로 만듭니다:
+
+```typescript
+const session = await sandbox.createSession({
+	env: {
+		DATABASE_URL: env.DATABASE_URL,
+		SECRET_KEY: env.SECRET_KEY,
+	},
+});
+
+//이 세션의 모든 명령에는 이 vars가 있습니다.
+await session.exec("python migrate.py");
+await session.exec("python seed.py");
+```
+
+**사용 시간:**&#x63;oncurrently를 실행하는 다른 환경 변수와 격리 된 실행 컨텍스트가 필요합니다.
+
+## 환경 변수 설정
+
+Sandbox SDK는 환경 변수를 설정하지 않습니다.`undefined`또는`null`가치. 이것은 구성을 관리하기위한 관용 JavaScript 패턴을 가능하게합니다.
+
+```typescript
+await sandbox.setEnvVars({
+	//새 값 설정
+	API_KEY: 'new-key',
+	DATABASE_URL: env.DATABASE_URL,
+
+	//unset 변수 (환경에서 제거)
+	OLD_API_KEY: undefined,
+	TEMP_TOKEN: null
+});
+```
+
+**이 변화의 앞에**: 패스링`undefined`값은 런타임 오류를 던질 것입니다.
+
+**이 변경 후**: `undefined`·`null`값 실행`unset VARIABLE_NAME`쉘에서.
+
+### 사용 사례
+
+**사용 후 민감한 데이터를 제거:**
+
+```typescript
+//임시 토큰 사용
+await sandbox.setEnvVars({ TEMP_TOKEN: 'abc123' });
+await sandbox.exec('curl -H "Authorization: $TEMP_TOKEN" api.example.com');
+
+//토큰 청소
+await sandbox.setEnvVars({ TEMP_TOKEN: undefined });
+```
+
+**조건 환경 설정:**
+
+```typescript
+await sandbox.setEnvVars({
+	API_KEY: env.API_KEY,
+	DEBUG_MODE: env.NODE_ENV === 'development' ? 'true' : undefined,
+	PROFILING: env.ENABLE_PROFILING ? 'true' : undefined
+});
+```
+
+**시스템 기본값으로 재설정:**
+
+```typescript
+//컨테이너의 기본 NODE ENV로 돌아가기
+await sandbox.setEnvVars({ NODE_ENV: undefined });
+```
+
+## 일반적인 본
+
+### Sandbox에 Worker 비밀을 전달
+
+당신의 노동자에서 sandbox에 비밀을 안전하게 전달합니다. 먼저 Wrangler를 사용하여 비밀 설정:
+
+```bash
+wrangler secret put OPENAI_API_KEY
+wrangler secret put DATABASE_URL
+```
+
+그런 다음 sandbox에 전달하십시오.
+
+```typescript
+import { getSandbox } from "@cloudflare/sandbox";
+export { Sandbox } from "@cloudflare/sandbox";
+
+interface Env {
+	Sandbox: DurableObjectNamespace<Sandbox>;
+	OPENAI_API_KEY: string;
+	DATABASE_URL: string;
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		const sandbox = getSandbox(env.Sandbox, "user-sandbox");
+
+		//Option 1: 모든 명령을 위해 글로벌 설정
+		await sandbox.setEnvVars({
+			OPENAI_API_KEY: env.OPENAI_API_KEY,
+			DATABASE_URL: env.DATABASE_URL,
+		});
+		await sandbox.exec("python analyze.py");
+
+		//선택권 2: 통행 per-command
+		await sandbox.exec("python analyze.py", {
+			env: {
+				OPENAI_API_KEY: env.OPENAI_API_KEY,
+			},
+		});
+
+		return Response.json({ success: true });
+	},
+};
+```
+
+### 기본과 특정 변수를 결합
+
+```typescript
+const defaults = { NODE_ENV: "production", LOG_LEVEL: "info" };
+
+await sandbox.exec("npm start", {
+	env: { ...defaults, PORT: "3000", API_KEY: env.API_KEY },
+});
+```
+
+### 다중 절연 세션
+
+다른 환경 변수와 다른 작업을 실행 concurrently:
+
+```typescript
+//생산 데이터베이스 세션
+const prodSession = await sandbox.createSession({
+	env: { DATABASE_URL: env.PROD_DATABASE_URL },
+});
+
+//Staging 데이터베이스 세션
+const stagingSession = await sandbox.createSession({
+	env: { DATABASE_URL: env.STAGING_DATABASE_URL },
+});
+
+//동시 모두에서 마이그레이션
+await Promise.all([
+	prodSession.exec("python migrate.py"),
+	stagingSession.exec("python migrate.py"),
+]);
+```
+
+### 교통 모드 구성
+
+설치하기`SANDBOX_TRANSPORT`당신의 노동자의`vars`HTTP와 WebSocket 운송 사이 전환. 이름 \*[수송 형태](/sandbox/configuration/transport/)각 수송을 구성하는 방법에 대한 자세한 내용은.
+
+### 버킷 장착 자격
+
+S3-compatible 객체 저장을 장착할 때 SDK 사용**s3fs 신관**AWS-style 자격 증명을 필요로 하는 두건의 밑에. R2를 위해, Cloudflare QXQXdashboard에서 API 토큰을 생성하고 AWS 환경 변수 이름을 사용하여 제공합니다:
+
+**R2 API 토큰 받기:**
+
+1. 오시는 길[**R2** > **제품정보**](https://dash.cloudflare.com/?to=/:account/r2)Cloudflare dashboard
+2. 제품정보**R2 API 관리 토큰 토큰**
+3. 토큰 만들기**개체 읽기 및 쓰기**이름 \*
+4. 제출하기**액세스 키 ID**·**비밀 액세스 키**
+
+**작업자 비밀로 자격 증명을 설정:**
+
+```bash
+wrangler secret put AWS_ACCESS_KEY_ID
+#R2를 붙여넣기 액세스 키 ID
+
+wrangler secret put AWS_SECRET_ACCESS_KEY
+#R2 비밀 액세스 키 붙여넣기
+```
+
+**자동적인 credential 탐지를 가진 산 물통:**
+
+```typescript
+import { getSandbox } from "@cloudflare/sandbox";
+export { Sandbox } from "@cloudflare/sandbox";
+
+interface Env {
+	Sandbox: DurableObjectNamespace<Sandbox>;
+	AWS_ACCESS_KEY_ID: string;
+	AWS_SECRET_ACCESS_KEY: string;
+}
+
+export default {
+	async fetch(request: Request, env: Env): Promise<Response> {
+		const sandbox = getSandbox(env.Sandbox, "data-processor");
+
+		//Credentials는 환경에 자동적으로 검출했습니다
+		await sandbox.mountBucket("my-r2-bucket", "/data", {
+			endpoint: "https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com",
+		});
+
+		//표준 파일 작업을 사용하여 액세스 마운트 버킷
+		await sandbox.exec("python", { args: ["process.py", "/data/input.csv"] });
+
+		return Response.json({ success: true });
+	},
+};
+```
+
+SDK는 자동으로 감지`AWS_ACCESS_KEY_ID`·`AWS_SECRET_ACCESS_KEY`직장의 환경에서 전화할 때`mountBucket()`명시된 자격 없이.
+
+**명시적으로 자격 증명**(주문 비밀 이름을 사용하는 경우):
+
+```typescript
+await sandbox.mountBucket("my-r2-bucket", "/data", {
+	endpoint: "https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com",
+	credentials: {
+		accessKeyId: env.R2_ACCESS_KEY_ID,
+		secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+	},
+});
+```
+
+:::R2를 위한 \[AWS nomenclature]
+SDK는 AWS-style 자격의 이름을 사용합니다 (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`) 물통 설치가에 의해 강화되기 때문에**s3fs 신관**S3-compatible 자격 증명을 기대하는 . R2의 API 토큰은 R2가 S3 API를 구현합니다.
+주요 특징
+
+이름 \*[마운트 버킷 가이드](/sandbox/guides/mount-buckets/)완전한 물통 설치 문서를 위해.
+
+## 환경 변수 precedence
+
+동일한 변수가 여러 수준에서 설정되면 가장 특정 레벨이 우선합니다.
+
+1. **명령 수준**(최고) - 통행`exec()`또는`startProcess()`옵션 정보
+2. **Sandbox 또는 세션 레벨**- 설정`setEnvVars()`
+3. **컨테이너 기본값**- Docker 이미지에 내장`ENV`
+4. **시스템 기본**(lowest) - 운영 체제 기본값
+
+예:
+
+```typescript
+//Dockerfile에서: ENV NODE ENV=개발
+
+//샌드박스 레벨
+await sandbox.setEnvVars({ NODE_ENV: "staging" });
+
+//명령 레벨 overrides 모두
+await sandbox.exec("node app.js", {
+	env: { NODE_ENV: "production" }, //이 승리
+});
+```
+
+## 관련 자료
+
+- [수송 형태](/sandbox/configuration/transport/)- WebSocket 수송용 HTTP 구성
+- [Wrangler 구성](/sandbox/configuration/wrangler/)- Worker-level 환경 설정
+- [계정 관리](/workers/configuration/secrets/)- 민감한 데이터 관리
+- [세션 API](/sandbox/api/sessions/)- 세션 레벨 환경 변수
+- [보안 모델](/sandbox/concepts/security/)- 데이터 격리 이해

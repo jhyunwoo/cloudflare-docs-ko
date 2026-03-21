@@ -1,0 +1,83 @@
+---
+pcx_content_type: configuration
+title: 인증된 Gateway
+sidebar:
+  order: 7
+head: []
+description: 각 요청에 대한 유효한 인증 토큰을 요구하는 보안을 추가합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-gateway/configuration/authentication/'
+translation_source_md: >-
+  https://developers.cloudflare.com/ai-gateway/configuration/authentication/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+AI Gateway의 인증 게이트웨이를 사용하여 각 요청에 대한 검증된 인증 토큰을 요구하는 보안을 추가합니다. 이 기능은 로그를 저장 할 때 특히 유용합니다. 무단 액세스를 방지하고 로그 저장 사용을 해제 할 수있는 잘못된 요청에 대해 보호하고 필요한 데이터를 찾기 위해 열심히합니다. Authenticated Gateway를 사용하여 올바른 토큰을 요청할 수 있습니다.
+
+:::참조
+AI Gateway로 로그를 저장할 때 인증 게이트웨이를 활성화하는 것이 좋습니다.
+
+인증 게이트웨이가 활성화되었지만 요청은 필요하지 않습니다.`cf-aig-authorization`헤더, 요청이 실패합니다. 이 설정은 게이트웨이를 통해 확인된 요청이 전달되도록 합니다. 자주 묻는 질문`cf-aig-authorization`헤더, 인증 게이트웨이를 비활성화해야합니다.
+주요 특징
+
+## Dashboard를 사용하여 인증된 Gateway 설정
+
+1. 인증할 수 있는 특정 게이트웨이의 설정으로 이동합니다.
+2. 제품정보**인증 토큰 생성**필요한 사용자 정의 토큰 생성`Run`이름 \* 이 토큰을 안전하게 저장하려면 다시 표시되지 않습니다.
+3. 관련 기사`cf-aig-authorization`이 게이트웨이를 위한 각 요청에 있는 API 토큰을 가진 헤더.
+4. 설정 페이지로 돌아가서 Authenticated Gateway에 toggle.
+
+## OpenAI와의 예 요청
+
+```bash
+curl https://gateway.ai.cloudflare.com/v1/{account_id}/{gateway_id}/openai/chat/completions \
+  --header 'cf-aig-authorization: Bearer {CF_AIG_TOKEN}' \
+  --header 'Authorization: Bearer OPENAI_TOKEN' \
+  --header 'Content-Type: application/json' \
+  --data '{"model": "gpt-5-mini", "messages": [{"role": "user", "content": "What is Cloudflare?"}]}'
+```
+
+OpenAI SDK 사용:
+
+```javascript
+import OpenAI from "openai";
+
+const openai = new OpenAI({
+	apiKey: process.env.OPENAI_API_KEY,
+	baseURL: "https://gateway.ai.cloudflare.com/v1/account-id/gateway/openai",
+	defaultHeaders: {
+		"cf-aig-authorization": `Bearer {token}`,
+	},
+});
+```
+
+## Vercel AI SDK의 예 요청
+
+```javascript
+import { createOpenAI } from "@ai-sdk/openai";
+
+const openai = createOpenAI({
+	baseURL: "https://gateway.ai.cloudflare.com/v1/account-id/gateway/openai",
+	headers: {
+		"cf-aig-authorization": `Bearer {token}`,
+	},
+});
+```
+
+## 예상된 행동
+
+:::참조
+AI 게이트웨이가 Cloudflare에서 액세스 할 때 작업자 사용**관련 제품**·`cf-aig-authorization`header는 수동으로 포함될 필요가 없습니다.\
+바인딩을 통해 만든 요청은**관련 제품**관련 Cloudflare 계정 내에서.
+주요 특징
+
+인증 설정 및 헤더 상태에 따라 다음과 같은 테이블 개요 게이트웨이 동작:
+
+| 인증 설정 | Header 정보 | Gateway 상태  | 관련 기사           |
+| ----- | --------- | ----------- | --------------- |
+| 이름 \* | 회사 소개     | 인증된 Gateway | 성공 사례           |
+| 이름 \* | 머리 없음     | 오류 수정       | 요청은 누락된 권한으로 실패 |
+| 이름 \* | 회사 소개     | 숙박 약관       | 성공 사례           |
+| 이름 \* | 머리 없음     | 숙박 약관       | 성공 사례           |

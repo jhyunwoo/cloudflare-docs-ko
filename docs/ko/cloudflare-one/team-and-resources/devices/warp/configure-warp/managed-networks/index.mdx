@@ -1,0 +1,294 @@
+---
+pcx_content_type: how-to
+title: 관리 네트워크
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/managed-networks/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/configure-warp/managed-networks/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, TabItem, Tabs } from "~/components";
+
+<Details header="기능 가용성">
+  | [WARP 형태](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/) | [Zero Trust 계획](https://www.cloudflare.com/teams-pricing/) |
+  | ------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+  | 모든 모드                                                                                 | 모든 계획                                                      |
+
+  | 시스템   | 적용분야 | 최소 WARP 버전   |
+  | ----- | ---- | ------------ |
+  | 윈도우   | ✅    | 2025.1.861.0 |
+  | 맥 OS  | ✅    | 2025.1.861.0 |
+  | 리눅스   | ✅    | 2025.1.861.0 |
+  | iOS 앱 | ✅    | 1.0          |
+  | 다운로드  | ✅    | 1.0          |
+  | 크롬 OS | ✅    | 1.0          |
+</Details>
+
+Cloudflare WARP는 당신이 선택할 수 있는 특정한 적용을 허용합니다[회사소개](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)그리고 WARP 클라이언트 설정 장치가 사무실과 같은 보안 네트워크 위치에 연결할 때. WARP는 네트워크에서 설정한 TLS 엔드포인트를 감지하여 이러한 관리 네트워크를 식별합니다.
+
+이 페이지에, 당신은 방법을 배울 것이다:
+
+- 신뢰할 수있는 네트워크에 TLS 엔드포인트를 만듭니다.
+- Zero Trust에서 TLS 엔드 포인트를 구성하여 관리 된 네트워크를 설정합니다.
+- WARP 클라이언트가 관리한 네트워크에 그것을 검출할 때 장치에 적합한 장치 단면도를 적용하십시오.
+
+## 제품 정보
+
+- WARP 클라이언트는 운영 체제의 기본 경로 변경, 활성 Wi-Fi 연결 변경의 SSID, 또는 기본 인터페이스 변경의 DNS 서버를 스캔합니다. 성능 충격을 최소화하려면 각 위치에 대한 구분 설정 프로파일을 필요로하지 않으면 여러 위치에서 동일한 TLS 엔드포인트를 재사용합니다.
+- 장치가 주어진 시간에 1개의 관리 네트워크만 도달할 수 있다는 것을 보증하십시오. 여러 관리 네트워크가 구성되고 도달하면 설정 프로파일이 수신되는 것을 결정하는 방법이 없습니다.
+
+## 관리된 네트워크 탐지 논리
+
+관리 네트워크를 구성할 때 WARP 클라이언트는 TLS 엔드포인트를 사용하여 장치가 네트워크에 있는지 결정합니다.
+
+올바른 장치 프로파일을 적용하는 데 걸리는 시간은 TLS 엔드 포인트가 얼마나 빨리 반응하는지에 달려 있습니다.
+
+5 초 후에 TLS 엔드포인트 시간 동안, WARP 클라이언트는 장치가 관리 네트워크에 있지 않다는 것을 결정하고 기본 장치 단면도를 적용할 것입니다. WARP 클라이언트는 non-timeout 오류가 발생하면 탐지를 추적합니다. timeout 방아쇠는 더 많은 retries 없이 기본 장치 단면도에 fallback.
+
+## 1. TLS 엔드포인트를 선택하십시오.
+
+TLS 엔드포인트는 TLS 인증서를 제공하는 네트워크의 호스트입니다. TLS 엔드포인트는 네트워크 위치 비콘과 동일합니다. 장치가 네트워크에 연결될 때, 장치에서 WARP 클라이언트는 TLS 엔드포인트를 감지하고 SHA-256 지문에 대한 TLS 인증서를 유효성 검사하는 로컬 인증서 저장소에 대해 공공 인증서 기관에 의해 서명됩니다.
+
+TLS 인증서는 네트워크의 모든 장치에서 호스팅 할 수 있습니다. 그러나 endpoint는 네트워크 위치에 외부 사용자에게 접근 할 수 있어야합니다. WARP는 Cloudflare 갱도에 이 endpoint에 연결할 수 있다는 것을 보증하기 위하여 모든 장치 단면도에서 관리한 네트워크 엔드포인트를 제외할 것입니다. 원격 사용자는 프린터와 같은 액세스 할 필요가 없습니다 사무실에서 물리적으로 호스트를 선택하는 것이 좋습니다.
+
+### 새로운 TLS 엔드포인트 만들기
+
+이미 네트워크에 TLS 엔드포인트가 없다면 다음과 같이 설정할 수 있습니다.
+
+1. TLS 인증서 생성 :
+
+   ```sh
+   openssl req -x509 -newkey rsa:4096 -sha256 -days 3650 -nodes -keyout key.pem -out cert.pem -subj "/CN=example.com" -addext "subjectAltName=DNS:example.com"
+   ```
+
+   명령은 PEM 형식과 개인 키에서 인증서를 출력합니다. 이 파일을 안전한 장소에 저장하십시오.
+
+   :::참조
+
+   WARP 클라이언트는 포함하는 증명서가 요구합니다`CN`·`subjectAltName`메타데이터 사용 가능`example.com`또는 다른 도메인.
+   주요 특징
+
+2. 네트워크에서 HTTPS 서버를 구성하여 인증서와 키를 사용합니다. 아래 예제는 Docker의 nginx 컨테이너에서 TLS 인증서를 제공하는 방법을 보여줍니다.
+
+   a. nginx 구성 파일 만들기`nginx.conf`:
+
+   ```txt title="nginx.conf"
+   events {
+   worker_connections  1024;
+   }
+
+   http {
+   		server {
+   			listen              443 ssl;
+   			ssl_certificate     /certs/cert.pem;
+   			ssl_certificate_key /certs/key.pem;
+   			location / {
+   						return 200;
+   			}
+   		}
+   }
+   ```
+
+   필요한 경우, 교체`/certs/cert.pem`·`/certs/key.pem`인증서 및 키의 위치.
+
+   b. Docker compose 파일에 nginx 이미지를 추가하십시오:
+
+   ```yml title="docker-compose.yml"
+   services:
+   	nginx:
+   		image: nginx:latest
+   		ports:
+   			- 3333:443
+   		volumes:
+   			- ./nginx.conf:/etc/nginx/nginx.conf:ro
+   			- ./certs:/certs:ro
+   ```
+
+   필요한 경우, 교체`./nginx.conf`·`./certs`nginx 구성 파일 및 인증서의 위치.
+
+   c. 서버 시작:
+
+   ```sh
+   docker compose up -d
+   ```
+
+3. TLS 서버가 작동하도록 테스트하려면 최종 사용자의 장치에서 컬 명령을 실행하십시오.
+
+   ```sh
+   curl --verbose --insecure https://<private-server-IP>:3333/
+   ```
+
+   당신은 통과해야합니다`--insecure`자동 서명 인증서를 사용하므로 옵션. 장치가 네트워크에 연결되면 요청은 반환해야합니다.`200`상태 코드.
+
+<Details header="윈도우 IIS">
+  Windows 인터넷 정보 서비스 (IIS) 관리자를 사용하여 TLS 엔드 포인트를 만들려면 :
+
+  1. 관리자로 Powershell을 실행합니다.
+
+  2. 자기 서명 인증서 생성 :
+
+     ```powershell
+     New-SelfSignedCertificate -CertStoreLocation Cert:\LocalMachine\My -DnsName "office-name.example.internal" -FriendlyName "Cloudflare Managed Network Certificate" -NotAfter (Get-Date).AddYears(10)
+     ```
+
+     ```powershell output
+     	PSParentPath: Microsoft.PowerShell.Security\Certificate::LocalMachine\My
+
+     Thumbprint                                Subject
+     ----------                                -------
+     0660C4FCD15F69C49BD080FEEA4136B3D302B41B  CN=office-name.example.internal
+     ```
+
+  3. 증명서의 SHA-256 지문을 추출하십시오:
+
+     ```powershell
+     [System.BitConverter]::ToString([System.Security.Cryptography.SHA256]::Create().ComputeHash((Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq "Cloudflare Managed Network Certificate" }).RawData)) -replace "-", ""
+     ```
+
+     ```powershell output
+     DD4F4806C57A5BBAF1AA5B080F0541DA75DB468D0A1FE731310149500CCD8662
+     ```
+
+     SHA-256 지문이 필요합니다.[Zero Trust에서 관리되는 네트워크를 구성하십시오](#3-add-managed-network-to-zero-trust). 기본적으로 SHA-1 썸프린트를 사용하지 마십시오.`New-SelfSignedCertificate`명령.
+
+  4. IIS 관리자를 엽니다.
+
+  5. 내 계정**연결하기**pane, 마우스 오른쪽 클릭**사이트 맵**노드 및 선택**웹 사이트**.
+
+  6. 내 계정**사이트 이름**, TLS 서버의 이름을 입력 (예를 들면,`Managed Network Server`).
+
+  7. 내 계정**물리적 경로**, 포함 된 어떤 디렉토리를 입력`.htm`또는`html`파일 등`C:\inetpub\wwwroot`. Cloudflare는 디렉토리 내에서 콘텐츠를 유효하지 않습니다.
+
+  8. 이름 \***회사 소개**, 다음 필드를 구성:
+     - **제품정보**: *https\://www\.google.com/*
+     - **IP 주소**: *모든 할당*
+     - **항구 항구**: `443`
+     - **호스트 이름**: 인증서의 일반적인 이름 (CN)를 입력하십시오. 우리의 예 증명서의 CN는 입니다`office-name.example.internal`.
+     - **서버 이름 표시**: 지원
+     - **SSL 인증서**: TLS 인증서의 이름을 선택하십시오. 우리의 예 증명서는 불립니다`Cloudflare Managed Network Certificate`.
+
+  9. TLS 서버가 작동하도록 테스트하려면 최종 사용자의 장치에서 컬 명령을 실행하십시오.
+
+     ```sh
+     curl --verbose --insecure --resolve office-name.example.internal:443:<private-server-IP> https://office-name.example.internal
+     ```
+
+     당신은 통과해야합니다`--insecure`자동 서명 인증서를 사용하므로 옵션. 더 보기`--resolve`옵션을 사용하면 서버의 개인 IP에 연결 할 수 있지만 SNI 및 인증서 검증을위한 서버로 호스트 이름을 전달합니다. 장치가 네트워크에 연결되면, 요청은 디렉토리의 기본 홈페이지(`C:\inetpub\wwwroot\iisstart.htm`).
+</Details>
+
+### 지원되는 cipher 스위트
+
+WARP 클라이언트는 TLS 연결을 사용하여 설치합니다[Rustls의](https://github.com/rustls/rustls). 당신의 TLS 내점은 1개를 받아들입니다[Rustls에 의해 지원되는 cipher 스위트](https://docs.rs/rustls/0.21.10/src/rustls/suites.rs.html#125-143).
+
+## 2. SHA-256 지문을 추출
+
+SHA-256 지문은 TLS 엔드포인트가 자기 서명 인증서를 사용하는 경우에만 필요합니다.
+
+<Render file="warp/sha-256-fingerprint" product="cloudflare-one" />
+
+## 3. Cloudflare에 관리된 네트워크를 추가하십시오 한국어
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**팀 & 자원** > **제품정보** > **회사소개**.
+
+    2. 제품정보**관리 네트워크**선택하기**새로운 관리 네트워크 추가**.
+
+    3. 네트워크 위치 이름.
+
+    4. 내 계정**주인과 항구**, 개인 IP 주소 및 포트 번호를 입력[TLS 엔드포인트](#create-a-new-tls-endpoint)(예:`192.168.185.198:3333`).
+
+       :::참조
+       우리는 관리 네트워크 엔드포인트의 개인 IP를 사용하여 권장하고 DNS 검색과 관련된 문제를 방지하기 위해 호스트 이름이 잘못된 IP를 해결하는 것이 좋습니다.
+       주요 특징
+
+    5. (선택) 안으로**TLS 인증서 SHA-256**, 입력[SHA-256 지문](#2-extract-the-sha-256-fingerprint)TLS 증명서의. 이 필드는 자체 서명 인증서에만 필요합니다. TLS 지문이 공급되지 않은 경우, WARP는 로컬 인증서 저장소에 대한 인증서를 검증하고 공공 인증서 기관에 의해 서명 한 검사합니다.
+
+    6. 제품정보**제품 정보**.
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+
+       - `Zero Trust Write`
+
+    2. 관리 네트워크 추가[`cloudflare_zero_trust_device_managed_network`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_device_managed_network)자료:
+
+       ```tf
+       resource "cloudflare_zero_trust_device_managed_networks" "office" {
+       	account_id = var.cloudflare_account_id
+       	name       = "Office managed network"
+       	type       = "tls"
+       	config = {
+       		tls_sockaddr = "192.168.185.198:3333"
+       		sha256       = "DD4F4806C57A5BBAF1AA5B080F0541DA75DB468D0A1FE731310149500CCD8662"
+       	}
+       }
+       ```
+  </TabItem>
+</Tabs>
+
+WARP는 개인 IP 주소로 지정되는 경우에 모든 장치 단면도에서 TLS endpoint를 자동적으로 제외할 것입니다. 이 예외는 어떤 항구든지에 WARP 갱도를 통해서 endpoint에 접근에서 먼 사용자를 막습니다. TLS 엔드 포인트가 개인 IP 대신 호스트 이름으로 지정되면 WARP는 자동으로 제외되지 않습니다.
+
+:::노트\[Split Tunnels in Include mode]
+장치 프로파일이 사용하는 경우[분할 터널](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)내 계정**이름 \***&#xBAA8;드, 분할 터널 항목은 TLS 엔드 포인트 IP 주소를 포함하지 않습니다; 그렇지 않으면 WARP 터널에서 전체 분할 터널 항목을 제외합니다. 예를 들어, 현재를 포함한 경우`10.0.0.0/8`TLS 엔드포인트는`10.0.0.1`, 우리의 사용[IP subtraction 계산기](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/#add-a-route)제거하기`10.0.0.1`이름 \*`10.0.0.0/8`.
+:::
+
+## 4. 장치 프로파일 구성
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="모델 번호: 대시보드">
+    1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**팀 & 자원** > **제품정보** > **회사소개** > **일반 프로필**.
+
+    2. 이름 \*[새 프로필](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)또는 기존 프로파일을 편집합니다.
+
+    3. 장치가 네트워크에 연결할 때마다이 프로필을 적용하려면 다음 규칙을 추가하십시오.
+
+       | 옵션 정보   | 회사연혁  | 제품정보             |
+       | ------- | ----- | ---------------- |
+       | 관리 네트워크 | 이름 \* | `<NETWORK-NAME>` |
+
+    4. 자주 묻는 질문
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    내 계정[`cloudflare_zero_trust_device_custom_profile`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_device_custom_profile), 구성`match`본문내용 바로가기`network`옵션 정보 예를 들어, 다음 장치 프로파일은 특정 관리 네트워크에 연결된 모든 장치와 일치합니다.
+
+    ```tf
+    resource "cloudflare_zero_trust_device_custom_profile" "office" {
+    	account_id            = var.cloudflare_account_id
+    	name                  = "Office"
+    	description           = "Devices connected to the office network"
+    	precedence            = 1
+    	service_mode_v2       = {mode = "warp"}
+
+    	match = trimspace(replace(<<-EOT
+    		network == "${cloudflare_zero_trust_device_managed_networks.office.name}"
+    	EOT
+    	, "\n", " "))
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+관리된 네트워크는 이제 활성화됩니다. 조직의 모든 장치는 네트워크에 연결 (예를 들면, 장치 또는 Wi-Fi 네트워크를 변경할 때), WARP 클라이언트는 그것의 네트워크 위치를 결정하고 대응 조정 단면도를 적용할 것입니다.
+
+## 5. 관리된 네트워크 검증
+
+WARP 클라이언트가 네트워크 위치를 감지하는 경우 확인하려면:
+
+1. WARP를 켜십시오.
+2. 네트워크에 연결 및 재연결.
+3. 터미널을 열고 실행`warp-cli debug alternate-network`.
+
+## 관련 자료
+
+- [회사소개](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)- 관리된 네트워크를 통해 적용되는 장치 프로파일을 만들고 관리하는 방법.
+- [WARP 설정](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/)- WARP가 어떻게 행동하고 어떤 사용자가 할 수 있는지 결정합니다.
+- [WARP 문제 해결 가이드](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/)- 일반적인 WARP 문제 해결.

@@ -1,0 +1,98 @@
+---
+title: 사용자 정의 인증서 관리
+pcx_content_type: how-to
+description: SaaS 사용자 정의 호스트 이름에 대한 Cloudflare에 대한 사용자 정의 인증서를 관리하는 방법을 알아보십시오.
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: 사용자 정의 인증서 관리
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/uploading-certificates/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/uploading-certificates/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs } from "~/components"
+
+SaaS 사용자 정의 호스트 이름에 대한 Cloudflare에 대한 사용자 정의 인증서를 관리하는 방법을 알아보십시오. 사용 사례 및 제한 사항, 참조[사용자 정의 인증서](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/).
+
+## 비밀번호
+
+이 섹션은 하나의 사용자 정의 인증서를 업로드하기위한 일반적인 프로세스를 설명합니다.[지원되는 유형](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/custom-certificates/#limitations).
+
+:::참조
+RSA와 ECDSA 모두 지원해야 하는 경우[인증서 팩](#use-certificate-packs-rsa-and-ecdsa)아래.
+주요 특징
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    대시보드에서 사용자 정의 인증서를 업로드하려면, 선택**주문 증명서**한국어[사용자 정의 hostname 만들기](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/create-custom-hostnames/).
+
+    자주 묻는 질문**번들 방법**옵션, 참조[Cloudflare SSL/TLS 문서](/ssl/edge-certificates/custom-certificates/bundling-methodologies/).
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    아래의 호출은 사용을위한 인증서를 업로드합니다.`app.example.com`.
+
+    OpenSSL에 의해 생성 된 ECC 키를 사용하는 경우, 먼저 제거해야합니다`-----BEGIN EC PARAMETERS-----...-----END EC PARAMETERS-----`파일의 영역.
+
+    1. 파일을 업데이트하고 payload를 구축
+
+    <Render file="custom-cert-file-example" product="ssl" />
+
+    ```bash
+    $ echo $MYCERT
+    -----BEGIN CERTIFICATE-----\nMIIFJDCCBAygAwIBAgIQD0ifmj/Yi5NP/2gdUySbfzANBgkqhkiG9w0BAQsFADBN\nMQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMScwJQYDVQQDEx5E...SzSHfXp5lnu/3V08I72q1QNzOCgY1XeL4GKVcj4or6cT6tX6oJH7ePPmfrBfqI/O\nOeH8gMJ+FuwtXYEPa4hBf38M5eU5xWG7\n-----END CERTIFICATE-----\n
+
+    $ request_body=$(< <(cat <<EOF
+    {
+      "hostname": "app.example.com",
+      "ssl": {
+        "custom_certificate": "$MYCERT",
+        "custom_key": "$MYKEY"
+      }
+    }
+    EOF
+    ))
+    ```
+
+    2. 지원하다[`POST`이름 \*](/api/resources/custom_hostnames/methods/create/)인증서 및 키 업로드.
+
+    :::참조
+    일련 번호를 반환하는 것은 발행자에게 독특하지만, 세계적으로 독특하지 않습니다. 또한 문자열로 반환되어 정수가 아닙니다.
+    주요 특징
+  </TabItem>
+</Tabs>
+
+## 사용 증명서 팩: RSA와 ECDSA
+
+인증서 팩은 하나의 RSA 및 하나의 ECDSA 사용자 정의 인증서로 업로드 할 수 있습니다. 이 과정은 현재 API를 통해만 지원됩니다.
+
+RSA 및 ECDSA 인증서를 사용자 정의 호스트 이름에 업로드하려면`bundle_method`으로`force`그리고 정의`custom_cert_bundle`호텔 위치[API를 통해 사용자 지정 hostname 만들기](/api/resources/custom_hostnames/methods/create/).
+
+당신은 또한 사용할 수 있습니다`"bundle_method": "force"`·`custom_cert_bundle`한국어`PATCH`요청하기[사용자 정의 호스트 이름](/api/resources/custom_hostnames/methods/edit/)끝점.
+
+### 사용자 정의 인증서 및 개인 키 삭제
+
+사용 방법[사용자 정의 호스트 이름에 대한 단일 인증서 및 키 삭제](/api/resources/custom_hostnames/subresources/certificate_pack/subresources/certificates/methods/delete/)인증서 팩에서 사용자 정의 인증서 및 해당 키를 제거하기위한 엔드 포인트.
+
+팩의 나머지 인증서인 경우 인증서를 삭제할 수 없습니다.
+
+### 사용자 정의 인증서 및 개인 키를 대체
+
+두 번의 인증서를 포함하는 인증서 팩 내에서 단일 사용자 정의 인증서를 교체하려면, 사용[Custom Hostname에서 Custom Certificate 및 Custom Key 교체](/api/resources/custom_hostnames/subresources/certificate_pack/subresources/certificates/methods/update/)끝점.
+
+다른 RSA 인증서 또는 다른 ECDSA 인증서와 RSA 인증서 만 교체 할 수 있습니다.
+
+***
+
+## Cloudflare 인증서로 이동
+
+CloudflareXQ에 의해 발행된 1개를 사용하기 위하여 주문 증명서를 유지하고 싶은 경우에, 당신은 0 가동불능시간을 가진 인증서를 migrate 할 수 있습니다.
+
+이름 \*[`PATCH`이름 \*](/api/resources/custom_hostnames/methods/edit/)DCV에 대한 가치를 가진 사용자 정의 호스트 이름`method`. 곧[인증서는 유효하다](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/)그리고[hostname은 유효하다](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/hostname-validation/), Cloudflare는 오래된 관례 증명서를 제거하고 새로운 것을 봉사하기 시작합니다.

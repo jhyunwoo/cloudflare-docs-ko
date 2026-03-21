@@ -1,0 +1,109 @@
+---
+title: R2 개체 저장
+pcx_content_type: how-to
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/data-localization/how-to/r2/'
+translation_source_md: 'https://developers.cloudflare.com/data-localization/how-to/r2/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, DashButton } from "~/components";
+
+다음 섹션에서, 우리는 지역 서비스 및 고객 메타 데이터 경계와 R2를 구성하는 방법에 대한 몇 가지 세부 정보를 제공 할 것입니다.
+
+## 지역 서비스
+
+hostname에 대한 Regional Services 구성[뚱 베어](/dns/proxy-status/)Cloudflare를 통해 물체를 요청하는 것을 보장합니다.[R2 물통](/r2/buckets/)이 단계를 따르십시오:
+
+1. Cloudflare 대시보드에서**사이트맵**사이트 맵
+
+   <DashButton url="/?to=/:account/r2/overview" />
+
+2. 단계에 따라[버킷 만들기](/r2/buckets/create-buckets/).
+
+3. [사용자 정의 도메인에 물통을 연결](/r2/buckets/public-buckets/#connect-a-bucket-to-a-custom-domain).
+
+4. 시작하기[API POST](/data-localization/regional-services/get-started/#configure-regional-services-via-api)구성 된 버킷 사용자 정의 도메인에서 명령을 생성`regional_hostnames`특정 지역으로.
+
+지역 서비스는 R2 Bucket을 구성하는 사용자 정의 도메인에만 적용됩니다.
+
+### S3-Compatible endpoint를 통해 R2로 로그 전송
+
+다음 지침은 S3-compatible endpoint를 사용하여 Logpush 작업을 설정하는 방법을 보여 주며 선택 관할권에있는 R2 Bucket에 로그를 저장합니다.
+
+1. 이름 \*[R2 물통](/r2/get-started/)Cloudflare 계정에서 선택[회사연혁](/r2/reference/data-location/#set-jurisdiction-via-the-cloudflare-dashboard)이용하고 싶습니다.
+
+2. R2 버킷에 대한 API 토큰 생성. 다음 두 가지 옵션이 있습니다:
+
+<Details header="특정 버킷 토큰 생성 (추천)">
+  R2 대시보드의 R2 섹션으로 이동하여 선택**R2 API 관리 토큰 토큰**토큰을 특정 버킷에 직접 묶어 생성하기 위해. 당신은 지침을 따를 수 있습니다[인증현황](/r2/api/tokens/)이름 \*
+</Details>
+
+<Details header="모든 버킷에 대한 토큰 생성">
+  API 토큰을 생성할 수 있습니다.**계정 관리** > **계정 API 토큰 토큰**또는 사용자 별 토큰을 만들 수 있습니다:
+
+  1. 오시는 길**내 프로필** > **API 토큰**
+  2. 제품정보**토큰 만들기** > **사용자 정의 토큰 만들기**
+  3. 제품 정보**계좌정보** > **Workers R2 제품 정보** > **제품정보**권한 설정.
+  4. 토큰을 테스트하려면, 복사`curl`명령을 붙여서 터미널에 붙여넣기.
+
+  ```bash
+  curl "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+  --header "Authorization: Bearer <API_TOKEN>"
+  ```
+
+  결과 :
+
+  ```json
+  {
+  	"result": {
+  		"id": "325xxxxcd",
+  		"status": "active"
+  	},
+  	"success": true,
+  	"errors": [],
+  	"messages": [
+  		{
+  			"code": 10000,
+  			"message": "This API Token is valid and active",
+  			"type": null
+  		}
+  	]
+  }
+  ```
+
+  5. 토큰의 SHA-256 해시 생성 :
+
+  ```bash
+  echo -n "<token>" | shasum -a 256
+  ```
+
+  이 명령은 다음과 같이 해시를 출력합니다.`dxxxx391b`.
+</Details>
+
+3. Logpush 목적지 설정[S3- 호환 엔드포인트](/logs/logpush/logpush-job/enable-destinations/s3-compatible-endpoints/)다음 필드에 채우기:
+
+- **제품정보**: R2 Bucket의 이름을 입력하면 관할권으로 생성됩니다.
+- **오시는 길**(선택): 원하는 경우 로그를 구성하는 폴더 경로를 지정할 수 있습니다.
+- **엔드포인트 URL**: S3 API 엔드포인트를 형식의 버킷 제공`<account-id>.eu.r2.cloudflarestorage.com`. 물통 이름을 포함하지 마십시오, 그것은 첫 번째 필드에 설정 되었다.
+- **버켓 지역**: 예를 들어, 사용`WEUR`EU 지역을 지정합니다.
+- **액세스 키 ID**: 이전에 생성 된 토큰 ID를 입력하십시오 (`325xxxxcd`).
+- **비밀 액세스 키**: 토큰의 SHA-256 해시 사용 (`dxxxx391b`).
+
+R2 버킷으로 밀어야 할 필드를 선택하여 구성을 완료하십시오.
+
+## 고객 메타데이터 경계
+
+고객 메타데이터 경계 설정`EU`, **사이트맵** > **제품정보** > [**미터**](/r2/platform/metrics-analytics/)계정 대시보드의 탭은 팝업됩니다.
+
+:::참조
+
+또한, 고객은 R2 물통을 만들 수 있습니다[EU 관할 제한](/r2/reference/data-location/#jurisdictional-restrictions). 이 경우에, 우리는 추천합니다[S3 API와 관할권을 사용하여](/r2/reference/data-location/#using-jurisdictions-with-the-s3-api).
+
+:::
+
+더 알아보기[R2 문서](/r2/)더 많은 정보.

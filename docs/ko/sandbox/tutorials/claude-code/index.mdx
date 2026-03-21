@@ -1,0 +1,131 @@
+---
+title: Sandbox의 Claude 코드 실행
+pcx_content_type: tutorial
+sidebar:
+  order: 1
+description: Claude Code를 사용하여 GitHub 저장소에서 작업을 구현합니다.
+reviewed: 2025-10-28T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/tutorials/claude-code/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/tutorials/claude-code/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers } from "~/components";
+
+저장소 URL과 작업 설명이 필요한 Worker를 구축하고, Sandbox SDK를 사용하여 작업을 구현하기 위해 Claude Code를 사용합니다.
+
+**완료 시간:**&#x35; 분
+
+## 자주 묻는 질문
+
+<Render file="prereqs" product="workers" />
+
+당신은 또한 필요로 할 것입니다:
+
+- 이름 \*[Anthropic API 키](https://console.anthropic.com/)Claude 코드
+- [기타 제품](https://www.docker.com/)현지에서
+
+## 1. 프로젝트 만들기
+
+새로운 Sandbox SDK 프로젝트 만들기:
+
+<PackageManagers
+  type="create"
+  pkg="cloudflare@latest"
+  args={
+  	"claude-code-sandbox --template=cloudflare/sandbox-sdk/examples/claude-code"
+  }
+/>
+
+```sh
+cd claude-code-sandbox
+```
+
+## 2. 로컬 환경 변수 설정
+
+이름 \*`.dev.vars`로컬 개발을위한 프로젝트 루트의 파일 :
+
+```sh
+echo "ANTHROPIC_API_KEY=your_api_key_here" > .dev.vars
+```
+
+기타 제품`your_api_key_here`실제 API 키와 함께[Anthropic 콘솔](https://console.anthropic.com/).
+
+:::참조
+더 보기`.dev.vars`파일은 자동으로 gitignored 및 로컬 개발 중에 사용`npm run dev`.
+:::
+
+## 3. 로컬 테스트
+
+개발 서버 시작:
+
+```sh
+npm run dev
+```
+
+:::참조
+첫 번째 실행 Docker 컨테이너 구축 (2-3 분). 연속 실행은 훨씬 빠릅니다.
+주요 특징
+
+컬을 가진 시험:
+
+```sh
+curl -X POST http://localhost:8787/ \
+  -d '{
+    "repo": "https://github.com/cloudflare/agents",
+    "task": "remove the emojis from the readme"
+  }'
+```
+
+응답:
+
+```json
+{
+	"logs": "Done! I've removed the brain emoji from the README title. The heading now reads \"# Cloudflare Agents\" instead of \"# 🧠 Cloudflare Agents\".",
+	"diff": "diff --git a/README.md b/README.md\nindex 9296ac9..027c218 100644\n--- a/README.md\n+++ b/README.md\n@@ -1,4 +1,4 @@\n-# 🧠 Cloudflare Agents\n+# Cloudflare Agents\n \n ![npm install agents](assets/npm-install-agents.svg)\n "
+}
+```
+
+## 4. 배포
+
+작업자를 배포:
+
+```sh
+npx wrangler deploy
+```
+
+그런 다음 Anthropic API 키를 생산 비밀로 설정하십시오.
+
+```sh
+npx wrangler secret put ANTHROPIC_API_KEY
+```
+
+API 키 붙여넣기[Anthropic 콘솔](https://console.anthropic.com/)신속한 경우.
+
+:::카트로션
+첫 번째 배포 후 컨테이너 프로비저닝을 위해 2-3 분 기다립니다. 자주 묻는 질문`npx wrangler containers list`.
+:::
+
+## 당신이 내장 된
+
+API를 만들었습니다:
+
+- 저장소 URL 및 자연 언어 작업 설명 수락
+- Sandbox를 만들고 저장소를 복제합니다.
+- Kicks off Claude Code 주어진 작업을 구현
+- Claude의 출력 및 변경
+
+## 다음 단계
+
+- [AI로 분석 데이터](/sandbox/tutorials/analyze-data-with-ai/)- 데이터 분석을위한 pandas 및 matplotlib 추가
+- [코드 Interpreter API](/sandbox/api/interpreter/)- 실행 대신 내장 코드 해석기 사용
+- [출력 전력](/sandbox/guides/streaming-output/)- 실시간 실행 진행
+- [API reference](/sandbox/api/)- 모든 사용 가능한 방법을 탐험
+
+## 관련 자료
+
+- [Anthropic Claude 문서](https://docs.anthropic.com/)
+- [Workers AI](/workers-ai/)- Cloudflare의 내장 모델 사용

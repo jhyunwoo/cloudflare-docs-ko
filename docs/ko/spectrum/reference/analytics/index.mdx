@@ -1,0 +1,77 @@
+---
+pcx_content_type: reference
+title: 분석
+weight: 0
+
+---
+
+import { Render, APIRequest } from "~/components"
+
+Cloudflare는 각 연결에 대해 다음 지표를 측정합니다.
+
+| Metric         | 이름                    | 예시    | 단위             |
+| -------------- | ----------------------- | ------- | ---------------- |
+| count          | 총 이벤트 수            | `1000`  | 개수             |
+| bytesIngress   | 수신 바이트 합계        | `1000`  | 합계             |
+| bytesEgress    | 송신 바이트 합계        | `1000`  | 합계             |
+| durationAvg    | 평균 연결 지속 시간     | `1.0`   | 밀리초 단위 시간 |
+| durationMedian | 연결 지속 시간 중앙값   | `1.0`   | 밀리초 단위 시간 |
+| duration90th   | 연결 지속 시간 90백분위 | `1.0`   | 밀리초 단위 시간 |
+| duration99th   | 연결 지속 시간 99백분위 | `1.0`   | 밀리초 단위 시간 |
+
+## 추가 차원
+
+다음 차원을 사용해 분석 데이터를 더 세분화할 수 있습니다.
+
+| Dimension | 이름                    | 예시                                                                 |
+| --------- | ----------------------- | -------------------------------------------------------------------- |
+| event     | 연결 이벤트             | `connect`, `progress`, `disconnect`, `originError`, `clientFiltered` |
+| appID     | 애플리케이션 ID         | `40d67c87c6cd4b889a4fd57805225e85`                                   |
+| coloName  | Colo 이름               | `SFO`                                                                |
+| ipVersion | 클라이언트가 사용한 IP 버전 | `4`, `6`                                                             |
+
+## 필터링 연산자
+
+아래 연산자를 사용해 데이터를 필터링하세요.
+
+| Operator | 이름                 | URL 인코딩 |
+| -------- | -------------------- | ---------- |
+| `==`     | 같음                 | `%3D%3D`   |
+| `!=`     | 같지 않음            | `!%3D`     |
+| `>`      | 큼                   | `%3E`      |
+| `<`      | 작음                 | `%3C`      |
+| `>=`     | 크거나 같음          | `%3E%3D`   |
+| `<=`     | 작거나 같음          | `%3C%3D`   |
+
+<Render file="api-combine-filters" product="fundamentals" />
+
+## 분석 요청 구조
+
+```txt
+/api/v4/zones/{zone_id}/spectrum/analytics/events/summary?metrics=METRICS&dimensions=DIMENSIONS&filters=FILTERS&since=FROM_TS&sort=SORT&until=TO_TS&limit=LIMIT
+/api/v4/zones/{zone_id}/spectrum/analytics/events/bytime?metrics=METRICS&dimensions=DIMENSIONS&filters=FILTERS&since=FROM_TS&sort=SORT&until=TO_TS&limit=LIMIT
+```
+
+* METRICS는 계산할 하나 이상의 지표입니다(예: count).
+* DIMENSIONS는 지정한 속성 기준으로 데이터를 분해하는 데 사용할 수 있습니다.
+* FILTERS는 하나 이상의 차원으로 행을 필터링하는 데 사용합니다(아래 Filters 섹션 참고).
+* SORT는 결과 집합의 정렬 순서이며, 정렬 필드는 METRICS 또는 DIMENSIONS에 포함되어야 합니다.
+* TO\_TS는 조회할 시간 구간의 끝으로, 기본값은 현재 시간입니다.
+* FROM\_TS는 조회할 시간 구간의 시작으로, 기본값은 TO\_TS - 6시간입니다.
+* STEP은 다음 endpoint를 사용할 때 시계열 해상도를 선택하는 데 사용합니다.
+* auto 또는 생략 - 시간 구간에 가장 적합한 시간 단계를 선택합니다.
+  * year
+  * quarter
+  * month
+  * week
+  * day
+  * hour
+
+## 분석 쿼리 예시
+
+<APIRequest
+  path="/zones/{zone_id}/spectrum/analytics/events/summary"
+  method="GET"
+/>
+
+API 요청의 더 많은 예시는 [Spectrum API 문서](/api/resources/spectrum/subresources/analytics/subresources/aggregates/subresources/currents/methods/get/)를 참고하세요.

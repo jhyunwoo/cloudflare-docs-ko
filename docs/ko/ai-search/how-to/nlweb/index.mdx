@@ -1,0 +1,117 @@
+---
+pcx_content_type: concept
+title: NL웹
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/how-to/nlweb/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/how-to/nlweb/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+NLWeb 및 Cloudflare AI Search로 웹 사이트의 대화 검색을 활성화하십시오. 이 템플릿은 귀하의 사이트를 크롤링하고 콘텐츠를 색인하고 NLWeb-standard 엔드포인트를 배치하여 사람들과 AI 에이전트를 모두 제공합니다.
+
+:::참조
+실험에 이상적인 공개 미리보기입니다. 생산 워크플로우에서 이 작업을 실행하는 것에 관심이 있다면, 저희에게 연락하십시오[nlweb@cloudflare.com](mailto:nlweb@cloudflare.com).
+:::
+
+## NLWeb이란?
+
+[NL웹](https://github.com/nlweb-ai/NLWeb)Microsoft가 개발 한 오픈 프로젝트는 웹 사이트에서 자연 언어 쿼리에 대한 표준 프로토콜을 정의합니다. 그 목표는 대화 형 AI 앱으로 접근하고 대화 형으로 모든 웹 사이트를 만들 것입니다. 그래서 사람들과 AI 에이전트는 사이트 콘텐츠를 신뢰할 수 있습니다. 두 키 엔드 포인트를 exposing에 의해이:
+
+- `/ask`: 사용자 쿼리에 대한 대화 끝점
+- `/mcp`: 구조 모델 Context Protocol (MCP) AI 에이전트에 대한 엔드포인트
+
+## 사용 방법
+
+AI 검색 대시보드를 통해 웹 사이트에 NLWeb을 직접 배포할 수 있습니다:
+
+1. 로그인[QXQX0165XQQ대시보드](https://dash.cloudflare.com/).
+2. 오시는 길**컴퓨터 & AI** > **AI 검색**.
+3. 제품정보**이름 \***.
+4. 제품정보**웹 사이트**데이터 소스로.
+5. AI Search 인스턴스를 만들기 위한 지침을 따르십시오.
+6. 오시는 길**계정 설정**예를 들어
+7. 제품정보**NLWeb 작업자**and select "당신의 웹 사이트에 AI 검색".
+
+완료되면 AI Search는 NLWeb API 엔드포인트를 사용할 수 있도록 NLWeb Worker를 배포합니다.
+
+## 이 템플릿에는
+
+NLWeb 웹 사이트 옵션을 선택하면 콘텐츠에 대한 정상적인 AI 검색을 확장하고 NLWeb을 귀하의 사이트에 대한 대화 검색 표준으로 채택하는 데 필요한 모든 것을 제공합니다. 구체적으로, 템플릿 제공:
+
+- **데이터 소스로 웹 사이트 :**&#xAE30;타 제품[웹 사이트](/ai-search/configuration/data-source/website/)Rendered Sites 옵션을 사용하여 crawl 및 ingest 페이지에 데이터 소스 옵션으로.
+- **content-heavy 웹 사이트에 대한 기본값:**&#xAC8C;시 및 콘텐츠 ‐rich 웹 사이트에 이상적입니다.
+- **NL웹 작업자 배치:**&#x43;loudflare 자동 회전 작업자에서[NLWeb Worker 템플릿](https://github.com/cloudflare/templates).
+
+## 노동자는
+
+배포 된 노동자는 두 개의 엔드 포인트를 제공합니다.
+
+- `/ask`— NLWeb의 표준 대화 끝점
+  - 뿌리에서 대화 형 UI를 강화합니다 (`/`)
+  - embeddable 미리보기 위젯을 강화합니다 (`/snippet.html`)
+- `/mcp`— NLWeb의 MCP 서버 엔드포인트 신뢰할 수있는 AI 에이전트
+
+이 엔드포인트는 모든 사람들과 에이전트가 콘텐츠에 대한 액세스를 구성합니다.
+
+## 웹사이트에서 사용
+
+NLWeb 검색을 직접 사이트에 통합하려면:
+
+1. 배치 된 노동자 찾기[QXQX0168XQQ대시보드](https://dash.cloudflare.com/):
+
+- 오시는 길**컴퓨터 & AI** >  **AI 검색**.
+- 제품정보**연결하기**, 다음으로 이동**NL웹**탭.
+- 제품정보**바로가기**.
+
+2. 추가하기[사용자 정의 도메인](/workers/configuration/routing/custom-domains/)작업자에 (예를 들어, ask.example.com)
+3. 사용 방법`/ask`사용자 정의 도메인에 대한 엔드 포인트 검색 (예를 들어, ask.example.com/ask)
+
+웹 사이트에 직접 검색 UI를 추가 할 수 있습니다. 예를 들면:
+
+```html
+<!--머리에 css를 추가-->
+    <link rel="stylesheet" href="https://ask.example.com/nlweb-dropdown-chat.css">
+    <link rel="stylesheet" href="https://ask.example.com/common-chat-styles.css">
+
+    <!--몸에 콘테이너를 추가하십시오-->
+    <div id="docs-search-container"></div>
+
+    <!--포함 JavaScript-->
+    <script type="module">
+      import { NLWebDropdownChat } from 'https://ask.example.com/nlweb-dropdown-chat.js';
+
+      const chat = new NLWebDropdownChat({
+        containerId: 'docs-search-container',
+        site: 'https://ask.example.com',
+        placeholder: 'Search for docs...',
+        endpoint: 'https://ask.example.com'
+      });
+    </script>
+```
+
+이 대화 형 AI 검색을 직접 자신의 도메인에서, 사람과 에이전트가 콘텐츠에 액세스하는 방법을 제어.
+
+## Worker를 수정하거나 업데이트
+
+작업자를 사용자 정의 할 수 있습니다. 예를 들어, embeddable snippet에 UI를 조정할 수 있습니다. 그 경우, 우리는 호출하는 것이 좋습니다`/ask`쿼리에 대한 엔드포인트와 그 위에 자신의 UI를 구축, 그러나, 당신은 또한 embeddable UI에 대한 노동자의 코드를 수정할 수 있습니다.
+
+NLWeb 표준이 업데이트되면 Worker를 업데이트하고 최신 업데이트를 받으십시오.
+
+변경 또는 업데이트를 적용하는 가장 간단한 방법은 작업자 템플릿을 redeploy하는 것입니다.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/templates/tree/main/nlweb-template)
+
+이렇게하려면:
+
+1. 선택하기**Cloudflare에 배포**위의 버튼은 Cloudflare 계정에 Worker 템플릿을 배치합니다.
+2. AI 검색의 이름을 입력`RAG_ID`환경 변수 필드.
+3. 이름 \***계정 만들기**.
+4. 선택하기**프로젝트**Workers 대시보드 아이콘.
+5. 당신의 노동자를 위해 창조되는 저장소를 복제하십시오.
+6. 당신의 수정을 만들고, 그 후에 당신의 노동자를 새롭게 하기 위하여 저장소에 변화하고 밀어.
+
+이제 웹 사이트의 새로운 NLWeb 엔드포인트로 이 Worker를 사용할 수 있습니다.

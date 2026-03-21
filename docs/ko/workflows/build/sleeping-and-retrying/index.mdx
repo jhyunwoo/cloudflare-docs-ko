@@ -1,0 +1,176 @@
+---
+title: 잠자기 및 재채팅
+pcx_content_type: concept
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/build/sleeping-and-retrying/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workflows/build/sleeping-and-retrying/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 Workflow 및/또는 Workflow 단계에 대한 retries를 구성하는 방법을 설명합니다.
+
+## 작업 흐름
+
+입력 또는 다른 외부 상태가 준비되어 있을 때까지 기다리는, 일정 일, 또는 일시 정지를 원하는 때 도움이 될 수 있는 명시적인 단계로 잠을 작업 흐름을 설정할 수 있습니다.
+
+:::참조
+
+수면에서 재배되는 작업 흐름 인스턴스는 새로 예정된 (queued) 인스턴스에 우선 순위를 부여합니다. 이 도움말은 이전 워크플로 인스턴스가 완료 될 수 있으며 더 새로운 인스턴스에 의해 차단되지 않습니다.
+
+:::
+
+### 관계되는 기간 동안 수면
+
+제품 정보`step.sleep`시간의 상대적인 기간을 위한 Workflow 잠이 있으십시오:
+
+```ts
+await step.sleep("sleep for a bit", "1 hour");
+```
+
+두 번째 인수`step.sleep`모두 수용`number`(밀리초) 또는 "1 분"또는 "26 시간"과 같은 인간 읽기 형식. 허용된 단위`step.sleep`이 방법은 다음과 같이 사용될 때:
+
+```ts
+| "second"
+| "minute"
+| "hour"
+| "day"
+| "week"
+| "month"
+| "year"
+```
+
+### 고정 날짜까지 수면
+
+제품 정보`step.sleepUntil`특정 작업 흐름 수면을`Date`: 다른 시스템에서 타임스탬프가 있거나 특정 시간 (예 : 일요일, 9AM UTC)에서 "스케줄"작업을 할 때 유용합니다.
+
+```ts
+//sleepUntil은 두 번째 인수로 날짜 객체를 허용합니다.
+const workflowsLaunchDate = Date.parse("24 Oct 2024 13:00:00 UTC");
+await step.sleepUntil("sleep until X times out", workflowsLaunchDate);
+```
+
+UNIX epoch 이후 UNIX 타임스탬프 (milliseconds)를 직접 제공 할 수 있습니다.`sleepUntil`.
+
+## Retry 단계
+
+각 통화`step.do`Workflow에서 선택 가능`StepConfig`, 당신은 그 단계에 대한 재시험 행동을 정의 할 수 있습니다.
+
+자신의 리트리 구성을 제공하지 않는 경우, Workflows는 다음과 같은 기본을 적용합니다:
+
+```ts
+const defaultConfig: WorkflowStepConfig = {
+	retries: {
+		limit: 5,
+		delay: 10000,
+		backoff: "exponential",
+	},
+	timeout: "10 minutes",
+};
+```
+
+당신의 자신을 제공 할 때`StepConfig`, 당신은 구성할 수 있습니다:
+
+- 단계에 대한 시도의 총 수 (accepts`Infinity`무제한 retries)
+- 시도 사이의 지연 (모두 제외)`number`(ms) 또는 인간 읽기 쉬운 체재)
+- 각 시도 사이에 적용하는 백오프 알고리즘: 어떤 것`constant`, `linear`, 또는`exponential`
+- 실패한 단계 고려하기 전에 timeout (in period)를 호출 할 때 (참고 시도 중에 포함)
+
+예를 들어, 10 피트까지 제한하고 각 시도 사이에 exponential 지연 (시작 10 초)을 적용해야합니다, 당신은 옵션 객체로 다음 구성을 통과 할 것입니다`step.do`:
+
+```ts
+let someState = await step.do(
+	"call an API",
+	{
+		retries: {
+			limit: 10, //총 시도 수
+			delay: "10 seconds", //각 retry 사이 지연
+			backoff: "exponential", //"일정" | "linear" | "exponential"
+		},
+		timeout: "30 minutes",
+	},
+	async () => {
+		/*단계 코드가 여기에 간다*/
+	},
+);
+```
+
+## 액세스 단계 context
+
+Workflow 단계 콜백은 현재 시도 번호 (1-indexed)를 포함하는 컨텍스트 객체를받습니다. 이 시도가 현재 실행중인 액세스 할 수 있습니다.
+
+```ts
+await step.do("my-step", async (ctx) => {
+	//ctx.attempt는 첫 번째 시도에 1, 첫 번째 구호에 2 등입니다.
+	console.log(`Attempt ${ctx.attempt}`);
+});
+```
+
+## 실패하는 Workflow 인스턴스를 강제
+
+Workflow 인스턴스를 실패할 수도 있습니다.*아니다.*&#x72;etry 로 throwing`NonRetryableError`단계 안에.
+
+상류 시스템의 터미널 (permanent) 오류를 감지 할 때 유용 할 수 있습니다 (인증 실패와 같은) 또는 재발하는 다른 오류가 도움이되지 않습니다.
+
+```ts
+//NonRetryableError 정의 가져 오기
+import {
+	WorkflowEntrypoint,
+	WorkflowStep,
+	WorkflowEvent,
+} from "cloudflare:workers";
+import { NonRetryableError } from "cloudflare:workflows";
+
+//당신의 단계 부호에서:
+export class MyWorkflow extends WorkflowEntrypoint<Env, Params> {
+	async run(event: WorkflowEvent<Params>, step: WorkflowStep) {
+		await step.do("some step", async () => {
+			if (!event.payload.data) {
+				throw new NonRetryableError(
+					"event.payload.data did not contain the expected payload",
+				);
+			}
+		});
+	}
+}
+```
+
+Workflow 인스턴스 자체는 즉시 실패합니다. 더 이상 단계가 호출되지 않으며 Workflow는 다시 시도되지 않습니다.
+
+## 작업 흐름 오류
+
+가장 높은 수준의 선구자 또는 리트리 한계에 도달하는 모든 단계는 작업 흐름을 종료하는 원인이됩니다`Errored`국가.
+
+이를 피하고 싶다면, 당신은에 의해 방출 된 예외를 잡을 수 있습니다`step`. 이것은 당신이 청소 가동 일을 방아쇠를 끊거나 추가 단계를 방아쇠하는 상태 논리가 있는 경우에 유용합니다.
+
+실행을 계속하기 위해 Workflow를 허용하려면, 실패 할 수있는 의도 된 단계를 둘러싼`try-catch`블록.
+
+```ts
+...
+await step.do('task', async () => {
+	//작업 수행
+});
+
+try {
+    await step.do('non-retryable-task', async () => {
+		//retried 일하지 않는
+        throw new NonRetryableError('oh no');
+    });
+} catch (e) {
+    console.log(`Step failed: ${e.message}`);
+    await step.do('clean-up-task', async () => {
+      //여기에 코드를 청소
+    });
+}
+
+//Workflow는 실패하지 않으며 실행을 계속하지 않습니다.
+
+await step.do('next-task', async() => {
+	//더 많은 작업을 수행
+});
+...
+```

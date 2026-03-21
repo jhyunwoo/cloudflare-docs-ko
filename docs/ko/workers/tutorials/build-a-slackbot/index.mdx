@@ -1,0 +1,745 @@
+---
+reviewed: 2024-06-05T00:00:00.000Z
+difficulty: Beginner
+pcx_content_type: tutorial
+title: Slackbot 빌드
+tags:
+  - Hono
+  - TypeScript
+description: Cloudflare WorkersS로 Slackbot을 빌드하는 방법을 알아보세요
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/tutorials/build-a-slackbot/'
+translation_source_md: 'https://developers.cloudflare.com/workers/tutorials/build-a-slackbot/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, TabItem, Tabs, PackageManagers } from "~/components";
+
+이 튜토리얼에서, 당신은 빌드 할 것이다[스크랩](https://slack.com)봇 사용[Cloudflare Workers](/workers/). 봇은 GitHub webhooks를 사용하여 이슈가 업데이트되거나 생성될 때 Slack 채널에 메시지를 보낼 수 있으며 사용자가 Slack 내부에서 GitHub 이슈를 볼 수 있도록 명령을 작성할 수 있습니다.
+
+![이 튜토리얼을 따르는 후, 이 예제에서 같은 Slackbot을 만들 수 있습니다. Slackbot을 구축하려면 계속 읽기.](~/assets/images/workers/tutorials/slackbot/issue-command.png)
+
+이 튜토리얼은 웹 응용 프로그램을 작성하는 데 익숙한 사람들을 위해 권장됩니다. 프로그래밍 언어로 TypeScript를 사용합니다.[호노](https://hono.dev/)웹 프레임 워크로. 도구와 함께 응용 프로그램을 구축 한 경우[이름 \*](https://nodejs.org)·[기본 정보](https://expressjs.com), 이 프로젝트는 당신에게 아주 익숙합니다. 웹 응용 프로그램을 작성하거나 과거에 Slack bot과 같은 무언가를 구축하려는 경우, 그러나 배포 또는 구성에 의해 intimidated, Workers는 작성 코드 및 배송 프로젝트에 초점을 맞추고 싶어.
+
+코드를 검토하거나 봇이이 튜토리얼을 진행하기 전에 실제 Slack 채널에서 작동하는 방법, 당신은 codebase의 최종 버전을 액세스 할 수 있습니다[GitHub에서](https://github.com/yusukebe/workers-slack-bot). GitHub에서 자체 Slack API 키를 추가하고 테스트용 Slack 채널에 배포할 수 있습니다.
+
+***
+
+<Render file="tutorials-before-you-start" product="workers" />
+
+## Slack 설정
+
+이 튜토리얼은 이미 Slack 계정이 있고 Slack 응용 프로그램을 만들고 관리 할 수있는 능력이 있다고 가정합니다.
+
+### Slack 응용 프로그램 구성
+
+Cloudflare에서 메시지 보내기 Slack 채널로 작업하면 Slack의 UI에서 응용 프로그램을 만들 필요가 있습니다. 이렇게하려면 Slack의 API 섹션으로 이동하십시오.[api.slack.com/앱](https://api.slack.com/apps), 그리고 선택**새 앱 만들기**.
+
+![Slackbot을 만들려면 먼저 Slack 앱을 만듭니다.](~/assets/images/workers/tutorials/slackbot/create-a-slack-app.png)
+
+Slack 응용에는 많은 기능이 있습니다. 당신은 그들을 두 가지의 사용을 만들 것입니다, 들어오는 Webhooks 및 Slash 명령, 당신의 노동자 전원 Slack 봇을 구축.
+
+#### Webhook 소개
+
+들어오는 Webhooks는 Slack 채널에 메시지를 보낼 수있는 URL입니다. 들어오는 웹훅은 GitHub의 webhook 지원과 결합하여 주어진 저장소에 문제가 있을 때마다 Slack 채널에 메시지를 보낼 수 있습니다. 응용 프로그램을 구축 할 때 더 자세히 설명 할 수 있습니다. 먼저 Slack webhook을 만듭니다.
+
+1. Slack의 UI의 사이드바에서, 선택**웹훅 수신**.
+2. 내 계정**Workspace의 웹훅 URL**, 선택**Workspace에 새로운 Webhook 추가**.
+3. 다음 화면에서 메시지를 보내려면 웹훅을 원하는 채널을 선택하십시오 (당신은 #general 또는 #code와 같은 방을 선택할 수 있습니다, 또는 webhook이 호출 될 때 Slack bot에 의해 직접 메시지됩니다.)
+4. 새 웹훅 URL을 승인합니다.
+
+웹훅 URL을 승인 한 후, 반환됩니다.**웹훅 수신**페이지와 새로운 webhook URL을 볼 수 있습니다. Workers 코드가 나중에 추가됩니다. 다음, Slack bot에 두 번째 구성 요소를 추가합니다 : Slash 명령.
+
+![Slack의 dashboard에서 새로운 Webhook URL을 추가하려면 새로운 Webhook을 추가하십시오.](~/assets/images/workers/tutorials/slackbot/slack-incoming-webhook.png)
+
+#### Slash 명령
+
+Slack의 Slash 명령은 URL 요청에 첨부 할 수있는 사용자 정의 구성 명령입니다. 예를 들어, 구성하는 경우`/weather <zip>`, Slack은 구성 URL에 HTTP POST 요청을 만들 것입니다, 텍스트를 전달`<zip>`지정된 zip 코드를 위한 날씨를 얻을 수 있습니다. 당신의 신청에서, 당신은 사용할 것입니다`/issue`GitHub 이슈를 살펴보기[GitHub의 API](https://developer.github.com). 타이핑`/issue cloudflare/wrangler#1`본문 바로가기`cloudflare/wrangler#1`애플리케이션에 HTTP POST 요청에서 애플리케이션을 찾을 수 있습니다.[관련 GitHub 문제](https://github.com/cloudflare/wrangler-legacy/issues/1).
+
+1. 슬랙 사이드 바에, 선택**Slash 명령**.
+2. 첫 번째 슬래시 명령을 만듭니다.
+
+이 튜토리얼의 경우, 명령을 사용할 것입니다.`/issue`. 요청 URL은`/lookup`응용 URL의 경로: 예를 들어, 응용 프로그램이 호스팅되는 경우`https://myworkerurl.com`, 요청 URL은`https://myworkerurl.com/lookup`.
+
+![Slack의 dashboard에서 Slash 명령을 작성하고 요청 URL에 첨부해야합니다.](~/assets/images/workers/tutorials/slackbot/create-slack-command.png)
+
+### GitHub Webhooks 구성
+
+Cloudflare Workers 신청은 Slack에서 들어오는 요구를 취급할 수 있을 것입니다. GitHub에서 이벤트를 직접 받을 수 있어야 합니다. GitHub 이슈가 생성되거나 업데이트되면 GitHub webhooks를 사용하여 Workers 애플리케이션에 해당 이벤트를 보내고 Slack에 해당 메시지를 게시할 수 있습니다.
+
+webhook을 구성하려면:
+
+1. GitHub 저장소 바로가기**계정 설정** > **웹훅** > **webhook 추가**.
+
+당신이 같은 저장소가 있다면`https://github.com/user/repo`, 당신은 접근할 수 있습니다**웹훅**직접 페이지`https://github.com/user/repo/settings/hooks`.
+
+2. Payload URL을 설정`/webhook`작업자 URL의 경로.
+
+예를 들어, 노동자가 호스트되면`https://myworkerurl.com`, Payload URL이 있어야 합니다`https://myworkerurl.com/webhook`.
+
+3. 내 계정**내용 유형**dropdown, 선택**응용 프로그램/json**.
+
+더 보기**내용 유형**귀하의 페이로드는 URL 인코딩 된 페이로드 일 수 있습니다 (`application/x-www-form-urlencoded`) 또는 JSON (`application/json`). 이 튜토리얼의 목적에 대한 귀하의 응용 프로그램에 전송 된 페이로드를 파싱하기 위해 JSON을 선택하십시오.
+
+4. 내 계정**이 webhook을 트리거하고 싶으신가요?**, 선택**개인 이벤트를 선택하자**.
+
+GitHub webhooks는 웹훅에 전송한 이벤트를 지정할 수 있습니다. 기본적으로 webhook이 전송됩니다.`push`당신의 저장소에서 이벤트. 이 튜토리얼의 목적을 위해, 당신은 선택할 것이다**개인 이벤트를 선택하자**.
+
+5. 선택하기**제품정보**이벤트 유형.
+
+웹훅에 사용할 수있는 많은 다른 이벤트 유형이 있습니다. 제품정보**제품정보**웹훅에 대한 모든 문제 관련 이벤트를 보내드립니다. 문제가 열리고, 편집, 삭제 등. 향후 Slack bot 응용 프로그램을 확장하려는 경우 튜토리얼 후 이러한 이벤트를 더 선택할 수 있습니다.
+
+6. 제품정보**webhook 추가**.
+
+![GitHub dashboard에서 GitHub Webhook 만들기](~/assets/images/workers/tutorials/slackbot/new-github-webhook.png)
+
+웹훅이 생성되면 테스트 페이로드를 응용 프로그램에 전송하려고합니다. 응용 프로그램은 실제로 아직 배포되지 않았기 때문에 구성을 그대로 둡니다. 웹훅이 배포되면 웹훅이 작동한다는 것을 보장하기 위해 웹훅이 생성, 편집 및 일부 문제를 닫습니다.
+
+## 이름 \*
+
+프로젝트를 시작하려면 command line interface[C3 (create-cloudflare-cli)를](https://github.com/cloudflare/workers-sdk/tree/main/packages/create-cloudflare).
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"slack-bot"} />
+
+Hono 프로젝트를 만들려면 이러한 단계를 따르십시오.
+
+- 제품 정보*시작하기*?, 선택`Framework Starter`.
+- 제품 정보*어떤 개발 프레임 워크를 사용 하시겠습니까?*, 선택`Hono`.
+- 제품 정보*응용 프로그램을 배포하려면?*, 선택`No`.
+
+오시는 길`slack-bot`디렉토리:
+
+```sh
+cd slack-bot
+```
+
+기타`src/index.ts`편집기에서 다음 코드를 찾습니다.
+
+```ts
+import { Hono } from "hono";
+
+type Bindings = {
+	[key in keyof CloudflareBindings]: CloudflareBindings[key];
+};
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.get("/", (c) => {
+	return c.text("Hello Hono!");
+});
+
+export default app;
+```
+
+Hono를 사용하는 최소 응용 프로그램입니다. 오시는 길`/`, 그것은 텍스트와 응답을 반환합니다`Hello Hono!`. 그것은 또한 메시지를 반환`404 Not Found`상태 코드 404 다른 경로 또는 방법은 액세스하는 경우.
+
+로컬 머신에서 응용 프로그램을 실행하려면 다음 명령을 실행하십시오.
+
+<PackageManagers exec="run" args="dev" />
+
+오시는 길`http://localhost:8787`서버가 시작된 후에 브라우저에서 메시지를 볼 수 있습니다.
+
+Hono는 Workers 응용 프로그램을 쉽고 빠르게 만들 수 있습니다.
+
+## 제품정보
+
+이제 Cloudflare Workers에 Slack 봇을 만들 수 있습니다.
+
+### 파일 분리
+
+한 파일에 있는 모든 엔드포인트 및 기능을 쓰는 대신 여러 파일에서 응용 프로그램을 만들 수 있습니다. Hono로, 그것은 기능을 사용하여 부모 신청에 아이 신청의 여정을 추가할 수 있습니다`app.route()`.
+
+예를 들어, 다음 웹 API 응용 프로그램을 상상해보십시오.
+
+```ts
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.get("/posts", (c) => c.text("Posts!"));
+app.post("/posts", (c) => c.text("Created!", 201));
+
+export default app;
+```
+
+아래 경로를 추가할 수 있습니다.`/api/v1`.
+
+```ts null {2,6}
+import { Hono } from "hono";
+import api from "./api";
+
+const app = new Hono();
+
+app.route("/api/v1", api);
+
+export default app;
+```
+
+그것은 반환합니다`Posts!`접속 시`GET /api/v1/posts`.
+
+Slack 봇은 각각 "route"라는 두 개의 어린이 응용 프로그램이 있습니다.
+
+1. `lookup`루트는 Slack (사용자가 사용하는 경우`/issue`명령), GitHub API를 사용하여 해당 문제를 찾습니다. 이 응용 프로그램은 추가 될 것이다`/lookup`주요 신청에서.
+
+2. `webhook`루트는 GitHub에서 문제가 변경 될 때 호출됩니다. 이 응용 프로그램은 추가 될 것이다`/webhook`주요 신청에서.
+
+지정된 디렉토리의 경로 파일 만들기`routes`.
+
+```sh title="Create new folders and files"
+mkdir -p src/routes
+touch src/routes/lookup.ts
+touch src/routes/webhook.ts
+```
+
+그런 다음 주요 응용 프로그램을 업데이트합니다.
+
+```ts null {2,3,7,8}
+import { Hono } from "hono";
+import lookup from "./routes/lookup";
+import webhook from "./routes/webhook";
+
+const app = new Hono();
+
+app.route("/lookup", lookup);
+app.route("/webhook", webhook);
+
+export default app;
+```
+
+### 정의 TypeScript 유형
+
+실제 기능을 구현하기 전에 TypeScript 유형을 정의해야합니다. 이 프로젝트에서 사용할 것입니다. 응용 프로그램에 새로운 파일을 만듭니다.`src/types.ts`그리고 코드를 작성합니다.`Bindings`Cloudflare Workers 환경 변수를 설명하는 유형입니다.`Issue`GitHub 문제의 유형이며`User`GitHub 사용자의 유형입니다. 당신은 나중에 필요합니다.
+
+```ts
+export type Bindings = {
+	SLACK_WEBHOOK_URL: string;
+};
+
+export type Issue = {
+	html_url: string;
+	title: string;
+	body: string;
+	state: string;
+	created_at: string;
+	number: number;
+	user: User;
+};
+
+type User = {
+	html_url: string;
+	login: string;
+	avatar_url: string;
+};
+```
+
+### 검색 경로 만들기
+
+찾아가는 길 만들기`src/routes/lookup.ts`.
+
+```ts
+import { Hono } from "hono";
+
+const app = new Hono();
+
+export default app;
+```
+
+이 기능을 설계해야 하는 방법을 이해하려면 Slack slash 명령이 URL에 데이터를 전송하는 방법을 이해해야 합니다.
+
+에 따르면[Slack slash 명령에 대한 문서](https://api.slack.com/interactivity/slash-commands)Slack은 지정된 URL에 HTTP POST 요청을 보냅니다.`application/x-www-form-urlencoded`내용 유형. 예를 들어, 누군가가 입력한 경우`/issue cloudflare/wrangler#1`, 당신은 체재에 있는 자료 탑재량을 예상할 수 있었습니다:
+
+```txt
+token=gIkuvaNzQIHg97ATvDxqgjtO
+&team_id=T0001
+&team_domain=example
+&enterprise_id=E0001
+&enterprise_name=Globular%20Construct%20Inc
+&channel_id=C2147483705
+&channel_name=test
+&user_id=U2147483697
+&user_name=Steve
+&command=/issue
+&text=cloudflare/wrangler#1
+&response_url=https://hooks.slack.com/commands/1234/5678
+&trigger_id=13345224609.738474920.8088930838d88f008e0
+```
+
+이 페이로드 바디를주십시오, 당신은 그것을 파고해야합니다, 그리고의 가치를 얻을`text`주요. 그것으로`text`예를 들면,`cloudflare/wrangler#1`, 당신은 데이터의 알려진 조각으로 문자열을 파싱 할 수 있습니다 (`owner`, `repo`·`issue_number`) GitHub의 API에 대한 요청을 만들고, 이슈 데이터를 검색합니다.
+
+Slack slash 명령을 사용하면 구조화된 데이터를 수신 슬래시 명령에 응답하여 슬래시 명령에 응답할 수 있습니다. 이 경우 GitHub의 API에서 응답을 사용해야 하며, 생성된 문제의 제목과 같은 데이터를 포함하여 GitHub 문제의 서식된 버전을 제시해야 합니다. Slack의 새로운 기능[블록 키트](https://api.slack.com/block-kit)프레임 워크는 GitHub의 API에서 데이터를 사용하여 텍스트 및 이미지 블록을 구성하여 상세한 메시지 응답을 반환 할 수 있습니다.
+
+#### 패싱 슬래시 명령
+
+시작하기`lookup`루트는 Slack에서 오는 메시지를 파고해야합니다. 이전에 언급했듯이 Slack API는 URL Encoded 형식의 HTTP POST를 보냅니다. 변수를 얻을 수 있습니다`text`으로 parsing 그것 와`c.req.json()`.
+
+```ts null {5,6,7,8,9,10}
+import { Hono } from "hono";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { text } = await c.req.parseBody();
+	if (typeof text !== "string") {
+		return c.notFound();
+	}
+});
+
+export default app;
+```
+
+도움 받기`text`변수, 그것은 같은 텍스트를 포함`cloudflare/wrangler#1`, 텍스트를 파싱하고 GitHub의 API를 사용하여 개별 부품을 얻을 수 있습니다.`owner`, `repo`·`issue_number`.
+
+이렇게하려면 응용 프로그램에 새로운 파일을 만들려면`src/utils/github.ts`. 이 파일은 GitHub의 API와 함께 일하는 “utility” 함수의 수를 포함합니다. 이것의 첫 번째는 문자열 파서, 호출`parseGhIssueString`:
+
+```ts
+const ghIssueRegex =
+	/(?<owner>[\w.-]*)\/(?<repo>[\w.-]*)\#(?<issue_number>\d*)/;
+
+export const parseGhIssueString = (text: string) => {
+	const match = text.match(ghIssueRegex);
+	return match ? (match.groups ?? {}) : {};
+};
+```
+
+`parseGhIssueString`한국어`text`입력, 그것에 대해 일치`ghIssueRegex`, 그리고 경기가 발견되면, 반환`groups`그 경기에서 객체, 사용 만들기`owner`, `repo`·`issue_number`regex에서 정의 된 캡처 그룹. 이 함수를 내보내기`src/utils/github.ts`, 당신은 그것에 의하여 뒤의 사용을 만들 수 있습니다`src/handlers/lookup.ts`:
+
+```ts null {2,12}
+import { Hono } from "hono";
+import { parseGhIssueString } from "../utils/github";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { text } = await c.req.parseBody();
+	if (typeof text !== "string") {
+		return c.notFound();
+	}
+
+	const { owner, repo, issue_number } = parseGhIssueString(text);
+});
+
+export default app;
+```
+
+#### GitHub의 API 요청 만들기
+
+이 데이터로 GitHub에 첫 번째 API 조회를 만들 수 있습니다. 다시, 새로운 기능을`src/utils/github.ts`, 만들기 위하여`fetch`발급 데이터에 대한 GitHub API 요청:
+
+```ts null {8,9,10,11,12}
+const ghIssueRegex =
+	/(?<owner>[\w.-]*)\/(?<repo>[\w.-]*)\#(?<issue_number>\d*)/;
+
+export const parseGhIssueString = (text: string) => {
+	const match = text.match(ghIssueRegex);
+	return match ? (match.groups ?? {}) : {};
+};
+
+export const fetchGithubIssue = (
+	owner: string,
+	repo: string,
+	issue_number: string,
+) => {
+	const url = `https://api.github.com/repos/${owner}/${repo}/issues/${issue_number}`;
+	const headers = { "User-Agent": "simple-worker-slack-bot" };
+	return fetch(url, { headers });
+};
+```
+
+맨 위로`src/handlers/lookup.ts`, 사용`fetchGitHubIssue`GitHub의 API에 대한 요청을 만들고 응답을 파고:
+
+```ts null {2,3,14,15}
+import { Hono } from "hono";
+import { fetchGithubIssue, parseGhIssueString } from "../utils/github";
+import { Issue } from "../types";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { text } = await c.req.parseBody();
+	if (typeof text !== "string") {
+		return c.notFound();
+	}
+
+	const { owner, repo, issue_number } = parseGhIssueString(text);
+	const response = await fetchGithubIssue(owner, repo, issue_number);
+	const issue = await response.json<Issue>();
+});
+
+export default app;
+```
+
+#### Slack 메시지 구축
+
+GitHub의 API에서 응답을 받은 후 최종 단계는 이슈 데이터로 Slack 메시지를 생성하고 사용자로 돌아갑니다. 최종 결과는 다음과 같습니다.
+
+![성공적인 Slack 메시지는 아래에 나열된 구성 요소가 있습니다.](~/assets/images/workers/tutorials/slackbot/issue-slack-message.png)
+
+위의 스크린 샷에서 4 개의 다른 조각을 볼 수 있습니다.
+
+1. 첫번째 선 (bolded)는 문제점에 연결하고, 문제점 제목을 보여줍니다
+2. 다음 줄 (코드 스니펫 포함)은 문제 몸입니다.
+3. 텍스트의 마지막 줄은 발행 상태를 보여줍니다, 발행 제작자 (사용자의 GitHub 프로필에 링크), 생성 날짜 문제
+4. 문제 제작자의 프로필 사진, 오른쪽 측면에
+
+이전 언급[블록 키트](https://api.slack.com/block-kit)프레임 워크는 문제 데이터를 취할 수 있습니다 (구조에서 줄어든[GitHub의 REST API 문서](https://developer.github.com/v3/issues/)) 위의 스크린 샷과 같은 무언가로 포맷합니다.
+
+다른 파일 만들기,`src/utils/slack.ts`, 기능을 포함하기 위하여`constructGhIssueSlackMessage`, 문제점 자료를 가지고 가는 기능을 위한, 그리고 구획의 수집으로 돌기. 블록은 JavaScript 객체입니다. Slack은 메시지를 포맷하는 데 사용됩니다.
+
+```ts
+import { Issue } from "../types";
+
+export const constructGhIssueSlackMessage = (
+	issue: Issue,
+	issue_string: string,
+	prefix_text?: string,
+) => {
+	const issue_link = `<${issue.html_url}|${issue_string}>`;
+	const user_link = `<${issue.user.html_url}|${issue.user.login}>`;
+	const date = new Date(Date.parse(issue.created_at)).toLocaleDateString();
+
+	const text_lines = [
+		prefix_text,
+		`*${issue.title} - ${issue_link}*`,
+		issue.body,
+		`*${issue.state}* - Created by ${user_link} on ${date}`,
+	];
+};
+```
+
+Slack 메시지는 Markdown의 변형을 수락, 이는 asterisks를 통해 대담한 텍스트를 지원 (`*bolded text*`), 형식의 링크`<https://yoururl.com|Display Text>`.
+
+그 형식, 생성`issue_link`, 이는`html_url`GitHub API의 속성`issue`data ( 형식으로`https://github.com/cloudflare/wrangler-legacy/issues/1`), 그리고`issue_string`Slack slash 명령에서 전송하고 Slack 메시지에서 클릭 가능한 링크로 결합합니다.
+
+`user_link`비슷한, 사용`issue.user.html_url`( 형식에서`https://github.com/signalnerve`, GitHub 사용자) 및 사용자의 GitHub 사용자 이름 (`issue.user.login`), GitHub 사용자에 clickable 링크를 생성하기 위해.
+
+마지막으로, 파스`issue.created_at`, ISO 8601 문자열, JavaScriptQ의 인스턴스로 변환`Date`, 형식의 문자열로 설정, 형식의`MM/DD/YY`.
+
+그 변수로,`text_lines`Slack 메시지에 대한 각 텍스트의 배열입니다. 첫번째 선은 입니다**공지사항**그리고**문제 링크**, 두 번째는**문제 몸**, 그리고 마지막 선은 입니다**문제 상태**(예, 개방 또는 폐쇄),**사용자 링크**, 그리고**회사연혁**.
+
+구성 된 텍스트를 사용하면 마침내 Slack 메시지를 구성 할 수 있으며 Slack의 블록의 배열을 반환합니다.[블록 키트](https://api.slack.com/block-kit). 이 경우, 하나의 블록이 있습니다 : a[이름 \*](https://api.slack.com/reference/messaging/blocks#section)Markdown 텍스트와 블록, 문제가 생성 된 사용자의 액세서리 이미지. 배열 내부의 단일 블록을 반환, 완료`constructGhIssueSlackMessage`기능:
+
+```ts null {15,16,17,18,19,20,21,22,23,24,25,26,27,28}
+import { Issue } from "../types";
+
+export const constructGhIssueSlackMessage = (
+	issue: Issue,
+	issue_string: string,
+	prefix_text?: string,
+) => {
+	const issue_link = `<${issue.html_url}|${issue_string}>`;
+	const user_link = `<${issue.user.html_url}|${issue.user.login}>`;
+	const date = new Date(Date.parse(issue.created_at)).toLocaleDateString();
+
+	const text_lines = [
+		prefix_text,
+		`*${issue.title} - ${issue_link}*`,
+		issue.body,
+		`*${issue.state}* - Created by ${user_link} on ${date}`,
+	];
+
+	return [
+		{
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: text_lines.join("\n"),
+			},
+			accessory: {
+				type: "image",
+				image_url: issue.user.avatar_url,
+				alt_text: issue.user.login,
+			},
+		},
+	];
+};
+```
+
+#### 연락처
+
+내 계정`src/handlers/lookup.ts`, 사용`constructGhIssueSlackMessage`관련 기사`blocks`, 그리고 새로운 응답으로 돌려`c.json()`슬래시 명령이 호출되면:
+
+```ts null {3,17,18,19,20,21,22}
+import { Hono } from "hono";
+import { fetchGithubIssue, parseGhIssueString } from "../utils/github";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+import { Issue } from "../types";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { text } = await c.req.parseBody();
+	if (typeof text !== "string") {
+		return c.notFound();
+	}
+
+	const { owner, repo, issue_number } = parseGhIssueString(text);
+	const response = await fetchGithubIssue(owner, repo, issue_number);
+	const issue = await response.json<Issue>();
+	const blocks = constructGhIssueSlackMessage(issue, text);
+
+	return c.json({
+		blocks,
+		response_type: "in_channel",
+	});
+});
+
+export default app;
+```
+
+응답으로 전달되는 1개의 추가 모수는 입니다`response_type`. 기본적으로, 슬래시 명령에 대한 응답은 ephemeral이며, 슬래시 명령을 쓰는 사용자만이 볼 수 있음을 의미합니다. 패스워드`response_type`이름 \*`in_channel`위와 같이, 채널에 있는 모든 사용자를 위해 나타나는 응답을 일으키는 원인이 될 것입니다.
+
+개인을 유지하는 메시지와 같은 경우, 제거`response_type`라인. 이 원인`response_type`기본값으로`ephemeral`.
+
+#### 처리 오류
+
+더 보기`lookup`루트는 거의 완료되지만, Slack에서 몸을 파싱과 같은 경로에서 발생할 수있는 여러 오류가 있습니다. GitHub에서 문제가 발생하거나 Slack 메시지를 구성하십시오. Hono 응용 프로그램은 아무것도 할 필요없는 오류를 처리 할 수 있지만, 다음 방법으로 응답을 반환 할 수 있습니다.
+
+```ts null {25,26,27,28,29,30}
+import { Hono } from "hono";
+import { fetchGithubIssue, parseGhIssueString } from "../utils/github";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+import { Issue } from "../types";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { text } = await c.req.parseBody();
+	if (typeof text !== "string") {
+		return c.notFound();
+	}
+
+	const { owner, repo, issue_number } = parseGhIssueString(text);
+	const response = await fetchGithubIssue(owner, repo, issue_number);
+	const issue = await response.json<Issue>();
+	const blocks = constructGhIssueSlackMessage(issue, text);
+
+	return c.json({
+		blocks,
+		response_type: "in_channel",
+	});
+});
+
+app.onError((_e, c) => {
+	return c.text(
+		"Uh-oh! We couldn't find the issue you provided. " +
+			"We can only find public issues in the following format: `owner/repo#issue_number`.",
+	);
+});
+
+export default app;
+```
+
+### webhook 경로 만들기
+
+Workers 응용 프로그램에 대한 경로 구현을 통해 반도입니다. 다음 경로를 구현하기 위해,`src/routes/webhook.ts`, 당신은 검색 경로에 이미 쓴 코드를 많이 재사용 할 것입니다.
+
+이 튜토리얼의 시작 부분에 GitHub webhook을 구성하여 저장소의 문제와 관련된 모든 이벤트를 추적합니다. 문제가 열 때, 예를 들어, 경로에 해당하는 함수`/webhook`Workers 응용 프로그램은 GitHub에서 전송된 데이터를 가져 와서 구성된 Slack 채널에서 새로운 메시지를 게시해야 합니다.
+
+내 계정`src/routes/webhook.ts`, 공백 Hono 신청을 정의합니다. 차이점은`lookup`경로는`Bindings`일반으로 전달된다`new Hono()`. 이것은 적당한 TypeScript 유형을 제공하기 위하여 필요합니다`SLACK_WEBHOOK_URL`나중에 사용될 것입니다.
+
+```ts
+import { Hono } from "hono";
+import { Bindings } from "../types";
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+export default app;
+```
+
+와 같은 Much`lookup`경로, 당신은 들어오는 페이로드를 파싱해야합니다`request`, 그것에서 관련 문제점 자료를 얻으십시오 (refer to[GitHub API 문서`IssueEvent`](https://developer.github.com/v3/activity/events/types/#issuesevent)전체 페이로드 스키마에 대한), 그리고 무슨 변경을 나타내는 Slack에 포맷 된 메시지를 보냅니다. 최종 버전은 다음과 같은 것을 볼 것이다 :
+
+![성공적인 Webhook 메시지 예](~/assets/images/workers/tutorials/slackbot/webhook_example.png)
+
+이 메시지 형식을 비교하여 사용자가 사용할 때 반환된 형식`/issue`slash 명령. 두 개 사이의 실제 차이점이 있음을 알 수 있습니다 : 첫 번째 선에서 동작 텍스트의 추가, 형식에서`An issue was $action:`. 이 행동, 이는의 일부로 보내`IssueEvent`GitHub에서 Slack의 Block Kit을 사용하여 블록을 매우 잘 찾고있는 컬렉션을 만들 수 있습니다.
+
+#### 이벤트 데이터
+
+경로를 채우기 시작하려면 요청 body formatted JSON을 객체로 변환하고 helper 변수를 구성하십시오.
+
+```ts null {2,6,7,8,9,10}
+import { Hono } from "hono";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { action, issue, repository } = await c.req.json();
+	const prefix_text = `An issue was ${action}:`;
+	const issue_string = `${repository.owner.login}/${repository.name}#${issue.number}`;
+});
+
+export default app;
+```
+
+이름 \*`IssueEvent`, 웹훅 구성의 일부로 GitHub에서 보낸 페이로드는 포함`action`(예를 들어, 오픈, 폐쇄, 잠금 등),`issue`스스로, 그리고`repository`, 다른 것 중.
+
+제품 정보`c.req.json()`JSON에서 일반 JS 객체로 요청의 페이로드 바디를 변환합니다. ES6를 사용하여 설정`action`, `issue`·`repository`변수로 코드를 사용할 수 있습니다.`prefix_text`문제로 무슨 일이 있었는지 나타내는 문자열이며,`issue_string`익숙한 문자열`owner/repo#issue_number`당신이 전에 본 적이: 동안`lookup`직접 Slack에서 작성한 텍스트를 사용하여`issue_string`, JSON 페이로드에서 전달된 데이터를 직접 기반으로 구축됩니다.
+
+#### Slack 메시지를 게시하고 전송
+
+Slack bot 메시지는 Slack 채널에 다시 보냅니다.`lookup`·`webhook`경로는 매우 유사합니다. 이 때문에 기존에 재사용 할 수 있습니다.`constructGhIssueSlackMessage`팝업을 계속`src/handlers/webhook.ts`. 기능 가져오기`src/utils/slack.ts`, 그리고 이슈 데이터를 전달:
+
+```ts null {10}
+import { Hono } from "hono";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+
+const app = new Hono();
+
+app.post("/", async (c) => {
+	const { action, issue, repository } = await c.req.json();
+	const prefix_text = `An issue was ${action}:`;
+	const issue_string = `${repository.owner.login}/${repository.name}#${issue.number}`;
+	const blocks = constructGhIssueSlackMessage(issue, issue_string, prefix_text);
+});
+
+export default app;
+```
+
+중요하게, 사용법`constructGhIssueSlackMessage`이 핸들러에서 함수에 1개의 추가 인자를 추가합니다.`prefix_text`. 대응 기능을 안쪽으로 새롭게 하십시오`src/utils/slack.ts`, 추가`prefix_text`본문 바로가기`text_lines`메시지 블록에서 함수에 전달 된 경우.
+
+유틸리티 기능을 추가,`compact`배열을 가지고, 어떤 필터링`null`또는`undefined`그것에서 값. 이 기능은 제거하기 위하여 사용될 것입니다`prefix_text`이름 \*`text_lines`실제로 함수에 전달되지 않은 경우, 호출 할 때`src/handlers/lookup.ts`. 전체 (및 최종) 버전의`src/utils/slack.ts`이처럼 보이는:
+
+```ts null {3,26}
+import { Issue } from "../types";
+
+const compact = (array: unknown[]) => array.filter((el) => el);
+
+export const constructGhIssueSlackMessage = (
+	issue: Issue,
+	issue_string: string,
+	prefix_text?: string,
+) => {
+	const issue_link = `<${issue.html_url}|${issue_string}>`;
+	const user_link = `<${issue.user.html_url}|${issue.user.login}>`;
+	const date = new Date(Date.parse(issue.created_at)).toLocaleDateString();
+
+	const text_lines = [
+		prefix_text,
+		`*${issue.title} - ${issue_link}*`,
+		issue.body,
+		`*${issue.state}* - Created by ${user_link} on ${date}`,
+	];
+
+	return [
+		{
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: compact(text_lines).join("\n"),
+			},
+			accessory: {
+				type: "image",
+				image_url: issue.user.avatar_url,
+				alt_text: issue.user.login,
+			},
+		},
+	];
+};
+```
+
+맨 위로`src/handlers/webhook.ts`·`blocks`반환 값`constructGhIssueSlackMessage`새로운 몸이`fetch`요청, Slack webhook URL에 HTTP POST 요청. 완료하면 상태 코드와 응답을 반환합니다.`200`, 몸 텍스트`"OK"`:
+
+```ts null {13,14,15,16,17,18,19}
+import { Hono } from "hono";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+import { Bindings } from "../types";
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.post("/", async (c) => {
+	const { action, issue, repository } = await c.req.json();
+	const prefix_text = `An issue was ${action}:`;
+	const issue_string = `${repository.owner.login}/${repository.name}#${issue.number}`;
+	const blocks = constructGhIssueSlackMessage(issue, issue_string, prefix_text);
+
+	const fetchResponse = await fetch(c.env.SLACK_WEBHOOK_URL, {
+		body: JSON.stringify({ blocks }),
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+	});
+
+	return c.text("OK");
+});
+
+export default app;
+```
+
+일정`SLACK_WEBHOOK_URL`Slack Webhook URL을 나타냅니다.[Webhook 소개](/workers/tutorials/build-a-slackbot/#incoming-webhook)이 튜토리얼의 섹션.
+
+:::카트로션
+
+이 webhook는 개발자가 Slack 채널에 직접 게시 할 수 있으므로 비밀을 유지하십시오.
+
+:::
+
+코드베이스 내부를 사용하려면, 사용[`wrangler secret`](/workers/wrangler/commands/#secret)명령:
+
+```sh title="Set the SLACK_WEBHOOK_URL secret"
+npx wrangler secret put SLACK_WEBHOOK_URL
+```
+
+```sh output
+Enter a secret value: https://hooks.slack.com/services/abc123
+```
+
+#### 처리 오류
+
+자주 묻는 질문`lookup`경로,`webhook`경로는 몇 가지 기본 오류 처리가 포함되어야 합니다. 이름 \*`lookup`Slack으로 응답을 직접 전송하는 , 웹훅으로 잘못되는 경우, 실제로 erroneous 응답을 생성하는 데 유용 할 수있다, GitHub에 반환.
+
+이 작업을 수행하려면 사용자 정의 오류 핸들러를 작성하십시오.`app.onError()`상태 코드와 새로운 응답을 반환`500`. 최종 버전의`src/routes/webhook.ts`이처럼 보이는:
+
+```ts null {24,25,26,27,28,29,30,31}
+import { Hono } from "hono";
+import { constructGhIssueSlackMessage } from "../utils/slack";
+import { Bindings } from "../types";
+
+const app = new Hono<{ Bindings: Bindings }>();
+
+app.post("/", async (c) => {
+	const { action, issue, repository } = await c.req.json();
+	const prefix_text = `An issue was ${action}:`;
+	const issue_string = `${repository.owner.login}/${repository.name}#${issue.number}`;
+	const blocks = constructGhIssueSlackMessage(issue, issue_string, prefix_text);
+
+	const fetchResponse = await fetch(c.env.SLACK_WEBHOOK_URL, {
+		body: JSON.stringify({ blocks }),
+		method: "POST",
+		headers: { "Content-Type": "application/json" },
+	});
+
+	if (!fetchResponse.ok) throw new Error();
+
+	return c.text("OK");
+});
+
+app.onError((_e, c) => {
+	return c.json(
+		{
+			message: "Unable to handle webhook",
+		},
+		500,
+	);
+});
+
+export default app;
+```
+
+## 계정 만들기
+
+사전 단계를 완료하면 Slack bot의 코드를 작성했습니다. 응용 프로그램을 배포 할 수 있습니다.
+
+Wrangler는 번들링, 업로드 및 Cloudflare QXQXQXQXQ 응용 프로그램에 대한 내장 지원이 있습니다. 이렇게하려면 다음 명령을 실행하고 코드를 배포합니다.
+
+<PackageManagers exec="run" args="deploy" />
+
+WorkersXQ 응용 프로그램을 배포하면 이제 Slack 채널에서 나타나는 이슈 업데이트가 발생할 수 있으므로 GitHub webhook이 성공적으로 Workers 웹훅 루트에 도달 할 수 있습니다.
+
+![새 문제를 만들 때 Slackbot은 이제 Slack 채널에 나타납니다.](/images/workers/tutorials/slackbot/create-new-issue.gif)
+
+## 관련 자료
+
+이 튜토리얼에서 GitHub 웹훅 이벤트에 응답 할 수있는 Cloudflare QXWorkersXQ 응용 프로그램을 구축하고 배포하고 Slack 내에서 GitHub API 레이아웃을 허용합니다. 이 응용 프로그램에 대한 전체 소스 코드를 검토하고 싶다면 저장소를 찾을 수 있습니다.[GitHub에서](https://github.com/yusukebe/workers-slack-bot).
+
+QXQX090909XQXQ가 자신의 프로젝트를 구축하고 싶다면 기존 목록을 검토하십시오.[Quickstart 템플릿](/workers/get-started/quickstarts/).

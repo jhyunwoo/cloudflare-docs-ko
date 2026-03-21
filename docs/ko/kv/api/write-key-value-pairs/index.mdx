@@ -1,0 +1,279 @@
+---
+pcx_content_type: concept
+title: 키 값 쌍 쓰기
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/kv/api/write-key-value-pairs/'
+translation_source_md: 'https://developers.cloudflare.com/kv/api/write-key-value-pairs/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+새로운 키 값 쌍을 만들려면, 또는 특정 키에 대한 값을 업데이트하려면, 호출`put()`방법의[KV 바인딩](/kv/concepts/kv-bindings/)모든 것[KV 네임스페이스](/kv/concepts/kv-namespaces/)당신은 당신의 노동자 부호에 경계가 있습니다:
+
+```js
+env.NAMESPACE.put(key, value);
+```
+
+#### 이름 \*
+
+노동자 내에서 키 값 쌍을 쓰는 예:
+
+```js
+export default {
+	async fetch(request, env, ctx) {
+		try {
+			await env.NAMESPACE.put("first-key", "This is the value for the key");
+
+			return new Response("Successful write", {
+				status: 201,
+			});
+		} catch (e) {
+			return new Response(e.message, { status: 500 });
+		}
+	},
+};
+```
+
+## 이름 \*
+
+다음 방법은 KV에 쓰기에 제공됩니다:
+
+- [칫()](#put-method)
+
+### `put()`제품 설명
+
+새로운 키 값 쌍을 만들려면, 또는 특정 키에 대한 값을 업데이트하려면, 호출`put()`어떤 KV 네임스페이스에서 작업자 코드에 바인딩:
+
+```js
+env.NAMESPACE.put(key, value, options?);
+```
+
+#### 매개 변수
+
+- `key`: `string`
+  - 가치와 연관시키는 열쇠. 키가 비어있거나 정확히 동일 할 수 없습니다.`.`또는`..`. 다른 모든 열쇠는 유효합니다. 키는 512 바이트의 최대 길이가 있습니다.
+
+- `value`: `string` | `ReadableStream` | `ArrayBuffer`
+  - 저장 값. 유형은 inferred입니다. 값의 최대 크기는 25 MiB입니다.
+
+- `options`: `{
+  expiration?: number,
+  expirationTtl?: number,
+  metadata?: object
+  }`
+  - 옵션. 개체를 포함하는`expiration`(선택),`expirationTtl`(선택), 및`metadata`(옵션) 속성.
+    - `expiration`epoch 이후 초의 키 값 쌍을 만료 할 때 나타내는 숫자입니다.
+    - `expirationTtl`이제 초의 키 값 쌍을 만료 할 때 나타내는 숫자입니다. 최소 값은 60입니다.
+    - `metadata`JSON에 serialize해야 하는 객체입니다. metadata 객체의 serialized JSON 표현의 최대 크기는 1024 바이트입니다.
+
+#### 관련 기사
+
+- `response`: `Promise<void>`
+  - ·`Promise`업데이트가 성공하면 해결됩니다.
+
+put() 메서드는 프로미스를 반환합니다.`await`성공적인 업데이트를 확인하려면.
+
+## 구시가지
+
+### Concurrent는 동일한 열쇠에 씁니다
+
+KV의 결국 일관된 성격 때문에, 동시는 동일한 열쇠에 쓰기는 1개의 다른 사람을 겹쳐 쌓일 수 있습니다. Wrangler, Durable Objects, 또는 API를 사용하여 단일 프로세스에서 데이터를 작성하는 일반적인 패턴입니다. 이것은 단일 스트림 때문에 동시 쓰기를 방지합니다. 모든 데이터는 여전히 모든 Workers에서 사용할 수 있습니다 네임스페이스에 바인딩.
+
+동시 쓰기가 동일한 키로 만든 경우, 마지막 쓰기는 우선적으로 걸릴 것입니다.
+
+같은 글로벌 네트워크 위치에 다른 요청에 즉시 볼 수 있지만 60 초까지 걸릴 수 있습니다 (또는 가치의`cacheTtl`매개 변수`get()`또는`getWithMetadata()`방법) 세계의 다른 부분에 볼 수 있습니다.
+
+더 알아보기[KV는 어떻게 작동합니까?](/kv/concepts/how-kv-works/)이 주제에 대한 자세한 내용은.
+
+### 대량 데이터 작성
+
+Wrangler 또는 한 번에 하나의 키 가치 쌍을 작성[REST API를 통해](/api/resources/kv/subresources/namespaces/subresources/keys/methods/bulk_update/).
+
+대량 API는 한 번에 10,000 KV 쌍까지 받아들일 수 있습니다.
+
+·`key`·`value`각 KV 쌍을 위해 요구됩니다. 전체 요청 크기는 100 메가 바이트 미만이어야합니다. 대량 글은 지원되지 않습니다.[KV 바인딩](/kv/concepts/kv-bindings/).
+
+### 키 제한
+
+KV는 자동 만료되는 열쇠를 창조하는 기능을 제안합니다. 특정 시점에서 발생할 수 있는 만료를 구성할 수 있습니다.`expiration`옵션), 또는 특정 시간 후 키가 마지막으로 수정 된 이후 전달 (사용`expirationTtl`옵션).
+
+만료 키의 만료 시간이 도달되면 시스템에서 삭제됩니다. 삭제 후, 키를 읽는 시도는 키가 존재하지 않는 것처럼 행동합니다. 삭제된 열쇠는 청구 목적을 위한 KV namespace의 저장 사용법에 대하여 조사하지 않을 것입니다.
+
+:::참조
+
+이름 \*`expiration`키의 설정은 삭제 된 키에서 발생할 수 있습니다.`cacheTtl`더 높은 (longer period) 값으로 설정됩니다. Expiration는 항상 전진합니다.
+
+:::
+
+키가 만료되면 지정하는 두 가지 방법이 있습니다.
+
+- 지정된 절대 시간을 사용하여 키의 만료 설정[UNIX epoch 이후 초](https://en.wikipedia.org/wiki/Unix_time). 예를 들어, 2019년 4월 1일 12:00AM UTC에서 만료된 키를 원하면 키의 만료를 설정할 수 있습니다.`1554076800`.
+
+- 현재 몇 초의 상대적인 숫자를 사용하여 키의 만료 시간을 설정하십시오. 예를 들어, 생성 후 10 분이 만료 된 키를 원하면 만료 TTL을 설정할 것입니다.`600`.
+
+향후 60 초 미만의 만료 대상은 지원되지 않습니다. 이것은 expiration 방법 둘 다를 위해 진실합니다.
+
+#### 만료 키 만들기
+
+만료 키를 만들려면, 설정`expiration`내 계정`put()`epoch 이후 초를 나타내는 숫자에 옵션 또는 설정`expirationTtl`내 계정`put()`이제 초를 나타내는 숫자에 옵션:
+
+```js
+await env.NAMESPACE.put(key, value, {
+	expiration: secondsSinceEpoch,
+});
+
+await env.NAMESPACE.put(key, value, {
+	expirationTtl: secondsFromNow,
+});
+```
+
+이 가정은`secondsSinceEpoch`·`secondsFromNow`worker code에서 다른 변수를 정의합니다.
+
+### 메타데이터
+
+key-value 쌍을 가진 metadata를, 세트 연결하기 위하여`metadata`내 계정`put()`객체에 대한 옵션 ( JSON에 직렬화 가능):
+
+```js
+await env.NAMESPACE.put(key, value, {
+	metadata: { someMetadataKey: "someMetadataValue" },
+});
+```
+
+### KV에 한계는 동일한 열쇠에 씁니다
+
+Workers KV는 초당 동일한 열쇠에 1개의 쓰기의 최대가 있습니다. 1 초 이내에 동일한 키로 작성된 글은 제한 비율을 일으킬 것입니다 (`429`) 오류가 발생한다.
+
+동일한 키로 초당 한 번 이상 쓸 수 없습니다. 단일 쓰기에 Worker invocation 내의 키에 쓰기를 통합하거나 쓰기 사이에 적어도 1 초를 기다립니다.
+
+다음 예제는 동일한 키에 여러 번 쓰기의 데모로서 단일 노동자 인 직업 내에서 동시 쓰기를 강제로 오류를 반환 할 수 있습니다. 이것은 생산에서 사용해야하는 패턴이 아닙니다.
+
+```typescript
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//코드 omitted의 나머지
+		const key = "common-key";
+		const parallelWritesCount = 20;
+
+		//KV에 쓰기를 시도하고 오류를 처리합니다
+		const attemptWrite = async (i: number) => {
+			try {
+				await env.YOUR_KV_NAMESPACE.put(key, `Write attempt #${i}`);
+				return { attempt: i, success: true };
+			} catch (error) {
+				//오류는 같은 키에 쓰면 메시지가 1 초 이내에 만들 수 있습니다. 예를 들면:
+				//오류: {
+				//"message": "KV PUT 실패 : 429 너무 많은 요청"
+				//이름 *
+
+				return {
+					attempt: i,
+					success: false,
+					error: { message: (error as Error).message },
+				};
+			}
+		};
+
+		//모든 요청을 병행하고 결과를 수집
+		const results = await Promise.all(
+			Array.from({ length: parallelWritesCount }, (_, i) =>
+				attemptWrite(i + 1),
+			),
+		);
+		//결과는 다음과 같습니다 :
+		//[특징]
+		//이름 *
+		//"attempt": 1,
+		//"success": 사실
+		//이름 *
+		//이름 *
+		//"attempt": 2,
+		//"success": 거짓,
+		//이름 *
+		//"message": "QXQX0132XQ PUT 실패 : 429 너무 많은 요청"
+		//이름 *
+		//이름 *
+		//· ...
+		//·
+
+		return new Response(JSON.stringify(results), {
+			headers: { "Content-Type": "application/json" },
+		});
+	},
+};
+```
+
+이러한 오류를 처리하기 위해, 우리는 exponential backoff와 함께 재스트 논리를 구현하는 것이 좋습니다. 다음은 위의 코드에 retries를 추가하는 간단한 방법입니다.
+
+```typescript
+export default {
+	async fetch(request, env, ctx): Promise<Response> {
+		//코드 omitted의 나머지
+		const key = "common-key";
+		const parallelWritesCount = 20;
+
+		//retries를 가진 KVXQ에 쓰기를 시도하는 도우미 기능
+		const attemptWrite = async (i: number) => {
+			return await retryWithBackoff(async () => {
+				await env.YOUR_KV_NAMESPACE.put(key, `Write attempt #${i}`);
+				return { attempt: i, success: true };
+			});
+		};
+
+		//모든 요청을 병행하고 결과를 수집
+		const results = await Promise.all(
+			Array.from({ length: parallelWritesCount }, (_, i) =>
+				attemptWrite(i + 1),
+			),
+		);
+
+		return new Response(JSON.stringify(results), {
+			headers: { "Content-Type": "application/json" },
+		});
+	},
+};
+
+async function retryWithBackoff(
+	fn: Function,
+	maxAttempts = 5,
+	initialDelay = 1000,
+) {
+	let attempts = 0;
+	let delay = initialDelay;
+
+	while (attempts < maxAttempts) {
+		try {
+			//함수를 호출
+			return await fn();
+		} catch (error) {
+			//오류가 rate limit 오류인지 확인
+			if (
+				(error as Error).message.includes(
+					"KV PUT failed: 429 Too Many Requests",
+				)
+			) {
+				attempts++;
+				if (attempts >= maxAttempts) {
+					throw new Error("Max retry attempts reached");
+				}
+
+				//백오프 기간을 기다립니다
+				console.warn(`Attempt ${attempts} failed. Retrying in ${delay} ms...`);
+				await new Promise((resolve) => setTimeout(resolve, delay));
+
+				//노출 backoff
+				delay *= 2;
+			} else {
+				//다른 오류가 있다면, rethrow it
+				throw error;
+			}
+		}
+	}
+}
+```
+
+## KV에 접근하는 다른 방법
+
+당신은 또한 할 수 있습니다[Wrangler](/kv/reference/kv-commands/#kv-namespace-create)·[REST API를 통해 데이터를 작성](/api/resources/kv/subresources/namespaces/subresources/values/methods/update/).

@@ -1,0 +1,322 @@
+---
+pcx_content_type: configuration
+title: API를 통해 예외 추가
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: API를 통해 예외 추가
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/waf/managed-rules/waf-exceptions/define-api/'
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/managed-rules/waf-exceptions/define-api/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { RuleID, APIRequest } from "~/components";
+
+API를 사용하여 관리 된 규칙을 추가하려면 규칙을 작성하십시오.`skip`활동 중[단계 항목 점 규칙](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_firewall_managed`단계. 계정 수준과 영역 수준에서 예외를 정의할 수 있습니다. 예외는 Skip 규칙이라고도 합니다.
+
+예외를 구성하려면 정의`action_parameters`예외 유형에 따라 객체. 다음 예제에 대한 참조 :
+
+- [자주 묻는 질문](#skip-all-remaining-rules)
+- [Cloudflare 관리 규칙 세트를 건너](#skip-the-cloudflare-managed-ruleset)
+- [WAF 관리 규칙의 하나 이상의 규칙을 건너](#skip-one-or-more-rules-of-waf-managed-rulesets)
+
+API를 사용하여 예외 생성에 대한 자세한 내용은 참조[자주 묻는 질문](/ruleset-engine/managed-rulesets/create-exception/)Ruleset Engine 문서에서.
+
+:::note\[Rule 실행 순서]
+규칙과`skip`행동은 규칙에 적용`execute`작업 목록**후에**그들. 규칙을 추가하면`skip`규칙 목록의 끝에서 행동, 아무것도 건너 뛸 것입니다.
+주요 특징
+
+## 이름 \*
+
+### 자주 묻는 질문
+
+다음 예제는 항목 포인트 규칙에 남아있는 규칙을 추가합니다.`dev.example.com`이름.
+
+1. Invoke에[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)현재의 구성을 얻기 위해 작업의 항목 포인트 규칙의`http_request_firewall_managed`단계.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_request_firewall_managed",
+     }}
+     roles={false}
+   />
+
+   ```json output {3}
+   {
+   	"result": {
+   		"id": "060013b1eeb14c93b0dcd896537e0d2c", // entry point ruleset ID
+   		"name": "default",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   		],
+   		"last_updated": "2024-01-20T14:29:00.190643Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+   항목 포인트 규칙 ID 저장 (`060013b1eeb14c93b0dcd896537e0d2c`) 다음 단계.
+
+2. Invoke에[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)가동 (a`POST`요청) 규칙 목록의 시작 부분에 예외 (또는 건너뛰기 규칙)을 추가하기 위해, 건너뛰기 규칙은 그 후에 나열된 규칙에만 적용됩니다. 정확한 규칙 위치는 정의된다[`position`기타 제품](/ruleset-engine/rulesets-api/add-rule/#define-the-rule-position-in-the-ruleset).
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+     method="POST"
+     parameters={{ ruleset_id: "$ENTRY_POINT_RULESET_ID" }}
+     json={{
+     	expression: '(http.host eq "dev.example.com")',
+     	description: "Skip managed rules for dev.example.com",
+     	action: "skip",
+     	action_parameters: {
+     		ruleset: "current",
+     	},
+     	position: {
+     		before: "",
+     	},
+     }}
+     roles={false}
+   />
+
+API를 통해 나머지 모든 규칙을 건너에 대한 자세한 내용은 참조[자주 묻는 질문](/ruleset-engine/managed-rulesets/create-exception/#skip-all-remaining-rules)Ruleset Engine 문서에서.
+
+### Cloudflare 관리 규칙 세트를 건너
+
+다음 예제는 규칙을 추가합니다.[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/)견적 요청`dev.example.com`이름.
+
+1. Invoke에[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)현재의 구성을 얻기 위해 작업의 항목 포인트 규칙의`http_request_firewall_managed`단계.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_request_firewall_managed",
+     }}
+     roles={false}
+   />
+
+   ```json output {3,12,20}
+   {
+   	"result": {
+   		"id": "060013b1eeb14c93b0dcd896537e0d2c", // entry point ruleset ID
+   		"name": "default",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "1bdb49371c1f46958fc8b985efcb79e7", // `execute` rule ID
+   				"version": "1",
+   				"action": "execute",
+   				"expression": "true",
+   				"last_updated": "2024-01-20T14:21:28.643979Z",
+   				"ref": "1bdb49371c1f46958fc8b985efcb79e7",
+   				"enabled": true,
+   				"action_parameters": {
+   					"id": "efb7b8c949ac4650a09736fc376e9aee", // "Cloudflare Managed Ruleset" ID
+   					"version": "latest"
+   				}
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2024-01-20T14:29:00.190643Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+   Cloudflare Managed Ruleset을 배치하는 규칙을 확인합니다.`execute`규칙과`action_parameters` > `id`이름 \*<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />(관리 규칙 ID).
+
+   :::참조
+   기존 WAF 관리 규칙의 ID를 얻으려면, 참조[사용 가능한 관리 규정](/waf/managed-rules/#available-managed-rulesets)또는 사용[계정 규칙](/api/resources/rulesets/methods/list/)가동.
+   주요 특징
+
+   다음 단계에 대한 다음 ID를 저장:
+
+   - 항목 포인트 규칙의 ID (`060013b1eeb14c93b0dcd896537e0d2c`이 예제에서)
+   - ID의`execute`배포 규칙 (management)`1bdb49371c1f46958fc8b985efcb79e7`이 예제에서)
+
+2. Invoke에[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)가동 (a`POST`요청) 예외 추가 (또는 건너뛰기 규칙) 즉시 전에`execute`Cloudflare Managed Ruleset을 배포하는 규칙은 Skip 규칙이 그 이후에 나열된 규칙에만 적용됩니다. 정확한 규칙 위치는 정의된다[`position`기타 제품](/ruleset-engine/rulesets-api/add-rule/#define-the-rule-position-in-the-ruleset).
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+     method="POST"
+     parameters={{ ruleset_id: "$ENTRY_POINT_RULESET_ID" }}
+     json={{
+     	expression: '(http.host eq "dev.example.com")',
+     	description: "Skip the Cloudflare Managed Ruleset for dev.example.com",
+     	action: "skip",
+     	action_parameters: {
+     		rulesets: ["efb7b8c949ac4650a09736fc376e9aee"],
+     	},
+     	position: {
+     		before: "1bdb49371c1f46958fc8b985efcb79e7",
+     	},
+     }}
+     roles={false}
+   />
+
+API를 통해 하나 이상의 관리되는 규칙을 건너는 것에 대한 자세한 내용은 참조[자주 묻는 질문](/ruleset-engine/managed-rulesets/create-exception/#skip-one-or-more-managed-rulesets)Ruleset Engine 문서에서.
+
+### WAF 관리 규칙의 하나 이상의 규칙을 건너
+
+다음 예제는 특정 규칙을 건너는 규칙을 추가합니다.[Cloudflare 관리되는 통치자](/waf/managed-rules/reference/cloudflare-managed-ruleset/)견적 요청`dev.example.com`이름.
+
+1. Invoke에[지역 규칙 받기](/api/resources/rulesets/methods/get/)Cloudflare Managed Ruleset (ruleset ID)의 규칙 목록을 얻는 가동<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />).<br />계정 레벨 엔드포인트를 사용하여 관리된 규칙 정보를 얻을 수 있습니다 ([계정 규칙 받기](/api/resources/rulesets/methods/get/)) 또는 영역 수준 엔드 포인트 ([지역 규칙 받기](/api/resources/rulesets/methods/get/)).
+
+   :::참조
+   기존 WAF 관리 규칙의 ID를 얻으려면, 참조[사용 가능한 관리 규정](/waf/managed-rules/#available-managed-rulesets)또는 사용[계정 규칙](/api/resources/rulesets/methods/list/)가동.
+   주요 특징
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}"
+     method="GET"
+     parameters={{
+     	ruleset_id: "efb7b8c949ac4650a09736fc376e9aee",
+     }}
+     roles={false}
+   />
+
+   ```json output {12}
+   {
+   	"result": {
+   		"id": "efb7b8c949ac4650a09736fc376e9aee",
+   		"name": "Cloudflare Managed Ruleset",
+   		"description": "Created by the Cloudflare security team, this ruleset is designed to provide fast and effective protection for all your applications. It is frequently updated to cover new vulnerabilities and reduce false positives.",
+   		"source": "firewall_managed",
+   		"kind": "managed",
+   		"version": "180",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "d9e350f1b72d4730899c8a420e48a85d", // ID of rule to skip
+   				"version": "180",
+   				"action": "block",
+   				"categories": ["file-inclusion", "october-cms"],
+   				"description": "October CMS - File Inclusion",
+   				"last_updated": "2024-02-05T07:12:54.565276Z",
+   				"ref": "adb550873eb92d32372ed08514d33241",
+   				"enabled": true
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2024-02-05T07:12:54.565276Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+   당신이 건너뛰고 싶은 규칙의 ID를 주의하십시오 (<RuleID id="d9e350f1b72d4730899c8a420e48a85d" />이 예).
+
+2. Invoke에[지역 항목 포인트 규칙 받기](/api/resources/rulesets/subresources/phases/methods/get/)작업은 현재의 구성을 얻기 위해[관련 항목](/ruleset-engine/about/rulesets/#entry-point-ruleset)이름 \*`http_request_firewall_managed`단계.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+     method="GET"
+     parameters={{
+     	ruleset_phase: "http_request_firewall_managed",
+     }}
+     roles={false}
+   />
+
+   ```json output {3,12,20}
+   {
+   	"result": {
+   		"id": "060013b1eeb14c93b0dcd896537e0d2c", // entry point ruleset ID
+   		"name": "default",
+   		"description": "",
+   		"source": "firewall_managed",
+   		"kind": "zone",
+   		"version": "3",
+   		"rules": [
+   			// (...)
+   			{
+   				"id": "1bdb49371c1f46958fc8b985efcb79e7", // `execute` rule ID
+   				"version": "1",
+   				"action": "execute",
+   				"expression": "true",
+   				"last_updated": "2024-01-20T14:21:28.643979Z",
+   				"ref": "1bdb49371c1f46958fc8b985efcb79e7",
+   				"enabled": true,
+   				"action_parameters": {
+   					"id": "efb7b8c949ac4650a09736fc376e9aee", // "Cloudflare Managed Ruleset" ID
+   					"version": "latest"
+   				}
+   			}
+   			// (...)
+   		],
+   		"last_updated": "2024-01-20T14:29:00.190643Z",
+   		"phase": "http_request_firewall_managed"
+   	},
+   	"success": true,
+   	"errors": [],
+   	"messages": []
+   }
+   ```
+
+   Cloudflare Managed Ruleset을 배치하는 규칙을 확인합니다.`execute`규칙과`action_parameters` > `id`이름 \*<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />(관리 규칙 ID).
+
+   :::참조
+   기존 WAF 관리 규칙의 ID를 얻으려면, 참조[사용 가능한 관리 규정](/waf/managed-rules/#available-managed-rulesets)또는 사용[계정 규칙](/api/resources/rulesets/methods/list/)가동.
+   주요 특징
+
+   다음 단계에 대한 다음 ID를 저장:
+
+   - 항목 포인트 규칙의 ID (`060013b1eeb14c93b0dcd896537e0d2c`이 예제에서)
+   - ID의`execute`Cloudflare 관리 규칙 세트 배포 규칙 (`1bdb49371c1f46958fc8b985efcb79e7`이 예제에서)
+
+   다음 ID를 사용합니다.
+
+   - Cloudflare 관리 규칙 세트의 ID (<RuleID id="efb7b8c949ac4650a09736fc376e9aee" />)
+   - 규칙의 ID는 건너뛰기 (<RuleID id="d9e350f1b72d4730899c8a420e48a85d" />이 예제에서)
+
+3. Invoke에[영역 규칙을 작성](/api/resources/rulesets/subresources/rules/methods/create/)가동 (a`POST`요청) 예외 추가 (또는 건너뛰기 규칙) 즉시 전에`execute`Cloudflare Managed Ruleset을 배포하는 규칙은 Skip 규칙이 그 이후에 나열된 규칙에만 적용됩니다.
+
+   <APIRequest
+     path="/zones/{zone_id}/rulesets/{ruleset_id}/rules"
+     method="POST"
+     parameters={{
+     	ruleset_id: "$ENTRY_POINT_RULESET_ID",
+     }}
+     json={{
+     	expression: '(http.host eq "dev.example.com")',
+     	description: "Skip a single rule for dev.example.com",
+     	action: "skip",
+     	action_parameters: {
+     		rules: {
+     			efb7b8c949ac4650a09736fc376e9aee: [
+     				"d9e350f1b72d4730899c8a420e48a85d",
+     			],
+     		},
+     	},
+     	position: {
+     		before: "1bdb49371c1f46958fc8b985efcb79e7",
+     	},
+     }}
+     roles={false}
+   />
+
+더 보기`action_parameters` > `rules`객체는 Cloudflare Managed Ruleset의 ID를 포함하여 규칙 ID의 관련 목록 (이 경우, 하나의 규칙 만). 더 보기[`position`기타 제품](/ruleset-engine/rulesets-api/add-rule/#define-the-rule-position-in-the-ruleset)항목 포인트 규칙에 정확한 규칙 배치 정의 (before 규칙`1bdb49371c1f46958fc8b985efcb79e7`).
+
+API를 통해 관리된 규칙의 하나 이상의 규칙을 건너뛰기에 대한 자세한 내용은 참조[자주 묻는 질문](/ruleset-engine/managed-rulesets/create-exception/#skip-one-or-more-rules-of-managed-rulesets)Ruleset Engine 문서에서.

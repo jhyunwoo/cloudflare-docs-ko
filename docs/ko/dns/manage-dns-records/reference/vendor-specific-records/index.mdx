@@ -1,0 +1,233 @@
+---
+pcx_content_type: configuration
+source: https://support.cloudflare.com/hc/en-us/articles/360020991331-Adding-vendor-specific-DNS-records-to-Cloudflare
+title: 공급자별 DNS 레코드
+---
+
+import { Render, GlossaryTooltip, Example } from "~/components";
+
+이 문서는 Cloudflare 대시보드를 통한 DNS 레코드 관리에 대한 사전 지식을 필요로 합니다. 자세한 내용은 Cloudflare의 [managing DNS records](/dns/manage-dns-records/how-to/create-dns-records/) 문서를 참고하세요.
+
+## Google
+
+### Google Workspace MX 레코드
+
+Google Workspace를 사용하려면 DNS 공급자에 [특정 MX 레코드](https://support.google.com/a/answer/174125)를 추가해야 합니다.
+
+이 레코드를 [Cloudflare에 추가한](/dns/manage-dns-records/how-to/create-dns-records/) 후에는:
+
+- [구성 테스트](https://toolbox.googleapps.com/apps/checkmx/check)를 수행합니다.
+- Google이 제공한 것 외의 다른 `MX` 레코드는 추가하지 않습니다.
+
+### Google Workspace 서비스 URL
+
+Google Workspace와 연결된 서비스 주소 URL을 사용자 지정하려면 [Google 문서](https://support.google.com/a/answer/53340)를 참고하세요.
+
+:::caution
+
+Google은 자사 서비스에 HTTPS를 강제합니다. Cloudflare를 통해 사이트에 접속할 때 리디렉션 루프 오류가 발생한다면 Cloudflare의 [Full encryption mode](/ssl/origin-configuration/ssl-modes/full/)를 사용하세요.
+:::
+
+### Google 사이트 검증
+
+Cloudflare에 사이트 검증 레코드를 추가하려면 [Google 문서](https://support.google.com/a/answer/7173990)를 따르세요.
+
+---
+
+## Amazon
+
+### Amazon Route53
+
+AWS 고객은 도메인의 네임서버를 새 Cloudflare 네임서버로 가리키도록 [업데이트](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/domain-name-servers-glue-records.html)해야 합니다.
+
+### Amazon S3 버킷
+
+버킷의 [URL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/access-bucket-intro.html)을 찾으세요.
+
+그런 다음 Cloudflare에 [`CNAME` 레코드](/dns/manage-dns-records/how-to/create-dns-records/)를 만듭니다. 예를 들어 버킷의 전체 호스트 URL이 `files.example.com.s3.amazonaws.com`이라면 다음과 유사한 `CNAME` 레코드를 추가합니다.
+
+```txt
+files  CNAME  files.example.com.s3.amazonaws.com
+```
+
+:::caution
+AWS는 [문서](https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html#VirtualHostingCustomURLs)에서 CNAME과 버킷 이름이 동일해야 한다고 명시합니다. 다른 방식으로 설정했을 때 발생할 수 있는 침해를 방지하려면, [host header origin rule](/rules/origin-rules/features/#host-header)을 사용해 모든 요청을 올바른 버킷으로 명시적으로 라우팅하세요.
+:::
+
+### Amazon Simple Email Service(SES)
+
+SES에서 DKIM을 설정하는 방법은 [Amazon 문서](https://docs.aws.amazon.com/ses/latest/dg/creating-identities.html)를 참고하세요.
+
+### Amazon ELB 구성
+
+Amazon에서 ELB를 구성하는 방법은 [Amazon의 ELB 도움말](http://docs.amazonwebservices.com/ElasticLoadBalancing/latest/DeveloperGuide/using-domain-names-with-elb.html)을 참고하세요. 일반적으로는 다음과 같이 구성하면 됩니다.
+
+AWS에서 받은 호스트명에 대해 Cloudflare에 [`CNAME` 레코드](/dns/manage-dns-records/how-to/create-dns-records/)를 추가합니다. 예:
+
+<Example>
+| Type    | Name  | Target                                       | Proxy status |
+| ------- | ----- | -------------------------------------------- | ------------ |
+| `CNAME` | `elb` | `<AWS_HOSTNAME>.<REGION>._elb.amazonaws.com` | Proxied      |
+</Example>
+
+### Amazon Amplify
+
+Cloudflare DNS와 AWS Amplify를 함께 사용하려면 [Amplify 도움말](https://docs.aws.amazon.com/amplify/latest/userguide/to-add-a-custom-domain-managed-by-a-third-party-dns-provider.html)을 참고하고 **manual configuration** 지침을 따르세요.
+
+Cloudflare에서는 최소 두 개의 `CNAME` 레코드가 필요합니다.
+
+- 도메인 소유권을 검증하기 위한 <GlossaryTooltip term="proxy status">DNS-only</GlossaryTooltip> `CNAME`. 다음과 같은 형태여야 합니다.
+
+<Example>
+| Type    | Name  | Target                                       | Proxy status |
+| ------- | ----- | -------------------------------------------- | ------------ |
+| `CNAME` | `<UNIQUE_STRING>` | `<UNIQUE_STRING>.mhbtsbpdnt.acm-validation.aws` | DNS only     |
+</Example>
+
+:::caution[CNAME flattening]
+Cloudflare zone이 유료 요금제라면, 검증용 `CNAME` 레코드에서 **Flatten** 옵션이 꺼져 있는지, 그리고 zone 전체에 [모든 CNAME 레코드에 대한 CNAME flattening](/dns/cname-flattening/set-up-cname-flattening/#for-all-cname-records)이 **활성화되어 있지 않은지** 확인하세요.
+:::
+
+- <GlossaryTooltip term="apex domain">apex domain</GlossaryTooltip>(`example.com`) 및/또는 Cloudflare에서 관리하려는 각 서브도메인(`blog.example.com`)에 대한 `CNAME` 레코드 1개. 자세한 내용은 [Manage DNS records](/dns/manage-dns-records/how-to/create-dns-records/)를 참고하세요. 이 레코드는 proxied로 설정할 수 있습니다.
+
+<Example>
+
+| Type    | Name | Target                              |
+| ------- | ---- | ----------------------------------- |
+| `CNAME` | `@`  | `<AMPLIFY_HOSTNAME>.cloudfront.net` |
+
+| Type    | Name   | Target                              |
+| ------- | ------ | ----------------------------------- |
+| `CNAME` | `blog` | `<AMPLIFY_HOSTNAME>.cloudfront.net` |
+
+</Example>
+***
+
+## Microsoft
+
+### Microsoft 365
+
+Microsoft 365용 레코드에 대한 정보는 [Microsoft 문서](https://learn.microsoft.com/en-us/microsoft-365/admin/get-help-with-domains/information-for-dns-records)를 참고하세요.
+
+### Microsoft Azure
+
+[Azure DNS 설정 구성](https://learn.microsoft.com/en-us/azure/app-service/app-service-web-tutorial-custom-domain)에 대한 Microsoft 지침을 따르세요.
+
+그런 다음 Azure가 요구하는 레코드를 [Cloudflare DNS](/dns/manage-dns-records/how-to/create-dns-records/)에 추가하세요.
+
+---
+
+## 기타 공급자
+
+### ClickFunnels
+
+Cloudflare를 ClickFunnels와 함께 구성할 수 있습니다. 이 과정에서는 Cloudflare DNS 설정을 업데이트해야 합니다.
+
+- [Cloudflare 서브도메인 추가](https://help.clickfunnels.com/hc/en-us/articles/360005906774-Adding-A-Cloudflare-Subdomain-)
+- [Cloudflare 도메인 추가](https://help.clickfunnels.com/hc/en-us/articles/360005906094-Cloudflare-CNAME-Record)
+
+### Discourse
+
+Cloudflare와 함께 Discourse를 사용하려면 [Using Discourse with Cloudflare: Best Practices](https://community.cloudflare.com/t/using-discourse-with-cloudflare-best-practices/602890)를 참고하세요.
+
+### Forward Email
+
+Cloudflare와 함께 Forward Email을 사용하려면 [Forward Email configuration with Cloudflare](https://forwardemail.net/guides/cloudflare)를 참고하세요.
+
+### Mailchimp
+
+Mailchimp 사용에 대한 도움말은 [Use a custom domain with Mailchimp](https://mailchimp.com/help/connect-domain/)를 참고하세요.
+
+<Render file="third-party-caveat" product="dns" params={{ one: "Mailchimp" }} />
+
+### Ning 사용자 지정 도메인
+
+Ning 사용에 대한 도움말은 [Use a custom domain with Ning](https://www.ning.com/help/use-your-own-domain-e-g-example-com-for-your-ning-network/)를 참고하세요.
+
+<Render file="third-party-caveat" product="dns" params={{ one: "Ning" }} />
+
+### Rackspace CloudFiles
+
+Rackspace CloudFiles는 *CNAME record*를 통해 구성합니다. [Rackspace 문서](https://docs.rackspace.com/support/how-to/using-cnames-with-cloud-files-containers/)를 참고하세요.
+
+먼저 Rackspace CloudFiles 문서에서 [`CNAME` 값](https://docs.rackspace.com/support/how-to/using-cnames-with-cloud-files-containers/)을 확인한 뒤, 해당 레코드를 [Cloudflare에 추가](/dns/manage-dns-records/how-to/create-dns-records/)하세요.
+
+:::caution
+
+`rackcdn.com`은 Cloudflare와 호환되지 않으므로, `CNAME` 레코드는 반드시 [DNS-only (unproxied)](/dns/proxy-status/#dns-only-records)여야 합니다.
+:::
+
+### SendGrid
+
+SendGrid를 Cloudflare와 호환되게 만드는 방법은 [SendGrid 문서](https://docs.sendgrid.com/ui/sending-email/content-delivery-networks#using-cloudflare)를 참고하세요.
+
+:::note
+
+[DNS 레코드 추가](/dns/manage-dns-records/how-to/create-dns-records/)와 [Configuration rules](/rules/configuration-rules/create-dashboard/) 생성에 대한 최신 내비게이션 안내는 Cloudflare 문서를 함께 참고해야 할 수 있습니다.
+
+:::
+
+### SmugMug
+
+SmugMug 사용에 대한 도움말은 [Use a custom domain with SmugMug](https://www.smugmughelp.com/en/articles/363-use-a-custom-domain)를 참고하세요.
+
+<Render file="third-party-caveat" product="dns" params={{ one: "SmugMug" }} />
+
+### Squarespace
+
+먼저 [네임서버를 업데이트](/dns/zone-setups/full-setup/)했고 도메인이 [active](/dns/zone-setups/reference/domain-status/) 상태인지 확인하세요.
+
+그다음 Squarespace DNS 레코드를 설정합니다.
+
+1. [이 안내](https://support.squarespace.com/hc/articles/213469948)에 따라 Squarespace DNS 정보를 확인합니다.
+2. Cloudflare에서 [해당 레코드를 추가](/dns/manage-dns-records/how-to/create-dns-records/)합니다.
+   - 모든 `A` 레코드는 [Proxied](/dns/proxy-status/)여야 합니다.
+   - `www`용 `CNAME` 레코드도 **Proxied**여야 합니다.
+   - `verify.squarespace.com`용 `CNAME` 레코드는 **DNS-only**여야 합니다.
+3. 올바르게 설정되면 Squarespace DNS Settings 페이지는 이제 `Settings contain problems.`를 표시합니다. **이 동작은 정상입니다.**
+
+![Screenshot of error warnings in squarespace](~/assets/images/support/hc-import-squarespace_dns_settings-test-2.png)
+
+#### 도메인 소유자 검증 대기 중
+
+`verify.squarespace.com`에 추가한 `CNAME` 레코드는 반드시 **DNS-only**여야 합니다.
+
+이 레코드를 프록시하면 Squarespace가 도메인 소유권을 검증할 수 없어서 `This website is pending domain owner verification` 오류가 표시됩니다. 문제를 해결하려면 해당 `CNAME` 레코드를 [편집](/dns/manage-dns-records/how-to/create-dns-records/#edit-dns-records)하고 **Proxy status**를 **DNS-only**로 변경하세요.
+
+### Tumblr 사용자 지정 도메인
+
+Tumblr 문서에서 [DNS 레코드 값](https://help.tumblr.com/hc/en-us/articles/231256548-Custom-Domains)을 확인한 뒤, [Cloudflare DNS에 레코드를 추가](/dns/manage-dns-records/how-to/create-dns-records/)하세요.
+
+<Render file="third-party-caveat" product="dns" params={{ one: "Tumblr" }} />
+
+### Unbounce
+
+Unbounce 문서에서 [`CNAME` 값](https://documentation.unbounce.com/hc/en-us/articles/204011950)을 확인한 뒤, 해당 레코드를 [Cloudflare에 추가](/dns/manage-dns-records/how-to/create-dns-records/)하세요.
+
+:::caution
+
+Cloudflare가 호스팅 파트너 중 하나를 통해 활성화되어 있다면 `CNAME` 레코드는 [DNS-only (unproxied)](/dns/proxy-status/#dns-only-records)여야 합니다.
+:::
+
+### Wix
+
+[Wix 웹사이트](https://www.wix.com/)와 Cloudflare를 함께 사용할 수 있지만, 대부분의 웹사이트 빌더와는 다른 방식으로 설정해야 합니다.
+
+이는 Wix가 [Cloudflare nameservers 사용을 지원하지 않기](https://support.wix.com/en/article/request-cloudflare-support) 때문입니다. Cloudflare 네임서버 사용은 [primary setup (full)](/dns/zone-setups/full-setup/)이나 [Cloudflare Registrar](/registrar/)를 통해 구매한 도메인의 일반적인 구성 방식입니다.
+
+#### domain pointing 사용
+
+Cloudflare로 DNS를 관리하거나 [Cloudflare Registrar](/registrar/)를 통해 도메인을 구매한 경우, [domain pointing](https://support.wix.com/en/article/connecting-a-domain-to-wix-using-the-pointing-method)을 통해 해당 도메인을 Wix에 연결할 수 있습니다.
+
+이 방식에서는 웹사이트가 DNS에 대해서만 Cloudflare를 사용하므로, 모든 DNS 레코드는 [DNS-only (unproxied)](/dns/proxy-status/#dns-only-records)여야 합니다.
+
+### WPEngine
+
+WPEngine 사이트 구성에 대한 도움말은 다음 문서를 참고하세요.
+
+- [Configuring DNS with WPEngine](https://wpengine.com/support/wordpress-best-practice-configuring-dns-for-wp-engine/)
+- [Cloudflare best practices](https://wpengine.com/support/cloudflare-best-practices/)
+
+### Zoho
+
+Cloudflare와 함께 Zoho를 사용하려면 [Zoho configuration with Cloudflare](https://www.zoho.com/mail/help/adminconsole/cloudflare.html)를 참고하세요.

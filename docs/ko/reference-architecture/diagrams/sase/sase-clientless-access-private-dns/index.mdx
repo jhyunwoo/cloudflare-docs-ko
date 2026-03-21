@@ -1,0 +1,51 @@
+---
+title: 클라이언트 에이전트를 배포하지 않고 개인 앱에 액세스
+pcx_content_type: reference-architecture-diagram
+products:
+  - access
+  - browser-isolation
+  - gateway
+sidebar:
+  order: 1
+  label: 클라이언트 에이전트를 배포하지 않고 개인 앱에 액세스
+reviewed: 2024-04-03T00:00:00.000Z
+description: 클라이언트 에이전트를 배포하지 않고 개인 앱에 액세스하는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/sase/sase-clientless-access-private-dns/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/sase/sase-clientless-access-private-dns/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+Cloudflare를 사용하여 개인 리소스에 액세스하십시오 - 인터넷에 직접 노출되지 않는 응용 프로그램, 서버 및 네트워크와 같은 - 일반적으로 배포를 포함합니다 ([이름 \*](/cloudflare-one/team-and-resources/devices/warp/)) 기기에 다음 서버 측 에이전트를 사용하여 ([구름 많음](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/), [WARP 연결관](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/)), Cloudflare에 개인 네트워크 또는 신청을 연결하는. 이 문서는 소프트웨어를 사용자의 장치에 배포하는 데 필요한 대안 접근 방식을 설명하고 계약자 및 파트너와 같은 타사 액세스를 허용하는 데 쉽게 만들 수 있습니다.
+
+일반적으로 내부 자원에 액세스 할 수있는, 당신은 Cloudflare Zero Trust 네트워크 액세스 사용[사이트맵](https://www.cloudflare.com/learning/access-management/what-is-ztna/)사용자 장치가 개인 리소스에 액세스하는 방법에 대한 두 가지 방법을 지원합니다.
+
+- 공용 DNS의 CNAME은 내부 애플리케이션에 요청을 프록시하는 Cloudflare 터널을 나타내는 호스트 이름에 해결합니다.
+
+- Cloudflare 터널에 의해 노출 된 IP 주소는 다시 IP 주소로 직접 프록시 트래픽입니다.
+
+## 자주 묻는 질문
+
+일부 조직은 ZTNA 서비스가 강력한 액세스 보안을 제공하지만, 심지어 공공 DNS의 서비스 이름의 존재가 원하는 경우에도 참고 자료 내부 서비스에 대한 공공 DNS 레코드의 아이디어를 좋아하지 않습니다. IP 주소를 직접 사용자에게 노출하는 것은 나쁜 생각이며, 기억하기 어렵고 IP 주소는 변경할 수 있습니다. 프록시를 통해 공개 DNS 레코드를 통해 웹 응용 프로그램에 액세스와는 달리, 개인 IP 주소를 통해 노출되는 응용 프로그램은 사용자가 장치에서 에이전트를 설치하고 Cloudflare로 트래픽을 캡처하고 경로로 이동합니다. 이 에이전트는 파트너 또는 계약자 같은 제 3 자와 함께 도전할 수 있습니다.
+
+그래서 당신은 공공 DNS 레코드를 생성하지 않고 개인 리소스에 액세스 할 수 있습니까? Cloudflare는 이 도전을 해결했습니다[Resolver 정책](/cloudflare-one/traffic-policies/resolver-policies/)내부 DNS 서비스가 사용될 수 있습니다. Agentless와 결합될 때[원격 브라우저 고립](/cloudflare-one/remote-browser-isolation/), 그것은 Zero Trust를 현대 웹 브라우저와 개인 웹 응용 프로그램에 액세스 할 수 있습니다. 앱에 액세스 권한을 제어하는 정책은 보안 웹 게이트웨이 (SWG) 서비스로 작성됩니다.[네트워크 방화벽](/cloudflare-one/traffic-policies/network-policies/)정책. 이 방법은 Cloudflare가 SSH 및 VNC 서비스에 대한 브라우저 렌더링 서비스를 제공하지만 HTTP 기반 응용 프로그램을 지원합니다.
+
+계정 만들기[관련 기사](/cloudflare-one/tutorials/clientless-access-private-dns/)클라이언트 에이전트를 배포하지 않고 개인 웹 기반 리소스에 안전한 액세스를 구성하는 방법에 대한 정보.
+
+![그림 1: 먼 접근 내부 hostname](~/assets/images/reference-architecture/sase-clientless-access-private-dns/diagram1.svg "Figure 1: Remote browser connected to private web service using internal hostname")
+
+1. 사용자가 인증하여 접근을 시작합니다.[Cloudflare 브라우저 고립](https://your_team_domain.cloudflareaccess.com/browser)서비스. 참고 Cloudflare의 가장자리 네트워크에서 실행되는 브라우저이므로 모든 요청은 기본적으로 Cloudflare에 의해 처리됩니다. 콘텐츠는 HTTPS 및 WebRTC 채널을 사용하는 보안 암호화 된 벡터 스트림을 통해 사용자의 브라우저로 다시 렌더링됩니다.
+2. 사용자가 원격 브라우저에 인증되면 내부 DNS 서비스에 기록되는 내부 호스트 이름에 요청합니다. 사이트맵[모델 번호: https://app.company.internal](https://app.company.internal)
+3. Cloudflare는 내부 hostname을 사용하여 찾습니다[해결사 정책](/cloudflare-one/traffic-policies/resolver-policies/), 내부 DNS 서버에서 개인 IP 주소를 가져옵니다. 이 DNS 해상도는 Cloudflare 네트워크 내에서 배치되며 사용자의 장치에 DNS 클라이언트 변경이 필요하지 않습니다.
+4. Cloudflare는 네트워크 방화벽 정책을 평가하고 사용자가 대상 주소에 도달 할 수있는 권한을 가지고 있는지 확인합니다.
+5. 요청이 정책을 통과하면 보안을 통해 전송됩니다.[견적 요청](https://blog.cloudflare.com/getting-cloudflare-tunnels-to-connect-to-the-cloudflare-network-with-quic)Cloudflared 연결관에 갱도는 그 후에 신청 서버에 proxied 반전입니다. 모든 데이터는 암호화된 벡터 스트림을 통해 사용자의 브라우저로 Cloudflare를 통해 안전하게 전송됩니다.
+
+## 관련 자료
+
+- [자습서 : WARP없이 개인 별명을 통해 웹 응용 프로그램에 액세스](/cloudflare-one/tutorials/clientless-access-private-dns/)

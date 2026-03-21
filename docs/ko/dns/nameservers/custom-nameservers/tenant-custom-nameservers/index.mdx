@@ -1,0 +1,122 @@
+---
+pcx_content_type: how-to
+title: 테넌트 사용자 지정 네임서버 설정
+sidebar:
+  order: 5
+  label: Tenant level
+head:
+  - tag: title
+    content: Tenant custom nameservers
+description: 테넌트 수준 사용자 지정 네임서버를 사용하면, 계정들이 [tenant](/tenant/)에 속해 있기만 하면 서로 다른 영역과 서로 다른 계정에서 동일한 사용자 지정 네임서버를 사용할 수 있습니다. 네임서버 이름을 제공하는 도메인은 Cloudflare 안에 영역으로 존재할 필요가 없습니다.
+---
+
+import { Example, Render, APIRequest } from "~/components";
+
+<Render
+	file="acns-tcns-intro"
+	product="dns"
+	params={{
+		one: "Tenant",
+		two: "T",
+		three: "tenant",
+		four: "accounts",
+		five: "tenant",
+	}}
+/>
+
+## 제공 여부
+
+테넌트 사용자 지정 네임서버는 테넌트 소유자가 생성한 경우, 해당 테넌트에 속한 어떤 계정의 영역에서도 사용할 수 있습니다. API 전용입니다.
+
+## 구성 조건
+
+이 구성이 가능하려면 몇 가지 조건이 적용됩니다.
+
+<Render
+	file="acns-tcns-conditions"
+	product="dns"
+	params={{ one: "tenant", two: "the tenant owner", three: "Tenant owners" }}
+/>
+
+<Render
+	file="acns-tcns-byoip"
+	product="dns"
+	params={{ one: "Tenant", two: "tenant" }}
+/>
+
+## 계정 소유자를 위한 안내
+
+### 영역에서 테넌트 사용자 지정 네임서버 활성화
+
+계정 소유자이며 계정이 사용자 지정 네임서버가 구성된 테넌트에 속해 있다면 다음을 수행하세요.
+
+1. [Update DNS Settings for a Zone](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/) 엔드포인트를 사용하고 `nameservers` 객체를 다음과 같이 구성합니다.
+
+   ```txt
+     "nameservers": {
+       "type": "custom.tenant"
+     }
+   ```
+
+	 <Render file="ns-set-omission-callout" product="dns" />
+
+2. [Cloudflare Registrar](/registrar/)를 **사용하지 않는다면** 등록기관에서 네임서버를 TCNS 이름으로 업데이트합니다. [Cloudflare Registrar](/registrar/)를 사용 중이라면 추가 작업은 필요 없습니다.
+
+지금부터 계정에 추가되는 모든 새 영역에 대해 이 TCNS를 기본 네임서버로 만들려면 [Update DNS Settings for an Account](/api/resources/dns/subresources/settings/subresources/account/methods/edit/) 엔드포인트를 사용합니다. `zone_defaults` 객체 안에 다음을 설정하세요.
+
+```txt
+"zone_defaults": {
+  "nameservers": {
+    "type": "custom.tenant"
+  }
+}
+```
+
+### 영역에서 테넌트 사용자 지정 네임서버 비활성화
+
+- [Cloudflare Registrar](/registrar/)를 사용 중이라면 [Update DNS settings endpoint](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/)를 사용해 `nameservers` 객체의 `type` 값을 다른 값으로 설정한 다음, [Cloudflare Support](/support/contacting-cloudflare-support/)에 문의해 원하는 네임서버로 되돌리세요.
+
+- Cloudflare Registrar를 사용하지 않는다면 [Update DNS settings endpoint](/api/resources/dns/subresources/settings/subresources/zone/methods/edit/)를 사용해 다른 네임서버 유형을 선택하고, 동시에 도메인 등록기관에서도 TCNS를 제거하세요.
+
+## 테넌트 소유자를 위한 안내
+
+### 테넌트 사용자 지정 네임서버 생성
+
+테넌트 소유자로서 테넌트 내 계정에서 TCNS를 사용할 수 있게 하려면 다음을 수행하세요.
+
+1. `ns_name`과 `ns_set`에 대한 [조건](#configuration-conditions)을 따르고, 다음 POST 명령으로 테넌트에 TCNS를 생성합니다.
+
+```bash
+curl https://api.cloudflare.com/client/v4/tenants/{tenant_id}/custom_ns \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>" \
+--header "Content-Type: application/json" \
+--data '{
+  "ns_name": "<NS_NAME>",
+  "ns_set": <SET>
+}'
+```
+
+<Render file="ns-set-omission-callout" product="dns" />
+
+2. 테넌트 사용자 지정 네임서버와 IP 주소를 도메인 등록기관에 글루(A 및 AAAA) 레코드로 추가합니다([RFC 1912](https://www.rfc-editor.org/rfc/rfc1912.html)).
+
+3. 테넌트 사용자 지정 네임서버에 사용되는 도메인들이 동일한 계정에 존재하지 않는다면, 권한 DNS 공급자에서 구성된 네임서버 이름(예: `ns1.example.com`)에 대해 `A/AAAA` 레코드를 만들어야 합니다.
+
+<Example>
+
+| Type | Name              | Content  |
+| ---- | ----------------- | -------- |
+| `A`  | `ns1.example.com` | `<IPv4>` |
+
+</Example>
+
+### 모든 TCNS 이름 목록 조회
+
+테넌트 계정의 모든 TCNS 이름 목록을 가져오려면 다음 API 요청을 사용하세요.
+
+```bash
+curl https://api.cloudflare.com/client/v4/tenants/{tenant_id}/custom_ns \
+--header "X-Auth-Email: <EMAIL>" \
+--header "X-Auth-Key: <API_KEY>"
+```

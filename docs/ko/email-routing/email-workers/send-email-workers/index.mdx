@@ -1,0 +1,87 @@
+---
+title: Workers에서 이메일 보내기
+pcx_content_type: how-to
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/email-routing/email-workers/send-email-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+<Render
+  file="send-emails-workers-intro"
+  product="email-routing"
+  params={{
+  	one: "Then, create a new binding in the Wrangler configuration file:",
+  }}
+/>
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"send_email": [
+  		{
+  			"name": "<NAME_FOR_BINDING>",
+  			"destination_address": "<YOUR_EMAIL>@example.com"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 바인딩의 유형
+
+몇 가지 유형의 제한이 있습니다.
+
+- **정의 된 속성 없음**: 속성을 정의하지 않을 때, 바인딩은 장소에 제한이 없습니다. 확인된 이메일 주소로 이메일을 보낼 수 있습니다.[이메일 Routing](/email-routing/setup/email-routing-addresses/#destination-addresses).
+- **`destination_address`**: 정의할 때`destination_address`속성, 당신은 대상 바인딩을 만듭니다. 이 수단은 선택한 이메일 주소로 이메일을 보낼 수 있습니다. 예를 들어,`{type = "send_email", name = "<NAME_FOR_BINDING>", destination_address = "<YOUR_EMAIL>@example.com"}`. <br />이 특정한 바인딩을 위해, 당신이 전화할 때`send_email`당신이 통과할 수 있는 기능`null`또는`undefined`당신의 노동자에 그리고 그것은 바인딩에서 지정된 이메일 주소를 가정할 것입니다.
+- **`allowed_destination_addresses`**: 이 속성을 지정할 때, 허용 목록을 작성하고 목록의 이메일 주소로 이메일을 보낼 수 있습니다.
+- **`allowed_sender_addresses`**: 이 속성을 지정할 때, sender Allowlist를 생성하고 목록의 이메일 주소로만 이메일을 보낼 수 있습니다.
+
+<Render file="types-bindings" product="email-routing" />
+
+## 예제 노동자
+
+아래 예제를 참조하여 이메일 전송 가능한 노동자를 구성하는 방법을 알아보십시오. 이 예제는[MIME텍스](https://www.npmjs.com/package/mimetext):
+
+:::참조
+sender는 이메일 Routing 활성을 가지고있는 도메인에서 이메일이어야합니다.
+주요 특징
+
+```js
+import { EmailMessage } from "cloudflare:email";
+import { createMimeMessage } from "mimetext";
+
+export default {
+	async fetch(request, env) {
+		const msg = createMimeMessage();
+		msg.setSender({ name: "GPT-4", addr: "<SENDER>@example.com" });
+		msg.setRecipient("<RECIPIENT>@example.com");
+		msg.setSubject("An email generated in a worker");
+		msg.addMessage({
+			contentType: "text/plain",
+			data: `Congratulations, you just sent an email from a worker.`,
+		});
+
+		var message = new EmailMessage(
+			"<SENDER>@example.com",
+			"<RECIPIENT>@example.com",
+			msg.asRaw(),
+		);
+		try {
+			await env.SEB.send(message);
+		} catch (e) {
+			return new Response(e.message);
+		}
+
+		return new Response("Hello Send Email World!");
+	},
+};
+```

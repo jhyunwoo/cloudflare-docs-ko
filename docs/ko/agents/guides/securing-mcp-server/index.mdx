@@ -1,0 +1,271 @@
+---
+title: MCP 서버
+pcx_content_type: how-to
+tags:
+  - MCP
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/securing-mcp-server/'
+translation_source_md: 'https://developers.cloudflare.com/agents/guides/securing-mcp-server/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+MCP 서버, 어떤 웹 응용 프로그램과 같은, 보안해야 그래서 그들은 학대없이 신뢰할 수있는 사용자에 의해 사용될 수있다. MCP 사양은 MCP 클라이언트와 서버 간의 인증을 위해 OAuth 2.1을 사용합니다.
+
+이 가이드는 OAuth 프록시를 제3자 공급자( GitHub 또는 Google과 같은)로 작동하는 MCP 서버에 대한 보안 모범 사례를 다룹니다.
+
+## OAuth 보호와 노동자 oauth-provider
+
+Cloudflare\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`\`[`workers-oauth-provider`](https://github.com/cloudflare/workers-oauth-provider)토큰 관리, 클라이언트 등록 및 액세스 토큰 유효성 검사:
+
+<TypeScriptExample>
+  ```ts
+  import { OAuthProvider } from "@cloudflare/workers-oauth-provider";
+  import { MyMCP } from "./mcp";
+
+  export default new OAuthProvider({
+  	authorizeEndpoint: "/authorize",
+  	tokenEndpoint: "/token",
+  	clientRegistrationEndpoint: "/register",
+  	apiRoute: "/mcp",
+  	apiHandler: MyMCP.serve("/mcp"),
+  	defaultHandler: AuthHandler,
+  });
+  ```
+</TypeScriptExample>
+
+## 일관된 대화 상자 보안
+
+MCP 서버 프록시를 제3자 OAuth 공급자에게 전달하기 전에, 당신은 당신의 자신의 동의 대화 상자를 실행해야 합니다. 이것은 공격자가 캐시 된 동의를 악화 할 수있는 "confusion deputy"문제를 방지합니다.
+
+### CSRF 보호
+
+CSRF 보호없이, 공격자는 악성 OAuth 클라이언트를 평가하는 사용자에게 트릭 할 수 있습니다. 안전한 쿠키에 저장된 임의의 토큰을 사용하십시오:
+
+<TypeScriptExample>
+  ```ts
+  //CSRF 토큰 생성
+  function generateCSRFProtection() {
+  	const token = crypto.randomUUID();
+  	const setCookie = `__Host-CSRF_TOKEN=${token}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`;
+  	return { token, setCookie };
+  }
+
+  //CSRF 토큰을 양식 제출
+  function validateCSRFToken(formData: FormData, request: Request) {
+  	const tokenFromForm = formData.get("csrf_token");
+  	const cookieHeader = request.headers.get("Cookie") || "";
+  	const tokenFromCookie = cookieHeader
+  		.split(";")
+  		.find((c) => c.trim().startsWith("__Host-CSRF_TOKEN="))
+  		?.split("=")[1];
+
+  	if (!tokenFromForm || !tokenFromCookie || tokenFromForm !== tokenFromCookie) {
+  		throw new Error("CSRF token mismatch");
+  	}
+
+  	//사용 후 명확한 쿠키 (일회 사용)
+  	return {
+  		clearCookie: `__Host-CSRF_TOKEN=; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=0`,
+  	};
+  }
+  ```
+</TypeScriptExample>
+
+귀하의 동의 양식에 숨겨진 필드로 토큰을 포함:
+
+```html
+<input type="hidden" name="csrf_token" value="${csrfToken}" />
+```
+
+### 공급 능력
+
+사용자 제어 콘텐츠 (클라이언트 이름, 로고, URI)는 악의적인 스크립트를 실행할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  function sanitizeText(text: string): string {
+  	return text
+  		.replace(/&/g, "&amp;")
+  		.replace(/</g, "&lt;")
+  		.replace(/>/g, "&gt;")
+  		.replace(/"/g, "&quot;")
+  		.replace(/'/g, "&#039;");
+  }
+
+  function sanitizeUrl(url: string): string {
+  	if (!url) return "";
+  	try {
+  		const parsed = new URL(url);
+  		//만 허용 http / HTTPS - 자바 스크립트 거부 :, 데이터 :, 파일 :
+  		if (!["http:", "https:"].includes(parsed.protocol)) {
+  			return "";
+  		}
+  		return url;
+  	} catch {
+  		return "";
+  	}
+  }
+
+  //항상 렌더링하기 전에 sanitize
+  const clientName = sanitizeText(client.clientName);
+  const logoUrl = sanitizeText(sanitizeUrl(client.logoUri));
+  ```
+</TypeScriptExample>
+
+### 콘텐츠 보안 정책
+
+CSP 헤더는 위험한 콘텐츠를 차단하는 브라우저를 지시:
+
+<TypeScriptExample>
+  ```ts
+  function buildSecurityHeaders(setCookie: string, nonce?: string): HeadersInit {
+  	const cspDirectives = [
+  		"default-src 'none'",
+  		"script-src 'self'" + (nonce ? ` 'nonce-${nonce}'` : ""),
+  		"style-src 'self' 'unsafe-inline'",
+  		"img-src 'self' https:",
+  		"font-src 'self'",
+  		"form-action 'self'",
+  		"frame-ancestors 'none'", //clickjacking을 방지
+  		"base-uri 'self'",
+  		"connect-src 'self'",
+  	].join("; ");
+
+  	return {
+  		"Content-Security-Policy": cspDirectives,
+  		"X-Frame-Options": "DENY",
+  		"X-Content-Type-Options": "nosniff",
+  		"Content-Type": "text/html; charset=utf-8",
+  		"Set-Cookie": setCookie,
+  	};
+  }
+  ```
+</TypeScriptExample>
+
+## 국가 취급
+
+동의 대화 상자와 OAuth 콜백 사이, 당신은 같은 사용자를 보장해야합니다. 짧은 만료로 KV에 저장된 상태 토큰을 사용하십시오:
+
+<TypeScriptExample>
+  ```ts
+  //upstream 공급자로 리디렉션하기 전에 state 토큰 생성
+  async function createOAuthState(oauthReqInfo: AuthRequest, kv: KVNamespace) {
+  	const stateToken = crypto.randomUUID();
+  	await kv.put(`oauth:state:${stateToken}`, JSON.stringify(oauthReqInfo), {
+  		expirationTtl: 600, //10 분
+  	});
+  	return { stateToken };
+  }
+
+  //Bind state to browser session with a hashed cookie
+  async function bindStateToSession(stateToken: string) {
+  	const encoder = new TextEncoder();
+  	const hashBuffer = await crypto.subtle.digest(
+  		"SHA-256",
+  		encoder.encode(stateToken),
+  	);
+  	const hashHex = Array.from(new Uint8Array(hashBuffer))
+  		.map((b) => b.toString(16).padStart(2, "0"))
+  		.join("");
+
+  	return {
+  		setCookie: `__Host-CONSENTED_STATE=${hashHex}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=600`,
+  	};
+  }
+
+  //callback에서 유효한 국가
+  async function validateOAuthState(request: Request, kv: KVNamespace) {
+  	const url = new URL(request.url);
+  	const stateFromQuery = url.searchParams.get("state");
+
+  	if (!stateFromQuery) {
+  		throw new Error("Missing state parameter");
+  	}
+
+  	//상태 확인은 KV에서
+  	const storedData = await kv.get(`oauth:state:${stateFromQuery}`);
+  	if (!storedData) {
+  		throw new Error("Invalid or expired state");
+  	}
+
+  	//Validate state match 세션 쿠키
+  	//... (hash 비교 논리)
+
+  	await kv.delete(`oauth:state:${stateFromQuery}`);
+  	return JSON.parse(storedData);
+  }
+  ```
+</TypeScriptExample>
+
+## 쿠키 보안
+
+### 왜 사용`__Host-`연락처
+
+더 보기`__Host-`prefix는 subdomain 공격을 방지, 특히 중요`*.workers.dev`도메인:
+
+- 설정해야 함`Secure`플래그 (HTTPS 전용)
+- 한국어`Path=/`
+- 없습니다.`Domain`이름 \*
+
+없음`__Host-`, 공격자 통제`evil.workers.dev`쿠키를 설정할 수 있습니다`mcp-server.workers.dev`사이트 맵
+
+### 다중 OAuth 흐름
+
+여러 OAuth 흐름을 동일한 도메인에서 실행하는 경우, namespace your cookies:
+
+```txt
+__Host-CSRF_TOKEN_GITHUB
+__Host-CSRF_TOKEN_GOOGLE
+__Host-APPROVED_CLIENTS_GITHUB
+__Host-APPROVED_CLIENTS_GOOGLE
+```
+
+## 고객 등록
+
+사용자 당 승인 된 클라이언트 ID의 레지스트리를 유지하여 동의 대화 상자를 반복적으로 표시하십시오.
+
+<TypeScriptExample>
+  ```ts
+  async function addApprovedClient(
+  	request: Request,
+  	clientId: string,
+  	cookieSecret: string,
+  ) {
+  	const existingClients =
+  		(await getApprovedClientsFromCookie(request, cookieSecret)) || [];
+  	const updatedClients = [...new Set([...existingClients, clientId])];
+
+  	const payload = JSON.stringify(updatedClients);
+  	const signature = await signData(payload, cookieSecret); //사이트맵
+  	const cookieValue = `${signature}.${btoa(payload)}`;
+
+  	return `__Host-APPROVED_CLIENTS=${cookieValue}; HttpOnly; Secure; Path=/; SameSite=Lax; Max-Age=2592000`;
+  }
+  ```
+</TypeScriptExample>
+
+쿠키를 읽을 때, 데이터를 신뢰하기 전에 HMAC 서명을 확인합니다. 클라이언트가 승인 된 목록에없는 경우, 동의 대화 상자를 표시합니다.
+
+## 보안 체크리스트
+
+| 제품 정보          | 제품정보              |
+| -------------- | ----------------- |
+| CSRF 토큰        | 위조된 동의 승인 방지      |
+| 공급 능력          | 동의 대화 상자에서 XSS 방지 |
+| CSP 헤더         | 블록 주사된 스크립트       |
+| 국가 바인딩         | 세션 수정 방지          |
+| `__Host-`제품 정보 | subdomain 공격 방지   |
+| HMAC 서명        | 쿠키 무결성 확인         |
+
+## 다음 단계
+
+<LinkCard title="MCP 인증" href="/agents/model-context-protocol/authorization/" description="MCP 서버의 OAuth 및 인증." />
+
+<LinkCard title="원격 MCP 서버 구축" href="/agents/guides/remote-mcp-server/" description="Cloudflare에서 MCP 서버를 배포합니다." />
+
+<LinkCard title="MCP 보안 모범 사례" href="https://modelcontextprotocol.io/specification/draft/basic/security_best_practices" description="공식 MCP 사양 보안 가이드." />

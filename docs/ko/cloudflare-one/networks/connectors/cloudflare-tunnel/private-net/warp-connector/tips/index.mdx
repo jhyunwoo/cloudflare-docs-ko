@@ -1,0 +1,83 @@
+---
+pcx_content_type: reference
+title: 팁과 모범 사례
+sidebar:
+  label: 팁과 모범 사례
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/tips/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/tips/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## VPC 배포
+
+가상 개인 클라우드(VPC)에서 WARP 커넥터를 설정하면 클라우드 서비스 제공업체에서 추가 설정을 구성할 수 있습니다.
+
+### 사이트맵
+
+Google Cloud Project (GCP) 배포를 위해,[IP 운송](https://cloud.google.com/vpc/docs/using-routes#canipforward)WARP 커넥터를 설치 한 VM 인스턴스에.
+
+### 사이트맵
+
+Amazon Web Services(AWS) 배포:
+
+- 이름 \*[source/destination 검사](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-eni.html)WARP 커넥터를 설치 한 EC2 인스턴스에서.
+- 내 계정[subnet 노선 테이블](https://docs.aws.amazon.com/vpc/latest/userguide/subnet-route-tables.html), 당신이 WARP 연결관을 설치한 EC2 인스턴스에 모든 IPv4 트래픽을 경로. 예를 들면:
+
+  | 여행 정보       | 제품정보                    |
+  | ----------- | ----------------------- |
+  | `0.0.0.0/0` | `eni-11223344556677889` |
+
+## Cloudflare 서비스용 소스 IP
+
+Cloudflare 서비스[적재 Balancing](/load-balancing/)WARP 커넥터를 통해 개인 네트워크에 트래픽을 전송, 트래픽은 구성 가능한 IP 범위에서 시작 (기본`100.64.0.0/12`). 당신은 할 수 있습니다[Cloudflare 소스 IP 구성](/cloudflare-one/networks/connectors/cloudflare-wan/configuration/manually/how-to/configure-cloudflare-source-ips/)IP 분쟁 또는 IP 주소 관리 계획과 일치하지 않도록하십시오.
+
+## 사이트맵 cloudflared를 가진 연결관
+
+사이트맵 연결관과[`cloudflared`](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/cloudflared/)같은 Linux 호스트에서 함께 실행할 수 있습니다. 이 구성은 WARP 커넥터를 개인 네트워크의 게이트웨이로 사용할 때 유용합니다.`cloudflared`특정한 신청을 노출하기 위하여 daemon.
+
+디자인에 의하여, WARP 커넥터는 모든 아웃 바운드 트래픽을 캡처하고 Cloudflare의 네트워크를 통해 경로. 이 방지`cloudflared`그 자체를 만들기[자주 묻는 질문](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/#required-for-tunnel-operation)Cloudflare에 연결 timeouts에 실패하는 갱도를 일으키는 원인이 되었습니다.
+
+사용 방법`cloudflared`연결, 사용[분할 터널](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)명시적으로 제외[사이트맵 터널 대상](/cloudflare-one/networks/connectors/cloudflare-tunnel/configure-tunnels/tunnel-with-firewall/)WARP 터널에서. 예를 들어 Split Tunnel을 사용한다면**이름 \***&#xBAA8;드, 다음 호스트 이름을 추가 (또는 해당 IP 범위) 분할 터널 제외 목록에:
+
+- `region1.v2.argotunnel.com`
+- `region2.v2.argotunnel.com`
+- `us-region1.v2.argotunnel.com`(미국 지역 한정)
+- `us-region2.v2.argotunnel.com`(미국 지역 한정)
+- `fed-region1.v2.argotunnel.com`(FedRAMP 높은 전용)
+- `fed-region2.v2.argotunnel.com`(FedRAMP 높은 전용)
+
+:::참조
+Split Tunnels는 하나의 기계에 커넥터를 모두 실행하는 유일한 지원 방법입니다. 커널 네트워킹 스택과의 낮은 수준의 통합으로 WARP 커넥터는 명령에 의해 만들어진 모든 라우팅 구성을 override합니다.`ip route add`·`iptables`.
+:::
+
+## MTU, MSS 및 패킷 파편
+
+신뢰할 수있는 네트워크 성능을 보장하기 위해, 그것은 요구 사항을 이해하는 것이 중요합니다[최대 전송 단위 (MTU)](https://www.cloudflare.com/learning/network-layer/what-is-mtu/)·[최대 세그먼트 크기 (MSS)](https://www.cloudflare.com/learning/network-layer/what-is-mss/)WARP 커넥터를 사용할 때. 잘못된 윤곽은 성과 degradation 또는 소포 손실에 지도할 수 있습니다.
+
+사이트맵 연결관은 각에 여분 우두머리 및 바이트를 추가하는 노선 교통에 캡슐에 넣기를 이용합니다[제품정보](https://www.cloudflare.com/learning/network-layer/what-is-a-packet/). 이것은 원격 WARP 클라이언트에 당신의 개인적인 네트워크 (WARP 연결관을 통해)에서 교통을 위해 특히 중요합니다. 이 교통 흐름은 두 번 캡슐화됩니다 :
+
+1. Linux 호스트에 WARP 커넥터에 의해.
+2. Cloudflare에 대하여
+
+이 최종 캡슐화는 오버 헤드를 추가합니다. 개인 네트워크에 장치가 이미 최대 크기 (1,460 바이트 이상) 근처에있는 패킷을 보내면이 최종 캡슐화는 1,500 바이트보다 더 큰 패킷을 만들 것입니다.
+
+일반적으로 사용되는 TCP 트래픽 및 현대 애플리케이션에 대한 문제가 발생하지 않습니다.[경로 MTU Discovery (PMTUD)](https://www.cloudflare.com/learning/network-layer/what-is-mtu/). 큰 패킷을 보낼 때`do not fragment`(DF) 조금 세트, WARP 연결관의 리눅스 주인은 ICMP를 정확하게 보낼 것입니다`Fragmentation Needed`소스 장치에 다시 메시지. 소스 디바이스는 작은 패킷을 보낼 수 있습니다.
+
+그러나, 이것은 레거시 응용 프로그램에 대한 문제가 발생할 수 있습니다 ( 일부 비디오 스트리밍 또는 모니터링 도구와 같은) 수행 할 수 없습니다[경로 MTU Discovery (PMTUD)](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/path-mtu-discovery/). 대신 큰 패킷 (예를 들어, 1,280 바이트 이상)을 보내`do not fragment`(DF) 조금 unset (`DF=0`).
+
+이 상황에서 WARP 커넥터 호스트는이 큰 패킷을받습니다 (예 : 1,460 바이트), 그 후 패킷을 파고[터널 MTU](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/#virtual-interface). 이러한 파편은 Cloudflare 데이터 센터에서 원래 1,460 바이트 패킷으로 다시 재구성됩니다.
+Cloudflare는 이 1,460 바이트 패킷을 캡슐화하여 WARP 클라이언트에게 보내드리며 1,500 바이트 이상 누워 떨어질 수 있습니다. Cloudflare는 현재 이러한 파편 처리 캡슐화 된 패킷을 파편하지 않습니다.
+
+### Recommend
+
+모든 트래픽 유형에 대한 신뢰할 수있는 연결성을 보장하기 위해 특히 레거시 UDP 응용 프로그램은 소스 장치에서 MTU를 구성하는 가장 효과적인 솔루션입니다 (서버, 카메라, 또는 개인 네트워크의 다른 장치와 같은) 1,280 바이트.
+
+이것은 본래 소포가 작거나 떨어뜨리지 않고 캡슐화되고 배달될 정도로 작습니다.
+
+TCP 전용 애플리케이션의 경우, 대체적으로 적용할 수 있습니다.[MSS 클램핑](https://www.cloudflare.com/learning/network-layer/what-is-mss/)라우터에 (중급 네트워크 장치). 1,240 바이트 (1,280 바이트 MTU - 20 바이트 IP 헤더 - 20 바이트 TCP 헤더)의 값은 WARP 커넥터의 정렬을 권장합니다.[터널 MTU](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/warp-architecture/#virtual-interface).

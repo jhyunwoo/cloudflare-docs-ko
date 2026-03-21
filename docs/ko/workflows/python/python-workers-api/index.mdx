@@ -1,0 +1,193 @@
+---
+title: Python Workers API
+pcx_content_type: concept
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workflows/python/python-workers-api/'
+translation_source_md: 'https://developers.cloudflare.com/workflows/python/python-workers-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+이 가이드는 Python Workflows SDK를 포함하고 PythonXQ를 사용하여 워크플로우를 만드는 방법을 설명합니다.
+
+## 작업 흐름Entrypoint
+
+더 보기`WorkflowEntrypoint`Python 워크플로우의 주요 항목점입니다. 그것은 확장`WorkflowEntrypoint`클래스 및 구현`run`방법.
+
+```python
+from workers import WorkflowEntrypoint
+
+class MyWorkflow(WorkflowEntrypoint):
+    async def run(self, event, step):
+        #여기에
+```
+
+## 작업 흐름
+
+{/* prettier-ignore */}
+
+- <code>step.do(name=None, \*, concurrent=False, config=None)</code>— 작업 흐름에서 단계 정의할 수 있는 꾸러미.
+
+  - `name`— 단계에 대한 옵션 이름. omitted 경우에, 함수 이름 (`func.__name__`)는 사용됩니다.
+  - `concurrent`— 이 단계에 대한 의존성 여부를 나타내는 옵션 부울.
+  - `config`— 옵션[`WorkflowStepConfig`](/workflows/build/workers-api/#workflowstepconfig)설정하기[단계 특정 retry 행동](/workflows/build/sleeping-and-retrying/). 이것은 Python 사전으로 전달되고 그 후에 번역된 유형으로`WorkflowStepConfig`객체.
+
+  모든 매개 변수 제외`name`키워드 전용입니다.
+
+Dependencies는 매개변수 이름에 의해 implicitly 해결됩니다. 단계 함수 매개변수 이름은 이전에 선언된 단계 함수를 일치하면, 그 결과는 단계로 주사됩니다.
+
+정의할 경우`ctx`매개 변수, 단계 컨텍스트는 그 인수로 주사된다.
+
+:::참조
+
+이전 호환성 동작은 명시된 의존성 목록을 지원합니다.`depends=[...]`. 새로운 워크플로를 위해, 매개변수 이름에 의하여 implicit 의존성 해결책을 선호하십시오.
+
+:::
+
+```python
+from workers import WorkflowEntrypoint
+
+class MyWorkflow(WorkflowEntrypoint):
+    async def run(self, event, step):
+        @step.do()
+        async def my_first_step():
+            #몇 가지 일
+            return "Hello World!"
+
+        await my_first_step()
+```
+
+꾸러미가 단계에 전화를하지 않는다는 것을주의하십시오, 그것은 단지 단계를 invoke에 사용될 수 있는 호출을 반환합니다. 단계가 실행되도록 호출 할 수 있습니다.
+
+단계에서 국가를 반환하면 반환 값이 serializable임을 확인해야합니다. 단계가 FFI 레이어를 통해 실행되기 때문에, 반환 값은 통해 번역된 유형을 얻습니다[사이트맵](https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.to_js)더 알아보기[Pyodide 문서](https://pyodide.org/en/stable/usage/type-conversions.html#type-translations-pyproxy-to-js)더 많은 정보를 위한 유형 변환에 대하여.
+
+{/* prettier-ignore */}
+
+- <code>step.sleep(이름, 기간)</code>
+  - `name`— 단계의 이름.
+  - `duration`- 한 초 또는 한 초에서 수면까지 지속 시간`WorkflowDuration`호환 문자열.
+
+```python
+async def run(self, event, step):
+    await step.sleep("my-sleep-step", "10 seconds")
+```
+
+{/* prettier-ignore */}
+
+- <code>step.sleep until(이름, 타임스탬프)</code>
+  - `name`— 단계의 이름.
+  - `timestamp`- 한국어`datetime.datetime`유닉스 epoch에서 객체 또는 초는 워크플로 인스턴스를 할 수 있습니다.
+
+```python
+import datetime
+
+async def run(self, event, step):
+    await step.sleep_until("my-sleep-step", datetime.datetime.now() + datetime.timedelta(seconds=10))
+```
+
+{/* prettier-ignore */}
+
+- <code>step.wait for event(이름, event type, timeout="24 시간")</code>
+  - `name`— 단계의 이름.
+  - `event_type`— 이벤트의 유형이 기다립니다.
+  - `timeout`— 타임아웃`wait_for_event`전화. 기본 타임아웃은 24시간입니다.
+
+```python
+async def run(self, event, step):
+    await step.wait_for_event("my-wait-for-event-step", "my-event-type")
+```
+
+### `event`이름 \*
+
+더 보기`event`매개변수는 다른 메타데이터와 함께 작업 흐름 인스턴스에 전달된 페이로드를 포함하는 사전입니다.
+
+- <code>제품 설명</code>- 작업 흐름 인스턴스로 전달된 페이로드.
+- <code>타임 스탬프</code>- 작업 흐름이 트리거 된 타임스탬프.
+- <code>인스턴스Id</code>- 현재 작업 흐름 인스턴스의 ID.
+- <code>작업 이름</code>- 작업 흐름의 이름.
+
+## 오류 처리
+
+Workflows semantics는 사용자가 최고 수준에 던지는 예외를 붙잡을 수 있습니다.
+
+Catching 특정 예외`except`블록은 작동하지 않을 수 있습니다. 일부 Python 오류는 RPC 레이어를 통과하면 동일한 유형의 오류로 재 격리되지 않습니다.
+
+:::참조
+
+일부 내장 Python 오류 (예 :`ValueError`, `TypeError`) 제대로 작동한다. 사용자 정의 예외, 뿐만 아니라 다른 내장 Python 오류가 발생하지 않아야`Exception`수업.
+
+:::
+
+```python
+async def run(self, event, step):
+    async def try_step(fn):
+        try:
+            return await fn()
+        except Exception as e:
+            print(f"Successfully caught {type(e).__name__}: {e}")
+
+    @step.do("my_failing")
+    async def my_failing():
+        print("Executing my_failing")
+        raise TypeError("Intentional error in my_failing")
+
+    await try_step(my_failing)
+```
+
+### 비밀번호
+
+Python Workflows SDK는 제공합니다`NonRetryableError`단계가 회복되지 않도록 신호에 사용될 수있는 클래스.
+
+```python
+from workers.workflows import NonRetryableError
+
+raise NonRetryableError(message)
+```
+
+## 작업 흐름 인스턴스 구성
+
+특정 재량 정책에 대한 단계를 묶을 수 있습니다.`WorkflowStepConfig`객체에`config`매개 변수`step.do`장식자.
+Python Workflows로, 당신은 당신의 그것을 확인해야 합니다`dict`이름 \*[`WorkflowStepConfig`](/workflows/build/workers-api/#workflowstepconfig)유형.
+
+```python
+from workers import WorkflowEntrypoint
+
+class DemoWorkflowClass(WorkflowEntrypoint):
+    async def run(self, event, step):
+        @step.do('step-name', config={"retries": {"limit": 1, "delay": "10 seconds"}})
+        async def first_step():
+            #몇 가지 일
+            pass
+```
+
+### 액세스 단계 컨텍스트 (Access step context)`ctx`)
+
+```python
+from workers import WorkflowEntrypoint
+
+class CtxWorkflow(WorkflowEntrypoint):
+    async def run(self, event, step):
+        @step.do()
+        async def read_context(ctx):
+            return ctx["attempt"]
+
+        return await read_context()
+```
+
+### 바인딩을 통해 인스턴스 만들기
+
+주의사항`env`JavaScript 객체는 Python 스크립트에 노출되어 있습니다.[RSS 피드](https://pyodide.org/en/stable/usage/api/python-api/ffi.html#pyodide.ffi.JsProxy). 당신은 JavaScript 노동자에 당신 같이 바인딩에 접근할 수 있습니다. 더 알아보기[Workflow 바인딩 문서](/workflows/build/workers-api/#workflow)이용 가능한 방법에 대해 자세히 알아볼 수 있습니다.
+
+이전 바인딩을 고려하자`MY_WORKFLOW`. 새 인스턴스를 만드는 방법은 다음과 같습니다.
+
+```python
+from workers import Response, WorkerEntrypoint
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        instance = await self.env.MY_WORKFLOW.create()
+        return Response.json({"status": "success"})
+```

@@ -1,0 +1,90 @@
+---
+pcx_content_type: how-to
+title: 회사 소개
+tags:
+  - Bindings
+sidebar:
+  order: 5
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/bindings/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Aside } from "@astrojs/starlight/components";
+
+플랫폼에 대한 QXWorkersXQXQXQXQXQ를 통해 사용자 WorkersXQ를 배포할 때 첨부할 수 있습니다.[관련 제품](/workers/runtime-apis/bindings/)관련 기사[KV 네임스페이스](/kv/), [D1 데이터베이스](/d1/), [R2 물통](/r2/), 더 많은 것. 귀사의 최종 고객이 인프라 구성 요소를 직접 구축하지 않고 더 강력한 애플리케이션을 구축할 수 있습니다.
+
+바인딩으로, 사용자의 각각은 그들의 소유를 가질 수 있습니다:
+
+- [KV 네임스페이스](/kv/)그들은 저장하고 데이터를 검색 할 수 있습니다
+- [R2 물통](/r2/)그들은 파일과 자산을 저장할 수 있습니다
+- [Analytics 엔진](/analytics/analytics-engine/)관찰 가능한 데이터를 수집할 수 있는 dataset
+- [Durable Objects](/durable-objects/)그들은 국가 조정에 사용할 수있는 클래스
+
+#### 자원 고립
+
+각 사용자 작업자는 명시적으로 그것에 붙어있는 바인딩에만 접근 할 수 있습니다. 완전한 고립을 위해, 당신은 각 사용자 노동자에 D1 데이타베이스 또는 KVXQ 네임스페이스와 같은 유일한 자원 (를) 창조하고 붙일 수 있습니다.
+
+![Resource 고립 모형](~/assets/images/reference-architecture/programmable-platforms/programmable-platforms-5.svg "Resource Isolation Model")
+
+## KV 추가 Namespace로 User Worker
+
+이 예제는 방법을 통해 걸어[KV 네임스페이스](/kv/)사용자 작업자에게 첨부합니다. 동일한 과정은 다른 것에 붙일 수 있습니다[관련 제품](/workers/runtime-apis/bindings/).
+
+### 1. KV 네임스페이스 만들기
+
+KV 네임스페이스 만들기[모델 번호: Cloudflare](/api/resources/kv/subresources/namespaces/methods/bulk_update/).
+
+### 2. KV 네임스페이스를 사용자 작업자에게 첨부
+
+사용 방법[사용자 작업자 API 업로드](/api/resources/workers_for_platforms/subresources/dispatch/subresources/namespaces/subresources/scripts/methods/update/)노동자에게 KV 네임스페이스 바인딩을 붙이기 위하여. Worker 스크립트를 처음 업로드하거나 기존 Worker를 업데이트하면 됩니다.
+
+:::참조
+스크립트를 업로드하려면 API를 사용하면 바인딩이 지정되어야 합니다.`metadata`multipart 업로드 요청의 객체. 바인딩을 구성하기 위해 모듈로 Wrangler 구성 파일을 업로드 할 수 없습니다. multipart uploads에 대한 자세한 내용은 참조[Multipart 업로드 메타데이터](/workers/configuration/multipart-upload-metadata/).
+:::
+
+##### API 요청
+
+```bash
+curl -X PUT \
+  "https://api.cloudflare.com/client/v4/accounts/<account-id>/workers/dispatch/namespaces/<your-namespace>/scripts/<script-name>" \
+  -H "Content-Type: multipart/form-data" \
+  -H "Authorization: Bearer <api-token>" \
+  -F 'metadata={
+    "main_module": "worker.js",
+    "bindings": [
+      {
+        "type": "kv_namespace",
+        "name": "USER_KV",
+        "namespace_id": "<your-namespace-id>"
+      }
+    ]
+  }' \
+  -F 'worker.js=@/path/to/worker.js'
+```
+
+이제 User Worker는 액세스 할 수 있습니다.`USER_KV`연결하기`env`인수 사용`env.USER_DATA.get()`, `env.USER_DATA.put()`, 다른 KV 방법.
+
+참고 : 노동자에게 새로운 바인딩을 추가 할 계획이라면, 사용`keep_bindings`기존의 바인딩을 보장하는 매개 변수는 새로운 것을 추가하면서 보존됩니다.
+
+```bash
+curl -X PUT \
+  "https://api.cloudflare.com/client/v4/accounts/<account-id>/workers/dispatch/namespaces/<your-namespace>/scripts/<script-name>" \
+  -H "Content-Type: multipart/form-data" \
+  -H "Authorization: Bearer <api-token>" \
+  -F 'metadata={
+    "bindings": [
+      {
+        "type": "r2_bucket",
+        "name": "STORAGE",
+        "bucket_name": "<your-bucket-name>"
+      }
+    ],
+    "keep_bindings": ["kv_namespace"]
+  }'
+```

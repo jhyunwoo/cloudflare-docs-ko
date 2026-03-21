@@ -1,0 +1,21 @@
+---
+title: 보존 기간과 신선도(TTL)
+pcx_content_type: concept
+
+---
+
+Cloudflare CDN(Content Delivery Network) 맥락에서 보존 기간(retention)과 신선도(freshness)는 서로 관련되어 있지만 별개의 개념입니다. 캐시에 있는 객체에서 신선도는 원본을 다시 확인하지 않고도 유효하다고 간주할 수 있는 기간을 의미하고, 보존 기간은 객체가 제거되기 전까지 캐시에 머무는 기간을 의미합니다.
+
+## 보존 기간
+
+웹사이트에서 파일이나 리소스를 요청하면 Cloudflare는 다음 번 동일한 요청 시 오리진 서버에 다시 요청하지 않도록 이를 캐시해 지연 시간을 줄이고 전달 속도를 향상합니다. 하지만 캐시에 있는 객체가 다시 요청되지 않으면 결국 더 새롭고 더 인기 있는 객체를 위한 공간을 만들기 위해 제거됩니다. 이 과정을 축출(eviction)이라고 하며, 캐시 관리의 표준적인 일부입니다. 캐시가 새 객체를 저장하려고 하는데 공간이 부족하면 LRU(Least Recently Used)라는 알고리즘을 사용해 어떤 객체를 축출하고 새 객체로 교체할지 결정합니다. 객체의 캐시 보존 기간은 해당 객체가 Cloudflare 캐시에 저장되어 있다가 축출되기 전까지의 기간을 말합니다. 객체의 보존 기간은 상대적인 인기와 Cloudflare 캐시 크기에 따라 결정되므로 설정할 수 없다는 점에 유의하세요.
+
+## 신선도(TTL)
+
+객체가 캐시에 의해 안전하게 사용될 수 있는 시간 창은 신선도, 즉 TTL(Time to Live)에 의해 결정됩니다. 어떤 객체의 TTL이 5분이라면 캐시가 해당 객체를 처음 받은 시점부터 이후 5분 동안은 오리진을 다시 확인하지 않고도 그 객체를 사용할 수 있다는 뜻입니다. 5분이 지난 후 Cloudflare가 같은 객체에 대한 또 다른 요청을 받으면, 먼저 오리진에 객체가 여전히 유효한지 확인하지 않고는 캐시에 저장된 내용을 사용할 수 없습니다. 이 객체의 경우 처음 5분이 바로 신선도 기간입니다. Cloudflare CDN을 통해 제공되는 리소스의 TTL을 구성하는 방법은 몇 가지가 있습니다.
+
+* 오리진의 cache-control 응답 헤더에 `max-age` 또는 `s-maxage` 같은 [Origin Cache Control](/cache/concepts/cache-control/) 또는 [CDN Cache Control](/cache/concepts/cache-control/) 지시어를 포함합니다.
+
+* [Cache Rules](/cache/how-to/cache-rules/) 또는 [Workers](/cache/interaction-cloudflare-products/workers/)를 사용합니다.
+
+캐시에 있는 객체가 더 이상 신선하지 않으면 Cloudflare는 오리진에 재검증을 수행합니다. [`stale-while-revalidate`](/cache/concepts/cache-control/#revalidation)가 설정되어 있으면, 만료 시 재검증은 비동기로 일어나며 Cloudflare가 백그라운드에서 새 사본을 가져오는 동안 방문자는 계속 캐시에서 응답을 받습니다. 이 지시어가 없으면 들어오는 요청은 오리진 응답을 기다린 뒤 콘텐츠를 받습니다. 오리진은 캐시된 객체가 여전히 유효함을 확인해 TTL을 갱신하거나, 이전 버전을 대체할 새 버전을 반환할 수 있습니다. 자세한 내용은 [Revalidation](/cache/concepts/revalidation/)을 참고하세요.

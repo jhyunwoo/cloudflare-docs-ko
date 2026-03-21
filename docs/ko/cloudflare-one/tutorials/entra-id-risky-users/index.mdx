@@ -1,0 +1,179 @@
+---
+reviewed: 2023-01-06T00:00:00.000Z
+category: Zero Trust
+difficulty: Advanced
+pcx_content_type: tutorial
+title: 고립된 위험 Entra ID 사용자
+description: >-
+  Microsoft Entra ID (이전 Azure Active Directory)는 계정이 손상된 확률에 따라 사용자의 위험 수준을
+  계산합니다. Cloudflare Zero Trust를 사용하면 Cloudflare 액세스로 Entra ID 위험 사용자 목록을 동기화하고 더
+  엄격한 Zero Trust 정책을 더 높은 위험으로 적용합니다.
+tags:
+  - Microsoft Entra ID
+  - SCIM
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/entra-id-risky-users/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/entra-id-risky-users/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Microsoft Entra ID (이전 Azure Active Directory)는 사용자의 계산[위험 수준](https://learn.microsoft.com/entra/id-protection/howto-identity-protection-investigate-risk)계정이 손상된 확률을 기반으로 합니다. Cloudflare Zero Trust를 사용하면 Cloudflare 액세스로 Entra ID 위험 사용자 목록을 동기화하고 더 엄격한 Zero Trust 정책을 더 높은 위험으로 적용합니다.
+
+이 튜토리얼은 Entra ID에 의해 위험하지 않은 경우 원격 브라우저에 사용자를 자동으로 리디렉션하는 방법을 보여줍니다.
+
+**완료 시간:**
+
+1시간
+
+## 자주 묻는 질문
+
+- Microsoft Entra ID 프리미엄 P2 라이센스
+- [Cloudflare 브라우저 고립](/cloudflare-one/remote-browser-isolation/)추가하기
+- [Gateway HTTP 필터링](/cloudflare-one/traffic-policies/get-started/http/)당신의 장치에 활성화
+- [₢ 킹](https://docs.npmjs.com/getting-started)설치하기
+- [사이트맵](https://nodejs.org/en/)설치하기
+
+## 1. Entra ID를 정체 공급자로 설정
+
+더 알아보기[IdP 설정 지침](/cloudflare-one/integrations/identity-providers/entra-id/#set-up-entra-id-as-an-identity-provider)엔트라 ID
+
+:::참조
+
+- Cloudflare에서 IdP를 구성할 때 하나, 선택해야**Enable 그룹 멤버십 변경 reauthentication**.
+- 구매하기**신청 (클라이언트) ID**, **디렉토리 ID**·**고객 비밀**나중에 단계에 다시해야합니다.
+  주요 특징
+
+## 2. Entra ID API 권한 추가
+
+기본 IdP 통합이 테스트되고 작동되면 Entra ID의 위험 사용자 그룹을 생성하고 업데이트 할 수있는 추가 권한을 활성화하십시오.
+
+1. Microsoft Entra ID에서 이동**앱 등록**.
+
+2. IdP 통합을 위해 만든 응용 프로그램을 선택합니다.
+
+3. 오시는 길**API 권한**선택하기**권한 추가**.
+
+4. 제품정보**Microsoft 그래픽**.
+
+5. 제품정보**신청 허가**다음을 추가하십시오.[이름 \*](https://learn.microsoft.com/en-us/graph/permissions-reference):
+   - `IdentityRiskyUser.ReadAll`
+   - `Directory.ReadWriteAll`
+   - `Group.Create`
+   - `Group.ReadAll`
+   - `GroupMember.ReadAll`
+   - `GroupMember.ReadWriteAll`
+
+6. 제품정보**Grant 관리자 동의**.
+
+사용 허가 목록을 볼 수 있습니다.
+
+![Entra ID의 API 권한](~/assets/images/cloudflare-one/identity/azure/risky-users-permissions.png)
+
+## 3. Entra ID 그룹에 위험 사용자 추가
+
+다음, 위험 사용자와 Entra ID 보안 그룹을 팝업하는 자동화된 스크립트를 구성합니다.
+
+시작하기에 빠르게, 아래 단계별 지침을 따르는 단계별 지침에 따라 Cloudflare Workers 스크립트를 배포합니다. 또는 스크립트를 사용하여 구현할 수 있습니다.[Azure 기능](https://learn.microsoft.com/azure/azure-functions/functions-overview)또는 다른 도구.
+
+1. 터미널을 열고 예제 프로젝트를 클론합니다.
+
+   ```sh
+   npm create cloudflare@latest risky-users -- --template https://github.com/cloudflare/msft-risky-user-ad-sync
+   ```
+
+2. 프로젝트 디렉토리로 이동합니다.
+
+   ```sh
+   cd risky-users
+   ```
+
+3. 수정하기[Wrangler 구성 파일](/workers/wrangler/configuration/)다음과 같은 값을 포함합니다:
+
+   - `<ACCOUNT_ID>`: Cloudflare[계정 ID](/fundamentals/account/find-account-and-zone-ids/).
+   - `<TENANT_ID>`: 당신의 엔트라 ID**디렉토리 ID**, 때 얻을[Entra ID를 정체 공급자로 설정](#1-set-up-entra-id-as-an-identity-provider).
+   - `<CLIENT_ID>`: 당신의 엔트라 ID**신청 (클라이언트) ID**, 때 얻을[Entra ID를 정체 공급자로 설정](#1-set-up-entra-id-as-an-identity-provider).
+
+   <WranglerConfig>
+     ```jsonc
+     {
+     	"$schema": "./node_modules/wrangler/config-schema.json",
+     	"name": "risky-users",
+     	"compatibility_date": "$today",
+     	"main": "src/index.js",
+     	"workers_dev": false,
+     	"account_id": "<ACCOUNT-ID>",
+     	"vars": {
+     		"AZURE_AD_TENANT_ID": "<TENANT-ID>",
+     		"AZURE_AD_CLIENT_ID": "<CLIENT-ID>",
+     	},
+     	"triggers": {
+     		"crons": ["* * * * *"],
+     	},
+     }
+     ```
+   </WranglerConfig>
+
+:::참조
+
+더 보기[Cron 방아쇠](/workers/configuration/cron-triggers/)이 예제에서는 각 분마다 스크립트를 실행합니다. 더 알아보기[지원 cron 표현](/workers/configuration/cron-triggers/#supported-cron-expressions).
+:::
+
+4. Cloudflare의 글로벌 네트워크를 배포합니다.
+
+   ```sh
+   npx wrangler deploy
+   ```
+
+5. 비밀번호 찾기`AZURE_AD_CLIENT_SECRET`.
+
+   ```sh
+   wrangler secret put AZURE_AD_CLIENT_SECRET
+   ```
+
+   비밀의 값을 입력하기 위해 프롬프트됩니다. 이름 \***고객 비밀**현재 위치[Microsoft Entra ID를 정체 공급자로 설정](#1-set-up-azure-ad-as-an-identity-provider).
+
+Worker 스크립트는 분당 한 번 실행을 시작합니다. 실시간 로그를 보시려면 다음 명령을 실행하고 스크립트를 기다립니다.
+
+```sh
+wrangler tail --format pretty
+```
+
+초기 실행 후, 자동 생성 된 그룹은 Entra ID 대시보드에 나타납니다.
+
+![Entra ID 대시보드의 위험 사용자 그룹](~/assets/images/cloudflare-one/identity/azure/risky-users-groups.png)
+
+## 4. 위험 사용자 그룹 동기화
+
+다음, Cloudflare 액세스와 Entra ID 위험 사용자 그룹 동기화 :
+
+1. [SCIM 동기화 가능](/cloudflare-one/integrations/identity-providers/entra-id/#synchronize-users-and-groups).
+
+2. Entra ID에서 SCIM 기업 응용 프로그램에 다음 그룹을 할당합니다.
+   - `IdentityProtection-RiskyUser-RiskLevel-high`
+   - `IdentityProtection-RiskyUser-RiskLevel-medium`
+   - `IdentityProtection-RiskyUser-RiskLevel-low`
+
+사이트맵 Access는 이제 Entra ID로 그룹 멤버쉽의 변경을 동기화합니다. SCIM 애플리케이션의 동기화 상태를 확인할 수 있습니다.**회사연혁**사이트 맵
+
+## 5. 브라우저 고립 정책 만들기
+
+마지막으로, 생성[Gateway HTTP 정책](/cloudflare-one/traffic-policies/http-policies/)위험 사용자 그룹에 대한 트래픽을 격리합니다.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**교통 정책** > **방화벽 정책** > **HTTP: HTTP**.
+
+2. 제품정보**정책 추가**.
+
+3. 회사연혁[Isolate 정책](/cloudflare-one/remote-browser-isolation/isolation-policies/)그것은 포함*사용자 그룹 이름*이름 \* 예를 들어, 다음 정책은`app1.example.com`·`app2.example.com`모든 회원을위한 원격 브라우저에서 높은 위험으로 끌어 :
+
+   | 옵션 정보     | 회사연혁 | 제품정보                                          | 로그인   | - 연혁 |
+   | --------- | ---- | --------------------------------------------- | ----- | ---- |
+   | 이름 \*     | 내 계정 | `app1.example.com`, `app2.example.com`        | 이름 \* | 사이트맵 |
+   | 사용자 그룹 이름 | 내 계정 | `IdentityProtection-RiskyUser-RiskLevel-high` |       |      |
+
+정책을 테스트하려면 Microsoft 문서를 참조하십시오.[위험 감지](https://learn.microsoft.com/entra/id-protection/howto-identity-protection-simulate-risk).

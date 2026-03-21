@@ -1,0 +1,105 @@
+---
+pcx_content_type: reference
+title: JSON 사용하기
+slug: 1.1.1.1/encryption/dns-over-https/make-api-requests/dns-json
+---
+
+:::caution
+DNS over HTTPS JSON 형식은 공식 RFC가 없어 제공자마다 동작이 다를 수 있으며, 향후 소폭 변경될 여지도 있습니다.
+
+중요한 용도에는 [DNS over HTTPS wireformat](/1.1.1.1/encryption/dns-over-https/make-api-requests/dns-wireformat/)을 사용하는 것이 좋으며, 이 형식은 [RFC 1035](https://www.rfc-editor.org/rfc/rfc1035.html)에 정의되어 있습니다.
+:::
+
+Cloudflare DNS over HTTPS 엔드포인트는 DNS 데이터를 JSON 형식으로 질의할 수도 있습니다. IETF 차원의 표준 JSON 스키마가 정해져 있지 않기 때문에 Cloudflare는 Google DNS over HTTPS 리졸버와 동일한 스키마를 채택했습니다.
+
+JSON 형식 질의는 `GET` 요청으로 전송하며, DNS 질의를 URL에 인코딩해야 합니다. 또한 클라이언트가 JSON 응답을 원한다는 사실을 알리기 위해 `Accept` 요청 헤더에 MIME 타입 `application/dns-json`을 지정해야 합니다.
+
+## 지원 파라미터
+
+| Field  | Required? | Description                                                                                                                           | Default |
+| ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| `name` | Yes       | 질의할 이름.                                                                                                                          | -       |
+| `type` | No        | 질의 타입([숫자 또는 텍스트](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4)).                  | `A`     |
+| `do`   | No        | `DO` 비트 – DNSSEC 데이터를 요청할지 여부(`0`, `false`, `1`, `true` 중 하나 또는 비워 두기).                                            | `false` |
+| `cd`   | No        | `CD` 비트 – 검증 비활성화 여부(`0`, `false`, `1`, `true` 중 하나 또는 비워 두기).                                                       | `false` |
+
+## 예시
+
+다음은 요청과 응답 예시입니다.
+
+```sh
+curl --header "accept: application/dns-json" "https://cloudflare-dns.com/dns-query?name=example.com&type=AAAA"
+```
+
+```json output
+{
+	"Status": 0,
+	"TC": false,
+	"RD": true,
+	"RA": true,
+	"AD": true,
+	"CD": false,
+	"Question": [
+		{
+			"name": "example.com.",
+			"type": 28
+		}
+	],
+	"Answer": [
+		{
+			"name": "example.com.",
+			"type": 28,
+			"TTL": 1726,
+			"data": "2606:2800:220:1:248:1893:25c8:1946"
+		}
+	]
+}
+```
+
+요청 형식이 잘못되면 `400 Bad Request` 오류가 반환됩니다.
+
+```sh
+curl --header "accept: application/dns-json" "https://cloudflare-dns.com/dns-query?name=example.com&cd=2"
+```
+
+```json output
+{
+	"error": "Invalid CD flag `2`. Expected to be empty or one of `0`, `false`, `1`, or `true`."
+}
+```
+
+## 응답 필드
+
+응답에 포함될 수 있는 필드와 의미는 아래 표를 참고하세요.
+
+### 성공 응답
+
+| Field              | Description                                                                                                                                                                                                                                   |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Status`           | DNS 질의 응답 코드. 코드 목록은 [IANA DNS Parameters](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-6)에서 확인할 수 있습니다.                                                                          |
+| `TC`               | `true`이면 트렁케이션 비트가 설정된 것으로, DNS 응답이 단일 UDP 또는 TCP 패킷 크기를 초과했음을 의미합니다. Cloudflare DoH는 최대 응답 크기를 지원하므로 대부분 `false`입니다.                                                               |
+| `RD`               | 재귀 요청 비트가 설정되었는지 여부입니다. Cloudflare DoH에서는 항상 `true`입니다.                                                                                                                                                              |
+| `RA`               | 재귀 가능 비트가 설정되었는지 여부입니다. Cloudflare DoH에서는 항상 `true`입니다.                                                                                                                                                              |
+| `AD`               | 응답에 포함된 모든 레코드가 DNSSEC으로 검증되었는지 여부입니다.                                                                                                                                                                               |
+| `CD`               | 클라이언트가 DNSSEC 검증 비활성화를 요청했는지 여부입니다. `true`이면 Cloudflare는 DNSSEC 관련 레코드를 가져오지만 검증하지 않습니다.                                                                                                          |
+| `Question: name`   | 요청한 레코드 이름입니다.                                                                                                                                                                                                                     |
+| `Question: type`   | 요청한 DNS 레코드 타입입니다. [IANA DNS Parameters](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4)에서 정의되어 있습니다.                                                                             |
+| `Answer: name`     | 레코드 소유자 이름입니다.                                                                                                                                                                                                                     |
+| `Answer: type`     | 레코드 타입입니다. [IANA DNS Parameters](https://www.iana.org/assignments/dns-parameters/dns-parameters.xhtml#dns-parameters-4) 참조.                                                                                                         |
+| `Answer: TTL`      | 응답을 캐시에 저장할 수 있는 시간(초)입니다.                                                                                                                                                                                                  |
+| `Answer: data`     | 해당 이름과 타입에 대한 DNS 레코드 값입니다. 표준화된 타입은 텍스트, 알 수 없는 타입은 16진수로 표시됩니다.                                                                                                                                    |
+| `Authority: name`  | 권한 레코드의 소유자 이름입니다.                                                                                                                                                                                                              |
+| `Authority: type`  | 권한 레코드 타입입니다.                                                                                                                                                                                                                       |
+| `Authority: TTL`   | 권한 레코드를 캐시에 유지할 수 있는 시간(초)입니다.                                                                                                                                                                                           |
+| `Authority: data`  | 권한 레코드 값입니다.                                                                                                                                                                                                                         |
+| `Additional: name` | 추가 레코드의 소유자 이름입니다.                                                                                                                                                                                                              |
+| `Additional: type` | 추가 레코드 타입입니다.                                                                                                                                                                                                                       |
+| `Additional: TTL`  | 추가 레코드를 캐시에 유지할 수 있는 시간(초)입니다.                                                                                                                                                                                           |
+| `Additional: data` | 추가 레코드 값입니다.                                                                                                                                                                                                                         |
+| `Comment`          | EDE(Extended DNS Error) 메시지 목록입니다. 자세한 내용은 [확장 DNS 오류 코드](/1.1.1.1/infrastructure/extended-dns-error-codes/)를 참고하세요.                                                                                               |
+
+### 오류 응답
+
+| Field   | Description             |
+| ------- | ----------------------- |
+| `error` | 발생한 오류에 대한 설명 |

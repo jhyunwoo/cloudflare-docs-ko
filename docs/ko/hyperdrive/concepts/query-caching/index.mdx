@@ -1,0 +1,197 @@
+---
+pcx_content_type: concept
+title: Query 캐싱
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/hyperdrive/concepts/query-caching/'
+translation_source_md: 'https://developers.cloudflare.com/hyperdrive/concepts/query-caching/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, WranglerConfig } from "~/components";
+
+Hyperdrive는 쿼리 캐싱이 켜질 때 데이터베이스에 대해 모든 캐시 할 수있는 쿼리에 대해 자동으로 캐시 할 수 있습니다. 데이터베이스에 다시 이동해야합니다 (잠금 대기 시간 및 데이터베이스로드) 인기있는 쿼리에 특히 유용합니다. Query 캐싱은 기본적으로 활성화됩니다.
+
+## Hyperdrive 캐시는 무엇입니까?
+
+Hyperdrive는 데이타베이스 프로토콜을 사용하고 있기 때문에 mutating 쿼리 (데이터베이스에 작성하는 쿼리)와 non-mutating 쿼리 (읽기 전용 쿼리) 사이에 차별화 할 수 있으며 Hyperdrive를 안전하게 읽을 수 있습니다.
+
+그 차이를 결정하는 것 외에도`SELECT`한국어`INSERT`, Hyperdrive는 또한 데이타베이스 철사 protocol를 파고 mutating 또는 non-mutating 조회 사이 differentiate에 그것을 이용합니다.
+
+예를 들어, 뉴스 사이트의 앞 페이지를 팝업하는 읽는 쿼리는 캐시 될 것입니다 :
+
+<Tabs>
+  <TabItem label="프로젝트">
+    ```sql
+    -- Cacheable: uses a parameterized date value instead of CURRENT_DATE
+    SELECT * FROM articles WHERE DATE(published_time) = $1
+    ORDER BY published_time DESC LIMIT 50
+    ```
+  </TabItem>
+
+  <TabItem label="기본 정보">
+    ```sql
+    -- Cacheable: uses a parameterized date value instead of CURDATE()
+    SELECT * FROM articles WHERE DATE(published_time) = ?
+    ORDER BY published_time DESC LIMIT 50
+    ```
+  </TabItem>
+</Tabs>
+
+요리 (포함)`INSERT`, `UPSERT`, 또는`CREATE TABLE`) 함수를 지정하는 쿼리[`volatile`](https://www.postgresql.org/docs/current/xfunc-volatility.html)또는[`stable`](https://www.postgresql.org/docs/current/xfunc-volatility.html)by PostgreSQL은 캐시되지 않습니다 :
+
+<Tabs>
+  <TabItem label="프로젝트">
+    ```sql
+    -- Not cached: mutating queries
+    INSERT INTO users(id, name, email) VALUES(555, 'Matt', 'hello@example.com');
+
+    -- Not cached: LASTVAL() is a volatile function
+    SELECT LASTVAL(), * FROM articles LIMIT 50;
+
+    -- Not cached: NOW() is a stable function
+    SELECT * FROM events WHERE created_at > NOW() - INTERVAL '1 hour';
+    ```
+  </TabItem>
+
+  <TabItem label="기본 정보">
+    ```sql
+    -- Not cached: mutating queries
+    INSERT INTO users(id, name, email) VALUES(555, 'Thomas', 'hello@example.com');
+
+    -- Not cached: LAST_INSERT_ID() is a volatile function
+    SELECT LAST_INSERT_ID(), * FROM articles LIMIT 50;
+
+    -- Not cached: NOW() returns a non-deterministic value
+    SELECT * FROM events WHERE created_at > NOW() - INTERVAL 1 HOUR;
+    ```
+  </TabItem>
+</Tabs>
+
+Common PostgreSQL 함수는**캐시 할 수 없음**다음:
+
+| 제품정보                | PostgreSQL 휘발성 범주 | 이름 \* |
+| ------------------- | ----------------- | ----- |
+| `NOW()`             | 사이트맵              | 이름 \* |
+| `CURRENT_TIMESTAMP` | 사이트맵              | 이름 \* |
+| `CURRENT_DATE`      | 사이트맵              | 이름 \* |
+| `CURRENT_TIME`      | 사이트맵              | 이름 \* |
+| `LOCALTIME`         | 사이트맵              | 이름 \* |
+| `LOCALTIMESTAMP`    | 사이트맵              | 이름 \* |
+| `TIMEOFDAY()`       | 관련 기사             | 이름 \* |
+| `RANDOM()`          | 관련 기사             | 이름 \* |
+| `LASTVAL()`         | 관련 기사             | 이름 \* |
+| `TXID_CURRENT()`    | 사이트맵              | 이름 \* |
+
+지정된 기능`IMMUTABLE`PostgreSQL (같은 입력에 대한 반환 값이 변경되지 않는 기능)은 Hyperdrive 캐싱과 호환됩니다. 자주 묻는 질문`STABLE`또는`VOLATILE`함수는 애플리케이션 코드에 함수 호출을 이동하고 대신 쿼리 매개 변수로 결과를 전달합니다.
+
+:::caution\[기능 감지는 텍스트 기반]
+Hyperdrive는 당신의 쿼리에 있는 uncacheable 기능을 검출하기 위하여 일치하는 원본 근거한 본을 이용합니다. 이것은 SQL 의견 안쪽에 기능 이름에 참고 자료s가 uncacheable로 표시될 수 있는 조회를 일으키는 것을 의미합니다.
+
+예를 들어, 다음 쿼리는**아니다.**&#xB54C;문에 캐쉬`NOW()`댓글에 표시:
+
+```sql
+-- We removed NOW() to keep this query cacheable
+SELECT * FROM api_keys WHERE hash = $1 AND deleted = false;
+```
+
+코멘트를 포함한 쿼리 텍스트에서 uncacheable 기능 이름을 참조하지 마십시오.
+주요 특징
+
+## 기본 캐시 설정
+
+Hyperdrive의 기본 캐싱 동작은 아래와 같이 정의됩니다.
+
+- `max_age`= 60 초 (1 분)
+- `stale_while_revalidate`= 15 초
+
+더 보기`max_age`설정은 최대 수명을 결정합니다. 쿼리 응답은 캐시에서 제공됩니다. 자주 묻는 질문(FAQ)
+
+더 보기`stale_while_revalidate`설정은 Hyperdrive가 캐시를 다시 유효하게하는 동안 추가 시간 동안 stale 캐시 결과를 계속 제공 할 수 있습니다. 대부분의 경우, revalidation은 신속하게 발생합니다.
+
+최대 설정 가능`max_age`1시간
+
+## 무능 캐싱
+
+사용해서 per-HyperdriveXQ에 캐싱을 해제[Wrangler](/workers/wrangler/install-and-update/)CLI 설정`--caching-disabled`옵션 정보`true`.
+
+예를 들면:
+
+```sh
+#wrangler v3.11 이상 필요
+npx wrangler hyperdrive update my-hyperdrive-id --origin-password my-db-password --caching-disabled true
+```
+
+또한 하나의 응용 프로그램에서 여러 Hyperdrive 연결을 구성 할 수 있습니다 : 인기있는 쿼리에 대한 캐싱을 가능하게하는 하나의 연결, 당신은 쿼리를 캐시하고 싶지 않는 두 번째 연결, 그러나 여전히 Hyperdrive의 대기 혜택과 연결 풀링 혜택을 누릴 수 있습니다.
+
+예를 들어, 데이터베이스 드라이버를 사용하여:
+
+<Tabs>
+  <TabItem label="프로젝트">
+    ```ts title="index.ts"
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		//handler 내부 클라이언트 만들기 — 글로벌 범위에서 아닙니다
+    		const client = postgres(env.HYPERDRIVE.connectionString);
+    		//· ...
+    		const clientNoCache = postgres(env.HYPERDRIVE_CACHE_DISABLED.connectionString);
+    		//· ...
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="기본 정보">
+    ```ts title="index.ts"
+    export default {
+    	async fetch(request, env, ctx): Promise<Response> {
+    		//handler 내부의 연결 만들기 — 글로벌 범위에서 아닙니다
+    		const connection = await createConnection({
+    			host: env.HYPERDRIVE.host,
+    			user: env.HYPERDRIVE.user,
+    			password: env.HYPERDRIVE.password,
+    			database: env.HYPERDRIVE.database,
+    			port: env.HYPERDRIVE.port,
+    		});
+    		//· ...
+    		const connectionNoCache = await createConnection({
+    			host: env.HYPERDRIVE_CACHE_DISABLED.host,
+    			user: env.HYPERDRIVE_CACHE_DISABLED.user,
+    			password: env.HYPERDRIVE_CACHE_DISABLED.password,
+    			database: env.HYPERDRIVE_CACHE_DISABLED.database,
+    			port: env.HYPERDRIVE_CACHE_DISABLED.port,
+    		});
+    		//· ...
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+Wrangler 구성은 PostgreSQL과 MySQL 모두 동일합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"hyperdrive": [
+  		{
+  			"binding": "HYPERDRIVE",
+  			"id": "<YOUR_HYPERDRIVE_CACHE_ENABLED_CONFIGURATION_ID>",
+  		},
+  		{
+  			"binding": "HYPERDRIVE_CACHE_DISABLED",
+  			"id": "<YOUR_HYPERDRIVE_CACHE_DISABLED_CONFIGURATION_ID>",
+  		},
+  	],
+  }
+  ```
+</WranglerConfig>
+
+## 다음 단계
+
+- 더 많은 정보를 원하시면, 참조[Hyperdrive는 어떻게 작동합니까?](/hyperdrive/concepts/how-hyperdrive-works/).
+- PostgreSQL에 연결하려면, 참조[PostgreSQL에 연결](/hyperdrive/examples/connect-to-postgres/).
+- 문제 해결 지침, 참조[문제 해결 및 디버그](/hyperdrive/observability/troubleshooting/).

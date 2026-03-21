@@ -1,0 +1,149 @@
+---
+title: 문제 해결
+pcx_content_type: troubleshooting
+sidebar:
+  order: 3
+head:
+  - tag: title
+    content: SaaS를 위한 Cloudflare의 문제 해결
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/reference/troubleshooting/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/reference/troubleshooting/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render } from "~/components";
+
+## 비율 제한
+
+기본적으로 분당 최대 15개의 인증서를 발급할 수 있습니다. 성공적인 제출 (200을 반환하는 POSTs)은 제한으로 계산됩니다. 제한을 초과하면 30 초 동안 새로운 인증서를 발급하여 예방됩니다.
+
+더 높은 속도 제한이 필요하면 고객 성공 관리자에게 문의하십시오.
+
+***
+
+## Purge 캐시
+
+Cloudflare의 캐시에서 특정 파일을 제거하려면,[캐시를 제거](/cache/how-to/purge-cache/purge-by-hostname/)하나 이상의 호스트명을 지정하는 동안.
+
+***
+
+## 해결 오류 1016 (Origin DNS 오류) 사용자 정의 호스트 이름에 액세스 할 때
+
+Cloudflare는 사용자 정의 hostname이 경로를 또는 proxied 할 수 없을 때 1016 오류를 반환합니다.
+
+오류의 3 가지 주요 원인이 1016 :
+
+1. Custom Hostname 소유권 검증은 완료되지 않습니다. 검증 상태를 확인하려면 API 호출을 실행하십시오.[hostname에 의해 인증서 검색](/cloudflare-for-platforms/cloudflare-for-saas/start/common-api-calls/)인증 오류 필드를 확인:`"verification_errors": ["custom hostname does not CNAME to this zone."]`.
+2. Fallback 근원은 아닙니다[설정하기](/cloudflare-for-platforms/cloudflare-for-saas/start/getting-started/#1-create-fallback-origin). 당신은 fallback 근원을 위한 DNS 기록을 창조하고 또한 fallback 근원을 놓았습니다.
+3. Wildcard Custom Hostname이 생성되었지만, 요청된 hostname은 Cloudflare에서 독립 영역으로 존재하는 도메인과 관련이 있습니다. 이 경우,[호스트 이름 우선](/ssl/reference/certificate-and-hostname-priority/#hostname-priority)독립 구역의 경우 와일드 카드 사용자 정의 호스트 이름에 대한 우선권을 부여합니다. 이 행동은 이 독립 구역 hostname에 DNS 레코드가 없습니다.
+
+이 시나리오에서 각 호스트 이름에 의해 봉사해야[SaaS를 위한 Cloudflare](/cloudflare-for-platforms/cloudflare-for-saas/)부모 영역은 개별 사용자 정의 호스트 이름으로 추가해야합니다.
+
+:::참조
+다른 1XXX 오류를 발생하면, 참조[문제 해결 Cloudflare 1XXX 오류](/support/troubleshooting/http-status-codes/cloudflare-1xxx-errors/).
+:::
+
+***
+
+## CNAME 업데이트 후 오래된 SaaS 공급자 내용
+
+SaaS 공급자를 전환 할 때, 이전 구성은 이전 공급자가 특정 사용자 정의 호스트 이름과 새로운 공급자가 와일드 카드 사용자 정의 호스트 이름을 규정 한 경우 우선 순위를 취할 수 있습니다. 이것은 당 예상됩니다[인증서 및 hostname 우선 순위](/ssl/reference/certificate-and-hostname-priority/#hostname-priority).
+
+이 경우 두 가지 방법이 있습니다.
+
+- (추천) 새로운 SaaS 공급자에게 와일드 카드 대신 특정 사용자 정의 호스트 이름을 제공 -`mystore.example.com`대신에`*.example.com`.
+- 계정의 Super Administrator에게 문의하기[Cloudflare 지원](/support/contacting-cloudflare-support/)SaaS 구성의 업데이트를 요청합니다.
+
+***
+
+## 이동 상태에 있는 주문 hostname
+
+Active 상태로 다시 사용자 정의 hostname을 이동하려면[PATCH 요청](/api/resources/custom_hostnames/methods/edit/)hostname 유효성을 재시작합니다. 이동 상태의 사용자 정의 호스트 이름은 7 일 후에 삭제됩니다.
+
+어떤 상황에서, 사용자 정의 hostnames도 입력 할 수 있습니다**지원하다**고객이 DNS 레코드를 SaaS 서비스로 변경하면 상태입니다. 더 자세한 내용은 참조[사용자 정의 hostnames 제거](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/remove-custom-hostnames/).
+
+***
+
+## CAA 오류
+
+더 보기`caa_error`사용자 정의 호스트 이름의 상태는 도메인에 구성 된 CAA 레코드가 인증서 권한을 발급하는 것을 의미합니다.
+
+CAA 레코드가 도메인에 구성될 수 있습니다.`dig`명령:
+`dig CAA example.com`
+
+선택한 인증 기관에 필요한 CAA 레코드가 구성되도록해야합니다.
+예를 들어, 여기에 문제가 필요한 레코드입니다.[암호화하자](https://letsencrypt.org/docs/caa/)·[Google Trust 서비스](https://pki.goog/faq/#caa)증명서:
+
+```txt
+example.com CAA 0 issue "pki.goog; cansignhttpexchanges=yes"
+example.com CAA 0 issuewild "pki.goog; cansignhttpexchanges=yes"
+
+example.com CAA 0 issue "letsencrypt.org"
+example.com CAA 0 issuewild "letsencrypt.org"
+
+example.com CAA 0 issue "ssl.com"
+example.com CAA 0 issuewild "ssl.com"
+```
+
+더 자세한 내용은 참조[CAA 레코드 FAQ](/ssl/faq/#caa-records).
+
+***
+
+## 사용자 지정 이름 일치 영역 이름 (403 Forbidden)
+
+<Render file="same-name-as-zone" product="cloudflare-for-platforms" />
+
+이 구성은 보안상의 이유로 DNS override 제한으로 인해 403 Forbidden 오류가 발생합니다. 이 제한은 노동자 경로에 영향을 미칩니다.
+
+***
+
+## 이전 장치 연결 문제
+
+Let's Encrypt - 하나의 암호화[인증서 당국 (CA)](/ssl/reference/certificate-authorities/)Cloudflare에 의해 사용 - 그것의 변화 발표[신뢰의 사슬](/ssl/concepts/#chain-of-trust), 9 월 9, 2024 시작, 사용자 정의 호스트 이름 인증서에 연결하려고 오래된 장치와 문제가있을 수 있습니다.
+
+다음 솔루션을 고려:
+
+- 사용 방법[사용자 정의 호스트 이름](/api/resources/custom_hostnames/methods/edit/)endpoint 설정`certificate_authority`빈 문자열에 매개 변수 (`""`): 이것은 CloudflareXQ까지 선택을 떠나는 “과태 CA”에 주문 이름 증명서를 놓습니다. Cloudflare는 항상 호환 CA에서 인증서를 발급하려고합니다.[Google Trust 서비스](/ssl/reference/certificate-authorities/#google-trust-services), 그리고 Let’s Encrypt를 사용하여 돌아갑니다.[CAA 기록](/ssl/edge-certificates/caa-records/)인증서 발급에서 Google을 차단하는 장소.
+
+  <Details header="API 호출">
+    ```sh
+    curl --request PATCH \
+    "https://api.cloudflare.com/client/v4/zones/{zone_id}/custom_hostnames/{custom_hostname_id}" \
+    --header "X-Auth-Email: <EMAIL>" \
+    --header "X-Auth-Key: <API_KEY>" \
+    --header "Content-Type: application/json" \
+    --data '{
+      "ssl": {
+          "method": "txt",
+          "type": "dv",
+          "certificate_authority": ""
+      }
+    }'
+    ```
+  </Details>
+
+- 사용 방법[사용자 정의 호스트 이름](/api/resources/custom_hostnames/methods/edit/)endpoint 설정`certificate_authority`매개 변수`google`: 사용자 정의 호스트 이름을위한 CA로이 세트 Google Trust Services. API 호출에서, 또한 포함 하 여 확인`method`·`type`내 계정`ssl`객체.
+
+- 사용자 정의 호스트 이름에 대한 사용자 정의 인증서를 사용하는 경우, 참조[사용자 정의 인증서 문제 해결](/ssl/edge-certificates/custom-certificates/troubleshooting/#lets-encrypt-chain-update).
+
+## Custom hostname은 영역이 개최되기 때문에 확인하지 못합니다.
+
+더 보기[지역 파악 특징](/fundamentals/account/account-security/zone-holds/)다른 Cloudflare 계정에서 활성화되는 영역을 방지 할 수있는 도글입니다. 활성화되면 Cloudflare는 영역 또는 사용자 정의 호스트 이름의 도메인 이름을 대신 SSL/TLS 인증서를 발급 할 수 없습니다.
+옵션 때`Also prevent subdomains`이 도메인은 사용자 정의 호스트 이름의 검증을 방지합니다. 사용자 정의 hostname에 남아`Blocked`상태, 다음과 같은 오류 메시지 :`The hostname is associated with a held zone. Please contact the owner of this domain to have the hold removed.`이 경우, 영역의 소유자는해야[공지사항](/fundamentals/account/account-security/zone-holds/#release-zone-holds)custom hostname 앞에 활성화될 수 있습니다. hostname이 유효하게 된 후, Zone hold는 다시 활성화 될 수 있습니다.
+
+## 64자 이상 호스트명
+
+일반 이름(CN) 제한은 64자 제한(64자 제한)[RFC 5280년](https://www.rfc-editor.org/rfc/rfc5280.html)). 이 길이를 초과하는 호스트 이름이 있다면 다음 오류를 찾을 수 있습니다.
+
+```txt
+Since no host is 64 characters or fewer, Cloudflare Branding is required. Please check your input and try again. (1469)
+```
+
+이것을 해결하기 위해, 당신은 설정할 수 있습니다`cloudflare_branding`으로`true`현재 위치[사용자 정의 호스트 이름 만들기](/cloudflare-for-platforms/cloudflare-for-saas/domain-support/create-custom-hostnames/#hostnames-over-64-characters)API를 통해.
+
+Cloudflare 브랜딩은 즉`sni.cloudflaressl.com`인증서 Common Name (CN)로 추가되며 긴 hostname은 Title Alternative Name (SAN)의 일부로 포함됩니다.

@@ -1,0 +1,54 @@
+---
+pcx_content_type: concept
+title: Load Balancing 구성 요소
+sidebar:
+  order: 3
+---
+
+import { GlossaryDefinition, Render } from "~/components";
+
+이 페이지에서는 Cloudflare Load Balancing 솔루션의 세 가지 주요 구성 요소와 이들이 서로 어떻게 연결되는지 간단히 설명합니다.
+
+## 로드 밸런서
+
+호스트네임(`blog.example.com`)이 확인되려면, 웹사이트나 애플리케이션이 호스팅되는 위치인 오리진의 IP 주소를 Domain Name System(DNS)이 반환해야 합니다.
+
+공용 로드 밸런서를 설정하면 Cloudflare는 지정한 호스트네임에 대해 [LB DNS record](/load-balancing/load-balancers/dns-records/)를 자동으로 생성합니다. 이는 단순히 IP 주소를 반환하는 대신, [우선순위 순서](/load-balancing/load-balancers/dns-records/#priority-order)에 따라 Cloudflare Load Balancing 솔루션을 통해 설정한 로직이 적용된다는 뜻입니다.
+
+루트 도메인도 Load Balancer 호스트네임으로 사용할 수 있습니다. 이 경우 일반적으로 영역 이름 앞에 자동 생성되는 점을 포함하지 않고 호스트네임을 입력해야 합니다.
+
+:::note
+Private load balancers는 호스트네임과 자동으로 연결되지 않습니다. Private load balancers는 CGNAT IP 주소 또는 사용자 지정 RFC-1918 IP 주소로 생성됩니다.
+:::
+
+<Render file="load-balancing-diagram" product="load-balancing" />
+
+## 풀
+
+Cloudflare에서 풀은 엔드포인트와 엔드포인트의 구성 방식을 나타냅니다. 따라서 풀은 여러 엔드포인트의 그룹일 수도 있고, 사용 사례에 가장 잘 맞는다면 풀당 하나의 엔드포인트만 둘 수도 있습니다.
+
+예를 들어 Cloudflare를 사용해 지역 간에 전역적으로 트래픽을 분산([global traffic steering](/load-balancing/understand-basics/traffic-steering/steering-policies/))하는 경우, 각 풀은 하나의 리전을 나타내고 각 리전 안에는 데이터 센터 진입점을 나타내는 엔드포인트 하나를 둘 수 있습니다.
+
+Cloudflare의 [Private Network Load Balancing](/load-balancing/private-network/) 솔루션과 [endpoint steering](/load-balancing/understand-basics/traffic-steering/origin-level-steering/) 기능을 사용하면 데이터 센터 내부의 서버 간에도 트래픽을 로드 밸런싱할 수 있습니다. 이 사용 사례에서 각 풀은 하나의 데이터 센터를 나타내며, 서버를 나타내는 여러 엔드포인트를 포함합니다.
+
+:::note[Smart Tiered Cache와의 상호작용]
+Smart Tiered Cache는 오리진마다 하나의 Upper Tier를 선택하지만, Load Balancing을 사용할 때는 전체 Load Balancing 풀에 대해 가장 적합한 Upper Tier 하나를 선택합니다.
+:::
+
+## 엔드포인트
+
+<GlossaryDefinition term="endpoint" prepend="엔드포인트는 " />
+
+## 모니터
+
+마지막으로, 모니터는 트래픽 분산 시 [정상적인 풀](/load-balancing/understand-basics/health-details/)만 고려되도록 보장하는 데 사용하는 구성 요소입니다.
+
+모니터를 설정하여 엔드포인트에 연결하면, 모니터는 일정한 간격으로 엔드포인트에 헬스 모니터 요청을 보냅니다. 이 과정을 통해 로드 밸런서는 실제로 사용 가능한 엔드포인트를 고려하여 트래픽을 지능적으로 처리할 수 있습니다.
+
+<Render file="health-check-diagram" product="load-balancing" />
+
+:::note
+
+로드 밸런서와 연결된 헬스 모니터는 [**Standalone health checks**](/health-checks/)와는 다릅니다.
+
+:::

@@ -1,0 +1,137 @@
+---
+pcx_content_type: how-to
+title: 인기 카테고리
+sidebar:
+  order: 9
+tags:
+  - full-stack
+description: Vike 응용 프로그램을 만들고 Cloudflare Workers에 배포
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/framework-guides/web-apps/vike/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/framework-guides/web-apps/vike/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { AutoconfigDiagram, Steps, PackageManagers } from "~/components";
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+배포할 수 있습니다.[인기 카테고리](https://vike.dev)Vike 확장을 사용하여 Cloudflare에 앱[`vike-photon`](https://vike.dev/vike-photon).
+
+모든 앱 유형(SSR/SPA/SSG)이 지원됩니다.
+
+:::tip\[Vike 프로젝트가 있습니까?]
+지원하다`wrangler deploy`WranglerXQ 구성 파일 및 Wrangler가 자동으로 Vike를 감지하고 필요한 구성을 생성하고 프로젝트를 배포합니다.
+
+<PackageManagers type="exec" pkg="wrangler" args="deploy" />
+
+더 알아보기[자동 프로젝트 구성](/workers/framework-guides/automatic-configuration/).
+:::
+
+<AutoconfigDiagram
+  framework="Vike"
+  configs={[
+  	{ label: "main", file: "wrangler.jsonc", value: "dist/server/index.js" },
+  	{ label: "assets", file: "wrangler.jsonc", value: "directory: dist/client" },
+  	{ label: "compatibility_flags", file: "wrangler.jsonc", value: "nodejs_compat" },
+  	{ label: "observability", file: "wrangler.jsonc", value: "enabled: true" },
+  ]}
+/>
+
+## Vike는 무엇입니까?
+
+[인기 카테고리](https://vike.dev)진보된 신청을 위한 Next.js/Nuxt 대안, unprecedented 융통성 및 안정성을 위한 모듈 구조에 의해 강화해입니다.
+
+## 새로운 앱
+
+제품 정보[vike.dev/새로운](https://vike.dev/new)새로운 Vike 앱을 비계`vike-photon`이름 \*`@photonjs/cloudflare`.
+
+## 기존 앱에 추가
+
+<Steps>
+  1. <PackageManagers pkg="wrangler vike-photon @photonjs/cloudflare" />
+
+  2. ```diff lang=ts title="pages/+config.ts"
+       import type { Config } from 'vike/types'
+     + import vikePhoton from 'vike-photon/config'
+
+       export default {
+     +   extends: [vikePhoton]
+       } satisfies Config
+     ```
+
+  3. ```diff lang=json title="package.json"
+       {
+         "scripts": {
+           "dev": "vike dev",
+     +     "preview": "vike build && vike preview",
+     +     "deploy": "vike build && wrangler deploy"
+         }
+       }
+     ```
+     ```diff lang=jsonc title="wrangler.jsonc"
+     + {
+     +   "$schema": "node_modules/wrangler/config-schema.json",
+     +   "compatibility_date": "2025-08-06",
+     +   "name": "my-vike-cloudflare-app",
+     +   "main": "virtual:photon:cloudflare:server-entry",
+     +   // Only required if your app depends a Node.js API
+     +   "compatibility_flags": ["nodejs_compat"]
+     + }
+     ```
+
+  4. ```diff lang=bash title=".gitignore"
+     + .wrangler/
+     ```
+
+  5. **(선택)**&#xAE30;본적으로 Photon은 SSR과 같은 기본 기능을 지원하는 내장 서버를 사용합니다. 추가 서버 기능 (e.g.[파일 업로드](https://hono.dev/examples/file-upload)또는[API 경로](https://vike.dev/api-routes)), 다음[서버 생성](https://vike.dev/vike-photon#server).
+</Steps>
+
+## Cloudflare APIs (빈딩)
+
+Cloudflare API에 액세스하려면 (예 :[D1](/d1/)·[KV](/kv/)), 사용[관련 제품](/workers/runtime-apis/bindings/)사용할 수 있습니다.`env`기타 제품[수입에서`cloudflare:workers`](/workers/runtime-apis/bindings/#importing-env-as-a-global).
+
+```ts
+import { env } from 'cloudflare:workers'
+//Key-value 스토어
+env.KV.get('my-key')
+//환경 변수
+env.LOG_LEVEL
+//· ...
+```
+
+> Cloudflare D1XQ를 사용하는의 보기:
+>
+> <PackageManagers type="create" pkg="vike@latest" args="--react --hono --drizzle --cloudflare" />
+>
+> 또는 이동[vike.dev/새로운](https://vike.dev/new)선택하기`Cloudflare`ORM으로.
+
+## TypeScript
+
+TypeScript를 사용하는 경우, 실행[`wrangler types`](/workers/wrangler/commands/#types)Cloudflare 구성을 변경할 때마다`worker-configuration.d.ts`파일.
+
+<PackageManagers type="exec" pkg="wrangler" args="types" />
+
+다음 명령:
+
+```bash
+git commit -am "update cloudflare types"
+```
+
+TypeScript로드 확인 :
+
+```diff lang=json title="tsconfig.json"
+  {
+    "compilerOptions": {
++     "types": ["./worker-configuration.d.ts"]
+   }
+  }
+```
+
+참조 :[CloudflareWorkers > TypeScriptXQ](/workers/languages/typescript/).
+
+## 더 보기
+
+- [Cloudflare](https://vike.dev/cloudflare)

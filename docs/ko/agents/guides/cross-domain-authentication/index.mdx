@@ -1,0 +1,282 @@
+---
+title: Cross-domain 인증
+pcx_content_type: how-to
+sidebar:
+  order: 13
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/guides/cross-domain-authentication/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/guides/cross-domain-authentication/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+에이전트가 배포 될 때, 안전한 것을 유지하기 위해, 클라이언트에서 토큰을 보내, 다음 서버에서 확인. 이 가이드는 에이전트에 WebSocket 연결 인증 패턴을 다룹니다.
+
+## WebSocket 인증
+
+WebSockets는 HTTP가 아닌, 핸즈케는 크로스 도메인 연결을 만들 때 제한됩니다.
+
+당신은 보낼 수 없습니다:
+
+- 업그레이드 중 사용자 정의 헤더
+- `Authorization: Bearer ...`연결하기
+
+당신은 할 수 있습니다:
+
+- 쿼리 매개 변수로 연결 URL에 서명, 단축 된 토큰을 넣어
+- 서버의 연결 경로에서 토큰을 검증
+
+:::참조
+
+URL에서 원시 비밀이 없습니다. JWT 또는 서명 된 토큰을 사용하여 신속하게 만료되고 사용자 또는 방에 범위가 있습니다.
+
+:::
+
+### 이름 \*
+
+클라이언트와 서버가 근원을 공유하는 경우, 브라우저는 WebSocket Handhake 도중 쿠키를 보낼 것입니다. 세션 기반 auth는 여기에 작동 할 수 있습니다. Prefer HTTP 전용 쿠키.
+
+### 크로스 기원
+
+쿠키는 근원의 맞은편에 도움이 되지 않습니다. URL 쿼리에서 자격 증명을 전달하고 서버에서 확인.
+
+## 사용 예제
+
+### 정적 인증
+
+<TypeScriptExample>
+  ```ts
+  import { useAgent } from "agents/react";
+
+  function ChatComponent() {
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		query: {
+  			token: "demo-token-123",
+  			userId: "demo-user",
+  		},
+  	});
+
+  	//통화, 액세스 상태 등을 만들기 위해 에이전트를 사용합니다.
+  }
+  ```
+</TypeScriptExample>
+
+### Async 인증
+
+연결하기 전에 쿼리 값이 올바르게 빌드합니다. 동기화 설정에 대한 Suspense를 사용합니다.
+
+<TypeScriptExample>
+  ```tsx
+  import { useAgent } from "agents/react";
+  import { Suspense, useCallback } from "react";
+
+  function ChatComponent() {
+  	const asyncQuery = useCallback(async () => {
+  		const [token, user] = await Promise.all([getAuthToken(), getCurrentUser()]);
+  		return {
+  			token,
+  			userId: user.id,
+  			timestamp: Date.now().toString(),
+  		};
+  	}, []);
+
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		query: asyncQuery,
+  	});
+
+  	//통화, 액세스 상태 등을 만들기 위해 에이전트를 사용합니다.
+  }
+
+  function App() {
+  	return (
+  		<Suspense fallback={<div>Authenticating...</div>}>
+  			<ChatComponent />
+  		</Suspense>
+  	);
+  }
+  ```
+</TypeScriptExample>
+
+### JWT 새로 고침 패턴
+
+연결이 인증 오류로 인해 실패했을 때 토큰을 새로 고침합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { useAgent } from "agents/react";
+  import { useCallback } from "react";
+
+  const validateToken = async (token: string) => {
+  	//이것을 구현할 수있는 방법의 예
+  	const res = await fetch(`${API_HOST}/api/users/me`, {
+  		headers: {
+  			Authorization: `Bearer ${token}`,
+  		},
+  	});
+
+  	return res.ok;
+  };
+
+  const refreshToken = async () => {
+  	//구현에 따라:
+  	//- 만료 된 토큰을 새로 고침하기 위해 더 오래 살아있는 토큰을 사용할 수 있습니다.
+  	//- 앱을 제거하고 사용자를 수동으로 로그인하십시오.
+  	//- ...
+  };
+
+  function useJWTAgent(agentName: string) {
+  	const asyncQuery = useCallback(async () => {
+  		let token = localStorage.getItem("jwt");
+
+  		//토큰이 없으면 토큰이 더 이상 유효하지 않습니다.
+  		//신선한 토큰 요청
+  		if (!token || !(await validateToken(token))) {
+  			token = await refreshToken();
+  			localStorage.setItem("jwt", token);
+  		}
+
+  		return {
+  			token,
+  		};
+  	}, []);
+
+  	const agent = useAgent({
+  		agent: agentName,
+  		query: asyncQuery,
+  		queryDeps: [], //마운트에서 실행
+  	});
+
+  	return agent;
+  }
+  ```
+</TypeScriptExample>
+
+## Cross-domain 인증
+
+다른 호스트에 연결할 때 URL에서 자격 증명을 전달하고 서버에서 확인.
+
+### 정적 크로스 도메인 auth
+
+<TypeScriptExample>
+  ```ts
+  import { useAgent } from "agents/react";
+
+  function StaticCrossDomainAuth() {
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		host: "https://my-agent.example.workers.dev",
+  		query: {
+  			token: "demo-token-123",
+  			userId: "demo-user",
+  		},
+  	});
+
+  	//통화, 액세스 상태 등을 만들기 위해 에이전트를 사용합니다.
+  }
+  ```
+</TypeScriptExample>
+
+### Async 크로스 도메인 오
+
+<TypeScriptExample>
+  ```ts
+  import { useAgent } from "agents/react";
+  import { useCallback } from "react";
+
+  function AsyncCrossDomainAuth() {
+  	const asyncQuery = useCallback(async () => {
+  		const [token, user] = await Promise.all([getAuthToken(), getCurrentUser()]);
+  		return {
+  			token,
+  			userId: user.id,
+  			timestamp: Date.now().toString(),
+  		};
+  	}, []);
+
+  	const agent = useAgent({
+  		agent: "my-agent",
+  		host: "https://my-agent.example.workers.dev",
+  		query: asyncQuery,
+  	});
+
+  	//통화, 액세스 상태 등을 만들기 위해 에이전트를 사용합니다.
+  }
+  ```
+</TypeScriptExample>
+
+## Server-side 검증
+
+서버 측에서 토큰을 확인`onConnect`핸들:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, Connection, ConnectionContext } from "agents";
+
+  export class SecureAgent extends Agent {
+  	async onConnect(connection: Connection, ctx: ConnectionContext) {
+  		const url = new URL(ctx.request.url);
+  		const token = url.searchParams.get("token");
+  		const userId = url.searchParams.get("userId");
+
+  		//토큰 검증
+  		if (!token || !(await this.verifyToken(token, userId))) {
+  			connection.close(4001, "Unauthorized");
+  			return;
+  		}
+
+  		//연결 상태에 사용자 정보 저장
+  		connection.setState({ userId, authenticated: true });
+  	}
+
+  	private async verifyToken(token: string, userId: string): Promise<boolean> {
+  		//토큰 검증 논리 구현
+  		//예를 들어, JWT 서명, 체크 만료 등을 확인합니다.
+  		try {
+  			const payload = await verifyJWT(token, this.env.JWT_SECRET);
+  			return payload.sub === userId && payload.exp > Date.now() / 1000;
+  		} catch {
+  			return false;
+  		}
+  	}
+
+  	async onMessage(connection: Connection, message: string) {
+  		//연결이 인증되면 확인
+  		if (!connection.state?.authenticated) {
+  			connection.send(JSON.stringify({ error: "Not authenticated" }));
+  			return;
+  		}
+
+  		//인증된 사용자를 위한 프로세스 메시지
+  		const userId = connection.state.userId;
+  		//· ...
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+1. **단기 토큰 사용**- URL의 토큰은 로그인할 수 있습니다. 만료 시간 단축 유지 (분, 시간).
+
+2. **범위 토큰을 적절하게**- 토큰의 에이전트 이름 또는 인스턴스를 포함하면 에이전트를 통해 토큰 재사용을 방지합니다.
+
+3. **모든 연결에 유효**- 항상 토큰을 확인합니다`onConnect`, 그냥 한 번.
+
+4. **HTTPS 사용**- 항상 안전한 WebSocket 연결을 사용합니다 (`wss://`) 생산에서.
+
+5. **회전 비밀**- 정기적으로 JWT 서명 키 또는 토큰 비밀을 회전.
+
+6. **로그인 인증 실패**- 보안 모니터링에 대한 인증 시도를 추적.
+
+## 다음 단계
+
+<LinkCard title="로그아웃" href="/agents/api-reference/routing/" description="루팅 및 인증 후크." />
+
+<LinkCard title="웹소켓" href="/agents/api-reference/websockets/" description="실시간 양방향 통신." />
+
+<LinkCard title="에이전트 API" href="/agents/api-reference/agents-api/" description="Agents SDK를 위한 API 참고 자료를 완료합니다." />

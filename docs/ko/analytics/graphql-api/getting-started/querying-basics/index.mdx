@@ -1,0 +1,229 @@
+---
+pcx_content_type: reference
+title: 쿼리 기초
+sidebar:
+  order: 21
+description: Cloudflare GraphQL API로 쿼리하는 기본 개념을 알아보세요. 쿼리 구조, 스키마, GraphQL 쿼리로 데이터를 가져오는 방법을 이해할 수 있습니다.
+---
+
+## GraphQL 쿼리 구조
+
+GraphQL은 데이터를 그래프로 구조화합니다. GraphQL은 스키마를 사용해 데이터 그래프 안의 객체와 그 계층 구조를 정의합니다. 필요한 데이터를 얻기 위해 쿼리를 사용해 그래프의 에지를 탐색할 수 있으며, 이 쿼리는 반드시 스키마 구조를 따라야 합니다.
+
+GraphQL 쿼리의 핵심은 **노드**와 그 뒤에 오는 **필드**입니다. 노드는 특정 **타입**의 객체이며, 타입은 그 객체를 구성하는 필드를 정의합니다.
+
+필드는 또 다른 노드일 수 있으며, 이 경우 적절한 쿼리에는 중첩 요소가 포함됩니다. 일부 노드는 함수처럼 보이며, 자신이 작동할 범위를 제한하는 인수를 받을 수 있습니다. 각 노드에 필터를 적용할 수 있습니다.
+
+## Cloudflare GraphQL 스키마
+
+Cloudflare GraphQL 스키마에 대한 일반적인 쿼리는 네 가지 주요 구성 요소로 이루어집니다.
+
+- `viewer` - 루트 노드입니다.
+- `zones` 또는 `accounts` - 쿼리 범위를 나타냅니다. 즉, 조회하려는 도메인 영역 또는 account입니다. `viewer`는 하나의 `zones` 또는 `accounts`, 혹은 둘 다에 접근할 수 있습니다.
+- **data node** 또는 **dataset** - 조회하려는 데이터를 나타냅니다. `zones` 또는 `accounts`에는 하나 이상의 데이터세트가 포함될 수 있습니다. 노드 검색에 대한 자세한 내용은 [introspection][1]을 참고하세요.
+- **fieldset** - **dataset**의 필드 또는 중첩 필드 집합입니다.
+
+Cloudflare GraphQL API에 대한 쿼리는 다음 필드로 구성된 JSON 형식 payload를 담아 HTTP POST 요청으로 보내야 합니다.
+
+```json
+{
+	"query": "",
+	"variables": {}
+}
+```
+
+위 구조에서 `query` 필드는 GraphQL 쿼리를 **한 줄 문자열** 형식으로 담아야 합니다. 즉, 모든 줄바꿈 문자는 제거하거나 이스케이프해야 합니다. `variables`는 쿼리에서 사용된 모든 placeholder 값이 들어 있는 객체입니다.
+
+## 단일 데이터세트 예시
+
+다음 예시에서 GraphQL 쿼리는 zone 범위의 `firewallEventsAdaptive` 데이터세트에서 2개의 WAF 이벤트에 대한 `datetime`, `action`, 그리고 클라이언트 요청의 HTTP host를 `host` 필드로 가져옵니다.
+
+```graphql graphql-api-explorer title="A GraphQL query"
+query ASingleDatasetExample($zoneTag: string, $start: Time, $end: Time) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			firewallEventsAdaptive(
+				filter: { datetime_gt: $start, datetime_lt: $end }
+				limit: 2
+				orderBy: [datetime_DESC]
+			) {
+				action
+				datetime
+				host: clientRequestHTTPHost
+			}
+		}
+	}
+}
+```
+
+위 쿼리에는 `$zoneTag`, `$start`, `$end`라는 변수 placeholder가 있습니다. 이 placeholder들의 값은 payload의 `variables` 필드에 함께 제공합니다. 아래 예시들은 `Z` 문자로 표시되는 UTC 시간대를 사용합니다.
+
+```json title="A set of variables"
+{
+	"zoneTag": "<zone-tag>",
+	"start": "2020-08-03T02:07:05Z",
+	"end": "2020-08-03T17:07:05Z"
+}
+```
+
+Cloudflare GraphQL API에 쿼리를 보내는 방법은 여러 가지가 있습니다. 선호하는 GraphQL 클라이언트를 사용해도 되고, CLI에서 `curl`로 요청을 보낼 수도 있습니다. GraphiQL 클라이언트 사용 방법은 [how-to guide][2]를 참고하고, `curl`로 쿼리를 실행하는 방법은 [여기][3]에서 확인하세요.
+
+```json title="A sample of a response for a query above"
+{
+	"data": {
+		"viewer": {
+			"zones": [
+				{
+					"firewallEventsAdaptive": [
+						{
+							"action": "log",
+							"host": "cloudflare.guru",
+							"datetime": "2020-08-03T17:07:03Z"
+						},
+						{
+							"action": "log",
+							"host": "cloudflare.guru",
+							"datetime": "2020-08-03T17:07:01Z"
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+## 단일 GraphQL API 요청에서 여러 데이터세트 조회
+
+앞서 언급했듯이 하나의 쿼리에는 하나 또는 여러 노드(데이터세트)가 포함될 수 있습니다. API 수준에서는 데이터 추출이 동시에 수행되지만, 모든 데이터세트 쿼리가 결과를 반환할 때까지 응답은 지연됩니다. 실행 중 하나라도 실패하면 전체 쿼리가 종료되고 오류가 반환됩니다.
+
+```graphql graphql-api-explorer title="A sample query for two datasets in a one go"
+query MultipleDatasetsExample(
+	$zoneTag: string
+	$start: Time
+	$end: Time
+	$ts: Date
+) {
+	viewer {
+		zones(filter: { zoneTag: $zoneTag }) {
+			last10Events: firewallEventsAdaptive(
+				filter: { datetime_gt: $start, datetime_lt: $end }
+				limit: 10
+				orderBy: [datetime_DESC]
+			) {
+				action
+				datetime
+				host: clientRequestHTTPHost
+			}
+			top3DeviceTypes: httpRequestsAdaptiveGroups(
+				filter: { date: $ts }
+				limit: 10
+				orderBy: [count_DESC]
+			) {
+				count
+				dimensions {
+					device: clientDeviceType
+				}
+			}
+		}
+	}
+}
+```
+
+```json title="A set of variables for the query above"
+{
+	"zoneTag": "<zone-tag>",
+	"start": "2022-10-02T00:26:49Z",
+	"end": "2022-10-04T14:26:49Z",
+	"ts": "2022-10-04"
+}
+```
+
+```json title="A sample response for the query with variables above"
+{
+	"data": {
+		"viewer": {
+			"zones": [
+				{
+					"last10Events": [
+						{
+							"action": "block",
+							"country": "TR",
+							"datetime": "2022-10-04T08:41:09Z"
+						},
+						{
+							"action": "block",
+							"country": "TR",
+							"datetime": "2022-10-04T08:41:09Z"
+						},
+						{
+							"action": "block",
+							"country": "RU",
+							"datetime": "2022-10-04T01:09:36Z"
+						},
+						{
+							"action": "block",
+							"country": "US",
+							"datetime": "2022-10-03T14:26:49Z"
+						},
+						{
+							"action": "block",
+							"country": "US",
+							"datetime": "2022-10-03T14:26:46Z"
+						},
+						{
+							"action": "block",
+							"country": "CN",
+							"datetime": "2022-10-02T23:51:26Z"
+						},
+						{
+							"action": "block",
+							"country": "TR",
+							"datetime": "2022-10-02T23:39:41Z"
+						},
+						{
+							"action": "block",
+							"country": "TR",
+							"datetime": "2022-10-02T23:39:41Z"
+						}
+					],
+					"top3DeviceTypes": [
+						{
+							"count": 4580,
+							"dimensions": {
+								"device": "desktop"
+							}
+						}
+					]
+				}
+			]
+		}
+	},
+	"errors": null
+}
+```
+
+## 도움이 되는 자료
+
+Cloudflare Analytics API와 GraphQL 작업에 도움이 되는 문서는 다음과 같습니다.
+
+### Cloudflare 관련
+
+- [API를 사용해 zoneTag 찾기][5]
+
+### GraphQL 프레임워크 일반 정보
+
+- [GraphQL 사용 방법(튜토리얼)][6]
+- [Thinking in Graphs][7]
+- [GraphQL 타입 시스템(스키마)에서 조회할 수 있는 데이터][8]
+- [GraphiQL에서 변수 전달하는 방법(Medium의 빠른 팁)][9]
+
+[1]: /analytics/graphql-api/features/discovery/introspection/
+[2]: /analytics/graphql-api/getting-started/compose-graphql-query/
+[3]: /analytics/graphql-api/getting-started/execute-graphql-query/
+[5]: /fundamentals/account/find-account-and-zone-ids/
+[6]: https://www.howtographql.com/
+[7]: https://graphql.org/learn/thinking-in-graphs/
+[8]: https://graphql.org/learn/schema/
+[9]: https://medium.com/graphql-mastery/graphql-quick-tip-how-to-pass-variables-into-a-mutation-in-graphiql-23ecff4add57

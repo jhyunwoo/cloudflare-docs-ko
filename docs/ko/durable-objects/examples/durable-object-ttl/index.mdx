@@ -1,0 +1,157 @@
+---
+summary: Implement a Time To Live (TTL) for Durable Object instances.
+pcx_content_type: example
+title: 내구재 목표 시간
+sidebar:
+  order: 4
+description: Durable Objects 알람 API를 사용하여 내구성 객체 인스턴스에 대한 Time To Live (TTL)를 구현합니다.
+reviewed: 2025-01-21T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/durable-objects/examples/durable-object-ttl/'
+translation_source_md: >-
+  https://developers.cloudflare.com/durable-objects/examples/durable-object-ttl/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs, GlossaryTooltip, WranglerConfig } from "~/components";
+
+Durable Objects를 위한 일반적인 특징 요구는 튼튼한 목표 인스턴스를 위한 (TTL)를 사는 시간입니다. Durable Objects는 개발자에게 코드를 몇 줄 만에 사용자 정의 TTL을 구현하는 도구를 제공합니다. 이 예제는 TTL의 사용을 구현하는 방법을 설명합니다.<GlossaryTooltip term="alarm">`alarms`</GlossaryTooltip>. 이 TTL는 튼튼한 목표에 각 새로운 요구에 장시간 도중, 이것은 특정한 사용 케이스에 근거를 둔 주문을 받아서 만들어질 수 있습니다.
+
+:::caution\[전화시 주의`setAlarm`튼튼한 개체 클래스 생성기에서]
+
+이 예제에서 TTL은 모든 새로운 fetch 요청에 따라 내구성 객체에 확장됩니다. 그것은 대신 TTL을 내구성 개체의 생성기에 확장 할 수 있습니다. 이것은 튼튼한 목표의 constructor가 경보가 hibernation에서 일어나면 경보 핸들러를 호출하기 전에 호출되기 때문에 조언되지 않습니다. 이 접근법은 연속적으로 알람 핸들러를 실행하지 않고 TTL을 확장합니다. 자주 묻는 질문`setAlarm`튼튼한 개체 클래스 생성기에서 이전에 설정된 알람이 없다는 것을 확인해야합니다.
+
+:::
+
+<Tabs>
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    import { DurableObject } from "cloudflare:workers";
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+      //시간 (TTL) 밀리 초에서
+      timeToLiveMs = 1000;
+
+      constructor(ctx, env) {
+        super(ctx, env);
+      }
+
+      async fetch(_request) {
+        //모든 fetch 요청을 튼튼한 개체에 따라 TTL을 즉시 확장합니다.
+        await this.ctx.storage.setAlarm(Date.now() + this.timeToLiveMs);
+        ...
+       }
+
+      async alarm() {
+        await this.ctx.storage.deleteAll();
+      }
+    }
+
+    //작업자
+    export default {
+      async fetch(request, env) {
+        const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+        return await stub.fetch(request);
+      },
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import { DurableObject } from "cloudflare:workers";
+
+    export interface Env {
+      MY_DURABLE_OBJECT: DurableObjectNamespace<MyDurableObject>;
+    }
+
+    //튼튼한 목표
+    export class MyDurableObject extends DurableObject {
+      //시간 (TTL) 밀리 초에서
+      timeToLiveMs = 1000;
+
+      constructor(ctx: DurableObjectState, env: Env) {
+        super(ctx, env);
+      }
+
+      async fetch(_request: Request) {
+        //모든 fetch 요청을 튼튼한 개체에 따라 TTL을 즉시 확장합니다.
+        await this.ctx.storage.setAlarm(Date.now() + this.timeToLiveMs);
+        ...
+       }
+
+      async alarm() {
+        await this.ctx.storage.deleteAll();
+      }
+    }
+
+    //작업자
+    export default {
+      async fetch(request, env) {
+        const stub = env.MY_DURABLE_OBJECT.getByName("foo");
+        return await stub.fetch(request);
+      },
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import DurableObject, Response, WorkerEntrypoint
+    import time
+
+    #튼튼한 목표
+    class MyDurableObject(DurableObject):
+    	#시간 (TTL) 밀리 초에서
+    	timeToLiveMs = 1000
+
+    	def __init__(self, ctx, env):
+    		super().__init__(ctx, env)
+
+    	async def fetch(self, _request):
+    		#모든 fetch 요청을 튼튼한 개체에 따라 TTL을 즉시 확장합니다.
+    		await self.ctx.storage.setAlarm(int(time.time() * 1000) + self.timeToLiveMs)
+    		...
+
+    	async def alarm(self):
+    		await self.ctx.storage.deleteAll()
+
+    #작업자
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		stub = self.env.MY_DURABLE_OBJECT.getByName("foo")
+    		return await stub.fetch(request)
+    ```
+  </TabItem>
+</Tabs>
+
+이 예제를 테스트하고 배포하려면 Wrangler 파일을 구성하여 튼튼한 개체를 포함[관련 제품](/durable-objects/get-started/#4-configure-durable-object-bindings)·[회사연혁](/durable-objects/reference/durable-objects-migrations/)이전에 선택한 네임스페이스 및 클래스 이름을 기반으로 합니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "durable-object-ttl",
+  	"main": "src/index.ts",
+  	"durable_objects": {
+  		"bindings": [
+  			{
+  				"name": "MY_DURABLE_OBJECT",
+  				"class_name": "MyDurableObject"
+  			}
+  		]
+  	},
+  	"migrations": [
+  		{
+  			"tag": "v1",
+  			"new_sqlite_classes": [
+  				"MyDurableObject"
+  			]
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>

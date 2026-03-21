@@ -1,0 +1,66 @@
+---
+title: Cipher suites
+pcx_content_type: reference
+sidebar:
+  order: 6
+head:
+  - tag: title
+    content: Cipher suites — 오리진
+description: SSL/TLS 핸드셰이크 중 Cloudflare가 오리진에 제시하는 cipher suites
+  목록을 확인합니다.
+
+---
+
+오리진 서버와 SSL/TLS 핸드셰이크를 수행할 때 Cloudflare가 오리진 서버에 제시하는 cipher suites 목록은 아래를 참고하세요.
+
+:::note
+
+브라우저와 다른 user agent에 대해 Cloudflare 글로벌 네트워크가 제시하는 cipher suites는 [cipher suites supported at Cloudflare's global network](/ssl/edge-certificates/additional-options/cipher-suites/supported-cipher-suites/)를 참고하세요.
+:::
+
+목록 순서는 [ClientHello](https://www.cloudflare.com/learning/ssl/what-happens-in-a-tls-handshake/#:~:text=client%20hello)에 cipher suites가 나타나는 순서를 기준으로 하며, 이는 Cloudflare의 선호도를 나타냅니다.
+
+## 프로토콜별 지원되는 cipher suites
+
+| Cipher name                        | TLS 1.0 | TLS 1.1 | TLS 1.2 | TLS 1.3 |
+| ---------------------------------- | ------- | ------- | ------- | ------- |
+| AEAD-AES128-GCM-SHA256 [^1]        | ❌       | ❌       | ❌       | ✅       |
+| AEAD-AES256-GCM-SHA384 [^1]        | ❌       | ❌       | ❌       | ✅       |
+| AEAD-CHACHA20-POLY1305-SHA256 [^1] | ❌       | ❌       | ❌       | ✅       |
+| ECDHE-ECDSA-AES128-GCM-SHA256      | ❌       | ❌       | ✅       | ❌       |
+| ECDHE-RSA-AES128-GCM-SHA256        | ❌       | ❌       | ✅       | ❌       |
+| ECDHE-RSA-AES128-SHA               | ✅       | ✅       | ✅       | ❌       |
+| AES128-GCM-SHA256                  | ❌       | ❌       | ✅       | ❌       |
+| AES128-SHA                         | ✅       | ✅       | ✅       | ❌       |
+| ECDHE-ECDSA-AES256-GCM-SHA384      | ❌       | ❌       | ✅       | ❌       |
+| ECDHE-RSA-AES256-GCM-SHA384        | ❌       | ❌       | ✅       | ❌       |
+| ECDHE-RSA-AES256-SHA384            | ❌       | ❌       | ✅       | ❌       |
+| AES256-SHA                         | ✅       | ✅       | ✅       | ❌       |
+| DES-CBC3-SHA                       | ✅       | ❌       | ❌       | ❌       |
+
+### TLS 1.3 cipher suites
+
+TLS 1.3은 이전 TLS 버전과 같은 cipher suite 공간을 사용하지만, TLS 1.3 cipher suites는 다르게 정의되며 대칭 암호만 지정하고 TLS 1.2에는 사용할 수 없습니다([RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html)).
+
+마찬가지로 TLS 1.2 이하의 cipher suites는 TLS 1.3과 함께 사용할 수 없습니다. BoringSSL 역시 TLS 1.3에 대해 위 순서대로 cipher preference를 하드코딩하고 있습니다.
+
+BoringSSL 기준으로 Cloudflare 시스템은 위에 나열된 이름을 반환합니다. 다만 [RFC 8446](https://www.rfc-editor.org/rfc/rfc8446.html)에서 정의된 대응 이름은 다음과 같습니다.
+
+- `TLS_AES_128_GCM_SHA256`
+- `TLS_AES_256_GCM_SHA384`
+- `TLS_CHACHA20_POLY1305_SHA256`
+
+## 오리진에서 매칭하기
+
+Cloudflare는 위 cipher suites를 오리진에 제시하며, 오리진 서버는 자신이 선호하는 cipher suite를 선택합니다.
+
+하지만 오리진 서버가 Cloudflare 글로벌 네트워크가 지원하는 것과 동일한 cipher suites를 지원하도록 보장하고 싶고, 오리진에서 TLS 종료에 [NGINX](https://en.wikipedia.org/wiki/Nginx)를 사용한다면 다음 설정을 적용할 수 있습니다.
+
+```txt
+ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3;
+ssl_ecdh_curve X25519:P-256:P-384;
+ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-CHACHA20-POLY1305:ECDHE+AES128:RSA+AES128:ECDHE+AES256:RSA+AES256:ECDHE+3DES:RSA+3DES;
+ssl_prefer_server_ciphers on;
+```
+
+[^1]: 자세한 내용은 [TLS 1.3 cipher suites](#tls-13-cipher-suites)를 참고하세요.

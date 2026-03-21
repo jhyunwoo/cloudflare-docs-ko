@@ -1,0 +1,170 @@
+---
+title: VPC 서비스
+pcx_content_type: concept
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers-vpc/configuration/vpc-services/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, WranglerConfig } from "~/components";
+
+VPC 서비스는 Workers VPC의 핵심 건물 구획입니다. Workers는 Cloudflare 갱도를 통해서 접근할 수 있는 개인 네트워크에 있는 특정한 자원을 대표합니다.
+
+Workers에서 VPC 서비스에 연결하는 바인딩을 사용할 수 있습니다. 모든 요청은 VPC 서비스로 제작되었습니다.`fetch`함수는 개인 네트워크에서 구성된 서비스에 안전하게 접근할 것입니다.
+
+VPC 서비스 요청은 전체 네트워크의 폭발 없이 의도된 서비스에 경로를 따라 작업 부하를 확보하고 서버 측 요청 위조 방지 (SSRF).
+
+회원은**Connectivity 디렉토리 Bind**Workers에서 기존 VPC 서비스에 바인딩하는 역할. VPC 서비스를 만들기 위해서는 구성원이 필요합니다.**Connectivity Directory 관리자**역할.
+
+:::참조
+
+Workers VPC는 현재 베타에 있습니다. 특징 및 API는 일반적인 가용성의 앞에 변화할지도 모릅니다. 베타에서, Workers VPC는 모든 Workers 계획에 무료로 사용할 수 있습니다.
+
+:::
+
+## VPC 서비스 구성
+
+VPC 서비스는 다음과 같습니다:
+
+- **제품정보**: 현재 만`http`지원 (지원)`tcp`현재 위치
+- **터널 ID**: Cloudflare 네트워크 연결을 제공하는 Tunnel
+- **호스트 이름 또는 IPv4/IPv6 주소**: 호스트 이름, 또는 IPv4 및/또는 IPv6 주소는 개인 네트워크의 터널에서 서비스에 대한 경로에 사용
+- **항구 항구**: HTTP 및 / 또는 HTTPS 포트 구성 (선택 사항, 기본값은 80 / 443)
+- **해결자 IP**: 선택적으로 특정 해결사 IP는 제공 할 수 있습니다. - 제공되지 않을 때,`cloudflared`현재 구성된 기본 시스템 해결자에 DNS 트래픽을 지시합니다.
+
+요청은 터널을 통해 네트워크에 도달 할 때까지 비행에서 암호화됩니다. URL에 사용되는 방식에 관계없이`fetch`. 만약`http`계획은, 일반 연결이 갱도에서 서비스에 설치됩니다.
+
+더 보기`https`계획은 네트워크 내에서 암호화 된 연결을 위해 사용할 수 있습니다, 터널과 서비스 사이에. 언제까지`https`계획은 지정되어, 제공되는 호스트 이름`fetch()`작업은 Server Name Indication (SNI) 값으로 사용됩니다.
+
+VPC 서비스 기본적으로 둘 다 허용`http`·`https`사용 할 계획. 하나의 값을 제공할 수 있습니다.`http_port`또는`https_port`특정 계획의 사용을 시행하기 위해.
+
+Workers VPC가 서비스에 연결을 설정할 수 없을 때,`fetch()`예외를 던질 것입니다.
+
+:::참조
+
+더 보기[VPC 서비스 구성](/workers-vpc/configuration/vpc-services/#vpc-service-configuration)호스트 및 포트 (s)는 항상 귀하의 서비스에 연결 및 경로 요청을 사용할 수 있습니다, 심지어 다른 호스트 또는 포트가 제공 된 URL에 존재하는 경우에도`fetch()`작업자 코드에서 작업.
+
+호스트는`fetch()`작업은 요청을 경로에 사용되지 않으며, 대신 만 교황`Host`HTTP 요청 필드, 또는`Host`Server Name Indication (SNI) 값은 HTTPS 요청에 대한 서비스로 표시됩니다.
+
+항구에서 제공`fetch()`작업은 무시됩니다 - 제공 된 계획에 대한 VPC 서비스 구성에 지정된 포트가 사용됩니다.
+
+:::
+
+### 지원된 TLS 증명서
+
+사용시`https`계획, 갱도는 당신의 근원 서비스에 의해 제시된 TLS 증명서를 확인합니다. Workers VPC는 뒤에 오는 증명서 유형을 신뢰합니다:
+
+- **신뢰할 수 있는 인증서**— 잘 알려진 공공 인증서 당국 (예를 들어, DigiCert 암호화하자)에 의해 발행 된 인증서.
+- **[Cloudflare 근원 CA 증명서](/ssl/origin-configuration/origin-ca/)**- CloudflareXQ의 트래픽을 암호화하는 무료 인증서 및 원산지. 근원 CA 증명서는 브라우저에 의해 신뢰되지 않습니다, 그러나 당신의 개인적인 서비스에 연결될 때 Workers VPC에 의해 신뢰됩니다.
+
+원산지 서비스는 공개적으로 신뢰할 수있는 CA 또는 Cloudflare Origin CA에 의해 발급되지 않은 인증서를 제시하면 TLS Handhake가 실패하고`fetch()`예외를 던질 것입니다.
+
+## 구성 예
+
+다음은 사용자 정의 HTTP 및 HTTPS 포트를 사용하여 서비스에 대한 VPC 서비스의 예이며, IPv4 및 IPv6 주소 모두입니다. 이 구성은 예상 계약을 나타냅니다.[VPC 서비스를 만들기 위한 REST API](/api/resources/connectivity/subresources/directory/subresources/services/), 더 넓은 연결 디렉토리 내에서 서비스의 유형.
+
+```jsonc
+{
+	"type": "http",
+	"name": "human-readable-name",
+
+	//포트 구성 (선택 사항 - 기본값은 80/443)
+	"http_port": 80,
+	"https_port": 443,
+
+	//호스트 구성
+	"host": {
+		"ipv4": "10.0.0.1",
+		"ipv6": "fe80::",
+		"network": {
+			"tunnel_id": "0191dce4-9ab4-7fce-b660-8e5dec5172da",
+		},
+	},
+}
+```
+
+다음은 사용자 정의 HTTP 및 HTTPS 포트를 사용하여 서비스를 위한 VPC 서비스의 예입니다. 호스트 이름을 사용하여. 우리가 호스트 이름을 사용하고 있기 때문에, 우리는 우리의 서비스를 제공해야합니다`resolver_network`선택적으로`resolver_ips`.
+
+```jsonc
+{
+	"type": "http",
+	"name": "human-readable-name",
+
+	//포트 구성 (선택 사항 - 기본값은 80/443)
+	"http_port": 80,
+	"https_port": 443,
+
+	//호스트 이름 호스트 (DNS 해상도)
+	"host": {
+		"hostname": "example.com",
+		"resolver_network": {
+			"tunnel_id": "0191dce4-9ab4-7fce-b660-8e5dec5172da",
+			"resolver_ips": ["10.0.0.1"], //옵션 정보
+		},
+	},
+}
+```
+
+## Workers 바인딩 윤곽
+
+VPC 서비스를 만들면, 작업자에 바인딩할 수 있습니다.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"main": "src/index.js",
+  	"vpc_services": [
+  		{
+  			"binding": "PRIVATE_API",
+  			"service_id": "e6a0817c-79c5-40ca-9776-a1c019defe70",
+  			"remote": true //true일 때, [remote 바인딩](/workers/development-testing/#remote-bindings)를 이용하여 로컬 개발 중에 VPC 서비스에 액세스할 수 있습니다.
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+당신은 다수 VPC 서비스 바인딩이 있을 수 있습니다:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vpc_services": [
+  		{
+  			"binding": "PRIVATE_API",
+  			"service_id": "daf43e8c-a81a-4242-9912-4a2ebe4fdd79",
+  			"remote": true
+  		},
+  		{
+  			"binding": "PRIVATE_DATABASE",
+  			"service_id": "453b6067-1327-420d-89b3-2b6ad16e6551",
+  			"remote": true
+  		},
+  		{
+  			"binding": "INTERNAL_CACHE",
+  			"service_id": "6c39b574-237e-49f4-852a-cea5a93ed8f9",
+  			"remote": true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 필수 역할
+
+<Render file="required-roles" product="workers-vpc" />
+
+## 다음 단계
+
+- [Terraform의 VPC 서비스 구성](/workers-vpc/configuration/vpc-services/terraform/)VPC 서비스 관리
+- 설치하기[Cloudflare 갱도](/workers-vpc/configuration/tunnel/)당신의 환경을 위해
+- 자세히 알아보기[서비스 바인딩 API](/workers-vpc/api/)
+- 더 알아보기[이름 \*](/workers-vpc/examples/)일반적인 사용 사례

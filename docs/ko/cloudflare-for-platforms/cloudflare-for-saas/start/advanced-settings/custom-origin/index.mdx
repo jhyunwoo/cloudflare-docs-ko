@@ -1,0 +1,76 @@
+---
+pcx_content_type: concept
+title: 주문 근원 서버
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/custom-origin/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/start/advanced-settings/custom-origin/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+<Render file="custom-origin-server-definition" product="cloudflare-for-platforms" />
+
+## 제품 정보
+
+사용자 정의 기원 서버를 사용하려면 다음 요구 사항을 충족해야합니다.
+
+- 각 사용자 정의 기원은 proxied (orange-clouded) A, AAAA 또는 CNAME 레코드를 사용하여 유효한 호스트 이름이어야합니다. IP 주소를 사용할 수 없습니다.
+- 사용자 정의 Origin 서버의 DNS 레코드는 현재 와일드카드 값을 지원하지 않습니다.
+
+## 사용자 정의 기원 사용
+
+사용자 정의 기원을 사용하려면, 그 옵션을 선택할 때[새로운 사용자 정의 hostname 만들기](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/)대시보드에 또는 포함하십시오`"custom_origin_server": your_custom_origin_server`API를 사용할 때 매개변수[POST 명령](/api/resources/custom_hostnames/methods/create/).
+
+## SNI 리깅
+
+<Render file="ssl-for-saas-plan-limitation" product="cloudflare-for-platforms" />
+
+Cloudflare가 기본 Origin 서버에 연결하도록 설정하면`Host`헤더 및<GlossaryTooltip term="Server Name Indication (SNI)">사이트맵</GlossaryTooltip>둘 다 본래 주문 hostname의 가치일 것입니다.
+
+그러나, 사용자 정의 기원과 사용자 정의 호스트 이름을 구성하는 경우, SNI의 값은 사용자 정의 기원과`Host`header는 본래 주문 hostname일 것입니다. 이 값이 일치하지 않기 때문에 사용할 수 없습니다.[풀 (strict)](/ssl/origin-configuration/ssl-modes/full-strict/)당신의 근원에.
+
+이 문제를 해결하려면 계정 팀에 문의하여 제목을 요청할 수 있습니다.**SNI 리깅**.
+
+### SNI 옵션을 다시 작성
+
+사용자 정의 hostname이 SNI로 SNI 값을 변환하는 방법을 선택하십시오.
+
+- **Origin 서버 이름**(과태): SNI를 주문 근원에 놓으십시오
+  - 주문 근원이면`custom-origin.example.com`SNI는`custom-origin.example.com`.
+
+- **호스트 헤더**: 호스트 헤더에 SNI 설정 (또는 호스트 헤더 오버라이드)
+  - wildcards가 활성화되지 않은 경우, hostname은`example.com`SNI는`example.com`.
+  - 와일드카드가 활성화되면 호스트명은`example.com`, 그리고 요구는 옵니다`www.example.com`SNI는`www.example.com`.
+
+- **지역 Subdomain**: SNI 값으로 설정하는 것을 선택하세요 (custom hostname 또는 subdomain)
+  - 와일드카드가 활성화되지 않은 경우, 요청은`example.com`SNI를 설정할지 여부를 선택`example.com`또는`www.example.com`.
+  - 와일드 카드가 활성화되면 SNI를 설정`example.com`, 그리고 요구는 옵니다`www.example.com`SNI는`example.com`.
+
+:::카ution\[중요]
+
+- 현재 SNI Rewrite는 Wildcard 사용자 정의 hostname에 지원되지 않습니다. Wildcard 사용자 정의 호스트 이름에 의해 덮인 Subdomains는 SNI 값으로 사용자 정의 원래 서버 이름을 보냅니다.
+
+- 내 계정[O2O 컨텍스트](/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/how-it-works/)(Cloudflare의 영역에서 프로시던트 호스트 이름에서 시작하면) 호스트 헤더를 사용하는 SNI 값을 변경하는 것은 현재 지원되지 않습니다.
+
+- SNI overrides 정의[근원 규칙](/rules/origin-rules/)SNI 리깅을 통해 precedence를 취할 것입니다.
+
+- 사이트맵 Rewrite 사용법은[서비스-Specific 약관](https://www.cloudflare.com/service-specific-terms-application-services/#ssl-for-saas-terms).
+
+:::
+
+### SNI 리깅 설정
+
+대시보드에서 SNI 리깅을 설정하려면 선호 옵션을 선택하십시오.**근원 SNI 가치**현재 위치[사용자 정의 hostname 만들기](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/).
+
+API를 통해 SNI 리깅을 설정하려면`custom_origin_sni`모수 때[사용자 정의 hostname 만들기](/api/resources/custom_hostnames/methods/create/):
+
+- **주문 근원 이름**(과태): 매개변수를 놓지 않는 경우에 applies
+- **호스트 헤더**: 지정`":request_host_header:"`
+- **지역 Subdomain**: 세트`"example.com"`또는 custom hostname의 다른 subdomain

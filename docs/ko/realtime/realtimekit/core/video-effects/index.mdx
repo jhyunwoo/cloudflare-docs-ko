@@ -1,0 +1,429 @@
+---
+pcx_content_type: content
+title: 동영상 효과
+sidebar:
+  order: 14
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/realtime/realtimekit/core/video-effects/'
+translation_source_md: >-
+  https://developers.cloudflare.com/realtime/realtimekit/core/video-effects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+import RTKSDKSelector from "~/components/realtimekit/RTKSDKSelector/RTKSDKSelector.astro";
+import RTKCodeSnippet from "~/components/realtimekit/RTKCodeSnippet/RTKCodeSnippet.astro";
+
+Core SDK를 사용하여 RealtimeKit 회의에서 참가자 비디오 피드에 비디오 배경 효과와 blur를 추가하십시오.
+
+:::참조
+사용중인 경우`rtk-meeting`UI Kit와 구성 요소는 더 높은 수준의 요약을 선호하며, 참조[UI 키트 Addons](/realtime/realtimekit/ui-kit/addons/)대신.
+주요 특징
+
+<RTKSDKSelector />
+
+<RTKCodeSnippet id="web-web-components">
+  ## 설치하기
+
+  <PackageManagers pkg="@cloudflare/realtimekit-virtual-background" />
+
+  ## 제품 정보
+
+  ### 1. 프레임 렌더링 당 기본 비활성화
+
+  비디오 미들웨어의 프레임 렌더링 당 기본을 비활성화하여이 미들웨어를 제어하여 속도와 품질을 향상시킬 수 있습니다.
+
+  ```javascript
+  await meeting.self.setVideoMiddlewareGlobalConfig({
+  	disablePerFrameCanvasRendering: true,
+  });
+  ```
+
+  ### 2. 변압기를 초기화하십시오
+
+  비디오 배경 변압기 객체 만들기:
+
+  ```javascript
+  import RealtimeKitVideoBackgroundTransformer from "@cloudflare/realtimekit-virtual-background";
+
+  const videoBackgroundTransformer =
+  	await RealtimeKitVideoBackgroundTransformer.init({
+  		meeting,
+  	});
+  ```
+
+  ### 3. 배경 효력을 적용하십시오
+
+  더 보기`videoBackgroundTransformer`미들웨어의 두 가지 유형 노출:
+
+  #### 정적 배경 이미지
+
+  제품 정보`createStaticBackgroundVideoMiddleware`배경으로 이미지를 설정하려면:
+
+  ```javascript
+  const imageUrl = "https://images.unsplash.com/photo-1487088678257-3a541e6e3922";
+
+  meeting.self.addVideoMiddleware(
+  	await videoBackgroundTransformer.createStaticBackgroundVideoMiddleware(
+  		imageUrl,
+  	),
+  );
+  ```
+
+  #### 배경 흐림
+
+  제품 정보`createBackgroundBlurVideoMiddleware`배경을 흐르십시오. 패스워드`blurStrength`(0-100) 매개변수로 (기본값으로 50%):
+
+  ```javascript
+  meeting.self.addVideoMiddleware(
+  	await videoBackgroundTransformer.createBackgroundBlurVideoMiddleware(50),
+  );
+  ```
+
+  ## 브라우저 지원
+
+  초기화 전에 브라우저 지원 확인:
+
+  ```javascript
+  if (RealtimeKitVideoBackgroundTransformer.isSupported()) {
+  	const videoBackgroundTransformer =
+  		await RealtimeKitVideoBackgroundTransformer.init({
+  			meeting: meeting,
+  		});
+
+  	meeting.self.addVideoMiddleware(
+  		await videoBackgroundTransformer.createStaticBackgroundVideoMiddleware(
+  			imageUrl,
+  		),
+  	);
+  }
+  ```
+
+  :::note\[이미지 CORS 요건]
+  이미지 URL은 CORS를 허용해야 캔버스를 tainting. CORS-enabled 이미지를 찾을 수 있습니다.[뚱 베어](https://unsplash.com/)·[임구](https://imgur.com).
+  :::
+
+  ## 고급 구성
+
+  더 나은, 날카로운 결과를 위해, 주문 세그먼트 윤곽을 통과하십시오:
+
+  ```javascript
+  const videoBackgroundTransformer =
+  	await RealtimeKitVideoBackgroundTransformer.init({
+  		meeting,
+  		segmentationConfig: {
+  			model: "mlkit", //'메트' | 'mlkit'
+  			backend: "wasmSimd",
+  			inputResolution: "256x256", //'256x144'
+  			pipeline: "webgl2", //'webgl2' |'캔버스2dCpu'
+  			//Canvas2dCpu는 날카로운 흐릅니다, webgl2는 더 빠릅니다
+  			targetFps: 35,
+  		},
+  	});
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-react">
+  ## 설치하기
+
+  <PackageManagers pkg="@cloudflare/realtimekit-virtual-background" />
+
+  ## 제품 정보
+
+  ```jsx
+  import { useState, useEffect } from "react";
+  import { useRealtimeKitClient } from "@cloudflare/realtimekit-react";
+  import RealtimeKitVideoBackgroundTransformer from "@cloudflare/realtimekit-virtual-background";
+
+  function App() {
+  	const [meeting] = useRealtimeKitClient();
+  	const [videoBackgroundTransformer, setVideoBackgroundTransformer] =
+  		useState(null);
+
+  	useEffect(() => {
+  		const initializeTransformer = async () => {
+  			if (!meeting) return;
+
+  			//본문 바로가기
+  			if (!RealtimeKitVideoBackgroundTransformer.isSupported()) {
+  				console.warn("Video background not supported in this browser");
+  				return;
+  			}
+
+  			//프레임 렌더링 당 기본값
+  			await meeting.self.setVideoMiddlewareGlobalConfig({
+  				disablePerFrameCanvasRendering: true,
+  			});
+
+  			//변압기를 초기화
+  			const transformer = await RealtimeKitVideoBackgroundTransformer.init({
+  				meeting,
+  			});
+
+  			setVideoBackgroundTransformer(transformer);
+  		};
+
+  		initializeTransformer();
+  	}, [meeting]);
+
+  	const applyStaticBackground = async (imageUrl) => {
+  		if (!videoBackgroundTransformer) return;
+
+  		meeting.self.addVideoMiddleware(
+  			await videoBackgroundTransformer.createStaticBackgroundVideoMiddleware(
+  				imageUrl,
+  			),
+  		);
+  	};
+
+  	const applyBlur = async (blurStrength = 50) => {
+  		if (!videoBackgroundTransformer) return;
+
+  		meeting.self.addVideoMiddleware(
+  			await videoBackgroundTransformer.createBackgroundBlurVideoMiddleware(
+  				blurStrength,
+  			),
+  		);
+  	};
+
+  	const removeBackground = () => {
+  		//모든 비디오 미들웨어 제거
+  		meeting.self.removeVideoMiddleware();
+  	};
+
+  	return (
+  		<div>
+  			<button
+  				onClick={() =>
+  					applyStaticBackground(
+  						"https://images.unsplash.com/photo-1487088678257-3a541e6e3922",
+  					)
+  				}
+  			>
+  				Apply Background
+  			</button>
+  			<button onClick={() => applyBlur(50)}>Apply Blur</button>
+  			<button onClick={removeBackground}>Remove Background</button>
+  		</div>
+  	);
+  }
+  ```
+
+  :::note\[이미지 CORS 요건]
+  이미지 URL은 CORS를 허용해야 캔버스를 tainting. CORS-enabled 이미지를 찾을 수 있습니다.[뚱 베어](https://unsplash.com/)·[임구](https://imgur.com).
+  :::
+
+  ## 고급 구성
+
+  더 나은, 날카로운 결과를 위해, 주문 세그먼트 윤곽을 통과하십시오:
+
+  ```jsx
+  const transformer = await RealtimeKitVideoBackgroundTransformer.init({
+  	meeting,
+  	segmentationConfig: {
+  		model: "mlkit", //'메트' | 'mlkit'
+  		backend: "wasmSimd",
+  		inputResolution: "256x256", //'256x144'
+  		pipeline: "webgl2", //'webgl2' |'캔버스2dCpu'
+  		//Canvas2dCpu는 날카로운 흐릅니다, webgl2는 더 빠릅니다
+  		targetFps: 35,
+  	},
+  });
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="web-angular">
+  ## 설치하기
+
+  <PackageManagers pkg="@cloudflare/realtimekit-virtual-background" />
+
+  ## 제품 정보
+
+  구성 요소 TypeScript 파일에서:
+
+  ```typescript
+  import { Component, OnInit } from "@angular/core";
+  import RealtimeKitClient from "@cloudflare/realtimekit";
+  import RealtimeKitVideoBackgroundTransformer from "@cloudflare/realtimekit-virtual-background";
+
+  @Component({
+  	selector: "app-meeting",
+  	templateUrl: "./meeting.component.html",
+  })
+  export class MeetingComponent implements OnInit {
+  	meeting: any;
+  	videoBackgroundTransformer: any;
+
+  	async ngOnInit() {
+  		//초기 회의
+  		this.meeting = await RealtimeKitClient.init({
+  			authToken: "<participant_auth_token>",
+  		});
+
+  		await this.meeting.join();
+
+  		//본문 바로가기
+  		if (!RealtimeKitVideoBackgroundTransformer.isSupported()) {
+  			console.warn("Video background not supported in this browser");
+  			return;
+  		}
+
+  		//프레임 렌더링 당 기본값
+  		await this.meeting.self.setVideoMiddlewareGlobalConfig({
+  			disablePerFrameCanvasRendering: true,
+  		});
+
+  		//변압기를 초기화
+  		this.videoBackgroundTransformer =
+  			await RealtimeKitVideoBackgroundTransformer.init({
+  				meeting: this.meeting,
+  			});
+  	}
+
+  	async applyStaticBackground(imageUrl: string) {
+  		if (!this.videoBackgroundTransformer) return;
+
+  		this.meeting.self.addVideoMiddleware(
+  			await this.videoBackgroundTransformer.createStaticBackgroundVideoMiddleware(
+  				imageUrl,
+  			),
+  		);
+  	}
+
+  	async applyBlur(blurStrength: number = 50) {
+  		if (!this.videoBackgroundTransformer) return;
+
+  		this.meeting.self.addVideoMiddleware(
+  			await this.videoBackgroundTransformer.createBackgroundBlurVideoMiddleware(
+  				blurStrength,
+  			),
+  		);
+  	}
+
+  	removeBackground() {
+  		//모든 비디오 미들웨어 제거
+  		this.meeting.self.removeVideoMiddleware();
+  	}
+  }
+  ```
+
+  구성 요소 템플릿에서:
+
+  ```html
+  <button
+  	(click)="applyStaticBackground('https://images.unsplash.com/photo-1487088678257-3a541e6e3922')"
+  >
+  	Apply Background
+  </button>
+  <button (click)="applyBlur(50)">Apply Blur</button>
+  <button (click)="removeBackground()">Remove Background</button>
+  ```
+
+  :::note\[이미지 CORS 요건]
+  이미지 URL은 CORS를 허용해야 캔버스를 tainting. CORS-enabled 이미지를 찾을 수 있습니다.[뚱 베어](https://unsplash.com/)·[임구](https://imgur.com).
+  :::
+
+  ## 고급 구성
+
+  더 나은, 날카로운 결과를 위해, 주문 세그먼트 윤곽을 통과하십시오:
+
+  ```typescript
+  this.videoBackgroundTransformer =
+  	await RealtimeKitVideoBackgroundTransformer.init({
+  		meeting: this.meeting,
+  		segmentationConfig: {
+  			model: "mlkit", //'메트' | 'mlkit'
+  			backend: "wasmSimd",
+  			inputResolution: "256x256", //'256x144'
+  			pipeline: "webgl2", //'webgl2' |'캔버스2dCpu'
+  			//Canvas2dCpu는 날카로운 흐릅니다, webgl2는 더 빠릅니다
+  			targetFps: 35,
+  		},
+  	});
+  ```
+</RTKCodeSnippet>
+
+<RTKCodeSnippet id="mobile-android">
+  ## 설치하기
+
+  사전 포장 필터를 프로젝트에 추가할 수 있습니다.`build.gradle`파일 :
+
+  ```java
+  dependencies {
+      // (other dependencies)
+      implementation 'com.cloudflare.realtimekit:filters:0.1.0'
+  }
+  ```
+
+  ## 제품 정보
+
+  이 패키지는 현재 노출`VirtualBackgroundVideoFilter`그것은 사용될 수 있습니다`FilterVideoProcessor`:
+
+  ```kotlin
+  // Create a virtual background filter with a custom background image.
+  val bgFilter = VirtualBackgroundVideoFilter(context, R.drawable.background)
+
+  // Initialize the video processor with the filter.
+  val processor = FilterVideoProcessor(eglBase, bgFilter)
+
+  // // Set the video processor on the meeting builder.
+  val meeting = RealtimeKitMeetingBuilder
+    .setVideoProcessor(eglBase, processor)
+    .build(activity)
+  ```
+
+  ## 고급 구성
+
+  또한 자신의 사용자 정의 필터를 만들 수 있습니다 효과, 필터, 또는 분석 직접 라이브 비디오 스트림. 제품 정보**VideoProcessor APIs의 장점**비디오 프레임을 조작 할 수있는 유연한 강력한 방법을 제공합니다.
+
+  ### Video Processors의 유형
+
+  우리는 영상 가공업자의 3가지의 유형을 제공합니다:
+
+  - **NoDrop비디오**: 드롭 프레임없이 사용자 정의 비디오 처리 허용.
+  - **ChainVideoProcessor의 장점**: 여러 프레임 프로세서를 함께 체인, 여러 효과 또는 필터를 비디오 스트림에 적용하는 데 유용합니다.
+  - **필터VideoProcessor**: 단일 효과 또는 필터를 비디오 스트림에 적용하는 간단한 및 더 효율적인 방법.
+
+  Untheless, 당신은 또한 당신의 자신의 주문 영상 가공업자를 실행해서 만들 수 있습니다`VideoProcessor`공용영역 직접:
+
+  ```kotlin
+  import realtimekit.org.webrtc.VideoFrame
+  import realtimekit.org.webrtc.VideoProcessor
+  import realtimekit.org.webrtc.VideoSink
+
+  class CustomVideoProcessor : VideoProcessor {
+    override fun onCapturerStarted(started: Boolean) {}
+
+    override fun onCapturerStopped() {}
+
+    override fun onFrameCaptured(frame: VideoFrame?) {}
+
+    override fun setSink(sink: VideoSink?) {}
+  }
+  ```
+
+  ### 사용법 예
+
+  일단 생성하고 구성하면`VideoProcessor`, 그것을 통행`RealtimeKitMeetingBuilder`객체. 카메라에 의해 캡처 된 비디오 프레임을 다른 참가자에게 보내거나 로컬로 렌더링합니다.
+
+  ```kotlin
+  // Assuming 'myCustomProcessor' is an instance of any VideoProcessor implementation
+  // (for example, ChainVideoProcessor, FilterVideoProcessor, and more).
+
+  val myCustomProcessor = CustomProcessor()
+
+  // Set the video processor on the meeting builder.
+  val meeting = RealtimeKitMeetingBuilder
+    .setVideoProcessor(processor = myCustomProcessor)
+    .build(activity)
+
+  // You can also pass an EglBase to the builder
+  // This is useful when using FilterVideoProcessor
+  val eglBase = EglBase.create()
+  val meeting = RealtimeKitMeetingBuilder
+    .setVideoProcessor(eglBase = eglBase, processor = myCustomProcessor)
+    .build(activity)
+  ```
+</RTKCodeSnippet>

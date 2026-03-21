@@ -1,0 +1,64 @@
+---
+title: Agents SDK에서 결제하기
+pcx_content_type: how-to
+sidebar:
+  order: 3
+description: withX402Client를 사용해 Cloudflare Agent에서 리소스 비용을 결제합니다.
+---
+
+Agents SDK에는 x402로 보호된 tools 비용을 지불할 수 있는 MCP client가 포함되어 있습니다. Agents 안에서 또는 어떤 MCP client connection에서든 사용할 수 있습니다.
+
+```ts
+import { Agent } from "agents";
+import { withX402Client } from "agents/x402";
+import { privateKeyToAccount } from "viem/accounts";
+
+export class MyAgent extends Agent {
+	// Your Agent definitions...
+
+	async onStart() {
+		const { id } = await this.mcp.connect(`${this.env.WORKER_URL}/mcp`);
+		const account = privateKeyToAccount(this.env.MY_PRIVATE_KEY);
+
+		this.x402Client = withX402Client(this.mcp.mcpConnections[id].client, {
+			network: "base-sepolia",
+			account,
+		});
+	}
+
+	onPaymentRequired(paymentRequirements): Promise<boolean> {
+		// Your human-in-the-loop confirmation flow...
+	}
+
+	async onToolCall(toolName: string, toolArgs: unknown) {
+		// The first parameter is the confirmation callback.
+		// Set to `null` for the agent to pay automatically.
+		return await this.x402Client.callTool(this.onPaymentRequired, {
+			name: toolName,
+			arguments: toolArgs,
+		});
+	}
+}
+```
+
+전체 동작 예시는 [x402-mcp on GitHub](https://github.com/cloudflare/agents/tree/main/examples/x402-mcp)를 참고하세요.
+
+## Environment setup
+
+private key는 안전하게 저장하세요.
+
+```sh
+# Local development (.dev.vars)
+MY_PRIVATE_KEY="0x..."
+
+# Production
+npx wrangler secret put MY_PRIVATE_KEY
+```
+
+테스트에는 `base-sepolia`를 사용하세요. [Circle faucet](https://faucet.circle.com/)에서 test USDC를 받을 수 있습니다.
+
+## 관련 링크
+
+- [Charge for MCP tools](/agents/x402/charge-for-mcp-tools/) — 도구 비용을 청구하는 서버 만들기
+- [Pay from coding tools](/agents/x402/pay-with-tool-plugins/) — OpenCode 또는 Claude Code에 결제 추가
+- [Human-in-the-loop guide](/agents/guides/human-in-the-loop/) — 승인 workflow 구현

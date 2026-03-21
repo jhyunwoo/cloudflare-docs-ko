@@ -1,0 +1,109 @@
+---
+pcx_content_type: reference
+title: 네트워크 계층 공격
+sidebar:
+  order: 6
+
+---
+
+네트워크 계층 공격은 네트워크 계층에서의 [DDoS](https://www.cloudflare.com/en-gb/learning/ddos/layer-3-ddos-attacks/) 공격 추세를 보여 줍니다. 이러한 공격은 사용하는 네트워크 프로토콜에 따라 [ICMP](https://www.cloudflare.com/en-gb/learning/ddos/glossary/internet-control-message-protocol-icmp/), [TCP](https://www.cloudflare.com/learning/ddos/glossary/tcp-ip/), [UDP](https://www.cloudflare.com/en-gb/learning/ddos/glossary/user-datagram-protocol-udp/) 등으로 나눌 수 있습니다.
+
+:::note
+
+[Application Layer Attacks](/radar/investigate/application-layer-attacks/)와는 달리, 네트워크 계층 공격에서는 위치를 귀속할 때 클라이언트 IP 주소에 연결된 위치를 사용하지 않습니다. 대신 데이터 센터 자체의 위치를 사용합니다. 이는 [IP spoofing](https://www.cloudflare.com/en-gb/learning/ddos/glossary/ip-spoofing/) 때문입니다.
+:::
+
+위치 또는 자율 시스템(AS)으로 필터링할 때는 공격의 출발 위치/AS를 기준으로 필터링합니다.
+이는 공격을 실제로 지시한 인간 운영자의 위치와는 매우 다를 수 있습니다. 자세한 내용은 [botnets](https://www.cloudflare.com/learning/ddos/what-is-a-ddos-botnet/)를 참고하세요.
+
+## 엔드포인트 목록
+
+### 시계열
+
+#### 예시: 공격 기법별 시간당 백분율 분포
+
+다음 예제에서는 완화된 공격을 네트워크 프로토콜 기준으로 전 세계와 싱가포르의 분포를 비교해 보겠습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer3/timeseries_groups?name=global&dateRange=1d&location=&name=singapore&location=SG&dateRange=1d&aggInterval=1h&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+아래의 축약된 응답을 살펴보면, 전 세계적으로는 해당 시점에 `UDP`와 `TCP` 공격이 대체로 비슷한 비율로 나뉘어 있었음을 알 수 있습니다.
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "global": {
+      "timestamps": ["2022-11-06T13:00:00Z", "2022-11-06T14:00:00Z", "..."],
+      "udp": ["50.784034", "51.055221", "..."],
+      "tcp": ["49.213944", "48.943769", "..."],
+      "icmp": ["0.002023", "0.001009", "..."],
+      "gre": ["0.0", "0.0", "0.0", "..."]
+    },
+    "singapore": {
+      "timestamps": ["2022-11-06T13:00:00Z", "2022-11-06T14:00:00Z", "..."],
+      "tcp": ["79.605287", "83.943885", "..."],
+      "udp": ["20.394594", "16.056115", "..."],
+      "icmp": ["0.000119", "0.0", "..."],
+      "gre": ["0.0", "0.0", "..."]
+    },
+    "meta": {
+      "dateRange": {
+        "startTime": "2022-11-06T13:00:00Z",
+        "endTime": "2022-11-07T13:00:00Z"
+      },
+      "normalization": "PERCENTAGE",
+			// ...
+    }
+  }
+}
+```
+
+또한 싱가포르에서 발생한 네트워크 계층 공격의 분포, 더 정확히는 싱가포르에 위치한 Cloudflare 데이터 센터에 도달한 공격의 분포가 전 세계 분포와 상당히 다르다는 점도 알 수 있습니다. 해당 시점의 네트워크 계층 공격 분포는 분명히 [TCP](https://www.cloudflare.com/learning/ddos/glossary/tcp-ip/) 쪽에 치우쳐 있습니다.
+
+이 엔드포인트에 대한 자세한 내용은 [API reference](/api/resources/radar/subresources/attacks/subresources/layer3/methods/timeseries/)를 참고하세요.
+
+### 요약
+
+#### 예시: 러시아 - 네트워크 프로토콜별 전체 백분율 분포
+
+소스 위치로 필터링해 러시아에서 발생한 공격도 살펴볼 수 있습니다.
+
+```bash
+curl "https://api.cloudflare.com/client/v4/radar/attacks/layer3/summary?location=RU&name=attacks_ru&dateRange=1d&format=json" \
+--header "Authorization: Bearer <API_TOKEN>"
+```
+
+```json
+{
+  "success": true,
+  "errors": [],
+  "result": {
+    "attacks_ru": {
+      "udp": "86.682356",
+      "tcp": "11.928664",
+      "gre": "1.381015",
+      "icmp": "0.007965"
+    },
+    "meta": {
+      "dateRange": {
+        "startTime": "2022-11-06T15:00:00Z",
+        "endTime": "2022-11-07T15:00:00Z"
+      },
+      "normalization": "PERCENTAGE",
+			// ...
+    }
+  }
+}
+```
+
+이 응답은 해당 시점에 러시아에서 다른 위치로 향한 공격이 [UDP](https://www.cloudflare.com/en-gb/learning/ddos/glossary/user-datagram-protocol-udp/) 네트워크 프로토콜을 사용하는 경향이 있었음을 보여 줍니다.
+
+이 엔드포인트에 대한 자세한 내용은 [API reference](/api/resources/radar/subresources/attacks/subresources/layer3/methods/timeseries/)를 참고하세요.
+
+## 다음 단계
+
+Cloudflare의 [1.1.1.1](/1.1.1.1/) 공개 리졸버 서비스로 들어오는 집계·익명화된 DNS 질의를 더 알아보려면 [DNS](/radar/investigate/dns/)를 참고하세요.

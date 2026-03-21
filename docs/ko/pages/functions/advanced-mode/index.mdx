@@ -1,0 +1,87 @@
+---
+pcx_content_type: how-to
+title: 고급 모드
+sidebar:
+  order: 9
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/advanced-mode/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/advanced-mode/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { TabItem, Tabs } from "~/components";
+
+고급 모드를 사용하면 Pages 기능과 기능`_worker.js`파일 보다는 오히려`/functions`디렉토리.
+
+어떤 경우에, Pages 기능의 내장 파일 경로 기반 라우팅 및 미들웨어 시스템은 기존 애플리케이션에 바람직하지 않습니다. Pages의 파일 기반 라우팅 시스템으로 복잡하고 어려운 작업자가있을 수 있습니다. 이 경우, Pages는 정의 할 수있는 능력을 제공합니다`_worker.js`Pages 프로젝트의 출력 디렉토리에 파일.
+
+사용시`_worker.js`파일, 전체`/functions`디렉토리는 routing 및 middleware 특성을 포함하여 무시됩니다. 대신,`_worker.js`파일이 배치되고 작성되어야한다.[모듈 Worker 문법](/workers/runtime-apis/handlers/fetch/). 모듈 문법을 사용하지 않은 경우, 참조[JavaScript 모듈 블로그 게시물](https://blog.cloudflare.com/workers-javascript-modules/)더 알아보기. 모듈 구문을 사용하면 JavaScript 프레임 워크가 PagesXQ 출력 디렉토리 내용의 일부로 작업자를 생성 할 수 있습니다.
+
+## 기능 설정
+
+고급 모드에서는 모든 수신 HTTP 요청의 전체 제어가 도메인에 가정합니다. 귀하의 기능은 프로젝트의 정적 자산에 요청하거나 전달해야합니다. 그렇게 할 실패는 깨진 또는 원치 않는 행동에서 발생합니다. 당신의 기능은 단위 문법에서 기록되어야 합니다.
+
+시작하기`_worker.js`출력 디렉토리에 파일, 다음 코드를 추가 snippet:
+
+<Tabs>
+  <TabItem label="모델 번호: JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request, env) {
+    		const url = new URL(request.url);
+    		if (url.pathname.startsWith("/api/")) {
+    			//TODO: 당신의 관례 /api/* 논리를 여기에서 추가하십시오.
+    			return new Response("Ok");
+    		}
+    		//그렇지 않으면 정적 자산을 제공합니다.
+    		//이없이 노동자는 오류가 없으며 자산이 제공되지 않습니다.
+    		return env.ASSETS.fetch(request);
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="모델 번호: TypeScript" icon="seti:typescript">
+    ```ts
+    //참고 : TS를 JS로 컴파일하고 `_worker.js` 파일로 출력해야합니다. 우리는 `_worker.ts`를 읽지 않습니다
+
+    interface Env {
+    	ASSETS: Fetcher;
+    }
+
+    export default {
+    	async fetch(request, env): Promise<Response> {
+    		const url = new URL(request.url);
+    		if (url.pathname.startsWith("/api/")) {
+    			//TODO: 당신의 관례 /api/* 논리를 여기에서 추가하십시오.
+    			return new Response("Ok");
+    		}
+    		//그렇지 않으면 정적 자산을 제공합니다.
+    		//이없이 노동자는 오류가 없으며 자산이 제공되지 않습니다.
+    		return env.ASSETS.fetch(request);
+    	},
+    } satisfies ExportedHandler<Env>;
+    ```
+  </TabItem>
+</Tabs>
+
+위의 코드에서, 당신은 모든 요청에 따라 응답을 반환하는 기능을 구성했습니다.`/api/`. 그렇지 않으면, 당신의 기능은 정체되는 자산을 돌려보낼 것입니다.
+
+- 더 보기`env.ASSETS.fetch()`함수는 주어진 요청에 자산을 돌려받을 수 있습니다.
+- `env`환경 변수와 바인딩을 포함하는 객체입니다.
+- `ASSETS`기능 및 Pages의 자산 서빙 자원 간의 통신을 허용하는 기본 기능 바인딩입니다.
+- `fetch()`Pages의 자산 보호 리소스로 통화하고 요청한 자산을 제공합니다.
+
+## Workers의 마이그레이션
+
+기존의 Worker를 Pages 프로젝트에 마이그레이션하려면 작업 코드를 복사하고 새로운 작업 코드를 붙여넣기`_worker.js`파일. 다음 코드를 추가하여 정적 자산을 처리 snippet`_worker.js`:
+
+```ts
+return env.ASSETS.fetch(request);
+```
+
+## 기능 배포
+
+새로운 기능 또는 작업자를 마이그레이션 한 후`_worker.js`견적 요청`_worker.js`파일은 Pages의 프로젝트 출력 디렉토리에 배치됩니다. 고급 모드에 대한 Git 통합을 통해 프로젝트를 배포합니다.

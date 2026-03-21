@@ -1,0 +1,125 @@
+---
+pcx_content_type: troubleshooting
+source: >-
+  https://support.cloudflare.com/hc/en-us/articles/205893698-Configure-Cloudflare-and-Heroku-over-HTTPS
+title: HTTPS에 Cloudflare 및 Heroku 구성
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/support/third-party-software/others/configure-cloudflare-and-heroku-over-https/
+translation_source_md: >-
+  https://developers.cloudflare.com/support/third-party-software/others/configure-cloudflare-and-heroku-over-https/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Example, DashButton  } from "~/components";
+
+## 제품정보
+
+Heroku는 여러 사전 구성 프로그래밍 언어를 지원하는 클라우드 PaaS입니다. Heroku는 모든 인프라와 거래되므로 명령줄에서 작업하지 않고 애플리케이션에 집중할 수 있습니다.
+
+이 문서는 CloudflareXQ로 Heroku를 구성하는 방법을 설명합니다. 이 문서를 위해, 우리는 당신이 이미 가지고 있다고 가정할 것입니다[활성 도메인 Cloudflare](/fundamentals/manage-domains/), 뿐만 아니라 실행 Heroku 앱.
+
+***
+
+## Step 1 - Heroku 앱에 사용자 정의 도메인 추가
+
+Heroku의 지시를 따르십시오:[사용자 정의 도메인 이름 Apps](https://devcenter.heroku.com/articles/custom-domains).
+
+***
+
+## 단계 2 - Cloudflare DNS에서 하위 도메인 추가
+
+아래에서 하위 도메인 및 apex 도메인에 DNS 레코드를 추가해야합니다 (또한 "root 도메인"으로 알려져 있습니다. 자주 묻는 질문[CloudflareXQ에서 DNS 레코드 관리](/dns/manage-dns-records/how-to/create-dns-records/).
+
+### Step 2a - 하위 도메인 추가
+
+Cloudflare 대시보드에서, 가십시오**DNS 기록**사이트 맵
+
+<DashButton url="/?to=/:account/:zone/dns/records" />
+
+'www' 추가*이름 \**&#xC0AC;용자 정의 도메인에 포인트를 기록 (또한 알려진*DNS 대상*) 당신은 당신의 subdomain를 위해 위에 단계 1에서 얻었다.
+
+<Example>
+  | 제품정보    | 이름 \* | 제품정보                             | 프록시 상태 |
+  | ------- | ----- | -------------------------------- | ------ |
+  | `CNAME` | `www` | `{example-domain}.herokudns.com` | 견적 요청  |
+</Example>
+
+### Step 2b - 루트 도메인 추가
+
+Heroku의 루트 또는 apex 도메인을 추가하면 CNAME 레코드가 루트에서 지적합니다. Heroku의 IP 주소가 Heroku 사용자에 노출되어 있기 때문에 Heroku의 레코드를 사용할 수 없습니다.
+
+다행히, Cloudflare 제안[CNAME 평탄화](/dns/cname-flattening/)루트 도메인에 대한 요청을 해결합니다.
+
+당신의 루트에 대한 CNAME 레코드를 추가하고 도메인에 대한 단계 1에서 얻을 DNS 대상에 포인트.
+
+<Example>
+  | 제품정보    | 이름 \* | 제품정보                             | 프록시 상태 |
+  | ------- | ----- | -------------------------------- | ------ |
+  | `CNAME` | `@`   | `{example-domain}.herokudns.com` | 견적 요청  |
+</Example>
+
+***
+
+## 3 단계 - 도메인이 Cloudflare를 통해 경로를 확인
+
+가장 쉬운 방법은 Cloudflare가 도메인에 대한 작업이 cURL 명령을 발급하는 것입니다.
+
+```sh
+curl -I www.example.com
+```
+
+```sh output
+HTTP/1.1 200 OK
+Date: Tue, 23 Jan 2018 18:51:30 GMT
+Content-Type: text/html; charset=UTF-8
+Connection: keep-alive
+Cache-Control: public, max-age=0
+Last-Modified: Mon, 31 Dec 1979 04:08:00 GMT
+X-Powered-By: Express
+Server: cloudflare
+CF-RAY: 3e1cf1d936f28c52-SFO-DOG
+```
+
+Cloudflare-proxied 요청을 확인할 수 있습니다.*CF 레이*응답 헤더. 이 두 가지 중 하나가 존재하는 경우, 귀하의 요청에 따라 CloudflareXQXQ에 의해 발음됩니다.
+
+DNS 설정 내에서 구성 된 하위 도메인의 경우 위의 cURL 명령을 반복 할 수 있습니다.
+
+***
+
+## 단계 4 - SSL에 대한 도메인 구성
+
+### 단계 4a - SSL 사용
+
+Cloudflare는 SANs 와일드 카드 인증서를 모든 유료 플랜 및 SNI 와일드 카드 인증서를 무료로 제공합니다. SSL에 대한 전체 정보[여기에서 찾을 수 있습니다](https://www.cloudflare.com/ssl).
+
+이 수단을 모르는 경우, 탐색**제품정보**탭의**사이트맵**Cloudflare 대시보드XQ에 있는 앱. 제품정보*제품정보*HTTPS를 통해 모든 공공 방문자에게 서비스를 제공 할 수있는 모드.
+
+인증서 상태가 변경되&#xBA74;**• Active 인증서**, 수신 트래픽은 HTTPS를 통해 귀하의 사이트에 제공됩니다. 방문자는 브라우저 바의 도메인 이름에 HTTPS 접두 할 것입니다.
+
+### 단계 4b - HTTPS에 모든 트래픽을 강제
+
+사이트에 모든 트래픽을 확인하려면 암호화 된 Cloudflare는 자동 HTTPS 리디렉션을 강제 할 수 있습니다. 이를 구성하려면[항상 HTTPS 사용](/ssl/edge-certificates/additional-options/always-use-https/).
+
+그런 다음 cURL 명령을 사용하여 모든 요청이 HTTPS에 강제되는지 확인합니다.
+
+```sh
+curl -I -L example.com
+```
+
+```sh output
+HTTP/1.1 301 Moved Permanently
+Date: Tue, 23 Jan 2018 23:17:44 GMT
+Connection: keep-alive
+Cache-Control: max-age=3600
+Expires: Wed, 24 Jan 2018 00:17:44 GMT
+Location: https://example.com/
+Server: cloudflare
+CF-RAY: 3e1e77d5c42b8c52-SFO-DOG
+```
+
+SSL이 도메인에 작동하지 않는 경우 (예를 들어 SSL 인증서는 아직 발급되지 않았습니다), 당신은 볼 수 있습니다[525](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-525/)또는[526](/support/troubleshooting/http-status-codes/cloudflare-5xx-errors/error-526/)리디렉션 후 HTTP 응답.
+
+범용 SSL 인증서 발급은 일반적으로 최대 24 시간 걸립니다. 10-15 분 내에 지불 된 SSL 인증서 발급.

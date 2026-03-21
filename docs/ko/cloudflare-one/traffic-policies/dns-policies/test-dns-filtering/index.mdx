@@ -1,0 +1,214 @@
+---
+pcx_content_type: how-to
+title: DNS 필터링 테스트
+tags:
+  - DNS
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/dns-policies/test-dns-filtering/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/traffic-policies/dns-policies/test-dns-filtering/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details } from "~/components";
+
+이 섹션은 Gateway DNS 구성을 검증하는 방법을 다룹니다.
+
+## 자주 묻는 질문
+
+시작하기 전에 네트워크에 연결되어 있는지 확인합니다.[DNS 위치](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/)정책이 적용됩니다.
+
+## DNS 정책을 테스트
+
+DNS 정책을 작성하면 도메인을 차단할 수 있습니다.`dig`또는`nslookup`정책이 의도대로 작업하는 경우를 참조하십시오.
+
+예를 들어, 블록에 대한 정책을 작성하면`example.com`, 당신은 게이트웨이가 성공적으로 차단하는 경우에 다음을 할 수 있습니다`example.com`:
+
+1. 터미널을 엽니다.
+
+2. 제품정보`dig example.com` (`nslookup example.com`Windows를 사용하는 경우) 및 프레스**이름 \***.
+
+3. 만약에[블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/)정책에 대한 꺼짐, 당신은 볼 수 있어야합니다`REFUSED`응답 단면도에서:
+
+   ```sh
+   dig example.com
+   ```
+
+   ```sh {4} output
+
+   ; <<>> DiG 9.10.6 <<>> example.com
+   ;; global options: +cmd
+   ;; Got answer:
+   ;; ->>HEADER<<- opcode: QUERY, status: REFUSED, id: 6503
+   ;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+   ;; QUESTION SECTION:
+   ;example.com.                   IN      A
+
+   ;; Query time: 46 msec
+   ;; SERVER: 172.64.36.1#53(172.64.36.1)
+   ;; WHEN: Tue Mar 10 20:22:18 CDT 2020
+   ;; MSG SIZE  rcvd: 29
+   ```
+
+   만약에[블록 페이지](/cloudflare-one/reusable-components/custom-pages/gateway-block-page/)정책에 대한 활성화, 당신은 볼 수 있어야합니다`NOERROR`답변 섹션에서`162.159.36.12`·`162.159.46.12`답변 :
+
+   ```sh null
+   dig example.com
+   ```
+
+   ```sh {4,13,14} output
+
+   ; <<>> DiG 9.10.6 <<>> example.com
+   ;; global options: +cmd
+   ;; Got answer:
+   ;; ->>HEADER<<- opcode: QUERY, status: NOERROR id: 14531
+   ;; flags: qr rd ra; QUERY: 1, ANSWER: 2, AUTHORITY: 0, ADDITIONAL: 1
+
+   ;; OPT PSEUDOSECTION:
+   ; EDNS: version: 0, flags:; udp: 1452
+   ;; QUESTION SECTION:
+   ;example.com.                   IN      A
+
+   ;;ANSWER SECTION:
+   example.com.            60      IN      A                  162.159.36.12
+   example.com.            60      IN      A                  162.159.46.12
+
+   ;; Query time: 53 msec
+   ;; SERVER: 172.64.36.1#53(172.64.36.1)
+   ;; WHEN: Tue Mar 10 20:19:52 CDT 2020
+   ;; MSG SIZE  rcvd: 83
+   ```
+
+### 보안 또는 콘텐츠 범주를 테스트
+
+차단하는 경우[보안 범주](/cloudflare-one/traffic-policies/dns-policies/#security-categories)또는[사이트 맵](/cloudflare-one/traffic-policies/dns-policies/#content-categories), 당신은 방침이 사용해서 작동한다는 것을 시험할 수 있습니다[시험 영역](#common-test-domains)각 범주와 관련.
+
+게이트웨이 정책을 구성하면 카테고리를 차단할 수 있습니다. 테스트 도메인은 브라우저에서 도메인을 방문하려고 시도 할 때 블록 페이지를 표시하거나 돌아갈 것입니다.`REFUSED`당신이 수행 할 때`dig`명령행 인터페이스를 사용하여.
+
+#### Test 도메인 형식
+
+- **한국어**— 한 단어 이름을 가진 범주를 위해 (예를 들면,*말웨어*), 테스트 도메인은 다음과 같은 형식을 사용합니다:
+
+  ```txt
+  <NAME_OF_CATEGORY>.testcategory.com
+  ```
+
+- **Multi-word 카테고리**- 이름의 여러 단어가있는 범주 (예를 들어,*Parked & 판매 도메인*), 테스트 도메인은 다음과 같은 형식을 사용합니다:
+  - 단어 사이에 어떤 공간을 제거
+  - 기타 제품`&`이름 \*`and`
+  - Lowercase 모든 문자
+
+#### 시험 영역
+
+| (주)                    | 시험 영역                                          |
+| ---------------------- | ---------------------------------------------- |
+| *이름 \**                | `anonymizer.testcategory.com`                  |
+| *명령과 통제 & Botnet*      | `commandandcontrolandbotnet.testcategory.com`  |
+| *손상된 도메인*              | `compromiseddomain.testcategory.com`           |
+| *암호 화폐*                | `cryptomining.testcategory.com`                |
+| *말웨어*                  | `malware.testcategory.com`                     |
+| *새로운 도메인*              | `newdomains.testcategory.com`                  |
+| *Parked & 판매 도메인*      | `parkedandforsaledomains.testcategory.com`     |
+| *한국어*                  | `phishing.testcategory.com`                    |
+| *잠재적으로 Unwanted 소프트웨어* | `potentiallyunwantedsoftware.testcategory.com` |
+| *IP 주소*                | `privateipaddress.testcategory.com`            |
+| *스낵 바*                 | `spam.testcategory.com`                        |
+| *스파이웨어*                | `spyware.testcategory.com`                     |
+| *기타 제품*                | `unreachable.testcategory.com`                 |
+
+## EDNS 구성
+
+당신은[EDNS 클라이언트 서브넷](/cloudflare-one/networks/resolvers-and-proxies/dns/locations/)DNS 위치를 위해 EDNS를 다음과 같이 유효하게 할 수 있습니다.
+
+1. DNS 위치의 DOH 하위 도메인 :
+   1. 내 계정[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com), 이동**네트워크** > **해결사 및 Proxies** > **DNS 위치**.
+   2. 테스트중인 DNS 위치를 선택하십시오.
+   3. 참고 값**HTTPS에서 DNS**.
+
+2. 터미널을 열고 다음 명령을 실행:
+
+   ```sh
+   curl 'https://<DOH_SUBDOMAIN>.cloudflare-gateway.com/dns-query?type=TXT&name=o-o.myaddr.google.com' -H 'Accept: application/dns-json' | json_pp
+   ```
+
+   산출은 당신의 EDNS 클라이언트 subnet를 포함해야 합니다:
+
+   ```json null {12}
+   {
+   	"AD": false,
+   	"Answer": [
+   		{
+   			"TTL": 60,
+   			"data": "\"108.162.218.211\"",
+   			"name": "o-o.myaddr.google.com",
+   			"type": 16
+   		},
+   		{
+   			"TTL": 60,
+   			"data": "\"edns0-client-subnet 136.62.0.0/24\"",
+   			"name": "o-o.myaddr.google.com",
+   			"type": 16
+   		}
+   	],
+   	"CD": false,
+   	"Question": [
+   		{
+   			"name": "o-o.myaddr.google.com",
+   			"type": 16
+   		}
+   	],
+   	"RA": true,
+   	"RD": true,
+   	"Status": 0,
+   	"TC": false
+   }
+   ```
+
+3. EDNS 클라이언트 서브넷을 확인하려면 소스 IP 주소를 얻으십시오.
+
+   ```sh
+   curl ifconfig.me
+   ```
+
+   ```sh output
+   136.62.12.156%
+   ```
+
+   소스 IP 주소는 EDNS 클라이언트 서브넷에 의해 지정된 /24 범위 안에 떨어질 것입니다.
+
+## DNS 캐시
+
+현대 웹 브라우저 및 운영 체제는 설정된 시간 동안 DNS 레코드를 캐시하도록 설계되었습니다. 요청이 DNS 레코드를 위해 만들어진 경우, 브라우저 캐시는 요청한 기록에 대한 첫 번째 위치입니다. DNS 정책은 응답이 이미 캐시되면 작동하지 않을 수 있습니다.
+
+DNS 캐시를 삭제하려면:
+
+<Details header="크롬 OS">
+  1. 오시는 길`chrome://net-internals/#dns`.
+  2. 제품정보**Clear host 캐시**.
+</Details>
+
+<Details header="윈도우">
+  1. 관리자 명령 프롬프트 또는 PowerShell을 엽니다.
+  2. 다음 명령을 실행:
+
+  ```bash
+  ipconfig /flushdns
+  ```
+</Details>
+
+<Details header="맥 OS">
+  1. 오픈 터미널
+  2. 다음 명령을 실행:
+
+  ```sh
+  sudo killall -HUP mDNSResponder
+  sudo killall mDNSResponderHelper
+  sudo dscacheutil -flushcache
+  ```
+</Details>

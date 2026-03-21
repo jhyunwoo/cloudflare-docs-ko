@@ -1,0 +1,115 @@
+---
+pcx_content_type: how-to
+title: 실시간 클립
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/stream/stream-live/live-instant-clipping/'
+translation_source_md: >-
+  https://developers.cloudflare.com/stream/stream-live/live-instant-clipping/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+스트림은 라이브 스트림의 클립을 생성하고 그래서 제작자와 뷰어와 같은 기록은 더 긴 방송 또는 녹음의 짧은 조각을 강조 할 수 있습니다. 라이브 인스턴트 클립은 최종 사용자에 의해 생성 될 수 있으며 비디오 라이브러리의 추가 저장 비용 또는 새로운 항목에 결과하지 않습니다.
+
+:::주\[주:]
+
+Clipping은 업로드 / 주문형 비디오에 대해 다르게 작동합니다. 더 많은 정보를 원하시면, 참조[클립 동영상](/stream/edit-videos/video-clipping/).
+
+:::
+
+## 자주 묻는 질문
+
+설정할 때[실시간 입력](/stream/stream-live/start-stream-live/), "Live Playback and Recording"을 보장합니다 (`mode`)는 활성화됩니다.
+
+API 키는 미리보기 또는 클립을 생성 할 필요가 없지만 라이브 입력을 생성해야합니다.
+
+Live 인스턴트 클립은 라이브 스트림의 녹음에서 동적으로 생성됩니다. 클립 나 MP4s를 생성 할 때, 항상 reference 비디오 ID, 라이브 입력 ID가 아닌. 녹화가 삭제되면 즉시 클립이 더 이상 사용할 수 없습니다.
+
+## 미리보기
+
+사용자가 재생을 돕고 최근 콘텐츠를 찾고, 미리보기를 추가하여 요청`duration`HLS에 매개 변수는 URL을 나타냅니다:
+
+```txt title="Preview Manifest"
+https://customer-<CODE>.cloudflarestream.com/<VIDEO_ID||INPUT_ID>/manifest/video.m3u8?duration=5m
+```
+
+- `duration`미리보기의 문자열 지속 시간, 최대 5 초 ("30s") 또는 분 ("3m")
+
+미리보기가 전달되면 두 개의 속성에 대한 헤더를 검사합니다.
+
+- `preview-start-seconds`float 초는 라이브 스트림 또는 녹음의 시작으로 미리보기가 시작됩니다. 클립이 reference에 필요하기 때문에 미리보기에서 범위를 선택할 수있는 응용 프로그램에 유용합니다*뚱 베어*시작 시간, 아니*팟캐스트*시작 시간.
+- `stream-media-id`라이브 스트림 또는 녹음의 비디오 ID를 문자열. 플레이어를 사용하는 응용 프로그램에서 유용한*이름 \**&#xD074;립 URL이 reference이어야 하는 ID 때문에*동영상*이름 \*
+
+이 표는 HLS 호환 플레이어를 사용하여 재생 및 추구 할 수 있습니다.
+
+### 독서 headers
+
+읽을 때 헤더를로드하면 플레이어 핸들을 조정해야합니다.
+응답. 예를 들어, 사용시[사이트맵](https://github.com/video-dev/hls.js)그리고 기본 로더, override`pLoader`(플레이리스트 로더) 클래스:
+
+```js
+let currentPreviewStart;
+let currentPreviewVideoID;
+
+//pLoader (playlist loader)를 제거하여 표시된 헤더를 읽습니다.
+class pLoader extends Hls.DefaultConfig.loader {
+  constructor(config) {
+    super(config);
+    var load = this.load.bind(this);
+    this.load = function (context, config, callbacks) {
+      if (context.type == 'manifest') {
+        var onSuccess = callbacks.onSuccess;
+        //나중에 불에 기존의 onSuccess 핸들러를 복사합니다.
+
+        callbacks.onSuccess = function (response, stats, context, networkDetails) {
+          //여기에서 네 번째 인수는 HLS.js에서 undocumented이지만 포함
+          //현명한 fetch에 대한 응답 객체, 이는 우리에게 헤더를주는:
+
+          currentPreviewStart =
+            parseFloat(networkDetails.getResponseHeader('preview-start-seconds'));
+          //미리보기의 시작 시간을 저장
+
+          currentPreviewVideoID =
+            networkDetails.getResponseHeader('stream-media-id');
+          //미리보기가 입력 ID로로드 된 경우 비디오 ID 저장
+
+          onSuccess(response, stats, context);
+          //그리고 exisint 성공 핸들러를 불.
+        };
+      }
+      load(context, config, callbacks);
+    };
+  }
+}
+
+//HLS 설정시 새로운 로더 클래스 지정
+const hls = new Hls({
+  pLoader: pLoader,
+});
+```
+
+## 클립 표시
+
+라이브 스트림 또는 녹음의 클립을 재생하려면 기간과 시작 시간, 라이브 스트림의 시작과 관련된 클립을 요청하십시오.
+
+```txt title="Clip Manifest"
+https://customer-<CODE>.cloudflarestream.com/<VIDEO_ID>/manifest/clip.m3u8?time=600s&duration=30s
+```
+
+- `time`문자열 초에 클립의 시작 시간, 라이브 스트림의 시작 또는 녹음
+- `duration`초당 클립의 문자열 내구, 최대 60 초
+
+이 표는 HLS 호환 플레이어를 사용하여 재생 및 추구 할 수 있습니다.
+
+## 클립 MP4 다운로드
+
+클립의 MP4는 동적으로 다른 플랫폼에서 저장하고 공유 할 수 있습니다.
+
+```txt title="Clip MP4 Download"
+https://customer-<CODE>.cloudflarestream.com/<VIDEO_ID>/clip.mp4?time=600s&duration=30s&filename=clip.mp4
+```
+
+- `time`문자열 몇 초에 클립의 시작 시간, 라이브 스트림 또는 녹음 시작 (예 : "500s")
+- `duration`초당 클립의 문자열 내구, 최대 60 초 (예 : "60s")
+- `filename`이름 \**(선택)*&#xD074;립의 파일명

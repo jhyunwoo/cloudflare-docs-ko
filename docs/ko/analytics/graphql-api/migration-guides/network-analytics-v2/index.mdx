@@ -1,0 +1,105 @@
+---
+pcx_content_type: reference
+title: Network Analytics v1에서 Network Analytics v2로
+sidebar:
+  order: 14
+---
+
+import { Render } from "~/components";
+
+Cloudflare는 2020년 초에 Network Analytics 대시보드와 해당 API의 첫 번째 버전을 출시했습니다. 두 번째 버전(Network Analytics v2)은 2021-09-13에 제공되기 시작했습니다.
+
+:::caution
+
+<Render file="network-analytics-v1-deprecation" product="analytics" />
+:::
+
+## 시작하기 전에
+
+[Network Analytics v2에 도입된 개념](/analytics/network-analytics/understand/concepts/)을 먼저 알아보세요.
+
+## 기능 비교
+
+다음 표는 NAv1과 NAv2의 기능을 비교합니다.
+
+| 기능 | NAv1 | NAv2 |
+| --- | --- | --- |
+| 샘플링 비율 | 1/8,192 packets | 완화 서비스에 따라 1/100~1/1,000,000 packets 사이에서 달라짐 |
+| 샘플링 방식 | Core Sample Enrichment | Edge Sample Enrichment |
+| 과거 데이터 보존 방식 | Aggregated roll-ups | Adaptive Bit Rate |
+| 보존 기간 | 1분 roll-up: 30일<br/>1시간 roll-up: 6개월<br/>1일 roll-up: 1년<br/>공격 roll-up: 1년 | 모든 노드: 16주 |
+| 공격 완화 시스템 | `dosd` | `dosd`, `flowtrackd`\*, Cloudflare Network Firewall\* |
+| 새 필드 예시 | n/a | Rule ID<br/>GRE tunnel ID<br/>Packet size |
+
+\* _Magic Transit 고객에게만 해당됩니다._
+
+샘플링 방식과 과거 데이터 보존 측면의 차이에 대한 자세한 내용은 [Network Analytics v1과 v2의 주요 차이점](/analytics/graphql-api/migration-guides/network-analytics-v2/differences/)을 참조하세요.
+
+:::note[참고]
+
+동일한 공격이라도 NAv1과 NAv2에서 `attackId` 필드 값이 다를 수 있습니다.
+
+:::
+
+## 노드 비교
+
+NAv2는 동일한 API 엔드포인트를 사용하지만 새로운 노드를 활용합니다. NAv1이 모든 트래픽과 공격에 대해 집계 롤업용 노드 세 개와 공격용 노드 하나를 갖는 반면, NAv2는 모든 트래픽과 공격을 위한 노드 하나와 완화 시스템에 따라 달라지는 공격 전용 노드 네 개를 제공합니다.
+
+| 노드 유형 | NAv1 | Magic Transit용 NAv2 | Spectrum용 NAv2 |
+| --- | --- | --- | --- |
+| 주요 노드 | `ipFlows1mGroups`<br/>`ipFlows1hGroups`<br/>`ipFlows1dGroups` | `magicTransitNetworkAnalyticsAdaptiveGroups` | `spectrumNetworkAnalyticsAdaptiveGroups` |
+| 공격 노드 | `ipFlows1mAttacksGroups` | `dosdNetworkAnalyticsAdaptiveGroups`<br/> `dosdAttackAnalyticsGroups`<br/> `flowtrackdNetworkAnalyticsAdaptiveGroups`<br/> `magicFirewallNetworkAnalyticsAdaptiveGroups` | `dosdNetworkAnalyticsAdaptiveGroups`<br/> `dosdAttackAnalyticsGroups` |
+
+각 행은 하나의 패킷 샘플을 나타냅니다. 데이터는 Cloudflare 엣지에서 [다양한 비율](/analytics/graphql-api/migration-guides/network-analytics-v2/node-reference/)로 샘플링됩니다. `sample_interval` 필드를 사용해 노드에서 샘플 비율을 직접 조회할 수도 있습니다.
+
+NAv2 노드의 참조 정보는 [NAv2 node reference](/analytics/graphql-api/migration-guides/network-analytics-v2/node-reference/)를 참조하세요.
+
+:::note[인그레스 트래픽만 가져오기]
+
+모든 NAv2 `*AnalyticsAdaptiveGroups` 노드는 인그레스와 이그레스 트래픽 데이터를 모두 포함합니다. 인그레스 트래픽 데이터만 가져오려면 [GraphQL query filter](/analytics/graphql-api/features/filtering/)에 `direction: "ingress"`를 포함하세요.
+:::
+
+## 스키마 비교
+
+NAv1 노드의 스키마 필드를 NAv2 노드에 어떻게 매핑할지 보려면 [NAv1 to NAv2 schema map](/analytics/graphql-api/migration-guides/network-analytics-v2/schema-map/)을 참조하세요. NAv2로 마이그레이션할 때는 이 권장 매핑을 따르세요.
+
+## 예시
+
+다음 예시는 지정한 시간 범위 내에서 Cloudflare Network Firewall이 아닌 완화 시스템에 의해 드롭된 트래픽 로그 상위 20개를 대상 IP 주소 순으로 조회합니다.
+
+```graphql
+{
+	viewer {
+		accounts(filter: { accountTag: "<REDACTED>" }) {
+			magicTransitNetworkAnalyticsAdaptiveGroups(
+				filter: {
+					datetime_gt: "2021-10-01T00:00:00Z"
+					datetime_lt: "2021-10-05T00:00:00Z"
+					outcome_like: "drop"
+					mitigationSystem_neq: "magic-firewall"
+				}
+				limit: 20
+				orderBy: [ipDestinationAddress_ASC]
+			) {
+				dimensions {
+					outcome
+					mitigationSystem
+					ipSourceAddress
+					ipDestinationAddress
+					ipProtocol
+					destinationPort
+				}
+			}
+		}
+	}
+}
+```
+
+## 마무리 참고 사항
+
+`mitigationSystem` 필드는 다음 값 중 하나를 가질 수 있습니다.
+
+- `dosd`: [DDoS managed rulesets](/ddos-protection/managed-rulesets/)(네트워크 계층 DDoS 공격 보호 또는 HTTP DDoS 공격 보호)
+- `flowtrackd`: [Advanced TCP Protection](/ddos-protection/advanced-ddos-systems/overview/advanced-tcp-protection/)
+- `magic-firewall`: [Cloudflare Network Firewall](/cloudflare-network-firewall/)
+- 빈 문자열: 완화되지 않은 트래픽

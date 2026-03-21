@@ -1,0 +1,115 @@
+---
+pcx_content_type: navigation
+title: 팟캐스트
+sidebar:
+  order: 3
+  badge:
+    text: Beta
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/observability/traces/'
+translation_source_md: 'https://developers.cloudflare.com/workers/observability/traces/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig, Render } from "~/components";
+
+### Workers tracing은 무엇입니까?
+
+Tracing은 Workers 응용 프로그램 및 연결 서비스를 통해 여행으로 요청의 삶에 대한 근접성을 제공합니다. 이 기능은 성능 목, 디버그 문제를 식별하고 복잡한 요청 흐름을 이해합니다. 같은 질문에 대답할 수 있는 추적:
+
+- 긴 실행 요청의 원인은 무엇입니까?
+- 어떻게 내 노동자에서 잠수함은?
+- KV 네임스페이스 또는 R2 버킷 복용은 얼마입니까?
+
+![예를 들어, POST 요청을 fetch 요청 및 튼튼한 객체 작업을 포함한 여러 스팬과 케이크 가게에 표시](~/assets/images/workers-observability/wobs_waterfall_trace_122.png)
+
+### 자동 계측
+
+Cloudflare Workers는 tracing 계기를 제공합니다**상자에서**- 코드 변경 또는 SDK가 필요하지 않습니다. 작업자와 CloudflareXQX0617XQXQ를 자동으로 캡처 할 수 있습니다.
+
+- **Fetch 통화**- 모든 아웃바운드 HTTP 요청, 타이밍 캡쳐, 상태 코드 및 요청 메타데이터. 이 작업을 통해 외부 종속이 애플리케이션의 성능에 영향을 미치는지 신속하게 파악할 수 있습니다.
+- **연락처**- KV와 같은 각종 노동자 의무를 가진 상호 작용은 읽고 쓰고, R2XQ 객체 저장 가동과 튼튼한 목표 주장합니다.
+- **핸들러 호출**- 각 작업자의 전체 수명주기, 등 방아쇠 포함[회사 소개](/workers/runtime-apis/handlers/fetch/),
+  [자주 묻는 질문](/workers/runtime-apis/handlers/scheduled/)·[큐 핸들러](/queues/configuration/javascript-apis/#consumer).
+
+계기 가동의 가득 차있는 명부를 위해, 보십시오[관련 문서](/workers/observability/traces/spans-and-attributes).
+
+### tracing을 활성화하는 방법
+
+설정하여 tracing을 구성할 수 있습니다.`observability.traces.enabled = true`내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/#observability).
+
+<WranglerConfig>
+  ```json
+  {
+  	"observability": {
+  		"traces": {
+  			"enabled": true,
+  			// optional sampling rate (recommended for high-traffic workloads)
+  			"head_sampling_rate": 0.05
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+<Render file="tracing-beta-config-note" product="workers" />
+
+### OpenTelemetry 추적 3rd 파티 대상
+
+Workers는 따릅니다[OpenTelemetry (OTel) 표준](https://opentelemetry.io/). 이것은 대중적인 Observability 플랫폼과 호환이 됩니다,
+등[허니콤](/workers/observability/exporting-opentelemetry-data/honeycomb/), [Grafana 클라우드](/workers/observability/exporting-opentelemetry-data/grafana-cloud/)·
+[뚱 베어](/workers/observability/exporting-opentelemetry-data/axiom/), 당신이에서 0개의 발달 노력을 요구하는 동안. Observability 공급자가 유효한 OpenTelemetry endpoint가 있는 경우에, 당신은 추적 (및 로그)를 수출할 수 있습니다!
+
+Workers에서 OpenTelemetry 데이터를 내보내기에 대해 자세히 알아보기[이름 \*](/workers/observability/exporting-opentelemetry-data/).
+
+### 샘플링
+
+:::note\[기본 샘플링 비율]
+
+기본 샘플링 속도는`1`, 100 %의 요청을 의미하는 것은 tracing이 활성화되면 추적됩니다. 설치하기`head_sampling_rate`몇 가지 요청을 추적하려면.
+
+:::
+
+샘플링으로 Cloudflare Worker에서 수신 요청의 비율을 추적 할 수 있습니다.
+이것은 볼륨과 비용을 관리 할 수 있지만, 여전히 당신의 응용 프로그램에 의미있는 통찰력을 제공합니다.
+
+유효한 표본 추출 범위는에서 입니다`0`으로`1`, 어디`0`100개의 주장 중 0을 추적하고,`1`모든 요청이 추적될 수 있음을 나타냅니다.
+그리고 같은 번호`0.05`100개의 요청 중 5개가 추적됩니다.
+
+샘플링 비율을 지정하지 않은 경우, 기본값은`1`, 100%의 요구는 추적될 것입니다 의미.
+
+<WranglerConfig>
+  ```json
+  {
+  	"observability": {
+  		"traces": {
+  			"enabled": true,
+  			// set tracing sampling rate to 5%
+  			"head_sampling_rate": 0.05
+  		},
+  		"logs": {
+  			"enabled": true,
+  			// set logging sampling rate to 60%
+  			"head_sampling_rate": 0.6
+  		}
+  	}
+  }
+  ```
+</WranglerConfig>
+
+당신은`head_sampling_rate`로그에 대한 구성, 당신은 또한 추적에 대한 별도의 속도를 만들 수 있습니다.
+
+샘플링[헤드 기반](https://opentelemetry.io/docs/concepts/sampling/#head-sampling), non-traced 요청은 어떤 tracing 오버 헤드를 처리하지 않는 의미.
+
+### 제한 및 가격
+
+Workers 추적은 현재**무료 와이파이**초기 베타 기간 동안. 이것은 추적 수집과 같은 모든 추적 기능을 포함, 저장, 그리고 Cloudflare dashboard.에서 그들을보고.
+
+시작 3 월 1, 2026, 추적은 Workers Free Paid 및 Enterprise 계획에 대한 사용의 일부로 청구됩니다. 추적의 각 스팬은 한 관찰 가능한 이벤트를 나타냅니다, 같은 월간 할당량과 가격을 공유[Workers 로그](/workers/platform/pricing/#workers-logs):
+
+|                           | 이벤트 (스팬 또는 로그 이벤트)             | 공지사항 |
+| ------------------------- | ------------------------------ | ---- |
+| **Workers 무료**            | 일 당 200,000                    | 3 일  |
+| **모델 번호: Workers 계정 만들기** | 매월 10 백만 달러 + 추가 백만 이벤트 당 0.60 | 7 일  |

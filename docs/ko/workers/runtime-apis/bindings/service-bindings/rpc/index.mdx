@@ -1,0 +1,241 @@
+---
+pcx_content_type: configuration
+title: RPC (WorkerEntrypoint)
+tags:
+  - RPC
+head:
+  - tag: title
+    content: 서비스 바인딩 - RPC (WorkerEntrypoint)
+description: RPC를 통해 Worker-to-Worker 커뮤니케이션을 촉진하십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/rpc/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DirectoryListing, Render, TypeScriptExample, WranglerConfig } from "~/components"
+
+[서비스 바인딩](/workers/runtime-apis/bindings/service-bindings)한 명의 근로자가 공개적으로 접근 가능한 URL을 통해 이동하지 않고 다른 사람에게 전화 할 수 있습니다.
+
+당신은 당신의 노동자가 다른 Workers에 유효한 당신의 자신의 내부 APIs를 창조하기 위하여 서비스 바인딩을 사용할 수 있습니다. 내장을 확장하여 수행 할 수 있습니다.`WorkerEntrypoint`클래스, 그리고 자신의 공공 방법을 추가. 이 공개 방법은 다른 WorkersXQXQ에 의해 직접 호출 할 수 있습니다 CloudflareQ 계정 선언[관련 제품](/workers/runtime-apis/bindings)이 노동자에게.
+
+더 보기[Workers에 있는 RPC 체계](/workers/runtime-apis/rpc)동일한 노동자에 있는 JavaScript 기능을 부르기 위하여 가능한 것과 같이 디자인한 느낌. 대부분의 경우, 당신은 같은 방법으로 코드를 작성할 수 있어야 당신은 모든 단일 노동자에 있었다.
+
+:::참조
+
+또한 Workers와 통신하기 위하여 RPC를 사용할 수 있습니다[Durable Objects](/durable-objects/best-practices/create-durable-object-stubs-and-send-requests/#invoke-rpc-methods).
+:::
+
+## 이름 \*
+
+예를 들어, 다음 작업자는 공공 방법을 구현합니다.`add(a, b)`:
+
+<Render file="service-binding-rpc-example" product="workers" />
+
+RPC 시스템을 사용하는 특수 프로토콜에 대해 배우거나 구현하거나 생각할 필요가 없습니다. 클라이언트는 이 경우 Worker A에서 Worker B를 호출하고 클라이언트가 제공하는 특정 인수를 사용하여 특정 절차를 실행하는 것을 말합니다. 이것은 표준 JavaScript 클래스로 수행됩니다.
+
+## 더 보기`WorkerEntrypoint`수업시간
+
+작업자에서 RPC 방법을 제공하려면 확장해야합니다.`WorkerEntrypoint`아래와 같이 클래스:
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export default class extends WorkerEntrypoint {
+  async add(a, b) { return a + b; }
+}
+```
+
+클래스의 새로운 인스턴스는 매번 노동자가 호출됩니다. Worker가 클래스로 구현되었더라도 여전히 stateless - class 인스턴스는 invocation의 기간 동안 지속됩니다. WorkersXQ의 persist 또는 좌표 상태가 필요한 경우, 사용해야 합니다.[Durable Objects](/durable-objects).
+
+### 바인딩 (`env`)
+
+더 보기[`env`](/workers/runtime-apis/bindings)객체는 클래스 속성으로 노출됩니다.`WorkerEntrypoint`수업.
+
+예를 들어, Worker는 바인딩을 선언합니다.[환경 변수](/workers/configuration/environment-variables/) `GREETING`:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "my-worker",
+  	"vars": {
+  		"GREETING": "Hello"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+호출하여 액세스 할 수 있습니다.`this.env.GREETING`:
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export default class extends WorkerEntrypoint {
+  fetch() { return new Response("Hello from my-worker"); }
+
+  async greet(name) {
+    return this.env.GREETING + name;
+  }
+}
+```
+
+어떤 유형든지 사용할 수 있습니다[관련 제품](/workers/runtime-apis/bindings)이 방법.
+
+### Lifecycle 방법 (`ctx`)
+
+더 보기[`ctx`](/workers/runtime-apis/context)객체는 클래스 속성으로 노출됩니다.`WorkerEntrypoint`수업.
+
+예를 들어, 호출하여 invocation context의 수명을 연장 할 수 있습니다.`waitUntil()`방법:
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export default class extends WorkerEntrypoint {
+  fetch() { return new Response("Hello from my-worker"); }
+
+  async signup(email, name) {
+    //sendEvent()는 계속 실행되며, 이 메소드가 콜러에 값을 반환합니다.
+    this.ctx.waitUntil(this.#sendEvent("signup", email))
+    //다른 일을 수행
+    return "Success";
+  }
+
+  async #sendEvent(eventName, email) {
+    //· ...
+  }
+}
+```
+
+### Fetching 정체되는 자산
+
+직장인이 있다면[정적 자산 바인딩](/workers/static-assets/binding/), 당신은 전화할 수 있습니다`this.env.ASSETS.fetch()`RPC 방법 안에. RPC 메소드가 수신되지 않기 때문에`request`매개 변수, 생성`Request`또는 어떤 호스트 이름과 URL - 호스트 이름은 자산 바인딩에 의해 무시됩니다, 만 패스명 물질:
+
+<TypeScriptExample>
+  ```ts
+  import { WorkerEntrypoint } from "cloudflare:workers";
+
+  export class ImageWorker extends WorkerEntrypoint {
+    async getImage(path: string): Promise<Response> {
+      return this.env.ASSETS.fetch(
+        new Request(`https://assets.local${path}`)
+      );
+    }
+  }
+  ```
+</TypeScriptExample>
+
+콜러는 다음 RPC를 통해이 방법을 호출 할 수 있습니다 :
+
+<TypeScriptExample>
+  ```ts
+  const response = await env.IMAGE_SERVICE.getImage("/images/logo.png");
+  ```
+</TypeScriptExample>
+
+:::참조
+바인딩을 통해 자산을 fetching 할 때, hostname (예를 들어,`assets.local`)는 의미가 없습니다 - 유효한 hostname은 작동합니다. URL 경로만 사용할 수 있습니다. 행사일정`assets.local`명확성을 위해 사용됩니다.
+주요 특징
+
+## 이름 입력
+
+당신은 또한 지명된 어떤 수를 수출할 수 있습니다`WorkerEntrypoint`단일 노동자 내에서 클래스, 기본 수출 이외에. 지정된 엔트리포인트에 서비스 바인딩을 선언할 수 있습니다.
+
+함께 여러 조각을 그룹에 사용할 수 있습니다. 예를 들어, 분명히 만들 수 있습니다.`WorkerEntrypoint`응용 프로그램의 각 권한 역할에 대한, 이러한 역할 특정 RPC 방법을 제공:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "todo-app",
+  	"d1_databases": [
+  		{
+  			"binding": "D1",
+  			"database_name": "todo-app-db",
+  			"database_id": "<unique-ID-for-your-database>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+```js
+import { WorkerEntrypoint } from "cloudflare:workers";
+
+export class AdminEntrypoint extends WorkerEntrypoint {
+  async createUser(username) {
+    await this.env.D1.prepare("INSERT INTO users (username) VALUES (?)")
+      .bind(username)
+      .run();
+  }
+
+  async deleteUser(username) {
+    await this.env.D1.prepare("DELETE FROM users WHERE username = ?")
+      .bind(username)
+      .run();
+  }
+}
+
+export class UserEntrypoint extends WorkerEntrypoint {
+  async getTasks(userId) {
+    return await this.env.D1.prepare(
+      "SELECT title FROM tasks WHERE user_id = ?"
+    )
+      .bind(userId)
+      .run();
+  }
+
+  async createTask(userId, title) {
+    await this.env.D1.prepare(
+      "INSERT INTO tasks (user_id, title) VALUES (?, ?)"
+    )
+      .bind(userId, title)
+      .run();
+  }
+}
+
+export default class extends WorkerEntrypoint {
+  async fetch(request, env) {
+    return new Response("Hello from my to do app");
+  }
+}
+```
+
+서비스 바인딩을 직접 선언할 수 있습니다.`AdminEntrypoint`다른 노동자에서:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "admin-app",
+  	"services": [
+  		{
+  			"binding": "ADMIN",
+  			"service": "todo-app",
+  			"entrypoint": "AdminEntrypoint"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+```js
+export default {
+  async fetch(request, env) {
+    await env.ADMIN.createUser("aNewUser");
+    return new Response("Hello from admin app");
+  },
+};
+```
+
+D1를 구성하는 방법에 대해 자세히 알아볼 수 있습니다.[D1 문서](/d1/get-started/#3-bind-your-worker-to-your-d1-database).
+
+앱을 할 수있는 완벽한 예를 시도 할 수 있으며, 엔트리 포인트로 구축 된 Discord bot도 복제하여[cloudflare/js-rpc-and-entrypoints-demo 저장소](https://github.com/cloudflare/js-rpc-and-entrypoints-demo)GitHub에서
+
+## 더 읽기
+
+<DirectoryListing folder="workers/runtime-apis/rpc" />

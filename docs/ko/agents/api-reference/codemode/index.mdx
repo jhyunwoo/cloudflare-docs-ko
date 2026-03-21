@@ -1,0 +1,334 @@
+---
+pcx_content_type: reference
+title: 비밀번호
+tags:
+  - AI
+sidebar:
+  order: 19
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/codemode/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/codemode/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import {
+	TypeScriptExample,
+	WranglerConfig,
+	LinkCard,
+	InlineBadge,
+} from "~/components";
+
+<InlineBadge preset="beta" />
+
+Codemode는 LLMs를 작성하고 코드를 실행하여 도구로 만들 수 있습니다. 에 의해 영감을[코드Act](https://machinelearning.apple.com/research/codeact), LLMs가 개별 도구 호출을 만들기보다 쓰기 코드에서 더 나은 작동 - 그들은 실제 세계의 코드의 수백만을 본하지만 단지 기여 도구 호출 예.
+
+더 보기`@cloudflare/codemode`패키지는 도구에서 TypeScript 유형 정의를 생성합니다. LLM을 단일 "write code" 도구로 만들고, 보안, 고립 된 Worker sandbox에서 생성 된 JavaScript를 실행합니다.
+
+:::카트로션
+Codemode는 실험이며 향후 릴리스의 변화가 깨질 수 있습니다. 생산에 있는 주의와 사용.
+주요 특징
+
+## Codemode 사용시
+
+Codemode는 LLM이 필요로 할 때 가장 유용합니다.
+
+- **Chain 다중 도구 호출**(조건, 루프, 오류 처리)
+- **결과 비교**반환하기 전에 다른 도구에서
+- **MCP 서버 작업**많은 미세 곡물 작업을 노출
+- **다중 단계 워크플로우 수행**그것은 표준 도구 호출에 많은 라운드 스트립을 필요로
+
+단순, 단일 도구 호출, 표준 AI SDK 도구 호출은 간단합니다.
+
+## 설치하기
+
+```sh
+npm install @cloudflare/codemode ai zod
+```
+
+## 빠른 시작
+
+### 1. 도구 정의
+
+표준 AI SDK 사용`tool()`기능:
+
+<TypeScriptExample>
+  ```ts
+  import { tool } from "ai";
+  import { z } from "zod";
+
+  const tools = {
+  	getWeather: tool({
+  		description: "Get weather for a location",
+  		inputSchema: z.object({ location: z.string() }),
+  		execute: async ({ location }) => `Weather in ${location}: 72°F, sunny`,
+  	}),
+  	sendEmail: tool({
+  		description: "Send an email",
+  		inputSchema: z.object({
+  			to: z.string(),
+  			subject: z.string(),
+  			body: z.string(),
+  		}),
+  		execute: async ({ to, subject, body }) => `Email sent to ${to}`,
+  	}),
+  };
+  ```
+</TypeScriptExample>
+
+### 2. codemode 도구 만들기
+
+`createCodeTool`도구와 executor를 가져와 단일 AI SDK 도구를 반환:
+
+<TypeScriptExample>
+  ```ts
+  import { createCodeTool } from "@cloudflare/codemode/ai";
+  import { DynamicWorkerExecutor } from "@cloudflare/codemode";
+
+  const executor = new DynamicWorkerExecutor({
+  	loader: env.LOADER,
+  });
+
+  const codemode = createCodeTool({ tools, executor });
+  ```
+</TypeScriptExample>
+
+### 3. streamText 사용
+
+codemode 도구를 사용하여`streamText`또는`generateText`다른 도구와 같이. 당신은 모델을 선택:
+
+<TypeScriptExample>
+  ```ts
+  import { streamText } from "ai";
+
+  const result = streamText({
+  	model,
+  	system: "You are a helpful assistant.",
+  	messages,
+  	tools: { codemode },
+  });
+  ```
+</TypeScriptExample>
+
+LLM이 codemode를 사용하기로 결정하면 다음과 같은 async 화살표 함수를 작성합니다.
+
+```js
+async () => {
+	const weather = await codemode.getWeather({ location: "London" });
+	if (weather.includes("sunny")) {
+		await codemode.sendEmail({
+			to: "team@example.com",
+			subject: "Nice day!",
+			body: `It's ${weather}`,
+		});
+	}
+	return { weather, notified: true };
+};
+```
+
+이 코드는 격리 된 노동자 샌드 박스에서 실행, 도구 호출은 'Workers\` RPC를 통해 호스트로 다시 파견, 결과는 LLM로 반환됩니다.
+
+## 제품 설명
+
+### Wrangler 바인딩
+
+추가하기`worker_loaders`당신에 바인딩`wrangler.jsonc`. 이것은 필요한 유일한 의무입니다:
+
+<WranglerConfig>
+  ```toml
+  worker_loaders = [{ binding = "LOADER" }]
+  compatibility_flags = ["nodejs_compat"]
+  ```
+</WranglerConfig>
+
+### Vite 구성
+
+이용안내`zod-to-ts`(코드 모드가 의존), 추가`__filename`Vite 구성에 정의:
+
+<TypeScriptExample>
+  ```ts
+  export default defineConfig({
+  	plugins: [react(), cloudflare(), tailwindcss()],
+  	define: {
+  		__filename: "'index.ts'",
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+## 어떻게 작동합니까?
+
+1. `createCodeTool`도구에서 TypeScript 유형 정의를 생성하고 LLM이 읽을 수 있는 설명을 작성합니다.
+2. LLM은 호출하는 async 화살표 함수를 작성합니다.`codemode.toolName(args)`.
+3. 코드는 AST parsing (acorn)를 통해 정상화되고 executor에 보내집니다.
+4. `DynamicWorkerExecutor`고립 된 노동자를 통해 회전`WorkerLoader`.
+5. sandbox 내부, a`Proxy`이름 \*`codemode.*`호출하고 Workers RPC를 통해 호스트로 돌아갑니다 (`ToolDispatcher extends RpcTarget`).
+6. 콘솔 출력 (`console.log`, `console.warn`, `console.error`)는 결과를 캡처하고 반환합니다.
+
+### 네트워크 고립
+
+기타 제품`fetch()`·`connect()`기본적으로 차단됩니다 — Workers runtime Level에서 시행`globalOutbound: null`. Sandboxed 코드는 호스트와 상호 작용할 수 있습니다.`codemode.*`도구 호출.
+
+통제되는 아웃바운드 접근을 허용하기 위해, 통행`Fetcher`:
+
+<TypeScriptExample>
+  ```ts
+  const executor = new DynamicWorkerExecutor({
+  	loader: env.LOADER,
+  	globalOutbound: null, //기본값 - 완전히 격리
+  	//globalOutbound: env.MY OUTBOUND SERVICE // Fetcher를 통해 경로
+  });
+  ```
+</TypeScriptExample>
+
+## 에이전트 사용
+
+일반적인 패턴은 에이전트의 메시지 핸들러 내부의 executor 및 codemode 도구를 만드는 것입니다:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+  import { createCodeTool } from "@cloudflare/codemode/ai";
+  import { DynamicWorkerExecutor } from "@cloudflare/codemode";
+  import { streamText, convertToModelMessages, stepCountIs } from "ai";
+
+  export class MyAgent extends Agent<Env, State> {
+  	async onChatMessage() {
+  		const executor = new DynamicWorkerExecutor({
+  			loader: this.env.LOADER,
+  		});
+
+  		const codemode = createCodeTool({
+  			tools: myTools,
+  			executor,
+  		});
+
+  		const result = streamText({
+  			model,
+  			system: "You are a helpful assistant.",
+  			messages: await convertToModelMessages(this.state.messages),
+  			tools: { codemode },
+  			stopWhen: stepCountIs(10),
+  		});
+
+  		//클라이언트에 대한 스트림 응답 ...
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### MCP 도구
+
+MCP 도구는 동일한 방법을 작동 - 도구 세트로 병합 :
+
+<TypeScriptExample>
+  ```ts
+  const codemode = createCodeTool({
+  	tools: {
+  		...myTools,
+  		...this.mcp.getAITools(),
+  	},
+  	executor,
+  });
+  ```
+</TypeScriptExample>
+
+hyphens 또는 dots (MCP에서 데모)와 도구 이름은 자동으로 JavaScript 식별자 (예를 들어,`my-server.list-items`계정이 없습니다.`my_server_list_items`).
+
+## Executor 인터페이스
+
+더 보기`Executor`인터페이스는 deliberately 최소한 - 모든 sandbox에서 코드를 실행하는 구현:
+
+```ts
+interface Executor {
+	execute(
+		code: string,
+		fns: Record<string, (...args: unknown[]) => Promise<unknown>>,
+	): Promise<ExecuteResult>;
+}
+
+interface ExecuteResult {
+	result: unknown;
+	error?: string;
+	logs?: string[];
+}
+```
+
+`DynamicWorkerExecutor`내장된 Cloudflare\`Workers 구현입니다. Node VM, QuickJS, containers 또는 다른 sandbox에 대해 스스로 구축할 수 있습니다.
+
+## API 참고 자료
+
+### `createCodeTool(options)`
+
+AI SDK 호환`Tool`.
+
+| 옵션 정보         | 제품정보                         | 기본 정보 | 이름 \*                                         |
+| ------------- | ---------------------------- | ----- | --------------------------------------------- |
+| `tools`       | `ToolSet \| ToolDescriptors` | \*필수  | 도구 (AI SDK)`tool()`또는 익지않는 descriptors)       |
+| `executor`    | `Executor`                   | \*필수  | 생성 된 코드를 실행하는 곳                               |
+| `description` | `string`                     | 자동 생성 | 사용자 정의 도구 설명. 제품 정보`\{\{types\}\}`유형 defs를 위해 |
+
+### `DynamicWorkerExecutor`
+
+고립 된 Cloudflare Worker에서 코드 실행`WorkerLoader`.
+
+| 옵션 정보            | 제품정보              | 기본 정보   | 이름 \*                               |
+| ---------------- | ----------------- | ------- | ----------------------------------- |
+| `loader`         | `WorkerLoader`    | \*필수    | Worker 장전기 바인딩에서`env.LOADER`        |
+| `timeout`        | `number`          | `30000` | ms에서 타임 아웃 실행                       |
+| `globalOutbound` | `Fetcher \| null` | `null`  | 네트워크 접근 제한.`null`= 차단,`Fetcher`= 경로 |
+
+### `generateTypes(tools)`
+
+도구에서 TypeScript 유형 정의 생성. 내부적으로 사용`createCodeTool`그러나 custom use에 수출 (예를 들면, frontend에 있는 표시 유형).
+
+<TypeScriptExample>
+  ```ts
+  import { generateTypes } from "@cloudflare/codemode";
+
+  const types = generateTypes(myTools);
+  //반환:
+  //type CreateProjectInput = { 이름: 문자열; 설명?: 문자열 }
+  //const codemode 선언: {
+  //createProject: (입력: CreateProjectInput) => Promise<unknown>;
+  //이름 *
+  ```
+</TypeScriptExample>
+
+### `sanitizeToolName(name)`
+
+도구 이름을 유효 JavaScript 식별자로 변환합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { sanitizeToolName } from "@cloudflare/codemode";
+
+  sanitizeToolName("get-weather"); //"get weather"에 대해
+  sanitizeToolName("3d-render"); //" 3d render"의 경우
+  sanitizeToolName("delete"); //"delete "에 대해
+  ```
+</TypeScriptExample>
+
+## 보안 고려사항
+
+- 코드 실행**격리된 노동자 sandboxes**— 각 실행은 자체 작업자 인스턴스를 가져옵니다.
+- 외부 네트워크 접근 ( External network access)`fetch`, `connect`)는**기본적으로 차단**런타임 수준에서.
+- 도구 호출은 Workers RPC를 통해 전송됩니다.
+- Execution에는 구성이 있습니다.**시간 아웃**(과태 30 초).
+- 콘솔 출력은 별도로 캡처하고 호스트에 누출하지 않습니다.
+
+## 현재 제한
+
+- **Tool 승인 (`needsApproval`) 아직 지원되지 않습니다.**&#xB3C4;구와`needsApproval: true`승인하지 않고 sandbox 내부에서 즉시 실행합니다. Codemode 내의 승인 흐름 지원 계획입니다. 지금, 승인 필요 도구를 전달하지 마십시오`createCodeTool`- 대신 표준 AI SDK 도구를 사용하여 사용하십시오.
+- 'Cloudflare\`\`\`Workers 환경 요청`DynamicWorkerExecutor`.
+- JavaScript 실행에 제한됩니다.
+- 더 보기`zod-to-ts`Dependency는 노동자 크기를 증가하는 TypeScript 컴파일러를 묶습니다.
+- LLM 부호 질은 신속한 기술설계와 모형 기능에 달려 있습니다.
+
+## 관련 자료
+
+<LinkCard title="Codemode 예제" href="https://github.com/cloudflare/agents/tree/main/examples/codemode" description="전체 작업 예 — SQLite와 codemode를 사용하여 프로젝트 관리 조수." />
+
+<LinkCard title="AI 모델 사용" href="/agents/api-reference/using-ai-models/" description="에이전트와 AI 모델을 사용합니다." />
+
+<LinkCard title="MCP 클라이언트" href="/agents/api-reference/mcp-client-api/" description="MCP 서버에 연결하고 코드 모드로 도구를 사용합니다." />

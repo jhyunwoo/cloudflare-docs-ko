@@ -1,0 +1,252 @@
+---
+title: SaaS 애플리케이션을 보안하기 위해 Zero 신뢰 프레임워크를 사용하여
+pcx_content_type: design-guide
+products:
+  - access
+  - browser-isolation
+  - cloudflare-one
+  - casb
+  - dlp
+  - email-security-cf1
+  - gateway
+  - cloudflare-wan
+sidebar:
+  order: 1
+  label: SaaS 애플리케이션용 Zero Trust
+reviewed: 2024-10-22T00:00:00.000Z
+description: Cloudflare의 글로벌 네트워크를 사용하여 보안 및 성능 간의 거래 차단을 제거하는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/zero-trust-for-saas/
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/design-guides/zero-trust-for-saas/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+## 제품정보
+
+SaaS 애플리케이션은 오늘날의 비즈니스 환경에서 특히 하이브리드 인력의 상승에 중요한 역할을 합니다. 조직은 유연한 작업 모델을 채택하여 SaaS 앱의 능력은 원활하고 글로벌 액세스가 분산 된 팀 전반에 걸쳐 생산성을 유지하고 협업을 촉진하는 데 필수적입니다.
+
+SaaS 애플리케이션은 IT 팀에 부담을 크게 줄이며 아래 인프라를 관리할 필요가 없습니다. SaaS 공급자에게 이러한 책임을 위탁함으로써 조직은 하드웨어 및 소프트웨어 수명주기 관리 또는 확장성 문제에 대해 더 이상 걱정할 필요가 없습니다. 또한 SaaS 애플리케이션의 구독 기반 모델은 최대의 비용 최소화를 통해 채택 장벽을 낮추고 궁극적으로 레거시 애플리케이션에 비해 낮은 총 소유 비용 (TCO)을 제공합니다.
+
+이러한 장점과 함께 SaaS 애플리케이션은 새로운 도전과 보안 위험을 소개합니다. 그들의 인터넷 접근성은 사용자 및 장치의 보안에 더 큰 초점을 맞추고 무단 액세스 및 데이터 누출을 방지합니다. 사용자 제공(onboarding/offboarding), 장치 보안에 적합한 액세스 제어 및 제어/접근성은 신뢰할 수 있는 장치 액세스 회사 응용 프로그램에만 허가된 사용자를 보장하는 데 필수적입니다. 또한, IT팀은 SaaS 애플리케이션을 misconfiguration에 모니터링하고 위험한 사용자 활동으로 가시성을 얻습니다. 직원은 민감한 정보를 포함하거나 IT 팀의 지식없이 공인 된 타사 앱과 관리 된 SaaS 응용 프로그램을 통합 한 파일을 공유 할 수 있습니다.
+
+사용자가 새로운 SaaS 서비스에 가입 할 수있는 용이성, 특히 무료 및 인기있는 것들, 종종 모든 애플리케이션 직원의 IT 팀 인식을 나타 -- 추세로 알려진[그림자 IT](https://www.cloudflare.com/en-gb/learning/access-management/what-is-shadow-it/). 이러한 관리되지 않은 SaaS 응용 프로그램은 직원, 의도적으로 또는 사고로 인해 데이터 누출에 잠재적으로 IT 팀의 통제가 아닌 응용 프로그램에 민감한 데이터의 업로드로 인해 발생할 수 있습니다.
+
+사용 시도[전통 성 및 목 보안 모델](https://www.cloudflare.com/en-gb/learning/access-management/castle-and-moat-network-security/)SaaS 애플리케이션에 적합하지 않습니다. 서비스 및 데이터는 엔터프라이즈 네트워크 내에서 온-프레미스 데이터 센터에 더 이상 확신하지 않습니다. 이 통합된 접근 방식은 보안과 성능 사이의 거래 오프를 강제합니다:
+
+- 한 전략 조직은 보안을 강화하기 위해 채택 IP 구현을 통해 더 넓은 인터넷에서 SaaS 응용 프로그램을 보호하고 보안 정책에 따라 트래픽을 검사하고 필터링 할 수있는 조직의 데이터 센터를 통해 목록과 라우팅 트래픽을 허용합니다. 그러나, 이 방법은 부정적인 영향을 미치는 사용자 경험, 증가 된 대기 시간 및 단축 대역폭 단일 데이터 센터를 통해 모든 트래픽을 routing.
+- 사용자 트래픽이 인터넷에 직접 전송되면 분할 터널링, 보안 및 가시성을 사용하여 로컬 VPN 클라이언트를 우회하여 엔터프라이즈 네트워크 제어로 손상됩니다 (그리고 IP는 목록이 더 이상 허용되지 않습니다).
+
+![그림 1 : SaaS 응용 프로그램에 두 가지 다른 경로, 하나 안전하지만 낮은 성능, 두 번째 빠른하지만 적은 보안.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-01.svg "Figure 1: Two different routes to a SaaS application, one secure but low performance, the second fast but less security.")
+
+현재 위치[Zero Trust 프레임 워크를 구현하는 SASE (Secure Access Service Edge) 아키텍처](/reference-architecture/architectures/sase/)필수입니다. 글로벌 클라우드 네트워크에 보안을 집중함으로써 보안 및 성능 간의 거래가 제거됩니다. 사용자 트래픽은 더 이상 보안을 위한 단일 원격 데이터 센터를 통해 경로가 필요 없습니다. Cloudflare 사용자 트래픽은 가장 가까운 데이터 센터에서 우리의 서비스로 전환됩니다 - 수백에서 - 필요한 보안 제어를 겪을 것입니다. 이 보안 제어는 불필요한 대기시간을 추가하고 전체 Cloudflare 네트워크를 통해 지속적으로 적용되도록 단일 패스 아키텍처에서 구현됩니다.
+
+![Figure 2: SASE 솔루션은 사용자 트래픽을 확보하고 사용자가 가까운 필터링합니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-02.svg "Figure 2: SASE solutions ensure user traffic is secured and filtered close to the user.")
+
+이 디자인 가이드는 Cloudflare의 SASE 아키텍처가 더 효과적으로 안전하고 효율적으로 SaaS 응용 프로그램에 액세스 할 수 있는지에 초점을 맞출 것입니다. Cloudflare가 조직의 제로 신뢰 이니셔티브에 사용될 수 있는 방법의 더 넓은 이해를 위해, 우리의 읽으십시오[SASE 참고 자료 건축](/reference-architecture/architectures/sase/).
+
+### 이 문서는 누구입니까?
+
+이 가이드는 IT 및 보안 전문가를 위해 설계되어 안전하게 채택하고 긍정적 인 사용자 경험을 유지하면서 조직 내에서 SaaS 응용 프로그램을 배포합니다. ID 공급자 (IdPs), 사용자 디렉토리, 단일 서명에 (SSO) 및 데이터 손실 방지 (DLP) 기술과 같은 개념과 익숙함을 가정합니다.
+
+당신이 배울 것:
+
+- SaaS 애플리케이션을 관리하고 데이터를 보호하는 방법
+- 클라우드 이메일 솔루션을 사용할 때 주요 고려사항
+- 관리되지 않은 SaaS 애플리케이션에 대한 가시성을 얻는 방법
+
+이 가이드는 다음을 포함하는 Cloudflare와 엔터프라이즈 계약을 맺습니다.
+
+- Cloudflare Zero Trust 사용자가 내장 할 계획의 수에 대한 라이센스
+- 모델 번호: Cloudflare Cloud Email security licenses for the number of users who 클라우드 inbox 이메일 필터링
+
+:::노트\[무료 및 PayGo 기능]
+이 문서에 설명된 많은 기능[무료 및 Pay-as-you-go 플랜도 제공](https://www.cloudflare.com/en-gb/plans/zero-trust-services/).
+:::
+
+Cloudflare의 더 강한 이해를 위한 추천된 자원:
+
+- Cloudflare는 무엇입니까? |[웹 사이트](https://www.cloudflare.com/what-is-cloudflare/)(빠른 분 읽기) 또는[동영상](https://www.youtube.com/watch?v=XHvmX3FhTwU)(2 분)
+- 블로그:[Zero Trust, SASE 및 SSE : 차세대 네트워크를위한 기초 개념](https://blog.cloudflare.com/zero-trust-sase-and-sse-foundational-concepts-for-your-next-generation-network/)(14 분 읽기)
+- 참고 자료 건축술:[Cloudflare와 SASE 아키텍처로 진화](/reference-architecture/architectures/sase/)(시간 읽기)
+
+## 관리 SaaS 애플리케이션
+
+관리 SaaS 응용 프로그램은 IT에 의해 조달 및 승인, 도구 직원의 공식 제품군의 일부를 형성 자신의 작업을 수행하기 위해. IT는 일반적으로 이러한 응용 프로그램을 관리하고 책임집니다 :
+
+1. **Securing 접근:**&#xACF5;인된 사용자 및 장치가 SaaS 애플리케이션에 액세스할 수 있습니다. 이것은 사용자의 온보드 및 offboarding 관리가 포함되어 있습니다. 예를 들어, 직원이 조직을 나타낸 경우, 해당 액세스는 자동으로 수정됩니다. 일반적으로 회사 ID 관리 솔루션과 SaaS 애플리케이션을 통합합니다.
+2. **자료 보호:**&#x53;aaS 애플리케이션 내에서 데이터 누출을 방지하고 데이터 침해에 발생할 수 있는 사용자의 위험성 행동을 유발합니다.
+3. **감시자 윤곽:**&#x53;aaS 애플리케이션 내에서 실수를 수정하고 신속하게 수정할 수 있습니다.
+4. **클라우드 이메일 보안:**&#xD074;라우드 이메일 SaaS 솔루션을 처리할 때 IT 팀이 특별한 관심을 가져야 합니다. 이메일은 피싱 및 기타 이메일 기반 위협으로부터 사용자를 보호하는 데 필요한 주요 공격입니다.
+
+이 문서에서 나중에 섹션을 참고하면 가시성을 얻는 방법을 커버하고 관리되지 않은 응용 프로그램을 제어 할 수 있습니다. 마케팅 부서가 IT 또는 보안 부서에 참여하지 않고 새로운 CRM 시스템을 사용하여 가입하고 시작하도록 결정합니다.
+
+### Securing 접근
+
+#### SaaS IP를 사용하여 목록
+
+SaaS 애플리케이션에 대한 액세스를 확보하는 간단한 방법은 특정 IP 주소에서 접근 할 수 있습니다. 이 힘 사용자는 연결해야 하고, 특정한 네트워크에서 그들의 소통량 출구가 있고 그러므로 그 네트워크에 어떤 접근 제한든지 그 교통에 적용된다는 것을 보증합니다.
+
+이미 IP를 사용하는 조직은 SaaS 애플리케이션에 액세스할 수 있도록 목록이 쉽게 Cloudflare에 마이그레이션할 수 있습니다.[전용 egress IP](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/). Cloudflare에서 인터넷 및 SaaS 응용 프로그램에 대한 사용자 트래픽 egresses는 조직에 고유 한 IP 주소 세트에서 소스. 이 접근법은 SaaS 애플리케이션에 액세스하기 전에 Cloudflare에 액세스하는 다양한 방법을 지원합니다.
+
+- **잡종 직원:**&#xC6B0;리의 Zero Trust 클라이언트를 사용하여 Cloudflare에 연결,[모델 번호: WARP](/cloudflare-one/team-and-resources/devices/warp/).
+- **Office 기반 사용자:**&#x47;RE 또는 IPsec을 통해 Cloudflare로 인터넷 경계 트래픽을 경로하는 로컬 네트워크에 연결[Cloudflare 대만](/cloudflare-wan/)(이전 매직 WAN) 터널.
+- **계약자 및 외부 사용자:**&#x53;aaS 애플리케이션 접근[원격 브라우저](/learning-paths/clientless-access/alternative-onramps/clientless-rbi/)Cloudflare 데이터 센터에서 호스팅.
+
+조직은 기존 SaaS IP에 새로운 전용 egress IP를 추가하여 SaaS 애플리케이션에 허용되는 Cloudflare에 대한 목록을 제공합니다. 이 방법, 조직은 Cloudflare와 평행한에 있는 유산 연결 방법을 점차적으로 유지할 수 있습니다. 모든 사용자는 Cloudflare에 액세스 할 수 있으며 SaaS IP는 레거시 인프라에 대응하는 IP를 제거하여 목록을 업데이트 할 수 있습니다.
+
+Cloudflare의 전용 egress IP를 사용하는 데 몇 가지 이점이 있습니다.
+
+- [전용 egress IP는 geolocated일 수 있습니다](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/#ip-geolocation)Cloudflare 데이터 센터 중 하나 이상의 Cloudflare 데이터 센터는 기존 인터넷 차단 데이터 센터의 지리적 위치에 제한되어 있습니다.
+- 사용자는 항상 Cloudflare에 연결될 것입니다[가장 가까운 Cloudflare 데이터 센터를 통해 Cloudflare는 SaaS 응용 프로그램에 대한 경로를 최적화합니다.](/cloudflare-one/traffic-policies/egress-policies/dedicated-egress-ips/#egress-location).
+- Dedicated egress IPs는 제로 신뢰 원칙을 따르는 정책으로 사용자 트래픽에 할당됩니다.[Egress 정책](/cloudflare-one/traffic-policies/egress-policies/)IdP 그룹 및/또는 패스에 속한 사용자에게 전용 egress IP만 할당할 수 있음을 정의할 수 있습니다.[장치 자세](/cloudflare-one/reusable-components/posture-checks/)체크인. 그렇지 않으면 트래픽은 Cloudflare의 공개 IP 범위에서 소스됩니다. 이는 SaaS IP 수당의 일부가 아니지만 여전히 인터넷 사용을 허용하면서 SaaS 애플리케이션에 액세스 할 수 있습니다.
+- 전용 egress IPs는 SaaS 애플리케이션에 도달하기 전에 Cloudflare를 통해 트래픽이 흐릅니다. 이것은 보안 웹 게이트웨이 정책을 추가하여 SaaS 애플리케이션에서 데이터를 한 번 인증했습니다.
+
+![그림 3 : Cloudflare가 SaaS 응용 프로그램에 의해 보호 된 유일한 트래픽을 강화합니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-03.svg "Figure 3: Enforce only traffic that has been secured by Cloudflare is accepted by the SaaS application.")
+
+#### 정체 프록시로 Cloudflare 사용
+
+Cloudflare로,[Zero Trust 네트워크 액세스 (ZTNA)](https://www.cloudflare.com/en-gb/learning/access-management/what-is-ztna/)SaaS 애플리케이션을 관리할 수 있습니다. 이 시나리오에서 Cloudflare는[단일 로그인 (SSO)](https://www.cloudflare.com/en-gb/learning/access-management/what-is-sso/)응용 프로그램에 대한 서비스, 조직의 기존 ID 공급자 (IdPs)에 사용자 인증 요청 프록시. 이것은 필요한 것과 같은 접근 권한을 부여하기 전에 추가 제한을 허용[다중 인증](https://www.cloudflare.com/en-gb/learning/access-management/what-is-multi-factor-authentication/), 구현[장치 자세 검사](/cloudflare-one/reusable-components/posture-checks/), 또는[국가 평가](/cloudflare-one/access-controls/policies/#selectors)자주 묻는 질문
+
+![그림 4: Cloudflare는 모든 SaaS 신청을 위한 일관된 입증 경험을 제공하는 정체성 프록시 역할을 할 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-04.svg "Figure 4: Cloudflare can act as an identity proxy, providing a consistent authentication experience for all SaaS applications.")
+
+대부분의 조직은 처음 Cloudflare를 사용합니다[ZTNA 서비스](/cloudflare-one/access-controls/policies/)자체 호스팅 응용 프로그램. SaaS 애플리케이션에 확장하면 자체 호스팅 및 SaaS 앱 모두와 같은 여러 가지 방법으로 IT 관리가 간소화됩니다.
+
+- 동일한 액세스 정책 사용
+- 동일한 IdP 및 장치 자세 통합 활용
+- 자주 묻는 질문
+
+IT 팀은 일관되고 자동화 된 프로세스에서 응용 프로그램에서 온보드 및 오프 보드 사용자에게 혜택을 제공합니다. 모든 액세스 정책은 기존 IdPs에서 인증, 사용자의 상태의 변경은 자동으로 자체 호스팅 응용 프로그램뿐만 아니라 SaaS에 대한 액세스 요청의 결과에 영향을 미칠 것입니다.
+
+사용자가 조직 내에서 다른 그룹 또는 팀으로 이동하는 시나리오를 고려하십시오. 사용자 그룹 정보가 IdP에 업데이트되면 Cloudflare의 ZTNA 정책은 역동적으로 이러한 변경 사항을 시행하며, SaaS 애플리케이션에 대한 사용자의 액세스는 새로운 역할을 기반으로 즉시 조정됩니다. 또한 SaaS 애플리케이션의 라이선스 최적화에 도움이 됩니다. 예를 들어, 직원이 판매 팀에서 전송되는 경우 Salesforce를 사용하는 팀에 Salesforce에 액세스 할 필요가 없습니다. ZTNA 정책은 응용 프로그램에 액세스 할 수 있습니다. 이 자동화된 프로세스는 이전에 사용자에 할당 된 라이센스를 재발견하는 데 도움이되며 실제로 응용 프로그램에 액세스 할 필요가 있다는 것을 보장합니다.
+
+마지막으로, SaaS 응용 프로그램은 인터넷에 액세스 할 수 있으며, 사용자가 성공적으로 인증 한 경우 모든 장치에 액세스 할 수 있습니다. 그러나, Cloudflare의 ZTNA 서비스와 함께, IT 팀은 SaaS 응용 프로그램에 대한 관리 장치 접근을 보장 할 수 있습니다. 일반적인 사용 케이스는[IT 배포 장치 인증서의 존재 확인](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/client-certificate/#configure-the-client-certificate-check)신청 권한을 부여하기 전에.
+
+#### 배포 가이드
+
+이미 IP를 구현하는 SSO 또는 조직을 지원하지 않는 SaaS 애플리케이션은 SaaS 애플리케이션에 안전하게 액세스할 수 있으며 전용 egress IP를 구현하는 것은 사용자 경험에 영향을 미치지 않고 SaaS 애플리케이션에 액세스 보안을 강화하는 가장 쉬운 방법입니다.
+
+ZTNA 정책은 자체 호스팅 및 SaaS 애플리케이션을 위한 Cloudflare의 ZTNA 솔루션 구현을 고려해야 합니다. 이러한 시나리오에서, 여전히 중요한 SaaS 응용 프로그램의 하위 세트에 대한 헌신적 인 egress IPs를 고려할 수 있습니다. egress 정책은 네트워크 및 운송 레이어에서 운영되며, 그 시행은 거의 실시간입니다.[예를 들어](/cloudflare-one/tutorials/m365-dedicated-egress-ips/#_top), 외부 엔드포인트 관리 솔루션의 자세 상태를 차지하는 특정 SaaS 애플리케이션에 대한 egress 정책을 고려합니다. 장치가 손상되고 그 자세 상태가 비 compliant되면, egress 정책은 더 이상 일치하지 않습니다. 이 결과는 SaaS 애플리케이션에 대한 액세스를 잃는 장치 사용자의 결과, 트래픽은 더 이상 전용 egress IP에서 소스되지 않습니다.
+
+마지막으로, 이미 SSO에 대한 IdP와 함께 모든 SaaS 응용 프로그램을 통합 한 조직은 여전히 이전에 같은 이유로 응용 프로그램의 하위 세트에 대한 전용 egress IP를 사용하여 목록을 추가 할 수 있습니다.
+
+### 관리형 SaaS 애플리케이션의 데이터 보호
+
+SaaS 애플리케이션을 관리하기 위해 ZTNA 원칙을 확장하면서 적절한 사용자 및 장치만 이러한 응용 프로그램에 액세스할 수 있다는 것을 보증하며, 한 번에 인증된 사용자 유출 데이터의 위험을 해결하는 것이 중요합니다.
+
+![그림 5: Cloudflare는 또한 SaaS 신청을 관리하기 위하여 다운로드되거나 업로드된 자료를 보호할 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-05.svg "Figure 5: Cloudflare can also protect data that's downloaded or uploaded to managed SaaS applications.")
+
+이러한 위험을 완화하기 위해, 제어는 나머지의 transit 및 데이터에 데이터를 모두 구현해야합니다.
+
+#### transit의 데이터
+
+앞서 언급했듯이 모든 트래픽은 장치 에이전트, Cloudflare WAN (CWAN) 터널 또는 원격 브라우저를 사용하여 Cloudflare를 통해 강제 될 수 있습니다. 이 허용[보안 웹 게이트웨이](/cloudflare-one/traffic-policies/)SaaS 애플리케이션에서 데이터를 관리하고 보호하는 정책. 일반적인 사용 사례:
+
+- 다운로드 할 수있는 능력 제한[모든 것](/cloudflare-one/traffic-policies/http-policies/common-policies/#block-google-drive-downloads)또는[파일의 subset](/cloudflare-one/traffic-policies/http-policies/common-policies/#block-file-types)관리 SaaS 애플리케이션에서 조직 내에서 사용자의 특정 그룹에 이르기까지.
+- 사용 방법[데이터 손실 방지 (DLP)](/cloudflare-one/data-loss-prevention/#_top)SaaS 애플리케이션에서 민감한 정보를 포함하는 데이터의 다운로드를 제한하는 프로필.
+
+transit에서 데이터를 확보하는 방법에 대한 자세한 내용은 여기를 참조하십시오.[참고 자료 건축술 센터](/reference-architecture/diagrams/security/securing-data-in-transit/).
+
+#### 자주 묻는 질문
+
+Cloudflare의[클라우드 액세스 보안 브로커 (CASB)](/cloudflare-one/integrations/cloud-and-saas/)연결하기[SaaS 응용](/cloudflare-one/integrations/cloud-and-saas/)API를 통해. 통합되면 Cloudflare는 보안 위험에 대한 이러한 응용 프로그램을 지속적으로 스캔합니다. IT 팀은 인터넷에서 공개적으로 파일을 공유하는 것과 같은 공인 사용자 감독 데이터의 사건을 감지 할 수 있습니다. Google Workspace, Microsoft 365, Box 및 Dropbox의 경우 API CASB는 DLP 프로파일을 사용하여 민감한 데이터를 공유할 수 있습니다. 더 많은 정보를 위해 데이터를 복원, 참조[참고 자료 건축술 센터](/reference-architecture/diagrams/security/securing-data-at-rest/).
+
+이전 측정 외에도 IT 팀은 소개해야 합니다.[사용자 환경 및 행동 분석 (UEBA)](https://www.cloudflare.com/en-gb/learning/security/what-is-ueba/)제어. Cloudflare는 할당할 수 있습니다[위험 점수](/cloudflare-one/team-and-resources/users/risk-score/)조직에 위험을 소개 할 수있는 활동과 행동을 감지 할 때 사용자에게. 이러한 위험 행동은 사용자가 DLP 정책 일치의 비정상적인 높은 숫자를 트리거하는 시나리오를 포함합니다. 이러한 측정을 구현함으로써 조직은 공인된 사용자에 의해 관리된 SaaS 애플리케이션의 데이터 누출 위험을 크게 줄일 수 있습니다.
+
+![그림 6: Cloudflare는 그것의 네트워크를 통해 여행하고, 뿐 아니라 SaaS 신청 APIs를 사용하여 나머지에 저장된 자료를 검사할 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-06.svg "Figure 6: Cloudflare can secure data traveling over its network, as well as using SaaS application APIs to examine data stored at rest.")
+
+### 모니터 구성
+
+이 디자인 가이드는 지금까지 SaaS 애플리케이션 사용자에 주로 초점을 맞추고 있지만, 오늘날 SaaS 데이터 누출이 사용자 행동에 의해 발생하지는 않지만 IT 팀에 의해 만들어진 misconfigurations에 의해 잘못 구성하는 것이 중요합니다. 이러한 잘못 구성이 체크되지 않을 때, 그들은 SaaS 애플리케이션과 조직 모두 심각한 보안 위험을 노출.
+
+당신은 Cloudflare의 CASB를 사용하여 이러한 위험을 완화 할 수 있습니다. API CASB는 지속적으로 검사하고 misconfigurations를 식별하고 신속하게 치료 할 수 있습니다. SaaS 애플리케이션에 액세스할 수 없는 제3자 앱인 SaaS 애플리케이션에 액세스할 수 있습니다.
+
+### Cloud 이메일 보안
+
+Phishing attacks and Campaigns to spread malware to take over devices and access company data usually focus on email as a channel for attack. 오늘날의 대다수 회사는 온프레미스 서버에서 클라우드 호스팅 서비스를 마이그레이션했습니다. Microsoft 365 및 Google Workspace와 같은 솔루션의 내장 보안이 좋지만 공격 방법의 지속적인 진화로 유지할 수 없습니다. 많은 조직은 기존 이메일 플랫폼과 통합 된 고급 이메일 보안 솔루션을 배포합니다.
+
+#### Securing 접근
+
+이미 설명 된대로 ZTNA를 구현하여 이메일 플랫폼을 확보하는 것은 수많은 혜택을 제공합니다. 한 가지 주요 장점은 클라우드 기반 이메일 서비스를 사용할 때 신뢰할 수있는 관리 장치로 제한됩니다. 이것은 일반적으로 Cloudflare를 사용하여 다음의 존재를 확인합니다.[고객 인증서](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/client-certificate/)외부 엔드포인트 관리 솔루션에 의해 감지되지 않은 위험이 있음을 확인합니다.[카테고리](/cloudflare-one/integrations/service-providers/crowdstrike/)또는[센티넬원](/cloudflare-one/integrations/service-providers/sentinelone/).
+
+#### Tenant 통제
+
+규정 준수 또는 규제 이유, 운영 제어 또는 책임에 대한 이메일 통신에 대한 엄격한 요구 사항, 또는 데이터 누출에 대한 잠재력을 줄이기 위해 조직 자체보다 다른 임의 기관에 액세스 할 수 있습니다. 이를 통해 달성할 수 있습니다.[모델 번호: Cloudflare Gateway SaaS 테넌트 컨트롤](/cloudflare-one/traffic-policies/http-policies/tenant-control/). Cloudflare는 트래픽 흐름으로 사용자 정의 HTTP 헤더를 주사, 특정한 임의 사용자의 Microsoft 365 및 Google Workspace를 알리고 다른 임의의에 액세스 시도를 차단 할 수 있습니다.
+
+![그림 7: Cloudflare는 특정한 구름 이메일 tenants에 접근을 실행할 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-07.svg "Figure 7: Cloudflare can enforce access to only specific cloud email tenants.")
+
+#### 필터링 inbound 이메일
+
+SaaS 이메일 솔루션은 기본 보안 기능을 제공하지만, 그들의 인기는 인바운드 필터링 기능에서 취약점 및 제한을 사용하는 공격자에게 높은 가치 목표를 만듭니다. 이 위험을 완화하려면 IT 팀은 인바운드 이메일 필터링을위한 전문 솔루션과 클라우드 이메일 솔루션의 기본 기능을 보완해야합니다.
+
+[Cloudflare의 이메일 보안](https://www.cloudflare.com/en-gb/zero-trust/products/email-security/)악성 콘텐츠 또는 첨부 파일에 대한 검색 및 적극적인 공격자 인프라 및 공격 배달 메커니즘을위한 인터넷을 모니터링합니다. 그것은 계획된 공격의 일부로 악의적인 내용에 사용되는 programmatically-created 및 impersonation 도메인을 식별합니다. 이 자료는 또한 사업과 납품업자 이메일 손상에 대하여 보호합니다 ([사이트맵](https://www.cloudflare.com/en-gb/learning/email-security/business-email-compromise-bec/)/[사이트맵](https://www.cloudflare.com/en-gb/learning/email-security/what-is-vendor-email-compromise/)), 합법적 인 이메일 트래픽과 유산 이메일 보안 플랫폼을위한 간격에 대한 급여 및 재 조립의 부족으로 인해 감지하기 어렵습니다.
+
+Cloudflare를 기존 이메일 인프라로 통합하는 것은 유연하고 간단합니다.[제품정보](/email-security/deployment/inline/)·[사이트맵](/email-security/deployment/api/)모드.
+
+인라인 배포에서 Cloudflare의 이메일 보안은 사용자의 inboxes에 도달하기 전에 이메일 메시지를 평가합니다 (이메일 도메인 MX 레코드를 Cloudflare). 이것은 Cloudflare를에 허용합니다[quarantine 메시지](/email-security/email-configuration/admin-quarantine/)그래서 그들은 결코 사용자의 inbox에 도달하거나[이메일 headers로 태그 메시지](/email-security/reference/dispositions-and-attributes/#header-structure)이메일 공급자에게 이메일이 처리되어야 하는 방법 (예를 들면,[스팸 폴더에 직접 대량 이메일을 리디렉션](/email-security/deployment/inline/setup/office-365-area1-mx/use-cases/one-junk-admin-quarantine/)). Cloudflare는 또한 할 수 있습니다[이메일 메시지의 제목과 몸 수정](/email-security/email-configuration/email-policies/text-addons/)사용자에게 의심스러운 이메일에 대해 더 궁금해하고 있음을 알려줍니다.[원격 브라우저 뒤의 링크를 압축하고](/email-security/email-configuration/email-policies/link-actions/).
+
+API 배포에서 Cloudflare의 이메일 보안은 이메일 공급자 또는 API 스캔을 통해 Journaling/BCC 규칙을 설정하여 사용자의 inboxes에 도달 한 후 이메일 메시지를 볼 수 있습니다. 그런 다음 이메일 공급자와 통합을 통해 Cloudflare 할 수 있습니다[retract 피싱 이메일](/email-security/email-configuration/retract-settings/)사용자의 inboxes에서. 인라인 모드와는 달리, 이 배포 방법은 quarantining 이메일 또는 이메일 메시지를 수정하지 않습니다. 그러나, 기존 메일 흐름 작업에 대한 변경없이 복잡한 이메일 인프라에서 보호를 추가하는 쉬운 방법입니다.
+
+이 모드는 이메일 보안을 강화하기 위해 동시 사용할 수 있습니다. 인라인 모드는 Cloudflare의 이메일 보안 검사 및 필터 이메일이 사용자의 inboxes에 도달하기 전에 보장합니다. Cloudflare를 위협하지 않고 처음부터 통과하는 이메일[주기적으로 그들을 재평가](/email-security/email-configuration/retract-settings/office365-retraction/#post-delivery-retractions-for-new-threats). 이 이메일이 phishing 캠페인의 일부로 확인되면 API로 자동으로 철회됩니다. 이 유능한 접근은 방어적인 피싱 공격에 대하여 조직을 보호합니다, 공격자는 처음 탐지를 우회하기 위하여 납품 후에 무기질한 연결이 겉으로 보이는 것과 가진 이메일을 보냅니다.
+
+![그림 8: Cloudflare는 온라인 또는 API에 의하여 이메일 서비스를 보호할 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-08.svg "Figure 8: Cloudflare can protect email services either inline or by API.")
+
+#### 자주 묻는 질문
+
+Cloudflare는 또한 구름 이메일 서비스의 가용성을 지킵니다. 그것은 자동 스케일 TCP 연결 및 SMTP 트래픽 메시지 스파이크를 처리, 이메일 DoS 공격에서 조직을 보호. 서비스는 확장된 기간 및 throttles 납품 포스트 스파이크를 위한 queues 메시지 downstream 이메일 서비스 수용량에 따라 자동적으로 풀 및 큐. 이 풀 및 누비질 기능은 클라우드 이메일 서비스 아웃시 유용합니다.
+
+#### 아웃바운드 데이터 손실 방지와 아웃바운드 이메일을 필터링
+
+Microsoft 365를 사용하는 조직은 Cloudflare add-in을 환경으로 통합함으로써 민감한 정보 누출에 대한 보호를 강화할 수 있습니다. 이 통합은 IT 관리자가 설정할 수 있습니다.[아웃바운드 데이터 손실 방지 (DLP) 정책](/cloudflare-one/email-security/outbound-dlp/)Secure Web Gateway (SWG) 및 API Cloud Access Security Broker (CASB)와 같은 DLP 프로파일을 활용합니다.
+
+또한, 활용한 조직[Microsoft Purview 감도 상표](/cloudflare-one/data-loss-prevention/dlp-profiles/integration-profiles/)Cloudflare의 DLP 프로파일에 민감한 문서를 분류하고 안전하게 보호 할 수 있습니다. 이 기능은 Microsoft Office 문서가 외부 수신자에게 보낸 Microsoft Outlook에서 'Highly Confidential'로 표시된 이메일 차단과 같은 대상 정책의 생성을 허용합니다. 이 DLP 단면도는 또한 SWG와 API CASB의 맞은편에 적용될 수 있습니다.
+
+## 관리되지 않은 SaaS 애플리케이션에 대한 Regain 제어
+
+Unmanaged SaaS 응용 프로그램은 IT의 승인 또는 지식없이 직원에 의해 사용되며 일반적으로 언급[그림자 IT](https://www.cloudflare.com/en-gb/learning/access-management/what-is-shadow-it/). 이 성장 도전은 무료 또는 저비용 SaaS 애플리케이션의 확산에 의해 구동됩니다. 이러한 응용 프로그램은 직원 만족과 생산성을 높일 수 있지만, 그들은 다음과 같은 상당한 위험을 느낀다.
+
+- **자료 침해:**&#xC9C1;원은 어떤 안전 통제도 없이 이 신청에 과민한 자료를 업로드할 수 있습니다. 단 하나 표시에 (SSO) 또는 강한 암호 의정서 없이, 자료 손실 또는 도난의 위험은 현저하게 더 높습니다.
+- **준수 위반 :**&#xADDC;제 산업에서, 무단 SaaS 도구의 사용은 법적 및 산업 표준을 준수하지 않고, 잠재적으로 벌금, 법적 행동 및 평판 손상에서 발생할 수 있습니다.
+- **증가된 비용:**&#x49;T는 일반적으로 비즈니스 전반에 걸쳐 SaaS 구독을 관리하여 선호하는 가격을 확보할 수 있습니다. 그러나, 직원은 독립적으로 개인 신용 카드로 가입을 구입 할 때, 그것은 조직에 대한 shadow IT 지출 및 더 높은 전반적인 비용을 납득 할 수 있습니다.
+
+이러한 위험을 완화하기 위해, 첫 번째 단계는 SaaS 애플리케이션 직원들이 사용하는 것을 발견하는 것입니다. 직원 장치에서 모든 트래픽이 Cloudflare를 통해 경로화되면,[공지사항](/cloudflare-one/insights/analytics/shadow-it-discovery/)일반적인 SaaS 애플리케이션의 사용을 표시합니다.
+
+![그림 9: 인터넷을 위한 모든 사용자 소통량 경계가 Cloudflare를 통해 갑니다 때, 그것은 승인되지 않은 SaaS 신청을 위해 감시하는 것을 허용합니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-09.svg "Figure 9: When all user traffic bound for the Internet goes via Cloudflare, it allows IT to monitor for unapproved SaaS applications.")
+
+이 정보를 바탕으로 IT 팀은 각 관리되지 않은 SaaS 애플리케이션을 처리하는 방법을 분석하고 결정할 수 있습니다.
+
+- **신청 허용:**&#xC2E0;청이 조직에 위험이 없는 경우, 직원의 사용을 위해 수락가능한 deemed이고, 더 이상 활동은 요구되지 않습니다.
+- **데이터 보호 통제를 가진 신청을 허용하십시오:**&#xC751;용 프로그램이 허용되지만 데이터 누출 위험을 포화하면 적절한 데이터 보호 조치가 구현되어야합니다.
+- **SaaS 응용 프로그램 채택:**&#xC2E0;청이 조직에 유리하면 IT 관리에서 가져야합니다.
+- **응용 프로그램을 차단:**&#xC751;용 프로그램이 허용되지 않은 경우 Cloudflare 게이트웨이 DNS 및 / 또는 HTTP 정책을 사용하여 차단해야합니다.
+
+### 관리되지 않은 SaaS 애플리케이션에 대한 데이터 보호
+
+관리되지 않은 SaaS 애플리케이션에 대한 데이터 보호는 관리 SaaS 애플리케이션과 유사하지만, 민감한 정보의 업로드를 방지하기 위해 데이터의 다운로드를 조정하는 데 중점을 둡니다. 정책은 Cloudflare를 사용하여 구성될 수 있습니다 이러한 위험을 해결하는 게이트웨이. 일반적인 사용 사례:
+
+- 능력 제한[특정 파일 유형 업로드](/cloudflare-one/data-loss-prevention/dlp-policies/common-policies/#block-file-types)SaaS 애플리케이션에, 조직 내에서 사용자의 특정 그룹에 이 기능을 제한.
+- Data Loss Prevention (DLP) 프로파일을 사용하여 민감한 정보를 포함하는 데이터의 업로드를 차단합니다.
+
+이러한 조치 외에도,[먼 브라우저 고립](/cloudflare-one/remote-browser-isolation/#_top)관리되지 않은 SaaS 애플리케이션을 고려할 수 있습니다. 이 접근법은 사용자가 특정 관리되지 않은 SaaS 애플리케이션에 액세스할 수 있도록 합니다.[해당 응용 분야의 작업을 제한](/cloudflare-one/remote-browser-isolation/isolation-policies/#policy-settings)관련 기사
+
+![그림 10: DLP 정책은 기업 데이터를 보호하기 위해 브라우저 고립과 결합될 수 있습니다.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-10.svg "Figure 10: DLP policies can be combined with browser isolation, to protect company data.")
+
+### 새로운 SaaS 애플리케이션 채택
+
+많은 SaaS 응용 프로그램은 비즈니스 모델의 일부로 무료 버전을 제공하여 사용자가 자신의 작업에 통합 할 수 있도록합니다. 이것은 응용 프로그램의 유용성을 입증하고 기업 수준에서 채택을 용이하게합니다 ([Cloudflare는 이 모형을 또한 따릅니다](https://www.cloudflare.com/en-gb/plans/zero-trust-services/)). 이전에 관리되지 않은 SaaS 애플리케이션이 조직에 의해 공식적으로 채택되면 IT 팀은 적절한 지원을 보장하고 모범 사례에 고착합니다. Securing Managed SaaS Application 섹션에서 논의된 모든 측면과 함께 새로운 SaaS 애플리케이션을 정렬합니다.
+
+완전히 새로운 SaaS 응용 프로그램을 채택 한 후 소비자 버전에 액세스 할 수 있습니다. 법인 SaaS 버전이 고유 한 도메인을 가지고 있다면, 다른 tenant 도메인 또는 소비자 도메인에 액세스 Cloudflare DNS 및 / 또는 HTTP 정책을 사용하여 차단 될 수 있습니다. 일부 SaaS 솔루션 제공[기본 10ant 통제](/cloudflare-one/traffic-policies/http-policies/tenant-control/)HTTP 헤더를 통해 Cloudflare Gateway HTTP 정책을 사용하여 이 헤더를 주사하여 시행할 수 있습니다.
+
+## 제품정보
+
+이 디자인 가이드는 SASE 아키텍처 내에서 Zero Trust 프레임 워크를 구현하여 SaaS 애플리케이션 보안을 향상시킬 수 있는 방법을 설명했습니다. Cloudflare로 조직은 관리 및 관리되지 않은 SaaS 응용 프로그램에 의해 구성 된 문제를 해결하는 포괄적 인 솔루션에 액세스 할 수 있습니다. ZTNA, 전용 egress IP, CASB 및 강력한 이메일 보안 측정과 같은 기술을 사용하여 조직은 보안 액세스, 민감한 데이터를 보호하고, shadow IT를 통해 제어를 얻을 수 있으며, 모두 긍정적 인 사용자 경험을 유지하면서. 이 기법과 적용할 때 아래 다이어그램에서 요약됩니다:
+
+![Figure 11: SaaS 애플리케이션의 제로 신뢰 접근을 위한 기술.](~/assets/images/reference-architecture/zero-trust-for-saas/zero-trust-saas-image-11.svg "Figure 11: Techniques for enforcing a zero trust approach in SaaS applications.")
+
+## 관련 자료
+
+- [SASE 참고 자료 건축](/reference-architecture/architectures/sase/)
+- [Microsoft Cloudflare SASE 사용](/reference-architecture/architectures/cloudflare-sase-with-microsoft/)

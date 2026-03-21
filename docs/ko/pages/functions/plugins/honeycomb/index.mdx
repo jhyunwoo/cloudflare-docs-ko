@@ -1,0 +1,83 @@
+---
+pcx_content_type: concept
+title: 허니콤
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/plugins/honeycomb/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/plugins/honeycomb/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+허니콤 Pages 플러그인은 분석 및 관찰성을 위해 Honeycomb에 추적을 자동으로 보냅니다.
+
+## 설치하기
+
+<PackageManagers pkg="@cloudflare/pages-plugin-honeycomb" />
+
+## 제품 정보
+
+다음 사용 예제는 Pages 프로젝트 설정에서 설정해야 할 환경 변수를 사용합니다.
+
+```typescript
+import honeycombPlugin from "@cloudflare/pages-plugin-honeycomb";
+
+export const onRequest: PagesFunction<{
+	HONEYCOMB_API_KEY: string;
+	HONEYCOMB_DATASET: string;
+}> = (context) => {
+	return honeycombPlugin({
+		apiKey: context.env.HONEYCOMB_API_KEY,
+		dataset: context.env.HONEYCOMB_DATASET,
+	})(context);
+};
+```
+
+대안으로, 당신은 하드 코드를 할 수 있습니다 (API 키에 대 한 advisable) 다음 방법:
+
+```typescript
+import honeycombPlugin from "@cloudflare/pages-plugin-honeycomb";
+
+export const onRequest = honeycombPlugin({
+	apiKey: "YOUR_HONEYCOMB_API_KEY",
+	dataset: "YOUR_HONEYCOMB_DATASET_NAME",
+});
+```
+
+이 플러그인은`@cloudflare/workers-honeycomb-logger`그리고 동일하게 받아들입니다[구성 옵션](https://github.com/cloudflare/workers-honeycomb-logger#config).
+
+옵션을 활성화 할 수 있도록**자동 unpack 배열된 JSON**그리고 설정**최대 포장 깊이**으로**5**Honeycomb dataset 설정에서.
+
+![자동 unpack 배열된 JSON에 toggle 위 지시를 따르고 허니콤 대시보드XQX1595XQXQ에서 5에 최대 unpacking 깊이 선택권을 놓으십시오](~/assets/images/pages/platform/functions/honeycomb.png)
+
+### 추가 상황
+
+`data.honeycomb.tracer`주어진 추적에 대한 추가 정보를 첨부하기위한 두 가지 방법이 있습니다 :
+
+- `data.honeycomb.tracer.log`하나의 인수를 가지고, a`String`.
+- `data.honeycomb.tracer.addData`arbitrary data의 객체는 단일 인수를 취합니다.
+
+이 방법에 대한 더 많은 정보는 위에 볼 수 있습니다[`@cloudflare/workers-honeycomb-logger`비밀번호](https://github.com/cloudflare/workers-honeycomb-logger#adding-logs-and-other-data).
+
+예를 들어, 사용하려는 경우`addData`사용자 정보를 첨부하는 방법:
+
+```typescript
+import type { PluginData } from "@cloudflare/pages-plugin-honeycomb";
+
+export const onRequest: PagesFunction<unknown, any, PluginData> = async ({
+	data,
+	next,
+	request,
+}) => {
+	//요청 및 추출 사용자의 이메일 주소를 인증
+	const email = await getEmailFromRequest(request);
+
+	data.honeycomb.tracer.addData({ email });
+
+	return next();
+};
+```

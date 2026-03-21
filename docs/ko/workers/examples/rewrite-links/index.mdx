@@ -1,0 +1,205 @@
+---
+summary: >-
+  Rewrite URL links in HTML using the HTMLRewriter. This is useful for JAMstack
+  websites.
+tags:
+  - JavaScript
+  - TypeScript
+  - Python
+pcx_content_type: example
+title: 관련 링크
+sidebar:
+  order: 1001
+description: HTMLRewriter를 사용하여 HTML에서 URL 링크를 다시 작성합니다. JAMstack 웹 사이트에 유용합니다.
+reviewed: 2022-02-25T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/examples/rewrite-links/'
+translation_source_md: 'https://developers.cloudflare.com/workers/examples/rewrite-links/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+get started를 신속히 원한다면 아래 버튼을 클릭하십시오.
+
+[![Cloudflare에 배포](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/docs-examples/tree/main/workers/rewrite-links)
+
+GitHub 계정에서 저장소를 생성하고 Cloudflare QXWorkers에 응용 프로그램을 배포합니다.
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+    	async fetch(request) {
+    		const OLD_URL = "developer.mozilla.org";
+    		const NEW_URL = "mynewdomain.com";
+
+    		class AttributeRewriter {
+    			constructor(attributeName) {
+    				this.attributeName = attributeName;
+    			}
+    			element(element) {
+    				const attribute = element.getAttribute(this.attributeName);
+    				if (attribute) {
+    					element.setAttribute(
+    						this.attributeName,
+    						attribute.replace(OLD_URL, NEW_URL),
+    					);
+    				}
+    			}
+    		}
+
+    		const rewriter = new HTMLRewriter()
+    			.on("a", new AttributeRewriter("href"))
+    			.on("img", new AttributeRewriter("src"));
+
+    		const res = await fetch(request);
+    		const contentType = res.headers.get("Content-Type");
+
+    		//응답이 HTML이라면 변환 할 수 있습니다.
+    		//HTMLRewriter -- 그렇지 않으면, 통과해야 합니다
+    		if (contentType.startsWith("text/html")) {
+    			return rewriter.transform(res);
+    		} else {
+    			return res;
+    		}
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    export default {
+    	async fetch(request): Promise<Response> {
+    		const OLD_URL = "developer.mozilla.org";
+    		const NEW_URL = "mynewdomain.com";
+
+    		class AttributeRewriter {
+    			constructor(attributeName) {
+    				this.attributeName = attributeName;
+    			}
+    			element(element) {
+    				const attribute = element.getAttribute(this.attributeName);
+    				if (attribute) {
+    					element.setAttribute(
+    						this.attributeName,
+    						attribute.replace(OLD_URL, NEW_URL),
+    					);
+    				}
+    			}
+    		}
+
+    		const rewriter = new HTMLRewriter()
+    			.on("a", new AttributeRewriter("href"))
+    			.on("img", new AttributeRewriter("src"));
+
+    		const res = await fetch(request);
+    		const contentType = res.headers.get("Content-Type");
+
+    		//응답이 HTML이라면 변환 할 수 있습니다.
+    		//HTMLRewriter -- 그렇지 않으면, 통과해야 합니다
+    		if (contentType.startsWith("text/html")) {
+    			return rewriter.transform(res);
+    		} else {
+    			return res;
+    		}
+    	},
+    } satisfies ExportedHandler;
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint
+    from pyodide.ffi import create_proxy
+    from js import HTMLRewriter, fetch
+
+
+    class AttributeRewriter:
+        old_url = "developer.mozilla.org"
+        new_url = "mynewdomain.com"
+
+        def __init__(self, attr_name):
+            self.attr_name = attr_name
+
+        def element(self, element):
+            attr = element.getAttribute(self.attr_name)
+            if attr:
+                element.setAttribute(
+                    self.attr_name, attr.replace(self.old_url, self.new_url)
+                )
+
+
+    href = create_proxy(AttributeRewriter("href"))
+    src = create_proxy(AttributeRewriter("src"))
+    rewriter = HTMLRewriter.new().on("a", href).on("img", src)
+
+
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            res = await fetch(request)
+            content_type = res.headers["Content-Type"]
+
+            #응답이 HTML이라면 변환 할 수 있습니다.
+            #HTMLRewriter -- 그렇지 않으면, 통과해야 합니다
+            if content_type.startswith("text/html"):
+                return rewriter.transform(res)
+            return res
+    ```
+  </TabItem>
+
+  <TabItem label="호노" icon="seti:typescript">
+    ```ts
+    import { Hono } from 'hono';
+    import { html } from 'hono/html';
+
+    const app = new Hono();
+
+    app.get('*', async (c) => {
+      const OLD_URL = "developer.mozilla.org";
+      const NEW_URL = "mynewdomain.com";
+
+      class AttributeRewriter {
+        attributeName: string;
+
+        constructor(attributeName: string) {
+          this.attributeName = attributeName;
+        }
+
+        element(element: Element) {
+          const attribute = element.getAttribute(this.attributeName);
+          if (attribute) {
+            element.setAttribute(
+              this.attributeName,
+              attribute.replace(OLD_URL, NEW_URL)
+            );
+          }
+        }
+      }
+
+      //원래 요청을 사용하여 fetch 요청 만들기
+      const res = await fetch(c.req.raw);
+      const contentType = res.headers.get("Content-Type") || "";
+
+      //응답이 HTML이라면 HTMLRewriter로 변환
+      if (contentType.startsWith("text/html")) {
+        const rewriter = new HTMLRewriter()
+          .on("a", new AttributeRewriter("href"))
+          .on("img", new AttributeRewriter("src"));
+
+        return new Response(rewriter.transform(res).body, {
+          headers: res.headers
+        });
+      } else {
+        //응답을 통해 전달
+        return res;
+      }
+    });
+
+    export default app;
+    ```
+  </TabItem>
+</Tabs>

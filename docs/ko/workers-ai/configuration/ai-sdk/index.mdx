@@ -1,0 +1,132 @@
+---
+pcx_content_type: configuration
+title: Vercel AI SDK를
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/configuration/ai-sdk/'
+translation_source_md: 'https://developers.cloudflare.com/workers-ai/configuration/ai-sdk/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { PackageManagers } from "~/components";
+
+Workers AI는 사용될 수 있습니다[Vercel AI SDK를](https://sdk.vercel.ai/)JavaScript 및 TypeScript 코드베이스에 대 한.
+
+## 설치하기
+
+설치하기[`workers-ai-provider`회사 소개](https://sdk.vercel.ai/providers/community-providers/cloudflare-workers-ai):
+
+<PackageManagers pkg="workers-ai-provider" />
+
+그런 다음 Workers 프로젝트 Wrangler 파일에서 AI 바인딩을 추가하십시오.
+
+```toml
+[ai]
+binding = "AI"
+```
+
+## 모델 번호:
+
+AI SDK를 사용하여 작업할 수 있습니다.[AI 모델](/workers-ai/models/).
+
+```js
+import { createWorkersAI } from "workers-ai-provider";
+
+const workersai = createWorkersAI({ binding: env.AI });
+
+//어떤 모형을 선택하십시오: https://developers.cloudflare.com/workers-ai/models/
+const model = workersai("@cf/meta/llama-3.1-8b-instruct", {});
+```
+
+## 본문 바로가기
+
+모델을 선택하면 주어진 프롬프트에서 텍스트를 생성 할 수 있습니다.
+
+```js
+import { createWorkersAI } from 'workers-ai-provider';
+import { generateText } from 'ai';
+
+type Env = {
+  AI: Ai;
+};
+
+export default {
+  async fetch(_: Request, env: Env) {
+    const workersai = createWorkersAI({ binding: env.AI });
+    const result = await generateText({
+      model: workersai('@cf/meta/llama-2-7b-chat-int8'),
+      prompt: 'Write a 50-word essay about hello world.',
+    });
+
+    return new Response(result.text);
+  },
+};
+```
+
+## 스트림 텍스트
+
+더 긴 응답을 위해, 스트리밍 응답을 고려하여 생성 완료.
+
+```js
+import { createWorkersAI } from 'workers-ai-provider';
+import { streamText } from 'ai';
+
+type Env = {
+  AI: Ai;
+};
+
+export default {
+  async fetch(_: Request, env: Env) {
+    const workersai = createWorkersAI({ binding: env.AI });
+    const result = streamText({
+      model: workersai('@cf/meta/llama-2-7b-chat-int8'),
+      prompt: 'Write a 50-word essay about hello world.',
+    });
+
+    return result.toTextStreamResponse({
+      headers: {
+        //이 헤더를 추가하여
+        //응답은 chunked와 흐르는
+        'Content-Type': 'text/x-unknown',
+        'content-encoding': 'identity',
+        'transfer-encoding': 'chunked',
+      },
+    });
+  },
+};
+```
+
+## Structured 개체 생성
+
+Zod schema를 제공하여 구조화된 JSON 응답을 생성할 수 있습니다.
+
+```js
+import { createWorkersAI } from 'workers-ai-provider';
+import { generateObject } from 'ai';
+import { z } from 'zod';
+
+type Env = {
+  AI: Ai;
+};
+
+export default {
+  async fetch(_: Request, env: Env) {
+    const workersai = createWorkersAI({ binding: env.AI });
+    const result = await generateObject({
+      model: workersai('@cf/meta/llama-3.1-8b-instruct'),
+      prompt: 'Generate a Lasagna recipe',
+      schema: z.object({
+        recipe: z.object({
+          ingredients: z.array(z.string()),
+          description: z.string(),
+        }),
+      }),
+    });
+
+    return Response.json(result.object);
+  },
+};
+```

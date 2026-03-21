@@ -1,0 +1,259 @@
+---
+title: 시작하기
+pcx_content_type: get-started
+sidebar:
+  order: 2
+head:
+  - tag: title
+    content: 시작하기
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/queues/get-started/'
+translation_source_md: 'https://developers.cloudflare.com/queues/get-started/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+Cloudflare Queues는 비동기 처리를 위한 큐 메시지를 허용하는 유연한 메시징 큐입니다. 이 가이드에 따라, 먼저 큐를 만들 것입니다, 그 큐에 메시지를 게시하는 노동자, 그 큐에서 메시지를 소비하는 소비자 노동자.
+
+## 자주 묻는 질문
+
+Queues를 사용하기 위하여, 당신은 필요로 할 것입니다:
+
+<Render file="prereqs" product="workers" />
+
+## 1. Worker 프로젝트 만들기
+
+당신은 노동자, 생산자 노동자에서 큐에 액세스 할 것입니다. 당신은 당신의 큐에 메시지를 게시하는 적어도 하나의 제작자 노동자를 만들해야합니다. 자주 묻는 질문[R2 버킷 이벤트 알림](/r2/buckets/event-notifications/), 그 후에 당신은 생산자 노동자를 필요로 하지 않습니다.
+
+제작자 노동자를 만들려면, 실행:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"producer-worker"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "TypeScript",
+  }}
+/>
+
+이것은 새 디렉토리를 만들 것입니다.`src/index.ts`Worker 스크립트 및[`wrangler.jsonc`](/workers/wrangler/configuration/)구성 파일. 노동자를 만들면 Queue를 액세스 할 수 있습니다.
+
+새로 만든 디렉토리로 이동:
+
+```sh
+cd producer-worker
+```
+
+## 2. queue 만들기
+
+queues를 사용하려면 메시지를 게시하고 메시지를 소비하기 위해 적어도 하나의 큐를 생성해야합니다.
+
+큐를 만들려면, 실행:
+
+```sh
+npx wrangler queues create <MY-QUEUE-NAME>
+```
+
+이 queue를 사용하려는 메시지의 유형에 descriptive와 relates라는 이름을 선택합니다. Descriptive queue 이름은 다음과 같습니다 :`debug-logs`, `user-clickstream-data`, 또는`password-reset-prod`.
+
+큐 이름은 길이 1 \~ 63 문자이어야합니다. Queue 이름은 밖에 특별한 문자를 포함 할 수 없습니다 (`-`), 및 문자 또는 번호로 시작 및 종료해야합니다.
+
+설정한 후 큐 이름을 변경할 수 없습니다. 당신의 큐를 만들면, 당신은 당신의 프로듀서 노동자를 액세스 할 것입니다.
+
+## 3. 당신의 생산자 노동자를 설치하십시오
+
+작업자의 내부에 코드를 노출하려면 작업자에게 큐를 연결해야합니다.[회사 소개](/workers/runtime-apis/bindings/)Queues, Cloudflare 개발자 플랫폼과 같은 리소스에 액세스 할 수 있습니다.
+
+바인딩을 만들려면 새로 생성 된`wrangler.jsonc`파일과 다음을 추가:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"producers": [
+  			{
+  				"queue": "MY-QUEUE-NAME",
+  				"binding": "MY_QUEUE"
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+기타 제품`MY-QUEUE-NAME`queue의 이름으로 만든[단계 2](/queues/get-started/#2-create-a-queue). 다음, 교체`MY_QUEUE`원하는 이름으로`binding`. 바인딩은 유효한 JavaScript 가변 이름이어야 합니다. 이것은 당신이 당신의 노동자에 있는 reference 이 큐에 사용할 수 있는 변수입니다.
+
+### 회사 소개
+
+당신은 지금 당신의 프로듀서 노동자를 구성하여 메시지를 만들 수 있습니다. 당신의 생산자 노동자는:
+
+1. 브라우저에서 수신을 요청하십시오.
+2. JSON 형식으로 요청을 변환합니다.
+3. queue에 직접 요청을 작성합니다.
+
+작업자 프로젝트 디렉토리에서, 열다`src`폴더에 다음을 추가합니다.`index.ts`파일 :
+
+```ts null {8}
+export default {
+  async fetch(request, env, ctx): Promise<Response> {
+    const log = {
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers),
+    };
+    await env.<MY_QUEUE>.send(log);
+    return new Response("Success!");
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+기타 제품`MY_QUEUE`이름과 함께 당신의 바인딩을 위해 설정`wrangler.jsonc`파일.
+
+또한 queue를 추가`Env`인터페이스 in`index.ts`.
+
+```ts null {2}
+export interface Env {
+   <MY_QUEUE>: Queue;
+}
+```
+
+이 글이 실패하면 노동자가 오류를 반환합니다. ( 예외로). 이 쓰기가 작동하면 반환됩니다.`Success`HTTP로 돌아가기`200`브라우저의 상태 코드.
+
+생산 신청에서, 당신은 아마 사용할 것입니다[`try...catch`](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/try...catch)예외를 붙잡고 직접 처리하는 진술 (예를 들면, 주문 오류 또는 재시동).
+
+### 회사 소개
+
+Wrangler 파일과 함께`index.ts`구성 파일, 당신은 당신의 생산자 노동자를 게시 할 준비가되어 있습니다. 제작자 노동자를 게시하려면, 실행 :
+
+```sh
+npx wrangler deploy
+```
+
+아래를 닮은 출력을 보아야 합니다.`*.workers.dev`기본적으로 URL.
+
+```
+Uploaded <YOUR-WORKER-NAME> (0.76 sec)
+Published <YOUR-WORKER-NAME> (0.29 sec)
+  https://<YOUR-WORKER-NAME>.<YOUR-ACCOUNT>.workers.dev
+```
+
+제출하기`*.workers.dev`subdomain과 새로운 브라우저 탭으로 붙여넣기. queue에 게시 요청을 시작하려면 몇 번 페이지를 새로 고침합니다. 귀하의 브라우저가 반환되어야 합니다.`Success`queue에 요청을 작성한 후 응답.
+
+큐와 프로듀서 작업자가 큐에 메시지를 게시했습니다. 이제 소비자 노동자가 큐에 게시 된 메시지를 소비 할 것입니다. 소비자 노동자 없이, 메시지는 만료될 때까지 큐에 체재할 것입니다, 4개의 (4) 일에 과태.
+
+## 4. 당신의 소비자 노동자를 창조하십시오
+
+소비자 노동자는 큐에서 메시지를받습니다. 소비자 노동자가 큐의 메시지를 수신 할 때, 그것은 로깅 콘솔 또는 저장 개체와 같은 다른 소스에 쓸 수 있습니다.
+
+이 가이드에서 소비자 노동자를 만들고 로그를 사용하여 메시지를 검사합니다.[`wrangler tail`](/workers/wrangler/commands/#tail). 당신은 당신의 생산자 노동자를 창조하는 동일한 노동자 프로젝트에 있는 당신의 소비자 노동자를 창조할 것입니다.
+
+:::참조
+
+Queues는 또한 지원합니다[산출 근거한 소비자](/queues/configuration/pull-consumers/)HTTP 기반 클라이언트가 큐에서 메시지를 소비 할 수있는 . 이 가이드는 Cloudflare WorkersXQ를 사용하여 푸시 기반 소비자를 만듭니다.
+
+:::
+
+소비자 노동자를 만들려면, 당신의`index.ts`파일 및 다음을 추가`queue`당신의 존재에 핸들링`fetch`핸들:
+
+```ts null {11}
+export default {
+  async fetch(request, env, ctx): Promise<Response> {
+    const log = {
+      url: request.url,
+      method: request.method,
+      headers: Object.fromEntries(request.headers),
+    };
+    await env.<MY_QUEUE>.send(log);
+    return new Response("Success!");
+  },
+  async queue(batch, env, ctx): Promise<void> {
+    for (const message of batch.messages) {
+      console.log("consumed from our queue:", JSON.stringify(message.body));
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+기타 제품`MY_QUEUE`이름과 함께 당신의 바인딩을 위해 설정`wrangler.jsonc`파일.
+
+모든 시간 메시지는 큐에 게시됩니다, 소비자 노동자의`queue`핸들러 (`async queue`) 라고 하 고 그것은 하나 이상의 메시지를 전달 합니다.
+
+이 예에서 소비자 노동자는 queue의 JSON 포맷 된 메시지를 문자열로 변환하고 출력 로그로 변환합니다. 실제 세계 응용 프로그램에서 소비자 노동자는 객체 저장 (예 :[R2](/r2/)), 데이터베이스에 쓰기 (like)[D1](/d1/)), 외부 API를 호출하기 전에 더 공정 메시지 (예 :[이메일 API](/workers/tutorials/)) 또는 당신의 레거시 구름 공급자를 가진 자료 창고.
+
+소비자 핸들러 내에서 비동기 작업을 수행 할 때, 사용`waitUntil()`기능의 응답을 보장하기 위해 처리됩니다. 다른 비동기 방법은이 방법의 범위 내에서 지원되지 않습니다.
+
+### 소비자 노동자를 큐에 연결
+
+소비자 노동자를 구성 한 후, 큐에 연결할 준비가되어 있습니다.
+
+각 queue는 그것에 연결된 1개의 소비자 노동자만 있을 수 있습니다. 동일한 큐에 여러 소비자를 연결하려고하면 작업자가 게시 할 때 오류가 발생합니다.
+
+소비자 근로자에게 큐를 연결하려면 Wrangler 파일을 열고 하단에 추가하십시오.
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"queues": {
+  		"consumers": [
+  			{
+  				"queue": "<MY-QUEUE-NAME>",
+  				//필수 : 이것은 단계 3에서 생성 된 큐의 이름을 일치해야합니다.
+  				//이름을 놓으면 노동자를 게시하려고 시도 할 때 오류를 받게됩니다.
+  				"max_batch_size": 10, //옵션: 기본 10
+  				"max_batch_timeout": 5 //선택 사항: 기본 5 초
+  			}
+  		]
+  	}
+  }
+  ```
+</WranglerConfig>
+
+기타 제품`MY-QUEUE-NAME`당신이 만든 큐와 함께[단계 2](/queues/get-started/#2-create-a-queue).
+
+소비자 노동자에서, 당신은 자동 배치 메시지에 큐를 사용하여`max_batch_size`옵션 및 옵션`max_batch_timeout`옵션. 소비자 노동자는 배치에 있는 메시지를 받을 것입니다`10`또는 각`5`초, 어느것이 먼저 일어나.
+
+`max_batch_size`(기본값에서 10) 소비자 노동자가 호출해야 할 시간의 양을 줄일 수 있습니다. 모든 메시지에 대해 호출되는 대신 10 메시지가 큐에 입력 한 후 호출됩니다.
+
+`max_batch_timeout`(기본 5 초) 대기 시간을 줄일 수 있습니다. 프로듀서 노동자가 소비자 노동자를 위해 큐에 10 메시지까지 전송하지 않는 경우, 소비자 노동자는 큐에 기다리고있는 메시지를받을 5 초마다 호출됩니다.
+
+### 당신의 소비자 노동자를 게시
+
+Wrangler 파일과 함께`index.ts`형성된 파일, 실행하여 소비자 노동자를 게시:
+
+```sh
+npx wrangler deploy
+```
+
+## 5. queue에서 메시지 읽기
+
+소비자 노동자를 설정 한 후, 큐에서 메시지를 읽을 수 있습니다.
+
+지원하다`wrangler tail`우리의 소비자를 위해 대기를 시작으로 메시지가 수신됩니다.
+
+```sh
+npx wrangler tail
+```
+
+이름 \*`wrangler tail`실행, 당신이 열린 노동자 URL을 엽니 다[단계 3](/queues/get-started/#3-set-up-your-producer-worker).
+
+당신은받을`Success`브라우저 창에서 메시지.
+
+당신이 받은 경우`Success`메시지, 메시지를 생성하고 큐에 밀어 몇 번 URL을 새로 고침.
+
+이름 \*`wrangler tail`실행, 소비자 노동자는 상쾌한에 의해 생성 된 요청을 기록합니다.
+
+10 번 미만을 새로 고침하면 배치 타임 아웃이 10 초 동안 구성되기 때문에 메시지에 몇 초가 걸릴 수 있습니다. 10 초 후에, 메시지는 당신의 맨끝에 도착해야 합니다.
+
+새로 고침시 오류가 발생하면 생성 된 큐 이름을 확인합니다.[단계 2](/queues/get-started/#2-create-a-queue)WranglerXQ 파일은 동일합니다. 당신은 당신의 제작자 노동자가 돌려보내는 것을 보증해야 합니다`Success`오류를 반환하지 않습니다.
+
+이 가이드를 완료함으로써, 이제 큐를 만들었, 그 큐에 메시지를 게시하는 프로듀서 노동자, 그리고 그 메시지를 소비하는 소비자 노동자.
+
+## 관련 자료
+
+- 더 알아보기[Cloudflare Workers](/workers/)Cloudflare에 구축 할 수있는 응용 프로그램입니다.

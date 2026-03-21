@@ -1,0 +1,141 @@
+---
+pcx_content_type: concept
+title: 로그 모드 versus 생산 모드
+tags:
+  - AI
+sidebar:
+  label: 로그 모드 vs 생산 모드
+  order: 9
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/log-mode-vs-production-mode/
+translation_source_md: >-
+  https://developers.cloudflare.com/waf/detections/ai-security-for-apps/log-mode-vs-production-mode/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Steps,
+	Tabs,
+	TabItem,
+	DashButton,
+	APIRequest,
+	RuleID,
+} from "~/components";
+
+AI Security for Apps는 두 가지 다른 모드에서 작동 할 수 있습니다. 그들 사이에 무역을 이해하면 배포 단계에 적합한 접근 방식을 선택할 수 있습니다.
+
+## 제품정보
+
+| 제품 정보          | 생산 모드                                                           | 로그 모드                                                                                  |
+| -------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| **어떻게 작동합니까?** | WAF를 작성[주문 규칙](/waf/custom-rules/)AI Security for Apps 감지 필드 사용 | AI Security Log Mode Ruleset을 사전 제작된 규칙으로 활성화                                          |
+| **연락처**        | No —만 요청 메타데이터가 로그에 기록됩니다.                                      | 예 - 전체 요청 몸은 로그 (를 통해 암호화 됨)[payload 로깅](/waf/managed-rules/payload-logging/))         |
+| **응답 로깅**      | 없음 - 사용[AI 게이트웨이](/ai-gateway/)응답 가시성이 요구되는 경우                  | 없음 — 동일한 제한                                                                            |
+| **관련 상품**      | 전체 - 주입 점수, PII 카테고리, 봇 점수, 사용자 정의 주제 등을 결합                     | Limited — 3개의 고정된 규칙 (PII는, 안전하지 않은 화제 검출해, 검출된 신속한 주입 검출해) 점수 근거하거나 subcategory 논리 없이 |
+| **블록 행동**      | custom JSON을 포함한 사용자 정의 응답 문제                                   | 기본 WAF 블록 페이지 전용                                                                       |
+| **제품 정보**      | 과립 통제를 가진 생산 교통                                                 | 평가 및 테스트 - 검출 결과가 임계값을 조정하기 위해 고안된 프롬프트                                                |
+
+## 생산 모드
+
+생산 형태는 표준 작동 형태입니다. AI Security for Apps를 활성화하고 생성[주문 규칙](/waf/custom-rules/)사용 방법[기술연구소](/waf/detections/ai-security-for-apps/fields/)그것은 전파합니다. 이것은 당신에게 가득 차있는 통제를 위에 줍니다:
+
+- **어떤 탐지는 동작을 트리거.**&#xC608;를 들어, 블록 만 때`cf.llm.prompt.injection_score`30 이하, 오히려 어떤 탐지를 막기 보다는.
+- **어떤 PII 범주 사정.**&#xC608;를 들어, 블록`CREDIT_CARD`로그인`EMAIL_ADDRESS`.
+- **신호 결합.**&#xC608;를 들어, PII가 감지되고 봇 점수가 낮을 때 블록.
+- **주문 응답.**&#xAE30;본 WAF 블록 페이지 대신 응용 프로그램에 JSON 오류 메시지를 반환합니다.
+
+예 생산 규칙 표현:<br />
+`(cf.llm.prompt.injection_score lt 30 and cf.bot_management.score lt 20)`
+
+:::주최\[Limitation]
+프로덕션 모드에서는 프롬프트 텍스트가 로그되지 않습니다. 검색 결과를 찾을 수 있습니다. metadata (scores, 범주)[보안 Analytics](/waf/analytics/security-analytics/), 그러나 실제적인 신속한 내용.
+주요 특징
+
+## 로그 모드
+
+Log Mode는 AI Security Log Mode Ruleset을 사용하여 전체 요청 본문을 탐지 결과에 기록하는 사전 제작된 규칙을 사용합니다. 이 형태는 생산 실행 보다는 오히려 평가 및 조정을 위해 디자인됩니다.
+
+로그인 모드:
+
+- 3개의 넓은 상태에 관리된 통치자 불: PII는 검출하고, 안전하지 않은 화제 검출되고, 검출된 신속한 주입.
+- 전체 요청 몸은 로그인[payload 로깅](/waf/managed-rules/payload-logging/)(암호화 — 당신은 payloads를 해독하는 열쇠 쌍을 구성해야 합니다).
+- 모델이 트래픽을 분류하는 방법을 이해하기 위해 감지 점수와 특정 프롬프트를 correlate 할 수 있습니다.
+
+**로그 모드를 사용할 때:**
+
+- 초기 배포 중에 AI Security for Apps가 행동을 촉진하기 전에 트래픽을 감지하는 것을 이해하십시오.
+- 튜닝 점수 임계 값 - 해당 점수를 결정하기 위해 해당 점수와 함께 로그 된 프롬프트를 검토합니다.
+- 유효 기간[사용자 정의](/waf/detections/ai-security-for-apps/unsafe-topics/#custom-topics)정의는 예상대로 일하고 있습니다.
+
+### 로그 모드 활성화
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="대시보드">
+    <Steps>
+      1. Cloudflare 대시보드에서 보안으로 이동**계정 설정**사이트 맵
+
+         <DashButton url="/?to=/:account/:zone/security/settings" />
+
+      2. 이름 \***AI 보안 앱**, 찾기**관리된 Ruleset**이름 \*
+
+      3. 이름 \***AI 보안 로그 모드 Ruleset**.
+
+      4. 작업 설정*로그인*.
+
+      5. (추천) 구성[payload 로깅](/waf/managed-rules/payload-logging/)그래서 당신은 탐지 결과와 함께 전체 신속한 내용을 해독하고 볼 수 있습니다.
+    </Steps>
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    관리된 규칙을 배포합니다.`PUT`요구 사항:
+
+    <APIRequest
+      path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+      method="PUT"
+      parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+      json={{
+  	rules: [
+  		{
+  			action: "execute",
+  			action_parameters: {
+  				id: "b7cd52df92f74c848cec0c2ed385e336",
+  			},
+  			expression: "true",
+  		},
+  	],
+  }}
+      roles="WAF"
+    />
+
+    AI Security Log Mode Ruleset의 ID는<RuleID id="b7cd52df92f74c848cec0c2ed385e336" />.
+
+    개별 규칙을 설정하려면`log`, 관리된 규칙 내에서 규칙을 override`action_parameters.overrides`. 자세한 내용은 참조[관리된 규칙을 무시](/ruleset-engine/managed-rulesets/override-managed-ruleset/).
+  </TabItem>
+</Tabs>
+
+:::카트로션
+관리된 통치자가 광대한 사용 때문에, 이진 탐지 논리 (detected/not detected), 그것은 생산 교통을 위해 너무 공격적일 수 있습니다. 점수 기반 임계값 없이, 작업이 설정된 경우 false Positives의 더 높은 비율을 기대해야 합니다.*제품정보*.
+:::
+
+## 관련 작업
+
+<Steps>
+  1. **로그 모드에서 시작.**&#x41;I Security Log Mode Ruleset을 활성화하여 동작 설정*로그인*. 구성[payload 로깅](/waf/managed-rules/payload-logging/)그래서 당신은 탐지 결과와 함께 신속한 볼 수 있습니다.
+
+  2. **리뷰 검색[보안 Analytics](/waf/analytics/security-analytics/).**&#xAD00;리 규칙의 행사에 필터. Decrypt payloads and review the prompts that 트리거된 탐지. 임계값을 설정하려면 점수를 참고하십시오.
+
+  3. **생산 규칙.**&#xBD84;석 기반[사용자 정의 규칙](/waf/custom-rules/create-dashboard/)적절한 점수 임계값과 PII 범주 필터.
+
+  4. **로그 모드를 비활성화합니다.**&#xC0DD;산 규칙이 배포되고 검증되면 관리 규칙을 비활성화하거나 계속하십시오.*로그인*지속적인 모니터링.
+
+  5. **감시자와 iterate.**&#xC5F0;속 검토 감지 이벤트[보안 Analytics](/waf/analytics/security-analytics/)트래픽 패턴으로 임계값을 조정합니다.
+</Steps>
+
+:::참조
+전환 기간 동안 동시에 두 모드를 실행할 수 있습니다. 관리된 규칙 (로그 모드)는 관리된 규칙 단계에서 작동하고, 당신의 관례 규칙은 주문 규칙 단계에서 작동합니다. 사용자 정의 규칙은 관리 규칙 전에 평가됩니다 - 사용자 정의 규칙이 요청을 차단하면 관리 규칙에 도달하지 않습니다. 평가 중, 사용자 정의 규칙을 설정 고려*로그인*또한.
+주요 특징

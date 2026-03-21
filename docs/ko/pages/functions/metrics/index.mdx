@@ -1,0 +1,78 @@
+---
+pcx_content_type: reference
+title: 미터
+sidebar:
+  order: 11
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/functions/metrics/'
+translation_source_md: 'https://developers.cloudflare.com/pages/functions/metrics/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { DashButton } from "~/components";
+
+기능 미터는 당신이 문제를 진단하고 당신의 기능을 위한 성과와 사용법 자료를 보여주어서 당신의 워크로드를 이해하는 것을 도울 수 있습니다.
+
+## 기능 미터
+
+개별 Pages 프로젝트에 대한 메트릭 그룹 요청 데이터. 당신의 기능 미터를 전망하기 위하여:
+
+1. Cloudflare QX대시보드에서, 갑니다**Workers & Pages**사이트 맵
+
+   <DashButton url="/?to=/:account/workers-and-pages" />
+2. Pages 프로젝트를 선택하십시오.
+3. Pages 프로젝트에서, 선택**기능 미터**.
+
+기능의 건강을 이해하는 데 도움이 될 수있는 세 가지 미터가 있습니다.
+
+1. 성공 요청.
+2. 오류 요청.
+3. 재고 상태.
+
+### 제품정보
+
+내 계정**기능 미터**, 당신은 전체 요청, 성공적인 요청 및 오류 요청으로 파괴 된 역사적인 요청을 볼 수 있습니다. subrequests에 대한 정보는 selecting에 의해 제공됩니다.**구독하기**.
+
+- **전체보기**: 모든 수신 요청은 기능에 의해 등록됩니다. 자주 묻는 질문[웹 응용 프로그램 방화벽 (WAF)](https://www.cloudflare.com/waf/)또는 다른 보안 기능은 계산되지 않습니다.
+- **지원하다**: 반환된 요청`Success`또는`Client Disconnected` [업무 상태](#invocation-statuses).
+- **계정 관리**: 반환된 요청`Script Threw Exception`, `Exceeded Resources`, 또는`Internal Error` [업무 상태](#invocation-statuses)
+- **구독하기**: 호출하여 방아쇠 요청`fetch`기능 내에서. 함수가 정적 자산을 태울 때, subrequest로 계산됩니다. 실패한 오류를 던지는 subrequest는 계산되지 않습니다.
+
+요청 트래픽 데이터를 표시할 수 있습니다 마지막 몇 분 이내에 표시 그래프에 표시된 시간 범위 미만 6 시간. 이것은 교통의 낙하를 반영하지 않습니다, 그러나 집계와 미터 납품에 약간 지연.
+
+### 업무 상태
+
+Function invocation statuses는 함수가 성공적으로 실행되거나 Workers 실행 시간에 응답을 생성하지 못한다는 것을 나타냅니다. Invocation 상태는 HTTP 상태 코드와 다릅니다. 일부 경우에, 함수 invocation는 성공하지만 Workers 실행 시간 밖에 발생하는 다른 오류 때문에 성공적인 HTTP 상태를 생성하지 않습니다. Workers 오류 코드가 클라이언트에 반환되는 일부 재고 상태 결과.
+
+| Invocation 상태   | 이름 \*                                    | Workers 오류 코드 | 그래프 QL 필드          |
+| --------------- | ---------------------------------------- | ------------- | ------------------ |
+| 지원하다            | Worker 스크립트가 성공적으로 실행됨                   |               | 이름 \*              |
+| 고객 연결           | HTTP 클라이언트가 요청 완료 전에 차단                  |               | 클라이언트Disconnected  |
+| Script threw 예외 | 노동자 스크립트는 unhandled JavaScript 예외를 threw | 1101          | 스크립트ThrewException |
+| 제외 리소스^1        | Worker 스크립트는 실행 제한을 초과                   | 1102, 1027    | 회사연혁               |
+| 내부 오류^2         | Workers 런타임 오류 발생                        |               | 내 계정               |
+
+1. 초과 된 자원 상태는 노동자가 초과 할 때 나타납니다[시간 제한](/workers/platform/limits/#request-limits). 가장 일반적인 원인은 과도한 CPU 시간입니다, 또한 시작 시간 또는 자유로운 층 한계를 초과하는 스크립트에 기인합니다.
+2. 내부 오류 상태는 Workers 런타임이 우리의 시스템에 내부 실패로 인해 요청을 처리하지 못했을 때 나타납니다. 이 오류는 기능 코드나 리소스 제한을 가진 문제로 발생하지 않습니다. 내부 오류 상태에 대한 요청은 드물지만, 일부는 정상 작동 중에 나타날 수 있습니다. 이 요청은 청구 목적으로 사용할 수 없습니다. 내부 오류 상태와 요청의 높은 비율을 알면, 리뷰[이메일: info@cloudflarestatus.com](http://www.cloudflarestatus.com).
+
+더 많은 조사 예외로, 참조[디버깅 및 로깅](/pages/functions/debugging-and-logging)
+
+### 실행 당 CPU 시간
+
+CPU의 실행 도표 당 시간은 관련된 quantiles로 끊긴 역사적인 CPU 시간 자료를 보여줍니다[리서치 샘플링](https://en.wikipedia.org/wiki/Reservoir_sampling). 자세히 알아보기[관련 기사](https://www.statisticshowto.com/quantile-definition-find-easy-steps/).
+
+어떤 경우에, 더 높은 quantiles는 초과할지도 모릅니다[CPU 시간 제한](/workers/platform/limits/#cpu-time)Workers 런타임의 메커니즘으로 인해 invocation 오류를 생성하지 않고 CPU 한계 아래 요청에 대한 롤오버 CPU 시간을 허용한다.
+
+### 실행 당 기간
+
+더 보기**이름 \***&#xCC28;트 underneath**미디어 CPU 시간**내 계정**기능 미터**대시보드는 과거를 보여줍니다[이름 \*](/workers/platform/limits/#duration)기능 실행 당. 데이터는 CPU 시간 차트와 유사한 관련한 quantiles로 파괴됩니다.
+
+기능에 대한 이해는 기능 자체에 대한 상당한 양의 계산을 할 계획이라면 유용합니다. 이것은 당신이 CPU 시간의 30 초까지 허용하는 표준 Unbound 사용법 모형을 사용할지도 모르기 때문에 입니다.
+
+Workers에[번들된 사용법 모형](/workers/platform/pricing/#workers)50 ms CPU 시간 제한도 높은 기간을 가질 수 있습니다, 그들은 fetch 요청과 같은 많은 네트워크-바운드 작업을 실행하고 응답을 기다리는 경우.
+
+### 미터 보유
+
+기능 미터는 1 주의 최대 증가에서 3 달까지 검열될 수 있습니다. 더 보기**기능 미터**대시보드는 Pages 프로젝트의 대시보드XQ를 포함합니다.

@@ -1,0 +1,124 @@
+---
+title: 개인 API 또는 웹 사이트에 액세스
+pcx_content_type: example
+reviewed: 2025-11-04T00:00:00.000Z
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-vpc/examples/private-api/'
+translation_source_md: 'https://developers.cloudflare.com/workers-vpc/examples/private-api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, WranglerConfig } from "~/components";
+
+이 예제는 공공 인터넷에 노출되지 않는 개인 REST API에 액세스하는 방법을 보여줍니다. 이 가이드에서는 내부 API의 VPC Service를 구성하고 API에 요청을 만드는 Worker를 만들고, Worker를 배포하여 변경 사항을 검증합니다.
+
+## 자주 묻는 질문
+
+- VPC/virtual 네트워크에서 실행되는 가상 머신/EC2 인스턴스
+- 보안 규칙을 가진 당신의 VPC/virtual 네트워크에서 달리는 개인적인 API 또는 웹사이트는 실행될 가상 기계에 접근을 허용하`cloudflared`
+- Workers 계정 Workers VPC 액세스
+
+## 1. Cloudflare를 설치하십시오 관련 제품
+
+Cloudflare 터널은 개인 네트워크에서 Cloudflare에 안전한 연결을 만듭니다. 이 터널은 Workers를 허용하여 개인 리소스에 안전하게 액세스 할 수 있습니다.
+
+1. 탐색하기[Workers VPC dashboard](https://dash.cloudflare.com/?to=/:account/workers/vpc/tunnels)그리고 선택**연락처**탭.
+
+2. 제품정보**이름 \***&#xC0C8;로운 터널을 만듭니다.
+
+3. 터널의 이름을 입력합니다 (예를 들어,`private-api-tunnel`) 및 선택**저장 터널**.
+
+4. 운영 체제 및 아키텍처를 선택하십시오. dashboard는 당신의 환경을 위한 특정한 임명 지시를 제공할 것입니다.
+
+5. 지정된 명령을 따라 다운로드 및 설치`cloudflared`VM에서 서비스 설치 명령을 고유한 토큰으로 실행합니다.
+
+dashboard는 당신의 갱도가 성공적으로 연결될 때 확인합니다. 다음 단계의 터널 ID를 참고하십시오.
+
+## 2. Workers VPC 서비스를 창조하십시오
+
+먼저 내부 API의 Workers VPC 서비스를 만듭니다.
+
+```bash
+npx wrangler vpc service create api-service \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --ipv4 10.0.1.50 \
+  --http-port 8080
+```
+
+호스트명을 사용하여 VPC 서비스를 만들 수도 있습니다:
+
+```bash
+npx wrangler vpc service create api-service \
+  --type http \
+  --tunnel-id <YOUR_TUNNEL_ID> \
+  --hostname internal-hostname.example.com
+```
+
+서비스 ID가 다음 단계로 반환됩니다.
+
+## 3. 당신의 노동자를 구성하십시오
+
+Wrangler 설정 파일을 업데이트:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"$schema": "./node_modules/wrangler/config-schema.json",
+  	"name": "private-api-gateway",
+  	"main": "src/index.js",
+  	"compatibility_date": "$today",
+  	"vpc_services": [
+  		{
+  			"binding": "INTERNAL_API",
+  			"service_id": "<YOUR_SERVICE_ID>",
+  			"remote": true
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+## 4. 노동자를 구현
+
+당신의 Workers 부호에서는, 서비스에 요구에 보내기 위하여 VPC 서비스 바인딩을 이용합니다:
+
+```js title="index.js"
+export default {
+	async fetch(request, env, ctx) {
+		try {
+			//내부 API의 Fetch 데이터 및 반환 전에 처리
+			const response = await env.INTERNAL_API.fetch("http://10.0.1.50:8080/api/data");
+
+			//Workers에서 더 논리를 수행하기 위해 개인 API의 응답을 사용하여 최종 응답을 반환하기 전에
+			return response;
+		} catch (error) {
+			return new Response("Service unavailable", { status: 503 });
+		}
+	},
+};
+```
+
+이 가이드는 WorkersXQ에서 간단한 프록시를 만들 수있는 방법을 보여줍니다. 그러나 VPC 서비스를 사용하여 API를 직접 fetch하고 응답을 조작하여 Workers에 더 많은 풀 스택 및 백엔드 기능을 구축 할 수 있습니다.
+
+## 5. 배포 및 테스트
+
+지금, 당신은 당신이 만든 작업자를 배치하고 테스트 할 수 있습니다:
+
+```bash
+npx wrangler deploy
+```
+
+```bash
+#시험 요청
+curl https://private-api-gateway.workers.dev
+```
+
+## 다음 단계
+
+- 더 보기[인증 및 인증](/workers/examples/auth-with-headers/)
+- 회사연혁[비율 제한](/durable-objects/api/)
+- 설치하기[모니터링 및 경고](/analytics/analytics-engine/)
+- 여행 정보[다른 예](/workers-vpc/examples/)

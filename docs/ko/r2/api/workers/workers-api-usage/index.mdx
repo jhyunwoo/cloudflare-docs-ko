@@ -1,0 +1,415 @@
+---
+title: R2XQXQXQXQXQ에서 사용
+pcx_content_type: how-to
+sidebar:
+  order: 1
+head:
+  - tag: title
+    content: R2XQXQXQXQXQ
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/r2/api/workers/workers-api-usage/'
+translation_source_md: 'https://developers.cloudflare.com/r2/api/workers/workers-api-usage/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, PackageManagers, WranglerConfig } from "~/components";
+
+## 1. C3를 가진 새로운 신청을 창조하십시오
+
+사이트맵`create-cloudflare-cli`) Workers & PagesXQXQXQ를 CloudflareXQ를 가능한 빨리 설치하고 배치하는 것을 돕도록 디자인된 명령 선 공구입니다.
+
+get started에, 맨끝 창을 열고 뛰기:
+
+<PackageManagers type="create" pkg="cloudflare@latest" args={"r2-worker"} />
+
+<Render
+  file="c3-post-run-steps"
+  product="workers"
+  params={{
+  	category: "hello-world",
+  	type: "Worker only",
+  	lang: "JavaScript",
+  }}
+/>
+
+그런 다음 새로 생성 된 디렉토리로 이동합니다.
+
+```sh
+cd r2-worker
+```
+
+## 2. 버킷 만들기
+
+실행하여 물통 만들기:
+
+```sh
+npx wrangler r2 bucket create <YOUR_BUCKET_NAME>
+```
+
+버킷이 생성 된 것을 확인하려면 :
+
+```sh
+npx wrangler r2 bucket list
+```
+
+실행 후`list`명령, 당신은 당신이 만든 하나를 포함하여 모든 버킷 이름을 볼 것입니다.
+
+## 3. 노동자에 당신의 물통을 비추십시오
+
+작업자에게 물통을 바인딩해야합니다.
+
+:::주최\[배경]
+
+묶음은 당신의 노동자가 외부 자원과 어떻게 상호 작용하는지[KV 이름공간](/kv/concepts/kv-namespaces/), [Durable Objects](/durable-objects/), 또는[R2 기타 제품](/r2/buckets/). 바인딩은 Workers 런타임이 코드를 제공합니다. Wrangler 파일에서 변수 이름을 선언할 수 있으며, 이 변수를 통해 해당 리소스에 바인딩됩니다. 모든 바인딩의 변수 이름과 행동은 노동자를 배치 할 때 결정됩니다. 더 알아보기[환경 변수](/workers/configuration/environment-variables/)더 많은 정보를 위한 문서.
+
+바인딩은 작업자의 Wrangler 파일에 정의됩니다.
+
+:::
+
+당신의 노동자에 R2 물통을 묶기 위하여는, 당신의 WranglerQ 파일에 뒤에 따르십시오. 업데이트`binding`유효한 JavaScript 가변 식별자에 재산 및`bucket_name`이름 \*`<YOUR_BUCKET_NAME>`당신은 당신의 물통을 안으로 창조하기 위하여 사용해[단계 2](#2-create-your-bucket):
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"r2_buckets": [
+  		{
+  			"binding": "MY_BUCKET", //<~ 유효한 JavaScript 가변 이름
+  			"bucket_name": "<YOUR_BUCKET_NAME>"
+  		}
+  	]
+  }
+  ```
+</WranglerConfig>
+
+작업자의 구성에 대한 자세한 정보 (예를 들어, 사용중인 경우[회사연혁](/r2/reference/data-location/#jurisdictional-restrictions)), 참조[Wrangler 구성 문서](/workers/wrangler/configuration/).
+
+## 4. 당신의 노동자에서 당신의 R2 물통에 접근하십시오
+
+작업자 코드 내에서, 당신의 물통은 지금 사용할 수 있습니다 아래에`MY_BUCKET`변수와 상호 작용을 시작할 수 있습니다.
+
+:::카트로션\[Wrangler의 초점 개발 모드]
+
+기본 정보`wrangler dev`로컬 개발 모드에서 실행. 이 형태에서, 당신의 국부적으로 노동자에 의해 수행된 모든 가동은 당신의 기계에 국부적으로 저장에 대하여 작동할 것입니다.
+
+개발 중에 실행되는 R2 작업이 실제 R2 버킷에 대해 수행하려면 설정할 수 있습니다.`"remote" : true`R2 바인딩 윤곽에서. 더 알아보기[원격 바인딩 문서](/workers/development-testing/#remote-bindings)더 많은 정보.
+
+:::
+
+R2 버킷은 READ, LIST, WRITE 및 DELETE 개체를 할 수 있습니다. Module Worker 구문을 사용하여 아래 모든 작업을 볼 수 있습니다. 프로젝트에 다음 스니펫을 추가하십시오.`index.js`파일 :
+
+import { TabItem, Tabs } from "~/components";
+
+<Tabs>
+  <TabItem label="TypeScript" icon="seti:typescript">
+    ```ts
+    import { WorkerEntrypoint } from "cloudflare:workers";
+
+    export default class extends WorkerEntrypoint<Env> {
+      async fetch(request: Request) {
+        const url = new URL(request.url);
+        const key = url.pathname.slice(1);
+
+        switch (request.method) {
+          case "PUT": {
+            await this.env.R2.put(key, request.body, {
+              onlyIf: request.headers,
+              httpMetadata: request.headers,
+            });
+            return new Response(`Put ${key} successfully!`);
+          }
+          case "GET": {
+            const object = await this.env.R2.get(key, {
+              onlyIf: request.headers,
+              range: request.headers,
+            });
+
+            if (object === null) {
+              return new Response("Object Not Found", { status: 404 });
+            }
+
+            const headers = new Headers();
+            object.writeHttpMetadata(headers);
+            headers.set("etag", object.httpEtag);
+
+            //몸이 존재할 때, 미리 조건은 실패했습니다
+            return new Response("body" in object ? object.body : undefined, {
+              status: "body" in object ? 200 : 412,
+              headers,
+            });
+          }
+          case "DELETE": {
+            await this.env.R2.delete(key);
+            return new Response("Deleted!");
+          }
+          default:
+            return new Response("Method Not Allowed", {
+              status: 405,
+              headers: {
+                Allow: "PUT, GET, DELETE",
+              },
+            });
+        }
+      }
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    export default {
+      async fetch(request, env) {
+        const url = new URL(request.url);
+        const key = url.pathname.slice(1);
+
+        switch (request.method) {
+          case "PUT": {
+            await this.env.R2.put(key, request.body, {
+              onlyIf: request.headers,
+              httpMetadata: request.headers,
+            });
+            return new Response(`Put ${key} successfully!`);
+          }
+          case "GET": {
+            const object = await this.env.R2.get(key, {
+              onlyIf: request.headers,
+              range: request.headers,
+            });
+
+            if (object === null) {
+              return new Response("Object Not Found", { status: 404 });
+            }
+
+            const headers = new Headers();
+            object.writeHttpMetadata(headers);
+            headers.set("etag", object.httpEtag);
+
+            //몸이 존재할 때, 미리 조건은 실패했습니다
+            return new Response("body" in object ? object.body : undefined, {
+              status: "body" in object ? 200 : 412,
+              headers,
+            });
+          }
+          case "DELETE": {
+            await this.env.R2.delete(key);
+            return new Response("Deleted!");
+          }
+          default:
+            return new Response("Method Not Allowed", {
+              status: 405,
+              headers: {
+                Allow: "PUT, GET, DELETE",
+              },
+            });
+        }
+      }
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response
+    from urllib.parse import urlparse
+
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		url = urlparse(request.url)
+    		key = url.path[1:]
+
+    		if request.method == "PUT":
+    			await self.env.R2.put(
+    				key,
+    				request.body,
+    				onlyIf=request.headers,
+    				httpMetadata=request.headers,
+    			)
+    			return Response(f"Put {key} successfully!")
+    		elif request.method == "GET":
+    			obj = await self.env.R2.get(
+    				key,
+    				onlyIf=request.headers,
+    				range=request.headers,
+    			)
+
+    			if obj is None:
+    				return Response("Object Not Found", status=404)
+
+    			#몸이 존재할 때, 미리 조건은 실패했습니다
+    			body = obj.body if hasattr(obj, "body") else None
+    			status = 200 if hasattr(obj, "body") else 412
+
+    			headers = {"etag": obj.httpEtag}
+    			return Response(body, status=status, headers=headers)
+    		elif request.method == "DELETE":
+    			await self.env.R2.delete(key)
+    			return Response("Deleted!")
+    		else:
+    			return Response(
+    				"Method Not Allowed",
+    				status=405,
+    				headers={"Allow": "PUT, GET, DELETE"},
+    			)
+    ```
+  </TabItem>
+</Tabs>
+
+<Render file="request-dot-clone-warning" product="workers" />
+
+## 5. 물통 접근 및 개인 정보 보호
+
+당신의 노동자에 추가된 위 부호로, 각 들어오는 요구는 당신의 물통과 상호 작용하는 능력이 있습니다. 이것은 당신의 물통이 공개적으로 노출되고 그것의 내용은 undesired 액추에이터에 의해 접근되고 변경될 수 있습니다.
+
+당신은 지금 허가 논리를 정의해야합니다 누가 당신의 물통에 어떤 작업을 수행 할 수 있는지 결정. 이 논리는 작업자의 코드 내에서 생활, 그것은 사용자의 권한을 결정하기 위해 응용 프로그램의 작업입니다. 다음은 접근 및 허가 관행과 관련된 리소스의 짧은 목록입니다.
+
+1. [기본 인증](/workers/examples/basic-auth/): HTTP Basic schema를 사용하여 액세스 제한하는 방법을 보여줍니다.
+2. [Custom Headers 사용](/workers/examples/auth-with-headers/): 헤더의 알려진 사전 공유 키에 따라 요청을 허용하거나 거부합니다.
+
+{/* <!-- 3. [Authorizing users with Auth0](/workers/tutorials/authorize-users-with-auth0/#overview): Integrate Auth0, an identity management platform, into a Cloudflare Workers application. --> */}
+
+새로 만든 버킷과 노동자와 함께, 당신은 모든 버킷 작업을 보호해야합니다.
+
+제품 정보`PUT`·`DELETE`요청, 새로운 사용`AUTH_KEY_SECRET`Wrangler secret로 나중에 정의할 환경 변수.
+
+제품 정보`GET`요청하면 특정 파일만 요청할 수 있습니다. 이 관례 논리 전부는의 안쪽에서 발생합니다`authorizeRequest`기능, 와`hasValidHeader`사용자 정의 헤더 논리를 처리하는 기능. 모든 유효성 검사가 통과되면 작업이 허용됩니다.
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="JavaScript" icon="seti:javascript">
+    ```js
+    const ALLOW_LIST = ["cat-pic.jpg"];
+
+    //사전 공유 비밀에 대한 요청 확인
+    const hasValidHeader = (request, env) => {
+    	return request.headers.get("X-Custom-Auth-Key") === env.AUTH_KEY_SECRET;
+    };
+
+    function authorizeRequest(request, env, key) {
+    	switch (request.method) {
+    		case "PUT":
+    		case "DELETE":
+    			return hasValidHeader(request, env);
+    		case "GET":
+    			return ALLOW_LIST.includes(key);
+    		default:
+    			return false;
+    	}
+    }
+
+    export default {
+    	async fetch(request, env, ctx) {
+    		const url = new URL(request.url);
+    		const key = url.pathname.slice(1);
+
+    		if (!authorizeRequest(request, env, key)) {
+    			return new Response("Forbidden", { status: 403 });
+    		}
+
+    		//· ...
+    	},
+    };
+    ```
+  </TabItem>
+
+  <TabItem label="Python" icon="seti:python">
+    ```py
+    from workers import WorkerEntrypoint, Response
+    from urllib.parse import urlparse
+
+    ALLOW_LIST = ["cat-pic.jpg"]
+
+    #사전 공유 비밀에 대한 요청 확인
+    def has_valid_header(request, env):
+    	return request.headers.get("X-Custom-Auth-Key") == env.AUTH_KEY_SECRET
+
+    def authorize_request(request, env, key):
+    	if request.method in ["PUT", "DELETE"]:
+    		return has_valid_header(request, env)
+    	elif request.method == "GET":
+    		return key in ALLOW_LIST
+    	else:
+    		return False
+
+    class Default(WorkerEntrypoint):
+    	async def fetch(self, request):
+    		url = urlparse(request.url)
+    		key = url.path[1:]
+
+    		if not authorize_request(request, self.env, key):
+    			return Response("Forbidden", status=403)
+
+    		#· ...
+    ```
+  </TabItem>
+</Tabs>
+
+이것을 위해, 당신은 Wrangler를 통해 비밀을 창조해야 합니다:
+
+```sh
+npx wrangler secret put AUTH_KEY_SECRET
+```
+
+이 명령은 터미널에서 비밀을 입력 할 것이다.
+
+```sh
+npx wrangler secret put AUTH_KEY_SECRET
+```
+
+```sh output
+Enter the secret text you'd like assigned to the variable AUTH_KEY_SECRET on the script named <YOUR_WORKER_NAME>:
+*********
+🌀  Creating the secret for script name <YOUR_WORKER_NAME>
+✨  Success! Uploaded secret AUTH_KEY_SECRET.
+```
+
+이 비밀은 현재 사용 가능`AUTH_KEY_SECRET`에 의해`env`당신의 노동자에 있는 모수.
+
+## 6. 작업자를 배포
+
+당신의 노동자와 물통 세트로, 뛰기`npx wrangler deploy` [이름 \*](/workers/wrangler/commands/#deploy)Cloudflare의 글로벌 네트워크에 배포하려면:
+
+```sh
+npx wrangler deploy
+```
+
+당신은 당신의 허가 논리를 확인 할 수 있습니다 다음과 같은 명령을 통해 작동, 배포 된 노동자 엔드포인트를 사용하여:
+
+:::카트로션
+
+R2에 파일을 업로드하면`curl`, 당신을 사용 지킵니&#xB2E4;**[`--data-binary`](https://everything.curl.dev/http/post/binary)**&#xB300;신에`--data`또는`-d`. 파일은 그렇지 않으면 truncated.
+주요 특징
+
+```sh
+#"X-Custom-Auth-Key" 헤더를 제공하지 않고 객체를 작성하려면
+curl https://your-worker.dev/cat-pic.jpg -X PUT --data-binary 'test'
+#=> 금지
+#헤더가 누락되었기 때문에 예상
+
+#잘못된 "X-Custom-Auth-Key" 헤더 값으로 객체를 작성하려면
+curl https://your-worker.dev/cat-pic.jpg -X PUT --header "X-Custom-Auth-Key: hotdog" --data-binary 'test'
+#=> 금지
+#헤더 값이 AUTH KEY SECRET 값과 일치하지 않았기 때문에 기대
+
+#올바른 "X-Custom-Auth-Key" 헤더 값으로 객체를 작성하는 것은
+#참고 : "*********"는 AUTH KEY SECRET Wrangler 비밀의 값입니다.
+curl https://your-worker.dev/cat-pic.jpg -X PUT --header "X-Custom-Auth-Key: *********" --data-binary 'test'
+#=> cat-pic.jpg를 성공적으로 넣으십시오!
+
+#"foo"라고 불리는 객체를 읽는 것은
+curl https://your-worker.dev/foo
+#=> 금지
+#"foo"가 ALLOW LIST에 있지 않기 때문에 예상
+
+#"cat-pic.jpg"라는 객체를 읽으려면
+curl https://your-worker.dev/cat-pic.jpg
+#=> 테스트
+#참고 : 이것은 위에 성공적으로 PUT 된 값입니다.
+```
+
+이 가이드를 완료하면 성공적으로 Wrangler를 설치하고 R2 물통을 CloudflareQXQ에 배치했습니다.
+
+## 관련 자료
+
+1. [Workers 다운로드](/workers/tutorials/)
+2. [Workers 이름 \*](/workers/examples/)

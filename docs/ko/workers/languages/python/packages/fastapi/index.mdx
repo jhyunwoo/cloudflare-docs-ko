@@ -1,0 +1,77 @@
+---
+pcx_content_type: reference
+title: 빠른 API
+head:
+  - tag: title
+    content: 빠른 API
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers/languages/python/packages/fastapi/'
+translation_source_md: >-
+  https://developers.cloudflare.com/workers/languages/python/packages/fastapi/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render } from "~/components";
+
+FastAPI 패키지는 QXQX0440XQQ Workers에서 지원됩니다.
+
+FastAPI 응용 프로그램은 프로토콜을 사용하여[Asynchronous Server Gateway 인터페이스(ASGI)](https://asgi.readthedocs.io/en/latest/). 이것은 FastAPI가 소켓 자체에 결코 읽거나 쓰지 않는 것을 의미합니다. ASGI 애플리케이션은 일반적으로 ASGI 서버에 연결될 것으로 예상됩니다.[우비콘](https://www.uvicorn.org/). ASGI 서버는 애플리케이션을 대신하여 모든 원료 소켓을 처리합니다.
+
+Workers 런타임 제공[ASGI 서버](https://github.com/cloudflare/workerd/blob/main/src/pyodide/internal/workers-api/src/asgi.py)Python 당신이 Python WorkersXQ에 있는 FastAPI를 사용하는 노동자.
+
+## 시작하기
+
+외계인`cloudflare/python-workers-examples`저장소 및 FastAPI 예제를 실행:
+
+```bash
+git clone https://github.com/cloudflare/python-workers-examples
+cd python-workers-examples/03-fastapi
+uv run pywrangler dev
+```
+
+### 예제 코드
+
+```python
+from workers import WorkerEntrypoint
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+import asgi
+
+class Default(WorkerEntrypoint):
+    async def fetch(self, request):
+        return await asgi.fetch(app, request, self.env)
+
+app = FastAPI()
+
+@app.get("/")
+async def root():
+    return {"message": "Hello, World!"}
+
+@app.get("/env")
+async def root(req: Request):
+    env = req.scope["env"]
+    return {"message": "Here is an example of getting an environment variable: " + env.MESSAGE}
+
+class Item(BaseModel):
+    name: str
+    description: str | None = None
+    price: float
+    tax: float | None = None
+
+@app.post("/items/")
+async def create_item(item: Item):
+    return item
+
+@app.put("/items/{item_id}")
+async def create_item(item_id: int, item: Item, q: str | None = None):
+    result = {"item_id": item_id, **item.dict()}
+    if q:
+        result.update({"q": q})
+    return result
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int):
+    return {"item_id": item_id}
+```

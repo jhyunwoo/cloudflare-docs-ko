@@ -1,0 +1,174 @@
+---
+pcx_content_type: concept
+title: REST API를
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/pages/configuration/api/'
+translation_source_md: 'https://developers.cloudflare.com/pages/configuration/api/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { APIRequest, DashButton } from "~/components";
+
+더 보기[모델 번호: Pages](/api/resources/pages/subresources/projects/methods/list/)자동화를 구축하고 Pages를 개발 워크플로우로 통합할 수 있습니다. 높은 수준에서 API 엔드 포인트는 배포 및 빌드 및 구성 프로젝트를 관리 할 수 있습니다. Cloudflare 지원[배포 후크](/pages/configuration/deploy-hooks/)headless CMS 배포를 위해. 더 알아보기[API 문서](https://api.cloudflare.com/)객체 유형과 엔드포인트의 전체 고장을 위해.
+
+## API를 사용하는 방법
+
+### API 토큰 받기
+
+API 토큰을 만들려면:
+
+1. Cloudflare 대시보드에서, 가십시오**계정 API 토큰**사이트 맵
+
+   <DashButton url="/?to=/:account/api-tokens" />
+2. 제품정보**토큰 만들기**.
+3. 당신은 갈 수 있습니다**Cloudflare Workers**템플릿 >**템플릿 사용**또는 이동**사용자 정의 토큰 만들기** > **시작하기**. 사용자 정의 토큰을 만들면, 추가해야 할 것입니다.**Cloudflare Pages**이름 \***제품정보**이름 \*
+
+### 자주 묻는 질문
+
+토큰을 만들면 API 토큰을 요청 헤더에 사용하여 API에 요청할 수 있습니다. 예를 들어, 프로젝트에서 모든 배포를 얻는 API 요청입니다.
+
+<APIRequest path="/accounts/{account_id}/pages/projects/{project_name}/deployments" method="GET" />
+
+대체로 프로젝트의 하나에 시도`{account_id}`, `{project_name}`·`<API_TOKEN>`. 참고[계정 ID 찾기](/fundamentals/account/find-account-and-zone-ids/)더 많은 정보.
+
+## 이름 \*
+
+API는 Cloudflare QXWorkers와 결합될 때 더욱 강력합니다: Cloudflare의 세계적인 네트워크에 serverless 기능을 배치하는 가장 쉬운 방법. 다음 섹션에는 Pages API를 사용하는 방법에 대한 세 가지 코드 예제가 포함되어 있습니다. 이러한 샘플을 구축하고 배포하려면, 참조[자주 묻는 질문](/workers/get-started/guide/).
+
+### 새로운 빌드를 매 시간
+
+Suppose 우리는 라이브 소스에서 데이터를 끌어 정적 출력을 컴파일하는 CMS가 있습니다. API를 사용하여 새로운 빌드 주기적으로 트리거하여 가능한 한 최근 정적 콘텐츠를 유지할 수 있습니다.
+
+```js
+const endpoint =
+	"https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}/deployments";
+
+export default {
+	async scheduled(_, env) {
+		const init = {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json;charset=UTF-8",
+				//WorkersQXQX대시보드 또는 WranglerXQXQ를 사용하여 비밀으로 API 토큰을 저장하는 것이 좋습니다.
+				Authorization: `Bearer ${env.API_TOKEN}`,
+			},
+		};
+
+		await fetch(endpoint, init);
+	},
+};
+```
+
+JavaScript Worker를 배포한 후, 이 스크립트를 정기적으로 실행하기 위해 Worker에서 cron 트리거를 설정합니다. 더 알아보기[Cron 트리거](/workers/configuration/cron-triggers/)더 많은 정보.
+
+### 일주일 후 오래된 배포 삭제
+
+Cloudflare Pages 호스트 및 미리보기 링크에 모든 프로젝트 배포를 제공합니다. 프로젝트의 개인을 유지하고 이전 배포에 액세스 할 수 있습니다. 한 달 후 배포를 삭제하기 위해 API를 사용할 수 있으므로 더 이상 공개적인 온라인입니다. 지점의 최신 배포는 삭제할 수 없습니다.
+
+```js
+const endpoint =
+	"https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}/deployments";
+const expirationDays = 7;
+
+export default {
+	async scheduled(_, env) {
+		const init = {
+			headers: {
+				"Content-Type": "application/json;charset=UTF-8",
+				//WorkersQXQX대시보드 또는 WranglerXQXQ를 사용하여 비밀으로 API 토큰을 저장하는 것이 좋습니다.
+				Authorization: `Bearer ${env.API_TOKEN}`,
+			},
+		};
+
+		const response = await fetch(endpoint, init);
+		const deployments = await response.json();
+
+		for (const deployment of deployments.result) {
+			//배포가 마지막 x 일 안에 생성 된 경우 확인 (`expirationDays`XQ에 의해 정의됨)
+			if (
+				(Date.now() - new Date(deployment.created_on)) / 86400000 >
+				expirationDays
+			) {
+				//설치하기
+				await fetch(`${endpoint}/${deployment.id}`, {
+					method: "DELETE",
+					headers: {
+						"Content-Type": "application/json;charset=UTF-8",
+						Authorization: `Bearer ${env.API_TOKEN}`,
+					},
+				});
+			}
+		}
+	},
+};
+```
+
+JavaScript Worker를 배포한 후, 이 스크립트를 정기적으로 실행하기 위해 Worker에서 cron 트리거를 설정할 수 있습니다. 더 알아보기[Cron Triggers 가이드](/workers/configuration/cron-triggers/)더 많은 정보.
+
+### 프로젝트 정보
+
+Pages를 사용하여 개발 팀에서 웹 사이트를 구축 할 수 있습니다. 배포 미리보기 링크를 공유하고 Cloudflare 계정을 공유하지 않고 상태를 구축 할 수있는 쉬운 방법을 원할 것입니다. API를 사용하면 배포 상태 및 미리보기 링크를 포함하여 프로젝트 정보를 쉽게 공유 할 수 있으며 Cloudflare Worker에서 HTML로이 콘텐츠를 제공합니다.
+
+```js
+const deploymentsEndpoint =
+	"https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}/deployments";
+const projectEndpoint =
+	"https://api.cloudflare.com/client/v4/accounts/{account_id}/pages/projects/{project_name}";
+
+export default {
+	async fetch(request, env) {
+		const init = {
+			headers: {
+				"content-type": "application/json;charset=UTF-8",
+				//WorkersQXQX대시보드 또는 WranglerXQXQ를 사용하여 비밀으로 API 토큰을 저장하는 것이 좋습니다.
+				Authorization: `Bearer ${env.API_TOKEN}`,
+			},
+		};
+
+		const style = `body { padding: 6em; font-family: sans-serif; } h1 { color: #f6821f }`;
+		let content = "<h2>Project</h2>";
+
+		let response = await fetch(projectEndpoint, init);
+		const projectResponse = await response.json();
+		content += `<p>Project Name: ${projectResponse.result.name}</p>`;
+		content += `<p>Project ID: ${projectResponse.result.id}</p>`;
+		content += `<p>Pages Subdomain: ${projectResponse.result.subdomain}</p>`;
+		content += `<p>Domains: ${projectResponse.result.domains}</p>`;
+		content += `<a href="${projectResponse.result.canonical_deployment.url}"><p>Latest preview: ${projectResponse.result.canonical_deployment.url}</p></a>`;
+
+		content += `<h2>Deployments</h2>`;
+		response = await fetch(deploymentsEndpoint, init);
+		const deploymentsResponse = await response.json();
+
+		for (const deployment of deploymentsResponse.result) {
+			content += `<a href="${deployment.url}"><p>Deployment: ${deployment.id}</p></a>`;
+		}
+
+		let html = `
+      <!DOCTYPE html>
+      <head>
+        <title>Example Pages Project</title>
+      </head>
+      <body>
+        <style>${style}</style>
+        <div id="container">
+          ${content}
+        </div>
+      </body>`;
+
+		return new Response(html, {
+			headers: {
+				"Content-Type": "text/html;charset=UTF-8",
+			},
+		});
+	},
+};
+```
+
+## 관련 자료
+
+- [Pages API 문서](/api/resources/pages/subresources/projects/methods/list/)
+- [Workers 시작하기 가이드](/workers/get-started/guide/)
+- [Workers Cron 트리거](/workers/configuration/cron-triggers/)

@@ -1,0 +1,93 @@
+---
+summary: Send debugging information in an errored response to a logging service.
+tags:
+  - Logging
+  - Response modification
+products:
+  - snippets
+pcx_content_type: example
+title: Debugging 로그
+description: 로깅 서비스에 오류 응답에 대한 정보를 디버깅합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/debugging-logs/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/debugging-logs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js
+//실제 로깅 서비스 endpoint로 교체
+const loggingEndpoint = "https://your-logging-endpoint";
+
+export default {
+	async fetch(request) {
+		try {
+			//Origin 서버에서 요청을 읽으려면
+			const response = await fetch(request.clone());
+
+			//응답 상태가 오류를 나타냅니다 (예 : 4xx 또는 5xx)
+			if (!response.ok) {
+				//오류 세부 사항 및 로그에 대한 상황에 대비
+				const errorDetails = {
+					status: response.status,
+					statusText: response.statusText,
+					url: request.url,
+					method: request.method,
+					headers: Object.fromEntries(request.headers),
+				};
+
+				//로깅 서비스에 대한 오류 정보
+				await logError(errorDetails);
+
+				//상태 및 statusText intact로 원래 응답을 반환
+				return new Response(response.body, {
+					status: response.status,
+					statusText: response.statusText,
+					headers: response.headers,
+				});
+			}
+
+			//Origin 서버에서 성공적인 응답을 반환
+			return response;
+		} catch (error) {
+			//fetch 중에 발생하는 모든 예외를 처리하십시오.
+			const errorDetails = {
+				message: error.message,
+				stack: error.stack,
+				url: request.url,
+				method: request.method,
+				headers: Object.fromEntries(request.headers),
+			};
+
+			//로깅 서비스에 대한 오류 정보
+			await logError(errorDetails);
+
+			//일반적인 오류 응답을 반환
+			return new Response("Internal Server Error", {
+				status: 500,
+			});
+		}
+	},
+};
+
+//로그인에 대한 오류 정보를 기록하는 기능
+async function logError(details) {
+	try {
+		const response = await fetch(loggingEndpoint, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify(details),
+		});
+
+		if (!response.ok) {
+			console.error("Failed to log error:", response.statusText);
+		}
+	} catch (error) {
+		console.error("Error logging error:", error.message);
+	}
+}
+```

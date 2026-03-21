@@ -1,0 +1,110 @@
+---
+pcx_content_type: faq
+title: 무작위 hostnames
+structured_data: true
+sidebar:
+  order: 6
+description: 왜 예기치 않은 호스트 이름은 부분 영역에 HTTP 로그에 나타납니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/logs/faq/random-hostnames-partial-zones/'
+translation_source_md: >-
+  https://developers.cloudflare.com/logs/faq/random-hostnames-partial-zones/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+[자주 묻는 질문](/logs/faq/)
+
+### 왜 내가 구성하지 않았다 내 HTTP 로그에서 호스트 이름을 볼 수 있습니까?
+
+당신이 사용하는 경우[부분 (CNAME) 영역 설정](/dns/zone-setups/partial-setup/), 당신은 몇 개의 DNS 레코드를 프록시에도 불구하고 HTTP 요청 로그에 무작위 호스트 이름의 수백을 볼 수 있습니다. 이것은 호스트 헤더 조작 공격에 의해 발생, Cloudflare 로깅에 버그.
+
+### 어떤 원인?
+
+Attackers는 Host 헤더 주사라는 기술을 사용합니다.
+
+1. 그들은 Cloudflare IP 주소를 proxied hostname (예를 들면, 알려진 proxied subdomain의 DNS 조회를 통해).
+2. 그들은 위조된 그 IP에 직접 HTTP 요청을 보냅니다`Host`임의 하위 도메인 추측을 포함하는 헤더.
+3. Cloudflare 로그`Host`헤더 값 as-is 에서`ClientRequestHost`이름 \*
+4. 요청은 Cloudflare에 도달하기 때문에 그들은 유효한 Cloudflare IPs - 그러나 공격자는 통제합니다`Host`헤더 내용.
+
+더 보기[`http.host`제품정보](/ruleset-engine/rules-language/fields/reference/http.host/)다음을 포함합니다.`Host`원래 요청에서 헤더, 즉 공격 제어 값은 로그에 나타납니다.
+
+### 왜 부분적인 영역은 susceptible입니까?
+
+부분적으로 (CNAME) 지역:
+
+- 권위있는 DNS 공급자에서 CNAME을 통해 Cloudflare에 특정 호스트 이름 만.
+- Cloudflare는 가득 차있는 지역을 통제하지 않습니다, 그래서 들어오는 것을 유효할 수 없습니다`Host`headers 일치 설정된 레코드.
+- 공격자는 추측한 것으로 알려진 좋은 IP에 요청을 전송하여 하위 도메인을 enumerate 할 수 있습니다.`Host`머리.
+
+### 이 패턴을 어떻게 식별합니까?
+
+| 회사연혁            | 자주 묻는 질문                                                                                                                     |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| **견적 요청**       | Legitimate hostnames에는 수천 개의 요청이 있습니다. 의심스러운 별명이 각각 5개의 요청에 정확히 두 가지가 있습니다.                                                  |
+| **Hostname 패턴** | 순차 번호 (`0-0`, `0-56`, `007`), 일반적인 단어 (`admin`, `api`, `test`, `staging`), 또는 내부 서비스 이름 (`airflow`, `consul`, `prometheus`). |
+| **소스 IP**       | 의심스러운 요청은 종종 IP (scanner Infrastructure)의 작은 세트에서 온다.                                                                        |
+| **응답 부호**       | 많은 4xx 응답 (hostname not found, SSL mismatch).                                                                                |
+| **DNS 상관**      | 의심스러운 호스트 이름은 DNS 쿼리 로그에 나타나지 않습니다.                                                                                          |
+
+### 예제 데이터 패턴
+
+```txt
+"ClientRequestHost","_count"
+"legitimate-proxied.example.com","12498"    # Real traffic
+"another-proxied.example.com","6082"        # Real traffic
+"0-0.example.com","2"                       # Scanner
+"admin.example.com","2"                     # Scanner
+"api-staging.example.com","2"               # Scanner
+"1234567890.example.com","2"                # Scanner
+```
+
+### 어떻게이 요청을 차단합니까?
+
+이름 \*[WAF 사용자 정의 규칙](/waf/custom-rules/)그것은 단지 유효한 요청을 허용`Host`머리:
+
+```txt
+Expression:
+(http.host ne "proxied-hostname-1.example.com" and
+ http.host ne "proxied-hostname-2.example.com" and
+ http.host ne "proxied-hostname-3.example.com")
+
+Action: Block
+```
+
+:::가격
+많은 발음된 hostnames가 있는 경우 hostname 리스트를 사용하거나 일관성 있는 subdomain 패턴을 사용하는 경우 wildcard match를 사용하십시오.
+주요 특징
+
+### 대신 내 로그에서 이것을 필터링 할 수 있습니까?
+
+예. 트래픽 차단없이 깨끗한 로그를 선호한다면:
+
+- **Logpush 수준**— 잘 알려진 좋은 hostnames만 포함 하는 작업을 필터링[Logpush 필터](/logs/logpush/logpush-job/filters/).
+- **SIEM 수준**- 로그 분석 중 임계값 아래 요청 카운트를 가진 호스트 이름 필터 또는 제외.
+
+### 이 요청은 내 기원에 도달?
+
+가능한 경우,`Host`header는 구성 된 hostname과 일치하거나 기본 또는 catch-all 기원이있는 경우 발생합니다. 기타`EdgeResponseStatus`·`OriginResponseStatus`원본이 접촉 한 경우 볼 수 있습니다.
+
+### 보안 위험이 있습니까?
+
+위험이 낮습니다. 주요 관심사는:
+
+- 오류 페이지가 내부 세부 사항을 공개하는 경우 정보 공개.
+- 요청이 원산지에 도달하면 자원 소비.
+- 실제 공격을 식별하는 데 도움이되는 로그 노이즈.
+
+### 왜 의심스러운 호스트 이름은 정확히 두 가지 요청이 있습니까?
+
+자동화된 스캐너는 일반적으로 subdomain 추측 당 2개의 요구에 한 번 보냅니다 — 1개의 처음 조사 및 가능하게 1개의 구호. 이 균일 한 배포는 스캔 활동의 신뢰할 수있는 지표입니다.
+
+### 내 솔루션을 어떻게 작동합니까?
+
+WAF 규칙을 실행한 후에:
+
+1. 기타**방화벽 이벤트**당신의 규칙을 일치하는 구획된 요구.
+2. 이전과 이후 로그 볼륨 비교 — 의심스러운 호스트 이름 사라야한다.
+3. 합법적인 교통은 실제 호스트 이름에 대한 요청 수를 확인하여 결정됩니다.

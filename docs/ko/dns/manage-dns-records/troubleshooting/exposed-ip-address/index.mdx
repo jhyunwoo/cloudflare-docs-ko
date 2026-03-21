@@ -1,0 +1,49 @@
+---
+pcx_content_type: troubleshooting
+source: https://support.cloudflare.com/hc/en-us/articles/115003687931-Warning-about-exposing-your-origin-IP-address-via-DNS-records
+title: 노출된 IP 주소
+sidebar:
+  order: 12
+
+---
+
+DNS 레코드가 [proxied](/dns/proxy-status/) 상태일 때 Cloudflare는 사이트를 가속하고 보호합니다.
+
+proxied된 apex 도메인에 대해 `dig` 질의를 수행하면 Cloudflare IP 주소가 반환됩니다. 이렇게 해서 오리진 서버의 IP 주소는 공개적으로 숨겨진 상태를 유지합니다. 다만 orange cloud의 이점은 HTTP 트래픽에만 적용된다는 점을 기억하세요.
+
+특정 상황에서는 Cloudflare 대시보드 **DNS** 앱의 **DNS Records** 패널이 오리진 서버의 IP 주소를 노출할 수 있는 DNS-only 레코드가 있을 때 경고를 표시합니다. 이 경고는 사이트로 향하는 트래픽을 차단하거나 어떤 방식으로도 영향을 주지는 않습니다.
+
+서버의 IP 주소가 노출되면 직접 공격에 더 취약해집니다. Cloudflare를 통해 트래픽을 프록시하는 경우에도 공격자가 오리진 서버의 IP 주소를 파악하는 것은 여전히 가능하지만(더 어렵기는 합니다).
+
+아래는 Cloudflare가 IP 노출 경고를 표시할 수 있는 두 가지 경우입니다.
+
+***
+
+## 프록시되어야 하는 DNS 레코드
+
+다음과 같은 경고를 본다면:
+
+`This record is exposing your origin server’s IP address. To hide your origin IP address, and increase your server security, click on the grey cloud to change it to orange.`
+
+Cloudflare는 해당 레코드를 [proxying](/dns/proxy-status/) 하여, 그 레코드에 대한 `dig` 질의가 Cloudflare IP 주소를 반환하고 오리진 서버 IP 주소가 공개적으로 숨겨지도록 권장합니다.
+
+Cloudflare의 성능 및 보안 이점을 활용하려면, HTTP 트래픽을 처리하는 DNS 레코드(`A`, `AAAA`, `CNAME`)를 프록시하는 것을 권장합니다.
+
+***
+
+## DNS-only로 유지되어야 하는 DNS 레코드
+
+사이트를 호스팅하는 동일한 오리진 서버를 가리키는 DNS-only `A`,`AAAA`, `CNAME`, `MX` 레코드가 있으면 Cloudflare는 다음 중 하나의 경고를 표시합니다.
+
+`An A, AAAA, CNAME, or MX record is pointed to your origin server exposing your origin IP.`
+
+`This record is exposing your origin server’s IP address, potentially exposing it to denial of service.`
+
+이러한 레코드에 대해 `dig` 질의를 수행하면 오리진 서버 IP 주소가 드러납니다. 이 정보는 잠재적 공격자가 오리진 서버를 직접 겨냥하기 쉽게 만듭니다.
+
+그러나 일부 DNS 레코드는 DNS-only 상태로 남아 있어야 하는 경우가 있습니다. 예를 들어 하나의 물리 서버에서 웹사이트와 이메일처럼 여러 서비스를 호스팅할 수 있습니다.
+
+이 위험을 완화하기 위해 다음을 권장합니다.
+
+* DNS-only 레코드를 피할 수 없는 경우, 동일한 오리진 서버에서 여러 서비스를 호스팅하는 것의 영향을 분석합니다.
+* apex 도메인과 동일한 오리진 IP 주소를 공유하고 Cloudflare를 통해 안전하게 프록시할 수 있는 모든 레코드를 프록시합니다.

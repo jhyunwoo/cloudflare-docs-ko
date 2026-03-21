@@ -1,0 +1,518 @@
+---
+pcx_content_type: reference
+title: WARP 문제 해결 가이드
+sidebar:
+  order: 0
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	MetaInfo,
+	Render,
+	Steps,
+	Stream,
+	Tabs,
+	TabItem,
+	Type,
+} from "~/components";
+
+이 가이드는 당신이 Cloudflare WARP 클라이언트와 일반적인 문제점을 진단하고 해결하는 것을 돕습니다. Windows, macOS 및 Linux를 포함한 데스크톱 운영 체제에서 WARP 클라이언트를 해결하는 방법을 다룹니다.
+
+1. **시작하기 전에**: [자주 묻는 질문](#prerequisites), 권한,[버전 제어](#check-your-warp-version), 그리고 WARP 기초.
+2. **로그 수집**: 를 통해[모델 번호: Cloudflare 한국어](#option-a-collect-logs-via-the-cloudflare-dashboard)(DEX 원격 캡처 포함) 또는[명령행 인터페이스](#option-b-collect-logs-via-the-cli)(클립) (`warp-diag`).
+3. **비밀번호**: [주요연혁](#check-warp-status), [제품정보](#check-warp-settings), [프로필 ID](#profile-id), [연락처](#exclude-mode-with-hostsips)구성 및 기타 설정.
+4. **일반적인 misconfigurations 수정**: [회사 소개](#wrong-profile-id), [분할 터널 문제](#wrong-split-tunnel-configuration), [관리 네트워크 문제](#review-your-managed-network-settings), [사용자 그룹 mismatch](#check-a-users-group-membership).
+5. **지원 표 파일**: [티켓 제출 방법](#5-file-a-support-ticket)당신은 당신의 문제 해결 옵션을 소진 한 후.
+
+:::참고\[AI-assisted troubleshooting]
+
+모델 번호: Cloudflare 하나는 WARP 조사를 가속화하는 두 개의 무료 AI 도우미를 포함합니다 :
+
+[**WARP 진단 해석기**](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/warp-logs/#warp-diagnostics-analyzer-beta)- 기기의 WARP 진단 로그를 파싱하는 AI를 사용하여 중요한 사건을 요약하고, 가능성 원인을 요약한 다음 단계를 추천합니다. 이 분석기는 대시보드를 통해 수집된 로그를 위해 유효합니다.
+
+[**DEX MCP 서버**](/cloudflare-one/insights/dex/dex-mcp-server/)— 고객이 같은 질문을 할 수있는 AI 도구, "내가 사용하는 장치에 대한 연결성 및 성능 지표보기[모델 번호: carly@acme.com](mailto:carly@acme.com)", DEX API에서 데이터를 포함하는 답변을받습니다.
+
+:::
+
+## 1. 시작하기 전에
+
+### 자주 묻는 질문
+
+- 당신은 완료해야합니다[Zero Trust 온보딩 교류](/cloudflare-one/setup/)만든 Zero Trust 조직으로.
+- 최종 사용자 장치에 설치된 WARP 클라이언트가 있어야 합니다.
+- 당신은해야합니다[이름 \*](/cloudflare-one/roles-permissions/)Cloudflare 대시보드에 접속 로그에 대한 관리자 권한을 제공합니다.
+
+### WARP 버전을 확인
+
+많은 문제 해결 문제는 outdated 클라이언트 버전에 의해 발생합니다. 최고의 성능과 호환성을 위해 관리자는 새로운 릴리스를 확인해야하며[WARP 클라이언트 업데이트](/cloudflare-one/team-and-resources/devices/warp/download-warp/)다른 문제를 해결하려고하기 전에.
+
+WARP 클라이언트를 업데이트 한 후, 반복하면 문제를 모니터링합니다. 문제가 발생하면 문제 해결 가이드가 계속됩니다.
+
+#### 기기를 통해
+
+<Tabs>
+  <TabItem label="버전 2026.2+">
+    1. Cloudflare를 여십시오 데스크탑에서 하나의 클라이언트.
+    2. 제품정보**제품정보**.
+    3. 장치의 버전 비교[최신 버전](/cloudflare-one/team-and-resources/devices/warp/download-warp/).
+  </TabItem>
+
+  <TabItem label="버전 2026.1 및 이전">
+    1. 바탕 화면에 WARP GUI를 엽니 다.
+    2. 기어 아이콘을 선택하십시오.
+    3. 제품정보**WARP 소개**.
+    4. 장치의 버전 비교[WARP의 최신 버전](/cloudflare-one/team-and-resources/devices/warp/download-warp/).
+  </TabItem>
+</Tabs>
+
+#### Cloudflare 하나 대시보드를 통해
+
+1. 로그인[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/)> 이동**팀 & 자원** > **제품정보** > **당신의 장치**.
+2. 조사하려는 장치를 선택하십시오.
+3. 아래에 장치 WARP 버전을 찾으십시오**고객 버전**옆 메뉴에서.
+4. 장치의 버전 비교[WARP의 최신 버전](/cloudflare-one/team-and-resources/devices/warp/download-warp/).
+
+### WARP 기초
+
+WARP 클라이언트의 건축, 임명 경로 및 형태는 당신이 더 중대한 정확도를 가진 문제점을 진단하는 것을 돕습니다.
+
+<Stream
+  id="31178cc41d0ec56d42ef892160589635"
+  title="Cloudflare WARP 기초의 밑에"
+  thumbnail="https://imagedelivery.net/xDOJvHcv1KwTQn6S-BGFIw/4fdd3005-7995-4876-8faa-4375f9236500/public"
+  showMoreVideos={false}
+  chapters={{
+        "Introduction and WARP GUI Basics": "0s",
+        "Consumer vs. Corporate WARP": "57s",
+        "Device Profiles Explained": "1m35s",
+        "WARP Operating Modes": "2m12s",
+        "Split Tunneling": "3m44s",
+        "Conclusion": "4m56s",
+      }}
+/>
+
+#### WARP 건축
+
+<Render file="warp/warp-comprises" product="cloudflare-one" />
+
+#### WARP 임명 세부사항
+
+<Render file="warp/warp-installation-details" product="cloudflare-one" />
+
+#### WARP 형태
+
+WARP는 몇몇 형태에서, 다른 교통 취급 기능으로 각각 작동합니다:
+
+<Render file="warp/warp-modes" product="cloudflare-one" />
+
+## 2. 수집 진단 로그
+
+두 가지 방법으로 진단 로그를 수집 할 수 있습니다 :[Cloudflare 대시보드](#option-a-collect-logs-via-the-cloudflare-dashboard)또는[`warp-diag`](#option-b-collect-logs-via-the-cli)명령행 인터페이스 (CLI).
+
+### 선택권 A: Cloudflare 대시보드를 통해 통나무를 모으십시오
+
+WARP 진단 로그를 Cloudflare 1 대시보드 디지털 경험 감시 (DEX) 원격 캡처를 사용하여 원격으로 수집합니다.
+
+:::tip\[최고의 연습]
+
+효과적으로 문제를 해결하려면 Cloudflare는 로그를 수집하기 전에 문제를 다시 생성하고 즉시 타임 스탬프를 지적합니다. 문제가 발생할 수 있습니다 모든 경우에, WARP diag 수집 또는 패킷 캡처 (PCAP)가 실행되는 창에서 문제 해결에 도움이 될 것입니다.
+
+더 알아보기[WARP 로그 유지 창](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/warp-logs/#log-retention-window)더 알아보기.
+주요 특징
+
+#### 원격 캡처 시작
+
+<Render
+  file="dex/pcaps-run"
+  product="cloudflare-one"
+  params={{
+  bestPractice: 'You must select WARP Diagnostic Logs. You can also choose to run a PCAP and reproduce the issue in the window the PCAP is running to gain further network insight. The scope of this troubleshooting covers only WARP diagnostic logs. If not choosing PCAPs, reproduce the issue right before running diagnostics.'
+}}
+/>
+
+#### 원격 캡처 상태 확인
+
+<Render file="dex/pcaps-check" product="cloudflare-one" />
+
+#### 원격 캡처 다운로드
+
+<Render file="dex/pcaps-download" product="cloudflare-one" />
+
+진단 파일이 있으면[리뷰 키 파일](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/#3-review-key-files)계속 문제 해결.
+
+:::tip\[AI-assisted 문제 해결]
+
+더 보기[WARP 진단 해석기](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/warp-logs/#warp-diagnostics-analyzer-beta)기기의 WARP 진단 로그를 파싱하는 AI를 사용하여 중요한 사건을 요약하고, 가능성이 원인을 요약한 다음 단계를 추천합니다.
+
+실행 후[DEX 원격 캡처](#option-a-collect-logs-via-the-cloudflare-dashboard)WARP 진단을 위해:
+
+1. 오시는 길**관련 기사** > **디지털 경험**그리고 선택**중년부인**탭.
+2. 캡처 목록에서 캡처를 찾습니다.
+3. 다음 세 가지 아이콘을 선택하십시오.**주요연혁**> 선택**전망 WARP Diag**AI 요약을 생성합니다.
+
+이 분석기는 대시보드를 통해 수집된 로그를 위해 유효합니다.
+
+:::
+
+### Option B: CLI를 통해 로그 수집
+
+바탕 화면에 WARP 진단 로그 수집`warp-diag`로그인
+
+<Render file="warp/warpdiag-run" product="cloudflare-one" />
+
+:::tip\[최고의 연습]
+
+효과적으로 문제 해결하려면 Cloudflare는 실행하기 전에 문제가 발생하는 단계를 재구성하는 것이 좋습니다.`warp-diag`로그 내의 검토 단계의 타임스탬프를 유지.
+
+:::
+
+진단 파일이 있으면[리뷰 키 파일](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/#3-review-key-files)계속 문제 해결.
+
+## 3. 검토 키 파일
+
+WARP 진단 기록은 모든 MDM 정책 및 다른 소프트웨어 조정이 적용된 후에 장치에 최종 WARP 윤곽 그리고 상태를 붙잡습니다. 이 로그를 검토하면 잘못 구성 또는 예상치 못한 행동을 확인할 수 있습니다.
+
+<Stream
+  id="c29964ab3dcf7c3432ebb2b4e93c3aca"
+  title="WARP 진단 로그"
+  thumbnail="https://pub-d9bf66e086fb4b639107aa52105b49dd.r2.dev/Warp-diagnostics%20thumbnail.png"
+  showMoreVideos={false}
+  chapters={{
+        "Introduction": "0s",
+        "What are warp-diag files?": "44s",
+        "How to download and navigate warp-diag files": "1m16s",
+        "warp-status.txt": "2m06s",
+        "warp-settings.txt": "2m29s",
+        "daemon.log": "3m37s",
+        "Addition tips": "8m07s",
+        "Conclusion": "8m43s",
+      }}
+/>
+
+### WARP 상태를 검사하십시오
+
+자주 묻는 질문`warp-status.txt`WARP 연결을 검토하는 파일`warp-diag`수집되었습니다. 연결된 WARP 클라이언트는 다음과 같이 나타날 것입니다:
+
+```
+Ok(Connected)
+```
+
+WARP 클라이언트가 문제점을 경험하는 경우에, 과실은 장치에 WARP GUI에서 전시할 것입니다. 사용 방법[고객 오류](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/client-errors/)오류, 원인 및 해결책을 식별하는 문서.
+
+### WARP 설정 확인
+
+WARP 상태를 확인한 후, WARP의 설정을 검토하여 예상 구성이 적용된 경우 확인하십시오. 자주 묻는 질문`warp-settings.txt`WARP 클라이언트 설정을 검토하는 파일. 장치의 적용된 장치 단면도 및 쪼개지는 갱도 윤곽을 검사할 것입니다.
+
+#### 이름 \*`warp-settings.txt`이름 \*
+
+바탕 화면에 WARP 진단 로그를 찾아서 열고,`warp-settings.txt`파일. 다음 예제를 검토`warp-settings.txt`파일 및 아래의 내용의 설명.
+
+```txt
+Merged configuration:
+(derived)   Always On: true
+(network policy)    Switch Locked: false # If false, does not allow the user to turn off the WARP toggle and disconnect the WARP client
+(network policy)    Mode: WarpWithDnsOverHttps # The device's WARP mode, this mode is WARP with Gateway mode
+(network policy)    WARP tunnel protocol: WireGuard
+(default)   Disabled for Wifi: false
+(default)   Disabled for Ethernet: false
+(reg defaults)  Resolve via: 1xx0x1011xx000000000f0x00000x11.cloudflare-gateway.com @ [1xx.1xx.1x.1, 1x01:1x00:1x00::1xx1] # The SNI Cloudflare will use and the IP address for DNS-over-HTTPS (DoH) requests
+(user set)  qlog logging: Enabled
+(default)   Onboarding: true # If true, the user sees an onboarding prompt when they first install the WARP client
+(network policy)    Exclude mode, with hosts/ips: # Split tunnel configuration
+  1xx.1xx.1xx.1xx/25 (zoom)
+...
+  cname.user.net
+
+(network policy)    Fallback domains: # Local domain fallback configuration
+  intranet
+...
+  test
+(not set)   Daemon Teams Auth: false
+(network policy)    Disable Auto Fallback: false
+(network policy)    Captive Portal: 180
+(network policy)    Support URL: my-organizations-support-portal.com # Your organization's support portal or IT help desk
+(user set)  Organization: Organization-Name
+(network policy)    Allow Mode Switch: true  # The user is allowed to switch between WARP modes
+(network policy)    Allow Updates: false # WARP client will not perform update checks
+(network policy)    Allowed to Leave Org: true
+(api defaults)  Known apple connectivity check IPs: xx.xxx.0.0/16;
+(network policy)    LAN Access Settings: Allowed until reconnect on a /24 subnet # The maximum size of network that will be allowed when Access Lan is clicked.
+(network policy)    Profile ID: 000000x1-00x1-1xx0-1xx1-11101x1axx11
+```
+
+:::tip\[빠른 디버깅]
+
+명령을`warp-cli settings`터미널에서 존재하는 동일한 정보를 생성합니다.`warp-settings.txt`파일.
+
+:::
+
+#### 관련 기사`warp-settings.txt`이름 \*
+
+필드의 의미를 검토`warp-settings.txt`문제 해결에 관련이 있습니다.
+
+##### 항상 에
+
+GUI의 WARP toggle의 현재 상태를 참조하십시오. 예를 들어, WARP toggle는 켜집니다.
+
+```txt
+Always On: true
+```
+
+##### 스위치 Locked
+
+관련 기사[자물쇠 WARP 스위치](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#lock-warp-switch)사용자가 WARP 스위치를 해제하고 클라이언트를 분리 할 수 있습니다. 예제 파일에서 값은`false`사용자가 재량에 WARP 스위치를 켜거나 꺼낼 수 있습니다.
+
+```txt
+Switch Locked: false
+```
+
+잠금 WARP 스위치가 활성화되면 (`true`), 사용자는 필요로 할 것입니다[관리자 override 코드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-admin-override-codes)일시적으로 자신의 장치에 WARP를 끄십시오.
+
+##### 주요 특징
+
+관련 기사[WARP 형태](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/)장치가 사용됩니다. 예 파일에서 WARP 모드는`WarpWithDnsOverHttps`교통 및 DNS 모드입니다. 더 알아보기[WARP 형태 비교 모체](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/)당신의 이름`warp-settings.txt`file's value with the mode 이름.
+
+```txt
+Mode: WarpWithDnsOverHttps
+```
+
+##### 호스트 / ips와 함께 모드 제외
+
+당신의 의견[연락처](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)설정. 예를 들어 파일에서 WARP는 예외 모드에서 실행되며, 이러한 호스트에 대한 트래픽을 제외하고 모든 트래픽을 의미하며 IP는 WARP 터널을 통해 전송됩니다. 이름 \*`cname.user.net`IP 정보`1xx.1xx.1xx.1xx/25 `WARP 터널에서 제외됩니다.
+
+```txt
+Exclude mode, with hosts/ips:
+  1xx.1xx.1xx.1xx/25 (zoom)
+...
+  cname.user.net
+```
+
+:::note\[Exclude 모드 versus 포함 모드]
+`Exclude mode`모든 트래픽은 IP 및 도메인을 제외하고 WARP 터널을 통해 전송됩니다.
+
+`Include mode`WARP 터널을 통해 지정한 IP 또는 도메인에만 트래픽이 전송됩니다.
+주요 특징
+
+##### Fallback 도메인
+
+당신의 의견[지역 도메인 Fallback](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/local-domains/)설정. 예 파일에서 WARP 목록`intranet`처리할 게이트웨이로 전송되지 않는 도메인으로 설정된 fallback 서버에 직접 전송됩니다.
+
+```txt
+(network policy)    Fallback domains:
+  intranet
+...
+```
+
+##### 허용 모드 스위치
+
+관련 기사[모드 스위치](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#mode-switch)설정. 예를 들어, 모드 스위치가 활성화됩니다 (`true`) 사용자가 사이에서 전환 할 수있는 옵션이 있음[교통 및 DNS 모드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#traffic-and-dns-mode-default)모드 및[DNS-over-HTTPS(DoH) 게이트웨이](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-modes/#dns-only-mode)모드.
+
+```txt
+Allow Mode Switch: true
+```
+
+##### 자주 묻는 질문
+
+관련 기사[업데이트](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-updates)설정. 예를 들어 파일에서 업데이트 설정을 설정할 수 있습니다.`false`사용자가 WARP 클라이언트의 새로운 버전이 유효하고 승인 관리자없이 WARP를 업데이트 할 수없는 경우 업데이트 알림을받지 않습니다.
+
+```txt
+Allow Updates: false
+```
+
+##### Org를 남기기 위해 허용
+
+관련 기사[조직을 떠나는 장치](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-device-to-leave-organization)설정. 예제 파일에서 값은 설정된다.`true`사용자는 Zero Trust 조직에서 로그아웃 할 수 있습니다.
+
+```txt
+Allowed to Leave Org: true
+```
+
+##### LAN 액세스 설정
+
+관련 기사[사용자를 허용 로컬 네트워크 exclusion](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-users-to-enable-local-network-exclusion)설정. 활성화되면 WARP 터널에서 감지 된 로컬 서브넷을 제외하고 사용자가 일시적으로 로컬 장치 ( 프린터와 같은)에 액세스 할 수 있습니다. 이 예제는 다음 WARP 재연결까지 액세스가 허용되며 하위넷에만 해당됩니다.`/24`.
+
+```txt
+LAN Access Settings: Allowed until reconnect on a /24 subnet
+```
+
+##### 프로필 ID
+
+관련 기사[회사소개](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)장치가 사용됩니다. 이 예에서 ID는`000000x1-00x1-1xx0-1xx1-11101x1axx11`.
+
+```txt
+Profile ID: 000000x1-00x1-1xx0-1xx1-11101x1axx11
+```
+
+## 4. 일반적인 misconfigurations 수정
+
+WARP가 구성되고 제대로 작동하도록 확인하려면 다음을 검토하십시오.
+
+1. 이름 \*[잘못된 프로필 ID](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/#edit-your-device-profile-match-rules)장치에 적용?
+2. 이름 \*[잘못된 분할 터널 구성](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/#wrong-split-tunnel-configuration)장치에서 활동?
+
+### 잘못된 프로필 ID
+
+프로필 ID는 각각에 할당된 고유 식별자입니다.[회사소개](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/)Cloudflare 하나 대시보드에서, 어떤 윤곽 조정이 장치에 적용하는 것을 결정하기 위하여 사용해.
+
+#### 적용된 장치 프로파일 확인
+
+적용된 장치 단면도가 예정된 장치 단면도임을 확인하기 위하여:
+
+1. 오시는 길[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/) > **팀 & 자원** > **제품정보** > **회사소개** > **일반 프로필**.
+2. 장치를 위한 기기 프로파일을 찾아 선택하고 선택합니다.
+3. 이름 \***회사연혁**, 표시된 비교**프로필 ID**이름 \*`Profile ID`내 계정`warp-settings.txt`파일.
+
+조직이 Cloudflare One 대시보드에 정의 된 여러 장치 프로파일을 가지고 있다면, 장치가 예상치 못한 프로필에 일치 할 수 있으므로 :
+
+- 이름 \*[프로파일 precedence](#review-profile-precedence)설정한다.
+- [관리 네트워크](#review-your-managed-network-settings)문제 (관리된 네트워크를 사용하는 경우.)
+- 사용자 그룹[뚱 베어](#check-a-users-group-membership).
+- Lack의[정확한 일치 규칙](#edit-your-device-profile-match-rules).
+
+#### 자주 묻는 질문
+
+<Render file="warp/device-profile-order-of-precedence" product="cloudflare-one" />
+
+:::카트로션
+제품 정보[관련 상품](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/#order-of-precedence)다른 사용자에 영향을 미치지 않습니다.
+주요 특징
+
+#### 관리된 네트워크 설정 검토
+
+·[관리 네트워크](/cloudflare-one/team-and-resources/devices/warp/configure-warp/managed-networks/)TLS 엔드포인트를 정의하는 네트워크 위치는 물리적 사무실과 같습니다. WARP 클라이언트는 그것의 위치를 결정하기 위하여 이 TLS 엔드포인트를 검사하고 대응 장치 단면도를 적용합니다.
+
+관리 네트워크가 misconfigured 또는 TLS 엔드포인트가 제한되지 않은 경우, 장치가 무인화 된 프로파일로 돌아올 수 있습니다.
+
+관리 네트워크 문제에 대한 WARP 문제 해결 :
+
+1. endpoint를 정의할 수 있습니다.
+
+   WARP 클라이언트는 네트워크를 식별하기 위해 TLS 엔드포인트에 연결됩니다. 엔드포인트가 다운되거나 제한되지 않는 경우, WARP 클라이언트는 네트워크를 감지하고 잘못된 프로필을 적용하지 못합니다.
+
+   <Render file="warp/managed-networks-sha-256" product="cloudflare-one" />
+
+   endpoint가 다운되면 수신됩니다.`Could not find certificate from <stdin>`응답.
+
+   반환된 SHA-256 지문을 받은 경우:
+
+   1. 로그인[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/)·**팀 & 자원** > **제품정보** > **회사소개**.
+   2. 오시는 길**관리 네트워크** > **제품정보**.
+   3. 대시보드에서 TLS Cert SHA-256을 비교하여 터미널에서 반품 된 지문을 사용하여 일치합니다.
+
+2. 단일 위치에 대한 단일 프로파일을 사용합니다.
+
+   관리를 단순화하고 오류를 방지하기 위해 여러 관리 된 네트워크 프로필을 동일한 위치에 생성합니다. 예를 들어, 하나의 사무실에서 여러 TLS 엔드 포인트가 있다면, 단일 장치 프로파일에 모두 연결하십시오. 구성 오류로 인해 무인화 된 프로파일과 일치하는 장치의 위험을 줄일 수 있습니다.
+
+#### 사용자 그룹 회원 확인
+
+사용자가 장치 프로필에 문제가있는 경우 올바른 사용자 그룹의 일부가 없기 때문에 발생할 수 있습니다. 조직이 자동 정체 공급자 (IdP) 업데이트를 위해 SCIM을 사용하지 않을 때 발생할 수 있습니다.
+
+사용자가 의도한 그룹에 속한 것을 확인하려면:
+
+1. 로그인[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/)> 이동**팀 & 자원** > **이름 \***.
+2. 사용자 선택
+3. 이름 \***사용자 등록 ID**, 사용자의 이름을 선택합니다.
+4. 더 보기**Get-identity 엔드포인트**모든 그룹 목록은 사용자에 속합니다.
+
+사용자가 최근에 그룹에 추가된 경우, reauthenticate 엔드포인트에 로그인하여 Cloudflare Zero Trust의 그룹 멤버십을 갱신해야 할 수 있습니다.
+
+<Render file="warp/manually-reauth" product="cloudflare-one" />
+
+#### 장치 프로파일 일치 규칙
+
+장치 프로파일의 일치 규칙을 수정하려면 장치 프로파일을 편집해야합니다. 장치 프로파일을 편집하려면:
+
+<Render file="warp/edit-profile-settings" product="cloudflare-one" />
+
+:::참조
+
+Identity-based selectors는 사용자의 경우에만 유효합니다[장치 등록](/cloudflare-one/team-and-resources/devices/warp/deployment/manual-deployment/)ID 공급자 (IdP)에 로그인하십시오.
+
+:::
+
+### 잘못된 분할 터널 구성
+
+<Render file="warp/split-tunnel-intro" product="cloudflare-one" />
+
+잘못된 구성[연락처](/cloudflare-one/team-and-resources/devices/warp/configure-warp/route-traffic/split-tunnels/)연결 문제를 일으킬 수 있습니다.
+
+예를 들어 IP 및 도메인 제외 모드를 설정하고 애플리케이션에 필요한 IP 주소를 실수로 제외하면 해당 애플리케이션이 제대로 동작하지 않을 수 있습니다. 반대로 IP 및 도메인 포함 모드에서 필요한 IP 또는 도메인을 포함하지 않으면 트래픽이 WARP를 우회하게 되고, Zero Trust 보안 기능에 대한 액세스를 잃게 됩니다.
+
+#### 1. 적용된 분할 갱도 윤곽을 검사하십시오
+
+WARP 진단 로그를 다운로드한 후에, 당신의 윤곽이 예정대로 작동한다는 검토:
+
+1. 자주 묻는 질문`warp-settings.txt`파일 및 찾기`Exclude mode, with hosts/ips:`또는`Include mode, with hosts/ips:`.
+
+   :::note\[Exclude 모드 versus 포함 모드]
+   `Exclude mode`모든 트래픽은 IP 및 도메인을 제외하고 WARP 터널을 통해 전송됩니다.
+
+   `Include mode`WARP 터널을 통해 지정한 IP 또는 도메인에만 트래픽이 전송됩니다.
+   주요 특징
+
+2. 로그인[모델 번호: Cloudflare 한국어](https://one.dash.cloudflare.com/), 이동**팀 & 자원** > **제품정보** > **회사소개** > **일반 프로필**.
+
+3. 장치를 위한 기기 프로파일을 찾아 선택하고 선택합니다.
+
+4. 제품정보**제품정보**.
+
+5. 제품정보**분할 터널**선택한 모드를 참고 > 선택**계정 관리**.
+
+6. 크로스 - 참고 자료 당신은 Cloudflare 하나 대시보드에서 IPs/hosts에 목록으로 만들어진 IPs/hosts로 구성했습니다`warp-settings.txt`.
+
+대시보드 분할 갱도 윤곽이 당신의 일치하지 않는 경우에`warp-settings.txt`파일 구성, 당신은 WARP 클라이언트를 강제할 필요가 있을지도 모릅니다[설정 업데이트](/cloudflare-one/team-and-resources/devices/warp/troubleshooting/troubleshooting-guide/#update-the-warp-clients-settings).
+
+#### 2. WARP 클라이언트의 조정을 업데이트하십시오
+
+분할 터널 구성이면`warp-settings.txt`대시보드와 일치하지 않습니다, 당신은 최신 설정을 fetch하기 위해 WARP 클라이언트를 강제할 수 있습니다.
+
+최종 사용자를 지시하여 수행 할 수 있습니다.[toggle WARP 오프 및 에](#option-a-toggle-warp-off-and-back-on), 또는[암호화 키를 재설정](#option-b-reset-the-encryption-keys).
+
+두 방법 모두 클라이언트를 최신 구성으로 업데이트합니다.
+
+##### 선택권 A: Disconnect와 reconnect 클라이언트
+
+<Tabs>
+  <TabItem label="버전 2026.2+">
+    1. 최종 사용자 장치에서 Cloudflare를 엽니 다 1개의 클라이언트 및 선택**연결하기**.
+
+    :::노트\[ 최종 사용자가 차단할 수 없는 경우?]
+    최종 사용자가 볼 수없는 경우[연결 버튼](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#lock-warp-switch), 그들은 입력해야합니다[관리자 override 코드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-admin-override-codes).
+
+    [암호화 키 재설정](#option-b-reset-the-encryption-keys)더 빠른 솔루션이 될 수 있습니다.
+    주요 특징
+
+    2. 제품정보**연결하기**.
+  </TabItem>
+
+  <TabItem label="버전 2026.1 및 이전">
+    1. 최종 사용자 장치에서 WARP GUI 및 toggle WARP를 엽니다.
+
+    :::note\[마지막 사용자가 WARP를 해제할 수 없는 경우?]
+    최종 사용자의 경우[WARP 스위치](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#lock-warp-switch)잠겨, 그들은 필요로 할 것입니다[관리자 override 코드](/cloudflare-one/team-and-resources/devices/warp/configure-warp/warp-settings/#allow-admin-override-codes)WARP 스위치를 toggle 할 수 있습니다.
+
+    [암호화 키 재설정](#option-b-reset-the-encryption-keys)더 빠른 솔루션이 될 수 있습니다.
+    주요 특징
+
+    2. 토글 WARP 다시.
+  </TabItem>
+</Tabs>
+
+클라이언트는 연결될 때 새로운 조정을 fetch할 것입니다.
+
+##### 옵션 B : 암호화 키를 재설정
+
+최종 사용자의 데스크톱에서 암호화 키를 재설정하려면:
+
+<Render file="warp/reset-encryption-keys" product="cloudflare-one" />
+
+## 5. 도움 받기
+
+<Render file="warp/support-ticket-best-practices" product="cloudflare-one" />

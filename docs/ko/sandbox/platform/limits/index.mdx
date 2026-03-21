@@ -1,0 +1,64 @@
+---
+title: 제한 사항
+pcx_content_type: reference
+sidebar:
+  order: 2
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/sandbox/platform/limits/'
+translation_source_md: 'https://developers.cloudflare.com/sandbox/platform/limits/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { WranglerConfig } from "~/components";
+
+Sandbox SDK가 상단에 내장되어 있기 때문에[회사 소개](/containers/)플랫폼, 그것은 동일한 underlying 플랫폼 특성을 공유합니다. 이 페이지를 참조하여 가격과 한계가 샌드박스 배포에 대해 이해합니다.
+
+## 컨테이너 제한
+
+더 알아보기[컨테이너 제한](/containers/platform-details/limits/)완전한 세부사항을 위해:
+
+- 메모리, vCPU 및 동시 컨테이너 인스턴스의 디스크 한계
+- Instance 유형과 자원 할당
+- 이미지 크기 및 저장 한계
+
+## Workers 및 Durable Objects 제한
+
+Workers 또는 Durable ObjectsXQXQ에서 Sandbox SDK를 사용할 때, 대상이 됩니다.[Workers 잠수함 한계](/workers/platform/limits/#subrequests). 기본적으로 SDK는 각 작업이 있는 HTTP 수송을 사용합니다.`exec()`, `readFile()`, `writeFile()`, 등)는 1개의 subrequest로 계산합니다.
+
+### 구독 제한
+
+- **Workers 무료 다운로드**: 50 요청 당 하위 요청
+- **Workers 계정 만들기**: 요청당 1,000개의 하위 요청
+
+### WebSocket 운송에 제한을 피하십시오.
+
+다중화에 WebSocket 수송을 가능하게 합니다 모든 SDK는 단일 지속 가능한 연결을 호출:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"vars": {
+  		"SANDBOX_TRANSPORT": "websocket"
+  	},
+  }
+  ```
+</WranglerConfig>
+
+WebSocket 운송을 사용하여:
+
+- WebSocket 업그레이드는 1개의 subrequest로 계산됩니다.
+- 모든 후속 SDK 작업은 기존의 연결을 사용합니다 (추가 subrequests 없음)
+- 요청 당 많은 SDK 작업과 작업 흐름에 이상적입니다.
+
+이름 \*[수송 형태](/sandbox/configuration/transport/)전체 가이드
+
+## 좋은 관행
+
+이 한계 안에 일하기 위하여:
+
+- **사용자 지정**- 적절한 선택[인스턴스 유형](/containers/platform-details/limits/#instance-types)당신의 workload 필요조건에 기초를 두어
+- **사용되지 않은 샌드 박스를 청소**- Sandbox 세션을 종료하면 더 이상 리소스를 무료로 사용할 필요가 없습니다.
+- **이미지 최적화**- 유지[사용자 정의 Dockerfiles](/sandbox/configuration/dockerfile/)이미지 크기를 줄이기 위해 린
+- **고주파 작업을위한 WebSocket 운송**- 사용`SANDBOX_TRANSPORT=websocket`요청 당 많은 SDK 호출을 만들 때 subrequest limit를 방지하기 위해

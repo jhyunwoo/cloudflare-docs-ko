@@ -1,0 +1,65 @@
+---
+pcx_content_type: reference
+title: 스캔 및 침투 테스트 정책
+---
+
+import { GlossaryTooltip } from "~/components";
+
+고객은 Cloudflare 정책을 준수하는 한, Cloudflare 계정 내 [zone](/fundamentals/concepts/accounts-and-zones/#zones)과 같은 자신이 소유한 자산의 애플리케이션 및 네트워크 계층 측면에 대해(일부 제한 조건하에) 스캔과 침투 테스트를 수행할 수 있습니다.
+
+## 허용되는 대상
+
+모든 스캔 또는 테스트는 다음 대상으로 제한되어야 합니다.
+
+- 고객이 소유한 IP
+- Cloudflare가 지정한 공개 IP
+- 고객이 등록한 DNS 항목
+
+`*.cloudflare.com` 또는 기타 Cloudflare 소유 대상은 Cloudflare Public Bug Bounty 프로그램의 일부로만 허용됩니다. 자세한 내용은 [추가 리소스](#추가-리소스) 섹션을 참조하십시오.
+
+## 스캔
+
+- **스로틀링**: 스캔은 중단을 방지하고 시스템 성능을 안정적으로 유지하기 위해 합리적인 속도로 제한해야 합니다.
+- **범위와 의도**: 스캔은 발견된 취약점을 적극적으로 악용하려 하지 않고, 취약점의 존재를 식별하는 데 그쳐야 합니다.
+- **제외 항목**: 오탐이나 무의미한 결과를 피하기 위해 스캔에서 [`/cdn-cgi/` 엔드포인트](/fundamentals/reference/cdn-cgi-endpoint/)를 제외하는 것이 좋습니다.
+- **규정 준수 점검**: 고객은 [PCI 규정 준수 스캔](/fundamentals/security/pci-scans/)을 수행하거나 [알려진 취약점](/ssl/reference/compliance-and-vulnerabilities/#known-vulnerabilities-mitigations)이 해결되었는지 확인할 수 있습니다.
+
+## 침투 테스트
+
+[zone](/fundamentals/concepts/accounts-and-zones/#zones)에 대한 침투 테스트를 시작하기 전에, 테스트를 실행할 각 zone에 대해 다음 애플리케이션 보안 구성을 설정하십시오.
+
+1. [Cloudflare Managed Ruleset을 배포](/waf/managed-rules/reference/cloudflare-managed-ruleset/#deploy-in-the-dashboard)하고, 규칙 세트의 [모든 규칙을 활성화](/waf/managed-rules/reference/cloudflare-managed-ruleset/#ruleset-level-configuration)하여 **Ruleset status**를 **Enabled**로 설정합니다.
+
+2. [Cloudflare OWASP Core Ruleset을 배포](/waf/managed-rules/reference/owasp-core-ruleset/configure-dashboard/#deploy-in-the-dashboard)하고 다음 [ruleset 구성](/waf/managed-rules/reference/owasp-core-ruleset/configure-dashboard/#ruleset-level-configuration)을 설정합니다.
+   - **Paranoia Level**: _PL4_
+   - **Score threshold**: _High - 25 and higher_
+
+3. [WAF attack score](/waf/detections/attack-score/)에 기반한 [사용자 지정 규칙](/waf/custom-rules/create-dashboard/)을 만들어 공격으로 간주되는 요청(WAF attack score 1~20)을 차단합니다. 예시는 [WAF attack score](/waf/detections/attack-score/#1-create-a-custom-rule) 문서를 참조하십시오.
+
+4. [악성 업로드 탐지](/waf/detections/malicious-uploads/)에 기반한 [사용자 지정 규칙](/waf/custom-rules/create-dashboard/)을 만들어 악성으로 간주되는 <GlossaryTooltip term="content object">콘텐츠 객체</GlossaryTooltip>를 포함한 요청을 차단합니다. 이러한 위협을 완화하는 데 사용되는 사용자 지정 규칙의 예시는 [예제 규칙](/waf/detections/malicious-uploads/example-rules/#block-requests-to-uri-path-with-a-malicious-content-object)을 참조하십시오.
+
+5. Bot Management가 없는 Pro 및 Business 플랜에서는 [Super Bot Fight Mode를 활성화](/bots/get-started/super-bot-fight-mode/#enable-super-bot-fight-mode)하십시오.<br/>
+   Bot Management에 접근할 수 있는 고객은 [Bot Management가 활성화되어 있는지](/bots/get-started/bot-management/#enable-bot-management-for-enterprise) 확인해야 합니다(권한이 있는 zone에서는 기본적으로 활성화됨).
+
+6. 테스트 중인 zone의 핵심 엔드포인트를 보호하기 위해 [rate limiting 규칙을 생성](/waf/rate-limiting-rules/create-zone-dashboard/)합니다. 예제 구성은 [Rate limiting rule examples](/waf/rate-limiting-rules/use-cases/)와 [Rate limiting best practices](/waf/rate-limiting-rules/best-practices/)를 참조하십시오.
+
+계정이나 zone에서 활성화된 다른 Cloudflare 보안 및 성능 기능, 구성, 규칙이 테스트 결과에 영향을 줄 수 있다는 점을 유의하십시오.
+
+테스트를 완료한 후에는 보안 태세를 검토하고, 결과에 따라 필요한 조정을 수행할 것을 권장합니다.
+
+### 중요 참고 사항
+
+- Cloudflare의 [애니캐스트 네트워크](/fundamentals/concepts/how-cloudflare-works/)는 공유 인프라와 Cloudflare 프록시의 특성 때문에 `80` 및 `443` 이외의 포트도 열려 있는 것으로 보고합니다. 이는 예상된 동작이며 취약점을 의미하지 않습니다.
+
+- Netcat과 같은 도구는 [비표준 HTTP 포트](/fundamentals/reference/network-ports/)를 열린 것으로 표시할 수 있습니다. 그러나 이러한 포트는 Cloudflare 라우팅 목적상 열려 있을 뿐이며, 반드시 고객 원본과의 연결이 성립함을 의미하지는 않습니다.
+
+- **알려진 오탐**: 고객 자산이 Cloudflare 뒤에 있는 경우 [ROBOT 취약점](/ssl/reference/compliance-and-vulnerabilities/#return-of-bleichenbachers-oracle-threat-robot)과 관련된 모든 탐지 결과는 오탐입니다.
+
+## 서비스 거부(DoS) 테스트
+
+필수 통지 및 필요한 정보에 대한 지침은 [테스트 DDoS 공격 시뮬레이션](/ddos-protection/reference/simulate-ddos-attack/)을 참조하십시오. 고객은 또한 Cloudflare의 [DDoS 보호 모범 사례](/ddos-protection/best-practices/)를 숙지해야 합니다.
+
+## 추가 리소스
+
+- 고객은 [대시보드](/fundamentals/reference/policies-compliances/compliance-docs/)를 통해 최신 Cloudflare 침투 테스트 보고서를 다운로드할 수 있습니다.
+- Cloudflare Public Bug Bounty 프로그램에 대한 정보는 [HackerOne](https://hackerone.com/cloudflare)을 방문하십시오.

@@ -1,0 +1,128 @@
+---
+pcx_content_type: configuration
+title: Salesforce Commerce 클라우드
+head:
+  - tag: title
+    content: Salesforce Commerce Cloud | 공급자 가이드
+description: Salesforce Commerce Cloud로 엔터프라이즈 영역을 구성하는 방법을 알아보십시오.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/provider-guides/salesforce-commerce-cloud/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/provider-guides/salesforce-commerce-cloud/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Details, Render, DashButton } from "~/components";
+
+<Render file="provider-guide-intro" product="cloudflare-for-platforms" params={{ providerName: "Salesforce Commerce Cloud" }} />
+
+## 이름 \*
+
+<Render file="provider-guide-benefits" product="cloudflare-for-platforms" params={{ providerName: "Salesforce Commerce Cloud" }} />
+
+## 어떻게 작동합니까?
+
+O2O가 활성화되면 트래픽 경로에 대한 자세한 내용은 참조[O2O는 어떻게 작동합니까?](/cloudflare-for-platforms/cloudflare-for-saas/saas-customers/how-it-works/).
+
+## 이름 \*
+
+O2O를 활성화하려면 다음을 요구합니다.
+
+1. SFCC 프록시 영역으로 SFCC 환경을 구성해야 합니다. 현재 "SFCC Legacy Zone"이 있다면 O2O를 활성화 할 수 없습니다.
+   - SFCC 구성의 다른 유형에 대한 자세한 내용은 참조[SFCC 프록시 영역에서 Salesforce FAQ](https://help.salesforce.com/s/articleView?id=cc.b2c_ecdn_proxy_zone_faq.htm\&type=5).
+   - SFCC Proxy Zone에 SFCC 환경을 마이그레이션하는 방법에 대한 지침은 참조[SFCC Legacy Zone to SFCC 프록시 영역 마이그레이션 가이드](https://help.salesforce.com/s/articleView?id=cc.b2c_migrate_legacy_zone_to_proxy_zone.htm\&type=5).
+2. 엔터프라이즈 플랜의 Cloudflare 영역.
+
+위의 요구 사항을 충족하면 O2O는 호스트 이름 당 활성화 할 수 있습니다. Cloudflare 영역 내에서 특정 호스트 이름을 위해 O2O를 활성화하려면[지원하다](/dns/manage-dns-records/how-to/create-dns-records/#create-dns-records)SFCC 비즈니스 관리자가 제공하는 CNAME의 대상을 가진 Proxied CNAME DNS 레코드, 이는 SFCC 고객에 의해 사용되는 대시보드이다.
+
+SFCC Business Manager가 제공하는 CNAME은`commcloud.prod-abcd-example-com.cc-ecdn.net`그리고 3개의 명백한 부속을 포함합니다. SFCC에 각 hostname 라우팅 트래픽을 위해 SFCC 환경에 맞는 예를 들어 CNAME의 각 부분을 업데이트해야합니다.
+
+1. **환경 정책**: `prod`본문 바로가기`prod`또는`dev`또는`stg`.
+2. **뚱 베어**: `abcd`SFCC에 의해 할당된 Realm ID로 변경되어야 합니다.
+3. **도메인 이름**: `example-com`도메인 이름을 hyphenated 형식으로 변경해야합니다.
+
+| 제품정보    | 이름 \*             | 제품정보                                          | 프록시 상태 |
+| ------- | ----------------- | --------------------------------------------- | ------ |
+| `CNAME` | `<YOUR_HOSTNAME>` | `commcloud.prod-abcd-example-com.cc-ecdn.net` | 견적 요청  |
+
+O2O를 위해 제대로 구성하려면 SFCC CNAME을 대상으로 적절한 DNS 레코드를 확인하십시오.**기타 제품**. SFCC CNAME을 직접 타겟팅하여 Cloudflare 영역에서 다른 Proxied DNS 레코드를 타겟팅하여 SFCC CNAME을 타겟팅하지 마십시오.
+
+<Details header="정확한 구성">
+  예를 들어, hostnames가 SFCC에 트래픽을 올리는 경우`www.example.com`·`preview.example.com`, 다음은**견적 요청**Cloudflare 영역에 있는 윤곽:
+
+  | 제품정보    | 이름 \*                 | 제품정보                                          | 프록시 상태 |
+  | ------- | --------------------- | --------------------------------------------- | ------ |
+  | `CNAME` | `www.example.com`     | `commcloud.prod-abcd-example-com.cc-ecdn.net` | 견적 요청  |
+  | `CNAME` | `preview.example.com` | `commcloud.prod-abcd-example-com.cc-ecdn.net` | 견적 요청  |
+</Details>
+
+<Details header="잘못된 구성">
+  그리고, 다음은**이름 \***&#xC124;정하기`preview.example.com`간접적으로 SFCC CNAME을 통해 대상`www.example.com`Proxied DNS 레코드, 이는 O2O가 hostname에 제대로 활성화되지 않습니다`preview.example.com`:
+
+  | 제품정보    | 이름 \*                 | 제품정보                                          | 프록시 상태 |
+  | ------- | --------------------- | --------------------------------------------- | ------ |
+  | `CNAME` | `www.example.com`     | `commcloud.prod-abcd-example-com.cc-ecdn.net` | 견적 요청  |
+  | `CNAME` | `preview.example.com` | `www.example.com`                             | 견적 요청  |
+</Details>
+
+## 제품 호환성
+
+<Render file="provider-guide-compatibility" product="cloudflare-for-platforms" />
+
+## 지역 파악
+
+<Render file="provider-guide-zone-hold" params={{ providerName: "Salesforce Commerce Cloud" }} product="cloudflare-for-platforms" />
+
+## 추가 지원
+
+<Render file="provider-guide-help" product="cloudflare-for-platforms" params={{ providerName: "Salesforce Commerce Cloud" }} />
+
+### Cloudflare 관리 인증서
+
+Cloudflare 관리 인증서를 활성화하려고 시도 할 때 SSL 오류가 발생하면 확인`CAA`명령으로 도메인 이름에 기록`dig +short example.com CAA`.
+
+당신이해야 할 경우`CAA`기록, SSL 인증서를 발급받을 수 있는지 확인[Cloudflare에 의해 지원되는 증명서 권위](/ssl/reference/certificate-authorities/).
+
+### Best Practice Zone-level 구성
+
+1. 설치하기**최소 TLS 버전**으로**사이트맵**
+   1. 오시는 길[**Edge 인증서**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/edge-certificates)페이지, 스크롤 다운 찾기**최소 TLS 버전**, 그리고 그것을에 놓으십시오*사이트맵*. 이 설정은 영역에서 모든 Proxied DNS 레코드에 적용됩니다.
+2. 경기 경기**보안 수준**설정하기**SFCC 비즈니스 관리자**
+   1. *선택권 1: 지역 수준*- 바로가기[**계정 설정**](https://dash.cloudflare.com/?to=/:account/:zone/security/settings)보안 아래 페이지, 찾기**보안 수준**그리고 세트**보안 수준**설정된 것을 일치**SFCC 비즈니스 관리자**. 이 조정은 당신의 Cloudflare 지역에 있는 각 Proxied DNS 기록에 적용합니다.
+   2. *선택권 2: Proxied DNS 기록 당*- 만약**보안 수준**SFCC 환경과 Cloudflare 영역의 다른 Proxied DNS 레코드를 대상으로 한 Proxied DNS 레코드와 다릅니다.**구성 규칙**설정하기**보안 수준**SFCC 환경을 대상으로 한 Proxied DNS 레코드에 특히. 예를 들면:
+      1. 새로운 기능**구성 규칙**에 의해[**규칙 개요**](https://dash.cloudflare.com/?to=/:account/:zone/rules/overview)본문 바로가기**규칙 만들기**이름 \***구성 규칙**:
+         1. **규칙 이름:** `Match Security Level on SFCC hostnames`
+         2. **유형:** *이름 \**
+         3. **모델 번호:** *로그인*(이것은 지정된 여러 호스트 이름에 대해 일치합니다.**제품정보**분야)
+         4. **가치:** `www.example.com` `dev.example.com`
+         5. 기타 제품**보안 수준**자주 묻는 질&#xBB38;**+ 추가**
+            1. **보안 수준 선택:** *한국어*(이것은 일치해야합니다.**보안 수준**설정하기**SFCC 비즈니스 관리자**)
+         6. 페이지 하단에 스크롤하고 클릭**계정 만들기**
+3. 사용 방법**브라우저 Integrity Check**
+   1. *선택권 1: 지역 수준*- 바로가기[**계정 설정**](https://dash.cloudflare.com/?to=/:account/:zone/security/settings)보안 아래 페이지, 찾기**브라우저 Integrity Check**그리고 toggle 그것 떨어져서 disable 그것. 이 설정은 Cloudflare 영역에 모든 Proxied DNS 레코드에 적용됩니다.
+   2. *선택권 2: Proxied DNS 기록 당*- 유지하려는 경우**브라우저 Integrity Check**Cloudflare 영역에서 다른 Proxied DNS 레코드를 활성화하지만 SFCC 환경을 대상으로 Proxied DNS 레코드에서 비활성화하려면 Zone-level을 유지하십시오.**브라우저 Integrity Check**기능 활성화 및 사용**구성 규칙**관련 기사**브라우저 Integrity Check**SFCC 환경을 타겟팅하는 호스트 이름에 특히 적합합니다. 예를 들면:
+      1. 새로운 기능**구성 규칙**에 의해[**규칙 개요**](https://dash.cloudflare.com/?to=/:account/:zone/rules/overview)본문 바로가기**규칙 만들기**이름 \***구성 규칙**:
+         1. **규칙 이름:** `Disable Browser Integrity Check on SFCC hostnames`
+         2. **유형:** *이름 \**
+         3. **모델 번호:** *로그인*(이것은 지정된 여러 호스트 이름에 대해 일치합니다.**제품정보**분야)
+         4. **가치:** `www.example.com` `dev.example.com`
+         5. 기타 제품**브라우저 Integrity Check**자주 묻는 질&#xBB38;**+ 추가**단추:
+            1. toggle 설정**이름 \***(회색 X가 표시됩니다)
+         6. 페이지 하단에 스크롤하고 클릭**계정 만들기**
+4. 비밀번호**캐시**SFCC 환경을 대상으로 한 Proxied DNS 레코드
+   1. SFCC 환경, 또한 호출**뚱 베어**, 많은 SFCC 프록시 존에 하나 포함, 어디 캐싱 항상 발생. 귀하의 도메인에 대한 대응 SFCC 프록시 영역에서 SFCC는 자신의 캐시 최적화를 수행하므로 Cloudflare 영역에서 Proxied DNS 레코드에 캐시를 우회하는 것이 좋습니다. SFCC 환경을 대상으로하는 "더블 캐싱" 시나리오. 이것은 수행 할 수 있습니다**캐시 규칙**.
+   2. 만약에**캐시 규칙**생성되지 않습니다, 캐싱은 Cloudflare 영역과 해당 SFCC 프록시 영역 모두에서 발생하며, 캐시가 SFCC 환경에서 유효하거나 순화 될 때 문제가 발생할 수 있습니다.
+      1. SFCC 환경에서의 캐싱에 대한 추가 정보는[SFCC의 내용 캐시 문서](https://developer.salesforce.com/docs/commerce/b2c-commerce/guide/b2c-content-cache.html)
+   3. 새로운 기능**캐시 규칙**에 의해[**규칙 개요**](https://dash.cloudflare.com/?to=/:account/:zone/rules/overview)본문 바로가기**규칙 만들기**이름 \***캐시 규칙**:
+      1. **규칙 이름:** `Bypass cache on SFCC hostnames`
+      2. **유형:** *이름 \**
+      3. **모델 번호:** *로그인*(이것은 지정된 여러 호스트 이름에 대해 일치합니다.**제품정보**분야)
+      4. **가치:** `www.example.com` `dev.example.com`
+      5. **캐시 자격:**&#xC81C;품정보**Bypass 캐시**.
+      6. 페이지 하단에 스크롤하고 선택**계정 만들기**.
+5. *옵션 정보*- 사용자 정의 인증서 업로드**SFCC 비즈니스 관리자**Cloudflare 영역에:
+   1. 사용자 지정 인증서를 통해 업로드**SFCC 비즈니스 관리자**또는**SFCC CDN-API**해당 SFCC 프록시 영역 내에서 존재하는 , SFCC storefront hostnames에 대한 TLS 연결을 종료합니다. 그것 때문에, 당신이 당신의 자신의 Cloudflare 지역에 동일한 관례 증명서를 업로드하고 싶은 경우에 선택적입니다. Cloudflare 사용자를 Cloudflare 계정에서 특정 역할로 허용하여 사용자 정의 인증서에 대한 만료 알림을받을 수 있습니다. 자주 묻는 질문[사용자 정의 인증서](/ssl/edge-certificates/custom-certificates/renewing/#renew-custom-certificates)더 자세한 내용은.
+   2. 게다가, 지금 당신은 당신의 자신의 Cloudflare 지역이 있기 때문에, 당신은 Cloudflare의 당신이 동일한 SANs를 커버하는 1개 이상 증명서가 있을 수 있는 각종 가장자리 증명서 제품에 접근이 있습니다. 그 시나리오에서 인증서 우선 순위 프로세스는 Cloudflare 가장자리에서 제공하는 인증서를 결정하기 위해 발생합니다. SFCC storefront hostnames를 찾아서 업로드한 것과 비교된 다른 인증서를 제시하면**SFCC 비즈니스 관리자**또는**SFCC CDN-API**, 인증서 우선 프로세스는 이유입니다. 자주 묻는 질문[증명서 우선권](/ssl/reference/certificate-and-hostname-priority/#certificate-deployment)더 자세한 내용은.

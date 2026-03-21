@@ -1,0 +1,151 @@
+---
+pcx_content_type: how-to
+title: HTTP Strict Transport Security (HSTS)
+sidebar:
+  order: 4
+---
+
+import { FeatureTable, TabItem, Tabs, DashButton } from "~/components";
+
+HSTS는 HTTPS 웹 서버를 downgrade 공격으로부터 보호합니다. 이러한 공격은 웹 브라우저를 HTTPS 웹 서버에서 공격자가 제어하는 서버로 리디렉션하여, 악의적인 행위자가 사용자 데이터와 쿠키를 탈취하도록 만들 수 있습니다.
+
+HSTS는 [준수하는 웹 브라우저](/ssl/reference/browser-compatibility/)에 다음을 지시하는 HTTP 헤더를 추가합니다.
+
+- HTTP 링크를 HTTPS 링크로 변환
+- 사용자가 SSL 브라우저 경고를 무시하지 못하도록 방지
+
+HSTS를 활성화하기 전에 [요구 사항](#requirements)을 검토하세요.
+
+:::note
+
+HSTS 배경 설명은 [소개 블로그 게시물](https://blog.cloudflare.com/enforce-web-policy-with-hypertext-strict-transport-security-hsts/)을 참고하세요.
+
+:::
+
+## 가용성
+
+<FeatureTable id="ssl.hsts" />
+
+## 요구 사항
+
+HSTS가 예상대로 동작하려면 다음이 필요합니다.
+
+- 브라우저가 HSTS 설정을 받아들일 수 있도록 HSTS보다 먼저 HTTPS를 활성화할 것
+- 방문자가 사이트에 접근할 수 있도록 HTTPS를 계속 활성화할 것
+
+HSTS를 활성화한 뒤에도 방문자가 사이트에 계속 접근할 수 있도록 다음 동작은 피해야 합니다.
+
+- DNS 레코드를 [Proxied에서 DNS only로 변경](/dns/proxy-status/)하기
+- 사이트에서 [Cloudflare 일시 중지](/fundamentals/manage-domains/pause-cloudflare/)하기
+- 네임서버를 Cloudflare 바깥으로 변경하기
+- HTTPS를 HTTP로 리디렉션하기
+- SSL 비활성화(유효하지 않거나 만료된 인증서, 또는 호스트명이 일치하지 않는 인증서 포함)
+
+:::caution
+
+HSTS를 비활성화하기 전에 HTTPS를 제거하거나, Cloudflare HSTS 설정의 원래 <strong>Max Age Header</strong> 기간이 끝나기 전에 HTTPS를 제거하면 웹사이트는 Max Age Header 기간 동안 또는 HTTPS를 다시 활성화할 때까지 방문자에게 접근 불가능해집니다.
+
+:::
+
+## HSTS 활성화
+
+<Tabs syncKey="dashPlusAPI"> <TabItem label="Dashboard">
+
+대시보드에서 HSTS를 활성화하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **HTTP Strict Transport Security (HSTS)**에서 **Enable HSTS**를 선택합니다.
+3. 대화상자를 읽고 **I understand**를 선택합니다.
+4. **Next**를 선택합니다.
+5. [HSTS settings](#configuration-settings)를 구성합니다.
+6. **Save**를 선택합니다.
+
+</TabItem> <TabItem label="API">
+
+API로 HSTS를 활성화하려면 URI 경로에서 설정 이름을 `security_header`로 지정하고 HSTS 설정을 포함한 `value` 객체를 지정한 [`PATCH`](/api/resources/zones/subresources/settings/methods/edit/) 요청을 보냅니다.
+
+</TabItem> </Tabs>
+
+:::note
+
+특정 하위 도메인에만 HSTS를 활성화하려면 [subdomain setup](/dns/zone-setups/subdomain-setup/)을 구성하세요. 또는 원본에서 적절한 HSTS 헤더를 추가하거나 [response header transform rule](/rules/transform/response-header-modification/)을 사용할 수 있습니다.
+
+:::
+
+## HSTS 비활성화
+
+웹사이트에서 HSTS를 비활성화하려면:
+
+1. Cloudflare 대시보드에서 **Edge Certificates** 페이지로 이동합니다.
+
+   <DashButton url="/?to=/:account/:zone/ssl-tls/edge-certificates" />
+
+2. **HTTP Strict Transport Security (HSTS)**에서 **Enable HSTS**를 선택합니다.
+3. **Max Age Header**를 **0 (Disable)**로 설정합니다.
+4. 이전에 **No-Sniff** 헤더를 활성화했고 이를 제거하려면 **Off**로 설정합니다.
+5. **Save**를 선택합니다.
+
+## 구성 설정
+
+<table style="width:100%">
+	<thead>
+		<tr>
+			<th>이름</th>
+			<th>필수</th>
+			<th>설명</th>
+			<th>옵션</th>
+		</tr>
+	</thead>
+	<tbody>
+		<tr>
+			<td>Enable HSTS (Strict-Transport-Security)</td>
+			<td>예</td>
+			<td>
+				모든 HTTPS 요청에 대해 브라우저에 HSTS 헤더를 제공합니다. HTTP
+				(보안되지 않은) 요청에는 이 헤더가 포함되지 않습니다.
+			</td>
+			<td>Off / On</td>
+		</tr>
+		<tr>
+			<td>Max Age Header (max-age)</td>
+			<td>예</td>
+			<td>
+				브라우저 HSTS 정책의 지속 기간을 지정하며 웹사이트에 HTTPS를 요구합니다.
+			</td>
+			<td>Disable 또는 1~12개월 범위</td>
+		</tr>
+		<tr>
+			<td>하위 도메인에 HSTS 정책 적용 (includeSubDomains)</td>
+			<td>아니오</td>
+			<td>
+				상위 도메인의 HSTS 정책을 하위 도메인에도 적용합니다. 하위 도메인이 HTTPS를 지원하지 않으면 접근할 수 없게 됩니다.
+			</td>
+			<td>Off / On</td>
+		</tr>
+		<tr>
+			<td>Preload</td>
+			<td>아니오</td>
+			<td>
+				브라우저가 HSTS 구성을 자동으로 preload할 수 있게 합니다. 공격자가 최초 요청을 HTTPS에서 HTTP로 다운그레이드하는 것을 방지합니다. Preload는 HTTPS가 없는 웹사이트를 완전히 접근 불가능하게 만들 수 있습니다.
+			</td>
+			<td>Off / On</td>
+		</tr>
+		<tr>
+			<td>No-Sniff Header</td>
+			<td>아니오</td>
+			<td>
+				<code>X-Content-Type-Options: nosniff</code> 헤더를 전송해 Internet Explorer와 Chrome이 Content-Type 헤더에 명시된 유형이 아닌 다른 콘텐츠 유형을 자동으로 감지하지 못하게 합니다.
+			</td>
+			<td>Off / On</td>
+		</tr>
+	</tbody>
+</table>
+
+:::note
+
+HSTS <strong>Preload</strong>를 구성한 후에는 각 브라우저의 preload 목록에 추가 요청을 제출해야 합니다. Chrome, Firefox/Mozilla, Safari는 Chrome preload 목록을 사용합니다. HSTS preload 목록에 포함되려면 최소 12개월의 <strong>Max Age Header</strong>가 필요합니다.
+
+:::

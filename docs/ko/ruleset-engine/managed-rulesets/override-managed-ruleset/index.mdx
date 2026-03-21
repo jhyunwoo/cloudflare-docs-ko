@@ -1,0 +1,154 @@
+---
+title: 관리된 규칙을 무시
+pcx_content_type: how-to
+sidebar:
+  order: 3
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-managed-ruleset/
+translation_source_md: >-
+  https://developers.cloudflare.com/ruleset-engine/managed-rulesets/override-managed-ruleset/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, Details, APIRequest } from "~/components";
+
+API를 통해 관리되는 규칙의 행동을 사용자 정의하기 위해, 배포에 규칙을 무시합니다. 기본 설정 상단에서 실행할 수 있는 규칙을 무시하면 됩니다. 이 변경은 규칙의 기본 동작을 통해 우선한다.
+
+예를 들어, 관리되는 규칙을 테스트하기 전에, 모든 규칙 세트와 규칙을 실행 고려`log`기본 동작 대신. 이 작업을 수행하려면 규칙 수준에서 관리 된 규칙의 구성 된 행동을 무시하므로 각 규칙은 사용`log`활동.
+
+Terraform을 사용하는 경우 다음 페이지를 참조하십시오.
+
+- [WAF 관리 규칙 구성을 사용하여 Terraform](/terraform/additional-configurations/waf-managed-rulesets/#configure-overrides)
+- [Terraform을 이용한 DDoS 관리 규정](/terraform/additional-configurations/ddos-managed-rulesets/)
+
+Cloudflare 대시보드XQ에 대한 과도한 정의는 다음과 같은 리소스를 나타냅니다.
+
+- [대시보드XQ에서 WAF 관리 규칙을 구성하십시오](/waf/managed-rules/deploy-zone-dashboard/#configure-a-managed-ruleset)
+- [대시보드XQ에서 HTTP DDoS 공격 보호 구성](/ddos-protection/managed-rulesets/http/http-overrides/configure-dashboard/)
+- [대시보드XQ에서 네트워크 층 DDoS 공격 보호 구성](/ddos-protection/managed-rulesets/network/network-overrides/configure-dashboard/)
+
+## overrides와 일
+
+세 가지 수준에서 규칙을 무시할 수 있습니다.
+
+- **규칙 세트 overrides**실행된 규칙의 모든 규칙에 적용한다.
+- **태그 overrides**특정 태그와 모든 규칙에 적용. 예를 들어, Cloudflare 관리 규칙 세트를 사용자 정의하는 태그 오버라이드를 사용하여 모든 규칙을`wordpress`태그 설정*제품정보*. 여러 태그가 overrides가 있고 주어진 규칙이 이러한 태그 중 하나 이상을 가지고 있다면, 태그 overrides 주문은 행동을 결정합니다. 여러 overridden 태그가있는 규칙에 대한, 마지막 태그의 overrides 적용.
+- **규칙 overrides**규칙 ID에 따라 참고 자료d의 특정 규칙에 적용하십시오.
+
+특정한 overrides는 더 일반적인 것 이상 전진을 가지고 가고, 규칙 overrides는 통치자 overrides에 precedence를 가지고 갑니다.
+
+<Render file="managed-ruleset-override-warning" product="waf" />
+
+관리 규칙에 대한 과도한 적용:
+
+1. 사용 중 하나[업데이트 규칙 작업](/ruleset-engine/rulesets-api/update/)단계 항목 포인트 규칙을 업데이트합니다.
+2. 이름 \*`overrides`내 계정`action_parameters`관리된 규칙을 실행하는 규칙.
+
+```json
+"action_parameters": {
+  "id": "<RULESET_ID>",
+  "overrides": {
+    // ruleset overrides
+    "property-to-modify": "value",
+    "property-to-modify": "value",
+    // tag overrides
+    "categories": [
+      {
+        "category": "<TAG_NAME>",
+        "property-to-modify": "value",
+        "property-to-modify": "value"
+      }
+    ],
+    // rule overrides
+    "rules": [
+      {
+        "id": "<RULE_ID>",
+        "property-to-modify": "value",
+        "property-to-modify": "value"
+      }
+    ]
+  }
+}
+```
+
+다음 규칙 속성을 무시할 수 있습니다:
+
+- `"action"`
+- `"enabled"`
+
+일부 관리 규칙은 추가 보장 요구 사항이있을 수 있습니다, 또는 그들은 다른 규칙 속성을 무시 할 수 있습니다. 각 Cloudflare 제품 설명서를 확인하십시오.
+
+:::카ution\[중요]
+그것은**옵션 정보**계정 수준에서 관리되는 모든 규칙을 활성화하면 이 변경은 계정의 모든 영역에 영향을 미칠 수 있습니다. 일부 규칙은 기본적으로 비활성화되어 있기 때문에 결국 합법적 인 트래픽에 영향을 미치며 이전 고려없이 영역에서 활성화해야합니다.
+주요 특징
+
+## 이름 \*
+
+### 규칙 override 예제
+
+다음 것`PUT`요청은 관리된 규칙을 실행하는 규칙을 추가합니다.`http_request_firewall_managed`영역 수준에서 단계, 규칙을 정의`<RULE_ID>`그리고 그 행동을 설정`log`.
+
+<APIRequest
+  path="/zones/{zone_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	description:
+  		"Deploy managed ruleset, enabling a specific rule with log action",
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: "true",
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					rules: [
+  						{
+  							id: "<RULE_ID>",
+  							enabled: true,
+  							action: "log",
+  						},
+  					],
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+### Ruleset override 예제
+
+다음 것`PUT`요청은 관리된 규칙을 실행하는 규칙을 추가합니다.`http_request_firewall_managed`계정 수준에서 단계, 그리고 행동을 설정하는 규칙을 정의`log`모든 것을 위해 (enabled) 규칙.
+
+<APIRequest
+  path="/accounts/{account_id}/rulesets/phases/{ruleset_phase}/entrypoint"
+  method="PUT"
+  parameters={{
+  	ruleset_phase: "http_request_firewall_managed",
+  }}
+  json={{
+  	description:
+  		"Deploy managed ruleset for example.com, overriding the rules action to log",
+  	rules: [
+  		{
+  			action: "execute",
+  			expression: '(cf.zone.name eq "example.com") and cf.zone.plan eq "ENT"',
+  			action_parameters: {
+  				id: "<MANAGED_RULESET_ID>",
+  				overrides: {
+  					action: "log",
+  				},
+  			},
+  		},
+  	],
+  }}
+/>
+
+## 더 많은 리소스
+
+API를 통해 overrides 구성의 추가 예제를 위해, 참조[Override 예제](/ruleset-engine/managed-rulesets/override-examples/).

@@ -1,0 +1,401 @@
+---
+pcx_content_type: how-to
+title: /json - AI를 이용한 캡처 구조화 데이터
+tags:
+  - JSON
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/browser-rendering/rest-api/json-endpoint/'
+translation_source_md: >-
+  https://developers.cloudflare.com/browser-rendering/rest-api/json-endpoint/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render } from "~/components";
+
+더 보기`/json`endpoint는 웹페이지에서 구조화된 데이터를 추출합니다. 예상 출력을 지정할 수 있습니다.`prompt`또는`response_format`JSON schema를 수용하는 매개 변수. endpoint는 JSON 형식으로 추출된 데이터를 반환합니다. 기본적으로, 이 endpoint 레버리지[Workers AI](/workers-ai/). 추출에 대한 자신의 AI 모델을 지정하려는 경우, 당신은 사용할 수 있습니다`custom_ai`모수.
+
+:::주\[주]
+
+기본적으로,`/json`endpoint 레버리지[Workers AI](/workers-ai/)데이터 추출 Workers AIXQ에 이 엔드포인트를 사용하여 Workers AI 대시보드를 통해 사용을 모니터링할 수 있습니다.
+
+:::
+
+<Render file="rest-api-token-permissions" product="browser-rendering" />
+
+## 끝점
+
+```txt
+https://api.cloudflare.com/client/v4/accounts/<accountId>/browser-rendering/json
+```
+
+## 관련 분야
+
+자주 묻는 질문`url`또는`html`:
+
+- `url`(문자)
+- `html`(문자)
+
+그리고 적어도 하나:
+
+- `prompt`(string), 또는
+- `response_format`(Jack Schema와 함께)
+
+## 일반적인 사용 사례
+
+- 추출 제품 정보 (제목, 가격, 가용성) 또는 목록 (작업, 대여)
+- 문서 메타데이터를 정상화 (제목, 저자, 출판일, 대문 URL)
+- unstructured pages를 downstream 파이프라인에 대한 typed JSON으로 변환
+
+## 기본 사용
+
+### Prompt 및 JSON 스키마
+
+<Tabs syncKey="workersExamples">
+  <TabItem label="컬럼">
+    이 예제는 프롬프트와 JSON schema를 제공함으로써 웹 페이지 데이터를 캡처합니다. 프롬프트는 추출 프로세스를 안내합니다. JSON schema는 출력의 예상 구조를 정의합니다.
+
+    ```bash
+    curl --request POST 'https://api.cloudflare.com/client/v4/accounts/CF_ACCOUNT_ID/browser-rendering/json' \
+      --header 'authorization: Bearer CF_API_TOKEN' \
+      --header 'content-type: application/json' \
+      --data '{
+      "url": "https://developers.cloudflare.com/",
+      "prompt": "Get me the list of AI products",
+      "response_format": {
+        "type": "json_schema",
+        "schema": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          }
+      }
+    }'
+    ```
+
+    ```json output collapse={15-48}
+    {
+    	"success": true,
+    	"result": {
+    		"products": [
+    			{
+    				"name": "Build a RAG app",
+    				"link": "https://developers.cloudflare.com/workers-ai/tutorials/build-a-retrieval-augmented-generation-ai/"
+    			},
+    			{
+    				"name": "Workers AI",
+    				"link": "https://developers.cloudflare.com/workers-ai/"
+    			},
+    			{
+    				"name": "Vectorize",
+    				"link": "https://developers.cloudflare.com/vectorize/"
+    			},
+    			{
+    				"name": "AI Gateway",
+    				"link": "https://developers.cloudflare.com/ai-gateway/"
+    			},
+    			{
+    				"name": "AI Playground",
+    				"link": "https://playground.ai.cloudflare.com/"
+    			}
+    		]
+    	}
+    }
+    ```
+
+    ### 빠른 시작
+
+    이 예제에서, 단지 프롬프트 제공. endpoint는 데이터를 추출하기 위해 프롬프트를 사용하지만 응답은 JSON schema에 따라 구조되지 않습니다.
+    특정 형식이 필요하지 않은 간단한 추출에 유용합니다.
+
+    ```bash
+    curl --request POST 'https://api.cloudflare.com/client/v4/accounts/CF_ACCOUNT_ID/browser-rendering/json' \
+      --header 'authorization: Bearer CF_API_TOKEN' \
+      --header 'content-type: application/json' \
+      --data '{
+        "url": "https://developers.cloudflare.com/",
+        "prompt": "get me the list of AI products"
+      }'
+    ```
+
+    ```json output
+
+    	"success": true,
+    	"result": {
+    		"AI Products": [
+    			"Build a RAG app",
+    			"Workers AI",
+    			"Vectorize",
+    			"AI Gateway",
+    			"AI Playground"
+    		]
+    	}
+    }
+    ```
+
+    ### JSON schema만 (안드웨어 없음)
+
+    이 경우 JSON schema를 통해 공급합니다.`response_format`모수. schema는 추출 된 데이터의 구조를 정의합니다.
+
+    ```bash
+    curl --request POST 'https://api.cloudflare.com/client/v4/accounts/CF_ACCOUNT_ID/browser-rendering/json' \
+      --header 'authorization: Bearer CF_API_TOKEN' \
+      --header 'content-type: application/json' \
+      --data '"response_format": {
+        "type": "json_schema",
+        "schema": {
+            "type": "object",
+            "properties": {
+              "products": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "link": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              }
+            }
+          }
+      }'
+    ```
+
+    ```json output collapse={13-68}
+    {
+    	"success": true,
+    	"result": {
+    		"products": [
+    			{
+    				"name": "Workers",
+    				"link": "https://developers.cloudflare.com/workers/"
+    			},
+    			{
+    				"name": "Pages",
+    				"link": "https://developers.cloudflare.com/pages/"
+    			},
+    			{
+    				"name": "R2",
+    				"link": "https://developers.cloudflare.com/r2/"
+    			},
+    			{
+    				"name": "Images",
+    				"link": "https://developers.cloudflare.com/images/"
+    			},
+    			{
+    				"name": "Stream",
+    				"link": "https://developers.cloudflare.com/stream/"
+    			},
+    			{
+    				"name": "Build a RAG app",
+    				"link": "https://developers.cloudflare.com/workers-ai/tutorials/build-a-retrieval-augmented-generation-ai/"
+    			},
+    			{
+    				"name": "Workers AI",
+    				"link": "https://developers.cloudflare.com/workers-ai/"
+    			},
+    			{
+    				"name": "Vectorize",
+    				"link": "https://developers.cloudflare.com/vectorize/"
+    			},
+    			{
+    				"name": "AI Gateway",
+    				"link": "https://developers.cloudflare.com/ai-gateway/"
+    			},
+    			{
+    				"name": "AI Playground",
+    				"link": "https://playground.ai.cloudflare.com/"
+    			},
+    			{
+    				"name": "Access",
+    				"link": "https://developers.cloudflare.com/cloudflare-one/access-controls/policies/"
+    			},
+    			{
+    				"name": "Tunnel",
+    				"link": "https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/"
+    			},
+    			{
+    				"name": "Gateway",
+    				"link": "https://developers.cloudflare.com/cloudflare-one/traffic-policies/"
+    			},
+    			{
+    				"name": "Browser Isolation",
+    				"link": "https://developers.cloudflare.com/cloudflare-one/remote-browser-isolation/"
+    			},
+    			{
+    				"name": "Replace your VPN",
+    				"link": "https://developers.cloudflare.com/learning-paths/replace-vpn/concepts/"
+    			}
+    		]
+    	}
+    }
+    ```
+  </TabItem>
+
+  <TabItem label="TypeScript SDK 지원">
+    아래는 TypeScript SDK를 사용하여 예입니다.
+
+    ```typescript
+    import Cloudflare from "cloudflare";
+
+    const client = new Cloudflare({
+    	apiToken: process.env["CLOUDFLARE_API_TOKEN"], //이것은 기본적으로이고 omitted일 수 있습니다
+    });
+
+    const json = await client.browserRendering.json.create({
+    	account_id: process.env["CLOUDFLARE_ACCOUNT_ID"],
+    	url: "https://developers.cloudflare.com/",
+    	prompt: "Get me the list of AI products",
+    	response_format: {
+    		type: "json_schema",
+    		schema: {
+    			type: "object",
+    			properties: {
+    				products: {
+    					type: "array",
+    					items: {
+    						type: "object",
+    						properties: {
+    							name: {
+    								type: "string",
+    							},
+    							link: {
+    								type: "string",
+    							},
+    						},
+    						required: ["name"],
+    					},
+    				},
+    			},
+    		},
+    	},
+    });
+    console.log(json);
+    ```
+  </TabItem>
+</Tabs>
+
+## 고급 사용
+
+:::note\[더 많은 매개 변수를 찾고?]
+자주 묻는 질문[브라우저 렌더링 API 참고 자료](/api/resources/browser_rendering/subresources/json/methods/create/)HTTP credentials 설정과 같은 모든 사용 가능한 매개 변수에 대해`authenticate`, 설정`cookies`, 및 사용자 정의 로드 동작 사용`gotoOptions`.
+:::
+
+### 사용자 정의 모델 사용 (BYO API Key)
+
+Browser Rendering은 자격 증명을 공급하는 사용자 정의 모델을 사용할 수 있습니다. 모델 목록(s) 에서`custom_ai`배열:
+
+- `model`본문 바로가기`<provider>/<model_name>`그리고 공급자는 이것의 한이어야 합니다[지원되는 공급자](/ai-gateway/usage/chat-completion/#supported-providers).
+- `authorization`브라우저 렌더링을 허용하는 Bearer 토큰 또는 API 키입니다.
+
+이 예제는`custom_ai`Anthropic의 Claude Sonnet 4 모델을 사용하는 브라우저 렌더링에 매개 변수. 프롬프트는 모델이 메인을 추출하도록 요청합니다.`<h1>`·`<h2>`대상 URL에서 headings 및 구조화된 JSON 객체에서 반환합니다.
+
+```bash
+curl --request POST \
+  --url https://api.cloudflare.com/client/v4/accounts/CF_ACCOUNT_ID/browser-rendering/json \
+  --header 'authorization: Bearer CF_API_TOKEN' \
+  --header 'content-type: application/json' \
+  --data '{
+  "url": "http://demoto.xyz/headings",
+  "prompt": "Get the heading from the page in the form of an object like h1, h2. If there are many headings of the same kind then grab the first one.",
+  "response_format": {
+    "type": "json_schema",
+    "schema": {
+      "type": "object",
+      "properties": {
+        "h1": {
+          "type": "string"
+        },
+        "h2": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "h1"
+      ]
+    }
+  },
+  "custom_ai": [
+    {
+      "model": "anthropic/claude-sonnet-4-20250514",
+      "authorization": "Bearer <ANTHROPIC_API_KEY>"
+    }
+  ]
+}
+```
+
+```json output
+{
+	"success": true,
+	"result": {
+		"h1": "Heading 1",
+		"h2": "Heading 2"
+	}
+}
+```
+
+### fallbacks를 가진 주문 모형 사용하기
+
+자동 장애를 제공하기 위해 여러 모델을 지정할 수 있습니다. 브라우저 렌더링은 하나의 성공까지 순서대로 모델을 시도합니다. 실패를 추가하려면, 추가 모델을 나열`custom_ai`배열.
+
+이 예제에서, 브라우저 렌더링 첫 번째 호출 Anthropic의 Claude Sonnet 4 모델. 요청이 오류를 반환하면 Meta Llama 3.3 70B로 자동으로 표시됩니다.[Workers AI](/workers-ai/), 다음 OpenAI의 GPT-4o.
+
+```
+"custom_ai": [
+  {
+    "model": "anthropic/claude-sonnet-4-20250514",
+    "authorization": "Bearer <ANTHROPIC_API_KEY>"
+  },
+  {
+    "model": "workers-ai/@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "authorization": "Bearer <CLOUDFLARE_AUTH_TOKEN>"
+  },
+{
+    "model": "openai/gpt-4o",
+    "authorization": "Bearer <OPENAI_API_KEY>"
+  }
+]
+```
+
+## 문제 해결
+
+### JSON 추출 반환 null 또는 빈 결과
+
+만약에`/json`endpoint 반환 null 또는 빈 결과:
+
+- **명확한 신속한 제공**— 추출하고 페이지에 나타나는 데이터에 대해 특정하십시오 (예 : "제품 이름, 가격 및 주요 제품 섹션에서 설명 제외).
+- **응답 schema를 정의**— 사용`response_format`JSON schema로 예상된 출력 구조를 시행합니다.
+- **사용자 정의 모델 사용**- 기본값인 경우[Workers AI](/workers-ai/)모델은 원하는 결과를 생성하지 않습니다, 사용`custom_ai`다른 모델을 지정하는 매개 변수. 더 알아보기[사용자 정의 모델 사용 (BYO API Key)](/browser-rendering/rest-api/json-endpoint/#using-a-custom-model-byo-api-key)상세 정보
+
+<Render file="javascript-heavy-pages" product="browser-rendering" />
+
+<Render file="setting-custom-user-agent" product="browser-rendering" />
+
+<Render file="faq" product="browser-rendering" />

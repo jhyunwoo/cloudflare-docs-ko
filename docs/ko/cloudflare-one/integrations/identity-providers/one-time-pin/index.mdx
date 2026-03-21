@@ -1,0 +1,92 @@
+---
+pcx_content_type: how-to
+title: 1회 PIN 로그인
+sidebar:
+  order: 1
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Tabs, TabItem, Render, APIRequest } from "~/components";
+
+사이트맵 액세스는 한 번의 PIN (OTP)을 메일 주소로 전송할 수 있습니다. OTP 로그인과 사용자의 선택의 정체성을 구성할 수 있습니다.
+
+예를 들어, 팀이 Okta를 사용하지만 조직 밖에 누군가와 협업하면 OTP를 사용할 수 있습니다.
+
+<Render file="access/one-time-pin-warning" product="cloudflare-one" />
+
+## OTP 설정
+
+<Tabs syncKey="dashPlusAPI">
+  <TabItem label="대시보드">
+    1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**통합** > **Identity 공급자**.
+    2. 이름 \***당신의 ID 공급자**, 선택**새로운 ID 공급자 추가**.
+    3. 제품정보**1회 PIN**.
+  </TabItem>
+
+  <TabItem label="사이트맵">
+    더 보기`POST`요청하기[Identity 공급자](/api/resources/zero_trust/subresources/identity_providers/methods/create/)엔드포인트:
+
+    <APIRequest
+      path="/accounts/{account_id}/access/identity_providers"
+      method="POST"
+      json={{
+  	name: "One-time PIN login",
+  	type: "onetimepin",
+  	config: {},
+  }}
+    />
+  </TabItem>
+
+  <TabItem label="변형 (v5)">
+    1. 다음 권한을 추가하십시오.[`cloudflare_api_token`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/api_token):
+       - `Access: Organizations, Identity Providers, and Groups Write`
+
+    2. 설정하기[`cloudflare_zero_trust_access_identity_provider`](https://registry.terraform.io/providers/cloudflare/cloudflare/latest/docs/resources/zero_trust_access_identity_provider)자료:
+
+       ```tf
+       resource "cloudflare_zero_trust_access_identity_provider" "onetimepin_login" {
+       	account_id = var.cloudflare_account_id
+       	name       = "One-time PIN login"
+       	type       = "onetimepin"
+       	config 		 = {}
+       }
+       ```
+  </TabItem>
+</Tabs>
+
+:::가격
+조직이 타사 이메일 스캔 서비스를 사용한다면 (예 : Mimecast 또는 Barracuda), 추가`noreply@notify.cloudflare.com`이메일 스캐닝 수당에.
+주요 특징
+
+응용 프로그램에 사용자 액세스를 부여하려면 단순히 이메일 주소를 추가[오시는 길](/cloudflare-one/access-controls/policies/policy-management/#create-a-policy).
+
+## OTP로 로그인
+
+한 번 PIN을 사용하여 액세스에 로그인하십시오.
+
+1. 액세스에 의해 보호 된 응용 프로그램에 이동합니다.
+2. 액세스 로그인 페이지에서 이메일 주소를 입력하고 선택**코드 보내기**.
+   ![OTP로 로그인하려면 이메일을 입력하세요.](~/assets/images/cloudflare-one/identity/otp/otp1.png)
+3. 액세스 정책에 따라 이메일이 허용되면, 입력 상자에 PIN을 받게됩니다. 이 안전한 PIN는 처음 요구 후에 10 분 만료됩니다.
+
+:::참조
+
+디자인에 의해, 차단된 사용자는 이메일을받지 않을 것입니다. 로그인 페이지는 항상 말한다**코드가 이메일로 전송되었습니다.**&#xC774;메일이 전송되지 않은 여부에 관계없이.
+주요 특징
+
+4. 접속 로그인 페이지로 PIN을 붙여넣고 선택**이름 \***.
+   ![PIN을 입력하여 로그인합니다.](~/assets/images/cloudflare-one/identity/otp/otp2.png)
+   - 코드가 유효하다면 응용 프로그램에 리디렉션됩니다.
+   - 코드가 유효하지 않은 경우, 당신은 볼 것이다**그 계정은 액세스하지 않습니다.**
+
+:::참조
+
+액세스는 사용자가 코드를 입력 한 후 인증 시도를 기록합니다. 사용자는 이메일에 입력하지만 코드를 제출하지 못하면 이벤트가 표시되지 않습니다.[감사 로그](/cloudflare-one/insights/logs/audit-logs/#authentication-logs).
+:::

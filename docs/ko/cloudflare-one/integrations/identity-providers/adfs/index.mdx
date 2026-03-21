@@ -1,0 +1,251 @@
+---
+pcx_content_type: how-to
+title: 활성 디렉토리 (SAML)
+tags:
+  - SAML
+  - SSO
+description: Cloudflare와 Active Directory 통합 보안 ID 관리에 대한 하나.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/adfs/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/adfs/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { GlossaryTooltip, Render } from "~/components";
+
+:::카트로션
+Microsoft는 Active Directory Federation Service (AD FS) SSO를 Microsoft Entra ID로 마이그레이션하는 것이 좋습니다. 더 많은 정보를 원하시면, 참조[Microsoft 알아보기](https://learn.microsoft.com/windows-server/identity/ad-fs/ad-fs-overview).
+
+Cloudflare와 Microsoft Entra ID IdP 통합 설정 하나, 참조[마이크로 소프트 엔트라 ID](/cloudflare-one/integrations/identity-providers/entra-id/).
+:::
+
+Active Directory는 Windows 도메인 네트워크에 Microsoft가 개발 한 디렉토리 서비스입니다. 대부분의 Windows Server 운영 체제에서 프로세스 및 서비스 세트로 포함되어 있습니다. Active Directory는 Security Assertion Markup Language를 사용하여 Cloudflare Access와 통합합니다 (<GlossaryTooltip term="SAML">사이트맵</GlossaryTooltip>).
+
+## 시작하기 전에
+
+시작하기에, 당신은 필요로 합니다:
+
+- Active Directory 도메인 컨트롤러는 모든 사용자가 이메일 속성을 가지고 있습니다.
+- Access Identity Provider (IdP)에 대한 일반적인 SAML 활성화.
+- Active Directory Federation Services(AD FS)가 설치된 Microsoft 서버. 이 지침의 모든 스크린 샷은 Server 2012R2에 적용됩니다. 유사한 단계는 더 새로운 버전을 위해 일할 것입니다.
+- Active Directory Federation Services (AD FS)에 대한 브라우저 안전 인증서.
+
+위의 요구 사항을 충족하면 시작할 준비가되어 있습니다. Active Directory Federation Services (AD FS)의 설치 및 기본 구성은이 가이드의 범위 밖에 있습니다. 자세한 가이드는 찾을 수 있습니다.[마이크로소프트 KB](https://docs.microsoft.com/en-us/previous-versions/dynamicscrm-2016/deployment-administrators-guide/gg188612\(v=crm.8\)).
+
+Cloudflare Access와 AD FS 사이의 연결을 시작하면 AD FS의 Relying Party Trust를 만듭니다.
+
+## Relying Party Trust 만들기
+
+Cloudflare Access와 SAML AD 통합을 시작하기 위해 Relying Party Trust 마법사를 실행하십시오.
+
+Relying Party Trust를 만들려면:
+
+1. 내 계정**Windows 서버**, 시작**ADFS 관리**도구.
+
+2. 선택하기**Relying Party 신뢰**폴더.
+
+3. 에 의해**관련 기사**sidebar, 선택**Relying Party Trust 추가하기**·**Relying Party Trust Wizard 추가하기**출시.
+
+4. 왼쪽 메뉴에서 선택**데이터 소스 선택**.
+
+5. 선택하기**relying party에 대한 데이터를 수동으로 입력하십시오.**&#xC635;션.
+
+6. 제품정보**이름 \***.
+
+7. 이름 \***표시 이름**. 우리는 당신이 인식한 이름을 사용하는 건의합니다. 이 연결에 관한 모든 정보를 포함**지원하다**이름 \*
+
+8. 제품정보**이름 \***·**자주 묻는 질문**단계 전시.
+
+9. 선택하기**AD FS 프로파일**옵션.
+
+10. 제품정보**이름 \***·**인증서 구성**단계 전시.
+
+11. 자주 묻는 질문**인증번호**기본적으로 옵션.
+
+12. 제품정보**이름 \***·**URL 구성**단계 전시.
+
+13. 선택하기**SAML 2.0 WebSSO 프로토콜 지원**옵션.
+
+14. 내 계정**재활 파티 SAML 2.0 SSO 서비스 URL**필드, 다음 URL을 입력:
+
+    ```txt
+    https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+    ```
+
+    <Render file="find-team-name" product="cloudflare-one" />
+
+15. 제품정보**이름 \***·**Identifiers 구성**단계 전시.
+
+    ![오픈 양식 필드에 붙여진 콜백 URL을 가진 재혼 신뢰 마법사 추가](~/assets/images/cloudflare-one/identity/adfs/adfs-7.png)
+
+16. 콜백 URL을 붙여넣기**Relying Party 신뢰 식별자**이름 \*
+
+17. 제품정보**이름 \***. 에서**멀티 팩터 인증 구성?**&#xB2E8;계, 당신은 다 요인 입증을 구성할 수 있습니다.
+
+18. 제품정보**이름 \***·**Issuance 인증 규칙을 선택하십시오.**&#xB2E8;계 전시.
+
+19. 선택하기**이 relying 파티에 액세스 할 수있는 모든 사용자 허용**옵션.
+
+20. 제품정보**이름 \***·**Trust 추가하기**단계 전시.
+
+21. 설정을 검토합니다.
+
+22. 제품정보**이름 \***. Cloudflare는 지금 사용자 ID 허가를 위한 AD FS에 의존합니다.
+
+더 보기**CF 로그인에 대한 클레임 규칙**스크린 자동적으로 전시.
+
+## 구매 규칙
+
+이제 AD FS가 Cloudflare에서 정보를 취할 수 있도록 2 클레임 규칙을 작성하고 수익을 창출[오시는 길](/cloudflare-one/access-controls/policies/).
+
+Trust 마법사 추가를 닫으면 Explorer를 사용하여**Relying Party 신뢰**폴더, 새로 만든 RPT 파일을 선택하고, 선택**Claim 규칙 편집**내 계&#xC815;**- 연혁**사이드바.
+
+Claim 규칙을 만들려면:
+
+1. 내 계정**CF 로그인에 대한 클레임 규칙**창, 선택**추가 규칙**·**규칙 유형 선택**단계 전시.
+
+2. 내 계정**Claim 규칙 템플릿**필드, 선택**LDAP 소개 Claims로 활동**드롭다운 목록에서.
+
+3. 제품정보**이름 \***·**편집 규칙 — Email 보내기**단계 전시.
+
+4. 본문 바로가기**Claim 규칙 이름**.
+
+5. 제품정보**연락처**으로**회사 소개**드롭다운 목록.
+
+6. 제품정보**이메일 주소**으로**LDAP 특성**·**공급 능력**드롭다운 목록.
+
+:::노트\[AD FS 그룹]
+
+SAML 청구서에서 AD FS 그룹을 사용하려면 사용`token-groups - unqualified names`대신에`is-member-of-DL`. 사용`is-member-of-DL`LDAP 경로의 형태로 그룹을 표시합니다.`token-groups - unqualified names`그룹 이름만 반환합니다.
+주요 특징
+
+7. 제품정보**이름 \***. 당신 반환에**규칙 유형 선택**단계.
+
+8. 제품정보**Incoming Claim을 변환**으로**Claim 규칙 템플릿**드롭다운 목록은 두 번째 규칙을 만듭니다.
+
+9. 제품정보**이름 \***·**편집 - Transient Name Identifier 만들기**창 전시.
+
+10. 본문 바로가기**Claim 규칙 이름**.
+
+11. 제품정보**E-Mail 주소**으로**청구 유형**드롭다운 목록.
+
+12. 제품정보**이름 ID**으로**Outgoing 청구 유형**드롭다운 목록.
+
+13. 제품정보**Transient 아이덴트**으로**이름 ID 형식**드롭다운 목록.
+
+14. 더 알아보기**모든 청구 값을 통해 패스**옵션 선택.
+
+15. 제품정보**이름 \***.
+
+Claim 규칙은 이제 Cloudflare 액세스 계정에 수출 할 수 있습니다.
+
+## 인증서 수출
+
+이제 Cloudflare를 구성하여 AD FS를 추출할 수 있습니다.*토큰 서명 인증서*AD FS에서.
+
+증명서를 수출하기 위하여:
+
+1. AD FS 관리 콘솔 내에서, 선택**제품정보**AD FS에서 선택**인증서**수출 증명서가 포함 된 폴더.
+
+2. 내 계정**인증서**카드, 아래의 항목에서 오른쪽 클릭**토큰 서명**, 그리고 선택**인증서 보기**·**인증서**창 전시.
+
+   ![선택한 토큰 서명 인증서가있는 인증서 창](~/assets/images/cloudflare-one/identity/adfs/adfs-16.png)
+
+3. 선택하기**이름 \***&#xD0ED; 및 선택**파일 복사**옵션.
+
+4. 더 보기**인증서 수출 마법사**전시.
+
+5. 제품정보**이름 \***·**수출 파일 형식**창 전시.
+
+6. 선택하기**Base-64 인코딩 X.509 (.CER)**&#xC635;션.
+
+7. 제품정보**이름 \***.
+
+8. 파일 이름을 입력합니다.
+
+9. 제품정보**이름 \***.
+
+10. 제품정보**제품 정보**.
+
+    나중에 파일 경로 참고.
+
+## SAML 응답을 서명하는 AD FS 구성
+
+AD FS가 Cloudflare와 통신 할 때 전체 응답을 표시하도록하려면 로컬**전력 공급**다음 명령을 입력하십시오:
+
+```bash
+Set-ADFSRelyingPartyTrust -TargetName "Name of RPT Display Name" -SamlResponseSignature "MessageAndAssertion"
+```
+
+## Cloudflare 구성 한국어
+
+Cloudflare를 활성화 AD FS에서 보내지는 주장과 주장을 받아들이려면 다음 단계를 따르십시오.
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**통합** > **Identity 공급자**.
+
+2. 이름 \***당신의 ID 공급자**, 선택**새로운 ID 공급자 추가**.
+
+3. 제품정보**사이트맵**.
+
+4. IdP 소개**이름 \***.
+
+5. 이름 \***URL에 단일 로그인**입력 :
+
+   ```txt
+   https://hostnameOfADFS/adfs/ls/
+   ```
+
+   기본값입니다. AD FS에서 federation 서비스 식별자를 찾을 수 있습니다.
+
+6. 내 계정**ID 또는 발급 URL**필드, Cloudflare Zero Trust 팀 도메인을 입력하고 경로의 끝에이 콜백을 포함한다 :`/cdn-cgi/access/callback`. 예를 들면:
+
+   ```txt
+   https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/callback
+   ```
+
+7. 이름 \***서명 인증서**, 수출한 증명서를 풀기.
+
+   텍스트 필드에 공백이나 반환 문자가 없습니다.
+
+8. 제품정보**제품 정보**.
+
+당신의 연결이 작동되는 것을 시험하기 위하여, 가기**통합** > **Identity 공급자**선택하기**제품정보**테스트하고 싶은 정체성 공급자 옆에.
+
+## SP 메타데이터 다운로드 (옵션)
+
+일부 IdPs는 관리자가 SP (서비스 제공 업체)에서 메타 데이터 파일을 업로드 할 수 있습니다.
+
+Cloudflare 메타데이터 파일을 얻으려면:
+
+1. 다음 URL에서 고유 SAML 메타데이터 파일을 다운로드:
+
+   ```txt
+   https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/saml-metadata
+   ```
+
+   Cloudflare에서 액세스, 이 URL에 대한 링크를 찾을 수 있습니다**SAML ID 공급자 편집**대화 상자 이 링크는 XML 형식으로 SAML SP 데이터로 웹 페이지를 반환합니다.
+
+2. XML 형식으로 파일을 저장합니다.
+
+3. XML 문서를 업로드**연락처**계정.
+
+## API 구성 보기
+
+```json
+{
+	"config": {
+		"issuer_url": "https://<your-team-name>.cloudflareaccess.com/",
+		"sso_target_url": "https://adfs.example.com/adfs/ls/",
+		"attributes": ["email"],
+		"email_attribute_name": "",
+		"sign_request": false,
+		"idp_public_cert": "MIIDpDCCAoygAwIBAgIGAV2ka+55MA0GCSqGSIb3DQEBCwUAMIGSMQswCQYDVQQGEwJVUzETMBEG\nA1UEC.....GF/Q2/MHadws97cZg\nuTnQyuOqPuHbnN83d/2l1NSYKCbHt24o"
+	},
+	"type": "saml",
+	"name": "adfs saml example"
+}
+```

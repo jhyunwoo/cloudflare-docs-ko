@@ -1,0 +1,482 @@
+---
+title: 이름 *
+pcx_content_type: reference
+sidebar:
+  order: 11
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/retries/'
+translation_source_md: 'https://developers.cloudflare.com/agents/api-reference/retries/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample, LinkCard } from "~/components";
+
+Retry는 exponential 백 오프 및 지터와 함께 작업을 실패했습니다. Agents SDK는 일정한 작업, 누적 작업 및 다목적을 위한 내장 재량 지원을 제공합니다.`this.retry()`자신의 코드를 위한 방법.
+
+## 제품정보
+
+일시적인 실패는 외부 API를 호출할 때 일반적이며 다른 서비스와 상호 작용하거나 배경 작업을 실행합니다. 리트리 시스템은 다음과 같이 자동적으로 처리합니다:
+
+- **노출 backoff**— 각 리트리는 마지막보다 더 오래 기다립니다.
+- **주 메뉴**— 무작위 지연은 그녀의 문제를 방지
+- **설정 가능**- 튜닝 시도, 지연 및 통화 당 캡
+- **내장형**— 일정, 큐, 워크플로우 작업 리트리
+
+## 빠른 시작
+
+제품 정보`this.retry()`어떤 async 가동을 retry에:
+
+<TypeScriptExample>
+  ```ts
+  import { Agent } from "agents";
+
+  export class MyAgent extends Agent {
+  	async fetchWithRetry(url: string) {
+  		const response = await this.retry(async () => {
+  			const res = await fetch(url);
+  			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  			return res.json();
+  		});
+
+  		return response;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+기본적으로,`this.retry()`최대 3 배의 jittered exponential 백 오프.
+
+## `this.retry()`
+
+더 보기`retry()`모든 것이 가능합니다.`Agent`예. 그것은 기본적으로 모든 thrown 오류에 제공 된 기능을 retries.
+
+```ts
+async retry<T>(
+  fn: (attempt: number) => Promise<T>,
+  options?: RetryOptions & {
+    shouldRetry?: (err: unknown, nextAttempt: number) => boolean;
+  }
+): Promise<T>
+```
+
+**모수:**
+
+- `fn`— retry에 async 함수. 현재 시도 번호 (1-indexed)를 수신합니다.
+- `options`- 옵션 재량 설정 (refer to[RetryOptions의 장점](#retryoptions)아래). 옵션은 eagerly 유효하다 — 잘못된 값은 즉시 던져.
+- `options.shouldRetry`- thrown 오류 및 다음 시도 번호로 호출 된 옵션 사전. 이름 \*`false`즉시 회복을 중지합니다. 제공되지 않은 경우, 모든 오류가 재조립됩니다.
+
+**반환:**&#xACB0;과의`fn`성공에.
+
+**댓글:**&#xBAA8;든 시도가 실패하거나`shouldRetry`이름 \*`false`.
+
+### 이름 \*
+
+**기본적인 retry:**
+
+<TypeScriptExample>
+  ```ts
+  const data = await this.retry(() => fetch("https://api.example.com/data"));
+  ```
+</TypeScriptExample>
+
+**주문 retry 선택권:**
+
+<TypeScriptExample>
+  ```ts
+  const data = await this.retry(
+  	async () => {
+  		const res = await fetch("https://slow-api.example.com/data");
+  		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  		return res.json();
+  	},
+  	{
+  		maxAttempts: 5,
+  		baseDelayMs: 500,
+  		maxDelayMs: 10000,
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+**시도 번호 사용:**
+
+<TypeScriptExample>
+  ```ts
+  const result = await this.retry(async (attempt) => {
+  	console.log(`Attempt ${attempt}...`);
+  	return await this.callExternalService();
+  });
+  ```
+</TypeScriptExample>
+
+**선택적 구호`shouldRetry`:**
+
+제품 정보`shouldRetry`특정 오류에 대한 복원을 중지합니다. predicate는 오류와 다음 시도 번호를 모두받습니다.
+
+<TypeScriptExample>
+  ```ts
+  const data = await this.retry(
+  	async () => {
+  		const res = await fetch("https://api.example.com/data");
+  		if (!res.ok) throw new HttpError(res.status, await res.text());
+  		return res.json();
+  	},
+  	{
+  		maxAttempts: 5,
+  		shouldRetry: (err, nextAttempt) => {
+  			//retry 4xx 클라이언트 오류가 없습니다. — 우리의 요청은 잘못되었습니다.
+  			if (err instanceof HttpError && err.status >= 400 && err.status < 500) {
+  				return false;
+  			}
+  			return true; //다른 모든 (5xx, 네트워크 오류 등)
+  		},
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+## 자주 묻는 질문
+
+일정을 만들 때 재량 옵션:
+
+<TypeScriptExample>
+  ```ts
+  //콜백이 실패한 경우 최대 5배
+  await this.schedule(
+  	"processTask",
+  	60,
+  	{ taskId: "123" },
+  	{
+  		retry: { maxAttempts: 5 },
+  	},
+  );
+
+  //사용자 정의 backoff와 Retry
+  await this.schedule(
+  	new Date("2026-03-01T09:00:00Z"),
+  	"sendReport",
+  	{},
+  	{
+  		retry: {
+  			maxAttempts: 3,
+  			baseDelayMs: 1000,
+  			maxDelayMs: 30000,
+  		},
+  	},
+  );
+
+  //Cron 와 retries
+  await this.schedule(
+  	"0 8 * * *",
+  	"dailyDigest",
+  	{},
+  	{
+  		retry: { maxAttempts: 3 },
+  	},
+  );
+
+  //retries를 가진 간격
+  await this.scheduleEvery(
+  	30,
+  	"poll",
+  	{ source: "api" },
+  	{
+  		retry: { maxAttempts: 5, baseDelayMs: 200 },
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+콜백이 던져지면, 리트리 옵션에 따라 검색됩니다. 모든 시도가 실패하면 오류가 기록되고 경로를 통해`onError()`. 일정은 여전히 제거됩니다 (일회 일정) 또는 재조정 (cron/interval) 성공 또는 실패에 관계없이.
+
+## queues의 종교
+
+queue에 작업을 추가 할 때 retry 옵션을 패스:
+
+<TypeScriptExample>
+  ```ts
+  await this.queue(
+  	"sendEmail",
+  	{ to: "user@example.com" },
+  	{
+  		retry: { maxAttempts: 5 },
+  	},
+  );
+
+  await this.queue("processWebhook", webhookData, {
+  	retry: {
+  		maxAttempts: 3,
+  		baseDelayMs: 500,
+  		maxDelayMs: 5000,
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+콜백이 던져지면 작업이 dequeued하기 전에 검색됩니다. 모든 시도가 소진되면 작업이 거부되고 오류가 기록됩니다.
+
+## 인증 및 인증
+
+Retry 옵션은 호출 할 때 유효합니다.`this.retry()`, `queue()`, `schedule()`, 또는`scheduleEvery()`. 잘못된 옵션은 실행 시간에 나중에 실패 대신 즉시 던져:
+
+<TypeScriptExample>
+  ```ts
+  //즉시 던지기: "retry.maxAttempts는 >= 1"이어야 합니다
+  await this.queue("sendEmail", data, {
+  	retry: { maxAttempts: 0 },
+  });
+
+  //즉시 던지기: "retry.baseDelayMs는 > 0"이어야 합니다
+  await this.schedule(
+  	60,
+  	"process",
+  	{},
+  	{
+  		retry: { baseDelayMs: -100 },
+  	},
+  );
+
+  //즉시 던져 : "retry.maxAttempts는 정수가되어야한다"
+  await this.retry(() => fetch(url), { maxAttempts: 2.5 });
+
+  //"retry.baseDelayMs는 <= retry.maxDelayMs"이어야 합니다.
+  //baseDelayMs: 5000는 기본 maxDelayMs를 초과합니다: 3000
+  await this.queue("sendEmail", data, {
+  	retry: { baseDelayMs: 5000 },
+  });
+  ```
+</TypeScriptExample>
+
+유효성 검사는 Cross-field constraints를 검사하기 전에 class-level 또는 내장 기본에 대한 부분 옵션을 해결합니다. 이 수단`{ baseDelayMs: 5000 }`해결될 때 즉시 붙잡음`maxDelayMs`실행 시간에 나중에 실패하는 것보다 3000입니다.
+
+## 기본 동작
+
+명시된 구문 옵션이 없다면, 예약 및 할당된 콜백은 감지 가능한 기본값으로 재작성됩니다.
+
+| 설치하기          | 기본 정보 |
+| ------------- | ----- |
+| `maxAttempts` | 3     |
+| `baseDelayMs` | 100   |
+| `maxDelayMs`  | 3000  |
+
+이 기본값은 적용`this.retry()`, `queue()`, `schedule()`·`scheduleEvery()`. Per-call-site 옵션은 그들을 무시합니다.
+
+### 클래스 레벨 디폴트
+
+당신의 전체 에이전트에 대한 기본을 override`static options`:
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	static options = {
+  		retry: { maxAttempts: 5, baseDelayMs: 200, maxDelayMs: 5000 },
+  	};
+  }
+  ```
+</TypeScriptExample>
+
+변경하려는 필드를 지정해야 합니다. — unset 필드가 내장된 기본값으로 다시 나옵니다.
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	//override maxAttempts; baseDelayMs (100) 과 maxDelayMs (3000) 기본 유지
+  	static options = {
+  		retry: { maxAttempts: 10 },
+  	};
+  }
+  ```
+</TypeScriptExample>
+
+Class-level defaults는 호출 사이트가 리트리 옵션을 지정하지 않을 때 fallbacks로 사용됩니다. Per-call-site 옵션은 항상 우선 순위를 가지고:
+
+<TypeScriptExample>
+  ```ts
+  //클래스 레벨 디폴트 사용 (10 시도)
+  await this.retry(() => fetch(url));
+
+  //이 특정 통화에 대한 2 시도에 대한 Overrides
+  await this.retry(() => fetch(url), { maxAttempts: 2 });
+  ```
+</TypeScriptExample>
+
+특정 작업에 대한 retries를 비활성화하려면, 설정`maxAttempts: 1`:
+
+<TypeScriptExample>
+  ```ts
+  await this.schedule(
+  	60,
+  	"oneShot",
+  	{},
+  	{
+  		retry: { maxAttempts: 1 },
+  	},
+  );
+  ```
+</TypeScriptExample>
+
+## RetryOptions의 장점
+
+```ts
+interface RetryOptions {
+	/** 최대 시도 수 (첫 번째 포함). integer >= 1. 기본값이어야 합니다: 3*/
+	maxAttempts?: number;
+	/** exponential backoff를 위한 milliseconds에 있는 기본적인 지연. > 0 및 <= maxDelayMs. 기본값: 100*/
+	baseDelayMs?: number;
+	/** milliseconds에 있는 최대 지연 모자. 필수 > 0. 과태: 3000*/
+	maxDelayMs?: number;
+}
+```
+
+retries 사용의 지연**전체 지터 exponential 백 오프**:
+
+```
+delay = random(0, min(2^attempt * baseDelayMs, maxDelayMs))
+```
+
+이것은 이른 반송은 빠른 (200ms 이하)이고, 나중에는 실패 서비스를 압도적으로 피하기 위하여 뒤를 retries. 임의화 (지터)는 정확한 동일한 순간에 재발견에서 여러 에이전트를 방지합니다.
+
+## 어떻게 작동합니까?
+
+### Backoff 전략
+
+Retry 시스템은 "Full Jitter"전략을 사용합니다.[AWS 아키텍처 블로그](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/). 기본 설정으로 3 시도 :
+
+| 관련 기사 | 맨 위로                         | 실제 지연        |
+| ----- | ---------------------------- | ------------ |
+| 1     | 최소(2^1 \* 100, 3000) = 200ms | 임의(0, 200ms) |
+| 2     | 최소(2^2 \* 100, 3000) = 400ms | 임의(0, 400ms) |
+| 3     | (Retry — 최종 시도 없음)           | —            |
+
+이름 \*`maxAttempts: 5`·`baseDelayMs: 500`:
+
+| 관련 기사 | 맨 위로                         | 실제 지연          |
+| ----- | ---------------------------- | -------------- |
+| 1     | 분 (2 \* 500, 3000) = 1000ms  | 임의(0, 1000ms)  |
+| 2     | 분(4 \* 500, 3000) = 2000ms   | 무작위(0, 2000ms) |
+| 3     | 분(8 \* 500, 3000) = 3000ms   | 임의(0, 3000ms)  |
+| 4     | 최소(16 \* 500, 3000) = 3000ms | 임의(0, 3000ms)  |
+| 5     | (Retry — 최종 시도 없음)           | —              |
+
+### MCP 서버 저장소
+
+MCP 서버를 추가하면 연결 및 연결 시도에 대한 재시동 옵션을 구성할 수 있습니다.
+
+<TypeScriptExample>
+  ```ts
+  await this.addMcpServer("github", "https://mcp.github.com", {
+  	retry: { maxAttempts: 5, baseDelayMs: 1000, maxDelayMs: 10000 },
+  });
+  ```
+</TypeScriptExample>
+
+이 옵션은 지속되고 사용될 때:
+
+- hibernation 후에 서버 연결 재시작
+- OAuth 완료 후 연결 설정
+
+과태: 3개의 시도, 500ms 기본적인 지연, 5s 최대 지연.
+
+## 패턴
+
+### 로그인
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	async resilientTask(payload: { url: string }) {
+  		try {
+  			const result = await this.retry(
+  				async (attempt) => {
+  					if (attempt > 1) {
+  						console.log(`Retrying ${payload.url} (attempt ${attempt})...`);
+  					}
+  					const res = await fetch(payload.url);
+  					if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  					return res.json();
+  				},
+  				{ maxAttempts: 5 },
+  			);
+  			console.log("Success:", result);
+  		} catch (e) {
+  			console.error("All retries failed:", e);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 관련 링크
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	async fetchData() {
+  		try {
+  			return await this.retry(
+  				() => fetch("https://primary-api.example.com/data"),
+  				{ maxAttempts: 3, baseDelayMs: 200 },
+  			);
+  		} catch {
+  			//기본 실패, 시도 fallback
+  			return await this.retry(
+  				() => fetch("https://fallback-api.example.com/data"),
+  				{ maxAttempts: 2 },
+  			);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### scheduling과 관련
+
+복구 할 수있는 긴 시간을 걸릴 수있는 작업 (분 또는 시간), 결합`this.retry()`즉시 retries를`this.schedule()`지연된 화물을 위해:
+
+<TypeScriptExample>
+  ```ts
+  class MyAgent extends Agent {
+  	async syncData(payload: { source: string; attempt?: number }) {
+  		const attempt = payload.attempt ?? 1;
+
+  		try {
+  			//일시적인 실패 (둘째)
+  			await this.retry(() => this.fetchAndProcess(payload.source), {
+  				maxAttempts: 3,
+  				baseDelayMs: 1000,
+  			});
+  		} catch (e) {
+  			if (attempt >= 5) {
+  				console.error("Giving up after 5 scheduled attempts");
+  				return;
+  			}
+
+  			//더 긴 정전을 위해 5 분 안에 재량 일정
+  			const delaySeconds = 300 * attempt;
+  			await this.schedule(delaySeconds, "syncData", {
+  				source: payload.source,
+  				attempt: attempt + 1,
+  			});
+  			console.log(`Scheduled retry ${attempt + 1} in ${delaySeconds}s`);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 제한 사항
+
+- **죽은 편지 수 없습니다.**&#xD560;당되거나 예정된 작업이 모든 재발 시도를 실패하면 제거됩니다. 실패한 작업을 추적해야 할 경우 자신의 지속력을 구현하십시오.
+- **Retry 지연은 대리인을 막습니다.**&#xBC31;오프 지연 도중, 튼튼한 목표는 awake 그러나 idle입니다. 짧은 지연을 위해 (3 초 미만) 이것은 괜찮습니다. 더 긴 회복 시간을 위해, 사용`this.schedule()`대신.
+- **Queue retries는 헤드 라인 차단입니다.**&#x51;ueue 항목은 순차적으로 처리됩니다. 1개의 품목이 긴 지연으로 retried 경우에, 그것은 모든 후에 품목을 막습니다. 독립 재량 행동이 필요한 경우, 사용`this.retry()`per-task retry 옵션 대신 콜백 내부`queue()`.
+- **회로 차단기 없음.**&#xB9AC;트리 시스템은 전화의 실패율을 추적하지 않습니다. 서비스가 지속되는 경우, 각 작업은 독립적으로 예산을 배출합니다.
+- **`shouldRetry`이용 가능`this.retry()`.**&#xB354; 보기`shouldRetry`predicate는 사용될 수 없습니다`schedule()`또는`queue()`함수는 데이터베이스에 serialized 할 수 없기 때문에. 예정된 작업의 경우, 콜백 자체 내부의 비거유 오류를 처리합니다.
+
+## 다음 단계
+
+<LinkCard title="일정 작업" href="/agents/api-reference/schedule-tasks/" description="미래의 실행에 대한 일정 작업." />
+
+<LinkCard title="Queue 작업" href="/agents/api-reference/queue-tasks/" description="즉각적인 처리를위한 배경 작업 큐." />
+
+<LinkCard title="Workflows 실행" href="/agents/api-reference/run-workflows/" description="자동적인 retries로 가공하는 튼튼한 다 단계." />

@@ -1,0 +1,237 @@
+---
+reviewed: 2024-09-30T00:00:00.000Z
+category: Zero Trust
+difficulty: Advanced
+pcx_content_type: tutorial
+title: Workers로 SSO 속성을 전송
+tags:
+  - SSO
+description: >-
+  이 튜토리얼은 Cloudflare의 Single-sign-on (SSO) 기능을 확장하여 수행됩니다. 서버 컴퓨팅 플랫폼과의 액세스,
+  Cloudflare Workers.
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/extend-sso-with-workers/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/extend-sso-with-workers/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import {
+	Render,
+	GlossaryTooltip,
+	PackageManagers,
+	WranglerConfig,
+} from "~/components";
+
+이 튜토리얼은 Single-sign-on (SSO) 기능 확장을 통해 수행됩니다.[사이트맵 오시는 길](/cloudflare-one/access-controls/policies/)serverless 컴퓨팅 플랫폼과 함께[Cloudflare Workers](/workers/). 구체적으로, 이 가이드는 Cloudflare Access 인증 이벤트에서 추가 정보를 포함하기 위해 보안 된 원산지에 전송 된 요청을 수정하는 방법을 설명합니다.
+
+**완료 시간:**&#x34;5 분
+
+## 인증 흐름
+
+[사이트맵 오시는 길](/cloudflare-one/access-controls/policies/)사용자가 응용 프로그램에 연결하기 전에 사용자의 정체성을 검증하는 인증 프록시입니다. 아래 다이어그램에 표시된 것처럼, Access inserts a[사이트맵](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/)요청으로, 그런 다음[견적 요청](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/#validate-jwts)Origin 서버에 의해.
+
+![Access 애플리케이션에 대한 표준 인증 흐름](~/assets/images/cloudflare-one/applications/access-standard-flow.png)
+
+Cloudflare Worker를 사용하여 추가 HTTP 헤더를 요청할 수 있습니다. 이 예제에서, 우리는 추가합니다[장치 posture 속성](/cloudflare-one/reusable-components/posture-checks/#enforce-device-posture) `firewall_activated`·`disk_encrypted`, 그러나 Cloudflare Access가 인증 이벤트에서 수집 한 속성을 포함 할 수 있습니다.
+
+![확장 인증 흐름은 추가 요청 헤더를 전달하기 위해 노동자를 사용합니다.](~/assets/images/cloudflare-one/applications/access-extended-flow-serverless.png)
+
+## 이름 \*
+
+이 접근법은 다음과 같습니다:
+
+- **보안 강화:**&#xC778;증 이벤트에서 추가 정보를 통합함으로써 더 강력한 보안 조치를 구현할 수 있습니다. 예를 들어, 장치 준수에 따라 액세스 권한을 시행하기 위해 장치 자세 데이터를 사용할 수 있습니다.
+- **사용자 경험 향상:**&#xC0AC;용자 속성을 기반으로 맞춤 콘텐츠 또는 기능을 통해 사용자 경험을 개인화 할 수 있습니다. 예를 들어, 사용자의 역할 또는 위치에 따라 다른 콘텐츠를 표시 할 수 있습니다.
+- **개발 단순화:**&#x43;loudflare Workers를 사용함으로써 Cloudflare Access 구성을 쉽게 확장할 수 있습니다.
+
+## 시작하기 전에
+
+- 추가하기[자체 호스팅 응용](/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/)Cloudflare 액세스.
+- 이름 \*[Disk 암호화](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/disk-encryption/)·[비밀번호](/cloudflare-one/reusable-components/posture-checks/warp-client-checks/firewall/)장치 자세 검사.
+- 설치하기[사이트맵](/workers/wrangler/install-and-update/)당신의 국부적으로 기계에.
+
+## 1. 노동자 만들기
+
+1. 새로운 Workers 프로젝트 만들기:
+
+   <PackageManagers type="create" pkg="cloudflare@latest" args={"device-posture-worker"} />
+
+   <Render
+     file="c3-post-run-steps"
+     product="workers"
+     params={{
+     		category: "hello-world",
+     		type: "Worker only",
+     		lang: "JavaScript",
+     	}}
+   />
+
+2. 프로젝트 디렉토리로 변경:
+
+   ```sh
+   $ cd device-posture-worker
+   ```
+
+3. 다음 코드를 복사`src/index.js`. 교체해야 합니다`<your-team-name>`Zero Trust로<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>.
+
+   ```js title="index.js"
+   import { parse } from "cookie";
+   export default {
+   	async fetch(request, env, ctx) {
+   		//쿠키의 이름
+   		const COOKIE_NAME = "CF_Authorization";
+   		const CF_GET_IDENTITY =
+   			"https://<your-team-name>.cloudflareaccess.com/cdn-cgi/access/get-identity";
+   		const cookie = parse(request.headers.get("Cookie") || "");
+   		if (cookie[COOKIE_NAME] != null) {
+   			try {
+   				let id = await (await fetch(CF_GET_IDENTITY, request)).json();
+   				let diskEncryptionStatus = false;
+   				let firewallStatus = false;
+
+   				for (const checkId in id.devicePosture) {
+   					const check = id.devicePosture[checkId];
+   					if (check.type === "disk_encryption") {
+   						console.log(check.type);
+   						diskEncryptionStatus = check.success;
+   					}
+   					if (check.type === "firewall") {
+   						console.log(check.type);
+   						firewallStatus = check.success;
+   						break;
+   					}
+   				}
+   				//clone 요청 (즉시) 및 새로운 헤더 설정의 자세 값을 삽입
+   				let newRequest = await new Request(request);
+   				newRequest.headers.set(
+   					"Cf-Access-Firewall-Activated",
+   					firewallStatus,
+   				);
+   				newRequest.headers.set("Cf-Access-Disk-Encrypted", firewallStatus);
+
+   				//관련 링크
+   				return await fetch(newRequest);
+   			} catch (e) {
+   				console.log(e);
+   				return await fetch(request);
+   			}
+   		}
+   		return await fetch(request);
+   	},
+   };
+   ```
+
+## 2. 사용자의 ID 보기
+
+스크립트에`index.js`사용 방법[`get-identity`](/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/application-token/#user-identity)Cloudflare Access 인증 이벤트에서 사용자의 완전한 정체성을 잡아라. 사용 가능한 데이터 필드 목록을 보려면 액세스 응용 프로그램 및 append에 로그인하십시오.`/cdn-cgi/access/get-identity`URL로. 예를 들어,`www.example.com`오시는 길`https://www.example.com/cdn-cgi/access/get-identity`.
+
+아래는 사용자 정체성의 예입니다.`disk_encryption`·`firewall`자주 묻는 질문 Worker는 요청 헤더로 자세 검사 결과를 삽입합니다.**Cf-Access-Firewall 활성화**·**Cf-Access-Disk 암호화**.
+
+```json title="Example user identity" {33,52}
+{
+  "id": "P51Tuu01fWHMBjIBvrCK1lK-eUDWs2aQMv03WDqT5oY",
+  "name": "John Doe",
+  "email": "john.doe@cloudflare.com",
+  "amr": [
+    "pwd"
+  ],
+  "oidc_fields": {
+    "principalName": "XXXXXX_cloudflare.com#EXT#@XXXXXXcloudflare.onmicrosoft.com"
+  },
+  "groups": [
+    {
+      "id": "fdaedb59-e9be-4ab7-8001-3e069da54185",
+      "name": "XXXXX"
+    }
+  ],
+  "idp": {
+    "id": "b9f4d68e-dac1-48b0-b728-ae05a5f0d4b2",
+    "type": "azureAD"
+  },
+  "geo": {
+    "country": "FR"
+  },
+  "user_uuid": "ce40d564-c72f-475f-a9b8-f395f19ad986",
+  "account_id": "121287a0c6e6260ec930655e6b39a3a8",
+  "iat": 1724056537,
+  "devicePosture": {
+    "f6f9391e-6776-4878-9c60-0cc807dc7dc8": {
+      "id": "f6f9391e-6776-4878-9c60-0cc807dc7dc8",
+      "schedule": "5m",
+      "timestamp": "2024-08-19T08:31:59.274Z",
+      "description": "",
+      "type": "disk_encryption",
+      "check": {
+        "drives": {
+          "C": {
+            "encrypted": true
+          }
+        }
+      },
+      "success": false,
+      "rule_name": "Disk Encryption - Windows",
+      "input": {
+        "requireAll": true,
+        "checkDisks": []
+    },
+    "a0a8e83d-be75-4aa6-bfa0-5791da6e9186": {
+      "id": "a0a8e83d-be75-4aa6-bfa0-5791da6e9186",
+      "schedule": "5m",
+      "timestamp": "2024-08-19T08:31:59.274Z",
+      "description": "",
+      "type": "firewall",
+      "check": {
+        "firewall": false
+      },
+      "success": false,
+      "rule_name": "Local Firewall Check - Windows",
+      "input": {
+        "enabled": true
+      }
+    }
+    ...
+  }
+```
+
+## 3. 당신의 신청에 노동자를 루트
+
+내 계정[Wrangler 구성 파일](/workers/wrangler/configuration/), [경로 설정](/workers/configuration/routing/routes/)그 maps the Worker to your Access 애플리케이션 도메인:
+
+<WranglerConfig>
+  ```jsonc
+  {
+  	"route": {
+  		"pattern": "app.example.com/*",
+  		"zone_name": "example.com"
+  	}
+  }
+  ```
+</WranglerConfig>
+
+## 4. 노동자를 배포
+
+```sh
+npx wrangler deploy
+```
+
+노동자는 지금 삽입할 것입니다**Cf-Access-Firewall 활성화**·**Cf-Access-Disk 암호화**응용 프로그램의 액세스 정책을 통과하는 요청으로 헤더.
+
+```json title="Example request headers" {7,8}
+{
+	"headers": {
+		"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+		"Accept-Encoding": "gzip",
+		"Accept-Language": "en-US,en;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-GB;q=0.6",
+		"Cf-Access-Authenticated-User-Email": "John.Doe@cloudflare.com",
+		"Cf-Access-Disk-Encrypted": "false",
+		"Cf-Access-Firewall-Activated": "false",
+		"User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36"
+	}
+}
+```
+
+이 헤더가 Origin 서버에서 수신되는 것을 확인할 수 있습니다.

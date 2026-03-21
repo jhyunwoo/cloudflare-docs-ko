@@ -1,0 +1,141 @@
+---
+reviewed: 2025-09-26T00:00:00.000Z
+category: Zero Trust
+difficulty: Beginner
+pcx_content_type: tutorial
+title: 헤드리스 Linux 기계에 WARP 배포
+description: >-
+  이 튜토리얼은 Cloudflare WARP 클라이언트를 서비스 토큰과 설치 스크립트를 사용하여 헤드리스 Linux 장치에서 배포하는 방법을
+  설명합니다.
+tags:
+  - Linux
+translation_locale: ko-KR
+translation_source_html: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/warp-on-headless-linux/
+translation_source_md: >-
+  https://developers.cloudflare.com/cloudflare-one/tutorials/warp-on-headless-linux/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Render, GlossaryTooltip } from "~/components";
+
+이 튜토리얼은 배포하는 방법을 설명합니다.[Cloudflare WARP 클라이언트](/cloudflare-one/team-and-resources/devices/warp/)서비스 토큰과 설치 스크립트를 사용하여 Linux 장치에서. 이 배포 워크플로우는 headless 서버를 위해 설계되었습니다 - 즉, 보안 공급자 로그인에 대한 브라우저에 액세스하지 않는 서버 - 그리고 당신이 내장 프로세스를 완전히 자동화 할 수있는 상황에 대한. 장치가 ID 공급자를 통해 등록하지 않기 때문에,[ID 기반 정책](/cloudflare-one/traffic-policies/identity-selectors/)그리고 로깅은 사용할 수 없습니다.
+
+:::참조
+이 튜토리얼은 WARP를 엔드포인트 장치 에이전트로 배포하는 데 중점을 둡니다. WARP를 게이트웨이로 배포하려는 경우,[사이트맵 연결관 문서](/cloudflare-one/networks/connectors/cloudflare-tunnel/private-net/warp-connector/).
+:::
+
+## 자주 묻는 질문
+
+- [Cloudflare Zero Trust 계정](/cloudflare-one/setup/#create-a-zero-trust-organization)
+
+## 1. 서비스 토큰 만들기
+
+Zero Trust 조직에서 WARP 클라이언트를 등록하는 서비스 토큰에 완전히 자동화 된 배포. 동일한 토큰을 사용하여 여러 장치를 등록하거나 다른 장치에서 고유 한 토큰을 생성 할 수 있습니다.[device profile 설정](/cloudflare-one/team-and-resources/devices/warp/configure-warp/device-profiles/).
+
+서비스 토큰을 만들려면:
+
+<Render file="access/create-service-token" product="cloudflare-one" />
+
+## 2. 장치 등록 권한 구성
+
+장치 등록 권한은 Zero Trust 조직과 WARP를 등록할 수 있는 사용자 및 장치를 결정합니다.
+
+서비스 토큰을 사용하여 등록할 수 있도록:
+
+1. 내 계정[사이트맵 한국어](https://one.dash.cloudflare.com), 이동**팀 & 자원** > **제품정보**. 선택**회사연혁**탭.
+
+2. 내 계정**장치 등록 권한**, 선택**계정 관리**.
+
+3. 내 계정**회사연혁**탭, 선택**새로운 정책 만들기**. 새로운 탭은 정책 작성 페이지로 엽니다.
+
+4. 제품 정&#xBCF4;**- 연혁**, 선택*서비스 Auth*.
+
+5. 제품정보**옵션 정보**필드, 두 가지 옵션이 있습니다 : 모든 서비스 토큰을 허용 할 수 있습니다 (`Any Access Service Token`) 또는 특정 서비스 토큰 (`Service Token`). 예를 들면:
+
+   | 규칙 활동    | 규칙 유형 | 옵션 정보  | 제품정보           |
+   | -------- | ----- | ------ | -------------- |
+   | 서비스 Auth | 이름 \* | 서비스 토큰 | `<TOKEN-NAME>` |
+
+6. 자주 묻는 질문
+
+7. 바로가기**장치 등록 권한**그리고 새로 만든 정책을 권한을 부여합니다.
+
+8. 제품정보**제품 정보**.
+
+## 3. 설치 스크립트 만들기
+
+WARP 설치 및 등록을 자동화하는 쉘 스크립트를 사용할 수 있습니다. 다음 예제는 Ubuntu 24.04에서 WARP를 배포하는 방법을 보여줍니다.
+
+1. 터미널에서 새로운`.sh`텍스트 편집기를 사용하여 파일. 예를 들면:
+   ```sh
+   vim install_warp.sh
+   ```
+
+2. 제품정보`i`삽입 형태를 입력하고 다음 줄을 추가하십시오:
+
+   ```bash
+   #!/bin/bash
+   set -e
+
+   #WARP 클라이언트 다운로드 및 설치
+   function warp() {
+   		curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+   		echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+   		sudo apt-get update --assume-yes
+   		sudo apt-get install --assume-yes cloudflare-warp
+   }
+
+   #WARP 배포 매개 변수로 MDM 파일을 만듭니다.
+   function mdm() {
+   	sudo touch /var/lib/cloudflare-warp/mdm.xml
+   	cat > /var/lib/cloudflare-warp/mdm.xml << "EOF"
+   <dict>
+   		<key>auth_client_id</key>
+   		<string>88bf3b6d86161464f6509f7219099e57.access</string>
+   		<key>auth_client_secret</key>
+   		<string>bdd31cbc4dec990953e39163fbbb194c93313ca9f0a6e420346af9d326b1d2a5</string>
+   		<key>auto_connect</key>
+   		<integer>1</integer>
+   		<key>onboarding</key>
+   		<false/>
+   		<key>organization</key>
+   		<string>your-team-name</string>
+   		<key>service_mode</key>
+   		<string>warp</string>
+   </dict>
+   EOF
+   }
+
+   #주요 프로그램
+   warp
+   mdm
+   ```
+
+3. Debian 또는 RHEL / CentOS를 사용하는 경우 수정`warp()`함수 그래서 그것은 올바른 설치[WARP 패키지](https://pkg.cloudflareclient.com/)OS를 위해.
+
+4. 값 수정`mdm()`기능:
+   1. 제품 정보`auth_client_id`·`auth_client_secret`, 클라이언트 ID 및 클라이언트 비밀과 문자열 값을 교체[서비스 토큰](/cloudflare-one/tutorials/warp-on-headless-linux/#1-create-a-service-token).
+   2. 제품 정보`organization`, 교체`your-team-name`Zero Trust로<GlossaryTooltip term="team name">팀 이름</GlossaryTooltip>.
+   3. (선택) 다른 추가 또는 수정[WARP 배치 매개 변수](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/)p참고 자료s에 따라.
+
+5. 제품정보`esc`, 다음 유형`:x`자주 묻는 질문`Enter`저장 및 출구.
+
+## 4. WARP 설치
+
+예를 들어 스크립트를 사용하여 WARP를 설치하려면:
+
+1. 스크립트 실행 가능:
+
+   ```sh
+   chmod +x install_warp.sh
+   ```
+
+2. 스크립트를 실행:
+   ```sh
+   sudo ./install_warp.sh
+   ```
+
+WARP는 지금 안으로 저장된 윤곽 모수로 배치됩니다`/var/lib/cloudflare-warp/mdm.xml`. 분류[`auto_connect`](/cloudflare-one/team-and-resources/devices/warp/deployment/mdm-deployment/parameters/#auto_connect)WARP는 Zero Trust 조직에 자동으로 연결됩니다. 연결되면 장치가 나타납니다.[사이트맵 한국어](https://one.dash.cloudflare.com)이름 \***팀 & 자원** > **제품정보**자주 묻는 질문`non_identity@<team-name>.cloudflareaccess.com`.

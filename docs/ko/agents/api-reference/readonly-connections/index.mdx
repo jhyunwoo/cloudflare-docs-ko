@@ -1,0 +1,602 @@
+---
+title: readonly 연결
+pcx_content_type: concept
+sidebar:
+  order: 8
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/agents/api-reference/readonly-connections/'
+translation_source_md: >-
+  https://developers.cloudflare.com/agents/api-reference/readonly-connections/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+---
+import { TypeScriptExample } from "~/components";
+
+readonly 연결은 대리인 국가를 수정하는에서 특정 WebSocket 클라이언트를 제한하고 아직도 그(것)들을 수신하고 RPC 방법을 부릅니다.
+
+## 제품정보
+
+연결이 readonly로 표시될 때:
+
+- (주)**이름 \***&#xC11C;버의 상태 업데이트
+- (주)**전화 번호**국가를 수정하지 않는 RPC 방법
+- (주)**수 없습니다**이름 \*`this.setState()`— 클라이언트 측을 통해`setState()`을 통해`@callable()`호출 방법`this.setState()`내부적으로
+
+이것은 다음과 같은 시나리오에 유용합니다 :
+
+- **View-only 모드**: 만 관찰해야 할 사용자 만 수정하지 않아
+- **역할 기반 접근**: 사용자 역할에 따라 국가 수정 제한
+- **Multi-tenant 시나리오**: 일부 tenants는 읽기 전용 액세스가 있습니다.
+- **감사 및 감시 연결**: 시스템에 영향을 미치지 않는 관찰자
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, type Connection, type ConnectionContext } from "agents";
+
+  export class DocAgent extends Agent<Env, DocState> {
+  	shouldConnectionBeReadonly(connection: Connection, ctx: ConnectionContext) {
+  		const url = new URL(ctx.request.url);
+  		return url.searchParams.get("mode") === "view";
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+<TypeScriptExample>
+  ```ts
+  //클라이언트 - view-only 모드
+  const agent = useAgent({
+  	agent: "DocAgent",
+  	name: "doc-123",
+  	query: { mode: "view" },
+  	onStateUpdateError: (error) => {
+  		toast.error("You're in view-only mode");
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+## readonly로 연결 표시
+
+### 연결하기
+
+관련 제품`shouldConnectionBeReadonly`먼저 연결하면 각 연결을 평가합니다. 이름 \*`true`to mark 그것 readonly.
+
+<TypeScriptExample>
+  ```ts
+  export class MyAgent extends Agent<Env, State> {
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		const role = url.searchParams.get("role");
+  		return role === "viewer" || role === "guest";
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이 후크는 초기 상태가 클라이언트로 전송되기 전에 실행되므로 연결은 첫 번째 메시지에서만 읽습니다.
+
+### 언제든지
+
+제품 정보`setConnectionReadonly`연결의 readonly 상태를 동적으로 변경하려면:
+
+<TypeScriptExample>
+  ```ts
+  export class GameAgent extends Agent<Env, GameState> {
+  	@callable()
+  	async startSpectating() {
+  		const { connection } = getCurrentAgent();
+  		if (connection) {
+  			this.setConnectionReadonly(connection, true);
+  		}
+  	}
+
+  	@callable()
+  	async joinAsPlayer() {
+  		const { connection } = getCurrentAgent();
+  		if (connection) {
+  			this.setConnectionReadonly(connection, false);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 연결 toggle 그것의 자신의 상태를하자
+
+연결은 호출을 통해 자신의 readonly 상태를 toggle 할 수 있습니다. Viewers가 편집 모드로 선택할 수있는 lock/unlock UI에 유용합니다.
+
+<TypeScriptExample>
+  ```ts
+  import { Agent, callable, getCurrentAgent } from "agents";
+
+  export class CollabAgent extends Agent<Env, State> {
+  	@callable()
+  	async setMyReadonly(readonly: boolean) {
+  		const { connection } = getCurrentAgent();
+  		if (connection) {
+  			this.setConnectionReadonly(connection, readonly);
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+클라이언트에서:
+
+<TypeScriptExample>
+  ```ts
+  //readonly와 writable 사이 전환
+  await agent.call("setMyReadonly", [true]); //기타 제품
+  await agent.call("setMyReadonly", [false]); //다운로드
+  ```
+</TypeScriptExample>
+
+### 자주 묻는 질문
+
+제품 정보`isConnectionReadonly`연결의 현재 상태를 확인하려면:
+
+<TypeScriptExample>
+  ```ts
+  export class MyAgent extends Agent<Env, State> {
+  	@callable()
+  	async getPermissions() {
+  		const { connection } = getCurrentAgent();
+  		if (connection) {
+  			return { canEdit: !this.isConnectionReadonly(connection) };
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 클라이언트에서 오류 처리
+
+쓰기가 시도 된 방법에 따라 두 가지 방법으로 오류 표면 :
+
+- **고객 측`setState()`**— 서버는 보냅니다`cf_agent_state_error`이름 \* 핸들링`onStateUpdateError`콜백.
+- **`@callable()`계정 만들기**- RPC 호출은 오류로 거부합니다. 핸들링`try`/`catch`기타`agent.call()`.
+
+:::참조
+`onStateUpdateError`또한 불을 때`validateStateChange`Client-originated state update를 거부합니다.`"State update rejected"`). 이것은 모든 거부 된 국가 쓰기를 처리하는 데 유용 콜백을 만듭니다. 단지 오류가 없습니다.
+주요 특징
+
+<TypeScriptExample>
+  ```ts
+  const agent = useAgent({
+  	agent: "MyAgent",
+  	name: "instance",
+  	//클라이언트 측 setState()가 차단될 때 불
+  	onStateUpdateError: (error) => {
+  		setError(error);
+  	},
+  });
+
+  //불을 쓸 때 국가는 차단
+  try {
+  	await agent.call("updateSettings", [newSettings]);
+  } catch (e) {
+  	setError(e instanceof Error ? e.message : String(e)); //"연결은 읽기 전용"
+  }
+  ```
+</TypeScriptExample>
+
+첫번째 장소에 있는 오류를 보여주기 위하여, 편집 통제를 렌더링하기 전에 허가를 검사하십시오:
+
+```tsx
+function Editor() {
+	const [canEdit, setCanEdit] = useState(false);
+	const agent = useAgent({ agent: "MyAgent", name: "instance" });
+
+	useEffect(() => {
+		agent.call("getPermissions").then((p) => setCanEdit(p.canEdit));
+	}, []);
+
+	return <button disabled={!canEdit}>{canEdit ? "Edit" : "View Only"}</button>;
+}
+```
+
+## API 참고 자료
+
+### `shouldConnectionBeReadonly`
+
+연결이 읽을 때만 표시되어야 하는 경우에 overridable 걸이.
+
+| 제품 설명        | 제품정보                | 이름 \*              |
+| ------------ | ------------------- | ------------------ |
+| `connection` | `Connection`        | 연결 클라이언트           |
+| `ctx`        | `ConnectionContext` | 업그레이드 요청 포함        |
+| **기타 제품**    | `boolean`           | `true`readonly로 표시 |
+
+기본값: 반환`false`(모든 연결은 writable입니다).
+
+### `setConnectionReadonly`
+
+Mark 또는 unmark는 readonly로 연결합니다. 언제든지 호출 할 수 있습니다.
+
+| 제품 설명        | 제품정보         | 이름 \*                               |
+| ------------ | ------------ | ----------------------------------- |
+| `connection` | `Connection` | 업데이트                                |
+| `readonly`   | `boolean`    | `true`readonly (과태를 만들기 위하여:`true`) |
+
+### `isConnectionReadonly`
+
+연결이 현재 읽기만 하면 됩니다.
+
+| 제품 설명        | 제품정보         | 이름 \*          |
+| ------------ | ------------ | -------------- |
+| `connection` | `Connection` | 자주 묻는 질문       |
+| **기타 제품**    | `boolean`    | `true`자주 묻는 질문 |
+
+### `onStateUpdateError`(고객)
+
+전화 번호`AgentClient`·`useAgent`옵션. 서버가 상태 업데이트를 거부 할 때 호출됩니다.
+
+| 제품 설명   | 제품정보     | 이름 \*      |
+| ------- | -------- | ---------- |
+| `error` | `string` | 서버의 오류 메시지 |
+
+## 이름 \*
+
+### Query 매개 변수 기반 액세스
+
+<TypeScriptExample>
+  ```ts
+  export class DocumentAgent extends Agent<Env, DocumentState> {
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		const mode = url.searchParams.get("mode");
+  		return mode === "view";
+  	}
+  }
+
+  //클라이언트는 readonly 형태와 연결합니다
+  const agent = useAgent({
+  	agent: "DocumentAgent",
+  	name: "doc-123",
+  	query: { mode: "view" },
+  	onStateUpdateError: (error) => {
+  		toast.error("Document is in view-only mode");
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+### 역할 기반 액세스 제어
+
+<TypeScriptExample>
+  ```ts
+  export class CollaborativeAgent extends Agent<Env, CollabState> {
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		const role = url.searchParams.get("role");
+  		return role === "viewer" || role === "guest";
+  	}
+
+  	onConnect(connection: Connection, ctx: ConnectionContext) {
+  		const url = new URL(ctx.request.url);
+  		const userId = url.searchParams.get("userId");
+
+  		console.log(
+  			`User ${userId} connected (readonly: ${this.isConnectionReadonly(connection)})`,
+  		);
+  	}
+
+  	@callable()
+  	async upgradeToEditor() {
+  		const { connection } = getCurrentAgent();
+  		if (!connection) return;
+
+  		//권한 확인 (pseudo-code)
+  		const canUpgrade = await checkUserPermissions();
+  		if (canUpgrade) {
+  			this.setConnectionReadonly(connection, false);
+  			return { success: true };
+  		}
+
+  		throw new Error("Insufficient permissions");
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 관리자 대시보드
+
+<TypeScriptExample>
+  ```ts
+  export class MonitoringAgent extends Agent<Env, SystemState> {
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		//admins는 state를 수정할 수 있습니다.
+  		return url.searchParams.get("admin") !== "true";
+  	}
+
+  	onStateChanged(state: SystemState, source: Connection | "server") {
+  		if (source !== "server") {
+  			//국가 변경
+  			console.log(`State modified by connection ${source.id}`);
+  		}
+  	}
+  }
+
+  //Admin 클라이언트 (변경할 수 있습니다)
+  const adminAgent = useAgent({
+  	agent: "MonitoringAgent",
+  	name: "system",
+  	query: { admin: "true" },
+  });
+
+  //뷰어 클라이언트 (readonly)
+  const viewerAgent = useAgent({
+  	agent: "MonitoringAgent",
+  	name: "system",
+  	query: { admin: "false" },
+  	onStateUpdateError: (error) => {
+  		console.log("Viewer cannot modify state");
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+### 동적 권한 변경
+
+<TypeScriptExample>
+  ```ts
+  export class GameAgent extends Agent<Env, GameState> {
+  	@callable()
+  	async startSpectatorMode() {
+  		const { connection } = getCurrentAgent();
+  		if (!connection) return;
+
+  		this.setConnectionReadonly(connection, true);
+  		return { mode: "spectator" };
+  	}
+
+  	@callable()
+  	async joinAsPlayer() {
+  		const { connection } = getCurrentAgent();
+  		if (!connection) return;
+
+  		const canJoin = this.state.players.length < 4;
+  		if (canJoin) {
+  			this.setConnectionReadonly(connection, false);
+  			return { mode: "player" };
+  		}
+
+  		throw new Error("Game is full");
+  	}
+
+  	@callable()
+  	async getMyPermissions() {
+  		const { connection } = getCurrentAgent();
+  		if (!connection) return null;
+
+  		return {
+  			canEdit: !this.isConnectionReadonly(connection),
+  			connectionId: connection.id,
+  		};
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+클라이언트 측 React 성분:
+
+```tsx
+function GameComponent() {
+	const [canEdit, setCanEdit] = useState(false);
+
+	const agent = useAgent({
+		agent: "GameAgent",
+		name: "game-123",
+		onStateUpdateError: (error) => {
+			toast.error("Cannot modify game state in spectator mode");
+		},
+	});
+
+	useEffect(() => {
+		agent.call("getMyPermissions").then((perms) => {
+			setCanEdit(perms?.canEdit ?? false);
+		});
+	}, [agent]);
+
+	return (
+		<div>
+			<button onClick={() => agent.call("joinAsPlayer")} disabled={canEdit}>
+				Join as Player
+			</button>
+
+			<button
+				onClick={() => agent.call("startSpectatorMode")}
+				disabled={!canEdit}
+			>
+				Switch to Spectator
+			</button>
+
+			<div>{canEdit ? "You can modify the game" : "You are spectating"}</div>
+		</div>
+	);
+}
+```
+
+## 어떻게 작동합니까?
+
+readonly 상태는 WebSocket Hibernation API를 통해 persists 연결의 WebSocket 첨부 파일에 저장됩니다. flag는 namespaced 내부이므로 실수로 overwritten 할 수 없습니다.`connection.setState()`. 동일한 기계장치는에 의해 사용됩니다[Protocol 메시지 제어](/agents/api-reference/protocol-messages/)— 둘 다 깃발은 부착에서 안전하게 협력합니다. 이 수단:
+
+- **생존**— 플래그는 일관되고 복원 될 때 에이전트가 깨질 때
+- **자주 묻는 질문**- 연결 상태는 연결이 닫을 때 자동으로 삭제됩니다.
+- **영 오버헤드**- 데이터베이스 테이블 또는 쿼리 없음, 연결의 내장 첨부 파일
+- **사용자 코드에서 안전** — `connection.state`·`connection.setState()`readonly 플래그를 노출하거나 삭제하지 마십시오
+
+readonly 연결이 국가를 수정할 때, 서버 블록은 클라이언트 측에서 오는지 여부에 관계없이`setState()`또는 에서`@callable()`방법:
+
+```
+Client (readonly)                     Agent
+       │                                │
+       │  setState({ count: 1 })        │
+       │ ─────────────────────────────▶ │  Check readonly → blocked
+       │  ◀───────────────────────────  │
+       │  cf_agent_state_error          │
+       │                                │
+       │  call("increment")             │
+       │ ─────────────────────────────▶ │  increment() calls this.setState()
+       │                                │  Check readonly → throw
+       │  ◀───────────────────────────  │
+       │  RPC error: "Connection is     │
+       │              readonly"         │
+       │                                │
+       │  call("getPermissions")        │
+       │ ─────────────────────────────▶ │  getPermissions() — no setState()
+       │  ◀───────────────────────────  │
+       │  RPC result: { canEdit: false }│
+```
+
+### 읽는 것만 하고 제한하지 않습니다
+
+| - 연혁                                     | 허용?       |
+| ---------------------------------------- | --------- |
+| 국가 방송 수신                                 | 이름 \*     |
+| 이름 \*`@callable()`state를 쓰지 않는 방법        | 이름 \*     |
+| 이름 \*`@callable()`호출 방법`this.setState()` | **이름 \*** |
+| 클라이언트 측을 통해 국가 갱신을 보내십시오`setState()`     | **이름 \*** |
+
+시행은 내부에서 발생합니다.`setState()`이름 \* 시간 :`@callable()`메소드 호출`this.setState()`그리고 현재 연결 상황은 readonly, 프레임 워크는 던져`Error("Connection is readonly")`. 이것은 당신이 RPC 방법에서 수동 권한 검사를 필요로하지 않는 것을 의미합니다 - 국가를 쓰는 것은 읽기 전용 연결을 위해 자동적으로 차단됩니다.
+
+## 관광 명소
+
+### callables에 있는 부작용은 아직도 달립니다
+
+자주 묻는 질문`this.setState()`, 호출 할 수없는 시작에. 메서드가 state 쓰기 전에 부작용을 가지고 있다면, 그들은 여전히 실행됩니다:
+
+<TypeScriptExample>
+  ```ts
+  export class MyAgent extends Agent<Env, State> {
+  	@callable()
+  	async processOrder(orderId: string) {
+  		await sendConfirmationEmail(orderId); //readonly 연결을 위해 조차 실행하십시오
+  		await chargePayment(orderId); //실행하기
+  		this.setState({ ...this.state, orders: [...this.state.orders, orderId] }); //뚱 베어
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+이것을 피하기 위해, 부작용의 앞에 허가를 검사하거나 코드를 구조하십시오 그래서 국가 쓰기는 첫째로 옵니다:
+
+<TypeScriptExample>
+  ```ts
+  export class MyAgent extends Agent<Env, State> {
+  	@callable()
+  	async processOrder(orderId: string) {
+  		//쓰기 국가 첫째 — 즉시 읽기 전용 연결을 위해
+  		this.setState({ ...this.state, orders: [...this.state.orders, orderId] });
+  		//setState가 성공한 경우에만 부작용
+  		await sendConfirmationEmail(orderId);
+  		await chargePayment(orderId);
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 좋은 관행
+
+### 인증과 연계
+
+<TypeScriptExample>
+  ```ts
+  export class SecureAgent extends Agent<Env, State> {
+  	shouldConnectionBeReadonly(
+  		connection: Connection,
+  		ctx: ConnectionContext,
+  	): boolean {
+  		const url = new URL(ctx.request.url);
+  		const token = url.searchParams.get("token");
+
+  		//토큰을 검증하고 권한을 얻습니다.
+  		const permissions = this.verifyToken(token);
+  		return !permissions.canWrite;
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+### 명확한 사용자 의견 제공
+
+<TypeScriptExample>
+  ```ts
+  const agent = useAgent({
+  	agent: "MyAgent",
+  	name: "instance",
+  	onStateUpdateError: (error) => {
+  		//사용자 친화적 인 메시지
+  		if (error.includes("readonly")) {
+  			showToast("You are in view-only mode. Upgrade to edit.");
+  		}
+  	},
+  });
+  ```
+</TypeScriptExample>
+
+### UI 작업 전에 권한 확인
+
+```tsx
+function EditButton() {
+	const [canEdit, setCanEdit] = useState(false);
+	const agent = useAgent({
+		/*· ...*/
+	});
+
+	useEffect(() => {
+		agent.call("checkPermissions").then((perms) => {
+			setCanEdit(perms.canEdit);
+		});
+	}, []);
+
+	return <button disabled={!canEdit}>{canEdit ? "Edit" : "View Only"}</button>;
+}
+```
+
+### 접속 시도
+
+<TypeScriptExample>
+  ```ts
+  export class AuditedAgent extends Agent<Env, State> {
+  	onStateChanged(state: State, source: Connection | "server") {
+  		if (source !== "server") {
+  			this.audit({
+  				action: "state_update",
+  				connectionId: source.id,
+  				readonly: this.isConnectionReadonly(source),
+  				timestamp: Date.now(),
+  			});
+  		}
+  	}
+  }
+  ```
+</TypeScriptExample>
+
+## 제한 사항
+
+- Readonly 상태는 state 업데이트에만 적용됩니다.`setState()`
+- RPC 방법은 여전히 호출 할 수 있습니다 (필요한 경우 자신의 검사를 단순화)
+- readonly는 사용자 ID에 묶지 않는 per-connection 깃발입니다
+
+## 관련 자료
+
+- [저장 및 동기화 상태](/agents/api-reference/store-and-sync-state/)
+- [프로토콜 메시지](/agents/api-reference/protocol-messages/)— Binary-only 클라이언트에 대한 JSON 프로토콜 프레임을 억제 ( readonly과 결합 될 수 있음)
+- [웹소켓](/agents/api-reference/websockets/)
+- [자주 묻는 질문](/agents/api-reference/callable-methods/)

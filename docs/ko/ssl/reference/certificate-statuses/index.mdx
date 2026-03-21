@@ -1,0 +1,77 @@
+---
+pcx_content_type: reference
+title: 인증서 상태
+sidebar:
+  order: 8
+description: Initializing, Pending Validation, Active와 같은 단계를 포함해 Cloudflare SSL/TLS의 인증서 상태를 이해하세요. 대시보드나 명령줄에서 모니터링할 수 있습니다.
+---
+
+Certificate status는 각 인증서가 발급 프로세스의 어느 단계에 있는지를 보여줍니다.
+
+## 새 인증서
+
+새 인증서, 즉 [edge certificate](/ssl/edge-certificates/) 또는 [custom hostname](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/)에 사용되는 인증서를 주문하면, Cloudflare 글로벌 네트워크에 배포되는 과정에서 다음 여러 단계를 거칩니다.
+
+1. Initializing
+2. Pending Validation
+3. Pending Issuance
+4. Pending Deployment
+5. Active
+
+인증서를 발급하면 처음에는 **Pending Validation** 상태여야 하며, 검증이 완료되면 **Active**로 변경됩니다. 오류가 보이면 인증서를 검증하기 위해 사용자 또는 고객이 추가 작업을 수행해야 할 수 있습니다.
+
+인증서를 비활성화하면 **Deactivating** 상태가 된 다음 **Inactive** 상태가 됩니다.
+
+### 인증서 교체
+
+인증서를 교체할 때 **Pending Cleanup** 상태를 볼 수 있습니다. 기존 인증서는 대체 인증서가 성공적으로 발급될 때까지 삭제되지 않습니다. 이렇게 하면 인증서 교체 중에도 해당 호스트명의 TLS가 깨지지 않도록 보장합니다.
+
+새 인증서가 성공적으로 발급되고 활성화되면 이전 인증서의 상태는 **Pending Cleanup**에서 전환되고, 해당 인증서는 삭제됩니다.
+
+## Custom certificates
+
+[custom certificate](/ssl/edge-certificates/custom-certificates/)를 사용하고 있고 [zone status](/dns/zone-setups/reference/domain-status/)가 **Pending** 또는 **Moved**라면, 인증서 상태가 **Holding Deployment**일 수 있습니다.
+
+영역이 활성화되면 custom certificate는 자동으로 배포되며(**Active** 상태로도 전환됨), 이미 영역이 활성화된 상태에서 custom certificate를 업로드했다면 이 상태는 보이지 않습니다.
+
+## Staging certificates
+
+[staging environment](/ssl/edge-certificates/staging-environment/)에서 인증서를 생성하면 해당 staging certificate에는 별도의 상태 집합이 있습니다.
+
+- **Staging deployment**: **Pending Deployment**와 유사하지만 staging certificate용입니다.
+- **Staging active**: **Active**와 유사하지만 staging certificate용입니다.
+- **Deactivating**: staging certificate가 **Inactive** 상태가 되는 중입니다.
+- **Inactive**: staging certificate가 edge에는 없지만 필요하면 배포할 수 있습니다.
+
+## Client certificates
+
+[client certificates](/ssl/client-certificates/)를 사용하면 해당 client certificate에도 별도의 상태 집합이 있습니다.
+
+- **Active**: client certificate가 활성 상태입니다.
+- **Revoked**: client certificate가 폐기되었습니다.
+- **Pending Reactivation**: client certificate가 폐기되었지만 복원되는 중입니다.
+- **Pending Revocation**: client certificate가 활성 상태였지만 폐기되는 중입니다.
+
+---
+
+## 인증서 상태 모니터링
+
+### SSL/TLS
+
+[**Edge Certificates**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/edge-certificates) 페이지 또는 [Get Certificate Pack endpoint](/api/resources/ssl/subresources/certificate_packs/methods/get/)를 사용해 인증서 상태를 모니터링하세요.
+
+인증서 검증에 대한 자세한 내용은 [Domain Control Validation](/ssl/edge-certificates/changing-dcv-method/)을 참고하세요.
+
+### SSL for SaaS
+
+[**Custom Hostnames**](https://dash.cloudflare.com/?to=/:account/:zone/ssl-tls/custom-hostnames) 페이지 또는 [Custom Hostname Details endpoint](/api/resources/custom_hostnames/methods/get/)를 사용해 인증서 상태를 모니터링하세요.
+
+인증서 검증에 대한 자세한 내용은 [Issue and validate certificates](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/)를 참고하세요.
+
+### 명령줄 사용
+
+인증서를 보려면 `openssl` 또는 브라우저를 사용하세요. 아래 명령은 고객이 `app.example.com` 호스트명을 edge로 가리키기 전에 사용할 수 있습니다([검증이 완료되었다는 전제](/cloudflare-for-platforms/cloudflare-for-saas/security/certificate-management/issue-and-validate/)).
+
+```sh
+openssl s_client -servername app.example.com -connect $CNAME_TARGET:443 </dev/null 2>/dev/null | openssl x509 -noout -text | grep app.example.com
+```

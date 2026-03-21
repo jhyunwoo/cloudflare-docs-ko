@@ -1,0 +1,47 @@
+---
+summary: >-
+  Modify the fetch request to follow redirects from the origin, ensuring the
+  client receives the final response.
+tags:
+  - Redirects
+products:
+  - snippets
+pcx_content_type: example
+title: 본문 바로가기
+description: 클라이언트가 최종 응답을받을 수 있도록 원래의 리디렉션을 따르는 fetch 요청을 수정합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/rules/snippets/examples/follow-redirects/'
+translation_source_md: >-
+  https://developers.cloudflare.com/rules/snippets/examples/follow-redirects/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+```js wrap
+export default {
+	async fetch(request) {
+		//리디렉션을 따르는 fetch 옵션 정의
+		const fetchOptions = {
+			redirect: "follow", //fetch는 자동으로 리디렉션합니다. 리디렉션 체인의 각 하위 요청은 하위 요청 제한에 대해 계산합니다.
+		};
+
+		//원래에 fetch 요청을 만드십시오
+		const response = await fetch(request, fetchOptions);
+
+		//리디렉션 후 최종 URL을 로그 (옵션, 디버깅)
+		console.log(`Final URL after redirects: ${response.url}`);
+
+		//클라이언트에게 최종 응답을 반환
+		return response;
+	},
+};
+```
+
+이 템플릿은 사용 준비가되어 있으며 대부분의 리디렉션을 준수해야합니다.
+
+그것은 Snippet을 투명하게 다음과 같은 원래 서버에서 발행 된 리디렉션을 보장합니다. 더 보기`redirect: "follow"`옵션의[페치 API](/workers/runtime-apis/fetch/)자동 취급 보장`3xx`리디렉션, 최종 응답 반환. 원래 내용이 리디렉션되지 않은 경우, 원래 내용이 반환됩니다.
+
+:::참조
+스니펫에는[invocation 당 최대 잠수함](/rules/snippets/#availability)계획에 따라 달라집니다. 원래 서버가 여러 리디렉션을 문제한다면, 각 리디렉션은 이 제한을 통해 계산됩니다. subrequests의 수가 Cloudflare 계획에 대한 제한을 초과 할 때, 당신은 받게됩니다[1202 오류](/rules/snippets/errors/#error-1202-snippets-exceeded-subrequests-limit). 당신의 근원 윤곽은 불필요한 리디렉션을 극소화합니다.
+주요 특징

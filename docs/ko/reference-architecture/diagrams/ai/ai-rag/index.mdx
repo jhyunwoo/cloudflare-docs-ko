@@ -1,0 +1,68 @@
+---
+title: Retrieval 증강 발생 (RAG)
+pcx_content_type: reference-architecture-diagram
+tags:
+  - AI
+products:
+  - ai-search
+  - d1
+  - queues
+  - vectorize
+  - workers
+  - workers-ai
+sidebar:
+  order: 1
+  label: Retrieval 증강 발생 (RAG)
+reviewed: 2024-03-18T00:00:00.000Z
+description: >-
+  RAG는 더 나은 텍스트에 대한 유전적 모델과 재평가를 결합합니다. Chatbots와 같은 NLP 작업의 일관성과 정확성을 개선하는 사실,
+  관련 응답을 만드는 외부 지식을 사용합니다.
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/reference-architecture/diagrams/ai/ai-rag/'
+translation_source_md: >-
+  https://developers.cloudflare.com/reference-architecture/diagrams/ai/ai-rag/index.md
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Retrieval-Augmented Generation (RAG)는 자연적인 언어 처리에 있는 혁신적인 접근법으로, 텍스트 생성을 강화하기 위하여 종합적인 모형을 가진 retrieval 메커니즘을 통합합니다.
+
+기존 소스에서 외부 지식을 통합함으로써 RAG는 컨텍스트 및 정보 텍스트를 생성하는 도전을 해결합니다. 이 통합은 RAG가 기존의 유전 모델의 한계를 극복하여 생성된 텍스트가 실제로 정보와 컨텍스트에 기반을 둔다. RAG는 효율적인 검색 및 통합하여 정보의 문제를 해결하는 것을 목표로, 생성 된 텍스트로 가장 관련 정보를 통합, 향상된 일관성과 정확성을 선도. 전체적으로 RAG는 NLP의 중요한 발전을 나타내며 텍스트 생성에 더 강력하고 정교하게 접근할 수 있습니다.
+
+이 기술의 응용 프로그램에 대한 예는 지원 요청에 응답하기 위해 지식 베이스를 사용하는 인스턴스 고객 서비스 채팅 봇이 포함되어 있습니다.
+
+Retrieval-Augmented Generation (RAG)의 컨텍스트에서, 지식 묘목은 사전 노출 소스에서 유전 공정으로 외부 정보를 통합하고, 쿼리는 이러한 소스에서 관련된 지식의 메커니즘을 참조하여 일관성과 정적 정확한 텍스트의 생성을 알 수 있습니다. 둘 다 아래에 표시됩니다.
+
+:::노트\[관리 옵션에 대해 찾고?]
+[AI 검색](/ai-search/)Cloudflare에 RAG 파이프라인을 건설하는 완벽한 관리 방법, ingestion, 색인을 붙이고, 상자에서 조회.[시작하기 와 AI 검색](/ai-search/get-started/).
+:::
+
+## 지식 Seeding
+
+![그림 1: 지식 묘목](~/assets/images/reference-architecture/rag-ref-architecture-diagrams/rag-architecture-seeding.svg "Figure 1: Knowledge seeding")
+
+1. **고객 업로드**: API endpoint에 문서와 POST 요청을 보냅니다.
+2. **입력 처리**: 사용방법[모델 번호: Workers](/workers/)메시지 보내기[모델 번호: Queues](/queues/)처리 backlog를 추가합니다.
+3. **일괄 처리**: 사용[모델 번호: Queues](/queues/)트리거하기[회사 소개](/queues/reference/how-queues-works/#consumers)일괄 처리에 입력 문서를 처리하여 다운스트림 하중을 방지합니다.
+4. **임베딩 세대**: 호출하여 embedding 벡터 생성[모델 번호: Workers AI](/workers-ai/) [텍스트 embedding 모델](/workers-ai/models/)문서에 대한.
+5. **벡터 저장**: embedding 벡터를 삽입[모델 번호: Vectorize](/vectorize/).
+6. **문서 저장**: 문서 삽입[모델 번호: D1](/d1/)persistent 저장을 위해.
+7. **Ack/Retry 기계장치**: Signal Success/error by 사용[Queues 런타임 API](/queues/configuration/javascript-apis/#message)각 문서에 대한 소비자.[모델 번호: Queues](/queues/)필요한 경우 retries를 일정합니다.
+
+## 지식 Queries
+
+![그림 2 : 지식 쿼리](~/assets/images/reference-architecture/rag-ref-architecture-diagrams/rag-architecture-query.svg "Figure 2: Knowledge queries")
+
+1. **고객문의**: API endpoint에 쿼리 요청 보내기.
+2. **임베딩 세대**: 호출하여 embedding 벡터 생성[모델 번호: Workers AI](/workers-ai/) [텍스트 embedding 모델](/workers-ai/models/)자주 묻는 질문
+3. **벡터 검색**: 문의[모델 번호: Vectorize](/vectorize/)관련 벡터를 검색하는 쿼리의 벡터 표현을 사용하여.
+4. **문서 보기**: 관련 서류 검색[모델 번호: D1](/d1/)검색 결과에 근거[모델 번호: Vectorize](/vectorize/).
+5. **텍스트 생성**: 원본 쿼리와 검색된 문서 모두 전달[모델 번호: Workers AI](/workers-ai/) [텍스트 생성 모델](/workers-ai/models/)응답을 생성합니다.
+
+## 관련 자료
+
+- [튜토리얼: RAG AI 구축](/workers-ai/guides/tutorials/build-a-retrieval-augmented-generation-ai/)
+- [시작하기 와 AI 검색](/ai-search/get-started/)
+- [Workers AI : 텍스트 embedding 모델](/workers-ai/models/)
+- [Workers AI: 텍스트 생성 모델](/workers-ai/models/)

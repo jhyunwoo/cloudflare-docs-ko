@@ -1,0 +1,44 @@
+---
+pcx_content_type: concept
+title: 뚱 베어
+sidebar:
+  order: 6
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/ai-search/configuration/chunking/'
+translation_source_md: 'https://developers.cloudflare.com/ai-search/configuration/chunking/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+Chunking은 큰 데이터를 검색하기 전에 더 작은 세그먼트로 나누는 과정입니다. AI 검색 용도**재순환 chunking**, 자연 경계 (단점 또는 문장과 같은)에 콘텐츠를 깰, 다음 더 많은 것은 덩크가 너무 크면 분할.
+
+## recursive chunking는 무엇입니까?
+
+Recursive chunking tries 에 유지 chunks 의미:
+
+- **자연 경계에서 나누기:**&#xB2E8;락과 같은 문장.
+- **크기 확인:**&#x63;hunk가 너무 길면 (토큰 카운트에 따라), 그것은 더 작은 부품으로 다시 나뉩니다.
+
+이 방법, 펑크는 생각의 중간 문장을 절단하지 않고, embed and retrieve가 쉽습니다.
+
+## Chunking 통제
+
+AI 검색은 chunking 행동을 제어하는 데 도움이 두 가지 매개 변수를 노출:
+
+- **Chunk 크기**: 펑크 당 토큰 수. 옵션 범위는 모델에 따라 달라질 수 있습니다.
+- **프로젝트**: 인접한 펑크 사이에 overlapping 토큰의 비율.
+  - 최소 :`0%`
+  - 최대:`30%`
+
+이 설정은 색인 단계 동안 적용되며 데이터가 임베디드되고 VectorizeQ에 저장됩니다.
+
+## Choosing 펑크 크기 및 오버랩
+
+Chunking은 콘텐츠가 검색되고 얼마나 많은 컨텍스트가 세대 모델로 전달되는지 모두에 영향을 미칩니다. 이 외부에서 시도[chunk 시각화 도구](https://huggingface.co/spaces/m-ric/chunk_visualizer)다른 펑크 설정이 어떻게 보일 수 있는지 이해하는 데 도움이됩니다.
+
+### 추가 고려사항:
+
+- **벡터 색인 크기:**&#xB354; 작은 펑크 크기가 더 많은 펑크와 더 많은 총 벡터를 생성합니다. 더 알아보기[Vectorize 제한](/vectorize/platform/limits/)설정은 인덱스당 최대 허용된 벡터 내에서 유지됩니다.
+- **세대 모델 컨텍스트 창:**&#xC138;대 모델은 모든 retrieved chunks에 적합해야 하는 제한된 컨텍스트 창이 있습니다 (`topK` × `chunk size`), 사용자 쿼리 및 모델의 출력. 큰 펑크 또는 높은 topK 값으로주의하십시오.
+- **비용과 성과:**&#xB354; 큰 펑크와 더 높은 topK 설정 결과 모델로 전달 된 더 많은 토큰에, 이는 대기 시간과 비용을 증가시킬 수 있습니다. 이 사용법을 감시할 수 있습니다[AI 게이트웨이](/ai-gateway/).

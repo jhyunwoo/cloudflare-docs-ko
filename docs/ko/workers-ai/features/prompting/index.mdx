@@ -1,0 +1,88 @@
+---
+pcx_content_type: concept
+title: 관련 기사
+tags:
+  - AI
+sidebar:
+  order: 4
+translation_locale: ko-KR
+translation_source_html: 'https://developers.cloudflare.com/workers-ai/features/prompting/'
+translation_source_md: 'https://developers.cloudflare.com/workers-ai/features/prompting/index.md'
+translation_source_kind: repo-mdx
+translation_snapshot: '2026-03-13'
+translation_upstream_ref: 66ee2dcd3715f1ca46e70954a3cda63f6cbebc75
+
+---
+import { Code } from "~/components";
+
+export const scopedExampleOne = `{
+  messages: [
+    { role: "system", content: "you are a very funny comedian and you like emojis" },
+    { role: "user", content: "tell me a joke about cloudflare" },
+  ],
+};`;
+
+export const scopedExampleTwo = `{
+  messages: [
+    { role: "system", content: "you are a professional computer science assistant" },
+    { role: "user", content: "what is WASM?" },
+    { role: "assistant", content: "WASM (WebAssembly) is a binary instruction format that is designed to be a platform-agnostic" },
+    { role: "user", content: "does Python compile to WASM?" },
+    { role: "assistant", content: "No, Python does not directly compile to WebAssembly" },
+    { role: "user", content: "what about Rust?" },
+  ],
+};`;
+
+export const unscopedExampleOne = `{
+  prompt: "tell me a joke about cloudflare";
+}`;
+
+export const unscopedExampleTwo = `{
+  prompt: "<s>[INST]comedian[/INST]</s>\n[INST]tell me a joke about cloudflare[/INST]",
+  raw: true
+};`;
+
+텍스트 생성 모델에서 좋은 결과를 얻는 부분은 제대로 질문을합니다. LLMs는 보통 특정한 predefined 템플릿으로 훈련되고, 그 후에 inference 일을 할 때 더 나은 결과를 위한 모형의 Tokenizer로 사용되어야 합니다.
+
+Workers AI를 가진 신속한 원본 세대 모형에 2가지의 방법이 있습니다:
+
+:::주\[중요]
+LoRA와의 인터뷰를 위해 비경이 없는 프롬프트를 사용하는 것이 좋습니다.
+주요 특징
+
+### 스카프
+
+이것은<strong>뚱 베어</strong>방법. Workers AI는 다양한 모델에 대해 서로 다른 채팅 템플릿을 사용하여 알 수 있고 텍스트 생성 작업을 만들 때 개발자에게 통합 된 인터페이스를 제공합니다.
+
+Scoped prompts는 메시지 목록입니다. 각 메시지는 두 개의 키 정의: 역할과 내용.
+
+일반적으로 역할은 세 가지 옵션 중 하나 일 수 있습니다.
+
+- <strong>시스템</strong>- 시스템 메시지는 AI의 개성을 정의합니다. 당신은 할 수
+  그들을 사용하여 규칙을 설정하고 AI가 행동하는 것을 기대합니다.
+- <strong>사용자 이름</strong>- 사용자 메시지가 실제로 AI를 쿼리하는 곳
+  질문이나 대화를 제공합니다.
+- <strong>지원하다</strong>- AI에 대한 Assistant 메시지
+  원하는 출력 형식. 모든 모델은이 역할을 지원합니다.
+
+OpenAI는[좋은 설명](https://platform.openai.com/docs/guides/text-generation#messages-and-roles)그들은 GPT 모델과 이러한 역할을 사용하는 방법. 채팅 템플릿이 유연하지만 다른 텍스트 생성 모델은 동일한 규칙을 따르는 경향이있다.
+
+다음은 시스템 및 사용자 역할과 같은 범위의 프롬프트의 입력 예입니다.
+
+<Code code={scopedExampleOne} lang="js" />
+
+사용자와 조수 사이의 여러 반복을 사용하여 채팅 세션의 더 나은 예입니다.
+
+<Code code={scopedExampleTwo} lang="js" />
+
+다른 LLMs는 다른 사용 케이스를 위한 다른 템플렛으로 훈련됩니다. Workers AI는 개발자에서 통합된 API를 통해 각 LLM 템플릿의 특정 부분을 요약하는 것이 가장 좋습니다. 예를 들어, Codellama와 같은 Instruct 모델은 사용자 정의 된 명령에 응답하는 것이 좋습니다. 채팅 모델은 입력으로 대화 상자의 조각을 기대합니다.
+
+### Unscoped 경고
+
+당신은 어떤 맥락을 제공하지 않고 모델에 단일 질문을 보낼 수 있습니다. Workers AI는 자동으로 변환됩니다`prompt`합리적인 기본 범위의 신속한 내부로 입력하여 최대한의 예측을 얻을 수 있습니다.
+
+<Code code={unscopedExampleOne} lang="js" />
+
+모델 채팅 템플릿을 수동으로 구성하는 unscoped prompts도 사용할 수 있습니다. 이 경우 원시 매개 변수를 사용할 수 있습니다. 여기에 입력 예입니다.[미스트리아](https://docs.mistral.ai/models/#chat-template)채팅 템플릿 프롬프트:
+
+<Code code={unscopedExampleTwo} lang="js" />

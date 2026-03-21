@@ -1,0 +1,145 @@
+---
+pcx_content_type: concept
+title: JSON Web Tokens validation
+sidebar:
+  order: 6
+---
+
+import {
+	GlossaryTooltip,
+	Steps,
+	Tabs,
+	TabItem,
+	Render,
+	DashButton,
+} from "~/components";
+
+{/* prettier-ignore */}
+<GlossaryTooltip term="JSON web token (JWT)">JSON web tokens (JWT)</GlossaryTooltip>는 오늘날 많은 웹 애플리케이션의 인증 구성 요소에서 자주 사용됩니다. JWT는 사용자와 그 접근 권한을 식별하는 데 매우 중요하므로, 토큰의 무결성을 보장하는 것이 중요합니다.
+
+API Shield의 JWT validation은 들어오는 JWT를 API origin으로 전달하기 전에 암호학적으로 검증함으로써 JWT 재사용 공격과 JWT 변조를 차단합니다. JWT validation은 만료된 토큰이나 아직 유효하지 않은 토큰을 포함한 요청도 차단합니다.
+
+## 프로세스
+
+JWT validation이 엔드포인트를 보호하려면, 해당 엔드포인트가 [Endpoint Management](/api-shield/management-and-monitoring/)에 추가되어 있어야 합니다.
+
+JWT validation 구성은 JWT signer의 공개 JSON Web Key Set(JWKS)를 추가해 token validation configuration을 생성하고, 어떤 호스트명과 엔드포인트를 validation 대상에 포함할지 지정하는 JWT validation rule을 만드는 것으로 이루어집니다.
+
+### Token validation configuration 추가
+
+{/* prettier-ignore-start */}
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="New dashboard" icon="rocket">
+    <Steps>
+      1. In the Cloudflare dashboard, go to the **Security Settings** page.
+
+          <DashButton url="/?to=/:account/:zone/security/settings" />
+      2. Filter by **API abuse**.
+      3. On **Token configurations**, select **Configure tokens**.
+      4. Add a name for your configuration.
+      5. Choose where Cloudflare can locate the JWT for this configuration on incoming requests, such as a header or cookie and its name.
+      6. Copy and paste your JWT issuer's public key(s) (JWKS).
+    </Steps>
+  </TabItem>
+  <TabItem label="Old dashboard">
+    <Steps>
+      1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/login), and select your account and domain.
+      2. Go to **Security** > **API Shield** > **Settings**.
+      3. Under **JSON Web Token Settings**, select **Add configuration**.
+      4. Add a name for your configuration.
+      5. Choose where Cloudflare can locate the JWT for this configuration on incoming requests, such as a header or cookie and its name.
+      6. Copy and paste your JWT issuer's public key(s) (JWKS).
+    </Steps>
+  </TabItem>
+</Tabs>
+
+{/* prettier-ignore-end */}
+
+각 JWT issuer는 일반적으로 인터넷의 알려진 URL에 검증용 공개 키(JWKS)를 게시합니다. 해당 위치를 모른다면 identity administrator에게 문의하세요.
+
+identity provider가 키를 갱신할 때 JWKS를 자동으로 최신 상태로 유지하려면 Worker를 사용할 수 있습니다. [Configure Workers to automatically update keys](/api-shield/security/jwt-validation/jwt-worker/)를 참고해 Worker 설정 방법을 알아보세요.
+
+### JWT validation rule 추가
+
+{/* prettier-ignore-start */}
+
+<Tabs syncKey="dashNewNav">
+  <TabItem label="New dashboard" icon="rocket">
+    <Steps>
+      1. In the Cloudflare dashboard, go to the **Security rules** page.
+
+          <DashButton url="/?to=/:account/:zone/security/security-rules" />
+      2. On API JWT validation rules, select **Create rule**.
+      3. Add a name for your rule.
+      4. Select a hostname to protect requests with saved endpoints using the rule.
+      5. Deselect any endpoints that you want JWT validation to ignore (for example, an endpoint used to generate a JWT).
+      6. Select the token validation configuration that corresponds to the incoming requests.
+      7. Choose whether to strictly enforce token presence on these endpoints.
+          - 모든 클라이언트가 요청에 JWT를 보낼 것이라고 기대하지 않을 수도 있습니다. 이 경우 *Ignore*를 선택하세요. JWT validation은 존재하는 JWT는 계속 검증합니다.
+          - 반대로 선택한 호스트명과 엔드포인트의 모든 요청에 JWT가 포함되어야 한다고 예상한다면 *Mark as non-compliant*를 선택하세요.
+      8. Choose an action to take for non-compliant requests. For example, JWTs that do not pass validation (expired, tampered with, or bad signature tokens) or requests with missing JWTs when *Mark as non-compliant* is selected in the previous step.
+      9. Select **Save**.
+    </Steps>
+  </TabItem>
+  <TabItem label="Old dashboard">
+    <Steps>
+      1. Log in to the [Cloudflare dashboard](https://dash.cloudflare.com/login), and select your account and domain.
+      2. Go to **Security** > **API Shield** > **API Rules**.
+      3. Add a name for your rule.
+      4. Select a hostname to protect requests with saved endpoints using the rule.
+      5. Deselect any endpoints that you want JWT validation to ignore (for example, an endpoint used to generate a JWT).
+      6. Select the token validation configuration that corresponds to the incoming requests.
+      7. Choose whether to strictly enforce token presence on these endpoints.
+          - 모든 클라이언트가 요청에 JWT를 보낼 것이라고 기대하지 않을 수도 있습니다. 이 경우 *Ignore*를 선택하세요. JWT validation은 존재하는 JWT는 계속 검증합니다.
+          - 반대로 선택한 호스트명과 엔드포인트의 모든 요청에 JWT가 포함되어야 한다고 예상한다면 *Mark as non-compliant*를 선택하세요.
+      8. Choose an action to take for non-compliant requests. For example, JWTs that do not pass validation (expired, tampered with, or bad signature tokens) or requests with missing JWTs when *Mark as non-compliant* is selected in the previous step.
+      9. Select **Save**.
+    </Steps>
+  </TabItem>
+</Tabs>
+
+{/* prettier-ignore-end */}
+
+:::note
+
+Token configuration rules는 해당 규칙과 매치되는 엔드포인트가 Endpoint Management에 새로 추가되면 자동으로 적용됩니다.
+:::
+
+---
+
+## 특수 사례
+
+### 하나의 요청에서 서로 다른 identity provider의 JWT 두 개 검증하기
+
+서로 다른 JWT 두 개가 하나의 요청에 존재해야 하고 둘 다 검증하고 싶다면, 서로 다른 두 개의 token configuration을 만들어야 합니다. validation rule에서 두 configuration을 선택할 때 **Validation behavior for multiple configurations** 아래에서 _Validate all configurations_를 선택하세요.
+
+### 하나의 identity provider에서 다른 identity provider로의 마이그레이션 지원
+
+서로 다른 identity provider 사이를 마이그레이션할 예정이라면, 두 개의 token configuration과 각각에 대응하는 두 개의 validation rule을 만들어야 합니다. 이렇게 하면 마이그레이션 상태에 따라 서로 다른 validation rules의 action을 바꿀 수 있습니다.
+
+### `Bearer` prefix가 있는 JSON Web Tokens
+
+API Shield는 JSON Web Tokens에 `Bearer` prefix가 있든 없든 상관없이 검증합니다.
+
+<Render file="rate-limit-user" product="api-shield" />
+
+### `OPTIONS` pre-flight CORS 요청 무시
+
+cross-origin resource sharing(CORS) 보안 때문에 웹 브라우저는 API 엔드포인트에 `GET`(또는 다른 메서드) 요청을 보내기 전에 `OPTIONS` 메서드를 사용한 "pre-flight" 요청을 보냅니다. 정의상 `OPTIONS` 요청은 헤더나 쿠키를 포함하지 않으며 익명입니다.
+
+웹 브라우저가 API의 유효한 클라이언트일 것으로 예상하고, 이러한 브라우저의 `OPTIONS` 요청이 차단되지 않도록 하려면 Cloudflare는 JWT validation rules에 `or http.request.method eq "OPTIONS"`를 추가할 것을 권장합니다.
+
+---
+
+## 제공 대상
+
+JWT validation은 모든 API Shield 고객이 사용할 수 있습니다. API Shield를 구매하지 않은 Enterprise 고객은 Cloudflare dashboard에서 [API Shield as a non-contract service](https://dash.cloudflare.com/?to=/:account/:zone/security/api-shield)를 미리 보거나 계정 팀에 문의할 수 있습니다.
+
+---
+## 제한 사항
+
+현재 알려진 제한 사항은 다음과 같습니다.
+
+1. JWT validation은 클라이언트 요청 헤더나 쿠키로 전달된 JWT에만 동작합니다. 클라이언트가 JWT를 `POST` 본문에 담아 보낸다면, 이 피드백을 계정 팀에 전달하세요.
+2. JWT validation은 Endpoint Management에 추가된 <GlossaryTooltip term="API endpoint">endpoints</GlossaryTooltip>(host, method, path)에 대해서만 동작합니다. [API Discovery](/api-shield/management-and-monitoring/#add-endpoints-from-api-discovery), [Schema validation](/api-shield/management-and-monitoring/#add-endpoints-from-schema-validation), [Cloudflare dashboard에서 수동 추가](/api-shield/management-and-monitoring/#add-endpoints-manually), 또는 [API](/api/resources/api_gateway/subresources/operations/methods/create/)를 통해 모든 엔드포인트를 endpoint management에 추가할 수 있습니다.
